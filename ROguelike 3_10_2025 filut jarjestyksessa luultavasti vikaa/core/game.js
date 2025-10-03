@@ -2268,23 +2268,42 @@
             log(`- PERF last turn: ${PERF.lastTurnMs.toFixed(2)}ms, last draw: ${PERF.lastDrawMs.toFixed(2)}ms`, "info");
             requestDraw();
           },
-          onGodRunSmokeTest: () => {
-            // Reload the page with ?smoketest=1 so the loader injects the runner and it auto-runs
-            try {
-              const url = new URL(window.location.href);
-              url.searchParams.set("smoketest", "1");
-              // Preserve existing dev flag/state if set in localStorage
-              if (window.DEV || localStorage.getItem("DEV") === "1") {
-                url.searchParams.set("dev", "1");
+          onGodRunSmokeTest: async () => {
+            // Dynamically load the smoke test runner if not already loaded, then run 5 iterations with random seeds.
+            const ensureRunner = () => new Promise((resolve) => {
+              if (window.SmokeTest && typeof window.SmokeTest.run === "function") {
+                resolve(true);
+                return;
               }
-              log("GOD: Reloading with smoketest=1…", "notice");
-              window.location.href = url.toString();
+              try {
+                const s = document.createElement("script");
+                s.src = "ui/smoketest_runner.js";
+                s.defer = true;
+                s.onload = () => resolve(true);
+                s.onerror = () => resolve(false);
+                document.body.appendChild(s);
+              } catch (_) {
+                resolve(false);
+              }
+            });
+            const ok = await ensureRunner();
+            if (!ok || !(window.SmokeTest && typeof window.SmokeTest.runSeries === "function")) {
+              // Fallback: try single run if series not available
+              if (window.SmokeTest && typeof window.SmokeTest.run === "function") {
+                log("GOD: Running single smoke test (runner loaded without series).", "notice");
+                window.SmokeTest.run();
+              } else {
+                log("GOD: SmokeTest runner not available.", "warn");
+              }
+              return;
+            }
+            log("GOD: Running smoke test series (5 runs, random seeds)…", "notice");
+            try {
+              await window.SmokeTest.runSeries(5);
+              log("GOD: Smoke test series completed.", "good");
             } catch (e) {
               try { console.error(e); } catch (_) {}
-              try {
-                log("GOD: Failed to construct URL; reloading with ?smoketest=1", "warn");
-              } catch (_) {}
-              window.location.search = "?smoketest=1";
+              log("GOD: Smoke test series encountered an error.", "bad");
             }
           },
         });

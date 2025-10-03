@@ -1,6 +1,6 @@
 // Tiny Roguelike Smoke Test Runner
-// Loads when index.html?smoketest=1; runs a full scenario and reports pass/fail to Logger, console, and an on-screen banner.
-// Scenario: overworld -> dungeon -> spawn enemy -> kill -> loot -> exit to overworld -> enter town -> bump NPC -> GOD checks -> continue.
+// Loads when index.html?smoketest=1 OR injected dynamically; runs a full scenario and reports progress via Logger, console, and an on-screen banner.
+// Scenario: overworld -> dungeon -> spawn enemy -> kill -> loot -> exit to overworld -> enter town -> bump NPC -> GOD checks -> diagnostics.
 
 (function () {
   // Create a floating banner for smoke test progress
@@ -67,8 +67,19 @@
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  function randUint32() {
+    try {
+      const a = new Uint32Array(1);
+      if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+        crypto.getRandomValues(a);
+        return a[0] >>> 0;
+      }
+    } catch (_) {}
+    return ((Math.random() * 0xffffffff) >>> 0);
+  }
+
   async function attackUntilNoEnemyNearby(maxSteps = 40) {
-    // Move randomly around and attempt to bump/attack; stop early if enemy list shrinks to 0
+    // Move around and attempt to bump/attack; stop early if enemy list shrinks to 0
     for (let i = 0; i < maxSteps; i++) {
       const enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
       if (!enemies || enemies.length === 0) return true;
@@ -97,32 +108,28 @@
     return false;
   }
 
-  async function run() {
+  async function run(seed) {
     try {
-      log("Starting smoke test…", "notice");
+      const s = (typeof seed === "number") ? (seed >>> 0) : null;
+      log("Starting smoke test" + (s != null ? ` (seed ${s})` : "") + "…", "notice");
       // Step 1: open GOD panel
       await sleep(250);
       clickById("god-open-btn");
       log("Opened GOD panel", "info");
       await sleep(250);
 
-      // Step 2: set seed and enable crits for fast kill
-      setInputValue("god-seed-input", 12345);
+      // Step 2: set seed (random if not provided) and enable crits for fast kill
+      const useSeed = (s != null ? s : randUint32());
+      setInputValue("god-seed-input", useSeed);
       clickById("god-apply-seed-btn");
-      log("Applied seed 12345", "info");
+      log(`Applied seed ${useSeed}`, "info");
       await sleep(600);
       // Always Crit: On (head)
       try {
         clickById("god-toggle-crit-btn");
         await sleep(120);
-        // Choose head via chooser by simulating click on button data-part=head
         // Fallback: set part via localStorage
-        try {
-          const chooser = document.querySelector("#god-panel + div"); // chooser overlay might not be adjacent; fallback below
-          localStorage.setItem("ALWAYS_CRIT_PART", "head");
-        } catch (_) {
-          localStorage.setItem("ALWAYS_CRIT_PART", "head");
-        }
+        try { localStorage.setItem("ALWAYS_CRIT_PART", "head"); } catch (_) {}
       } catch (_) {}
       await sleep(200);
 
@@ -231,9 +238,23 @@
     }
   }
 
+  async function runSeries(times = 5) {
+    const count = Math.max(1, times | 0);
+    for (let i = 0; i < count; i++) {
+      const s = randUint32();
+      log(`Series run ${i + 1}/${count} — seed ${s}`, "notice");
+      await run(s);
+      // small pause between runs
+      await sleep(600);
+    }
+    log("Series complete.", "good");
+  }
+
   // Expose a global trigger
   window.SmokeTest = window.SmokeTest || {};
   window.SmokeTest.run = run;
+  window.SmokeTest.runWithSeed = (seed) => run(seed);
+  window.SmokeTest.runSeries = runSeries;
 
   // Auto-run conditions:
   // - If ?smoketest=1 param was set and script loaded during/after page load
@@ -242,14 +263,14 @@
     var params = new URLSearchParams(location.search);
     var shouldAuto = (params.get("smoketest") === "1") || (window.SMOKETEST_REQUESTED === true);
     if (document.readyState !== "loading") {
-      if (shouldAuto) { setTimeout(() => { run(); }, 400); }
+      if (shouldAuto) { setTimeout(() => { runSeries(5); }, 400); }
     } else {
       window.addEventListener("load", () => {
-        if (shouldAuto) { setTimeout(() => { run(); }, 800); }
+        if (shouldAuto) { setTimeout(() => { runSeries(5); }, 800); }
       });
     }
   } catch (_) {
     // Fallback: run on load if present
-    window.addEventListener("load", () => { setTimeout(() => { run(); }, 800); });
+    window.addEventListener("load", () => { setTimeout(() => { runSeries(5); }, 800); });
   }
 })();
