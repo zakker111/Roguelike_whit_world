@@ -895,6 +895,10 @@
   }
 
   
+  // Batch multiple draw requests within a frame to avoid redundant renders.
+  let _drawQueued = false;
+  let _rafId = null;
+
   function requestDraw() {
     const GL = modHandle("GameLoop");
     if (GL && typeof GL.requestDraw === "function") {
@@ -902,7 +906,24 @@
       return;
     }
     const R = modHandle("Render");
-    if (R && typeof R.draw === "function") {
+    if (!(R && typeof R.draw === "function")) return;
+
+    if (_drawQueued) return;
+    _drawQueued = true;
+    try {
+      _rafId = (typeof window !== "undefined" && window.requestAnimationFrame)
+        ? window.requestAnimationFrame(() => {
+            _drawQueued = false;
+            R.draw(getRenderCtx());
+          })
+        : null;
+      if (_rafId == null) {
+        // Fallback: if RAF not available, draw immediately
+        _drawQueued = false;
+        R.draw(getRenderCtx());
+      }
+    } catch (_) {
+      _drawQueued = false;
       R.draw(getRenderCtx());
     }
   }
@@ -1593,6 +1614,7 @@
 
   function showLootPanel(list) {
     if (window.UI && typeof UI.showLoot === "function") {
+      // Only request a redraw if the UI module actually opened/changed state
       UI.showLoot(list);
       requestDraw();
     }
@@ -1600,10 +1622,9 @@
 
   function hideLootPanel() {
     if (window.UI && typeof UI.hideLoot === "function") {
-      UI.hideLoot();
-      requestDraw();
-      return;
-    }
+      // Avoid redundant draw if panel was already hidden
+      if (!UI.isLootOpen || UI.isLootOpen()) {
+        UI.hide  }
     const panel = document.getElementById("loot-panel");
     if (!panel) return;
     panel.hidden = true;
@@ -1736,7 +1757,10 @@
     if (window.UI && typeof UI.renderInventory === "function") {
       // Keep totals in sync
       updateUI();
-      UI.renderInventory(player, describeItem);
+      // Avoid redundant DOM work if panel is not visible/open
+      if (!UI.isInventoryOpen || UI.isInventoryOpen()) {
+        UI.renderInventory(player, describeItem);
+      }
     }
   }
 
