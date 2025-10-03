@@ -2136,7 +2136,7 @@
   
   
   
-  if (window.UI && typeof UI.init ====== "function") {
+  if (window.UI && typeof UI.init === "function") {
       UI.init();
       if (typeof UI.setHandlers === "function") {
         UI.setHandlers({
