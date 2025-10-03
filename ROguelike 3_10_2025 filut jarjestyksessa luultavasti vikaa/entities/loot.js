@@ -193,6 +193,11 @@
       here.forEach(c => c.looted = true);
       if (here.some(c => c.kind === "chest")) ctx.log("The chest is empty.");
       else ctx.log("All corpses here have nothing of value.");
+      // Persist the looted state immediately and consume a turn,
+      // so revisiting the dungeon remembers emptied chests/corpses.
+      try { if (window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx); } catch (_) {}
+      if (typeof ctx.updateUI === "function") ctx.updateUI();
+      if (typeof ctx.turn === "function") ctx.turn();
       return;
     }
 
@@ -238,6 +243,15 @@
     ctx.updateUI();
     container.loot = [];
     container.looted = true;
+    // Persist dungeon state immediately so revisits remember emptied chest
+    try {
+      if (window.DungeonState && typeof DungeonState.save === "function") {
+        console.log("[TRACE] Loot: calling DungeonState.save after chest looted");
+        DungeonState.save(ctx);
+      } else {
+        console.log("[TRACE] Loot: DungeonState.save not available");
+      }
+    } catch (e) { console.log("[TRACE] Loot: DungeonState.save threw", e); }
 
     showLoot(ctx, acquired);
     ctx.log(`You loot: ${acquired.join(", ")}.`);

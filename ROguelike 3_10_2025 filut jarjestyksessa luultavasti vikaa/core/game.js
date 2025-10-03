@@ -12,6 +12,15 @@
  * - Randomness is deterministic via mulberry32; helpers (randInt, randFloat, chance) built over it.
  */
 (() => {
+  try {
+    console.log("[BOOT] game.js loaded. Modules present:", {
+      DungeonState: !!(window.DungeonState),
+      Logger: !!(window.Logger),
+      UI: !!(window.UI),
+      Dungeon: !!(window.Dungeon),
+      Enemies: !!(window.Enemies),
+    });
+  } catch (_) {}
   const TILE = 32;
   const COLS = 30;
   const ROWS = 20;
@@ -201,14 +210,20 @@
       // world/overworld
       mode,
       world,
+      worldReturnPos,
+      cameFromWorld,
       npcs,
       shops,
       townProps,
       townBuildings,
       townPlaza,
       tavern,
+      dungeonExitAt,
+      // dungeon info
       dungeon: currentDungeon,
       dungeonInfo: currentDungeon,
+      // persistence (in-memory)
+      _dungeonStates: dungeonStates,
       time: getClock(),
       requestDraw,
       log,
@@ -217,6 +232,9 @@
       round1, randInt, chance, randFloat,
       enemyColor, describeItem,
       setFovRadius,
+      // expose recompute/update for modules like DungeonState
+      recomputeFOV: () => recomputeFOV(),
+      updateCamera: () => updateCamera(),
       getPlayerAttack, getPlayerDefense, getPlayerBlockChance,
       enemyThreatLabel,
       // Needed by loot and UI flows
@@ -585,6 +603,8 @@
 
   
   function log(msg, type = "info") {
+    // Always mirror logs to console for debugging visibility
+    try { console.debug(`[${type}] ${msg}`); } catch (_) {}
     if (window.Logger && typeof Logger.log === "function") {
       Logger.log(msg, type);
       return;
@@ -680,6 +700,7 @@
 
   function saveCurrentDungeonState() {
     if (window.DungeonState && typeof DungeonState.save === "function") {
+      try { console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
       DungeonState.save(getCtx());
       return;
     }
@@ -696,11 +717,37 @@
       info: currentDungeon,
       level: floor
     };
+    try {
+      const msg = `[DEV] Fallback save key ${key}: enemies=${Array.isArray(enemies)?enemies.length:0}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
+      log(msg, "notice");
+      console.log("[TRACE] " + msg);
+    } catch (_) {}
   }
 
   function loadDungeonStateFor(x, y) {
     if (window.DungeonState && typeof DungeonState.load === "function") {
-      return DungeonState.load(getCtx(), x, y);
+      const ctxMod = getCtx();
+      const ok = DungeonState.load(ctxMod, x, y);
+      if (ok) {
+        // Sync mutated ctx back into local state to ensure mode/map changes take effect
+        mode = ctxMod.mode || mode;
+        map = ctxMod.map || map;
+        seen = ctxMod.seen || seen;
+        visible = ctxMod.visible || visible;
+        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
+        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
+        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
+        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
+        townExitAt = ctxMod.townExitAt || townExitAt;
+        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
+        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
+        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
+        updateCamera();
+        recomputeFOV();
+        updateUI();
+        requestDraw();
+      }
+      return ok;
     }
     const key = dungeonKeyFromWorldPos(x, y);
     const st = dungeonStates[key];
@@ -2038,22 +2085,31 @@
     if (mode !== "world" || !world) return false;
     const t = world.map[player.y][player.x];
     if (t && World.TILES && t === World.TILES.DUNGEON) {
+      const enterWX = player.x, enterWY = player.y;
       cameFromWorld = true;
-      worldReturnPos = { x: player.x, y: player.y };
+      worldReturnPos = { x: enterWX, y: enterWY };
 
       // Look up dungeon info (level, size) from world POIs
       currentDungeon = null;
       try {
         if (Array.isArray(world.dungeons)) {
-          currentDungeon = world.dungeons.find(d => d.x === player.x && d.y === player.y) || null;
+          currentDungeon = world.dungeons.find(d => d.x === enterWX && d.y === enterWY) || null;
         }
       } catch (_) { currentDungeon = null; }
       // Default fallback
-      if (!currentDungeon) currentDungeon = { x: player.x, y: player.y, level: 1, size: "medium" };
+      if (!currentDungeon) currentDungeon = { x: enterWX, y: enterWY, level: 1, size: "medium" };
 
       // If dungeon already has a saved state, load it and return
       if (loadDungeonStateFor(currentDungeon.x, currentDungeon.y)) {
+        try { 
+          log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}.`, "notice"); 
+          const dx = (dungeonExitAt && typeof dungeonExitAt.x === "number") ? dungeonExitAt.x : "n/a";
+          const dy = (dungeonExitAt && typeof dungeonExitAt.y === "number") ? dungeonExitAt.y : "n/a";
+          console.log("[DEV] Loaded saved dungeon at " + currentDungeon.x + "," + currentDungeon.y + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + player.x + "," + player.y + ")");
+        } catch (_) {}
         return true;
+      } else {
+        try { log(`[DEV] No saved dungeon state for ${currentDungeon.x},${currentDungeon.y}; generating new.`, "warn"); } catch (_) {}
       }
 
       // Set dungeon difficulty = level; we keep 'floor' equal to dungeon level for UI/logic
@@ -2073,6 +2129,13 @@
 
       // Save fresh dungeon state
       saveCurrentDungeonState();
+      try {
+        const k = `${currentDungeon.x},${currentDungeon.y}`;
+        log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
+        const dx = (dungeonExitAt && typeof dungeonExitAt.x === "number") ? dungeonExitAt.x : "n/a";
+        const dy = (dungeonExitAt && typeof dungeonExitAt.y === "number") ? dungeonExitAt.y : "n/a";
+        console.log("[DEV] Initial dungeon save for key " + k + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + player.x + "," + player.y + ")");
+      } catch (_) {}
 
       log(`You enter the dungeon (Difficulty ${floor}${currentDungeon.size ? ", " + currentDungeon.size : ""}).`, "notice");
       return true;
@@ -2122,11 +2185,34 @@
 
   function returnToWorldIfAtExit() {
     if (window.DungeonState && typeof DungeonState.returnToWorldIfAtExit === "function") {
-      return DungeonState.returnToWorldIfAtExit(getCtx());
+      const ctxMod = getCtx();
+      const ok = DungeonState.returnToWorldIfAtExit(ctxMod);
+      if (ok) {
+        // Sync mutated ctx back into local state
+        mode = ctxMod.mode || mode;
+        map = ctxMod.map || map;
+        seen = ctxMod.seen || seen;
+        visible = ctxMod.visible || visible;
+        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
+        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
+        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
+        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
+        townExitAt = ctxMod.townExitAt || townExitAt;
+        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
+        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
+        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
+        recomputeFOV();
+        updateCamera();
+        updateUI();
+        requestDraw();
+      }
+      return ok;
     }
     if (mode !== "dungeon" || !cameFromWorld || !world) return false;
     if (floor !== 1) return false;
     if (dungeonExitAt && player.x === dungeonExitAt.x && player.y === dungeonExitAt.y) {
+      // Save state before leaving so enemies/corpses/chests persist
+      saveCurrentDungeonState();
       mode = "world";
       enemies = [];
       corpses = [];
@@ -3010,6 +3096,12 @@
     corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
     gainXP(enemy.xp || 5);
     enemies = enemies.filter(e => e !== enemy);
+    // Persist dungeon state immediately so corpses remain on revisit
+    try {
+      if (window.DungeonState && typeof DungeonState.save === "function") {
+        DungeonState.save(getCtx());
+      }
+    } catch (_) {}
   }
 
   
@@ -3251,6 +3343,9 @@
 
   
   initWorld();
+  setupInput();
+  loop();
+initWorld();
   setupInput();
   loop();
 })();

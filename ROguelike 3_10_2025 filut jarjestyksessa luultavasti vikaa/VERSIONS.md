@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-03 12:00 UTC
+Last updated: 2025-10-03 17:40 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,28 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.11 — Dungeon Persistence and Stability (chests, corpses, load/exit sync)
+- Fixed: AI occupancy calls remaining after wrapper introduction
+  - Replaced direct occ.add/occ.delete with occSetEnemy/occClearEnemy in ai/ai.js.
+- Fixed: Chest looted state persists on revisit
+  - entities/loot.js saves dungeon state immediately after looting or reporting “The chest is empty,” and consumes a turn to ensure persistence.
+- Fixed: Corpses and enemy persistence across dungeon re-entry
+  - core/game.js now calls DungeonState.save(getCtx()) immediately after killEnemy, on each dungeon turn, and right before leaving the dungeon.
+  - dungeon/dungeon_state.js persists snapshots to ctx._dungeonStates, a global window._DUNGEON_STATES_MEM fallback, and localStorage.
+  - Added debug logs on save/load/applyState mirrored to console for diagnosis.
+- Changed: Dungeon load/exit flow reliably syncs mutated ctx back to local engine state
+  - core/game.js: loadDungeonStateFor and returnToWorldIfAtExit copy back mode, map, seen/visible, enemies/corpses/decals, anchors (worldReturnPos/townExitAt/dungeonExitAt), currentDungeon, floor; then recompute FOV/camera/UI.
+- Changed: More robust re-entry placement and visibility
+  - dungeon/dungeon_state.js clamps saved exit coordinates to current map bounds; marks the exit tile as STAIRS and ensures seen/visible flags are set; places the player at the exit tile.
+- Fixed: Syntax errors introduced during instrumentation
+  - Removed malformed tail content at end of core/game.js.
+  - Replaced optional chaining and problematic template literals in debug logs with safe string concatenation.
+  - Cleaned up enterDungeonIfOnEntrance debug block.
+- Dev: Logging enhancements
+  - log() mirrors all messages to console for environments where the UI panel may not render.
+  - Added concise “[DEV] …” and “DungeonState.save/load/applyState …” lines to trace keys, counts, positions.
+- Note: Dungeon state is scoped per origin/URL. Use the same deployment URL through enter/leave/re-enter, or persistence will appear empty.
 
 v1.10 — Runtime wiring fixes, root index, and service loads
 - Fixed: Broken script paths in UI caused modules not to load (404). Updated references to match folder layout.

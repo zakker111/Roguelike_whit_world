@@ -10,6 +10,11 @@
 (function () {
   const LS_KEY = "DUNGEON_STATES_V1";
 
+  // Global in-memory fallback that persists across ctx instances within the same page/session
+  if (typeof window !== "undefined" && !window._DUNGEON_STATES_MEM) {
+    try { window._DUNGEON_STATES_MEM = Object.create(null); } catch (_) {}
+  }
+
   function key(x, y) { return `${x},${y}`; }
 
   function readLS() {
@@ -87,10 +92,25 @@
     const ls = readLS();
     ls[k] = cloneForStorage(snapshot);
     writeLS(ls);
+
+    // Debug/log summary to help diagnose persistence issues
+    try {
+      const enemiesCount = Array.isArray(snapshot.enemies) ? snapshot.enemies.length : 0;
+      const corpsesCount = Array.isArray(snapshot.corpses) ? snapshot.corpses.length : 0;
+      const msg = `DungeonState.save: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}`;
+      if (ctx.log) ctx.log(msg, "notice");
+      console.log(msg);
+    } catch (_) {}
   }
 
   function loadFromMemory(ctx, k) {
-    return ctx._dungeonStates && ctx._dungeonStates[k] || null;
+    if (ctx._dungeonStates && ctx._dungeonStates[k]) return ctx._dungeonStates[k];
+    try {
+      if (typeof window !== "undefined" && window._DUNGEON_STATES_MEM && window._DUNGEON_STATES_MEM[k]) {
+        return window._DUNGEON_STATES_MEM[k];
+      }
+    } catch (_) {}
+    return null;
   }
 
   function loadFromLS(k) {
@@ -99,29 +119,57 @@
   }
 
   function applyState(ctx, st, x, y) {
+    // Restore basic mode/info/state
     ctx.mode = "dungeon";
     ctx.dungeonInfo = st.info || { x, y, level: st.level || 1, size: "medium" };
     ctx.floor = st.level || 1;
     if (typeof window !== "undefined") window.floor = ctx.floor;
 
+    // Deep references
     ctx.map = st.map;
     ctx.seen = st.seen;
     ctx.visible = st.visible;
     ctx.enemies = st.enemies || [];
     ctx.corpses = st.corpses || [];
     ctx.decals = st.decals || [];
-    ctx.dungeonExitAt = st.dungeonExitAt || { x, y };
+    // Exit tile from saved state or fallback to world entrance
+    let ex = (st.dungeonExitAt && typeof st.dungeonExitAt.x === "number") ? st.dungeonExitAt.x : x;
+    let ey = (st.dungeonExitAt && typeof st.dungeonExitAt.y === "number") ? st.dungeonExitAt.y : y;
 
-    // Place player at the entrance hole
-    ctx.player.x = ctx.dungeonExitAt.x;
-    ctx.player.y = ctx.dungeonExitAt.y;
+    // Clamp exit to current dungeon map bounds defensively
+    try {
+      const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+      const cols = (rows && Array.isArray(ctx.map[0])) ? ctx.map[0].length : 0;
+      if (rows > 0 && cols > 0) {
+        ex = Math.max(0, Math.min(cols - 1, ex | 0));
+        ey = Math.max(0, Math.min(rows - 1, ey | 0));
+      }
+    } catch (_) {}
+    ctx.dungeonExitAt = { x: ex, y: ey };
 
-    // Ensure entrance tile is STAIRS
+    // Place player at the known dungeon exit tile to avoid mismatch
+    const prevPX = ctx.player.x, prevPY = ctx.player.y;
+    ctx.player.x = ctx.dungeonExitAt.x | 0;
+    ctx.player.y = ctx.dungeonExitAt.y | 0;
+
+    // Ensure entrance tile is STAIRS and mark visible/seen
     if (ctx.inBounds(ctx.dungeonExitAt.x, ctx.dungeonExitAt.y)) {
-      ctx.map[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = ctx.TILES.STAIRS;
-      if (ctx.visible[ctx.dungeonExitAt.y]) ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
-      if (ctx.seen[ctx.dungeonExitAt.y]) ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+      if (ctx.map[ctx.dungeonExitAt.y] && typeof ctx.map[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] !== "undefined") {
+        ctx.map[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = ctx.TILES.STAIRS;
+      }
+      if (ctx.visible[ctx.dungeonExitAt.y] && typeof ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] !== "undefined") {
+        ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+      }
+      if (ctx.seen[ctx.dungeonExitAt.y] && typeof ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] !== "undefined") {
+        ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+      }
     }
+
+    // Debug: log a concise position summary for entry
+    try {
+      console.log("DungeonState.applyState: key " + key(x,y) + ", exit=(" + ctx.dungeonExitAt.x + "," + ctx.dungeonExitAt.y + "), player " + prevPX + "," + prevPY + " -> " + ctx.player.x + "," + ctx.player.y + ", corpses=" + ctx.corpses.length + ", enemies=" + ctx.enemies.length);
+      if (ctx.log) ctx.log("DungeonState.applyState: player at (" + ctx.player.x + "," + ctx.player.y + ").", "info");
+    } catch (_) {}
 
     ctx.recomputeFOV();
     ctx.updateCamera();
@@ -139,7 +187,22 @@
 
     // Fallback to localStorage if not in memory
     if (!st) st = loadFromLS(k);
-    if (!st) return false;
+    if (!st) {
+      try {
+        const msg = `DungeonState.load: no state for key ${k}`;
+        if (ctx.log) ctx.log(msg, "warn");
+        console.log(msg);
+      } catch (_) {}
+      return false;
+    }
+
+    try {
+      const enemiesCount = Array.isArray(st.enemies) ? st.enemies.length : 0;
+      const corpsesCount = Array.isArray(st.corpses) ? st.corpses.length : 0;
+      const msg = `DungeonState.load: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}`;
+      if (ctx.log) ctx.log(msg, "notice");
+      console.log(msg);
+    } catch (_) {}
 
     applyState(ctx, st, x, y);
     return true;
@@ -153,6 +216,11 @@
     const ey = ctx.dungeonExitAt && ctx.dungeonExitAt.y;
     if (typeof ex !== "number" || typeof ey !== "number") return false;
     if (ctx.player.x === ex && ctx.player.y === ey) {
+      // Save current dungeon state before leaving so corpses/emptied chests persist
+      try {
+        save(ctx);
+      } catch (_) {}
+
       ctx.mode = "world";
       ctx.enemies = [];
       ctx.corpses = [];
