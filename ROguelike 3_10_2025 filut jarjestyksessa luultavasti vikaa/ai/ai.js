@@ -309,9 +309,9 @@
           const nx = e.x + d.x;
           const ny = e.y + d.y;
           if (isFree(nx, ny)) {
-            occ.delete(occKey(e.x, e.y));
+            occClearEnemy(occ, e.x, e.y);
             e.x = nx; e.y = ny;
-            occ.add(occKey(e.x, e.y));
+            occSetEnemy(occ, e.x, e.y);
             moved = true;
             break;
           }
@@ -336,7 +336,7 @@
         if (isFree(nx, ny)) {
           occClearEnemy(occ, e.x, e.y);
           e.x = nx; e.y = ny;
-          occ.add(occKey(e.x, e.y));
+          occSetEnemy(occ, e.x, e.y);
         }
       }
     }
