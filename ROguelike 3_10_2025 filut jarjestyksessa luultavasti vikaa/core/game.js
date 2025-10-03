@@ -1328,73 +1328,31 @@
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
   function doAction() {
-    hideLootPanel();
-
-    // Town gate exit takes priority over other interactions
-    if (mode === "town" && townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      if (returnToWorldFromTown()) return;
-    }
-
-    // Prefer module
-    if (window.Actions && typeof Actions.doAction === "function") {
-      const ctxMod = getCtx();
-      const handled = Actions.doAction(ctxMod);
-      if (handled) {
-        // Sync mutated ctx back into local state to ensure mode/map changes take effect
-        mode = ctxMod.mode || mode;
-        map = ctxMod.map || map;
-        seen = ctxMod.seen || seen;
-        visible = ctxMod.visible || visible;
-        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
-        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
-        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
-        // Town-specific state
-        npcs = Array.isArray(ctxMod.npcs) ? ctxMod.npcs : npcs;
-        shops = Array.isArray(ctxMod.shops) ? ctxMod.shops : shops;
-        townProps = Array.isArray(ctxMod.townProps) ? ctxMod.townProps : townProps;
-        townBuildings = Array.isArray(ctxMod.townBuildings) ? ctxMod.townBuildings : townBuildings;
-        townPlaza = ctxMod.townPlaza || townPlaza;
-        tavern = ctxMod.tavern || tavern;
-        // Anchors/persistence
-        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
-        townExitAt = ctxMod.townExitAt || townExitAt;
-        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
-        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
-        updateCamera();
-        recomputeFOV();
-        updateUI();
-        requestDraw();
-        return;
-      }
-    }
-
-    if (mode === "world") {
-      if (!enterTownIfOnTile()) {
-        enterDungeonIfOnEntrance();
-      }
+    const GA = (typeof window !== "undefined") ? window.GameActions : null;
+    if (GA && typeof GA.doAction === "function") {
+      GA.doAction(getCtx());
       return;
     }
-
+    // Fallback: original minimal action - try town/dungeon entry then loot
+    if (mode === "world") {
+      if (!enterTownIfOnTile()) enterDungeonIfOnEntrance();
+      return;
+    }
     if (mode === "town") {
       if (returnToWorldFromTown()) return;
       lootCorpse();
       return;
     }
-
-    if (mode === "dungeon") {
-      lootCorpse();
-      return;
-    }
-
     lootCorpse();
   }
 
   function descendIfPossible() {
-    if (window.Actions && typeof Actions.descend === "function") {
-      const handled = Actions.descend(getCtx());
-      if (handled) return;
+    const GA = (typeof window !== "undefined") ? window.GameActions : null;
+    if (GA && typeof GA.descendIfPossible === "function") {
+      GA.descendIfPossible(getCtx());
+      return;
     }
+    // Fallback: use doAction in non-dungeon, otherwise guidance
     if (mode === "world" || mode === "town") {
       doAction();
       return;
@@ -1463,10 +1421,16 @@
   }
 
   function tryMovePlayer(dx, dy) {
-    if (isDead) return;
-
-    // WORLD MODE: move over overworld tiles (no NPCs here)
-    if (mode === "world") {
+    // Delegate to modularized GameActions
+    const GA = (typeof window !== "undefined") ? window.GameActions : null;
+    if (GA && typeof GA.tryMovePlayer === "function") {
+      GA.tryMovePlayer(getCtx(), dx, dy);
+      return;
+    }
+    // Fallback to existing behavior if module missing
+    const ctx = getCtx();
+    if (ctx && typeof ctx.Input === "object") {
+      // Minimal fallback: reuse world move only
       const nx = player.x + dx;
       const ny = player.y + dy;
       const wmap = world && world.map ? world.map : null;
@@ -1478,118 +1442,6 @@
         updateCamera();
         turn();
       }
-      return;
-    }
-
-    // TOWN MODE: block NPC tiles, use local isWalkable
-    if (mode === "town") {
-      const nx = player.x + dx;
-      const ny = player.y + dy;
-      if (!inBounds(nx, ny)) return;
-      const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(nx, ny) : npcs.some(n => n.x === nx && n.y === ny);
-      if (npcBlocked) {
-        // Treat bumping into an NPC as a "hit"/interaction: they respond with a line
-        const npc = npcs.find(n => n.x === nx && n.y === ny);
-        if (npc) {
-          const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
-          const li = randInt(0, lines.length - 1);
-          log(`${npc.name || "Villager"}: ${lines[li]}`, "info");
-          requestDraw();
-        } else {
-          log("Excuse me!", "info");
-        }
-        return;
-      }
-      if (isWalkable(nx, ny)) {
-        player.x = nx; player.y = ny;
-        updateCamera();
-        turn();
-      }
-      return;
-    }
-
-    // DUNGEON MODE:
-    // Dazed: skip action if dazedTurns > 0
-    if (player.dazedTurns && player.dazedTurns > 0) {
-      player.dazedTurns -= 1;
-      log("You are dazed and lose your action this turn.", "warn");
-      turn();
-      return;
-    }
-    const nx = player.x + dx;
-    const ny = player.y + dy;
-    if (!inBounds(nx, ny)) return;
-
-    const enemy = enemies.find(e => e.x === nx && e.y === ny);
-    if (enemy) {
-      let loc = rollHitLocation();
-      if (alwaysCrit && forcedCritPart) {
-        const profiles = {
-          torso: { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 },
-          head:  { part: "head",  mult: 1.1, blockMod: 0.85, critBonus: 0.15 },
-          hands: { part: "hands", mult: 0.9, blockMod: 0.75, critBonus: -0.05 },
-          legs:  { part: "legs",  mult: 0.95, blockMod: 0.75, critBonus: -0.03 },
-        };
-        if (profiles[forcedCritPart]) loc = profiles[forcedCritPart];
-      }
-
-      if (rng() < getEnemyBlockChance(enemy, loc)) {
-        log(`${capitalize(enemy.type || "enemy")} blocks your attack to the ${loc.part}.`, "block");
-        decayAttackHands(true);
-        decayEquipped("hands", randFloat(0.2, 0.7, 1));
-        turn();
-        return;
-      }
-
-      let dmg = getPlayerAttack() * loc.mult;
-      let isCrit = false;
-      const critChance = Math.max(0, Math.min(0.6, 0.12 + loc.critBonus));
-      if (alwaysCrit || rng() < critChance) {
-        isCrit = true;
-        dmg *= critMultiplier();
-      }
-      dmg = Math.max(0, round1(dmg));
-      enemy.hp -= dmg;
-
-      if (dmg > 0) {
-        addBloodDecal(enemy.x, enemy.y, isCrit ? 1.6 : 1.0);
-      }
-
-      if (isCrit) {
-        log(`Critical! You hit the ${enemy.type || "enemy"}'s ${loc.part} for ${dmg}.`, "crit");
-      } else {
-        log(`You hit the ${enemy.type || "enemy"}'s ${loc.part} for ${dmg}.`);
-      }
-      { const ctx = getCtx(); if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg }); }
-      if (isCrit && loc.part === "legs" && enemy.hp > 0) {
-        if (window.Status && typeof Status.applyLimpToEnemy === "function") {
-          Status.applyLimpToEnemy(getCtx(), enemy, 2);
-        } else {
-          enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2);
-          log(`${capitalize(enemy.type || "enemy")} staggers; its legs are crippled and it can't move for 2 turns.`, "notice");
-        }
-      }
-      if (isCrit && enemy.hp > 0 && window.Status && typeof Status.applyBleedToEnemy === "function") {
-        Status.applyBleedToEnemy(getCtx(), enemy, 2);
-      }
-
-      if (enemy.hp <= 0) {
-        killEnemy(enemy);
-      }
-
-      decayAttackHands();
-      decayEquipped("hands", randFloat(0.3, 1.0, 1));
-      turn();
-      return;
-    }
-
-    // Prefer occupancy grid if available to avoid linear scans
-    const blockedByEnemy = (occupancy && typeof occupancy.hasEnemy === "function") ? occupancy.hasEnemy(nx, ny) : enemies.some(e => e.x === nx && e.y === ny);
-    if (isWalkable(nx, ny) && !blockedByEnemy) {
-      player.x = nx;
-      player.y = ny;
-      updateCamera();
-      turn();
     }
   }
 
@@ -1610,35 +1462,12 @@
   }
 
   function lootCorpse() {
-    if (isDead) return;
-
-    // Prefer Actions module for all interaction/loot flows across modes
-    if (window.Actions && typeof Actions.loot === "function") {
-      const ctxMod = getCtx();
-      const handled = Actions.loot(ctxMod);
-      if (handled) {
-        // Sync mutated ctx back into local state
-        mode = ctxMod.mode || mode;
-        map = ctxMod.map || map;
-        seen = ctxMod.seen || seen;
-        visible = ctxMod.visible || visible;
-        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
-        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
-        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
-        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
-        townExitAt = ctxMod.townExitAt || townExitAt;
-        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
-        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
-        updateCamera();
-        recomputeFOV();
-        updateUI();
-        requestDraw();
-        return;
-      }
+    const GA = (typeof window !== "undefined") ? window.GameActions : null;
+    if (GA && typeof GA.loot === "function") {
+      GA.loot(getCtx());
+      return;
     }
-
-    // Dungeon-only fallback: loot ground or guide user
+    // Fallback: minimal behavior
     if (mode === "dungeon") {
       if (window.Loot && typeof Loot.lootHere === "function") {
         Loot.lootHere(getCtx());
@@ -1648,8 +1477,6 @@
       requestDraw();
       return;
     }
-
-    // World/town default
     log("Nothing to do here.");
   }
 
