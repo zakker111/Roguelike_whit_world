@@ -174,12 +174,29 @@
       try {
         var params = new URLSearchParams(location.search);
         if (params.get("smoketest") === "1") {
-          var s = document.createElement("script");
-          s.src = "ui/smoketest_runner.js";
-          s.defer = true;
-          document.body.appendChild(s);
+          console.log("[SMOKE] loader: detected ?smoketest=1, injecting runner");
+          var inject = function () {
+            try {
+              var s = document.createElement("script");
+              s.src = "ui/smoketest_runner.js";
+              s.defer = true;
+              document.body.appendChild(s);
+            } catch (e) {
+              console.error("[SMOKE] loader: failed to inject runner", e);
+            }
+          };
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", inject);
+          } else {
+            inject();
+          }
+          window.SMOKETEST_REQUESTED = true;
+        } else {
+          console.log("[SMOKE] loader: no smoketest param");
         }
-      } catch (_) {}
+      } catch (e) {
+        console.error("[SMOKE] loader: error", e);
+      }
     })();
   </script>
 </body>
