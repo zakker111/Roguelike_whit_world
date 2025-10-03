@@ -528,6 +528,8 @@
     if (clamped !== fovRadius) {
       fovRadius = clamped;
       log(`FOV radius set to ${fovRadius}.`);
+      // Force recompute by invalidating cache
+      _lastFovRadius = -1;
       recomputeFOV();
       requestDraw();
     }
@@ -651,6 +653,8 @@
       startRoomRect = ctx.startRoomRect;
       // Clear decals on new floor
       decals = [];
+      // Invalidate FOV cache and recompute
+      _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
       recomputeFOV();
       updateCamera();
       if (inBounds(player.x, player.y) && !visible[player.y][player.x]) {
@@ -660,6 +664,9 @@
           visible[player.y][player.x] = true;
           seen[player.y][player.x] = true;
         }
+      }
+      if (typeof window !== "undefined" && window.OccupancyGrid && typeof OccupancyGrid.build === "function") {
+        rebuildOccupancy();
       }
       if (window.DEV) {
         try {
@@ -685,6 +692,8 @@
     enemies = [];
     corpses = [];
     decals = [];
+    // Invalidate FOV cache and recompute
+    _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
     recomputeFOV();
     updateCamera();
     updateUI();
@@ -822,11 +831,25 @@
     }
   }
 
+  // FOV recompute guard: skip recompute unless player moved, FOV radius changed, mode changed, or map shape changed.
+  let _lastPlayerX = -1, _lastPlayerY = -1, _lastFovRadius = -1, _lastMode = "", _lastMapCols = -1, _lastMapRows = -1;
+
   function recomputeFOV() {
+    const rows = map.length;
+    const cols = map[0] ? map[0].length : 0;
+
+    const moved = (player.x !== _lastPlayerX) || (player.y !== _lastPlayerY);
+    const fovChanged = (fovRadius !== _lastFovRadius);
+    const modeChanged = (mode !== _lastMode);
+    const mapChanged = (rows !== _lastMapRows) || (cols !== _lastMapCols);
+
+    if (!modeChanged && !mapChanged && !fovChanged && !moved && mode !== "world") {
+      // No change affecting FOV; skip recompute in dungeon/town
+      return;
+    }
+
     if (mode === "world") {
       // In overworld, reveal entire map (no fog-of-war)
-      const rows = map.length;
-      const cols = map[0] ? map[0].length : 0;
       const shapeOk = Array.isArray(visible) && visible.length === rows && (rows === 0 || (visible[0] && visible[0].length === cols));
       if (!shapeOk) {
         visible = Array.from({ length: rows }, () => Array(cols).fill(true));
@@ -838,8 +861,13 @@
           else seen[y].fill(true);
         }
       }
+      // update cache and return
+      _lastPlayerX = player.x; _lastPlayerY = player.y;
+      _lastFovRadius = fovRadius; _lastMode = mode;
+      _lastMapCols = cols; _lastMapRows = rows;
       return;
     }
+
     ensureVisibilityShape();
     {
       const F = modHandle("FOV");
@@ -850,6 +878,10 @@
         F.recomputeFOV(ctx);
         visible = ctx.visible;
         seen = ctx.seen;
+        // update cache after recompute
+        _lastPlayerX = player.x; _lastPlayerY = player.y;
+        _lastFovRadius = fovRadius; _lastMode = mode;
+        _lastMapCols = cols; _lastMapRows = rows;
         return;
       }
     }
@@ -857,6 +889,9 @@
       visible[player.y][player.x] = true;
       seen[player.y][player.x] = true;
     }
+    _lastPlayerX = player.x; _lastPlayerY = player.y;
+    _lastFovRadius = fovRadius; _lastMode = mode;
+    _lastMapCols = cols; _lastMapRows = rows;
   }
 
   
@@ -899,6 +934,9 @@
   let _drawQueued = false;
   let _rafId = null;
 
+  // Simple perf counters (DEV-only visible in console)
+  const PERF = { lastTurnMs: 0, lastDrawMs: 0 };
+
   function requestDraw() {
     const GL = modHandle("GameLoop");
     if (GL && typeof GL.requestDraw === "function") {
@@ -913,18 +951,30 @@
     try {
       _rafId = (typeof window !== "undefined" && window.requestAnimationFrame)
         ? window.requestAnimationFrame(() => {
+            const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
             _drawQueued = false;
             R.draw(getRenderCtx());
+            const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+            PERF.lastDrawMs = t1 - t0;
+            try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
           })
         : null;
       if (_rafId == null) {
         // Fallback: if RAF not available, draw immediately
+        const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
         _drawQueued = false;
         R.draw(getRenderCtx());
+        const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        PERF.lastDrawMs = t1 - t0;
+        try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
       }
     } catch (_) {
+      const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
       _drawQueued = false;
       R.draw(getRenderCtx());
+      const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      PERF.lastDrawMs = t1 - t0;
+      try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
     }
   }
 
@@ -1133,6 +1183,28 @@
     log("Town.spawnGateGreeters not available.", "warn");
   }
 
+  function syncFromCtx(ctx) {
+    if (!ctx) return;
+    mode = ctx.mode || mode;
+    map = ctx.map || map;
+    seen = ctx.seen || seen;
+    visible = ctx.visible || visible;
+    enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
+    corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
+    decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
+    npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
+    shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
+    townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
+    townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
+    townPlaza = ctx.townPlaza || townPlaza;
+    tavern = ctx.tavern || tavern;
+    worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+    townExitAt = ctx.townExitAt || townExitAt;
+    dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
+    currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
+    if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+  }
+
   function enterTownIfOnTile() {
     const M = modHandle("Modes");
     if (M && typeof M.enterTownIfOnTile === "function") {
@@ -1140,25 +1212,10 @@
       const ok = !!M.enterTownIfOnTile(ctx);
       if (ok) {
         // Sync mutated ctx back into local state
-        mode = ctx.mode || mode;
-        map = ctx.map || map;
-        seen = ctx.seen || seen;
-        visible = ctx.visible || visible;
-        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-        npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
-        shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
-        townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
-        townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
-        townPlaza = ctx.townPlaza || townPlaza;
-        tavern = ctx.tavern || tavern;
-        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-        townExitAt = ctx.townExitAt || townExitAt;
-        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+        syncFromCtx(ctx);
         updateCamera();
+        // Invalidate FOV cache and recompute
+        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         recomputeFOV();
         updateUI();
         requestDraw();
@@ -1174,25 +1231,9 @@
       const ctx = getCtx();
       const ok = !!M.enterDungeonIfOnEntrance(ctx);
       if (ok) {
-        mode = ctx.mode || mode;
-        map = ctx.map || map;
-        seen = ctx.seen || seen;
-        visible = ctx.visible || visible;
-        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-        npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
-        shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
-        townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
-        townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
-        townPlaza = ctx.townPlaza || townPlaza;
-        tavern = ctx.tavern || tavern;
-        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-        townExitAt = ctx.townExitAt || townExitAt;
-        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+        syncFromCtx(ctx);
         updateCamera();
+        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         recomputeFOV();
         updateUI();
         requestDraw();
@@ -2046,14 +2087,15 @@
   function turn() {
     if (isDead) return;
 
+    const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+
     // Advance global time (centralized via TimeService)
     turnCounter = TS.tick(turnCounter);
 
-    
+
 
     if (mode === "dungeon") {
       enemiesAct();
-      rebuildOccupancy();
       // Status effects tick (bleed, dazed, etc.)
       try {
         if (window.Status && typeof Status.tick === "function") {
@@ -2077,12 +2119,20 @@
     } else if (mode === "town") {
       townTick = (townTick + 1) | 0;
       townNPCsAct();
-      rebuildOccupancy();
+      // Rebuild occupancy less frequently to reduce per-turn cost
+      if ((townTick % 4) === 0) {
+        rebuildOccupancy();
+      }
     }
 
     recomputeFOV();
     updateUI();
     requestDraw();
+
+    const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    PERF.lastTurnMs = t1 - t0;
+    try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms`); } catch (_) {}
+  }
   }
 
   
@@ -2187,6 +2237,28 @@
               }
             } catch (_) {}
             lines.forEach(l => log(l, "info"));
+            requestDraw();
+          },
+          onGodDiagnostics: () => {
+            const ctx = getCtx();
+            const mods = {
+              Enemies: !!ctx.Enemies, Items: !!ctx.Items, Player: !!ctx.Player,
+              UI: !!ctx.UI, Logger: !!ctx.Logger, Loot: !!ctx.Loot,
+              Dungeon: !!ctx.Dungeon, DungeonItems: !!ctx.DungeonItems,
+              FOV: !!ctx.FOV, AI: !!ctx.AI, Input: !!ctx.Input,
+              Render: !!ctx.Render, Tileset: !!ctx.Tileset, Flavor: !!ctx.Flavor,
+              World: !!ctx.World, Town: !!ctx.Town, TownAI: !!ctx.TownAI,
+              DungeonState: !!ctx.DungeonState
+            };
+            const rngSrc = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
+            const seedStr = (typeof currentSeed === "number") ? String(currentSeed >>> 0) : "(random)";
+            log("Diagnostics:", "notice");
+            log(`- Determinism: ${rngSrc}  Seed: ${seedStr}`, "info");
+            log(`- Mode: ${mode}  Floor: ${floor}  FOV: ${fovRadius}`, "info");
+            log(`- Map: ${map.length}x${(map[0] ? map[0].length : 0)}`, "info");
+            log(`- Entities: enemies=${enemies.length} corpses=${corpses.length} npcs=${npcs.length}`, "info");
+            log(`- Modules: ${Object.keys(mods).filter(k=>mods[k]).join(", ")}`, "info");
+            log(`- PERF last turn: ${PERF.lastTurnMs.toFixed(2)}ms, last draw: ${PERF.lastDrawMs.toFixed(2)}ms`, "info");
             requestDraw();
           },
         });

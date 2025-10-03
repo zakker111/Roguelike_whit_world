@@ -178,6 +178,10 @@
       this.els.godCheckInnTavernBtn?.addEventListener("click", () => {
         if (typeof this.handlers.onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern();
       });
+      const diagBtn = document.getElementById("god-diagnostics-btn");
+      diagBtn?.addEventListener("click", () => {
+        if (typeof this.handlers.onGodDiagnostics === "function") this.handlers.onGodDiagnostics();
+      });
       if (this.els.godFov) {
         const updateFov = () => {
           const val = parseInt(this.els.godFov.value, 10);
@@ -454,7 +458,7 @@
       if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
     },
 
-    setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern } = {}) {
+    setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics } = {}) {
       if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
       if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
       if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -473,6 +477,7 @@
       if (typeof onTownExit === "function") this.handlers.onTownExit = onTownExit;
       if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
       if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
+      if (typeof onGodDiagnostics === "function") this.handlers.onGodDiagnostics = onGodDiagnostics;
     },
 
     updateStats(player, floor, getAtk, getDef, time) {
@@ -797,8 +802,8 @@
         if (v === "1") return true;
         if (v === "0") return false;
       } catch (_) {}
-      // Default ON so users see home paths without extra steps
-      return true;
+      // Default OFF to reduce render overhead; users can enable via toggle
+      return false;
     },
 
     setHomePathsState(enabled) {
