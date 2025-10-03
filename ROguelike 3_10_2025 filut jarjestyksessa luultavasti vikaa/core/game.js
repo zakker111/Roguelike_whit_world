@@ -2366,6 +2366,11 @@
         const t = world.map[y] && world.map[y][x];
         return (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
       },
+      // Helper: walkability by tile value (no bounds)
+      _isWalkableOverworldTile: (t) => {
+        if (typeof window.World === "object" && typeof World.isWalkable === "function") return World.isWalkable(t);
+        return true;
+      },
       nearestDungeon: () => {
         if (!world || !Array.isArray(world.dungeons) || world.dungeons.length === 0) return null;
         const sx = player.x, sy = player.y;
@@ -2387,7 +2392,7 @@
         return best;
       },
       routeTo: (tx, ty) => {
-        // BFS over overworld to build a simple path
+        // BFS over overworld to build a simple path to the exact target
         if (!world || !world.map) return [];
         const w = world.width, h = world.height;
         const start = { x: player.x, y: player.y };
@@ -2411,8 +2416,8 @@
         }
         // reconstruct
         const path = [];
-        let curKey = `${tx},${ty}`;
-        if (!prev.has(curKey) && !(start.x === tx && start.y === ty)) return [];
+        const targetKey = `${tx},${ty}`;
+        if (!prev.has(targetKey) && !(start.x === tx && start.y === ty)) return [];
         let cur = { x: tx, y: ty };
         while (!(cur.x === start.x && cur.y === start.y)) {
           path.push(cur);
@@ -2423,10 +2428,59 @@
         path.reverse();
         return path;
       },
+      routeToAdjacent: (tx, ty) => {
+        // BFS to any walkable neighbor of (tx,ty); used for towns/dungeons if target tile is not walkable
+        if (!world || !world.map) return [];
+        const w = world.width, h = world.height;
+        const start = { x: player.x, y: player.y };
+        const q = [start];
+        const prev = new Map();
+        const seen = new Set([`${start.x},${start.y}`]);
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+        const isGoal = (x, y) => {
+          // goal if (x,y) is a walkable neighbor of target
+          for (const d of dirs) {
+            const nx = x + d.dx, ny = y + d.dy;
+            if (nx === tx && ny === ty) return true;
+          }
+          return false;
+        };
+        let end = null;
+        while (q.length) {
+          const cur = q.shift();
+          if (isGoal(cur.x, cur.y)) { end = cur; break; }
+          for (const d of dirs) {
+            const nx = cur.x + d.dx, ny = cur.y + d.dy;
+            const key = `${nx},${ny}`;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            if (seen.has(key)) continue;
+            if (!window.GameAPI.isWalkableOverworld(nx, ny)) continue;
+            seen.add(key);
+            prev.set(key, cur);
+            q.push({ x: nx, y: ny });
+          }
+        }
+        if (!end) return [];
+        const path = [];
+        let cur = end;
+        while (!(cur.x === start.x && cur.y === start.y)) {
+          path.push({ x: cur.x, y: cur.y });
+          const p = prev.get(`${cur.x},${cur.y}`);
+          if (!p) break;
+          cur = p;
+        }
+        path.reverse();
+        return path;
+      },
       gotoNearestDungeon: async () => {
         const target = window.GameAPI.nearestDungeon();
         if (!target) { return true; }
-        const path = window.GameAPI.routeTo(target.x, target.y);
+        // Route to an adjacent tile to ensure we can enter
+        let path = window.GameAPI.routeToAdjacent(target.x, target.y);
+        if (!path || !path.length) {
+          // fallback: try direct target (in case it is walkable)
+          path = window.GameAPI.routeTo(target.x, target.y);
+        }
         if (!path || !path.length) { return false; }
         for (const step of path) {
           const dx = Math.sign(step.x - player.x);
@@ -2434,12 +2488,22 @@
           try { window.GameAPI.moveStep(dx, dy); } catch (_) {}
           await new Promise(r => setTimeout(r, 60));
         }
+        // Attempt to enter programmatically (mirrors input Enter/N)
+        try { if (typeof window.Modes !== "undefined" && typeof Modes.enterDungeonIfOnEntrance === "function") {
+          const ctx = getCtx();
+          if (Modes.enterDungeonIfOnEntrance(ctx)) {
+            syncFromCtx(ctx); updateCamera(); recomputeFOV(); updateUI(); requestDraw();
+          }
+        }} catch (_) {}
         return true;
       },
       gotoNearestTown: async () => {
         const target = window.GameAPI.nearestTown();
         if (!target) return true;
-        const path = window.GameAPI.routeTo(target.x, target.y);
+        let path = window.GameAPI.routeToAdjacent(target.x, target.y);
+        if (!path || !path.length) {
+          path = window.GameAPI.routeTo(target.x, target.y);
+        }
         if (!path || !path.length) return false;
         for (const step of path) {
           const dx = Math.sign(step.x - player.x);
@@ -2447,6 +2511,12 @@
           try { window.GameAPI.moveStep(dx, dy); } catch (_) {}
           await new Promise(r => setTimeout(r, 60));
         }
+        try { if (typeof window.Modes !== "undefined" && typeof Modes.enterTownIfOnTile === "function") {
+          const ctx = getCtx();
+          if (Modes.enterTownIfOnTile(ctx)) {
+            syncFromCtx(ctx); updateCamera(); recomputeFOV(); updateUI(); requestDraw();
+          }
+        }} catch (_) {}
         return true;
       },
       // Explicit attempts to trigger enters programmatically (mirrors Input behavior)
