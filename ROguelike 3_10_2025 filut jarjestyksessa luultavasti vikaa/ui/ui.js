@@ -184,7 +184,21 @@
       });
       const smokeBtn = document.getElementById("god-run-smoke-btn");
       smokeBtn?.addEventListener("click", () => {
-        if (typeof this.handlers.onGodRunSmokeTest === "function") this.handlers.onGodRunSmokeTest();
+        if (typeof this.handlers.onGodRunSmokeTest === "function") {
+          this.handlers.onGodRunSmokeTest();
+        } else {
+          // Fallback: reload with smoketest=1 to trigger loader auto-run
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set("smoketest", "1");
+            if (window.DEV || localStorage.getItem("DEV") === "1") {
+              url.searchParams.set("dev", "1");
+            }
+            window.location.assign(url.toString());
+          } catch (e) {
+            window.location.search = "?smoketest=1";
+          }
+        }
       });
       if (this.els.godFov) {
         const updateFov = () => {
