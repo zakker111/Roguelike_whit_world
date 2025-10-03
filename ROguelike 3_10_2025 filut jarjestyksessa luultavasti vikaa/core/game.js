@@ -2133,12 +2133,10 @@
     PERF.lastTurnMs = t1 - t0;
     try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms`); } catch (_) {}
   }
-  }
-
   
-
   
-  if (window.UI && typeof UI.init === "function") {
+  
+  if (window.UI && typeof UI.init ====== "function") {
       UI.init();
       if (typeof UI.setHandlers === "function") {
         UI.setHandlers({
