@@ -2082,7 +2082,9 @@
       if (loadDungeonStateFor(currentDungeon.x, currentDungeon.y)) {
         try { 
           log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}.`, "notice"); 
-          console.log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}. worldEnter=(${enterWX},${enterWY}) dungeonExit=(${dungeonExitAt?.x},${dungeonExitAt?.y}) player=(${player.x},${player.y})`);
+          const dx = dungeonExitAt && typeof dungeonExitAt.x === "number" ? dungeonExitAt.x : "n/a";
+          const dy = dungeonExitAt && typeof dungeonExitAt.y === "number" ? dungeonExitAt.y : "n/a";
+          console.log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}. worldEnter=(${enterWX},${enterWY}) dungeonExit=(${dx},${dy}) player=(${player.x},${player.y})`);
         } catch (_) {}
         return true;
       } else {
@@ -2109,8 +2111,10 @@
       try {
         const k = `${currentDungeon.x},${currentDungeon.y}`;
         log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
-        console.log(`[DEV] Initial dungeon save for key ${k}. worldEnter=(${enterWX},${enterWY}) dungeonExit=(${dungeonExitAt?.x},${dungeonExitAt?.y}) player=(${player.x},${player.y})`);
-      } catch (_) {}
+        {
+          const dx = dungeonExitAt && typeof dungeonExitAt.x === "number" ? dungeonExitAt.x : "n/a";
+          const dy = dungeonExitAt && typeof dungeonExitAt.y === "number" ? dungeonExitAt.y : "n/a";
+          console.log(`[DEV] Initial dungeon save for key ${k}.
 
       log(`You enter the dungeon (Difficulty ${floor}${currentDungeon.size ? ", " + currentDungeon.size : ""}).`, "notice");
       return true;
@@ -3299,6 +3303,16 @@
     const rightDef = (eq.right && typeof eq.right.def === "number") ? eq.right.def : 0;
     if (rightDef >= leftDef && eq.right) {
       decayEquipped("right", amt);
+    } else if (eq.left) {
+      decayEquipped("left", amt);
+    }
+  }
+
+  
+  initWorld();
+  setupInput();
+  loop();
+})();, amt);
     } else if (eq.left) {
       decayEquipped("left", amt);
     }
