@@ -2268,6 +2268,33 @@
             log(`- PERF last turn: ${PERF.lastTurnMs.toFixed(2)}ms, last draw: ${PERF.lastDrawMs.toFixed(2)}ms`, "info");
             requestDraw();
           },
+          onGodRunSmokeTest: () => {
+            try {
+              // If runner is already loaded, call it
+              if (window.SmokeTest && typeof window.SmokeTest.run === "function") {
+                log("GOD: Running smoke test…", "notice");
+                window.SmokeTest.run();
+                return;
+              }
+              // Otherwise inject the runner script and run on load
+              const s = document.createElement("script");
+              s.src = "ui/smoketest_runner.js";
+              s.onload = () => {
+                try {
+                  if (window.SmokeTest && typeof window.SmokeTest.run === "function") {
+                    log("GOD: Smoke test runner loaded. Starting…", "notice");
+                    window.SmokeTest.run();
+                  } else {
+                    log("GOD: Smoke test runner loaded, but no run() found.", "warn");
+                  }
+                } catch (_) {}
+              };
+              document.body.appendChild(s);
+            } catch (e) {
+              try { console.error(e); } catch (_) {}
+              log("GOD: Failed to start smoke test.", "bad");
+            }
+          },
         });
       }
     }

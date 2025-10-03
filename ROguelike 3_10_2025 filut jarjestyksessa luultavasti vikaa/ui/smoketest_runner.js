@@ -1,5 +1,6 @@
 // Tiny Roguelike Smoke Test Runner
 // Loads when index.html?smoketest=1; runs a minimal scenario and reports pass/fail to Logger, console, and an on-screen banner.
+// Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
   // Create a floating banner for smoke test progress
@@ -131,8 +132,25 @@
     }
   }
 
-  // Delay to ensure game modules initialized
-  window.addEventListener("load", () => {
-    setTimeout(() => { run(); }, 800);
-  });
+  // Expose a global trigger
+  window.SmokeTest = window.SmokeTest || {};
+  window.SmokeTest.run = run;
+
+  // Auto-run conditions:
+  // - If ?smoketest=1 param was set and script loaded during/after page load
+  // - If the loader set window.SMOKETEST_REQUESTED
+  try {
+    var params = new URLSearchParams(location.search);
+    var shouldAuto = (params.get("smoketest") === "1") || (window.SMOKETEST_REQUESTED === true);
+    if (document.readyState !== "loading") {
+      if (shouldAuto) { setTimeout(() => { run(); }, 400); }
+    } else {
+      window.addEventListener("load", () => {
+        if (shouldAuto) { setTimeout(() => { run(); }, 800); }
+      });
+    }
+  } catch (_) {
+    // Fallback: run on load if present
+    window.addEventListener("load", () => { setTimeout(() => { run(); }, 800); });
+  }
 })();

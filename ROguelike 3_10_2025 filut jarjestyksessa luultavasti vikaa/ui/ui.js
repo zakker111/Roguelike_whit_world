@@ -182,6 +182,10 @@
       diagBtn?.addEventListener("click", () => {
         if (typeof this.handlers.onGodDiagnostics === "function") this.handlers.onGodDiagnostics();
       });
+      const smokeBtn = document.getElementById("god-run-smoke-btn");
+      smokeBtn?.addEventListener("click", () => {
+        if (typeof this.handlers.onGodRunSmokeTest === "function") this.handlers.onGodRunSmokeTest();
+      });
       if (this.els.godFov) {
         const updateFov = () => {
           const val = parseInt(this.els.godFov.value, 10);
@@ -458,7 +462,7 @@
       if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
     },
 
-    setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics } = {}) {
+    setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest } = {}) {
       if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
       if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
       if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
