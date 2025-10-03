@@ -796,15 +796,7 @@
   
 
   
-  function createEnemyAt(x, y, depth) {
-    if (window.Enemies && typeof Enemies.createEnemyAt === "function") {
-      return Enemies.createEnemyAt(x, y, depth, rng);
-    }
-    // Fallback (shouldn't happen if enemies.js is loaded)
-    const type = "goblin";
-    const level = enemyLevelFor(type, depth);
-    return { x, y, type, glyph: "g", hp: 3, atk: 1, xp: 5, level, announced: false };
-  }
+  
 
   
   
@@ -891,14 +883,12 @@
   }
 
   
-  let needsDraw = true;
-  function requestDraw() { needsDraw = true; }
-  function draw() {
-    if (!needsDraw) return;
-    if (window.Render && typeof Render.draw === "function") {
+  function requestDraw() {
+    if (window.GameLoop && typeof GameLoop.requestDraw === "function") {
+      GameLoop.requestDraw();
+    } else if (window.Render && typeof Render.draw === "function") {
       Render.draw(getRenderCtx());
     }
-    needsDraw = false;
   }
 
   
@@ -2037,11 +2027,7 @@
     requestDraw();
   }
 
-  // Main animation loop
-  function loop() {
-    draw();
-    requestAnimationFrame(loop);
-  }
+  
 
   
   if (window.UI && typeof UI.init === "function") {
@@ -2199,5 +2185,9 @@
   
   initWorld();
   setupInput();
-  loop();
+  if (window.GameLoop && typeof GameLoop.start === "function") {
+    GameLoop.start(() => getRenderCtx());
+  } else if (window.Render && typeof Render.draw === "function") {
+    Render.draw(getRenderCtx());
+  }
 })();
