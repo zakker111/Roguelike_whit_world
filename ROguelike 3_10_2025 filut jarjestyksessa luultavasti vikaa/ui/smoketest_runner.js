@@ -40,6 +40,44 @@
     } catch (_) {}
   }
 
+  // Detailed checklist logging
+  function logChecklist(checks) {
+    const order = [
+      "openedGodPanel",
+      "appliedSeed",
+      "adjustedFov",
+      "routedToDungeon",
+      "enteredDungeonAttempted",
+      "closedGodPanel",
+      "movedAndAttacked",
+      "inventoryOpenedClosed",
+      "lootedUnderfootAttempted",
+      "spawnedEnemyIfDungeon",
+      "routedToEnemy",
+      "lootedEnemyAttempted",
+      "ranDiagnostics",
+    ];
+    log("Checklist summary:", "notice");
+    for (const key of order) {
+      const v = checks[key];
+      let status = "SKIPPED";
+      let tone = "warn";
+      if (v === true) { status = "OK"; tone = "good"; }
+      else if (v === false) { status = "FAILED"; tone = "bad"; }
+      else if (typeof v === "string") {
+        status = v.toUpperCase();
+        tone = v.toLowerCase().includes("fail") ? "bad" : (v.toLowerCase().includes("skip") ? "warn" : "info");
+      }
+      const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase());
+      try {
+        if (window.Logger && typeof Logger.log === "function") {
+          Logger.log(`[SMOKE] CHECK: ${label}: ${status}`, tone);
+        }
+      } catch (_) {}
+      try { console.log(`[SMOKE] CHECK: ${label}: ${status}`); } catch (_) {}
+    }
+  }
+
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -68,80 +106,126 @@
   }
 
   async function run() {
+    const checks = Object.create(null);
     try {
       log("Starting smoke test…", "notice");
       // Step 1: open GOD panel
       await sleep(250);
-      clickById("god-open-btn");
-      log("Opened GOD panel", "info");
+      try {
+        clickById("god-open-btn");
+        checks.openedGodPanel = true;
+        log("Opened GOD panel", "info");
+      } catch (e) {
+        checks.openedGodPanel = false;
+        log("Failed to open GOD panel: " + (e && e.message ? e.message : String(e)), "bad");
+      }
       await sleep(250);
 
       // Step 2: set seed
-      setInputValue("god-seed-input", 12345);
-      clickById("god-apply-seed-btn");
-      log("Applied seed 12345", "info");
+      try {
+        setInputValue("god-seed-input", 12345);
+        clickById("god-apply-seed-btn");
+        checks.appliedSeed = true;
+        log("Applied seed 12345", "info");
+      } catch (e) {
+        checks.appliedSeed = false;
+        log("Failed to apply seed: " + (e && e.message ? e.message : String(e)), "bad");
+      }
       await sleep(600);
 
       // Step 3: adjust FOV to 10 via slider (if present)
       try {
         const fov = document.getElementById("god-fov");
-        if (fov) { fov.value = "10"; fov.dispatchEvent(new Event("input", { bubbles: true })); }
+        if (fov) { fov.value = "10"; fov.dispatchEvent(new Event("input", { bubbles: true })); checks.adjustedFov = true; }
+        else { checks.adjustedFov = "skipped (no slider)"; }
         log("Adjusted FOV to 10", "info");
-      } catch (_) {}
+      } catch (e) {
+        checks.adjustedFov = false;
+        log("Failed to adjust FOV: " + (e && e.message ? e.message : String(e)), "bad");
+      }
       await sleep(250);
 
       // Step 4: close GOD and route to nearest dungeon in overworld
       key("Escape");
       await sleep(250);
       try {
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
+        const inWorld = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world");
+        if (inWorld) {
           log("Routing to nearest dungeon…", "info");
           const ok = await window.GameAPI.gotoNearestDungeon();
+          checks.routedToDungeon = !!ok;
           if (!ok) {
             log("Failed to route to dungeon automatically; performing manual moves.", "warn");
             const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
             for (const m of moves) { key(m); await sleep(120); }
+            checks.routedToDungeon = "fallback-manual";
           }
           // Enter dungeon (press Enter on D)
           key("Enter");
+          checks.enteredDungeonAttempted = true;
           await sleep(500);
           log("Attempted dungeon entry.", "info");
         } else {
+          checks.routedToDungeon = "skipped (not in overworld)";
+          checks.enteredDungeonAttempted = "skipped";
           log("Not in overworld; skipping auto-route.", "warn");
         }
       } catch (e) {
+        checks.routedToDungeon = false;
+        checks.enteredDungeonAttempted = false;
         log("Routing error: " + (e && e.message ? e.message : String(e)), "bad");
       }
 
       // Step 5: close GOD (Esc)
       key("Escape");
+      checks.closedGodPanel = true;
       log("Closed GOD panel", "info");
       await sleep(250);
 
       // Step 6: move towards enemy (try a few steps) and attack by bump
-      const moves = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "ArrowRight", "ArrowRight", "ArrowDown"];
-      for (const m of moves) { key(m); await sleep(140); }
-      log("Moved and attempted attacks", "info");
+      try {
+        const moves = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "ArrowRight", "ArrowRight", "ArrowDown"];
+        for (const m of moves) { key(m); await sleep(140); }
+        checks.movedAndAttacked = true;
+        log("Moved and attempted attacks", "info");
+      } catch (e) {
+        checks.movedAndAttacked = false;
+        log("Movement/attack simulation failed: " + (e && e.message ? e.message : String(e)), "bad");
+      }
 
       // Step 7: open inventory, then close
-      key("KeyI");
-      await sleep(300);
-      key("Escape");
-      log("Opened and closed inventory", "info");
+      try {
+        key("KeyI");
+        await sleep(300);
+        key("Escape");
+        checks.inventoryOpenedClosed = true;
+        log("Opened and closed inventory", "info");
+      } catch (e) {
+        checks.inventoryOpenedClosed = false;
+        log("Inventory open/close failed: " + (e && e.message ? e.message : String(e)), "bad");
+      }
       await sleep(250);
 
       // Step 8: loot (G) any corpse beneath player (if present)
-      key("KeyG");
-      await sleep(300);
-      log("Attempted loot underfoot", "info");
+      try {
+        key("KeyG");
+        await sleep(300);
+        checks.lootedUnderfootAttempted = true;
+        log("Attempted loot underfoot", "info");
+      } catch (e) {
+        checks.lootedUnderfootAttempted = false;
+        log("Loot underfoot failed: " + (e && e.message ? e.message : String(e)), "bad");
+      }
 
       // Step 9: if in dungeon, spawn low-level enemy nearby and try to loot it
       try {
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
+        const inDungeon = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon");
+        if (inDungeon) {
           // Open GOD and spawn enemy
           clickById("god-open-btn");
           await sleep(250);
           clickById("god-spawn-enemy-btn"); // uses default count=1, level scales with floor; floor 1 is low
+          checks.spawnedEnemyIfDungeon = true;
           log("Spawned test enemy in dungeon", "info");
           await sleep(250);
           key("Escape");
@@ -163,26 +247,42 @@
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(120);
             }
+            checks.routedToEnemy = true;
             // Attempt to loot underfoot
             key("KeyG");
             await sleep(250);
+            checks.lootedEnemyAttempted = true;
             log("Attempted to loot defeated enemy", "info");
           } else {
+            checks.routedToEnemy = "skipped (no enemies)";
+            checks.lootedEnemyAttempted = "skipped";
             log("No enemies found to route/loot.", "warn");
           }
+        } else {
+          checks.spawnedEnemyIfDungeon = "skipped (not in dungeon)";
+          checks.routedToEnemy = "skipped";
+          checks.lootedEnemyAttempted = "skipped";
         }
       } catch (e) {
+        checks.spawnedEnemyIfDungeon = false;
         log("Dungeon test error: " + (e && e.message ? e.message : String(e)), "bad");
       }
 
       // Step 10: open GOD Diagnostics and log output
-      clickById("god-open-btn");
-      await sleep(250);
-      clickById("god-diagnostics-btn");
-      log("Ran Diagnostics", "info");
-      await sleep(300);
-      key("Escape");
+      try {
+        clickById("god-open-btn");
+        await sleep(250);
+        clickById("god-diagnostics-btn");
+        checks.ranDiagnostics = true;
+        log("Ran Diagnostics", "info");
+        await sleep(300);
+        key("Escape");
+      } catch (e) {
+        checks.ranDiagnostics = false;
+        log("Diagnostics failed: " + (e && e.message ? e.message : String(e)), "bad");
+      }
 
+      logChecklist(checks);
       log("Smoke test completed.", "good");
     } catch (err) {
       log("Smoke test failed: " + (err && err.message ? err.message : String(err)), "bad");
