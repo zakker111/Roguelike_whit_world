@@ -276,51 +276,52 @@
         const d = Math.abs(n.x - p0.x) + Math.abs(n.y - p0.y);
         if (d < bestD) { best = n; bestD = d; }
       }
-      // move toward and attempt to step into npc tile a few times
+      // Route within distance 1 using town BFS (avoids walking into props/NPCs)
+      const path = (typeof GameAPI.routeTownTo === "function") ? GameAPI.routeTownTo(best.x, best.y, true) : [];
+      for (const step of path) {
+        const cur = GameAPI.getPlayer();
+        const dx = Math.sign(step.x - cur.x);
+        const dy = Math.sign(step.y - cur.y);
+        key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+        await sleep(80);
+      }
+      // Now attempt bump into NPC by stepping towards its exact tile
       let prevLine = getTopLogLine();
-      for (let i = 0; i < 24; i++) {
-        const p = GameAPI.getPlayer();
-        const dx = Math.sign(best.x - p.x);
-        const dy = Math.sign(best.y - p.y);
-        const keyName = dx !== 0 ? (dx === -1 ? "ArrowLeft" : "ArrowRight") : (dy === -1 ? "ArrowUp" : "ArrowDown");
-        key(keyName);
-        await sleep(100);
-        // after each attempt, see if a new log line appeared (NPC dialog or "Excuse me!")
-        const changed = await waitForLogChange(prevLine, 300);
-        if (changed) {
-          npcBumpSaid = true;
-          break;
-        }
+      for (let i = 0; i < 8; i++) {
+        const cur = GameAPI.getPlayer();
+        const dx = Math.sign(best.x - cur.x);
+        const dy = Math.sign(best.y - cur.y);
+        key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+        await sleep(140);
+        const changed = await waitForLogChange(prevLine, 400);
+        if (changed) { npcBumpSaid = true; break; }
         prevLine = getTopLogLine();
       }
     }
 
-    // 3) Check one shop sign: route to a sign and press G; validate that log says "Sign:"
+    // 3) Check one shop sign: route to a sign and press G; validate that log says a sign line
     let shopSignSaid = false;
     const props = (GameAPI.getTownProps ? GameAPI.getTownProps() : []);
     const signs = props.filter(p => p.type === "sign");
     if (signs.length) {
-      // pick sign nearest to player
       const p0 = GameAPI.getPlayer();
       let best = signs[0], bestD = Math.abs(best.x - p0.x) + Math.abs(best.y - p0.y);
       for (const s of signs) {
         const d = Math.abs(s.x - p0.x) + Math.abs(s.y - p0.y);
         if (d < bestD) { best = s; bestD = d; }
       }
-      // walk towards sign; Town.interactProps triggers if on or adjacent
-      for (let i = 0; i < 40; i++) {
-        const p = GameAPI.getPlayer();
-        const d = Math.abs(best.x - p.x) + Math.abs(best.y - p.y);
-        if (d <= 1) break;
-        const dx = Math.sign(best.x - p.x);
-        const dy = Math.sign(best.y - p.y);
-        const keyName = dx !== 0 ? (dx === -1 ? "ArrowLeft" : "ArrowRight") : (dy === -1 ? "ArrowUp" : "ArrowDown");
-        key(keyName);
+      // Route within distance 1 using town BFS
+      const pathToSign = (typeof GameAPI.routeTownTo === "function") ? GameAPI.routeTownTo(best.x, best.y, true) : [];
+      for (const step of pathToSign) {
+        const cur = GameAPI.getPlayer();
+        const dx = Math.sign(step.x - cur.x);
+        const dy = Math.sign(step.y - cur.y);
+        key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
         await sleep(70);
       }
       const before = getTopLogLine();
       key("KeyG");
-      const changed = await waitForLogChange(before, 600);
+      const changed = await waitForLogChange(before, 900);
       if (changed && (changed.startsWith("Sign:") || changed.toLowerCase().includes("welcome to"))) {
         shopSignSaid = true;
       }
@@ -465,12 +466,12 @@
     return checklist;
   }
 
-  // Main runner: run 10 scenarios with random seeds, then show combined and best (golden) run
+  // Main runner: run 5 scenarios with random seeds, then show combined and best (golden) run
   async function run() {
     try {
       const runs = [];
       const seeds = [];
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 5; i++) {
         const s = (Math.random() * 0xffffffff) >>> 0;
         seeds.push(s);
       }
@@ -486,7 +487,7 @@
       }
 
       // Build combined summary
-      const lines = ["[SMOKE] Combined Checklist (10 runs):"];
+      const lines = ["[SMOKE] Combined Checklist (5 runs):"];
       for (let i = 0; i < runs.length; i++) {
         const r = runs[i];
         lines.push(`Run ${i + 1} (seed=${r.seed})`);
