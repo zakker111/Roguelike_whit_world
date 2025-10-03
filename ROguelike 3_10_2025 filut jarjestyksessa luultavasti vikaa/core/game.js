@@ -696,6 +696,10 @@
       info: currentDungeon,
       level: floor
     };
+    try {
+      const msg = `[DEV] Fallback save key ${key}: enemies=${Array.isArray(enemies)?enemies.length:0}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
+      log(msg, "notice");
+    } catch (_) {}
   }
 
   function loadDungeonStateFor(x, y) {
@@ -2053,8 +2057,10 @@
 
       // If dungeon already has a saved state, load it and return
       if (loadDungeonStateFor(currentDungeon.x, currentDungeon.y)) {
+        try { log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}.`, "notice"); } catch (_) {}
         return true;
-      }
+      } else {
+        try   }
 
       // Set dungeon difficulty = level; we keep 'floor' equal to dungeon level for UI/logic
       floor = Math.max(1, currentDungeon.level | 0);
