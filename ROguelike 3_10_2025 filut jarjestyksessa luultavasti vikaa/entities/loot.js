@@ -193,6 +193,10 @@
       here.forEach(c => c.looted = true);
       if (here.some(c => c.kind === "chest")) ctx.log("The chest is empty.");
       else ctx.log("All corpses here have nothing of value.");
+      // Persist the looted state immediately via a consumed turn,
+      // so revisiting the dungeon remembers emptied chests/corpses.
+      if (typeof ctx.updateUI === "function") ctx.updateUI();
+      if (typeof ctx.turn === "function") ctx.turn();
       return;
     }
 
