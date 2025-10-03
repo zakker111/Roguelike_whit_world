@@ -3345,7 +3345,4 @@
   initWorld();
   setupInput();
   loop();
-initWorld();
-  setupInput();
-  loop();
 })();
