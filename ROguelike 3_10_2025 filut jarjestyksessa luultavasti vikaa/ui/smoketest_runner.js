@@ -1,8 +1,5 @@
-// Tiny Roguelike Smoke Test Runner (coherent end-to-end)
-// - Overworld -> dungeon -> spawn enemy -> kill -> loot -> exit -> re-enter (corpse persists)
-// - Spawn items -> equip and unequip
-// - Enter town -> check signs and NPCs -> try to walk to NPC -> exit town
-// - Output a checklist summary
+// Tiny Roguelike Smoke Test Runner (multi-run, coherent end-to-end)
+// Runs the scenario with random seeds at least 3 times, then prints a combined checklist summary.
 (function () {
   // Floating banner for progress + summary
   function ensureBanner() {
@@ -22,7 +19,7 @@
     el.style.border = "1px solid rgba(122,162,247,0.35)";
     el.style.borderRadius = "8px";
     el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.5)";
-    el.style.maxWidth = "44ch";
+    el.style.maxWidth = "54ch";
     el.textContent = "[SMOKE] Runner ready…";
     document.body.appendChild(el);
     return el;
@@ -38,12 +35,6 @@
     const banner = ensureBanner();
     banner.innerHTML = lines.map(s => `<div>${s}</div>`).join("");
   }
-  const checklist = [];
-  function mark(name, ok, extra) {
-    checklist.push({ name, ok: !!ok, extra: extra || "" });
-    const sym = ok ? "✔" : "✘";
-    log(`${sym} ${name}${extra ? " — " + extra : ""}`, ok ? "good" : "warn");
-  }
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
   function key(code) {
@@ -57,11 +48,6 @@
     if (!el) throw new Error("Missing element #" + id);
     el.click();
   }
-  function clickSelector(sel) {
-    const el = document.querySelector(sel);
-    if (el) el.click();
-    return !!el;
-  }
   function setInputValue(id, v) {
     const el = document.getElementById(id);
     if (!el) throw new Error("Missing input #" + id);
@@ -71,7 +57,6 @@
   }
 
   function getMode() { return (window.GameAPI && typeof GameAPI.getMode === "function") ? GameAPI.getMode() : ""; }
-
   async function routeToNearestDungeon() {
     if (!window.GameAPI || typeof GameAPI.gotoNearestDungeon !== "function") return false;
     return await GameAPI.gotoNearestDungeon();
@@ -80,9 +65,7 @@
     if (!window.GameAPI || typeof GameAPI.gotoNearestTown !== "function") return false;
     return await GameAPI.gotoNearestTown();
   }
-
   async function enterIfOnSpecialTile(kind /* "dungeon" | "town" */) {
-    // In overworld, pressing Enter when on D/T should enter
     key("Enter");
     await sleep(400);
     const m = getMode();
@@ -92,7 +75,6 @@
   }
 
   async function spawnEnemyAndKillOne() {
-    // GOD open -> spawn enemy -> close
     clickById("god-open-btn");
     await sleep(120);
     clickById("god-spawn-enemy-btn");
@@ -100,7 +82,6 @@
     key("Escape");
     await sleep(120);
 
-    // Route to nearest enemy
     const enemies = (GameAPI.getEnemies ? GameAPI.getEnemies() : []);
     if (!enemies || !enemies.length) return false;
     const p = GameAPI.getPlayer ? GameAPI.getPlayer() : { x: 0, y: 0 };
@@ -117,26 +98,21 @@
       key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
       await sleep(90);
     }
-    // Bump-attack until enemy at tile is gone or until some turns
     for (let i = 0; i < 12; i++) {
-      // try to step onto the enemy tile directionally if not overlapping
       const cur = GameAPI.getPlayer();
       const dx = Math.sign(best.x - cur.x);
       const dy = Math.sign(best.y - cur.y);
       key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
       await sleep(80);
     }
-    // Loot ground
     key("KeyG");
     await sleep(160);
     return true;
   }
 
   async function exitDungeonAndReenterCheckCorpse() {
-    // Capture corpse count
     const corpsesBefore = (GameAPI.getCorpses ? GameAPI.getCorpses() : []).length;
 
-    // Spawn stairs underfoot to guarantee exit
     clickById("god-open-btn");
     await sleep(120);
     clickById("god-spawn-stairs-btn");
@@ -144,11 +120,9 @@
     key("Escape");
     await sleep(100);
 
-    // Press G to leave via stairs
     key("KeyG");
     await sleep(450);
     const left = getMode() === "world";
-    // Re-enter dungeon immediately (stand on D and Enter)
     if (left) {
       key("Enter");
       await sleep(450);
@@ -159,7 +133,6 @@
   }
 
   async function spawnItemsEquipAndUnequip() {
-    // Open GOD -> spawn random items (adds to inventory)
     clickById("god-open-btn");
     await sleep(100);
     clickById("god-spawn-btn");
@@ -167,13 +140,11 @@
     key("Escape");
     await sleep(80);
 
-    // Open inventory panel
     key("KeyI");
     await sleep(200);
 
     const inv = document.getElementById("inv-list");
     if (!inv) { key("Escape"); return { equipped: false, unequipped: false }; }
-    // Find two equippable items (prefer non-hand first to avoid chooser)
     const lis = Array.from(inv.querySelectorAll("li"));
     const nonHand = lis.filter(li => li.dataset.kind === "equip" && li.dataset.slot && li.dataset.slot !== "hand");
     const handItems = lis.filter(li => li.dataset.kind === "equip" && (!li.dataset.slot || li.dataset.slot === "hand"));
@@ -181,13 +152,11 @@
 
     function clickLI(li) { li.dispatchEvent(new MouseEvent("click", { bubbles: true })); }
 
-    // Equip first non-hand if available, else one hand item
     let chosen = nonHand[0] || handItems[0] || null;
     if (chosen) {
       clickLI(chosen);
       equipped = true;
       await sleep(180);
-      // If hand chooser is visible, pick left safely without invalid selectors
       try {
         const handRoot = (window.UI && UI.els && UI.els.handChooser) ? UI.els.handChooser : null;
         let leftBtn = null;
@@ -195,17 +164,14 @@
           leftBtn = handRoot.querySelector('button[data-hand="left"]');
         }
         if (!leftBtn) {
-          // fallback: global query (safe selector)
           leftBtn = document.querySelector('button[data-hand="left"]');
         }
         if (leftBtn) { leftBtn.click(); await sleep(120); }
       } catch (_) {}
     }
 
-    // Unequip via equipment slots (click span[data-slot])
     const slots = document.querySelectorAll("#equip-slots span.name[data-slot]");
     if (slots && slots.length) {
-      // Click the first slot that appears equipped
       for (const s of Array.from(slots)) {
         if (!s.textContent || s.textContent.includes("(empty)")) continue;
         s.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -215,16 +181,13 @@
       }
     }
 
-    // Close inventory
     key("Escape");
     await sleep(120);
     return { equipped, unequipped };
   }
 
   async function enterTownCheckAndExit() {
-    // Ensure we're in overworld
     if (getMode() !== "world") {
-      // Try to leave current place: if dungeon, attempt stairs->G path using GOD helper
       if (getMode() === "dungeon") {
         clickById("god-open-btn"); await sleep(100);
         clickById("god-spawn-stairs-btn"); await sleep(80);
@@ -234,20 +197,17 @@
     }
     if (getMode() !== "world") return { entered: false, signs: 0, npcs: 0, walkedToNPC: false, exited: false };
 
-    // Route to nearest town and enter
     const routed = await routeToNearestTown();
     await sleep(120);
     await enterIfOnSpecialTile("town");
     const entered = getMode() === "town";
     if (!entered) return { entered: false, signs: 0, npcs: 0, walkedToNPC: false, exited: false };
 
-    // Check signs and NPCs
     const props = (GameAPI.getTownProps ? GameAPI.getTownProps() : []);
     const signs = props.filter(p => p.type === "sign").length;
     const npcs = (GameAPI.getNPCs ? GameAPI.getNPCs() : []);
     const npcCount = npcs.length;
 
-    // Try to walk toward the nearest NPC for up to N steps
     let walkedToNPC = false;
     if (npcCount > 0) {
       const p0 = GameAPI.getPlayer();
@@ -268,20 +228,17 @@
       }
     }
 
-    // Exit town via the Exit Town button (handles confirm)
     let exited = false;
     try {
       const btn = (UI && UI.els && UI.els.townExitBtn) ? UI.els.townExitBtn : document.querySelector("button[title='Leave the town']");
       if (btn) {
         btn.click();
         await sleep(120);
-        // Approve confirm (OK)
         const okBtn = document.querySelector("div#ui-confirm-text") ? document.querySelector("div#ui-confirm-text").parentElement.parentElement.querySelector("button[data-act='ok']") : document.querySelector("button[data-act='ok']");
         if (okBtn) okBtn.click();
         await sleep(420);
         exited = getMode() === "world";
       } else {
-        // Fallback: try to press G at gate if user is at exit tile
         key("KeyG");
         await sleep(420);
         exited = getMode() === "world";
@@ -291,16 +248,23 @@
     return { entered: true, signs, npcs: npcCount, walkedToNPC, exited };
   }
 
-  async function run() {
-    const summary = [];
-    try {
-      log("Starting smoke test…", "notice");
+  // Run one scenario with a specific seed; returns checklist entries for that run
+  async function runOnceWithSeed(seed) {
+    const checklist = [];
+    const mark = (name, ok, extra) => {
+      checklist.push({ name, ok: !!ok, extra: extra || "" });
+      const sym = ok ? "✔" : "✘";
+      log(`${sym} ${name}${extra ? " — " + extra : ""}`, ok ? "good" : "warn");
+    };
 
-      // Open GOD, set seed, set FOV
+    try {
+      log(`Starting scenario (seed=${seed})…`, "notice");
+
+      // Open GOD, apply seed, set FOV
       await sleep(200);
       clickById("god-open-btn");
       await sleep(160);
-      setInputValue("god-seed-input", 12345);
+      setInputValue("god-seed-input", seed >>> 0);
       clickById("god-apply-seed-btn");
       await sleep(420);
       const fov = document.getElementById("god-fov");
@@ -310,18 +274,16 @@
 
       // Ensure overworld
       if (getMode() !== "world") {
-        // Attempt to restart to force overworld start
         key("KeyR");
-        await sleep(400);
+        await sleep(420);
       }
 
-      // Go to dungeon and enter
+      // Dungeon flow
       const routedD = await routeToNearestDungeon();
       await sleep(160);
       const enteredD = await enterIfOnSpecialTile("dungeon");
       mark("Enter dungeon", routedD && enteredD);
 
-      // Spawn enemy, kill, and loot
       let killed = false;
       if (getMode() === "dungeon") {
         const ok = await spawnEnemyAndKillOne();
@@ -329,7 +291,6 @@
       }
       mark("Spawn and kill enemy, then loot", killed);
 
-      // Exit dungeon and re-enter, verify corpse persistence
       let corpseCheck = { left: false, back: false, corpsesBefore: 0, corpsesAfter: 0 };
       if (getMode() === "dungeon") {
         corpseCheck = await exitDungeonAndReenterCheckCorpse();
@@ -337,15 +298,11 @@
       const corpsePersist = corpseCheck.back && corpseCheck.corpsesAfter >= corpseCheck.corpsesBefore && corpseCheck.corpsesBefore > 0;
       mark("Exit and re-enter dungeon (corpse persists)", corpsePersist, `before=${corpseCheck.corpsesBefore}, after=${corpseCheck.corpsesAfter}`);
 
-      // Items: spawn, equip, unequip
-      if (getMode() !== "dungeon") {
-        // if we didn't return properly, try to enter dungeon again for variety; not required though
-      }
       const eqRes = await spawnItemsEquipAndUnequip();
       mark("Equip an item", eqRes.equipped);
       mark("Unequip an item", eqRes.unequipped);
 
-      // Return to world (if still in dungeon)
+      // Return to world if needed
       if (getMode() === "dungeon") {
         clickById("god-open-btn"); await sleep(80);
         clickById("god-spawn-stairs-btn"); await sleep(80);
@@ -353,33 +310,76 @@
         key("KeyG"); await sleep(360);
       }
 
-      // Town: enter, check signs & NPCs, walk to NPC, exit
+      // Town flow
       const town = await enterTownCheckAndExit();
       const townOk = town.entered && town.signs >= 1 && town.npcs >= 1 && town.walkedToNPC && town.exited;
       mark("Town: enter, see sign(s), see NPC(s), approach NPC, exit", townOk, `signs=${town.signs}, npcs=${town.npcs}`);
 
-      // Diagnostics for visibility
+      // Diagnostics
       clickById("god-open-btn");
       await sleep(120);
       clickById("god-diagnostics-btn");
       await sleep(200);
       key("Escape");
 
-      // Final summary
-      const lines = ["[SMOKE] Checklist:"].concat(
-        checklist.map(c => `- ${c.ok ? "✔" : "✘"} ${c.name}${c.extra ? " — " + c.extra : ""}`)
-      );
+      log(`Scenario finished (seed=${seed}).`, "good");
+    } catch (err) {
+      log("Scenario error: " + (err && err.message ? err.message : String(err)), "bad");
+      try { console.error(err); } catch (_) {}
+    }
+    return checklist;
+  }
+
+  // Main runner: run at least 3 scenarios with random seeds, then show combined checklist
+  async function run() {
+    try {
+      const runs = [];
+      const seeds = [];
+      for (let i = 0; i < 3; i++) {
+        const s = (Math.random() * 0xffffffff) >>> 0;
+        seeds.push(s);
+      }
+
+      for (let i = 0; i < seeds.length; i++) {
+        const seed = seeds[i];
+        const list = await runOnceWithSeed(seed);
+        runs.push({ seed, list });
+
+        // After each run, restart to give a clean slate for next seed
+        key("KeyR");
+        await sleep(600);
+      }
+
+      // Build combined summary
+      const lines = ["[SMOKE] Combined Checklist (3 runs):"];
+      for (let i = 0; i < runs.length; i++) {
+        const r = runs[i];
+        lines.push(`Run ${i + 1} (seed=${r.seed})`);
+        for (const c of r.list) {
+          lines.push(`- ${c.ok ? "✔" : "✘"} ${c.name}${c.extra ? " — " + c.extra : ""}`);
+        }
+      }
+
+      // Aggregate pass/fail per check name
+      const aggregate = new Map();
+      for (const r of runs) {
+        for (const c of r.list) {
+          const a = aggregate.get(c.name) || { total: 0, pass: 0 };
+          a.total += 1; if (c.ok) a.pass += 1;
+          aggregate.set(c.name, a);
+        }
+      }
+      lines.push("Summary:");
+      for (const [name, a] of aggregate.entries()) {
+        lines.push(`- ${name}: ${a.pass}/${a.total} passed`);
+      }
+
       setBannerSummary(lines);
       try { lines.forEach(s => Logger && Logger.log ? Logger.log(s, "info") : console.log(s)); } catch (_) {}
-
-      log("Smoke test done.", "good");
+      log("Smoke test suite completed.", "good");
     } catch (err) {
       log("Smoke test failed: " + (err && err.message ? err.message : String(err)), "bad");
       try { console.error(err); } catch (_) {}
-      const lines = ["[SMOKE] Checklist (incomplete):"].concat(
-        checklist.map(c => `- ${c.ok ? "✔" : "✘"} ${c.name}${c.extra ? " — " + c.extra : ""}`)
-      );
-      setBannerSummary(lines);
     }
   }
 
