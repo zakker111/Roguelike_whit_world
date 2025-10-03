@@ -24,48 +24,36 @@
       const t = (ctx.world && ctx.world.map) ? ctx.world.map[ctx.player.y][ctx.player.x] : null;
       if (ctx.World && ctx.World.TILES) {
         const WT = ctx.World.TILES;
-        // Helper: if not standing exactly on TOWN/DUNGEON, allow entering if adjacent (QoL)
-        function tryEnterAdjacent(kindTile) {
-          const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-          for (const d of dirs) {
-            const nx = ctx.player.x + d.dx, ny = ctx.player.y + d.dy;
-            if (!inBounds(ctx, nx, ny)) continue;
-            if (ctx.world.map[ny][nx] === kindTile) {
-              // step onto tile and signal success
-              ctx.player.x = nx; ctx.player.y = ny;
-              return true;
-            }
-          }
-          return false;
-        }
 
-        if (t === WT.TOWN || tryEnterAdjacent(WT.TOWN)) {
-          // Enter town
-          ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
+        if (t === WT.TOWN) {
+          // Enter town only when standing directly on the TOWN tile (no adjacent auto-step)
+          const worldPos = { x: ctx.player.x, y: ctx.player.y };
+          ctx.worldReturnPos = { x: worldPos.x, y: worldPos.y };
           ctx.mode = "town";
           if (ctx.Town && typeof Town.generate === "function") {
             Town.generate(ctx);
             if (typeof Town.ensureSpawnClear === "function") Town.ensureSpawnClear(ctx);
             ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
-            // Optional greeters kept minimal
+            // Optional greeters minimal (0); UI shows exit button
             if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 0);
             if (ctx.UI && typeof UI.showTownExitButton === "function") UI.showTownExitButton();
-            ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}.`, "notice");
+            ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Overworld entry at (${worldPos.x},${worldPos.y}).`, "notice");
             ctx.requestDraw();
             return true;
           }
-        } else if (t === WT.DUNGEON || tryEnterAdjacent(WT.DUNGEON)) {
-          // Enter dungeon (single floor)
+        } else if (t === WT.DUNGEON) {
+          // Enter dungeon only when standing directly on the DUNGEON tile
           ctx.cameFromWorld = true;
-          ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
+          const worldPos = { x: ctx.player.x, y: ctx.player.y };
+          ctx.worldReturnPos = { x: worldPos.x, y: worldPos.y };
 
           // Lookup dungeon info from world
           let info = null;
           try {
             const list = Array.isArray(ctx.world?.dungeons) ? ctx.world.dungeons : [];
-            info = list.find(d => d.x === ctx.player.x && d.y === ctx.player.y) || null;
+            info = list.find(d => d.x === worldPos.x && d.y === worldPos.y) || null;
           } catch (_) { info = null; }
-          if (!info) info = { x: ctx.player.x, y: ctx.player.y, level: 1, size: "medium" };
+          if (!info) info = { x: worldPos.x, y: worldPos.y, level: 1, size: "medium" };
           ctx.dungeon = info;
           ctx.dungeonInfo = info;
 
