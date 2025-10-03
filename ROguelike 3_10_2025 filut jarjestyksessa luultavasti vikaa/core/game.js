@@ -2185,5 +2185,5 @@
   
   initWorld();
   setupInput();
-  loop();
-})();
+  if (window.GameLoop && typeof GameLoop.start === "function") {
+    GameLoop.start();
