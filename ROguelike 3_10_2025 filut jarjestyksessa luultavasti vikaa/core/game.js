@@ -1114,13 +1114,8 @@
 
   function requestLeaveTown() {
     if (window.Modes && typeof Modes.requestLeaveTown === "function") {
-      Modes.request      const x = window.innerWidth / 2 - 140;
-      const y = window.innerHeight / 2 - 60;
-      UI.showConfirm("Do you want to leave the town?", { x, y }, () => leaveTownNow(), () => {});
-    } else {
-      if (window.confirm && window.confirm("Do you want to leave the town?")) {
-        leaveTownNow();
-      }
+      Modes.requestLeaveTown(getCtx());
+      return;
     }
   }
 
