@@ -10,6 +10,11 @@
 (function () {
   const LS_KEY = "DUNGEON_STATES_V1";
 
+  // Global in-memory fallback that persists across ctx instances within the same page/session
+  if (typeof window !== "undefined" && !window._DUNGEON_STATES_MEM) {
+    try { window._DUNGEON_STATES_MEM = Object.create(null); } catch (_) {}
+  }
+
   function key(x, y) { return `${x},${y}`; }
 
   function readLS() {
@@ -99,7 +104,13 @@
   }
 
   function loadFromMemory(ctx, k) {
-    return ctx._dungeonStates && ctx._dungeonStates[k] || null;
+    if (ctx._dungeonStates && ctx._dungeonStates[k]) return ctx._dungeonStates[k];
+    try {
+      if (typeof window !== "undefined" && window._DUNGEON_STATES_MEM && window._DUNGEON_STATES_MEM[k]) {
+        return window._DUNGEON_STATES_MEM[k];
+      }
+    } catch (_) {}
+    return null;
   }
 
   function loadFromLS(k) {

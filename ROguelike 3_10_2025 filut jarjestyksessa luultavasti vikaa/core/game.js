@@ -2096,6 +2096,11 @@
 
       // Save fresh dungeon state
       saveCurrentDungeonState();
+      try {
+        const k = `${currentDungeon.x},${currentDungeon.y}`;
+        log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
+        console.log(`[DEV] Initial dungeon save for key ${k}.`);
+      } catch (_) {}
 
       log(`You enter the dungeon (Difficulty ${floor}${currentDungeon.size ? ", " + currentDungeon.size : ""}).`, "notice");
       return true;
