@@ -726,7 +726,28 @@
 
   function loadDungeonStateFor(x, y) {
     if (window.DungeonState && typeof DungeonState.load === "function") {
-      return DungeonState.load(getCtx(), x, y);
+      const ctxMod = getCtx();
+      const ok = DungeonState.load(ctxMod, x, y);
+      if (ok) {
+        // Sync mutated ctx back into local state to ensure mode/map changes take effect
+        mode = ctxMod.mode || mode;
+        map = ctxMod.map || map;
+        seen = ctxMod.seen || seen;
+        visible = ctxMod.visible || visible;
+        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
+        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
+        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
+        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
+        townExitAt = ctxMod.townExitAt || townExitAt;
+        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
+        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
+        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
+        updateCamera();
+        recomputeFOV();
+        updateUI();
+        requestDraw();
+      }
+      return ok;
     }
     const key = dungeonKeyFromWorldPos(x, y);
     const st = dungeonStates[key];
@@ -2164,7 +2185,28 @@
 
   function returnToWorldIfAtExit() {
     if (window.DungeonState && typeof DungeonState.returnToWorldIfAtExit === "function") {
-      return DungeonState.returnToWorldIfAtExit(getCtx());
+      const ctxMod = getCtx();
+      const ok = DungeonState.returnToWorldIfAtExit(ctxMod);
+      if (ok) {
+        // Sync mutated ctx back into local state
+        mode = ctxMod.mode || mode;
+        map = ctxMod.map || map;
+        seen = ctxMod.seen || seen;
+        visible = ctxMod.visible || visible;
+        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
+        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
+        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
+        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
+        townExitAt = ctxMod.townExitAt || townExitAt;
+        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
+        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
+        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
+        recomputeFOV();
+        updateCamera();
+        updateUI();
+        requestDraw();
+      }
+      return ok;
     }
     if (mode !== "dungeon" || !cameFromWorld || !world) return false;
     if (floor !== 1) return false;
