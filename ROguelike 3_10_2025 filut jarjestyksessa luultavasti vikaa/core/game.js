@@ -2269,30 +2269,22 @@
             requestDraw();
           },
           onGodRunSmokeTest: () => {
+            // Reload the page with ?smoketest=1 so the loader injects the runner and it auto-runs
             try {
-              // If runner is already loaded, call it
-              if (window.SmokeTest && typeof window.SmokeTest.run === "function") {
-                log("GOD: Running smoke test…", "notice");
-                window.SmokeTest.run();
-                return;
+              const url = new URL(window.location.href);
+              url.searchParams.set("smoketest", "1");
+              // Preserve existing dev flag/state if set in localStorage
+              if (window.DEV || localStorage.getItem("DEV") === "1") {
+                url.searchParams.set("dev", "1");
               }
-              // Otherwise inject the runner script and run on load
-              const s = document.createElement("script");
-              s.src = "ui/smoketest_runner.js";
-              s.onload = () => {
-                try {
-                  if (window.SmokeTest && typeof window.SmokeTest.run === "function") {
-                    log("GOD: Smoke test runner loaded. Starting…", "notice");
-                    window.SmokeTest.run();
-                  } else {
-                    log("GOD: Smoke test runner loaded, but no run() found.", "warn");
-                  }
-                } catch (_) {}
-              };
-              document.body.appendChild(s);
+              log("GOD: Reloading with smoketest=1…", "notice");
+              window.location.href = url.toString();
             } catch (e) {
               try { console.error(e); } catch (_) {}
-              log("GOD: Failed to start smoke test.", "bad");
+              try {
+                log("GOD: Failed to construct URL; reloading with ?smoketest=1", "warn");
+              } catch (_) {}
+              window.location.search = "?smoketest=1";
             }
           },
         });
