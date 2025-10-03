@@ -278,5 +278,4 @@ Bugs
 - inns dont have invidual rooms and not enought beds
 - some npc stay at their homes at day time 
 - some npc dont sleep in theid beds
-- Dungeons bugged out they spawn enemies every time you decend to dungeon and corpses dont stay and crate always spawns items this needs to be fixed
-residents go home at night but they get stuck in door if bed is just adjacent tile of door
+- residents go home at night but they get stuck in door if bed is just adjacent tile of door
