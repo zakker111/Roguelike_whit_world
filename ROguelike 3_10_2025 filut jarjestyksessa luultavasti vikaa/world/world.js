@@ -52,7 +52,7 @@
   }
 
   function generate(ctx, opts = {}) {
-    const rng = (ctx && typeof ctx.rng === "function") ? ctx.rng : Math.random;
+    const rng = (ctx && typeof ctx.rng === "function") ? ctx.rng : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
     const width = clamp((opts.width | 0) || 120, 48, 512);
     const height = clamp((opts.height | 0) || 80, 48, 512);
     const map = Array.from({ length: height }, () => Array(width).fill(TILES.GRASS));
@@ -362,7 +362,7 @@
   }
 
   function pickTownStart(world, rng) {
-    const r = typeof rng === "function" ? rng : Math.random;
+    const r = (typeof rng === "function") ? rng : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
     if (world.towns && world.towns.length) {
       return world.towns[(r() * world.towns.length) | 0];
     }

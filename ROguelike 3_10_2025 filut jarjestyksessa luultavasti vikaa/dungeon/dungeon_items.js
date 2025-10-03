@@ -21,7 +21,7 @@
   // --- Built-in loot factories ---
   const lootFactories = {
     potion: (ctx) => {
-      const rng = ctx.rng || Math.random;
+      const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
       const r = rng();
       if (r < 0.5) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
       if (r < 0.85) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
@@ -30,7 +30,7 @@
 
     armor: (ctx, opts = {}) => {
       const tier = opts.tier ?? 2;
-      const rng = ctx.rng || Math.random;
+      const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
       const slots = ["head", "torso", "legs", "hands"];
       const slot = slots[Math.floor(rng() * slots.length)];
       const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
@@ -44,7 +44,7 @@
 
     handWeapon: (ctx, opts = {}) => {
       const tier = opts.tier ?? 2;
-      const rng = ctx.rng || Math.random;
+      const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
       const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
       if (ItemsMod && typeof ItemsMod.createByKey === "function") {
         const keys = ["sword", "axe", "bow"];
@@ -60,7 +60,7 @@
     equipment: (ctx, opts = {}) => {
       const tier = opts.tier ?? 2;
       const slot = opts.slot || "hand";
-      const rng = ctx.rng || Math.random;
+      const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
       const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
       if (ItemsMod && typeof ItemsMod.createEquipmentOfSlot === "function") {
         return setDecayIfEquip(ItemsMod.createEquipmentOfSlot(slot, tier, rng), opts.decayAll ?? 99);
@@ -71,7 +71,7 @@
     },
 
     anyEquipment: (ctx, opts = {}) => {
-      const rng = ctx.rng || Math.random;
+      const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
       const tier = opts.tier ?? 2;
       const slots = ["hand", "head", "torso", "legs", "hands"];
       const slot = slots[Math.floor(rng() * slots.length)];

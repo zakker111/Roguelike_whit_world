@@ -56,9 +56,9 @@
   function enemiesAct(ctx) {
     const { player, enemies } = ctx;
     const U = (ctx && ctx.utils) ? ctx.utils : null;
-    const randFloat = U && U.randFloat ? U.randFloat : (ctx.randFloat || ((a,b,dec=1)=>{const v=a+(ctx.rng?ctx.rng():Math.random())*(b-a);const p=Math.pow(10,dec);return Math.round(v*p)/p;}));
-    const randInt = U && U.randInt ? U.randInt : (ctx.randInt || ((min,max)=>Math.floor((ctx.rng?ctx.rng():Math.random())*(max-min+1))+min));
-    const chance = U && U.chance ? U.chance : (ctx.chance || ((p)=>(ctx.rng?ctx.rng():Math.random())<p));
+    const randFloat = U && U.randFloat ? U.randFloat : (ctx.randFloat || ((a,b,dec=1)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():Math.random()));const v=a+rv*(b-a);const p=Math.pow(10,dec);return Math.round(v*p)/p;}));
+    const randInt = U && U.randInt ? U.randInt : (ctx.randInt || ((min,max)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():Math.random()));return Math.floor(rv*(max-min+1))+min;}));
+    const chance = U && U.chance ? U.chance : (ctx.chance || ((p)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():Math.random()));return rv<p;}));
     const Cap = U && U.capitalize ? U.capitalize : (s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
     const senseRange = 8;

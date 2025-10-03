@@ -17,7 +17,9 @@
     if (ctx && ctx.utils && typeof ctx.utils.pick === "function") {
       return ctx.utils.pick(arr, ctx.rng);
     }
-    const r = (ctx && typeof ctx.rng === "function") ? ctx.rng : Math.random;
+    const r = (ctx && typeof ctx.rng === "function")
+      ? ctx.rng
+      : (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function" ? RNG.rng : Math.random);
     return arr[Math.floor(r() * arr.length)];
   }
 

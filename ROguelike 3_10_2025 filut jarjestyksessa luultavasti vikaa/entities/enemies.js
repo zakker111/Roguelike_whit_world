@@ -133,7 +133,7 @@
   function pickType(depth, rng) {
     const entries = listTypes().map((k) => ({ key: k, w: getTypeDef(k).weight(depth) }));
     const total = entries.reduce((s, e) => s + e.w, 0);
-    let r = (rng ? rng() : Math.random()) * total;
+    let r = ((typeof rng === "function") ? rng() : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng() : Math.random())) * total;
     for (const e of entries) {
       if (r < e.w) return e.key;
       r -= e.w;
