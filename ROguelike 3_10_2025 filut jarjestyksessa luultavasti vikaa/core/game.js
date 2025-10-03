@@ -1163,15 +1163,29 @@
 
   function leaveTownNow() {
     if (window.Modes && typeof Modes.leaveTownNow === "function") {
-      Modes.leaveTownNow(getCtx());
-      return;
-    }
-  }
+      const ctx = getCtx();
+      Modes.leaveTownNow(ctx);
+      // Sync mutated ctx back into local state
+      mode = ctx.mode || mode;
+      map = ctx.map || map;
+      seen = ctx.seen || seen;
+      visible = ctx.visible || visible;
+      enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
+      corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
+      decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
+      npcs = Array.isArray(ctx
 
   function requestLeaveTown() {
-    if (window.Modes && typeof Modes.requestLeaveTown === "function") {
-      Modes.requestLeaveTown(getCtx());
-      return;
+    // Handle confirm here so we can sync locals after leaving
+    const doLeave = () => leaveTownNow();
+    if (window.UI && typeof UI.showConfirm === "function") {
+      const x = window.innerWidth / 2 - 140;
+      const y = window.innerHeight / 2 - 60;
+      UI.showConfirm("Do you want to leave the town?", { x, y }, () => doLeave(), () => {});
+    } else {
+      if (window.confirm && window.confirm("Do you want to leave the town?")) {
+        doLeave();
+      }
     }
   }
 
