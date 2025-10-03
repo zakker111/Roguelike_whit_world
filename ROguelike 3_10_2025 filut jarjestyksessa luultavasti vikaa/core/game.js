@@ -1026,11 +1026,10 @@
   }
 
   function generateTown() {
-    {
-      const Tn = modHandle("Town");
-      if (Tn && typeof Tn.generate === "function") {
-        const ctx = getCtx();
-        const handled = Tn.generate(ctx);
+    const Tn = modHandle("Town");
+    if (Tn && typeof Tn.generate === "function") {
+      const ctx = getCtx();
+      const handled = Tn.generate(ctx);
       if (handled) {
         // Sync back mutated references
         map = ctx.map; seen = ctx.seen; visible = ctx.visible;
@@ -1041,9 +1040,9 @@
         townExitAt = ctx.townExitAt || townExitAt; townName = ctx.townName || townName;
         // Ensure greeters on entry to give immediate life at the gate
         {
-          const Tn = modHandle("Town");
-          if (Tn && typeof Tn.spawnGateGreeters === "function") {
-            Tn.spawnGateGreeters(ctx, 4);
+          const Tn2 = modHandle("Town");
+          if (Tn2 && typeof Tn2.spawnGateGreeters === "function") {
+            Tn2.spawnGateGreeters(ctx, 4);
             npcs = ctx.npcs || npcs;
           }
         }
@@ -1114,11 +1113,10 @@
   }
 
   function enterTownIfOnTile() {
-    {
-      const M = modHandle("Modes");
-      if (M && typeof M.enterTownIfOnTile === "function") {
-        const ctx = getCtx();
-        const ok = !!M.enterTownIfOnTile(ctx);
+    const M = modHandle("Modes");
+    if (M && typeof M.enterTownIfOnTile === "function") {
+      const ctx = getCtx();
+      const ok = !!M.enterTownIfOnTile(ctx);
       if (ok) {
         // Sync mutated ctx back into local state
         mode = ctx.mode || mode;
@@ -1150,11 +1148,10 @@
   }
 
   function enterDungeonIfOnEntrance() {
-    {
-      const M = modHandle("Modes");
-      if (M && typeof M.enterDungeonIfOnEntrance === "function") {
-        const ctx = getCtx();
-        const ok = !!M.enterDungeonIfOnEntrance(ctx);
+    const M = modHandle("Modes");
+    if (M && typeof M.enterDungeonIfOnEntrance === "function") {
+      const ctx = getCtx();
+      const ok = !!M.enterDungeonIfOnEntrance(ctx);
       if (ok) {
         mode = ctx.mode || mode;
         map = ctx.map || map;
