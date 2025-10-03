@@ -3010,6 +3010,12 @@
     corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
     gainXP(enemy.xp || 5);
     enemies = enemies.filter(e => e !== enemy);
+    // Persist dungeon state immediately so corpses remain on revisit
+    try {
+      if (window.DungeonState && typeof DungeonState.save === "function") {
+        DungeonState.save(getCtx());
+      }
+    } catch (_) {}
   }
 
   

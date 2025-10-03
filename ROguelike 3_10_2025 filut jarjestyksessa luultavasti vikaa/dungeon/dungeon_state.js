@@ -153,6 +153,11 @@
     const ey = ctx.dungeonExitAt && ctx.dungeonExitAt.y;
     if (typeof ex !== "number" || typeof ey !== "number") return false;
     if (ctx.player.x === ex && ctx.player.y === ey) {
+      // Save current dungeon state before leaving so corpses/emptied chests persist
+      try {
+        save(ctx);
+      } catch (_) {}
+
       ctx.mode = "world";
       ctx.enemies = [];
       ctx.corpses = [];
