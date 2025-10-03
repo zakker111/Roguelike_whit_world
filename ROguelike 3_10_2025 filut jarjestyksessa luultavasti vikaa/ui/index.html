@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="ui/style.css">
+  <link rel="stylesheet" href="style.css">
   <link rel="icon" href="https://fav.farm/%F0%9F%8E%B2">
 </head>
 <body>
@@ -124,44 +124,44 @@
       } catch (_) {}
     })();
   </script>
-  <script src="core/ctx.js"></script>
-  <script src="world/world.js"></script>
-  <script src="world/los.js"></script>
-  <script src="entities/enemies.js"></script>
-  <script src="world/fov.js"></script>
-  <script src="dungeon.js"></script>
-  <script src="ui/logger.js"></script>
+  <script src="../core/ctx.js"></script>
+  <script src="../world/world.js"></script>
+  <script src="../world/los.js"></script>
+  <script src="../entities/enemies.js"></script>
+  <script src="../world/fov.js"></script>
+  <script src="../dungeon/dungeon.js"></script>
+  <script src="logger.js"></script>
   <script>
     if (window.Logger && typeof Logger.init === "function") {
       try { Logger.init(undefined, 80); } catch (e) {}
     }
   </script>
-  <script src="ui/ui.js"></script>
-  <script src="ui/tileset.js"></script>
-  <script src="ui/render.js"></script>
-  <script src="entities/player_utils.js"></script>
-  <script src="entities/player_equip.js"></script>
-  <script src="entities/player.js"></script>
+  <script src="ui.js"></script>
+  <script src="tileset.js"></script>
+  <script src="render.js"></script>
+  <script src="../entities/player_utils.js"></script>
+  <script src="../entities/player_equip.js"></script>
+  <script src="../entities/player.js"></script>
   <!-- Central RNG service must load before items/game to avoid duplicate PRNG implementations -->
-  <script src="core/rng_service.js"></script>
-  <script src="entities/items.js"></script>
-  <script src="dungeon_items.js"></script>
-  <script src="entities/loot.js"></script>
-  <script src="combat_utils.js"></script>
-  <script src="combat.js"></script>
-  <script src="stats.js"></script>
-  <script src="status_effects.js"></script>
-  <script src="flavor.js"></script>
-  <script src="utils.js"></script>
-  <script src="ai.js"></script>
-  <script src="core/input.js"></script>
-  <script src="town_ai.js"></script>
+  <script src="../core/rng_service.js"></script>
+  <script src="../entities/items.js"></script>
+  <script src="../dungeon/dungeon_items.js"></script>
+  <script src="../entities/loot.js"></script>
+  <script src="../combat/combat_utils.js"></script>
+  <script src="../combat/combat.js"></script>
+  <script src="../combat/stats.js"></script>
+  <script src="../combat/status_effects.js"></script>
+  <script src="../data/flavor.js"></script>
+  <script src="../utils/utils.js"></script>
+  <script src="../ai/ai.js"></script>
+  <script src="../core/input.js"></script>
+  <script src="../ai/town_ai.js"></script>
   <!-- New modularized helpers -->
   <script src="decals.js"></script>
-  <script src="dungeon_state.js"></script>
-  <script src="god.js"></script>
-  <script src="actions.js"></script>
-  <script src="town_gen.js"></script>
-  <script src="core/game.js"></script>
+  <script src="../dungeon/dungeon_state.js"></script>
+  <script src="../data/god.js"></script>
+  <script src="../core/actions.js"></script>
+  <script src="../worldgen/town_gen.js"></script>
+  <script src="../core/game.js"></script>
 </body>
 </html>
