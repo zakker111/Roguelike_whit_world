@@ -555,18 +555,29 @@
         }
       }
 
-      // Aggregate pass/fail per check name
-      const aggregate = new Map();
+      // Final Checks across runs
+      // For each check name:
+      // - overall: True if passed in at least one run (OR across runs)
+      // - always_true: True if passed in all runs (AND across runs)
+      // - always_false: True if failed in all runs
+      const aggregate = new Map(); // name -> { total, pass }
+      const allNames = new Set();
       for (const r of runs) {
         for (const c of r.list) {
+          allNames.add(c.name);
           const a = aggregate.get(c.name) || { total: 0, pass: 0 };
-          a.total += 1; if (c.ok) a.pass += 1;
+          a.total += 1;
+          if (c.ok) a.pass += 1;
           aggregate.set(c.name, a);
         }
       }
-      lines.push("Summary:");
-      for (const [name, a] of aggregate.entries()) {
-        lines.push(`- ${name}: ${a.pass}/${a.total} passed`);
+      lines.push("Final Checks:");
+      for (const name of Array.from(allNames)) {
+        const a = aggregate.get(name) || { total: runs.length, pass: 0 };
+        const anyPass = a.pass > 0;
+        const allPass = a.pass === runs.length;
+        const allFail = a.pass === 0;
+        lines.push(`- ${name}: overall=${anyPass ? "True" : "False"}; always_true=${allPass ? "True" : "False"}; always_false=${allFail ? "True" : "False"}`);
       }
 
       setBannerSummary(lines);
