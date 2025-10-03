@@ -186,9 +186,9 @@
               for (const d of ALT_DIRS) {
                 const nx = e.x + d.x, ny = e.y + d.y;
                 if (isFree(nx, ny)) {
-                  occ.delete(occKey(e.x, e.y));
+                  occClearEnemy(occ, e.x, e.y);
                   e.x = nx; e.y = ny;
-                  occ.add(occKey(e.x, e.y));
+                  occSetEnemy(occ, e.x, e.y);
                   moved = true;
                   break;
                 }
@@ -215,9 +215,9 @@
               for (const d of ALT_DIRS) {
                 const nx = e.x + d.x, ny = e.y + d.y;
                 if (isFree(nx, ny)) {
-                  occ.delete(occKey(e.x, e.y));
+                  occClearEnemy(occ, e.x, e.y);
                   e.x = nx; e.y = ny;
-                  occ.add(occKey(e.x, e.y));
+                  occSetEnemy(occ, e.x, e.y);
                   moved = true;
                   break;
                 }
