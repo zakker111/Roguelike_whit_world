@@ -1652,7 +1652,8 @@
 
   function lootCorpse() {
     if (isDead) return;
-    // Prefer module first
+
+    // Prefer Actions module for all interaction/loot flows across modes
     if (window.Actions && typeof Actions.loot === "function") {
       const ctxMod = getCtx();
       const handled = Actions.loot(ctxMod);
@@ -1678,90 +1679,19 @@
       }
     }
 
-    if (mode === "town") {
-      // Interact with shop if standing on a shop door
-      const s = shopAt(player.x, player.y);
-      if (s) {
-        const openNow = isShopOpenNow(s);
-        const schedule = shopScheduleStr(s);
-        const sname = (s.name || "").toLowerCase();
-
-        if (sname === "inn") {
-          log(`Inn: ${schedule}. ${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
-          // Inns provide resting; allow rest regardless to keep QoL
-          log("You enter the inn.", "notice");
-          restAtInn();
-          return;
-        }
-        if (sname === "tavern") {
-          log(`Tavern: ${schedule}. ${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
-          const phase = getClock().phase;
-          if (phase === "night" || phase === "dusk") {
-            log("You step into the tavern. It's lively inside.", "notice");
-          } else if (phase === "day") {
-            log("You enter the tavern. A few patrons sit quietly.", "info");
-          } else {
-            log("You enter the tavern.", "info");
-          }
-          requestDraw();
-          return;
-        }
-
-        if (openNow) {
-          log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "notice");
-        } else {
-          log(`The ${s.name || "shop"} is closed. ${schedule}`, "warn");
-        }
-        requestDraw();
-        return;
-      }
-      // Interact with props first, then attempt to talk to an NPC
-      if (interactTownProps()) return;
-      if (talkNearbyNPC()) return;
-      log("Nothing to do here.");
-      return;
-    }
-    if (mode === "world") {
-      log("Nothing to loot here.");
-      return;
-    }
+    // Dungeon-only fallback: loot ground or guide user
     if (mode === "dungeon") {
-      // Using G on the entrance hole returns to the overworld (module covers robust cases).
-      // Keep fallback in case module absent.
-      if (dungeonExitAt && player.x === dungeonExitAt.x && player.y === dungeonExitAt.y && world) {
-        saveCurrentDungeonState();
-        mode = "world";
-        enemies = [];
-        corpses = [];
-        decals = [];
-        map = world.map;
-        // Restore exact overworld position:
-        let rx = (worldReturnPos && typeof worldReturnPos.x === "number") ? worldReturnPos.x : null;
-        let ry = (worldReturnPos && typeof worldReturnPos.y === "number") ? worldReturnPos.y : null;
-        if (rx == null || ry == null) {
-          const info = currentDungeon;
-          if (info && typeof info.x === "number" && typeof info.y === "number") {
-            rx = info.x; ry = info.y;
-          }
-        }
-        if (rx == null || ry == null) {
-          rx = Math.max(0, Math.min(world.map[0].length - 1, player.x));
-          ry = Math.max(0, Math.min(world.map.length - 1, player.y));
-        }
-        player.x = rx; player.y = ry;
-
-        recomputeFOV();
-        updateCamera();
-        updateUI();
-        log("You climb back to the overworld.", "notice");
-        requestDraw();
+      if (window.Loot && typeof Loot.lootHere === "function") {
+        Loot.lootHere(getCtx());
         return;
       }
-    }
-    if (window.Loot && typeof Loot.lootHere === "function") {
-      Loot.lootHere(getCtx());
+      log("Return to the entrance (the hole '>') and press G to leave.", "info");
+      requestDraw();
       return;
     }
+
+    // World/town default
+    log("Nothing to do here.");
   }
 
   function showLootPanel(list) {
