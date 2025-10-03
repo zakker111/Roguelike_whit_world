@@ -976,18 +976,10 @@
 
   function talkNearbyNPC() {
     const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
-    if (TH && typeof TH.talkNearbyNPCbs(n.x - player.x) + Math.abs(n.y - player.y);
-      if (d <= 1) targets.push(n);
+    if (TH && typeof TH.talkNearbyNPC === "function") {
+      return !!TH.talkNearbyNPC(getCtx());
     }
-    if (targets.length === 0) {
-      log("There is no one to talk to here.");
-      return false;
-    }
-    const npc = targets[randInt(0, targets.length - 1)];
-    const line = npc.lines[randInt(0, npc.lines.length - 1)];
-    log(`${npc.name}: ${line}`, "info");
-    requestDraw();
-    return true;
+    return false;
   }
 
   // Town shops helpers and resting
@@ -1114,11 +1106,12 @@
   function ensureTownSpawnClear() {
     const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
     if (TH && typeof TH.ensureTownSpawnClear === "function") {
-      TH.ensurern;
-      }
+      TH.ensureTownSpawnClear(getCtx());
+      return;
     }
-    log("Town.ensureSpawnClear not available.", "warn");
-  }
+    log("Town.ensureSpawnClear not available.", "warn");_code
+ new </}
+ }
 
   function isFreeTownFloor(x, y) {
     const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
@@ -1155,12 +1148,11 @@
 
   function spawnGateGreeters(count = 4) {
     const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
-eGreeters === "function") {
-        Tn.spawnGateGreeters(getCtx(), count);
-        return;
-      }
+    if (TH && typeof TH.spawnGateGreeters === "function") {
+      TH.spawnGateGreeters(getCtx(), count);
+      return;
     }
-    log("Town.spawnGateGreeters not available.", "warn");
+ateGreeters not available.", "warn");
   }
 
   function syncFromCtx(ctx) {
@@ -1561,7 +1553,12 @@ eGreeters === "function") {
       requestDraw();
       return;
     }
-    const panel = document.getElementById("inv
+    const panel = document.getElementById("inv-panel");
+    if (!panel) return;
+    panel.hidden = true;
+    requestDraw();
+  }
+
   function equipItemByIndex(idx) {
     const GI = (typeof window !== "undefined") ? window.GameInventory : null;
     if (GI && typeof GI.equipItemByIndex === "function") {
@@ -1576,12 +1573,6 @@ eGreeters === "function") {
       GI.equipItemByIndexHand(getCtx(), idx, hand);
       return;
     }
-    equipItemByit) => describeItem(it),
-        preferredHand: hand,
-      });
-      return;
-    }
-    // fallback to generic equip if Player module missing
     equipItemByIndex(idx);
   }
 
