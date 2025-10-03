@@ -2060,7 +2060,8 @@
         try { log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}.`, "notice"); } catch (_) {}
         return true;
       } else {
-        try   }
+        try { log(`[DEV] No saved dungeon state for ${currentDungeon.x},${currentDungeon.y}; generating new.`, "warn"); } catch (_) {}
+      }
 
       // Set dungeon difficulty = level; we keep 'floor' equal to dungeon level for UI/logic
       floor = Math.max(1, currentDungeon.level | 0);
