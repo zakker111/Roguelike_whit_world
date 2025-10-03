@@ -1760,10 +1760,8 @@
     if (window.UI && typeof UI.renderInventory === "function") {
       // Keep totals in sync
       updateUI();
-      // Avoid redundant DOM work if panel is not visible/open
-      if (!UI.isInventoryOpen || UI.isInventoryOpen()) {
-        UI.renderInventory(player, describeItem);
-      }
+      // Always render content; panel may be opening and not yet marked as open
+      UI.renderInventory(player, describeItem);
     }
   }
 
