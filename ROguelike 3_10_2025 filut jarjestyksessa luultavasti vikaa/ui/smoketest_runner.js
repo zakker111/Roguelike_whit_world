@@ -187,11 +187,19 @@
       clickLI(chosen);
       equipped = true;
       await sleep(180);
-      // If hand chooser is visible, pick left
-      const handChooser = document.querySelector("div[data-hand]") || document.querySelector("#" + (window.UI && UI.els && UI.els.handChooser ? UI.els.handChooser.id : "___none___"));
-      // More robust: try to click a left/right chooser button if exists
-      const leftBtn = document.querySelector('div#' + (UI && UI.els && UI.els.handChooser ? UI.els.handChooser.id : "") + ' button[data-hand="left"]') || document.querySelector('button[data-hand="left"]');
-      if (leftBtn) { leftBtn.click(); await sleep(120); }
+      // If hand chooser is visible, pick left safely without invalid selectors
+      try {
+        const handRoot = (window.UI && UI.els && UI.els.handChooser) ? UI.els.handChooser : null;
+        let leftBtn = null;
+        if (handRoot && handRoot.style && handRoot.style.display !== "none") {
+          leftBtn = handRoot.querySelector('button[data-hand="left"]');
+        }
+        if (!leftBtn) {
+          // fallback: global query (safe selector)
+          leftBtn = document.querySelector('button[data-hand="left"]');
+        }
+        if (leftBtn) { leftBtn.click(); await sleep(120); }
+      } catch (_) {}
     }
 
     // Unequip via equipment slots (click span[data-slot])
