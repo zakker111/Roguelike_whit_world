@@ -64,12 +64,14 @@
     // Only enter if standing directly on a town tile (no adjacent auto-step to avoid surprising teleport)
     if (WT && t === ctx.World.TILES.TOWN) {
       const worldPos = { x: ctx.player.x, y: ctx.player.y };
+      if (ctx.log) ctx.log(`[TRACE] enterTownIfOnTile: on TOWN at (${worldPos.x},${worldPos.y})`, "info");
       ctx.worldReturnPos = { x: worldPos.x, y: worldPos.y };
       ctx.mode = "town";
       if (ctx.Town && typeof Town.generate === "function") {
         Town.generate(ctx);
         if (typeof Town.ensureSpawnClear === "function") Town.ensureSpawnClear(ctx);
         ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
+        if (ctx.log) ctx.log(`[TRACE] town generated: player at gate (${ctx.player.x},${ctx.player.y}), townExitAt=(${ctx.townExitAt.x},${ctx.townExitAt.y})`, "info");
         if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 4);
       }
       if (ctx.UI && typeof UI.showTownExitButton === "function") UI.showTownExitButton();
@@ -79,6 +81,9 @@
       }
       syncAfterMutation(ctx);
       return true;
+    } else {
+      // Explicit guidance and trace if not on TOWN tile
+      if (ctx.log) ctx.log(`[TRACE] enterTownIfOnTile: not on TOWN (tile=${t}) at (${ctx.player.x},${ctx.player.y}). Stand on 'T' and press Enter/G.`, "warn");
     }
     return false;
   }
@@ -158,6 +163,7 @@
     // Only enter if standing directly on dungeon tile (no adjacent auto-step)
     if (t && WT && t === WT.DUNGEON) {
       const enterWX = ctx.player.x, enterWY = ctx.player.y;
+      if (ctx.log) ctx.log(`[TRACE] enterDungeonIfOnEntrance: on DUNGEON at (${enterWX},${enterWY})`, "info");
       ctx.cameFromWorld = true;
       ctx.worldReturnPos = { x: enterWX, y: enterWY };
 
@@ -204,6 +210,9 @@
       if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "notice");
       syncAfterMutation(ctx);
       return true;
+    } else {
+      // Explicit guidance and trace if not on DUNGEON tile
+      if (ctx.log) ctx.log(`[TRACE] enterDungeonIfOnEntrance: not on DUNGEON (tile=${t}) at (${ctx.player.x},${ctx.player.y}). Stand on 'D' and press Enter/G.`, "warn");
     }
     return false;
   }
