@@ -310,6 +310,16 @@
     return base;
   }
 
+  // Prefer ctx module handles over window.* where possible
+  function modHandle(name) {
+    try {
+      const c = getCtx();
+      if (c && c[name]) return c[name];
+    } catch (_) {}
+    if (typeof window !== "undefined" && window[name]) return window[name];
+    return null;
+  }
+
   // Use RNG service if available for helpers
   const randInt = (min, max) => {
     if (typeof window !== "undefined" && window.RNG && typeof RNG.int === "function") return RNG.int(min, max);
@@ -627,10 +637,11 @@
   
   
   function generateLevel(depth = 1) {
-    if (window.Dungeon && typeof Dungeon.generateLevel === "function") {
+    const D = modHandle("Dungeon");
+    if (D && typeof D.generateLevel === "function") {
       const ctx = getCtx();
       ctx.startRoomRect = startRoomRect;
-      Dungeon.generateLevel(ctx, depth);
+      D.generateLevel(ctx, depth);
       // Sync back references mutated by the module
       map = ctx.map;
       seen = ctx.seen;
@@ -640,10 +651,8 @@
       startRoomRect = ctx.startRoomRect;
       // Clear decals on new floor
       decals = [];
-      
       recomputeFOV();
       updateCamera();
-      
       if (inBounds(player.x, player.y) && !visible[player.y][player.x]) {
         try { log("FOV sanity check: player tile not visible after gen; recomputing.", "warn"); } catch (_) {}
         recomputeFOV();
@@ -666,7 +675,7 @@
       requestDraw();
       return;
     }
-    
+    // Fallback: flat-floor map
     map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
     // Ensure a staircase exists in the fallback map
     const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
@@ -832,14 +841,17 @@
       return;
     }
     ensureVisibilityShape();
-    if (window.FOV && typeof FOV.recomputeFOV === "function") {
-      const ctx = getCtx();
-      ctx.seen = seen;
-      ctx.visible = visible;
-      FOV.recomputeFOV(ctx);
-      visible = ctx.visible;
-      seen = ctx.seen;
-      return;
+    {
+      const F = modHandle("FOV");
+      if (F && typeof F.recomputeFOV === "function") {
+        const ctx = getCtx();
+        ctx.seen = seen;
+        ctx.visible = visible;
+        F.recomputeFOV(ctx);
+        visible = ctx.visible;
+        seen = ctx.seen;
+        return;
+      }
     }
     if (inBounds(player.x, player.y)) {
       visible[player.y][player.x] = true;
@@ -884,10 +896,14 @@
 
   
   function requestDraw() {
-    if (window.GameLoop && typeof GameLoop.requestDraw === "function") {
-      GameLoop.requestDraw();
-    } else if (window.Render && typeof Render.draw === "function") {
-      Render.draw(getRenderCtx());
+    const GL = modHandle("GameLoop");
+    if (GL && typeof GL.requestDraw === "function") {
+      GL.requestDraw();
+      return;
+    }
+    const R = modHandle("Render");
+    if (R && typeof R.draw === "function") {
+      R.draw(getRenderCtx());
     }
   }
 
@@ -896,15 +912,16 @@
   
 
   function initWorld() {
-    if (!(window.World && typeof World.generate === "function")) {
+    const W = modHandle("World");
+    if (!(W && typeof W.generate === "function")) {
       log("World module missing; generating dungeon instead.", "warn");
       mode = "dungeon";
       generateLevel(floor);
       return;
     }
     const ctx = getCtx();
-    world = World.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
-    const start = World.pickTownStart(world, rng);
+    world = W.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
+    const start = (typeof W.pickTownStart === "function") ? W.pickTownStart(world, rng) : { x: 1, y: 1 };
     player.x = start.x; player.y = start.y;
     mode = "world";
     enemies = [];
@@ -920,7 +937,8 @@
     recomputeFOV();
     updateUI();
     log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press Enter on a town/dungeon to enter.", "notice");
-    if (window.UI && typeof UI.hideTownExitButton === "function") UI.hideTownExitButton();
+    const UIH = modHandle("UI");
+    if (UIH && typeof UIH.hideTownExitButton === "function") UIH.hideTownExitButton();
     requestDraw();
   }
 
@@ -1008,9 +1026,11 @@
   }
 
   function generateTown() {
-    if (window.Town && typeof Town.generate === "function") {
-      const ctx = getCtx();
-      const handled = Town.generate(ctx);
+    {
+      const Tn = modHandle("Town");
+      if (Tn && typeof Tn.generate === "function") {
+        const ctx = getCtx();
+        const handled = Tn.generate(ctx);
       if (handled) {
         // Sync back mutated references
         map = ctx.map; seen = ctx.seen; visible = ctx.visible;
@@ -1020,9 +1040,12 @@
         townPlaza = ctx.townPlaza || null; tavern = ctx.tavern || null;
         townExitAt = ctx.townExitAt || townExitAt; townName = ctx.townName || townName;
         // Ensure greeters on entry to give immediate life at the gate
-        if (window.Town && typeof Town.spawnGateGreeters === "function") {
-          Town.spawnGateGreeters(ctx, 4);
-          npcs = ctx.npcs || npcs;
+        {
+          const Tn = modHandle("Town");
+          if (Tn && typeof Tn.spawnGateGreeters === "function") {
+            Tn.spawnGateGreeters(ctx, 4);
+            npcs = ctx.npcs || npcs;
+          }
         }
         updateCamera(); recomputeFOV(); updateUI(); requestDraw();
         return;
@@ -1032,9 +1055,12 @@
   }
 
   function ensureTownSpawnClear() {
-    if (window.Town && typeof Town.ensureSpawnClear === "function") {
-      Town.ensureSpawnClear(getCtx());
-      return;
+    {
+      const Tn = modHandle("Town");
+      if (Tn && typeof Tn.ensureSpawnClear === "function") {
+        Tn.ensureSpawnClear(getCtx());
+        return;
+      }
     }
     log("Town.ensureSpawnClear not available.", "warn");
   }
@@ -1077,17 +1103,22 @@
   }
 
   function spawnGateGreeters(count = 4) {
-    if (window.Town && typeof Town.spawnGateGreeters === "function") {
-      Town.spawnGateGreeters(getCtx(), count);
-      return;
+    {
+      const Tn = modHandle("Town");
+      if (Tn && typeof Tn.spawnGateGreeters === "function") {
+        Tn.spawnGateGreeters(getCtx(), count);
+        return;
+      }
     }
     log("Town.spawnGateGreeters not available.", "warn");
   }
 
   function enterTownIfOnTile() {
-    if (window.Modes && typeof Modes.enterTownIfOnTile === "function") {
-      const ctx = getCtx();
-      const ok = !!Modes.enterTownIfOnTile(ctx);
+    {
+      const M = modHandle("Modes");
+      if (M && typeof M.enterTownIfOnTile === "function") {
+        const ctx = getCtx();
+        const ok = !!M.enterTownIfOnTile(ctx);
       if (ok) {
         // Sync mutated ctx back into local state
         mode = ctx.mode || mode;
@@ -1119,9 +1150,11 @@
   }
 
   function enterDungeonIfOnEntrance() {
-    if (window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
-      const ctx = getCtx();
-      const ok = !!Modes.enterDungeonIfOnEntrance(ctx);
+    {
+      const M = modHandle("Modes");
+      if (M && typeof M.enterDungeonIfOnEntrance === "function") {
+        const ctx = getCtx();
+        const ok = !!M.enterDungeonIfOnEntrance(ctx);
       if (ok) {
         mode = ctx.mode || mode;
         map = ctx.map || map;
@@ -1966,18 +1999,21 @@
 
   
   function enemiesAct() {
-    if (window.AI && typeof AI.enemiesAct === "function") {
-      AI.enemiesAct(getCtx());
+    const AIH = modHandle("AI");
+    if (AIH && typeof AIH.enemiesAct === "function") {
+      AIH.enemiesAct(getCtx());
     }
     // No fallback here: AI behavior is defined in ai.js
   }
 
   function townNPCsAct() {
     if (mode !== "town") return;
-    if (window.TownAI && typeof TownAI.townNPCsAct === "function") {
-      TownAI.townNPCsAct(getCtx());
+    const TAI = modHandle("TownAI");
+    if (TAI && typeof TAI.townNPCsAct === "function") {
+      TAI.townNPCsAct(getCtx());
     }
   }
+
   
   function occupied(x, y) {
     if (player.x === x && player.y === y) return true;
@@ -2186,9 +2222,15 @@
   
   initWorld();
   setupInput();
-  if (window.GameLoop && typeof GameLoop.start === "function") {
-    GameLoop.start(() => getRenderCtx());
-  } else if (window.Render && typeof Render.draw === "function") {
-    Render.draw(getRenderCtx());
+  {
+    const GL = modHandle("GameLoop");
+    if (GL && typeof GL.start === "function") {
+      GL.start(() => getRenderCtx());
+    } else {
+      const R = modHandle("Render");
+      if (R && typeof R.draw === "function") {
+        R.draw(getRenderCtx());
+      }
+    }
   }
 })();
