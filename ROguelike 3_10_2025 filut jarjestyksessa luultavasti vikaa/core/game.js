@@ -1029,6 +1029,11 @@
         townProps = ctx.townProps || []; townBuildings = ctx.townBuildings || [];
         townPlaza = ctx.townPlaza || null; tavern = ctx.tavern || null;
         townExitAt = ctx.townExitAt || townExitAt; townName = ctx.townName || townName;
+        // Ensure greeters on entry to give immediate life at the gate
+        if (window.Town && typeof Town.spawnGateGreeters === "function") {
+          Town.spawnGateGreeters(ctx, 4);
+          npcs = ctx.npcs || npcs;
+        }
         updateCamera(); recomputeFOV(); updateUI(); requestDraw();
         return;
       }
