@@ -229,7 +229,34 @@
         }
       } catch (_) {}
 
-      const didTown = (typeof Modes?.enterTownIfOnTile === "function") ? !!Modes.enterTownIfOnTile(ctx) : false;
+      // First, try modular path
+      let didTown = (typeof Modes?.enterTownIfOnTile === "function") ? !!Modes.enterTownIfOnTile(ctx) : false;
+
+      // Defensive fallback: if standing on TOWN and modular path did not handle, enter town directly
+      try {
+        const WT = ctx.World && ctx.World.TILES;
+        const t = ctx.world && ctx.world.map ? ctx.world.map[ctx.player.y][ctx.player.x] : null;
+        if (!didTown && WT && t === WT.TOWN) {
+          const wx = ctx.player.x, wy = ctx.player.y;
+          ctx.worldReturnPos = { x: wx, y: wy };
+          ctx.mode = "town";
+          const Town = ctx.Town || window.Town;
+          if (Town && typeof Town.generate === "function") {
+            Town.generate(ctx);
+            if (typeof Town.ensureSpawnClear === "function") Town.ensureSpawnClear(ctx);
+            ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
+            if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 4);
+          }
+          if (ctx.UI && typeof UI.showTownExitButton === "function") UI.showTownExitButton();
+          if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Overworld entry at (${wx},${wy}).`, "notice");
+          if (ctx.updateCamera) ctx.updateCamera();
+          if (ctx.recomputeFOV) ctx.recomputeFOV();
+          if (ctx.updateUI) ctx.updateUI();
+          if (ctx.requestDraw) ctx.requestDraw();
+          return;
+        }
+      } catch (_) {}
+
       if (!didTown) {
         if (typeof Modes?.enterDungeonIfOnEntrance === "function") Modes.enterDungeonIfOnEntrance(ctx);
       }
