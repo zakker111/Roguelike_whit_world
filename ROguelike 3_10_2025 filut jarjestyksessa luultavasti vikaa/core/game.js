@@ -1092,7 +1092,33 @@
   function enterTownIfOnTile() {
     if (window.Modes && typeof Modes.enterTownIfOnTile === "function") {
       const ctx = getCtx();
-      return !!Modes.enterTownIfOnTile(ctx);
+      const ok = !!Modes.enterTownIfOnTile(ctx);
+      if (ok) {
+        // Sync mutated ctx back into local state
+        mode = ctx.mode || mode;
+        map = ctx.map || map;
+        seen = ctx.seen || seen;
+        visible = ctx.visible || visible;
+        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
+        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
+        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
+        npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
+        shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
+        townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
+        townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
+        townPlaza = ctx.townPlaza || townPlaza;
+        tavern = ctx.tavern || tavern;
+        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+        townExitAt = ctx.townExitAt || townExitAt;
+        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
+        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
+        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+        updateCamera();
+        recomputeFOV();
+        updateUI();
+        requestDraw();
+      }
+      return ok;
     }
     return false;
   }
@@ -1100,7 +1126,32 @@
   function enterDungeonIfOnEntrance() {
     if (window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
       const ctx = getCtx();
-      return !!Modes.enterDungeonIfOnEntrance(ctx);
+      const ok = !!Modes.enterDungeonIfOnEntrance(ctx);
+      if (ok) {
+        mode = ctx.mode || mode;
+        map = ctx.map || map;
+        seen = ctx.seen || seen;
+        visible = ctx.visible || visible;
+        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
+        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
+        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
+        npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
+        shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
+        townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
+        townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
+        townPlaza = ctx.townPlaza || townPlaza;
+        tavern = ctx.tavern || tavern;
+        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+        townExitAt = ctx.townExitAt || townExitAt;
+        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
+        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
+        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+        updateCamera();
+        recomputeFOV();
+        updateUI();
+        requestDraw();
+      }
+      return ok;
     }
     return false;
   }
