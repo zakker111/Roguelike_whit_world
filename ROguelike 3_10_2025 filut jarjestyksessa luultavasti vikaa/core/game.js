@@ -2035,8 +2035,15 @@
     log(`${name} dies.`, "bad");
     const loot = generateLoot(enemy);
     corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
-    gainXP(enemy.xp || 5);
+    // Remove from enemies immediately
     enemies = enemies.filter(e => e !== enemy);
+    // Clear enemy occupancy for this tile so player can walk onto corpse
+    try {
+      if (occupancy && typeof occupancy.clearEnemy === "function") {
+        occupancy.clearEnemy(enemy.x, enemy.y);
+      }
+    } catch (_) {}
+    gainXP(enemy.xp || 5);
     // Persist dungeon state immediately so corpses remain on revisit
     try {
       if (window.DungeonState && typeof DungeonState.save === "function") {
@@ -2096,6 +2103,8 @@
 
     if (mode === "dungeon") {
       enemiesAct();
+      // Ensure occupancy reflects enemy movement/deaths this turn to avoid stale blocking
+      rebuildOccupancy();
       // Status effects tick (bleed, dazed, etc.)
       try {
         if (window.Status && typeof Status.tick === "function") {
