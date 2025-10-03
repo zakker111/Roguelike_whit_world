@@ -1,0 +1,112 @@
+Future Development TODOs (not wired to runtime; planning notes only)
+a
+1) Enrich combat logs (flavorful, context-aware)
+- Enemy-specific lines:
+  - Goblin: "The goblin jabs your ribs; you gasp for air."
+  - Troll: "The troll slams your head; your ears ring."
+  - Ogre: "The ogre’s club crashes into your torso, knocking the wind out of you."
+- Location + intensity:
+  - Head crit: "A brutal crack to the skull; stars explode in your vision."
+  - Legs heavy hit: "A crushing blow to your thigh; your knee buckles."
+  - Hands blocked: "You deflect the strike; a shock stings your fingers."
+- Environmental flavor:
+  - Near walls: "You’re driven back against the wall."
+  - On low HP: "Pain surges; your grip falters."
+- Implementation notes:
+  - Add a CombatFlavor module with helpers flavor.attackHit({attacker, target, loc, crit, dmg, hpPct})
+  - Provide small weighted pools per enemy type + location; pick randomly
+  - Keep short; do not spam; prefer 1–2 lines per event max
+
+2) More interesting combat systems (lightweight status effects)
+- Leg cripple on player crit:
+  - On player crit vs legs, chance 25–40% to apply Limp (slow): enemy moves every other turn; duration 4–6 turns
+  - Scale chance with weapon type or excess damage
+- Head daze on enemy crit:
+  - On enemy crit vs head, chance 20–30% to apply Dazed (reduced block chance, or skip next action)
+  - Duration 1–2 turns
+- Bleed on slashing crits:
+  - Axes/swords can apply Bleed (1–2 damage over 3 turns), capped so it can’t kill alone
+- Shield stance:
+  - If holding a shield, allow a 1-turn "Brace" (key B) to increase block chance this turn, reduce attack
+- Implementation notes:
+  - Introduce Status module with simple tick/update pipeline (apply, refresh, expire)
+  - Represent effects on enemies and player: { name, stacks?, ttl, onTick?, onApply?, onExpire? }
+  - Update AI to respect Limp; Update block calculations to respect Dazed; Tick in turn()
+
+3) Player history/logbook (scars, traits, memorable events)
+- Track persistent flavor stats:
+  - Received a head crit: "Slight tinnitus; ears ring now and then."
+  - Survived at 1 HP: "Death refused you once."
+  - Killed a troll with bare hands: "You wrestled a troll and won."
+- Scars system:
+  - Each severe event adds a scar with a one-line description; optional tiny mechanical effect (≤5%)
+  - Examples:
+    - Scar: Brow cut (after head crit): -2% block vs head, +2% crit vs head (reckless focus)
+    - Scar: Shattered knee (after multiple leg crits): -2% move speed; +1% block vs legs (cautious stance)
+- Presentation:
+  - Add a "Character" panel (key C) listing scars, traits, and notable feats with dates (floor/turn)
+- Implementation notes:
+  - Module PlayerHistory:
+    - addEvent({ kind, floor, turn, data })
+    - summarize(): returns compact strings for UI
+  - Hook into combat events and level transitions
+
+4) Further modularize game.js
+- Split modules (phase 2/3):
+  - combat.js: playerAttack, block/crit/loc, damage calc; decay policies
+  - combat_effects.js: status definitions, apply/tick/expire
+  - stats.js: getAttack/getDefense/DR calculation
+  - ui_bridge.js: updateUI/renderInventory/show/hide wrappers for decoupling
+  - input_bindings.js: key binds and remapping (currently in input.js)
+- Eliminate fallbacks by tightening load order and replacing with assertive delegates
+- Create a tiny utils.js (rng, clamp, round1, pickWeighted, randFloat) used by items/loot/combat
+- DONE-Add a shared ctx factory so modules do not import each other; only consume the ctx
+
+Nice-to-haves
+- Sound hooks (optional): criticals, blocks, stairs, chest open
+- Particles: subtle hit flash on tiles (CSS overlay or small canvas effect)
+- Difficulty modes: adjust spawn weights and effect chances
+- Telemetry: simple counters (crits landed, blocks, bleeds applied) for the Character panel
+
+Testing and balancing
+- Add a debug panel:
+  - Toggle god mode, force crit, spawn enemy here, apply status
+  - Show effect timelines (for limp/dazed/bleed)
+- Write small deterministic sims for status effect balance:
+  - Expected extra turns slowed by Limp
+  - Damage added by Bleed per tier and weapon
+  - Impact of Brace on survival
+
+Milestones
+- M1: Flavor log and notice/bad/good styles finalized; chest/spot logs polished
+- M2: Status system (Limp/Dazed/Bleed) with basic UI hints and short durations
+- M3: Character panel (scars/events), first batch of scars with tiny modifiers
+- M4: Modularization phase 2/3; tests for combat + status tick paths
+
+
+
+**Prompt start**
+Project engineering prompt (guidelines to enforce JSDoc, reusable functions, modularization, and smoke-test review)
+- Documentation
+  - Add concise JSDoc at the top of each module and for exported or non-trivial functions.
+  - Document ctx expectations (inputs, outputs, side effects) where relevant.
+- Reuse and modularization
+  - Prefer small, focused modules and reusable helpers over ad-hoc code.
+  - Centralize generic helpers (round1, clamp, pickWeighted, randFloat) in a shared utils (e.g., ctx.utils or PlayerUtils) and reuse them.
+  - Avoid direct window.* lookups; use the module handles provided on ctx (via Ctx.create).
+- Code quality
+  - Follow existing patterns (naming, map[y][x], TILE/COLS/ROWS, minimal error handling).
+  - Use ctx.rng for determinism in randomness-heavy code (or accept rng param); avoid Math.random in core gameplay.
+  - Keep code minimal, readable, and consistent.
+- Simulation and review after changes
+  - Smoke-test in browser: generate a level, move, fight, loot, open/close inventory, descend.
+  - Verify FOV/camera behavior and ensure no console errors/warnings.
+  - If UI changed, include a short clip or screenshots and a deployment link.
+- PR checklist (tick all)
+  - [ ] JSDoc updated where applicable
+  - [ ] Reused/centralized helpers (no duplicated logic)
+  - [ ] No new window.* references (using ctx instead)
+  - [ ] Randomness uses ctx.rng or injected rng param
+  - [ ] Smoke test passes; browser console is clean
+  - [ ] Summary, rationale, affected files, and test steps included
+  **Prompt end**

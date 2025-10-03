@@ -1,0 +1,177 @@
+/**
+ * DungeonState: persistence helpers for dungeon maps keyed by overworld entrance.
+ *
+ * API:
+ *   DungeonState.key(x, y) -> "x,y"
+ *   DungeonState.save(ctx)
+ *   DungeonState.load(ctx, x, y) -> true/false
+ *   DungeonState.returnToWorldIfAtExit(ctx) -> true/false
+ */
+(function () {
+  const LS_KEY = "DUNGEON_STATES_V1";
+
+  function key(x, y) { return `${x},${y}`; }
+
+  function readLS() {
+    try {
+      const raw = (typeof localStorage !== "undefined") ? localStorage.getItem(LS_KEY) : null;
+      if (!raw) return Object.create(null);
+      const obj = JSON.parse(raw);
+      return (obj && typeof obj === "object") ? obj : Object.create(null);
+    } catch (_) {
+      return Object.create(null);
+    }
+  }
+
+  function writeLS(obj) {
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(LS_KEY, JSON.stringify(obj));
+      }
+    } catch (_) {}
+  }
+
+  function cloneForStorage(st) {
+    // Shallow clone with primitives/arrays suitable for JSON
+    const out = {
+      map: st.map,
+      seen: st.seen,
+      visible: st.visible,
+      enemies: Array.isArray(st.enemies)
+        ? st.enemies.map(e => ({
+            x: e.x, y: e.y,
+            type: e.type, glyph: e.glyph,
+            hp: e.hp, atk: e.atk, xp: e.xp, level: e.level,
+            // optional runtime/status fields we want to preserve
+            immobileTurns: e.immobileTurns,
+            bleedTurns: e.bleedTurns,
+            announced: e.announced
+          }))
+        : [],
+      corpses: Array.isArray(st.corpses)
+        ? st.corpses.map(c => ({
+            x: c.x, y: c.y,
+            kind: c.kind,           // preserve chest vs corpse
+            looted: !!c.looted,
+            loot: Array.isArray(c.loot) ? c.loot : []
+          }))
+        : [],
+      decals: Array.isArray(st.decals) ? st.decals.map(d => ({ x: d.x, y: d.y, a: d.a, r: d.r })) : [],
+      dungeonExitAt: st.dungeonExitAt,
+      info: st.info,
+      level: st.level
+    };
+    return out;
+  }
+
+  function save(ctx) {
+    if (!ctx) return;
+    if (ctx.mode !== "dungeon" || !ctx.dungeonInfo || !ctx.dungeonExitAt) return;
+    const k = key(ctx.dungeonInfo.x, ctx.dungeonInfo.y);
+    if (!ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
+    const snapshot = {
+      map: ctx.map,
+      seen: ctx.seen,
+      visible: ctx.visible,
+      enemies: ctx.enemies,
+      corpses: ctx.corpses,
+      decals: ctx.decals,
+      dungeonExitAt: { x: ctx.dungeonExitAt.x, y: ctx.dungeonExitAt.y },
+      info: ctx.dungeonInfo,
+      level: ctx.floor
+    };
+    // Store a cloned, JSON-safe copy in memory to avoid aliasing/mutation issues
+    ctx._dungeonStates[k] = cloneForStorage(snapshot);
+
+    // Also persist to localStorage so dungeons remain identical on re-entry and across refreshes
+    const ls = readLS();
+    ls[k] = cloneForStorage(snapshot);
+    writeLS(ls);
+  }
+
+  function loadFromMemory(ctx, k) {
+    return ctx._dungeonStates && ctx._dungeonStates[k] || null;
+  }
+
+  function loadFromLS(k) {
+    const ls = readLS();
+    return ls[k] || null;
+  }
+
+  function applyState(ctx, st, x, y) {
+    ctx.mode = "dungeon";
+    ctx.dungeonInfo = st.info || { x, y, level: st.level || 1, size: "medium" };
+    ctx.floor = st.level || 1;
+    if (typeof window !== "undefined") window.floor = ctx.floor;
+
+    ctx.map = st.map;
+    ctx.seen = st.seen;
+    ctx.visible = st.visible;
+    ctx.enemies = st.enemies || [];
+    ctx.corpses = st.corpses || [];
+    ctx.decals = st.decals || [];
+    ctx.dungeonExitAt = st.dungeonExitAt || { x, y };
+
+    // Place player at the entrance hole
+    ctx.player.x = ctx.dungeonExitAt.x;
+    ctx.player.y = ctx.dungeonExitAt.y;
+
+    // Ensure entrance tile is STAIRS
+    if (ctx.inBounds(ctx.dungeonExitAt.x, ctx.dungeonExitAt.y)) {
+      ctx.map[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = ctx.TILES.STAIRS;
+      if (ctx.visible[ctx.dungeonExitAt.y]) ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+      if (ctx.seen[ctx.dungeonExitAt.y]) ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+    }
+
+    ctx.recomputeFOV();
+    ctx.updateCamera();
+    ctx.updateUI();
+    ctx.log(`You re-enter the dungeon (Difficulty ${ctx.floor}${ctx.dungeonInfo.size ? ", " + ctx.dungeonInfo.size : ""}).`, "notice");
+    ctx.requestDraw();
+  }
+
+  function load(ctx, x, y) {
+    if (!ctx) return false;
+    const k = key(x, y);
+
+    // Prefer in-memory state first
+    let st = loadFromMemory(ctx, k);
+
+    // Fallback to localStorage if not in memory
+    if (!st) st = loadFromLS(k);
+    if (!st) return false;
+
+    applyState(ctx, st, x, y);
+    return true;
+  }
+
+  function returnToWorldIfAtExit(ctx) {
+    if (!ctx) return false;
+    if (ctx.mode !== "dungeon" || !ctx.cameFromWorld || !ctx.world) return false;
+    if (ctx.floor !== 1) return false;
+    const ex = ctx.dungeonExitAt && ctx.dungeonExitAt.x;
+    const ey = ctx.dungeonExitAt && ctx.dungeonExitAt.y;
+    if (typeof ex !== "number" || typeof ey !== "number") return false;
+    if (ctx.player.x === ex && ctx.player.y === ey) {
+      ctx.mode = "world";
+      ctx.enemies = [];
+      ctx.corpses = [];
+      ctx.decals = [];
+      ctx.map = ctx.world.map;
+      if (ctx.worldReturnPos) {
+        ctx.player.x = ctx.worldReturnPos.x;
+        ctx.player.y = ctx.worldReturnPos.y;
+      }
+      ctx.recomputeFOV();
+      ctx.updateCamera();
+      ctx.updateUI();
+      ctx.log("You return to the overworld.", "notice");
+      ctx.requestDraw();
+      return true;
+    }
+    ctx.log("Return to the dungeon entrance to go back to the overworld.", "info");
+    return false;
+  }
+
+  window.DungeonState = { key, save, load, returnToWorldIfAtExit };
+})();
