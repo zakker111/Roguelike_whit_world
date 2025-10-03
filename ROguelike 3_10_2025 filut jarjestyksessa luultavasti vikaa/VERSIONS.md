@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-03 19:45 UTC
+Last updated: 2025-10-03 20:25 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,28 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.14 — Performance/UX tweaks, FOV guard, Diagnostics, and corpse walk-through
+- Changed: Render debouncing to reduce redundant draws
+  - core/game.js: requestDraw now coalesces multiple draw requests into a single RAF, and captures draw timing (DEV-only console output).
+- Changed: Inventory rendering reliability and clarity
+  - UI: renderInventory always renders when opening; shows potion stack counts, gold amounts, and equipment stat summaries.
+  - Fixed a gating issue where equipment slots and the scrollable item list might not display on first open.
+- Changed: FOV recomputation guard (skip unless needed)
+  - core/game.js: recomputeFOV now skips when player position, FOV radius, mode, and map shape are unchanged; forces recompute on map/mode/seed/FOV changes.
+- Added: syncFromCtx(ctx) helper to consolidate state syncing after mode/action module calls
+  - Reduces repetition and risk of missed fields when entering towns/dungeons or performing GOD/Actions flows.
+- Changed: Occupancy handling
+  - Dungeon: rebuildOccupancy each turn after enemiesAct to reflect movement and deaths.
+  - killEnemy now clears enemy occupancy on the death tile immediately so the player can walk onto the corpse right away.
+- Added: GOD “Diagnostics” button
+  - Logs determinism source (RNG service vs fallback), current seed, mode/floor/FOV, map size, entity counts, loaded modules, and last perf times.
+- UI: Default debug overlays
+  - Home Paths overlay default set to OFF to reduce render overhead; remain toggleable in GOD panel.
+- Fixed: Syntax errors introduced during iteration
+  - Corrected mismatched braces around turn(), fixed a typo in the UI.init condition (“======” -> “===”).
+- Dev: Lightweight perf counters
+  - DEV-only console prints for last turn and draw durations to aid profiling.
 
 v1.13 — Render loop extraction, startup stabilization, and final syntax fixes
 - Added: core/game_loop.js with a minimal GameLoop
