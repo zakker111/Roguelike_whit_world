@@ -1211,6 +1211,12 @@
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
   function doAction() {
     hideLootPanel();
+
+    // Town gate exit takes priority over other interactions
+    if (mode === "town" && townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
+      if (returnToWorldFromTown()) return;
+    }
+
     // Prefer module
     if (window.Actions && typeof Actions.doAction === "function") {
       const ctxMod = getCtx();
