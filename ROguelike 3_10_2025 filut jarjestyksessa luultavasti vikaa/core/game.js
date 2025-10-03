@@ -885,10 +885,10 @@
   
   function requestDraw() {
     if (window.GameLoop && typeof GameLoop.requestDraw === "function") {
-      GameLoop.request if (window.Render && typeof Render.draw === "function") {
+      GameLoop.requestDraw();
+    } else if (window.Render && typeof Render.draw === "function") {
       Render.draw(getRenderCtx());
     }
-    needsDraw = false;
   }
 
   
