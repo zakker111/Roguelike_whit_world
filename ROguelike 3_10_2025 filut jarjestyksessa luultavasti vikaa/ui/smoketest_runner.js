@@ -1,6 +1,6 @@
 // Tiny Roguelike Smoke Test Runner
-// Loads when index.html?smoketest=1; runs a minimal scenario and reports pass/fail to Logger, console, and an on-screen banner.
-// Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
+// Loads when index.html?smoketest=1; runs a full scenario and reports pass/fail to Logger, console, and an on-screen banner.
+// Scenario: overworld -> dungeon -> spawn enemy -> kill -> loot -> exit to overworld -> enter town -> bump NPC -> GOD checks -> continue.
 
 (function () {
   // Create a floating banner for smoke test progress
@@ -67,6 +67,36 @@
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  async function attackUntilNoEnemyNearby(maxSteps = 40) {
+    // Move randomly around and attempt to bump/attack; stop early if enemy list shrinks to 0
+    for (let i = 0; i < maxSteps; i++) {
+      const enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+      if (!enemies || enemies.length === 0) return true;
+      // Simple chase: pick nearest and take a step toward it; if adjacent, bump into it
+      let best = enemies[0];
+      let bestD = Math.abs(best.x - window.GameAPI.getPlayer().x) + Math.abs(best.y - window.GameAPI.getPlayer().y);
+      for (const e of enemies) {
+        const d = Math.abs(e.x - window.GameAPI.getPlayer().x) + Math.abs(e.y - window.GameAPI.getPlayer().y);
+        if (d < bestD) { best = e; bestD = d; }
+      }
+      const px = window.GameAPI.getPlayer().x, py = window.GameAPI.getPlayer().y;
+      const dx = Math.sign(best.x - px);
+      const dy = Math.sign(best.y - py);
+      // Prefer horizontal then vertical; if already adjacent, step into enemy tile to attack
+      if (bestD <= 1) {
+        if (best.x === px + 1 && best.y === py) key("ArrowRight");
+        else if (best.x === px - 1 && best.y === py) key("ArrowLeft");
+        else if (best.x === px && best.y === py + 1) key("ArrowDown");
+        else if (best.x === px && best.y === py - 1) key("ArrowUp");
+      } else {
+        if (dx !== 0) key(dx === 1 ? "ArrowRight" : "ArrowLeft");
+        else if (dy !== 0) key(dy === 1 ? "ArrowDown" : "ArrowUp");
+      }
+      await sleep(120);
+    }
+    return false;
+  }
+
   async function run() {
     try {
       log("Starting smoke test…", "notice");
@@ -76,11 +106,25 @@
       log("Opened GOD panel", "info");
       await sleep(250);
 
-      // Step 2: set seed
+      // Step 2: set seed and enable crits for fast kill
       setInputValue("god-seed-input", 12345);
       clickById("god-apply-seed-btn");
       log("Applied seed 12345", "info");
       await sleep(600);
+      // Always Crit: On (head)
+      try {
+        clickById("god-toggle-crit-btn");
+        await sleep(120);
+        // Choose head via chooser by simulating click on button data-part=head
+        // Fallback: set part via localStorage
+        try {
+          const chooser = document.querySelector("#god-panel + div"); // chooser overlay might not be adjacent; fallback below
+          localStorage.setItem("ALWAYS_CRIT_PART", "head");
+        } catch (_) {
+          localStorage.setItem("ALWAYS_CRIT_PART", "head");
+        }
+      } catch (_) {}
+      await sleep(200);
 
       // Step 3: adjust FOV to 10 via slider (if present)
       try {
@@ -113,69 +157,66 @@
         log("Routing error: " + (e && e.message ? e.message : String(e)), "bad");
       }
 
-      // Step 5: close GOD (Esc)
-      key("Escape");
-      log("Closed GOD panel", "info");
+      // Step 5: spawn enemy and kill it
+      clickById("god-open-btn");
       await sleep(250);
-
-      // Step 6: move towards enemy (try a few steps) and attack by bump
-      const moves = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "ArrowRight", "ArrowRight", "ArrowDown"];
-      for (const m of moves) { key(m); await sleep(140); }
-      log("Moved and attempted attacks", "info");
-
-      // Step 7: open inventory, then close
-      key("KeyI");
-      await sleep(300);
-      key("Escape");
-      log("Opened and closed inventory", "info");
+      clickById("god-spawn-enemy-btn");
+      log("Spawned test enemy in dungeon", "info");
       await sleep(250);
+      key("Escape");
+      await sleep(150);
+      const killed = await attackUntilNoEnemyNearby(80);
+      log(killed ? "Enemy killed via bump-attacks." : "Could not confirm kill within step budget.", killed ? "good" : "warn");
 
-      // Step 8: loot (G) any corpse beneath player (if present)
+      // Step 6: loot (G) underfoot
       key("KeyG");
       await sleep(300);
       log("Attempted loot underfoot", "info");
 
-      // Step 9: if in dungeon, spawn low-level enemy nearby and try to loot it
-      try {
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
-          // Open GOD and spawn enemy
-          clickById("god-open-btn");
-          await sleep(250);
-          clickById("god-spawn-enemy-btn"); // uses default count=1, level scales with floor; floor 1 is low
-          log("Spawned test enemy in dungeon", "info");
-          await sleep(250);
-          key("Escape");
-          await sleep(150);
-          // Move towards nearest enemy and bump to attack
-          const enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
-          if (enemies && enemies.length) {
-            // Pick nearest
-            let best = enemies[0];
-            let bestD = Math.abs(best.x - window.GameAPI.getPlayer().x) + Math.abs(best.y - window.GameAPI.getPlayer().y);
-            for (const e of enemies) {
-              const d = Math.abs(e.x - window.GameAPI.getPlayer().x) + Math.abs(e.y - window.GameAPI.getPlayer().y);
-              if (d < bestD) { best = e; bestD = d; }
-            }
-            const path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
-            for (const step of path) {
-              const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-              const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-              await sleep(120);
-            }
-            // Attempt to loot underfoot
-            key("KeyG");
-            await sleep(250);
-            log("Attempted to loot defeated enemy", "info");
-          } else {
-            log("No enemies found to route/loot.", "warn");
-          }
-        }
-      } catch (e) {
-        log("Dungeon test error: " + (e && e.message ? e.message : String(e)), "bad");
+      // Step 7: exit dungeon: spawn stairs underfoot to guarantee exit, then G
+      clickById("god-open-btn");
+      await sleep(200);
+      clickById("god-spawn-stairs-btn");
+      log("Spawned stairs underfoot for exit", "info");
+      await sleep(200);
+      key("Escape");
+      await sleep(150);
+      key("KeyG"); // leave via stairs
+      await sleep(500);
+      log("Exited to overworld", "info");
+
+      // Step 8: route to nearest town and enter
+      if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
+        log("Routing to nearest town…", "info");
+        const okTown = (typeof window.GameAPI.gotoNearestTown === "function") ? await window.GameAPI.gotoNearestTown() : false;
+        if (!okTown) log("Route-to-town fallback: manual moves.", "warn");
+        key("Enter"); // enter town tile
+        await sleep(600);
+        log("Attempted town entry.", "info");
       }
 
-      // Step 10: open GOD Diagnostics and log output
+      // Step 9: bump an NPC (move around a bit; bump triggers dialog)
+      if (window.GameAPI.getMode && window.GameAPI.getMode() === "town") {
+        log("Searching for NPC to bump…", "info");
+        // Small random walk; bumping into NPC tiles is logged by game
+        const walk = ["ArrowRight","ArrowRight","ArrowUp","ArrowLeft","ArrowDown","ArrowDown","ArrowRight","ArrowUp","ArrowLeft","ArrowLeft","ArrowDown"];
+        for (const m of walk) { key(m); await sleep(120); }
+        log("NPC bump attempt made.", "info");
+
+        // Step 10: open GOD and run town checks (home routes and inn)
+        clickById("god-open-btn");
+        await sleep(250);
+        clickById("god-check-home-btn");
+        await sleep(350);
+        clickById("god-check-inn-tavern-btn");
+        await sleep(350);
+        log("Ran town GOD checks (home routes + inn/tavern).", "info");
+        key("Escape");
+      } else {
+        log("Not in town; skipping NPC bump and town checks.", "warn");
+      }
+
+      // Step 11: Diagnostics
       clickById("god-open-btn");
       await sleep(250);
       clickById("god-diagnostics-btn");

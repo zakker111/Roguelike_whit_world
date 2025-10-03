@@ -2376,6 +2376,16 @@
         }
         return best;
       },
+      nearestTown: () => {
+        if (!world || !Array.isArray(world.towns) || world.towns.length === 0) return null;
+        const sx = player.x, sy = player.y;
+        let best = null, bestD = Infinity;
+        for (const t of world.towns) {
+          const dd = Math.abs(t.x - sx) + Math.abs(t.y - sy);
+          if (dd < bestD) { bestD = dd; best = { x: t.x, y: t.y }; }
+        }
+        return best;
+      },
       routeTo: (tx, ty) => {
         // BFS over overworld to build a simple path
         if (!world || !world.map) return [];
@@ -2426,6 +2436,19 @@
         }
         return true;
       },
+      gotoNearestTown: async () => {
+        const target = window.GameAPI.nearestTown();
+        if (!target) { return true; }
+        const path = window.GameAPI.routeTo(target.x, target.y);
+        if (!path || !path.length) { return false; }
+        for (const step of path) {
+          const dx = Math.sign(step.x - player.x);
+          const dy = Math.sign(step.y - player.y);
+          try { window.GameAPI.moveStep(dx, dy); } catch (_) {}
+          await new Promise(r => setTimeout(r, 60));
+        }
+        return true;
+      },
       // Dungeon helpers for smoke test
       getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type })),
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
@@ -2465,7 +2488,9 @@
         }
         path.reverse();
         return path;
-      }
+      },
+      // Town helpers (NPC inspection)
+      getNPCs: () => (Array.isArray(npcs) ? npcs.map(n => ({ x: n.x, y: n.y, name: n.name })) : [])
     };
   } catch (_) {}
 
