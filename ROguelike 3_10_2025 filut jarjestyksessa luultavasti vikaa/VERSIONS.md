@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-03 20:25 UTC
+Last updated: 2025-10-03 20:45 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,14 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.15 — Corpses no longer block; occupancy and tests updated
+- Fixed: Corpses in dungeons blocking player movement
+  - core/game.js: killEnemy() now clears enemy occupancy at the death tile immediately.
+  - turn(): rebuildOccupancy runs each dungeon turn after enemiesAct to reflect movement/deaths.
+- Changed: Smoke test expanded and aligned with latest features
+  - smoketest.md now includes checks for FOV recompute guard behavior, Diagnostics button, default OFF overlays, inventory labels (counts/stats), and explicit “corpses do not block” verification.
+- Dev: Noted that third-party tracker/telemetry errors in the console are environmental and safe to ignore for gameplay testing.
 
 v1.14 — Performance/UX tweaks, FOV guard, Diagnostics, and corpse walk-through
 - Changed: Render debouncing to reduce redundant draws
