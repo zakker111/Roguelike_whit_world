@@ -1090,228 +1090,31 @@
   }
 
   function enterTownIfOnTile() {
-    if (mode !== "world" || !world) return false;
-    const WT = window.World && World.TILES;
-    const t = world.map[player.y][player.x];
-    if (WT && t === World.TILES.TOWN) {
-      worldReturnPos = { x: player.x, y: player.y };
-      mode = "town";
-      // Start town and ensure a valid spawn
-      generateTown();
-      ensureTownSpawnClear();
-      townExitAt = { x: player.x, y: player.y };
-      // Make entry calmer: reduce greeters to avoid surrounding the player
-      spawnGateGreeters(0);
-
-      // If entering at night, place NPCs at homes; allow a small number in tavern or at plaza
-      (function setNightState() {
-        try {
-          const t = getClock();
-          if (!t || t.phase !== "night") return;
-          const occupied = new Set();
-          const occKey = (x, y) => `${x},${y}`;
-          const isInside = (b, x, y) => x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1;
-          const isFreeInside = (b, x, y) => {
-            if (!isInside(b, x, y)) return false;
-            if (map[y][x] !== TILES.FLOOR && map[y][x] !== TILES.DOOR) return false;
-            if (occupied.has(occKey(x, y))) return false;
-            if (npcs.some(n => n.x === x && n.y === y)) return false;
-            if (townProps.some(p => p.x === x && p.y === y && p.type !== "sign" && p.type !== "rug")) return false;
-            return true;
-          };
-          const placeNear = (b, tx, ty) => {
-            if (isFreeInside(b, tx, ty)) return { x: tx, y: ty };
-            // search small radius inside building
-            for (let r = 1; r <= 3; r++) {
-              for (let dy = -r; dy <= r; dy++) {
-                for (let dx = -r; dx <= r; dx++) {
-                  const nx = tx + dx, ny = ty + dy;
-                  if (isFreeInside(b, nx, ny)) return { x: nx, y: ny };
-                }
-              }
-            }
-            // fallback to door
-            const d = b.door || { x: Math.max(b.x + 1, Math.min(b.x + b.w - 2, tx)), y: Math.max(b.y + 1, Math.min(b.y + b.h - 2, ty)) };
-            if (isFreeInside(b, d.x, d.y)) return { x: d.x, y: d.y };
-            return null;
-          };
-
-          // Select a small set to remain at tavern/plaza
-          const keepOutCount = Math.min(6, Math.max(2, Math.floor(npcs.length * 0.1)));
-          const indices = npcs.map((_, i) => i);
-          for (let i = indices.length - 1; i > 0; i--) {
-            const j = Math.floor(rng() * (i + 1)); const tmp = indices[i]; indices[i] = indices[j]; indices[j] = tmp;
-          }
-          const keepOut = new Set(indices.slice(0, keepOutCount));
-
-          for (let i = 0; i < npcs.length; i++) {
-            const n = npcs[i];
-            // Pets: keep behavior light, let some stay outside
-            if (n.isPet) continue;
-
-            // Some NPCs stay at inn/tavern or plaza
-            if (keepOut.has(i)) {
-              // Prefer inn/tavern door if present; else near plaza
-              if (tavern && tavern.door && isFreeTownFloor(tavern.door.x, tavern.door.y)) {
-                n.x = tavern.door.x; n.y = tavern.door.y;
-                occupied.add(occKey(n.x, n.y));
-                // Make sure they're visible at night entry for clarity
-                if (visible[n.y] && typeof visible[n.y][n.x] !== "undefined") visible[n.y][n.x] = true;
-                if (seen[n.y] && typeof seen[n.y][n.x] !== "undefined") seen[n.y][n.x] = true;
-                continue;
-              } else if (townPlaza) {
-                const px = Math.max(1, Math.min(map[0].length - 2, townPlaza.x + randInt(-2, 2)));
-                const py = Math.max(1, Math.min(map.length - 2, townPlaza.y + randInt(-2, 2)));
-                if (isFreeTownFloor(px, py)) {
-                  n.x = px; n.y = py;
-                  occupied.add(occKey(n.x, n.y));
-                  if (visible[py] && typeof visible[py][px] !== "undefined") visible[py][px] = true;
-                  if (seen[py] && typeof seen[py][px] !== "undefined") seen[py][px] = true;
-                  continue;
-                }
-              }
-              // If couldn't place out, fall through to home
-            }
-
-            // Default: place at home inside building and set sleeping
-            if (n._home && n._home.building) {
-              const b = n._home.building;
-              const target = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : { x: n._home.x, y: n._home.y };
-              const spot = placeNear(b, target.x, target.y);
-              if (spot) {
-                n.x = spot.x; n.y = spot.y;
-                n._sleeping = true;
-                occupied.add(occKey(n.x, n.y));
-                // Ensure these tiles are visible/seen so the user can confirm placement
-                if (visible[n.y] && typeof visible[n.y][n.x] !== "undefined") visible[n.y][n.x] = true;
-                if (seen[n.y] && typeof seen[n.y][n.x] !== "undefined") seen[n.y][n.x] = true;
-                continue;
-              }
-            }
-            // If no home/building info, leave as-is but ensure visibility if near the player
-            if (visible[n.y] && typeof visible[n.y][n.x] !== "undefined") visible[n.y][n.x] = true;
-            if (seen[n.y] && typeof seen[n.y][n.x] !== "undefined") seen[n.y][n.x] = true;
-          }
-
-          // Occasionally, 1–2 NPCs choose to sleep at the inn/tavern
-          if (tavern && Array.isArray(tavern.beds) && tavern.beds.length) {
-            const sleepers = rng() < 0.8 ? randInt(1, 2) : 1;
-            const candidates = npcs.filter(n => !n.isPet && !n.isBarkeeper && !n._sleeping);
-            // pick unique random indices
-            for (let s = 0; s < sleepers && candidates.length; s++) {
-              const idx = randInt(0, candidates.length - 1);
-              const npc = candidates.splice(idx, 1)[0];
-              // find a free bed
-              let bedSpot = null;
-              for (const bpos of tavern.beds) {
-                const k = occKey(bpos.x, bpos.y);
-                if (!occupied.has(k) && isFreeTownFloor(bpos.x, bpos.y)) { bedSpot = bpos; break; }
-              }
-              if (bedSpot) {
-                npc.x = bedSpot.x; npc.y = bedSpot.y;
-                npc._sleeping = true;
-                occupied.add(occKey(npc.x, npc.y));
-                if (visible[npc.y] && typeof visible[npc.y][npc.x] !== "undefined") visible[npc.y][npc.x] = true;
-                if (seen[npc.y] && typeof seen[npc.y][npc.x] !== "undefined") seen[npc.y][npc.x] = true;
-              }
-            }
-          }
-        } catch (_) {}
-      })();
-
-      log(`You enter ${townName ? "the town of " + townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press Enter on the gate to leave.`, "notice");
-      if (window.UI && typeof UI.showTownExitButton === "function") UI.showTownExitButton();
-      updateCamera();
-      recomputeFOV();
-      requestDraw();
-      return true;
+    if (window.Modes && typeof Modes.enterTownIfOnTile === "function") {
+      const ctx = getCtx();
+      return !!Modes.enterTownIfOnTile(ctx);
     }
     return false;
   }
 
   function enterDungeonIfOnEntrance() {
-    if (mode !== "world" || !world) return false;
-    const t = world.map[player.y][player.x];
-    if (t && World.TILES && t === World.TILES.DUNGEON) {
-      const enterWX = player.x, enterWY = player.y;
-      cameFromWorld = true;
-      worldReturnPos = { x: enterWX, y: enterWY };
-
-      // Look up dungeon info (level, size) from world POIs
-      currentDungeon = null;
-      try {
-        if (Array.isArray(world.dungeons)) {
-          currentDungeon = world.dungeons.find(d => d.x === enterWX && d.y === enterWY) || null;
-        }
-      } catch (_) { currentDungeon = null; }
-      // Default fallback
-      if (!currentDungeon) currentDungeon = { x: enterWX, y: enterWY, level: 1, size: "medium" };
-
-      // If dungeon already has a saved state, load it and return
-      if (loadDungeonStateFor(currentDungeon.x, currentDungeon.y)) {
-        try { 
-          log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}.`, "notice"); 
-          const dx = (dungeonExitAt && typeof dungeonExitAt.x === "number") ? dungeonExitAt.x : "n/a";
-          const dy = (dungeonExitAt && typeof dungeonExitAt.y === "number") ? dungeonExitAt.y : "n/a";
-          if (window.DEV) console.log("[DEV] Loaded saved dungeon at " + currentDungeon.x + "," + currentDungeon.y + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + player.x + "," + player.y + ")");
-        } catch (_) {}
-        return true;
-      } else {
-        try { log(`[DEV] No saved dungeon state for ${currentDungeon.x},${currentDungeon.y}; generating new.`, "warn"); } catch (_) {}
-      }
-
-      // Set dungeon difficulty = level; we keep 'floor' equal to dungeon level for UI/logic
-      floor = Math.max(1, currentDungeon.level | 0);
-      window.floor = floor;
-
-      mode = "dungeon";
-      generateLevel(floor);
-
-      // Mark current dungeon start as exit point back to world; also ensure a visible "hole" (use STAIRS tile)
-      dungeonExitAt = { x: player.x, y: player.y };
-      if (inBounds(player.x, player.y)) {
-        map[player.y][player.x] = TILES.STAIRS;
-        if (Array.isArray(seen) && seen[player.y]) seen[player.y][player.x] = true;
-        if (Array.isArray(visible) && visible[player.y]) visible[player.y][player.x] = true;
-      }
-
-      // Save fresh dungeon state
-      saveCurrentDungeonState();
-      try {
-        const k = `${currentDungeon.x},${currentDungeon.y}`;
-        log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
-        const dx = (dungeonExitAt && typeof dungeonExitAt.x === "number") ? dungeonExitAt.x : "n/a";
-        const dy = (dungeonExitAt && typeof dungeonExitAt.y === "number") ? dungeonExitAt.y : "n/a";
-        if (window.DEV) console.log("[DEV] Initial dungeon save for key " + k + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + player.x + "," + player.y + ")");
-      } catch (_) {}
-
-      log(`You enter the dungeon (Difficulty ${floor}${currentDungeon.size ? ", " + currentDungeon.size : ""}).`, "notice");
-      return true;
+    if (window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
+      const ctx = getCtx();
+      return !!Modes.enterDungeonIfOnEntrance(ctx);
     }
     return false;
   }
 
   function leaveTownNow() {
-    mode = "world";
-    map = world.map;
-    npcs = [];
-    shops = [];
-    if (worldReturnPos) {
-      player.x = worldReturnPos.x;
-      player.y = worldReturnPos.y;
+    if (window.Modes && typeof Modes.leaveTownNow === "function") {
+      Modes.leaveTownNow(getCtx());
+      return;
     }
-    recomputeFOV();
-    updateCamera();
-    updateUI();
-    log("You return to the overworld.", "notice");
-    if (window.UI && typeof UI.hideTownExitButton === "function") UI.hideTownExitButton();
-    requestDraw();
   }
 
   function requestLeaveTown() {
-    if (window.UI && typeof UI.showConfirm === "function") {
-      // Position near center
-      const x = window.innerWidth / 2 - 140;
+    if (window.Modes && typeof Modes.requestLeaveTown === "function") {
+      Modes.request      const x = window.innerWidth / 2 - 140;
       const y = window.innerHeight / 2 - 60;
       UI.showConfirm("Do you want to leave the town?", { x, y }, () => leaveTownNow(), () => {});
     } else {
@@ -1332,23 +1135,23 @@
   }
 
   function returnToWorldIfAtExit() {
-    if (window.DungeonState && typeof DungeonState.returnToWorldIfAtExit === "function") {
-      const ctxMod = getCtx();
-      const ok = DungeonState.returnToWorldIfAtExit(ctxMod);
+    if (window.Modes && typeof Modes.returnToWorldIfAtExit === "function") {
+      const ctx = getCtx();
+      const ok = Modes.returnToWorldIfAtExit(ctx);
       if (ok) {
         // Sync mutated ctx back into local state
-        mode = ctxMod.mode || mode;
-        map = ctxMod.map || map;
-        seen = ctxMod.seen || seen;
-        visible = ctxMod.visible || visible;
-        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
-        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
-        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
-        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
-        townExitAt = ctxMod.townExitAt || townExitAt;
-        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
-        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
+        mode = ctx.mode || mode;
+        map = ctx.map || map;
+        seen = ctx.seen || seen;
+        visible = ctx.visible || visible;
+        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
+        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
+        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
+        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+        townExitAt = ctx.townExitAt || townExitAt;
+        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
+        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
+        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
         recomputeFOV();
         updateCamera();
         updateUI();
@@ -1356,28 +1159,6 @@
       }
       return ok;
     }
-    if (mode !== "dungeon" || !cameFromWorld || !world) return false;
-    if (floor !== 1) return false;
-    if (dungeonExitAt && player.x === dungeonExitAt.x && player.y === dungeonExitAt.y) {
-      // Save state before leaving so enemies/corpses/chests persist
-      saveCurrentDungeonState();
-      mode = "world";
-      enemies = [];
-      corpses = [];
-      decals = [];
-      map = world.map;
-      if (worldReturnPos) {
-        player.x = worldReturnPos.x;
-        player.y = worldReturnPos.y;
-      }
-      recomputeFOV();
-      updateCamera();
-      updateUI();
-      log("You return to the overworld.", "notice");
-      requestDraw();
-      return true;
-    }
-    log("Return to the dungeon entrance to go back to the overworld.", "info");
     return false;
   }
 
