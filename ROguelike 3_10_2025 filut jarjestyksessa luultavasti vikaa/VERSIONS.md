@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-03 19:05 UTC
+Last updated: 2025-10-03 19:45 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,22 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.13 — Render loop extraction, startup stabilization, and final syntax fixes
+- Added: core/game_loop.js with a minimal GameLoop
+  - GameLoop.start(getRenderCtx) uses requestAnimationFrame to call Render.draw with the provided render context.
+  - GameLoop.requestDraw() marks a frame dirty to coalesce draws.
+- Changed: core/game.js render and startup wiring
+  - Removed the legacy loop(); requestDraw now delegates to GameLoop when present, else falls back to Render.draw(getRenderCtx()).
+  - Startup tail now calls GameLoop.start(() => getRenderCtx()) and falls back to a single Render.draw(getRenderCtx()) if GameLoop is absent.
+  - All leftover loop() calls removed.
+- Changed: index.html loads core/game_loop.js before core/game.js to ensure GameLoop is available at startup.
+- Fixed: “Unexpected end of input” errors caused by truncated file tail during refactors
+  - Restored and verified the closing IIFE and startup block at the end of core/game.js.
+  - Repaired malformed requestDraw() lines introduced during incremental edits.
+- Fixed: Stability after Actions/Modes operations
+  - Continued to sync mutated ctx back to core/game.js locals after Actions/Modes/GOD flows, then recompute FOV, update camera/UI, and request draw.
+- Dev: Reduced console noise with window.DEV guards maintained around boot/persistence traces.
 
 v1.12 — Modes extraction, town entry/exit UX, and stability fixes
 - Added: core/modes.js to encapsulate world/town/dungeon transitions and dungeon-state persistence
