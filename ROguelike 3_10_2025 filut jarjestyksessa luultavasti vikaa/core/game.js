@@ -2127,6 +2127,8 @@
     if (mode !== "dungeon" || !cameFromWorld || !world) return false;
     if (floor !== 1) return false;
     if (dungeonExitAt && player.x === dungeonExitAt.x && player.y === dungeonExitAt.y) {
+      // Save state before leaving so enemies/corpses/chests persist
+      saveCurrentDungeonState();
       mode = "world";
       enemies = [];
       corpses = [];
