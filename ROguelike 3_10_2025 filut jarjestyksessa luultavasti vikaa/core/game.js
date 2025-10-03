@@ -12,6 +12,15 @@
  * - Randomness is deterministic via mulberry32; helpers (randInt, randFloat, chance) built over it.
  */
 (() => {
+  try {
+    console.log("[BOOT] game.js loaded. Modules present:", {
+      DungeonState: !!(window.DungeonState),
+      Logger: !!(window.Logger),
+      UI: !!(window.UI),
+      Dungeon: !!(window.Dungeon),
+      Enemies: !!(window.Enemies),
+    });
+  } catch (_) {}
   const TILE = 32;
   const COLS = 30;
   const ROWS = 20;
@@ -682,6 +691,7 @@
 
   function saveCurrentDungeonState() {
     if (window.DungeonState && typeof DungeonState.save === "function") {
+      try { console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
       DungeonState.save(getCtx());
       return;
     }
@@ -701,6 +711,7 @@
     try {
       const msg = `[DEV] Fallback save key ${key}: enemies=${Array.isArray(enemies)?enemies.length:0}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
       log(msg, "notice");
+      console.log("[TRACE] " + msg);
     } catch (_) {}
   }
 
@@ -2058,11 +2069,14 @@
       if (!currentDungeon) currentDungeon = { x: player.x, y: player.y, level: 1, size: "medium" };
 
       // If dungeon already has a saved state, load it and return
+      try { console.log(`[TRACE] Attempting to load dungeon state for ${currentDungeon.x},${currentDungeon.y}`); } catch (_) {}
       if (loadDungeonStateFor(currentDungeon.x, currentDungeon.y)) {
         try { log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}.`, "notice"); } catch (_) {}
+        try { console.log(`[TRACE] Loaded saved dungeon for ${currentDungeon.x},${currentDungeon.y}`); } catch (_) {}
         return true;
       } else {
         try { log(`[DEV] No saved dungeon state for ${currentDungeon.x},${currentDungeon.y}; generating new.`, "warn"); } catch (_) {}
+        try { console.log(`[TRACE] No saved state, generating for ${currentDungeon.x},${currentDungeon.y}`); } catch (_) {}
       }
 
       // Set dungeon difficulty = level; we keep 'floor' equal to dungeon level for UI/logic

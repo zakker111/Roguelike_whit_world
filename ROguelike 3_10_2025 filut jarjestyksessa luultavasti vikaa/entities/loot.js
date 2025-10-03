@@ -244,7 +244,14 @@
     container.loot = [];
     container.looted = true;
     // Persist dungeon state immediately so revisits remember emptied chest
-    try { if (window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx); } catch (_) {}
+    try {
+      if (window.DungeonState && typeof DungeonState.save === "function") {
+        console.log("[TRACE] Loot: calling DungeonState.save after chest looted");
+        DungeonState.save(ctx);
+      } else {
+        console.log("[TRACE] Loot: DungeonState.save not available");
+      }
+    } catch (e) { console.log("[TRACE] Loot: DungeonState.save threw", e); }
 
     showLoot(ctx, acquired);
     ctx.log(`You loot: ${acquired.join(", ")}.`);
