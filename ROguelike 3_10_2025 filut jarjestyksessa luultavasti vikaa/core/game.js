@@ -2493,6 +2493,7 @@
       // Town helpers for smoke test
       getNPCs: () => (Array.isArray(npcs) ? npcs.map(n => ({ x: n.x, y: n.y, name: n.name || "" })) : []),
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "", name: p.name || "" })) : []),
+      getTownExit: () => (townExitAt ? { x: townExitAt.x, y: townExitAt.y } : null),
     };
   } catch (_) {}
 

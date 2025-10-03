@@ -59,19 +59,41 @@
   function getMode() { return (window.GameAPI && typeof GameAPI.getMode === "function") ? GameAPI.getMode() : ""; }
   async function routeToNearestDungeon() {
     if (!window.GameAPI || typeof GameAPI.gotoNearestDungeon !== "function") return false;
-    return await GameAPI.gotoNearestDungeon();
+    const ok = await GameAPI.gotoNearestDungeon();
+    if (ok) return true;
+    // Fallback: manual exploration pattern
+    const moves = ["ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowLeft","ArrowLeft","ArrowUp","ArrowUp"];
+    for (let r = 0; r < 10; r++) {
+      for (const m of moves) { key(m); await sleep(60); }
+    }
+    return true; // best-effort
   }
   async function routeToNearestTown() {
     if (!window.GameAPI || typeof GameAPI.gotoNearestTown !== "function") return false;
-    return await GameAPI.gotoNearestTown();
+    const ok = await GameAPI.gotoNearestTown();
+    if (ok) return true;
+    // Fallback: manual exploration pattern
+    const moves = ["ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowLeft","ArrowLeft","ArrowUp","ArrowUp"];
+    for (let r = 0; r < 10; r++) {
+      for (const m of moves) { key(m); await sleep(60); }
+    }
+    return true; // best-effort
   }
   async function enterIfOnSpecialTile(kind /* "dungeon" | "town" */) {
+    // Try both Enter and G with generous delays
     key("Enter");
-    await sleep(400);
-    const m = getMode();
-    if (kind === "dungeon") return m === "dungeon";
-    if (kind === "town") return m === "town";
-    return false;
+    await sleep(500);
+    let m = getMode();
+    if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
+    key("KeyG");
+    await sleep(600);
+    m = getMode();
+    if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
+    // Try NumpadEnter as a fallback
+    key("NumpadEnter");
+    await sleep(500);
+    m = getMode();
+    return (kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town");
   }
 
   // Utilities for checking the main log
@@ -240,20 +262,21 @@
         if (d < bestD) { best = n; bestD = d; }
       }
       // move toward and attempt to step into npc tile a few times
-      const prev = getTopLogLine();
-      for (let i = 0; i < 20; i++) {
+      let prevLine = getTopLogLine();
+      for (let i = 0; i < 24; i++) {
         const p = GameAPI.getPlayer();
         const dx = Math.sign(best.x - p.x);
         const dy = Math.sign(best.y - p.y);
         const keyName = dx !== 0 ? (dx === -1 ? "ArrowLeft" : "ArrowRight") : (dy === -1 ? "ArrowUp" : "ArrowDown");
         key(keyName);
-        await sleep(80);
+        await sleep(100);
         // after each attempt, see if a new log line appeared (NPC dialog or "Excuse me!")
-        const changed = await waitForLogChange(prev, 80);
+        const changed = await waitForLogChange(prevLine, 300);
         if (changed) {
           npcBumpSaid = true;
           break;
         }
+        prevLine = getTopLogLine();
       }
     }
 
@@ -374,18 +397,39 @@
       let exited = false;
       if (inTown) {
         try {
+          // Prefer using the exit button if visible
           const btn = (UI && UI.els && UI.els.townExitBtn) ? UI.els.townExitBtn : document.querySelector("button[title='Leave the town']");
           if (btn) {
             btn.click();
-            await sleep(120);
+            await sleep(150);
             const okBtn = document.querySelector("div#ui-confirm-text") ? document.querySelector("div#ui-confirm-text").parentElement.parentElement.querySelector("button[data-act='ok']") : document.querySelector("button[data-act='ok']");
             if (okBtn) okBtn.click();
-            await sleep(420);
+            await sleep(500);
             exited = getMode() === "world";
-          } else {
-            key("KeyG");
-            await sleep(420);
-            exited = getMode() === "world";
+          }
+          if (!exited) {
+            // Route to town gate if available, then press G
+            const gate = (GameAPI.getTownExit ? GameAPI.getTownExit() : null);
+            if (gate) {
+              for (let i = 0; i < 40; i++) {
+                const p = GameAPI.getPlayer();
+                const d = Math.abs(gate.x - p.x) + Math.abs(gate.y - p.y);
+                if (d === 0) break;
+                const dx = Math.sign(gate.x - p.x);
+                const dy = Math.sign(gate.y - p.y);
+                const keyName = dx !== 0 ? (dx === -1 ? "ArrowLeft" : "ArrowRight") : (dy === -1 ? "ArrowUp" : "ArrowDown");
+                key(keyName);
+                await sleep(70);
+              }
+              key("KeyG");
+              await sleep(600);
+              exited = getMode() === "world";
+            } else {
+              // Best-effort: press G where we are
+              key("KeyG");
+              await sleep(600);
+              exited = getMode() === "world";
+            }
           }
         } catch (_) {}
       }
