@@ -199,7 +199,11 @@
     const towns = [];
     const dungeons = [];
     const wantTowns = 8 + ((rng() * 4) | 0);
-    const wantDungeons = 10 + ((rng() * 6) | 0);
+    // Scale dungeon count with map area to populate more dungeons on larger maps.
+    // Baseline increased significantly; ensures richer world content.
+    const area = width * height;
+    const baseDungeons = Math.max(12, Math.floor(area / 800)); // ~12 for 120x80; grows with area
+    const wantDungeons = baseDungeons + ((rng() * Math.max(6, Math.floor(baseDungeons * 0.4))) | 0);
 
     // Decide town size distribution: small ~60%, big ~30%, city ~10%
     function pickTownSize() {
@@ -271,7 +275,8 @@
       (x, y) => {
         const t = map[y][x];
         if (t === TILES.FOREST || t === TILES.MOUNTAIN) return true;
-        if (t === TILES.GRASS) return rng() < 0.05;
+        if (t === TILES.GRASS) return rng() < 0.11; // slightly more likely on plains
+        // avoid water/river/beach/swamp/desert/snow for entrances, bias to solid terrain
         return false;
       },
       (x, y) => {
