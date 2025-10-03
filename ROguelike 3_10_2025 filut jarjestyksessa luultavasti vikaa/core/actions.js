@@ -23,7 +23,23 @@
     if (ctx.mode === "world") {
       const t = (ctx.world && ctx.world.map) ? ctx.world.map[ctx.player.y][ctx.player.x] : null;
       if (ctx.World && ctx.World.TILES) {
-        if (t === ctx.World.TILES.TOWN) {
+        const WT = ctx.World.TILES;
+        // Helper: if not standing exactly on TOWN/DUNGEON, allow entering if adjacent (QoL)
+        function tryEnterAdjacent(kindTile) {
+          const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+          for (const d of dirs) {
+            const nx = ctx.player.x + d.dx, ny = ctx.player.y + d.dy;
+            if (!inBounds(ctx, nx, ny)) continue;
+            if (ctx.world.map[ny][nx] === kindTile) {
+              // step onto tile and signal success
+              ctx.player.x = nx; ctx.player.y = ny;
+              return true;
+            }
+          }
+          return false;
+        }
+
+        if (t === WT.TOWN || tryEnterAdjacent(WT.TOWN)) {
           // Enter town
           ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
           ctx.mode = "town";
@@ -38,7 +54,7 @@
             ctx.requestDraw();
             return true;
           }
-        } else if (t === ctx.World.TILES.DUNGEON) {
+        } else if (t === WT.DUNGEON || tryEnterAdjacent(WT.DUNGEON)) {
           // Enter dungeon (single floor)
           ctx.cameFromWorld = true;
           ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };

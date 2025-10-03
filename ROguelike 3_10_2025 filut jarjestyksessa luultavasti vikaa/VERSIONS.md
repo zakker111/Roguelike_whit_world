@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-03 17:40 UTC
+Last updated: 2025-10-03 19:05 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,27 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.12 — Modes extraction, town entry/exit UX, and stability fixes
+- Added: core/modes.js to encapsulate world/town/dungeon transitions and dungeon-state persistence
+  - enterTownIfOnTile/enterDungeonIfOnEntrance now accept adjacent-entry: if player is next to T/D, they are auto-stepped onto the tile before entering.
+  - returnToWorldIfAtExit/leaveTownNow handle overworld return, syncing ctx back to core/game.js locals.
+- Changed: core/game.js delegates transitions to Modes and always syncs mutated ctx state back to local variables after Actions/Modes operations
+  - Ensures map/seen/visible, npcs/shops/townProps/townBuildings, anchors (townExitAt/worldReturnPos/dungeonExitAt), dungeon info and floor are updated, then FOV/camera/UI refreshed.
+- Changed: Pressing G on the town gate prioritizes exit
+  - doAction() checks gate-first and calls leave flow before other town interactions to avoid being intercepted by shop/prop handlers.
+- Added: Gate greeters on town entry
+  - Town.spawnGateGreeters(ctx, 4) called after Town.generate and during mode entry to add immediate life near the gate.
+- Fixed: “Press G/Enter next to town/dungeon does nothing” regression
+  - Actions and Modes both updated to support adjacency and to move the player onto the entrance tile before entering.
+  - core/ctx.js now attaches World, Town, TownAI, and DungeonState into ctx so Actions/Modes can detect tiles and persist correctly.
+- Fixed: Empty towns after refactor (no NPCs/props/signs)
+  - core/game.js syncs town arrays (npcs, shops, townProps, townBuildings) and plaza/tavern back from ctx after Town.generate and on mode entry.
+- Fixed: Town exit leaving player “disappeared” with town still rendered
+  - leaveTownNow() now syncs mode/map/visibility and clears town-only arrays before recompute/draw.
+- Fixed: Multiple syntax errors introduced during incremental edits
+  - Removed truncated fragments near leaveTownNow(); closed braces properly; resolved malformed function start for requestLeaveTown().
+- Dev: Reduced console noise behind DEV flag (window.DEV) for boot and persistence traces; kept UI Logger output.
 
 v1.11 — Dungeon Persistence and Stability (chests, corpses, load/exit sync)
 - Fixed: AI occupancy calls remaining after wrapper introduction
@@ -278,5 +299,4 @@ Bugs
 - inns dont have invidual rooms and not enought beds
 - some npc stay at their homes at day time 
 - some npc dont sleep in theid beds
-- Dungeons bugged out they spawn enemies every time you decend to dungeon and corpses dont stay and crate always spawns items this needs to be fixed
-residents go home at night but they get stuck in door if bed is just adjacent tile of door
+- residents go home at night but they get stuck in door if bed is just adjacent tile of door
