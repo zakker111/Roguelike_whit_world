@@ -534,6 +534,24 @@
           const li = document.createElement("li");
           li.dataset.index = String(idx);
           li.dataset.kind = it.kind || "misc";
+
+          // Build display label with counts/stats where helpful
+          const baseLabel = (typeof describeItem === "function") ? describeItem(it) : (it.name || "item");
+          let label = baseLabel;
+
+          if (it.kind === "potion") {
+            const count = (it.count && it.count > 1) ? ` x${it.count}` : "";
+            label = `${baseLabel}${count}`;
+          } else if (it.kind === "gold") {
+            const amount = Number(it.amount || 0);
+            label = `${baseLabel}: ${amount}`;
+          } else if (it.kind === "equip") {
+            const stats = [];
+            if (typeof it.atk === "number") stats.push(`+${Number(it.atk).toFixed(1)} atk`);
+            if (typeof it.def === "number") stats.push(`+${Number(it.def).toFixed(1)} def`);
+            if (stats.length) label = `${baseLabel} (${stats.join(", ")})`;
+          }
+
           if (it.kind === "equip" && it.slot === "hand") {
             li.dataset.slot = "hand";
             const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
@@ -562,7 +580,8 @@
             li.style.opacity = "0.7";
             li.style.cursor = "default";
           }
-          li.textContent = typeof describeItem === "function" ? describeItem(it) : (it.name || "item");
+
+          li.textContent = label;
           this.els.invList.appendChild(li);
         });
       }
