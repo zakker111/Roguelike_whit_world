@@ -132,24 +132,43 @@
     ctx.enemies = st.enemies || [];
     ctx.corpses = st.corpses || [];
     ctx.decals = st.decals || [];
-    ctx.dungeonExitAt = st.dungeonExitAt || { x, y };
+    // Exit tile from saved state or fallback to world entrance
+    let ex = (st.dungeonExitAt && typeof st.dungeonExitAt.x === "number") ? st.dungeonExitAt.x : x;
+    let ey = (st.dungeonExitAt && typeof st.dungeonExitAt.y === "number") ? st.dungeonExitAt.y : y;
+
+    // Clamp exit to current dungeon map bounds defensively
+    try {
+      const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+      const cols = (rows && Array.isArray(ctx.map[0])) ? ctx.map[0].length : 0;
+      if (rows > 0 && cols > 0) {
+        ex = Math.max(0, Math.min(cols - 1, ex | 0));
+        ey = Math.max(0, Math.min(rows - 1, ey | 0));
+      }
+    } catch (_) {}
+    ctx.dungeonExitAt = { x: ex, y: ey };
 
     // Place player at the known dungeon exit tile to avoid mismatch
     const prevPX = ctx.player.x, prevPY = ctx.player.y;
-    ctx.player.x = ctx.dungeonExitAt.x;
-    ctx.player.y = ctx.dungeonExitAt.y;
+    ctx.player.x = ctx.dungeonExitAt.x | 0;
+    ctx.player.y = ctx.dungeonExitAt.y | 0;
 
-    // Ensure entrance tile is STAIRS
+    // Ensure entrance tile is STAIRS and mark visible/seen
     if (ctx.inBounds(ctx.dungeonExitAt.x, ctx.dungeonExitAt.y)) {
-      ctx.map[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = ctx.TILES.STAIRS;
-      if (ctx.visible[ctx.dungeonExitAt.y]) ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
-      if (ctx.seen[ctx.dungeonExitAt.y]) ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+      if (ctx.map[ctx.dungeonExitAt.y] && typeof ctx.map[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] !== "undefined") {
+        ctx.map[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = ctx.TILES.STAIRS;
+      }
+      if (ctx.visible[ctx.dungeonExitAt.y] && typeof ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] !== "undefined") {
+        ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+      }
+      if (ctx.seen[ctx.dungeonExitAt.y] && typeof ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] !== "undefined") {
+        ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
+      }
     }
 
     // Debug: log a concise position summary for entry
     try {
-      console.log(`DungeonState.applyState: key ${key(x,y)}, exit=(${ctx.dungeonExitAt.x},${ctx.dungeonExitAt.y}), player ${prevPX},${prevPY} -> ${ctx.player.x},${ctx.player.y}, corpses=${ctx.corpses.length}, enemies=${ctx.enemies.length}`);
-      if (ctx.log) ctx.log(`DungeonState.applyState: player at (${ctx.player.x},${ctx.player.y}).`, "info");
+      console.log("DungeonState.applyState: key " + key(x,y) + ", exit=(" + ctx.dungeonExitAt.x + "," + ctx.dungeonExitAt.y + "), player " + prevPX + "," + prevPY + " -> " + ctx.player.x + "," + ctx.player.y + ", corpses=" + ctx.corpses.length + ", enemies=" + ctx.enemies.length);
+      if (ctx.log) ctx.log("DungeonState.applyState: player at (" + ctx.player.x + "," + ctx.player.y + ").", "info");
     } catch (_) {}
 
     ctx.recomputeFOV();
