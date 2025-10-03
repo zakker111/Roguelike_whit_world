@@ -1109,9 +1109,8 @@
       TH.ensureTownSpawnClear(getCtx());
       return;
     }
-    log("Town.ensureSpawnClear not available.", "warn");_code
- new </}
- }
+    log("Town.ensureSpawnClear not available.", "warn");
+  }
 
   function isFreeTownFloor(x, y) {
     const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
@@ -1152,7 +1151,7 @@
       TH.spawnGateGreeters(getCtx(), count);
       return;
     }
-ateGreeters not available.", "warn");
+    log("Town.spawnGateGreeters not available.", "warn");
   }
 
   function syncFromCtx(ctx) {
