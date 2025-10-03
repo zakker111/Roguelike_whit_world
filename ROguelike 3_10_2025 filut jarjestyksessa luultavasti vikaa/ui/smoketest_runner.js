@@ -135,7 +135,47 @@
       await sleep(300);
       log("Attempted loot underfoot", "info");
 
-      // Step 9: open GOD Diagnostics and log output
+      // Step 9: if in dungeon, spawn low-level enemy nearby and try to loot it
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
+          // Open GOD and spawn enemy
+          clickById("god-open-btn");
+          await sleep(250);
+          clickById("god-spawn-enemy-btn"); // uses default count=1, level scales with floor; floor 1 is low
+          log("Spawned test enemy in dungeon", "info");
+          await sleep(250);
+          key("Escape");
+          await sleep(150);
+          // Move towards nearest enemy and bump to attack
+          const enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+          if (enemies && enemies.length) {
+            // Pick nearest
+            let best = enemies[0];
+            let bestD = Math.abs(best.x - window.GameAPI.getPlayer().x) + Math.abs(best.y - window.GameAPI.getPlayer().y);
+            for (const e of enemies) {
+              const d = Math.abs(e.x - window.GameAPI.getPlayer().x) + Math.abs(e.y - window.GameAPI.getPlayer().y);
+              if (d < bestD) { best = e; bestD = d; }
+            }
+            const path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
+            for (const step of path) {
+              const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+              const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(120);
+            }
+            // Attempt to loot underfoot
+            key("KeyG");
+            await sleep(250);
+            log("Attempted to loot defeated enemy", "info");
+          } else {
+            log("No enemies found to route/loot.", "warn");
+          }
+        }
+      } catch (e) {
+        log("Dungeon test error: " + (e && e.message ? e.message : String(e)), "bad");
+      }
+
+      // Step 10: open GOD Diagnostics and log output
       clickById("god-open-btn");
       await sleep(250);
       clickById("god-diagnostics-btn");
