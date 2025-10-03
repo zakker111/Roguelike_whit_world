@@ -38,6 +38,11 @@
       if (window.Flavor) ctx.Flavor = window.Flavor;
       if (window.PlayerUtils) ctx.PlayerUtils = window.PlayerUtils;
       if (window.LOS) ctx.LOS = window.LOS;
+      // Added: world/town/dungeon persistence modules needed by Actions/Modes
+      if (window.World) ctx.World = window.World;
+      if (window.Town) ctx.Town = window.Town;
+      if (window.TownAI) ctx.TownAI = window.TownAI;
+      if (window.DungeonState) ctx.DungeonState = window.DungeonState;
     }
     return ctx;
   }
