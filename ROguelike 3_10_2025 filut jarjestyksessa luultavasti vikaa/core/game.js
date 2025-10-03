@@ -1622,13 +1622,16 @@
 
   function hideLootPanel() {
     if (window.UI && typeof UI.hideLoot === "function") {
-      // Avoid redundant draw if panel was already hidden
-      if (!UI.isLootOpen || UI.isLootOpen()) {
-        UI.hide  }
+      const wasOpen = (typeof UI.isLootOpen === "function") ? UI.isLootOpen() : true;
+      UI.hideLoot();
+      if (wasOpen) requestDraw();
+      return;
+    }
     const panel = document.getElementById("loot-panel");
     if (!panel) return;
+    const wasHidden = panel.hidden === true;
     panel.hidden = true;
-    requestDraw();
+    if (!wasHidden) requestDraw();
   }
 
   // GOD mode actions
