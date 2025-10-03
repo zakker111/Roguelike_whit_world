@@ -210,14 +210,20 @@
       // world/overworld
       mode,
       world,
+      worldReturnPos,
+      cameFromWorld,
       npcs,
       shops,
       townProps,
       townBuildings,
       townPlaza,
       tavern,
+      dungeonExitAt,
+      // dungeon info
       dungeon: currentDungeon,
       dungeonInfo: currentDungeon,
+      // persistence (in-memory)
+      _dungeonStates: dungeonStates,
       time: getClock(),
       requestDraw,
       log,
@@ -226,6 +232,9 @@
       round1, randInt, chance, randFloat,
       enemyColor, describeItem,
       setFovRadius,
+      // expose recompute/update for modules like DungeonState
+      recomputeFOV: () => recomputeFOV(),
+      updateCamera: () => updateCamera(),
       getPlayerAttack, getPlayerDefense, getPlayerBlockChance,
       enemyThreatLabel,
       // Needed by loot and UI flows
