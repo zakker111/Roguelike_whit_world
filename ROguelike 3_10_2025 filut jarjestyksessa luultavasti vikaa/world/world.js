@@ -52,7 +52,7 @@
   }
 
   function generate(ctx, opts = {}) {
-    const rng = (ctx && typeof ctx.rng === "function") ? ctx.rng : Math.random;
+    const rng = (ctx && typeof ctx.rng === "function") ? ctx.rng : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
     const width = clamp((opts.width | 0) || 120, 48, 512);
     const height = clamp((opts.height | 0) || 80, 48, 512);
     const map = Array.from({ length: height }, () => Array(width).fill(TILES.GRASS));
@@ -199,7 +199,11 @@
     const towns = [];
     const dungeons = [];
     const wantTowns = 8 + ((rng() * 4) | 0);
-    const wantDungeons = 10 + ((rng() * 6) | 0);
+    // Scale dungeon count with map area to populate more dungeons on larger maps.
+    // Baseline increased significantly; ensures richer world content.
+    const area = width * height;
+    const baseDungeons = Math.max(12, Math.floor(area / 800)); // ~12 for 120x80; grows with area
+    const wantDungeons = baseDungeons + ((rng() * Math.max(6, Math.floor(baseDungeons * 0.4))) | 0);
 
     // Decide town size distribution: small ~60%, big ~30%, city ~10%
     function pickTownSize() {
@@ -271,7 +275,8 @@
       (x, y) => {
         const t = map[y][x];
         if (t === TILES.FOREST || t === TILES.MOUNTAIN) return true;
-        if (t === TILES.GRASS) return rng() < 0.05;
+        if (t === TILES.GRASS) return rng() < 0.11; // slightly more likely on plains
+        // avoid water/river/beach/swamp/desert/snow for entrances, bias to solid terrain
         return false;
       },
       (x, y) => {
@@ -362,11 +367,34 @@
   }
 
   function pickTownStart(world, rng) {
-    const r = typeof rng === "function" ? rng : Math.random;
+    const r = (typeof rng === "function") ? rng : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
     if (world.towns && world.towns.length) {
+      // Prefer towns that have a dungeon within a reasonable walking radius
+      const radius = 20;
+      const townsNearDungeon = world.towns.filter(t => {
+        return (world.dungeons || []).some(d => Math.abs(d.x - t.x) + Math.abs(d.y - t.y) <= radius);
+      });
+      if (townsNearDungeon.length) {
+        return townsNearDungeon[(r() * townsNearDungeon.length) | 0];
+      }
+      // Else fallback to any town
       return world.towns[(r() * world.towns.length) | 0];
     }
-    // fallback to first walkable tile
+    // fallback to first walkable tile near a dungeon if possible
+    const ds = world.dungeons || [];
+    if (ds.length) {
+      const d = ds[(r() * ds.length) | 0];
+      // Find nearest walkable tile to the dungeon entrance
+      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+      if (isWalkable(world.map[d.y][d.x])) return { x: d.x, y: d.y };
+      for (const dir of dirs) {
+        const nx = d.x + dir.dx, ny = d.y + dir.dy;
+        if (nx >= 0 && ny >= 0 && nx < world.width && ny < world.height && isWalkable(world.map[ny][nx])) {
+          return { x: nx, y: ny };
+        }
+      }
+    }
+    // ultimate fallback: first walkable tile
     for (let y = 0; y < world.height; y++) {
       for (let x = 0; x < world.width; x++) {
         if (isWalkable(world.map[y][x])) return { x, y };

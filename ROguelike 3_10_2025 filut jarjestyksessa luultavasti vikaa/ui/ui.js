@@ -178,6 +178,28 @@
       this.els.godCheckInnTavernBtn?.addEventListener("click", () => {
         if (typeof this.handlers.onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern();
       });
+      const diagBtn = document.getElementById("god-diagnostics-btn");
+      diagBtn?.addEventListener("click", () => {
+        if (typeof this.handlers.onGodDiagnostics === "function") this.handlers.onGodDiagnostics();
+      });
+      const smokeBtn = document.getElementById("god-run-smoke-btn");
+      smokeBtn?.addEventListener("click", () => {
+        if (typeof this.handlers.onGodRunSmokeTest === "function") {
+          this.handlers.onGodRunSmokeTest();
+        } else {
+          // Fallback: reload with smoketest=1 to trigger loader auto-run
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set("smoketest", "1");
+            if (window.DEV || localStorage.getItem("DEV") === "1") {
+              url.searchParams.set("dev", "1");
+            }
+            window.location.assign(url.toString());
+          } catch (e) {
+            window.location.search = "?smoketest=1";
+          }
+        }
+      });
       if (this.els.godFov) {
         const updateFov = () => {
           const val = parseInt(this.els.godFov.value, 10);
@@ -454,7 +476,7 @@
       if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
     },
 
-    setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern } = {}) {
+    setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest } = {}) {
       if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
       if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
       if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -473,6 +495,7 @@
       if (typeof onTownExit === "function") this.handlers.onTownExit = onTownExit;
       if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
       if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
+      if (typeof onGodDiagnostics === "function") this.handlers.onGodDiagnostics = onGodDiagnostics;
     },
 
     updateStats(player, floor, getAtk, getDef, time) {
@@ -534,6 +557,24 @@
           const li = document.createElement("li");
           li.dataset.index = String(idx);
           li.dataset.kind = it.kind || "misc";
+
+          // Build display label with counts/stats where helpful
+          const baseLabel = (typeof describeItem === "function") ? describeItem(it) : (it.name || "item");
+          let label = baseLabel;
+
+          if (it.kind === "potion") {
+            const count = (it.count && it.count > 1) ? ` x${it.count}` : "";
+            label = `${baseLabel}${count}`;
+          } else if (it.kind === "gold") {
+            const amount = Number(it.amount || 0);
+            label = `${baseLabel}: ${amount}`;
+          } else if (it.kind === "equip") {
+            const stats = [];
+            if (typeof it.atk === "number") stats.push(`+${Number(it.atk).toFixed(1)} atk`);
+            if (typeof it.def === "number") stats.push(`+${Number(it.def).toFixed(1)} def`);
+            if (stats.length) label = `${baseLabel} (${stats.join(", ")})`;
+          }
+
           if (it.kind === "equip" && it.slot === "hand") {
             li.dataset.slot = "hand";
             const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
@@ -562,7 +603,8 @@
             li.style.opacity = "0.7";
             li.style.cursor = "default";
           }
-          li.textContent = typeof describeItem === "function" ? describeItem(it) : (it.name || "item");
+
+          li.textContent = label;
           this.els.invList.appendChild(li);
         });
       }
@@ -778,8 +820,8 @@
         if (v === "1") return true;
         if (v === "0") return false;
       } catch (_) {}
-      // Default ON so users see home paths without extra steps
-      return true;
+      // Default OFF to reduce render overhead; users can enable via toggle
+      return false;
     },
 
     setHomePathsState(enabled) {

@@ -48,7 +48,7 @@
   }
 
   function ensureUtils(ctx) {
-    const rng = typeof ctx.rng === "function" ? ctx.rng : Math.random;
+    const rng = typeof ctx.rng === "function" ? ctx.rng : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
     const round1 = (ctx.PlayerUtils && typeof ctx.PlayerUtils.round1 === "function")
       ? ctx.PlayerUtils.round1
       : (n) => Math.round(n * 10) / 10;

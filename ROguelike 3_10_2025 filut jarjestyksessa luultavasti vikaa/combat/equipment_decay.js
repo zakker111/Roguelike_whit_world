@@ -17,7 +17,7 @@
       }
     } catch (_) {}
     // Fallback (mirrors game.js/items.js behavior)
-    const r = (typeof rng === "function") ? rng : Math.random;
+    const r = (typeof rng === "function") ? rng : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
     const float = (min, max, decimals = 0) => {
       const v = min + r() * (max - min);
       const p = Math.pow(10, decimals);

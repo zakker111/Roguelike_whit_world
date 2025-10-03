@@ -310,6 +310,16 @@
     return base;
   }
 
+  // Prefer ctx module handles over window.* where possible
+  function modHandle(name) {
+    try {
+      const c = getCtx();
+      if (c && c[name]) return c[name];
+    } catch (_) {}
+    if (typeof window !== "undefined" && window[name]) return window[name];
+    return null;
+  }
+
   // Use RNG service if available for helpers
   const randInt = (min, max) => {
     if (typeof window !== "undefined" && window.RNG && typeof RNG.int === "function") return RNG.int(min, max);
@@ -518,6 +528,8 @@
     if (clamped !== fovRadius) {
       fovRadius = clamped;
       log(`FOV radius set to ${fovRadius}.`);
+      // Force recompute by invalidating cache
+      _lastFovRadius = -1;
       recomputeFOV();
       requestDraw();
     }
@@ -627,10 +639,11 @@
   
   
   function generateLevel(depth = 1) {
-    if (window.Dungeon && typeof Dungeon.generateLevel === "function") {
+    const D = modHandle("Dungeon");
+    if (D && typeof D.generateLevel === "function") {
       const ctx = getCtx();
       ctx.startRoomRect = startRoomRect;
-      Dungeon.generateLevel(ctx, depth);
+      D.generateLevel(ctx, depth);
       // Sync back references mutated by the module
       map = ctx.map;
       seen = ctx.seen;
@@ -640,10 +653,10 @@
       startRoomRect = ctx.startRoomRect;
       // Clear decals on new floor
       decals = [];
-      
+      // Invalidate FOV cache and recompute
+      _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
       recomputeFOV();
       updateCamera();
-      
       if (inBounds(player.x, player.y) && !visible[player.y][player.x]) {
         try { log("FOV sanity check: player tile not visible after gen; recomputing.", "warn"); } catch (_) {}
         recomputeFOV();
@@ -651,6 +664,9 @@
           visible[player.y][player.x] = true;
           seen[player.y][player.x] = true;
         }
+      }
+      if (typeof window !== "undefined" && window.OccupancyGrid && typeof OccupancyGrid.build === "function") {
+        rebuildOccupancy();
       }
       if (window.DEV) {
         try {
@@ -666,7 +682,7 @@
       requestDraw();
       return;
     }
-    
+    // Fallback: flat-floor map
     map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
     // Ensure a staircase exists in the fallback map
     const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
@@ -676,6 +692,8 @@
     enemies = [];
     corpses = [];
     decals = [];
+    // Invalidate FOV cache and recompute
+    _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
     recomputeFOV();
     updateCamera();
     updateUI();
@@ -813,11 +831,25 @@
     }
   }
 
+  // FOV recompute guard: skip recompute unless player moved, FOV radius changed, mode changed, or map shape changed.
+  let _lastPlayerX = -1, _lastPlayerY = -1, _lastFovRadius = -1, _lastMode = "", _lastMapCols = -1, _lastMapRows = -1;
+
   function recomputeFOV() {
+    const rows = map.length;
+    const cols = map[0] ? map[0].length : 0;
+
+    const moved = (player.x !== _lastPlayerX) || (player.y !== _lastPlayerY);
+    const fovChanged = (fovRadius !== _lastFovRadius);
+    const modeChanged = (mode !== _lastMode);
+    const mapChanged = (rows !== _lastMapRows) || (cols !== _lastMapCols);
+
+    if (!modeChanged && !mapChanged && !fovChanged && !moved && mode !== "world") {
+      // No change affecting FOV; skip recompute in dungeon/town
+      return;
+    }
+
     if (mode === "world") {
       // In overworld, reveal entire map (no fog-of-war)
-      const rows = map.length;
-      const cols = map[0] ? map[0].length : 0;
       const shapeOk = Array.isArray(visible) && visible.length === rows && (rows === 0 || (visible[0] && visible[0].length === cols));
       if (!shapeOk) {
         visible = Array.from({ length: rows }, () => Array(cols).fill(true));
@@ -829,22 +861,37 @@
           else seen[y].fill(true);
         }
       }
+      // update cache and return
+      _lastPlayerX = player.x; _lastPlayerY = player.y;
+      _lastFovRadius = fovRadius; _lastMode = mode;
+      _lastMapCols = cols; _lastMapRows = rows;
       return;
     }
+
     ensureVisibilityShape();
-    if (window.FOV && typeof FOV.recomputeFOV === "function") {
-      const ctx = getCtx();
-      ctx.seen = seen;
-      ctx.visible = visible;
-      FOV.recomputeFOV(ctx);
-      visible = ctx.visible;
-      seen = ctx.seen;
-      return;
+    {
+      const F = modHandle("FOV");
+      if (F && typeof F.recomputeFOV === "function") {
+        const ctx = getCtx();
+        ctx.seen = seen;
+        ctx.visible = visible;
+        F.recomputeFOV(ctx);
+        visible = ctx.visible;
+        seen = ctx.seen;
+        // update cache after recompute
+        _lastPlayerX = player.x; _lastPlayerY = player.y;
+        _lastFovRadius = fovRadius; _lastMode = mode;
+        _lastMapCols = cols; _lastMapRows = rows;
+        return;
+      }
     }
     if (inBounds(player.x, player.y)) {
       visible[player.y][player.x] = true;
       seen[player.y][player.x] = true;
     }
+    _lastPlayerX = player.x; _lastPlayerY = player.y;
+    _lastFovRadius = fovRadius; _lastMode = mode;
+    _lastMapCols = cols; _lastMapRows = rows;
   }
 
   
@@ -883,11 +930,51 @@
   }
 
   
+  // Batch multiple draw requests within a frame to avoid redundant renders.
+  let _drawQueued = false;
+  let _rafId = null;
+
+  // Simple perf counters (DEV-only visible in console)
+  const PERF = { lastTurnMs: 0, lastDrawMs: 0 };
+
   function requestDraw() {
-    if (window.GameLoop && typeof GameLoop.requestDraw === "function") {
-      GameLoop.requestDraw();
-    } else if (window.Render && typeof Render.draw === "function") {
-      Render.draw(getRenderCtx());
+    const GL = modHandle("GameLoop");
+    if (GL && typeof GL.requestDraw === "function") {
+      GL.requestDraw();
+      return;
+    }
+    const R = modHandle("Render");
+    if (!(R && typeof R.draw === "function")) return;
+
+    if (_drawQueued) return;
+    _drawQueued = true;
+    try {
+      _rafId = (typeof window !== "undefined" && window.requestAnimationFrame)
+        ? window.requestAnimationFrame(() => {
+            const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+            _drawQueued = false;
+            R.draw(getRenderCtx());
+            const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+            PERF.lastDrawMs = t1 - t0;
+            try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
+          })
+        : null;
+      if (_rafId == null) {
+        // Fallback: if RAF not available, draw immediately
+        const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        _drawQueued = false;
+        R.draw(getRenderCtx());
+        const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        PERF.lastDrawMs = t1 - t0;
+        try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
+      }
+    } catch (_) {
+      const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      _drawQueued = false;
+      R.draw(getRenderCtx());
+      const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      PERF.lastDrawMs = t1 - t0;
+      try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
     }
   }
 
@@ -896,15 +983,16 @@
   
 
   function initWorld() {
-    if (!(window.World && typeof World.generate === "function")) {
+    const W = modHandle("World");
+    if (!(W && typeof W.generate === "function")) {
       log("World module missing; generating dungeon instead.", "warn");
       mode = "dungeon";
       generateLevel(floor);
       return;
     }
     const ctx = getCtx();
-    world = World.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
-    const start = World.pickTownStart(world, rng);
+    world = W.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
+    const start = (typeof W.pickTownStart === "function") ? W.pickTownStart(world, rng) : { x: 1, y: 1 };
     player.x = start.x; player.y = start.y;
     mode = "world";
     enemies = [];
@@ -920,7 +1008,8 @@
     recomputeFOV();
     updateUI();
     log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press Enter on a town/dungeon to enter.", "notice");
-    if (window.UI && typeof UI.hideTownExitButton === "function") UI.hideTownExitButton();
+    const UIH = modHandle("UI");
+    if (UIH && typeof UIH.hideTownExitButton === "function") UIH.hideTownExitButton();
     requestDraw();
   }
 
@@ -1008,9 +1097,10 @@
   }
 
   function generateTown() {
-    if (window.Town && typeof Town.generate === "function") {
+    const Tn = modHandle("Town");
+    if (Tn && typeof Tn.generate === "function") {
       const ctx = getCtx();
-      const handled = Town.generate(ctx);
+      const handled = Tn.generate(ctx);
       if (handled) {
         // Sync back mutated references
         map = ctx.map; seen = ctx.seen; visible = ctx.visible;
@@ -1020,9 +1110,12 @@
         townPlaza = ctx.townPlaza || null; tavern = ctx.tavern || null;
         townExitAt = ctx.townExitAt || townExitAt; townName = ctx.townName || townName;
         // Ensure greeters on entry to give immediate life at the gate
-        if (window.Town && typeof Town.spawnGateGreeters === "function") {
-          Town.spawnGateGreeters(ctx, 4);
-          npcs = ctx.npcs || npcs;
+        {
+          const Tn2 = modHandle("Town");
+          if (Tn2 && typeof Tn2.spawnGateGreeters === "function") {
+            Tn2.spawnGateGreeters(ctx, 4);
+            npcs = ctx.npcs || npcs;
+          }
         }
         updateCamera(); recomputeFOV(); updateUI(); requestDraw();
         return;
@@ -1032,9 +1125,12 @@
   }
 
   function ensureTownSpawnClear() {
-    if (window.Town && typeof Town.ensureSpawnClear === "function") {
-      Town.ensureSpawnClear(getCtx());
-      return;
+    {
+      const Tn = modHandle("Town");
+      if (Tn && typeof Tn.ensureSpawnClear === "function") {
+        Tn.ensureSpawnClear(getCtx());
+        return;
+      }
     }
     log("Town.ensureSpawnClear not available.", "warn");
   }
@@ -1077,38 +1173,49 @@
   }
 
   function spawnGateGreeters(count = 4) {
-    if (window.Town && typeof Town.spawnGateGreeters === "function") {
-      Town.spawnGateGreeters(getCtx(), count);
-      return;
+    {
+      const Tn = modHandle("Town");
+      if (Tn && typeof Tn.spawnGateGreeters === "function") {
+        Tn.spawnGateGreeters(getCtx(), count);
+        return;
+      }
     }
     log("Town.spawnGateGreeters not available.", "warn");
   }
 
+  function syncFromCtx(ctx) {
+    if (!ctx) return;
+    mode = ctx.mode || mode;
+    map = ctx.map || map;
+    seen = ctx.seen || seen;
+    visible = ctx.visible || visible;
+    enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
+    corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
+    decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
+    npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
+    shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
+    townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
+    townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
+    townPlaza = ctx.townPlaza || townPlaza;
+    tavern = ctx.tavern || tavern;
+    worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+    townExitAt = ctx.townExitAt || townExitAt;
+    dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
+    currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
+    if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+  }
+
   function enterTownIfOnTile() {
-    if (window.Modes && typeof Modes.enterTownIfOnTile === "function") {
+    const M = modHandle("Modes");
+    if (M && typeof M.enterTownIfOnTile === "function") {
       const ctx = getCtx();
-      const ok = !!Modes.enterTownIfOnTile(ctx);
+      const ok = !!M.enterTownIfOnTile(ctx);
       if (ok) {
         // Sync mutated ctx back into local state
-        mode = ctx.mode || mode;
-        map = ctx.map || map;
-        seen = ctx.seen || seen;
-        visible = ctx.visible || visible;
-        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-        npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
-        shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
-        townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
-        townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
-        townPlaza = ctx.townPlaza || townPlaza;
-        tavern = ctx.tavern || tavern;
-        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-        townExitAt = ctx.townExitAt || townExitAt;
-        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+        syncFromCtx(ctx);
         updateCamera();
+        // Invalidate FOV cache and recompute
+        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         recomputeFOV();
         updateUI();
         requestDraw();
@@ -1119,29 +1226,14 @@
   }
 
   function enterDungeonIfOnEntrance() {
-    if (window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
+    const M = modHandle("Modes");
+    if (M && typeof M.enterDungeonIfOnEntrance === "function") {
       const ctx = getCtx();
-      const ok = !!Modes.enterDungeonIfOnEntrance(ctx);
+      const ok = !!M.enterDungeonIfOnEntrance(ctx);
       if (ok) {
-        mode = ctx.mode || mode;
-        map = ctx.map || map;
-        seen = ctx.seen || seen;
-        visible = ctx.visible || visible;
-        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-        npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
-        shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
-        townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
-        townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
-        townPlaza = ctx.townPlaza || townPlaza;
-        tavern = ctx.tavern || tavern;
-        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-        townExitAt = ctx.townExitAt || townExitAt;
-        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+        syncFromCtx(ctx);
         updateCamera();
+        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         recomputeFOV();
         updateUI();
         requestDraw();
@@ -1563,6 +1655,7 @@
 
   function showLootPanel(list) {
     if (window.UI && typeof UI.showLoot === "function") {
+      // Only request a redraw if the UI module actually opened/changed state
       UI.showLoot(list);
       requestDraw();
     }
@@ -1570,14 +1663,16 @@
 
   function hideLootPanel() {
     if (window.UI && typeof UI.hideLoot === "function") {
+      const wasOpen = (typeof UI.isLootOpen === "function") ? UI.isLootOpen() : true;
       UI.hideLoot();
-      requestDraw();
+      if (wasOpen) requestDraw();
       return;
     }
     const panel = document.getElementById("loot-panel");
     if (!panel) return;
+    const wasHidden = panel.hidden === true;
     panel.hidden = true;
-    requestDraw();
+    if (!wasHidden) requestDraw();
   }
 
   // GOD mode actions
@@ -1706,6 +1801,7 @@
     if (window.UI && typeof UI.renderInventory === "function") {
       // Keep totals in sync
       updateUI();
+      // Always render content; panel may be opening and not yet marked as open
       UI.renderInventory(player, describeItem);
     }
   }
@@ -1939,8 +2035,15 @@
     log(`${name} dies.`, "bad");
     const loot = generateLoot(enemy);
     corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
-    gainXP(enemy.xp || 5);
+    // Remove from enemies immediately
     enemies = enemies.filter(e => e !== enemy);
+    // Clear enemy occupancy for this tile so player can walk onto corpse
+    try {
+      if (occupancy && typeof occupancy.clearEnemy === "function") {
+        occupancy.clearEnemy(enemy.x, enemy.y);
+      }
+    } catch (_) {}
+    gainXP(enemy.xp || 5);
     // Persist dungeon state immediately so corpses remain on revisit
     try {
       if (window.DungeonState && typeof DungeonState.save === "function") {
@@ -1966,18 +2069,21 @@
 
   
   function enemiesAct() {
-    if (window.AI && typeof AI.enemiesAct === "function") {
-      AI.enemiesAct(getCtx());
+    const AIH = modHandle("AI");
+    if (AIH && typeof AIH.enemiesAct === "function") {
+      AIH.enemiesAct(getCtx());
     }
     // No fallback here: AI behavior is defined in ai.js
   }
 
   function townNPCsAct() {
     if (mode !== "town") return;
-    if (window.TownAI && typeof TownAI.townNPCsAct === "function") {
-      TownAI.townNPCsAct(getCtx());
+    const TAI = modHandle("TownAI");
+    if (TAI && typeof TAI.townNPCsAct === "function") {
+      TAI.townNPCsAct(getCtx());
     }
   }
+
   
   function occupied(x, y) {
     if (player.x === x && player.y === y) return true;
@@ -1988,13 +2094,16 @@
   function turn() {
     if (isDead) return;
 
+    const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+
     // Advance global time (centralized via TimeService)
     turnCounter = TS.tick(turnCounter);
 
-    
+
 
     if (mode === "dungeon") {
       enemiesAct();
+      // Ensure occupancy reflects enemy movement/deaths this turn to avoid stale blocking
       rebuildOccupancy();
       // Status effects tick (bleed, dazed, etc.)
       try {
@@ -2019,16 +2128,22 @@
     } else if (mode === "town") {
       townTick = (townTick + 1) | 0;
       townNPCsAct();
-      rebuildOccupancy();
+      // Rebuild occupancy less frequently to reduce per-turn cost
+      if ((townTick % 4) === 0) {
+        rebuildOccupancy();
+      }
     }
 
     recomputeFOV();
     updateUI();
     requestDraw();
+
+    const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    PERF.lastTurnMs = t1 - t0;
+    try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms`); } catch (_) {}
   }
-
   
-
+  
   
   if (window.UI && typeof UI.init === "function") {
       UI.init();
@@ -2068,7 +2183,8 @@
               let extraLines = [];
               if (res.residents && typeof res.residents.total === "number") {
                 const r = res.residents;
-                extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atInn}/${r.total} at inn.`);
+                // TownAI returns atTavern; display as "inn" for consistency
+                extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
               }
               // Per-resident list of late-night away residents
               if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
@@ -2077,7 +2193,7 @@
                   extraLines.push(`- ${d.name} at (${d.x},${d.y})`);
                 });
                 if (res.residentsAwayLate.length > 10) {
-                  extraLines.push(`...and ${res.residentsAwayLate - 10} more.`);
+                  extraLines.push(`...and ${res.residentsAwayLate.length - 10} more.`);
                 }
               }
               if (res.skipped) {
@@ -2129,6 +2245,47 @@
             } catch (_) {}
             lines.forEach(l => log(l, "info"));
             requestDraw();
+          },
+          onGodDiagnostics: () => {
+            const ctx = getCtx();
+            const mods = {
+              Enemies: !!ctx.Enemies, Items: !!ctx.Items, Player: !!ctx.Player,
+              UI: !!ctx.UI, Logger: !!ctx.Logger, Loot: !!ctx.Loot,
+              Dungeon: !!ctx.Dungeon, DungeonItems: !!ctx.DungeonItems,
+              FOV: !!ctx.FOV, AI: !!ctx.AI, Input: !!ctx.Input,
+              Render: !!ctx.Render, Tileset: !!ctx.Tileset, Flavor: !!ctx.Flavor,
+              World: !!ctx.World, Town: !!ctx.Town, TownAI: !!ctx.TownAI,
+              DungeonState: !!ctx.DungeonState
+            };
+            const rngSrc = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
+            const seedStr = (typeof currentSeed === "number") ? String(currentSeed >>> 0) : "(random)";
+            log("Diagnostics:", "notice");
+            log(`- Determinism: ${rngSrc}  Seed: ${seedStr}`, "info");
+            log(`- Mode: ${mode}  Floor: ${floor}  FOV: ${fovRadius}`, "info");
+            log(`- Map: ${map.length}x${(map[0] ? map[0].length : 0)}`, "info");
+            log(`- Entities: enemies=${enemies.length} corpses=${corpses.length} npcs=${npcs.length}`, "info");
+            log(`- Modules: ${Object.keys(mods).filter(k=>mods[k]).join(", ")}`, "info");
+            log(`- PERF last turn: ${PERF.lastTurnMs.toFixed(2)}ms, last draw: ${PERF.lastDrawMs.toFixed(2)}ms`, "info");
+            requestDraw();
+          },
+          onGodRunSmokeTest: () => {
+            // Reload the page with ?smoketest=1 so the loader injects the runner and it auto-runs
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.set("smoketest", "1");
+              // Preserve existing dev flag/state if set in localStorage
+              if (window.DEV || localStorage.getItem("DEV") === "1") {
+                url.searchParams.set("dev", "1");
+              }
+              log("GOD: Reloading with smoketest=1…", "notice");
+              window.location.href = url.toString();
+            } catch (e) {
+              try { console.error(e); } catch (_) {}
+              try {
+                log("GOD: Failed to construct URL; reloading with ?smoketest=1", "warn");
+              } catch (_) {}
+              window.location.search = "?smoketest=1";
+            }
           },
         });
       }
@@ -2185,9 +2342,131 @@
   
   initWorld();
   setupInput();
-  if (window.GameLoop && typeof GameLoop.start === "function") {
-    GameLoop.start(() => getRenderCtx());
-  } else if (window.Render && typeof Render.draw === "function") {
-    Render.draw(getRenderCtx());
+  {
+    const GL = modHandle("GameLoop");
+    if (GL && typeof GL.start === "function") {
+      GL.start(() => getRenderCtx());
+    } else {
+      const R = modHandle("Render");
+      if (R && typeof R.draw === "function") {
+        R.draw(getRenderCtx());
+      }
+    }
   }
+
+  // Expose a minimal API for smoke tests and diagnostics
+  try {
+    window.GameAPI = {
+      getMode: () => mode,
+      getWorld: () => world,
+      getPlayer: () => ({ x: player.x, y: player.y }),
+      moveStep: (dx, dy) => { tryMovePlayer(dx, dy); },
+      isWalkableOverworld: (x, y) => {
+        if (!world || !world.map) return false;
+        const t = world.map[y] && world.map[y][x];
+        return (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
+      },
+      nearestDungeon: () => {
+        if (!world || !Array.isArray(world.dungeons) || world.dungeons.length === 0) return null;
+        const sx = player.x, sy = player.y;
+        let best = null, bestD = Infinity;
+        for (const d of world.dungeons) {
+          const dd = Math.abs(d.x - sx) + Math.abs(d.y - sy);
+          if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+        }
+        return best;
+      },
+      routeTo: (tx, ty) => {
+        // BFS over overworld to build a simple path
+        if (!world || !world.map) return [];
+        const w = world.width, h = world.height;
+        const start = { x: player.x, y: player.y };
+        const q = [start];
+        const prev = new Map();
+        const seen = new Set([`${start.x},${start.y}`]);
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+        while (q.length) {
+          const cur = q.shift();
+          if (cur.x === tx && cur.y === ty) break;
+          for (const d of dirs) {
+            const nx = cur.x + d.dx, ny = cur.y + d.dy;
+            const key = `${nx},${ny}`;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            if (seen.has(key)) continue;
+            if (!window.GameAPI.isWalkableOverworld(nx, ny)) continue;
+            seen.add(key);
+            prev.set(key, cur);
+            q.push({ x: nx, y: ny });
+          }
+        }
+        // reconstruct
+        const path = [];
+        let curKey = `${tx},${ty}`;
+        if (!prev.has(curKey) && !(start.x === tx && start.y === ty)) return [];
+        let cur = { x: tx, y: ty };
+        while (!(cur.x === start.x && cur.y === start.y)) {
+          path.push(cur);
+          const p = prev.get(`${cur.x},${cur.y}`);
+          if (!p) break;
+          cur = p;
+        }
+        path.reverse();
+        return path;
+      },
+      gotoNearestDungeon: async () => {
+        const target = window.GameAPI.nearestDungeon();
+        if (!target) { return true; }
+        const path = window.GameAPI.routeTo(target.x, target.y);
+        if (!path || !path.length) { return false; }
+        for (const step of path) {
+          const dx = Math.sign(step.x - player.x);
+          const dy = Math.sign(step.y - player.y);
+          try { window.GameAPI.moveStep(dx, dy); } catch (_) {}
+          await new Promise(r => setTimeout(r, 60));
+        }
+        return true;
+      },
+      // Dungeon helpers for smoke test
+      getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type })),
+      isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
+      routeToDungeon: (tx, ty) => {
+        // BFS on current dungeon map
+        const w = map[0] ? map[0].length : 0;
+        const h = map.length;
+        if (w === 0 || h === 0) return [];
+        const start = { x: player.x, y: player.y };
+        const q = [start];
+        const prev = new Map();
+        const seen = new Set([`${start.x},${start.y}`]);
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+        while (q.length) {
+          const cur = q.shift();
+          if (cur.x === tx && cur.y === ty) break;
+          for (const d of dirs) {
+            const nx = cur.x + d.dx, ny = cur.y + d.dy;
+            const key = `${nx},${ny}`;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            if (seen.has(key)) continue;
+            if (!window.GameAPI.isWalkableDungeon(nx, ny)) continue;
+            seen.add(key);
+            prev.set(key, cur);
+            q.push({ x: nx, y: ny });
+          }
+        }
+        const path = [];
+        let curKey = `${tx},${ty}`;
+        if (!prev.has(curKey) && !(start.x === tx && start.y === ty)) return [];
+        let cur = { x: tx, y: ty };
+        while (!(cur.x === start.x && cur.y === start.y)) {
+          path.push(cur);
+          const p = prev.get(`${cur.x},${cur.y}`);
+          if (!p) break;
+          cur = p;
+        }
+        path.reverse();
+        return path;
+      }
+    };
+  } catch (_) {}
+
 })();

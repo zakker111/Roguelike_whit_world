@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-03 19:45 UTC
+Last updated: 2025-10-03 21:20 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,51 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.16 — More dungeons, spawn near dungeon, and smoke test auto-routes/loots
+- Changed: Increased dungeon density and terrain bias
+  - world/world.js: wantDungeons now scales with map area; plains (GRASS) have a higher placement chance while keeping forest/mountain preference.
+- Changed: Player starts near a dungeon
+  - world/pickTownStart prefers towns within 20 tiles of a dungeon; if no towns, spawns near a dungeon entrance or nearest walkable tile.
+- Added: GameAPI for smoke test and diagnostics
+  - core/game.js exposes GameAPI with helpers: getMode/getWorld/getPlayer, nearestDungeon/routeTo/gotoNearestDungeon (overworld), getEnemies/routeToDungeon/isWalkableDungeon (dungeon).
+- Changed: Smoke test flows
+  - ui/smoketest_runner.js routes to the nearest dungeon on the overworld and attempts entry automatically.
+  - In dungeon mode, spawns a low-level enemy nearby, routes to it, bumps to attack, and attempts to loot underfoot via G.
+- UI: GOD “Run Smoke Test” button
+  - index.html + ui/ui.js + core/game.js: button reloads the page with ?smoketest=1 (preserving ?dev=1 when enabled) so the loader injects and runs the smoke test.
+  - Fallback in UI ensures reload even if handler is missing.
+- Dev: Optional smoke test loader logs in console (“[SMOKE] loader: …”) for visibility.
+
+v1.15 — Corpses no longer block; occupancy and tests updated
+- Fixed: Corpses in dungeons blocking player movement
+  - core/game.js: killEnemy() now clears enemy occupancy at the death tile immediately.
+  - turn(): rebuildOccupancy runs each dungeon turn after enemiesAct to reflect movement/deaths.
+- Changed: Smoke test expanded and aligned with latest features
+  - smoketest.md now includes checks for FOV recompute guard behavior, Diagnostics button, default OFF overlays, inventory labels (counts/stats), and explicit “corpses do not block” verification.
+- Dev: Noted that third-party tracker/telemetry errors in the console are environmental and safe to ignore for gameplay testing.
+
+v1.14 — Performance/UX tweaks, FOV guard, Diagnostics, and corpse walk-through
+- Changed: Render debouncing to reduce redundant draws
+  - core/game.js: requestDraw now coalesces multiple draw requests into a single RAF, and captures draw timing (DEV-only console output).
+- Changed: Inventory rendering reliability and clarity
+  - UI: renderInventory always renders when opening; shows potion stack counts, gold amounts, and equipment stat summaries.
+  - Fixed a gating issue where equipment slots and the scrollable item list might not display on first open.
+- Changed: FOV recomputation guard (skip unless needed)
+  - core/game.js: recomputeFOV now skips when player position, FOV radius, mode, and map shape are unchanged; forces recompute on map/mode/seed/FOV changes.
+- Added: syncFromCtx(ctx) helper to consolidate state syncing after mode/action module calls
+  - Reduces repetition and risk of missed fields when entering towns/dungeons or performing GOD/Actions flows.
+- Changed: Occupancy handling
+  - Dungeon: rebuildOccupancy each turn after enemiesAct to reflect movement and deaths.
+  - killEnemy now clears enemy occupancy on the death tile immediately so the player can walk onto the corpse right away.
+- Added: GOD “Diagnostics” button
+  - Logs determinism source (RNG service vs fallback), current seed, mode/floor/FOV, map size, entity counts, loaded modules, and last perf times.
+- UI: Default debug overlays
+  - Home Paths overlay default set to OFF to reduce render overhead; remain toggleable in GOD panel.
+- Fixed: Syntax errors introduced during iteration
+  - Corrected mismatched braces around turn(), fixed a typo in the UI.init condition (“======” -> “===”).
+- Dev: Lightweight perf counters
+  - DEV-only console prints for last turn and draw durations to aid profiling.
 
 v1.13 — Render loop extraction, startup stabilization, and final syntax fixes
 - Added: core/game_loop.js with a minimal GameLoop
