@@ -3303,14 +3303,7 @@
   initWorld();
   setupInput();
   loop();
-})();, amt);
-    } else if (eq.left) {
-      decayEquipped("left", amt);
-    }
-  }
-
-  
-  initWorld();
+initWorld();
   setupInput();
   loop();
 })();
