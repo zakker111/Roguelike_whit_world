@@ -2186,4 +2186,8 @@
   initWorld();
   setupInput();
   if (window.GameLoop && typeof GameLoop.start === "function") {
-    GameLoop.start();
+    GameLoop.start(() => getRenderCtx());
+  } else if (window.Render && typeof Render.draw === "function") {
+    Render.draw(getRenderCtx());
+  }
+})();
