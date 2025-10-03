@@ -1224,6 +1224,14 @@
         enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
         corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
         decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
+        // Town-specific state
+        npcs = Array.isArray(ctxMod.npcs) ? ctxMod.npcs : npcs;
+        shops = Array.isArray(ctxMod.shops) ? ctxMod.shops : shops;
+        townProps = Array.isArray(ctxMod.townProps) ? ctxMod.townProps : townProps;
+        townBuildings = Array.isArray(ctxMod.townBuildings) ? ctxMod.townBuildings : townBuildings;
+        townPlaza = ctxMod.townPlaza || townPlaza;
+        tavern = ctxMod.tavern || tavern;
+        // Anchors/persistence
         worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
         townExitAt = ctxMod.townExitAt || townExitAt;
         dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
