@@ -2082,9 +2082,9 @@
       if (loadDungeonStateFor(currentDungeon.x, currentDungeon.y)) {
         try { 
           log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}.`, "notice"); 
-          const dx = dungeonExitAt && typeof dungeonExitAt.x === "number" ? dungeonExitAt.x : "n/a";
-          const dy = dungeonExitAt && typeof dungeonExitAt.y === "number" ? dungeonExitAt.y : "n/a";
-          console.log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}. worldEnter=(${enterWX},${enterWY}) dungeonExit=(${dx},${dy}) player=(${player.x},${player.y})`);
+          const dx = (dungeonExitAt && typeof dungeonExitAt.x === "number") ? dungeonExitAt.x : "n/a";
+          const dy = (dungeonExitAt && typeof dungeonExitAt.y === "number") ? dungeonExitAt.y : "n/a";
+          console.log("[DEV] Loaded saved dungeon at " + currentDungeon.x + "," + currentDungeon.y + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + player.x + "," + player.y + ")");
         } catch (_) {}
         return true;
       } else {
@@ -2111,18 +2111,9 @@
       try {
         const k = `${currentDungeon.x},${currentDungeon.y}`;
         log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
-        {
-          const dx = dungeonExitAt && typeof dungeonExitAt.x === "number" ? dungeonExitAt.x : "n/a";
-          const dy = dungeonExitAt && typeof dungeonExitAt.y === "number" ? dungeonExitAt.y : "n/a";
-          console.log(`[DEV] Initial dungeon save for key ${k}.
-
-      log(`You enter the dungeon (Difficulty ${floor}${currentDungeon.size ? ", " + currentDungeon.size : ""}).`, "notice");
-      return true;
-    }
-    return false;
-  },${currentDungeon.y}`;
-        log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
-        console.log(`[DEV] Initial dungeon save for key ${k}.`);
+        const dx = (dungeonExitAt && typeof dungeonExitAt.x === "number") ? dungeonExitAt.x : "n/a";
+        const dy = (dungeonExitAt && typeof dungeonExitAt.y === "number") ? dungeonExitAt.y : "n/a";
+        console.log("[DEV] Initial dungeon save for key " + k + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + player.x + "," + player.y + ")");
       } catch (_) {}
 
       log(`You enter the dungeon (Difficulty ${floor}${currentDungeon.size ? ", " + currentDungeon.size : ""}).`, "notice");
