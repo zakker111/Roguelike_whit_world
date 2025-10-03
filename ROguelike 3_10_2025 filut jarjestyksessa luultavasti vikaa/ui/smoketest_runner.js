@@ -80,7 +80,7 @@
       setInputValue("god-seed-input", 12345);
       clickById("god-apply-seed-btn");
       log("Applied seed 12345", "info");
-      await sleep(500);
+      await sleep(600);
 
       // Step 3: adjust FOV to 10 via slider (if present)
       try {
@@ -90,10 +90,28 @@
       } catch (_) {}
       await sleep(250);
 
-      // Step 4: spawn an enemy nearby
-      clickById("god-spawn-enemy-btn");
-      log("Spawned enemy nearby", "info");
-      await sleep(350);
+      // Step 4: close GOD and route to nearest dungeon in overworld
+      key("Escape");
+      await sleep(250);
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
+          log("Routing to nearest dungeon…", "info");
+          const ok = await window.GameAPI.gotoNearestDungeon();
+          if (!ok) {
+            log("Failed to route to dungeon automatically; performing manual moves.", "warn");
+            const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
+            for (const m of moves) { key(m); await sleep(120); }
+          }
+          // Enter dungeon (press Enter on D)
+          key("Enter");
+          await sleep(500);
+          log("Attempted dungeon entry.", "info");
+        } else {
+          log("Not in overworld; skipping auto-route.", "warn");
+        }
+      } catch (e) {
+        log("Routing error: " + (e && e.message ? e.message : String(e)), "bad");
+      }
 
       // Step 5: close GOD (Esc)
       key("Escape");

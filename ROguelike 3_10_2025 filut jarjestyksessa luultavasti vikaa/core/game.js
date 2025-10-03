@@ -2353,4 +2353,80 @@
       }
     }
   }
+
+  // Expose a minimal API for smoke tests and diagnostics
+  try {
+    window.GameAPI = {
+      getMode: () => mode,
+      getWorld: () => world,
+      getPlayer: () => ({ x: player.x, y: player.y }),
+      moveStep: (dx, dy) => { tryMovePlayer(dx, dy); },
+      isWalkableOverworld: (x, y) => {
+        if (!world || !world.map) return false;
+        const t = world.map[y] && world.map[y][x];
+        return (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
+      },
+      nearestDungeon: () => {
+        if (!world || !Array.isArray(world.dungeons) || world.dungeons.length === 0) return null;
+        const sx = player.x, sy = player.y;
+        let best = null, bestD = Infinity;
+        for (const d of world.dungeons) {
+          const dd = Math.abs(d.x - sx) + Math.abs(d.y - sy);
+          if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+        }
+        return best;
+      },
+      routeTo: (tx, ty) => {
+        // BFS over overworld to build a simple path
+        if (!world || !world.map) return [];
+        const w = world.width, h = world.height;
+        const start = { x: player.x, y: player.y };
+        const q = [start];
+        const prev = new Map();
+        const seen = new Set([`${start.x},${start.y}`]);
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+        while (q.length) {
+          const cur = q.shift();
+          if (cur.x === tx && cur.y === ty) break;
+          for (const d of dirs) {
+            const nx = cur.x + d.dx, ny = cur.y + d.dy;
+            const key = `${nx},${ny}`;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            if (seen.has(key)) continue;
+            if (!window.GameAPI.isWalkableOverworld(nx, ny)) continue;
+            seen.add(key);
+            prev.set(key, cur);
+            q.push({ x: nx, y: ny });
+          }
+        }
+        // reconstruct
+        const path = [];
+        let curKey = `${tx},${ty}`;
+        if (!prev.has(curKey) && !(start.x === tx && start.y === ty)) return [];
+        let cur = { x: tx, y: ty };
+        while (!(cur.x === start.x && cur.y === start.y)) {
+          path.push(cur);
+          const p = prev.get(`${cur.x},${cur.y}`);
+          if (!p) break;
+          cur = p;
+        }
+        path.reverse();
+        return path;
+      },
+      gotoNearestDungeon: async () => {
+        const target = window.GameAPI.nearestDungeon();
+        if (!target) { return false; }
+        const path = window.GameAPI.routeTo(target.x, target.y);
+        if (!path || !path.length) { return false; }
+        for (const step of path) {
+          const dx = Math.sign(step.x - player.x);
+          const dy = Math.sign(step.y - player.y);
+          try { window.GameAPI.moveStep(dx, dy); } catch (_) {}
+          await new Promise(r => setTimeout(r, 60));
+        }
+        return true;
+      }
+    };
+  } catch (_) {}
+
 })();
