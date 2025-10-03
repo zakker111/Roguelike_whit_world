@@ -53,7 +53,21 @@
     if (ctx.mode !== "world" || !ctx.world) return false;
     const WT = ctx.World && ctx.World.TILES;
     const t = ctx.world.map[ctx.player.y][ctx.player.x];
-    if (WT && t === ctx.World.TILES.TOWN) {
+
+    function tryEnterAdjacent(kindTile) {
+      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+      for (const d of dirs) {
+        const nx = ctx.player.x + d.dx, ny = ctx.player.y + d.dy;
+        if (!inBounds(ctx, nx, ny)) continue;
+        if (ctx.world.map[ny][nx] === kindTile) {
+          ctx.player.x = nx; ctx.player.y = ny;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (WT && (t === ctx.World.TILES.TOWN || tryEnterAdjacent(ctx.World.TILES.TOWN))) {
       ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
       ctx.mode = "town";
       if (ctx.Town && typeof Town.generate === "function") {
@@ -139,8 +153,23 @@
 
   function enterDungeonIfOnEntrance(ctx) {
     if (ctx.mode !== "world" || !ctx.world) return false;
+    const WT = ctx.World && ctx.World.TILES;
     const t = ctx.world.map[ctx.player.y][ctx.player.x];
-    if (t && ctx.World && ctx.World.TILES && t === ctx.World.TILES.DUNGEON) {
+
+    function tryEnterAdjacent(kindTile) {
+      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+      for (const d of dirs) {
+        const nx = ctx.player.x + d.dx, ny = ctx.player.y + d.dy;
+        if (!inBounds(ctx, nx, ny)) continue;
+        if (ctx.world.map[ny][nx] === kindTile) {
+          ctx.player.x = nx; ctx.player.y = ny;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    if (t && WT && (t === WT.DUNGEON || tryEnterAdjacent(WT.DUNGEON))) {
       const enterWX = ctx.player.x, enterWY = ctx.player.y;
       ctx.cameFromWorld = true;
       ctx.worldReturnPos = { x: enterWX, y: enterWY };
