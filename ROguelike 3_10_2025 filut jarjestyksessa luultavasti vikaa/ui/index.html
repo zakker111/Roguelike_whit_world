@@ -144,6 +144,8 @@
   <script src="../entities/player.js"></script>
   <!-- Central RNG service must load before items/game to avoid duplicate PRNG implementations -->
   <script src="../core/rng_service.js"></script>
+  <!-- Prefer centralized time service over fallback in game.js -->
+  <script src="../services/time_service.js"></script>
   <script src="../entities/items.js"></script>
   <script src="../dungeon/dungeon_items.js"></script>
   <script src="../entities/loot.js"></script>
@@ -158,6 +160,8 @@
   <script src="../ai/town_ai.js"></script>
   <!-- New modularized helpers -->
   <script src="decals.js"></script>
+  <!-- Occupancy grid used by game/AI for blocking checks -->
+  <script src="../dungeon/occupancy_grid.js"></script>
   <script src="../dungeon/dungeon_state.js"></script>
   <script src="../data/god.js"></script>
   <script src="../core/actions.js"></script>
