@@ -169,35 +169,12 @@
   <script src="core/modes.js"></script>
   <script src="core/game_loop.js"></script>
   <script src="core/game.js"></script>
-  <!-- Optional smoke test runner: load when ?smoketest=1 -->
+  <!-- Smoke test runner injection disabled by default; only runs when GOD panel button is pressed -->
   <script>
     (function () {
       try {
-        var params = new URLSearchParams(location.search);
-        if (params.get("smoketest") === "1") {
-          console.log("[SMOKE] loader: detected ?smoketest=1, injecting runner");
-          var inject = function () {
-            try {
-              var s = document.createElement("script");
-              s.src = "ui/smoketest_runner.js";
-              s.defer = true;
-              document.body.appendChild(s);
-            } catch (e) {
-              console.error("[SMOKE] loader: failed to inject runner", e);
-            }
-          };
-          if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", inject);
-          } else {
-            inject();
-          }
-          window.SMOKETEST_REQUESTED = true;
-        } else {
-          console.log("[SMOKE] loader: no smoketest param");
-        }
-      } catch (e) {
-        console.error("[SMOKE] loader: error", e);
-      }
+        console.log("[SMOKE] loader: disabled auto-injection; use GOD -> Run Smoke Test");
+      } catch (e) {}
     })();
   </script>
 </body>

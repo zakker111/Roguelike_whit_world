@@ -1,5 +1,5 @@
 // Tiny Roguelike Smoke Test Runner
-// Loads when index.html?smoketest=1 OR injected dynamically; runs a full scenario and reports progress via Logger, console, and an on-screen banner.
+// Injected dynamically by GOD panel; runs a full scenario and reports progress via Logger, console, and an on-screen banner.
 // Scenario: overworld -> dungeon -> spawn enemy -> kill -> loot -> exit to overworld -> enter town -> bump NPC -> GOD checks -> diagnostics.
 
 (function () {
@@ -256,21 +256,5 @@
   window.SmokeTest.runWithSeed = (seed) => run(seed);
   window.SmokeTest.runSeries = runSeries;
 
-  // Auto-run conditions:
-  // - If ?smoketest=1 param was set and script loaded during/after page load
-  // - If the loader set window.SMOKETEST_REQUESTED
-  try {
-    var params = new URLSearchParams(location.search);
-    var shouldAuto = (params.get("smoketest") === "1") || (window.SMOKETEST_REQUESTED === true);
-    if (document.readyState !== "loading") {
-      if (shouldAuto) { setTimeout(() => { runSeries(5); }, 400); }
-    } else {
-      window.addEventListener("load", () => {
-        if (shouldAuto) { setTimeout(() => { runSeries(5); }, 800); }
-      });
-    }
-  } catch (_) {
-    // Fallback: run on load if present
-    window.addEventListener("load", () => { setTimeout(() => { runSeries(5); }, 800); });
-  }
+  // Auto-run disabled: only run when invoked via GOD panel button.
 })();
