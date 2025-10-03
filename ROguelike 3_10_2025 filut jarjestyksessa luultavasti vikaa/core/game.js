@@ -2449,6 +2449,54 @@
         }
         return true;
       },
+      // Explicit attempts to trigger enters programmatically (mirrors Input behavior)
+      tryEnterDungeon: () => {
+        try {
+          if (typeof window.Modes !== "undefined" && typeof Modes.enterDungeonIfOnEntrance === "function") {
+            const ctx = getCtx();
+            const ok = !!Modes.enterDungeonIfOnEntrance(ctx);
+            if (ok) {
+              syncFromCtx(ctx);
+              updateCamera(); recomputeFOV(); updateUI(); requestDraw();
+              return true;
+            }
+          }
+          // Fallback: Actions.doAction may handle
+          if (typeof window.Actions !== "undefined" && typeof Actions.doAction === "function") {
+            const ctx = getCtx();
+            const handled = !!Actions.doAction(ctx);
+            if (handled) {
+              syncFromCtx(ctx);
+              updateCamera(); recomputeFOV(); updateUI(); requestDraw();
+              return mode === "dungeon";
+            }
+          }
+        } catch (_) {}
+        return mode === "dungeon";
+      },
+      tryEnterTown: () => {
+        try {
+          if (typeof window.Modes !== "undefined" && typeof Modes.enterTownIfOnTile === "function") {
+            const ctx = getCtx();
+            const ok = !!Modes.enterTownIfOnTile(ctx);
+            if (ok) {
+              syncFromCtx(ctx);
+              updateCamera(); recomputeFOV(); updateUI(); requestDraw();
+              return true;
+            }
+          }
+          if (typeof window.Actions !== "undefined" && typeof Actions.doAction === "function") {
+            const ctx = getCtx();
+            const handled = !!Actions.doAction(ctx);
+            if (handled) {
+              syncFromCtx(ctx);
+              updateCamera(); recomputeFOV(); updateUI(); requestDraw();
+              return mode === "town";
+            }
+          }
+        } catch (_) {}
+        return mode === "town";
+      },
       // Dungeon helpers for smoke test
       getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type })),
       getCorpses: () => corpses.map(c => ({ x: c.x, y: c.y, kind: c.kind || "corpse", looted: !!c.looted })),
@@ -2494,49 +2542,6 @@
       getNPCs: () => (Array.isArray(npcs) ? npcs.map(n => ({ x: n.x, y: n.y, name: n.name || "" })) : []),
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "", name: p.name || "" })) : []),
       getTownExit: () => (townExitAt ? { x: townExitAt.x, y: townExitAt.y } : null),
-      // Compute a 4-dir route within town avoiding walls/NPCs/props; if stopAdj is true, stop within distance 1 of (tx,ty)
-      routeTownTo: (tx, ty, stopAdj = false) => {
-        if (mode !== "town") return [];
-        const rows = map.length, cols = map[0] ? map[0].length : 0;
-        const start = { x: player.x, y: player.y };
-        const inB = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows;
-        const isFree = (x, y) => {
-          if (!inB(x, y)) return false;
-          // reuse town walkability: floor or door and not occupied by NPC or prop
-          return isFreeTownFloor(x, y);
-        };
-        const q = [start];
-        const prev = new Map();
-        const seenS = new Set([`${start.x},${start.y}`]);
-        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-        const targetKey = `${tx},${ty}`;
-        let end = null;
-        while (q.length) {
-          const cur = q.shift();
-          const dist = Math.abs(cur.x - tx) + Math.abs(cur.y - ty);
-          if ((!stopAdj && cur.x === tx && cur.y === ty) || (stopAdj && dist <= 1)) { end = cur; break; }
-          for (const d of dirs) {
-            const nx = cur.x + d.dx, ny = cur.y + d.dy;
-            const key = `${nx},${ny}`;
-            if (seenS.has(key)) continue;
-            if (!isFree(nx, ny)) continue;
-            seenS.add(key);
-            prev.set(key, cur);
-            q.push({ x: nx, y: ny });
-          }
-        }
-        if (!end) return [];
-        const path = [];
-        let cur = end;
-        while (!(cur.x === start.x && cur.y === start.y)) {
-          path.push({ x: cur.x, y: cur.y });
-          const p = prev.get(`${cur.x},${cur.y}`);
-          if (!p) break;
-          cur = p;
-        }
-        path.reverse();
-        return path;
-      },
     };
   } catch (_) {}
 

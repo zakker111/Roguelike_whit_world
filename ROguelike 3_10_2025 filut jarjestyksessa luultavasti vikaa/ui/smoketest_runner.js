@@ -80,7 +80,7 @@
     return true; // best-effort
   }
   async function enterIfOnSpecialTile(kind /* "dungeon" | "town" */) {
-    // Try both Enter and G with generous delays
+    // Try key-based enters
     key("Enter");
     await sleep(500);
     let m = getMode();
@@ -89,11 +89,25 @@
     await sleep(600);
     m = getMode();
     if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
-    // Try NumpadEnter as a fallback
     key("NumpadEnter");
     await sleep(500);
     m = getMode();
-    return (kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town");
+    if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
+
+    // Try programmatic enter via GameAPI to mirror internal Actions/Modes
+    try {
+      if (kind === "dungeon" && window.GameAPI && typeof GameAPI.tryEnterDungeon === "function") {
+        const ok = !!GameAPI.tryEnterDungeon();
+        await sleep(200);
+        return ok || getMode() === "dungeon";
+      }
+      if (kind === "town" && window.GameAPI && typeof GameAPI.tryEnterTown === "function") {
+        const ok = !!GameAPI.tryEnterTown();
+        await sleep(200);
+        return ok || getMode() === "town";
+      }
+    } catch (_) {}
+    return getMode() === (kind === "dungeon" ? "dungeon" : "town");
   }
 
   // Utilities for checking the main log
