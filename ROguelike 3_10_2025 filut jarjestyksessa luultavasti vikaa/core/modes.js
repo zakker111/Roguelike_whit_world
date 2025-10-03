@@ -24,16 +24,23 @@
 
   function leaveTownNow(ctx) {
     if (!ctx.world) return;
+    const prevPos = { x: ctx.player.x, y: ctx.player.y };
     ctx.mode = "world";
     ctx.map = ctx.world.map;
     ctx.npcs.length = 0;
     ctx.shops.length = 0;
     if (ctx.worldReturnPos) {
-      ctx.player.x = ctx.worldReturnPos.x;
-      ctx.player.y = ctx.worldReturnPos.y;
+      // Clamp to world bounds defensively
+      const W = ctx.world.width, H = ctx.world.height;
+      const rx = Math.max(0, Math.min(W - 1, ctx.worldReturnPos.x | 0));
+      const ry = Math.max(0, Math.min(H - 1, ctx.worldReturnPos.y | 0));
+      ctx.player.x = rx;
+      ctx.player.y = ry;
     }
     if (ctx.UI && typeof UI.hideTownExitButton === "function") UI.hideTownExitButton();
-    if (ctx.log) ctx.log("You return to the overworld.", "notice");
+    if (ctx.log) {
+      ctx.log(`You return to the overworld. Player ${prevPos.x},${prevPos.y} -> ${ctx.player.x},${ctx.player.y}.`, "notice");
+    }
     syncAfterMutation(ctx);
   }
 
@@ -56,7 +63,8 @@
 
     // Only enter if standing directly on a town tile (no adjacent auto-step to avoid surprising teleport)
     if (WT && t === ctx.World.TILES.TOWN) {
-      ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
+      const worldPos = { x: ctx.player.x, y: ctx.player.y };
+      ctx.worldReturnPos = { x: worldPos.x, y: worldPos.y };
       ctx.mode = "town";
       if (ctx.Town && typeof Town.generate === "function") {
         Town.generate(ctx);
@@ -65,7 +73,10 @@
         if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 4);
       }
       if (ctx.UI && typeof UI.showTownExitButton === "function") UI.showTownExitButton();
-      if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press Enter on the gate to leave.`, "notice");
+      if (ctx.log) {
+        ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Overworld entry at (${worldPos.x},${worldPos.y}).`, "notice");
+        ctx.log("Press G next to an NPC to talk. Press Enter on the gate to leave.", "info");
+      }
       syncAfterMutation(ctx);
       return true;
     }
@@ -210,6 +221,7 @@
       return false;
     }
     // Save and return
+    const prevPos = { x: ctx.player.x, y: ctx.player.y };
     saveCurrentDungeonState(ctx);
     ctx.mode = "world";
     ctx.enemies.length = 0;
@@ -227,11 +239,15 @@
       rx = Math.max(0, Math.min(ctx.world.map[0].length - 1, ctx.player.x));
       ry = Math.max(0, Math.min(ctx.world.map.length - 1, ctx.player.y));
     }
+    // Clamp to world bounds defensively
+    const W = ctx.world.width, H = ctx.world.height;
+    rx = Math.max(0, Math.min(W - 1, rx | 0));
+    ry = Math.max(0, Math.min(H - 1, ry | 0));
     ctx.player.x = rx; ctx.player.y = ry;
 
     if (ctx.FOV && typeof FOV.recomputeFOV === "function") FOV.recomputeFOV(ctx);
     if (ctx.updateUI) ctx.updateUI();
-    if (ctx.log) ctx.log("You climb back to the overworld.", "notice");
+    if (ctx.log) ctx.log(`You climb back to the overworld. Player ${prevPos.x},${prevPos.y} -> ${ctx.player.x},${ctx.player.y}.`, "notice");
     if (ctx.requestDraw) ctx.requestDraw();
     return true;
   }
