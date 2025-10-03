@@ -87,6 +87,14 @@
     const ls = readLS();
     ls[k] = cloneForStorage(snapshot);
     writeLS(ls);
+
+    // Debug/log summary to help diagnose persistence issues
+    try {
+      const enemiesCount = Array.isArray(snapshot.enemies) ? snapshot.enemies.length : 0;
+      const corpsesCount = Array.isArray(snapshot.corpses) ? snapshot.corpses.length : 0;
+      const msg = `DungeonState.save: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}`;
+      if (ctx.log) ctx.log(msg, "notice"); else console.debug(msg);
+    } catch (_) {}
   }
 
   function loadFromMemory(ctx, k) {
@@ -139,7 +147,20 @@
 
     // Fallback to localStorage if not in memory
     if (!st) st = loadFromLS(k);
-    if (!st) return false;
+    if (!st) {
+      try {
+        const msg = `DungeonState.load: no state for key ${k}`;
+        if (ctx.log) ctx.log(msg, "warn"); else console.debug(msg);
+      } catch (_) {}
+      return false;
+    }
+
+    try {
+      const enemiesCount = Array.isArray(st.enemies) ? st.enemies.length : 0;
+      const corpsesCount = Array.isArray(st.corpses) ? st.corpses.length : 0;
+      const msg = `DungeonState.load: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}`;
+      if (ctx.log) ctx.log(msg, "notice"); else console.debug(msg);
+    } catch (_) {}
 
     applyState(ctx, st, x, y);
     return true;
