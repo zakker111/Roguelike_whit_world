@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-03 00:00 UTC
+Last updated: 2025-10-03 12:00 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,15 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.10 — Runtime wiring fixes, root index, and service loads
+- Fixed: Broken script paths in UI caused modules not to load (404). Updated references to match folder layout.
+  - For UI-local files, dropped the "ui/" prefix when serving from the ui/ directory.
+  - For non-UI modules, used "../" relative paths when index.html is under ui/.
+- Added: Root-level index.html to serve the game from the site root reliably.
+- Removed: ui/index.html (redundant) to avoid multiple entry points.
+- Added: Explicit loads for services/time_service.js and dungeon/occupancy_grid.js to ensure TimeService and OccupancyGrid are available at runtime.
+- Dev: Deployment refreshed. Recommend running smoketest.md end-to-end.
 
 v1.9 — Cleanup: remove unused files; keep dungeon modules intact
 - Removed: root-level game.js (duplicate of core/game.js; not loaded by index.html).
@@ -248,3 +257,4 @@ Bugs
 - some npc stay at their homes at day time 
 - some npc dont sleep in theid beds
 - Dungeons bugged out they spawn enemies every time you decend to dungeon and corpses dont stay and crate always spawns items this needs to be fixed
+residents go home at night but they get stuck in door if bed is just adjacent tile of door
