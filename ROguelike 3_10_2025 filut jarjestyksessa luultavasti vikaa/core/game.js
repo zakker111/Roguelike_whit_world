@@ -1173,7 +1173,41 @@
       enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
       corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
       decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-      npcs = Array.isArray(ctx
+      npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+      shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+      townPlaza = null;
+      tavern = null;
+      worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+      townExitAt = null;
+      dungeonExitAt = null;
+      currentDungeon = ctx.dungeon || ctx.dungeonInfo || null;
+      if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+      recomputeFOV();
+      updateCamera();
+      updateUI();
+      requestDraw();
+      return;
+    }
+  }.npcs) ? ctx.npcs : [];
+      shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+      townPlaza = null; 
+      tavern = null;
+      worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+      townExitAt = null;
+      dungeonExitAt = null;
+      currentDungeon = ctx.dungeon || ctx.dungeonInfo || null;
+      if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+      recomputeFOV();
+      updateCamera();
+      updateUI();
+      requestDraw();
+      return;
+    }
+  }
 
   function requestLeaveTown() {
     // Handle confirm here so we can sync locals after leaving
