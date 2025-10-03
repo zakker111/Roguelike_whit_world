@@ -262,6 +262,10 @@
       decayBlockingHands,
       decayEquipped,
       rerenderInventoryIfOpen,
+      // Time helpers (for TimeHooks)
+      minutesUntil: (h, m=0) => minutesUntil(h, m),
+      advanceTime: (mins) => advanceTimeMinutes(mins),
+      // callbacks
       onPlayerDied: () => {
         isDead = true;
         updateUI();
@@ -553,64 +557,19 @@
   }
 
   function drinkPotionByIndex(idx) {
-    if (window.Player && typeof Player.drinkPotionByIndex === "function") {
-      Player.drinkPotionByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-      });
+    const GI = (typeof window !== "undefined") ? window.GameInventory : null;
+    if (GI && typeof GI.drinkPotionByIndex === "function") {
+      GI.drinkPotionByIndex(getCtx(), idx);
       return;
     }
-    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
-    const it = player.inventory[idx];
-    if (!it || it.kind !== "potion") return;
-
-    const heal = it.heal ?? 3;
-    const prev = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + heal);
-    const gained = player.hp - prev;
-    if (gained > 0) {
-      log(`You drink a potion and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
-    } else {
-      log(`You drink a potion but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
-    }
-
-    if (it.count && it.count > 1) {
-      it.count -= 1;
-    } else {
-      player.inventory.splice(idx, 1);
-    }
-    updateUI();
-    renderInventoryPanel();
+    // Fallback: no-op if module missing
   }
 
   
   function equipIfBetter(item) {
-    if (window.Player && typeof Player.equipIfBetter === "function") {
-      return Player.equipIfBetter(player, item, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-        describeItem: (it) => describeItem(it),
-      });
-    }
-    if (!item || item.kind !== "equip") return false;
-    const slot = item.slot;
-    const current = player.equipment[slot];
-    const newScore = (item.atk || 0) + (item.def || 0);
-    const curScore = current ? ((current.atk || 0) + (current.def || 0)) : -Infinity;
-    const better = !current || newScore > curScore + 1e-9;
-
-    if (better) {
-      player.equipment[slot] = item;
-      const parts = [];
-      if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
-      if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
-      const statStr = parts.join(", ");
-      log(`You equip ${item.name} (${slot}${statStr ? ", " + statStr : ""}).`);
-      updateUI();
-      renderInventoryPanel();
-      return true;
+    const GI = (typeof window !== "undefined") ? window.GameInventory : null;
+    if (GI && typeof GI.equipIfBetter === "function") {
+      return GI.equipIfBetter(getCtx(), item);
     }
     return false;
   }
@@ -1016,10 +975,8 @@
   
 
   function talkNearbyNPC() {
-    if (mode !== "town") return false;
-    const targets = [];
-    for (const n of npcs) {
-      const d = Math.abs(n.x - player.x) + Math.abs(n.y - player.y);
+    const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
+    if (TH && typeof TH.talkNearbyNPCbs(n.x - player.x) + Math.abs(n.y - player.y);
       if (d <= 1) targets.push(n);
     }
     if (targets.length === 0) {
@@ -1035,8 +992,11 @@
 
   // Town shops helpers and resting
   function shopAt(x, y) {
-    if (!Array.isArray(shops)) return null;
-    return shops.find(s => s.x === x && s.y === y) || null;
+    const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
+    if (TH && typeof TH.shopAt === "function") {
+      return TH.shopAt(getCtx(), x, y);
+    }
+    return null;
   }
   // Shop schedule helpers
   function minutesOfDay(h, m = 0) { return ((h | 0) * 60 + (m | 0)) % DAY_MINUTES; }
@@ -1054,15 +1014,23 @@
     return minutes >= o || minutes < c;
   }
   function isShopOpenNow(shop = null) {
+    const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
+    if (TH && typeof TH.isShopOpenNow === "function") {
+      return TH.isShopOpenNow(getCtx(), shop);
+    }
     const t = getClock();
     const minutes = t.hours * 60 + t.minutes;
-    if (!shop) {
-      // Fallback: original behavior when no shop provided
-      return t.phase === "day";
-    }
-    return isOpenAt(shop, minutes);
+    if (!shop) return t.phase === "day";
+    const o = shop.openMin, c = shop.closeMin;
+    if (o === c) return false;
+    if (c > o) return minutes >= o && minutes < c;
+    return minutes >= o || minutes < c;
   }
   function shopScheduleStr(shop) {
+    const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
+    if (TH && typeof TH.shopScheduleStr === "function") {
+      return TH.shopScheduleStr(getCtx(), shop);
+    }
     if (!shop) return "";
     const h2 = (min) => {
       const hh = ((min / 60) | 0) % 24;
@@ -1071,12 +1039,26 @@
     return `Opens ${h2(shop.openMin)}:00, closes ${h2(shop.closeMin)}:00`;
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
+    const TH = (typeof window !== "undefined") ? window.TimeHooks : null;
+    if (TH && typeof TH.minutesUntil === "function") {
+      return TH.minutesUntil(getCtx(), hourTarget, minuteTarget);
+    }
     return TS.minutesUntil(turnCounter, hourTarget, minuteTarget);
   }
   function advanceTimeMinutes(mins) {
+    const TH = (typeof window !== "undefined") ? window.TimeHooks : null;
+    if (TH && typeof TH.advanceTimeMinutes === "function") {
+      TH.advanceTimeMinutes(getCtx(), mins);
+      return;
+    }
     turnCounter = TS.advanceMinutes(turnCounter, mins);
   }
   function restUntilMorning(healFraction = 0.25) {
+    const TH = (typeof window !== "undefined") ? window.TimeHooks : null;
+    if (TH && typeof TH.restUntilMorning === "function") {
+      TH.restUntilMorning(getCtx(), healFraction);
+      return;
+    }
     const mins = minutesUntil(6, 0); // rest until 06:00 dawn
     advanceTimeMinutes(mins);
     const heal = Math.max(1, Math.floor(player.maxHp * healFraction));
@@ -1087,6 +1069,11 @@
     requestDraw();
   }
   function restAtInn() {
+    const TH = (typeof window !== "undefined") ? window.TimeHooks : null;
+    if (TH && typeof TH.restAtInn === "function") {
+      TH.restAtInn(getCtx());
+      return;
+    }
     const mins = minutesUntil(6, 0);
     advanceTimeMinutes(mins);
     const prev = player.hp;
@@ -1125,20 +1112,18 @@
   }
 
   function ensureTownSpawnClear() {
-    {
-      const Tn = modHandle("Town");
-      if (Tn && typeof Tn.ensureSpawnClear === "function") {
-        Tn.ensureSpawnClear(getCtx());
-        return;
+    const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
+    if (TH && typeof TH.ensureTownSpawnClear === "function") {
+      TH.ensurern;
       }
     }
     log("Town.ensureSpawnClear not available.", "warn");
   }
 
   function isFreeTownFloor(x, y) {
-    // Prefer shared Utils module
-    if (window.Utils && typeof Utils.isFreeTownFloor === "function") {
-      return Utils.isFreeTownFloor(getCtx(), x, y);
+    const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
+    if (TH && typeof TH.isFreeTownFloor === "function") {
+      return TH.isFreeTownFloor(getCtx(), x, y);
     }
     if (!inBounds(x, y)) return false;
     if (map[y][x] !== TILES.FLOOR && map[y][x] !== TILES.DOOR) return false;
@@ -1149,6 +1134,10 @@
   }
 
   function manhattan(ax, ay, bx, by) {
+    const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
+    if (TH && typeof TH.manhattan === "function") {
+      return TH.manhattan(getCtx(), ax, ay, bx, by);
+    }
     if (window.Utils && typeof Utils.manhattan === "function") {
       return Utils.manhattan(ax, ay, bx, by);
     }
@@ -1156,26 +1145,17 @@
   }
 
   function clearAdjacentNPCsAroundPlayer() {
-    // Ensure the four cardinal neighbors around the player are not all occupied by NPCs
-    const neighbors = [
-      { x: player.x + 1, y: player.y },
-      { x: player.x - 1, y: player.y },
-      { x: player.x, y: player.y + 1 },
-      { x: player.x, y: player.y - 1 },
-    ];
-    // If any neighbor has an NPC, remove up to two to keep space
-    for (const pos of neighbors) {
-      const idx = npcs.findIndex(n => n.x === pos.x && n.y === pos.y);
-      if (idx !== -1) {
-        npcs.splice(idx, 1);
-      }
+    const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
+    if (TH && typeof TH.clearAdjacentNPCsAroundPlayer === "function") {
+      TH.clearAdjacentNPCsAroundPlayer(getCtx());
+      return;
     }
+    // Fallback: no-op
   }
 
   function spawnGateGreeters(count = 4) {
-    {
-      const Tn = modHandle("Town");
-      if (Tn && typeof Tn.spawnGateGreeters === "function") {
+    const TH = (typeof window !== "undefined") ? window.TownHelpers : null;
+eGreeters === "function") {
         Tn.spawnGateGreeters(getCtx(), count);
         return;
       }
@@ -1504,59 +1484,26 @@
 
   // GOD mode actions
   function godHeal() {
-    if (window.God && typeof God.heal === "function") { God.heal(getCtx()); return; }
-    const prev = player.hp;
-    player.hp = player.maxHp;
-    if (player.hp > prev) {
-      log(`GOD: You are fully healed (${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)} HP).`, "good");
-    } else {
-      log(`GOD: HP already full (${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
+    const GC = (typeof window !== "undefined") ? window.GodControls : null;
+    if (GC && typeof GC.heal === "function") {
+      GC.heal(getCtx());
+      return;
     }
-    updateUI();
-    requestDraw();
   }
 
   function godSpawnStairsHere() {
-    if (window.God && typeof God.spawnStairsHere === "function") { God.spawnStairsHere(getCtx()); return; }
-    if (!inBounds(player.x, player.y)) {
-      log("GOD: Cannot place stairs out of bounds.", "warn");
+    const GC = (typeof window !== "undefined") ? window.GodControls : null;
+    if (GC && typeof GC.spawnStairsHere === "function") {
+      GC.spawnStairsHere(getCtx());
       return;
     }
-    map[player.y][player.x] = TILES.STAIRS;
-    seen[player.y][player.x] = true;
-    visible[player.y][player.x] = true;
-    log("GOD: Stairs appear beneath your feet.", "notice");
-    requestDraw();
   }
 
   function godSpawnItems(count = 3) {
-    if (window.God && typeof God.spawnItems === "function") { God.spawnItems(getCtx(), count); return; }
-    const created = [];
-    for (let i = 0; i < count; i++) {
-      let it = null;
-      if (window.Items && typeof Items.createEquipment === "function") {
-        const tier = Math.min(3, Math.max(1, Math.floor((floor + 1) / 2)));
-        it = Items.createEquipment(tier, rng);
-      } else if (window.DungeonItems && DungeonItems.lootFactories && typeof DungeonItems.lootFactories === "object") {
-        const keys = Object.keys(DungeonItems.lootFactories);
-        if (keys.length > 0) {
-          const k = keys[randInt(0, keys.length - 1)];
-          try { it = DungeonItems.lootFactories[k](getCtx(), { tier: 2 }); } catch (_) {}
-        }
-      }
-      if (!it) {
-        if (rng() < 0.5) it = { kind: "equip", slot: "hand", name: "debug sword", atk: 1.5, tier: 2, decay: initialDecay(2) };
-        else it = { kind: "equip", slot: "torso", name: "debug armor", def: 1.0, tier: 2, decay: initialDecay(2) };
-      }
-      player.inventory.push(it);
-      created.push(describeItem(it));
-    }
-    if (created.length) {
-      log(`GOD: Spawned ${created.length} item${created.length > 1 ? "s" : ""}:`);
-      created.forEach(n => log(`- ${n}`));
-      updateUI();
-      renderInventoryPanel();
-      requestDraw();
+    const GC = (typeof window !== "undefined") ? window.GodControls : null;
+    if (GC && typeof GC.spawnItems === "function") {
+      GC.spawnItems(getCtx(), count);
+      return;
     }
   }
 
@@ -1567,73 +1514,32 @@
    * - Applies small randomized jitters to hp/atk for variety (deterministic via rng).
    */
   function godSpawnEnemyNearby(count = 1) {
-    if (window.God && typeof God.spawnEnemyNearby === "function") { God.spawnEnemyNearby(getCtx(), count); return; }
-    const isFreeFloor = (x, y) => {
-      if (!inBounds(x, y)) return false;
-      if (map[y][x] !== TILES.FLOOR) return false;
-      if (player.x === x && player.y === y) return false;
-      if (enemies.some(e => e.x === x && e.y === y)) return false;
-      return true;
-    };
-
-    const pickNearby = () => {
-      const maxAttempts = 60;
-      for (let i = 0; i < maxAttempts; i++) {
-        const dx = randInt(-5, 5);
-        const dy = randInt(-5, 5);
-        const x = player.x + dx;
-        const y = player.y + dy;
-        if (isFreeFloor(x, y)) return { x, y };
-      }
-      const free = [];
-      for (let y = 0; y < map.length; y++) {
-        for (let x = 0; x < (map[0] ? map[0].length : 0); x++) {
-          if (isFreeFloor(x, y)) free.push({ x, y });
-        }
-      }
-      if (free.length === 0) return null;
-      return free[randInt(0, free.length - 1)];
-    };
-
-    const ctx = getCtx();
-    const spawned = [];
-    for (let i = 0; i < count; i++) {
-      const spot = pickNearby();
-      if (!spot) break;
-      const makeEnemy = (ctx.enemyFactory || ((x, y, depth) => ({ x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false })));
-      const e = makeEnemy(spot.x, spot.y, floor);
-
-      if (typeof e.hp === "number" && rng() < 0.7) {
-        const mult = 0.85 + rng() * 0.5;
-        e.hp = Math.max(1, Math.round(e.hp * mult));
-      }
-      if (typeof e.atk === "number" && rng() < 0.7) {
-        const multA = 0.85 + rng() * 0.5;
-        e.atk = Math.max(0.1, round1(e.atk * multA));
-      }
-      e.announced = false;
-      enemies.push(e);
-      spawned.push(e);
-      log(`GOD: Spawned ${capitalize(e.type || "enemy")} Lv ${e.level || 1} at (${e.x},${e.y}).`, "notice");
-    }
-    if (spawned.length > 0) {
-      requestDraw();
-    } else {
-      log("GOD: No free space to spawn an enemy nearby.", "warn");
+    const GC = (typeof window !== "undefined") ? window.GodControls : null;
+    if (GC && typeof GC.spawnEnemyNearby === "function") {
+      GC.spawnEnemyNearby(getCtx(), count);
+      return;
     }
   }
 
   
   function renderInventoryPanel() {
+    const GI = (typeof window !== "undefined") ? window.GameInventory : null;
+    if (GI && typeof GI.renderInventoryPanel === "function") {
+      GI.renderInventoryPanel(getCtx());
+      return;
+    }
     if (window.UI && typeof UI.renderInventory === "function") {
-      // Keep totals in sync
       updateUI();
-      // Always render content; panel may be opening and not yet marked as open
       UI.renderInventory(player, describeItem);
     }
   }
 
   function showInventoryPanel() {
+    const GI = (typeof window !== "undefined") ? window.GameInventory : null;
+    if (GI && typeof GI.showInventoryPanel === "function") {
+      GI.showInventoryPanel(getCtx());
+      return;
+    }
     renderInventoryPanel();
     if (window.UI && typeof UI.showInventory === "function") {
       UI.showInventory();
@@ -1645,54 +1551,32 @@
   }
 
   function hideInventoryPanel() {
+    const GI = (typeof window !== "undefined") ? window.GameInventory : null;
+    if (GI && typeof GI.hideInventoryPanel === "function") {
+      GI.hideInventoryPanel(getCtx());
+      return;
+    }
     if (window.UI && typeof UI.hideInventory === "function") {
       UI.hideInventory();
       requestDraw();
       return;
     }
-    const panel = document.getElementById("inv-panel");
-    if (!panel) return;
-    panel.hidden = true;
-    requestDraw();
-  }
-
+    const panel = document.getElementById("inv
   function equipItemByIndex(idx) {
-    if (window.Player && typeof Player.equipItemByIndex === "function") {
-      Player.equipItemByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-        describeItem: (it) => describeItem(it),
-      });
+    const GI = (typeof window !== "undefined") ? window.GameInventory : null;
+    if (GI && typeof GI.equipItemByIndex === "function") {
+      GI.equipItemByIndex(getCtx(), idx);
       return;
     }
-    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
-    const item = player.inventory[idx];
-    if (!item || item.kind !== "equip") {
-      log("That item cannot be equipped.");
-      return;
-    }
-    const slot = item.slot || "hand";
-    const prev = player.equipment[slot];
-    player.inventory.splice(idx, 1);
-    player.equipment[slot] = item;
-    const statStr = ("atk" in item) ? `+${item.atk} atk` : ("def" in item) ? `+${item.def} def` : "";
-    log(`You equip ${item.name} (${slot}${statStr ? ", " + statStr : ""}).`);
-    if (prev) {
-      player.inventory.push(prev);
-      log(`You stow ${describeItem(prev)} into your inventory.`);
-    }
-    updateUI();
-    renderInventoryPanel();
   }
 
   function equipItemByIndexHand(idx, hand) {
-    if (window.Player && typeof Player.equipItemByIndex === "function") {
-      Player.equipItemByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-        describeItem: (it) => describeItem(it),
+    const GI = (typeof window !== "undefined") ? window.GameInventory : null;
+    if (GI && typeof GI.equipItemByIndexHand === "function") {
+      GI.equipItemByIndexHand(getCtx(), idx, hand);
+      return;
+    }
+    equipItemByit) => describeItem(it),
         preferredHand: hand,
       });
       return;
@@ -1702,32 +1586,11 @@
   }
 
   function unequipSlot(slot) {
-    if (window.Player && typeof Player.unequipSlot === "function") {
-      Player.unequipSlot(player, slot, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-      });
+    const GI = (typeof window !== "undefined") ? window.GameInventory : null;
+    if (GI && typeof GI.unequipSlot === "function") {
+      GI.unequipSlot(getCtx(), slot);
       return;
     }
-    // fallback
-    const eq = player.equipment || {};
-    const valid = ["left","right","head","torso","legs","hands"];
-    if (!valid.includes(slot)) return;
-    if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right && eq.left.twoHanded) {
-      const item = eq.left;
-      eq.left = null; eq.right = null;
-      player.inventory.push(item);
-      log(`You unequip ${describeItem(item)} (two-handed).`);
-      updateUI(); renderInventoryPanel();
-      return;
-    }
-    const it = eq[slot];
-    if (!it) return;
-    eq[slot] = null;
-    player.inventory.push(it);
-    log(`You unequip ${describeItem(it)} from ${slot}.`);
-    updateUI(); renderInventoryPanel();
   }
 
   
@@ -1750,69 +1613,38 @@
 
   // GOD: always-crit toggle
   function setAlwaysCrit(v) {
-    if (window.God && typeof God.setAlwaysCrit === "function") { God.setAlwaysCrit(getCtx(), v); return; }
-    alwaysCrit = !!v;
-    try { window.ALWAYS_CRIT = alwaysCrit; localStorage.setItem("ALWAYS_CRIT", alwaysCrit ? "1" : "0"); } catch (_) {}
-    log(`GOD: Always Crit ${alwaysCrit ? "enabled" : "disabled"}.`, alwaysCrit ? "good" : "warn");
+    const GC = (typeof window !== "undefined") ? window.GodControls : null;
+    if (GC && typeof GC.setAlwaysCrit === "function") {
+      GC.setAlwaysCrit(getCtx(), v);
+      return;
+    }
   }
 
   // GOD: set forced crit body part for player attacks
   function setCritPart(part) {
-    if (window.God && typeof God.setCritPart === "function") { God.setCritPart(getCtx(), part); return; }
-    const valid = new Set(["torso","head","hands","legs",""]);
-    const p = valid.has(part) ? part : "";
-    forcedCritPart = p;
-    try {
-      window.ALWAYS_CRIT_PART = p;
-      if (p) localStorage.setItem("ALWAYS_CRIT_PART", p);
-      else localStorage.removeItem("ALWAYS_CRIT_PART");
-    } catch (_) {}
-    if (p) log(`GOD: Forcing crit hit location: ${p}.`, "notice");
-    else log("GOD: Cleared forced crit hit location.", "notice");
+    const GC = (typeof window !== "undefined") ? window.GodControls : null;
+    if (GC && typeof GC.setCritPart === "function") {
+      GC.setCritPart(getCtx(), part);
+      return;
+    }
   }
 
   // GOD: apply a deterministic RNG seed and regenerate current map
   function applySeed(seedUint32) {
-    if (window.God && typeof God.applySeed === "function") { God.applySeed(getCtx(), seedUint32); return; }
-    const s = (Number(seedUint32) >>> 0);
-    currentSeed = s;
-    try { localStorage.setItem("SEED", String(s)); } catch (_) {}
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.applySeed === "function") {
-      RNG.applySeed(s);
-      rng = RNG.rng;
-    } else {
-      function mulberry32(a) {
-        return function() {
-          let t = a += 0x6D2B79F5;
-          t = Math.imul(t ^ (t >>> 15), t | 1);
-          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
-      }
-      const _rng = mulberry32(s);
-      rng = function () { return _rng(); };
+    const GC = (typeof window !== "undefined") ? window.GodControls : null;
+    if (GC && typeof GC.applySeed === "function") {
+      GC.applySeed(getCtx(), seedUint32);
+      return;
     }
-    if (mode === "world") {
-      log(`GOD: Applied seed ${s}. Regenerating overworld...`, "notice");
-      initWorld();
-    } else {
-      log(`GOD: Applied seed ${s}. Regenerating floor ${floor}...`, "notice");
-      generateLevel(floor);
-    }
-    requestDraw();
-    try {
-      const el = document.getElementById("god-seed-help");
-      if (el) el.textContent = `Current seed: ${s}`;
-      const input = document.getElementById("god-seed-input");
-      if (input) input.value = String(s);
-    } catch (_) {}
   }
 
   // GOD: reroll seed using current time
   function rerollSeed() {
-    if (window.God && typeof God.rerollSeed === "function") { God.rerollSeed(getCtx()); return; }
-    const s = (Date.now() % 0xffffffff) >>> 0;
-    applySeed(s);
+    const GC = (typeof window !== "undefined") ? window.GodControls : null;
+    if (GC && typeof GC.rerollSeed === "function") {
+      GC.rerollSeed(getCtx());
+      return;
+    }
   }
 
   function hideGameOver() {
