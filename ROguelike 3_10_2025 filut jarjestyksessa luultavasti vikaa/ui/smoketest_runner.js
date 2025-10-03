@@ -80,31 +80,46 @@
     return true; // best-effort
   }
   async function enterIfOnSpecialTile(kind /* "dungeon" | "town" */) {
-    // Try key-based enters
-    key("Enter");
-    await sleep(500);
-    let m = getMode();
-    if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
-    key("KeyG");
-    await sleep(600);
-    m = getMode();
-    if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
-    key("NumpadEnter");
-    await sleep(500);
-    m = getMode();
-    if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
-
-    // Try programmatic enter via GameAPI to mirror internal Actions/Modes
+    // Step 1: programmatic enter first to mirror internal modes
     try {
       if (kind === "dungeon" && window.GameAPI && typeof GameAPI.tryEnterDungeon === "function") {
-        const ok = !!GameAPI.tryEnterDungeon();
-        await sleep(200);
-        return ok || getMode() === "dungeon";
+        GameAPI.tryEnterDungeon();
+      } else if (kind === "town" && window.GameAPI && typeof GameAPI.tryEnterTown === "function") {
+        GameAPI.tryEnterTown();
       }
-      if (kind === "town" && window.GameAPI && typeof GameAPI.tryEnterTown === "function") {
-        const ok = !!GameAPI.tryEnterTown();
-        await sleep(200);
-        return ok || getMode() === "town";
+    } catch (_) {}
+    // Wait for mode to flip
+    for (let i = 0; i < 8; i++) {
+      await sleep(120);
+      const m = getMode();
+      if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
+    }
+
+    // Step 2: Try key-based enters
+    for (const k of ["Enter","KeyG","NumpadEnter"]) {
+      key(k);
+      await sleep(300);
+      const m = getMode();
+      if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
+    }
+
+    // Step 3: Shuffle around 4 directions then press G/Enter again (sometimes need exact adjacency)
+    const dirs = ["ArrowRight","ArrowLeft","ArrowDown","ArrowUp"];
+    for (let r = 0; r < 2; r++) {
+      for (const d of dirs) { key(d); await sleep(60); }
+      for (const k of ["Enter","KeyG"]) {
+        key(k); await sleep(280);
+        const m = getMode();
+        if ((kind === "dungeon" && m === "dungeon") || (kind === "town" && m === "town")) return true;
+      }
+    }
+
+    // Final programmatic attempt with a short wait
+    try {
+      if (kind === "dungeon" && window.GameAPI && typeof GameAPI.tryEnterDungeon === "function") {
+        if (GameAPI.tryEnterDungeon()) { await sleep(200); return getMode() === "dungeon"; }
+      } else if (kind === "town" && window.GameAPI && typeof GameAPI.tryEnterTown === "function") {
+        if (GameAPI.tryEnterTown()) { await sleep(200); return getMode() === "town"; }
       }
     } catch (_) {}
     return getMode() === (kind === "dungeon" ? "dungeon" : "town");
@@ -408,8 +423,10 @@
 
       // Town flow
       const routedT = await routeToNearestTown();
-      await sleep(120);
-      const enteredT = await enterIfOnSpecialTile("town");
+      await sleep(180);
+      // Try multiple enters in case of tile adjacency sensitivity
+      let enteredT = await enterIfOnSpecialTile("town");
+      if (!enteredT) { await sleep(200); enteredT = await enterIfOnSpecialTile("town"); }
       const inTown = getMode() === "town";
       mark("Enter town", routedT && enteredT && inTown);
 
