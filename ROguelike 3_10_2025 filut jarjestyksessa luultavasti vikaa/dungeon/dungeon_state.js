@@ -119,11 +119,13 @@
   }
 
   function applyState(ctx, st, x, y) {
+    // Restore basic mode/info/state
     ctx.mode = "dungeon";
     ctx.dungeonInfo = st.info || { x, y, level: st.level || 1, size: "medium" };
     ctx.floor = st.level || 1;
     if (typeof window !== "undefined") window.floor = ctx.floor;
 
+    // Deep references
     ctx.map = st.map;
     ctx.seen = st.seen;
     ctx.visible = st.visible;
@@ -132,7 +134,8 @@
     ctx.decals = st.decals || [];
     ctx.dungeonExitAt = st.dungeonExitAt || { x, y };
 
-    // Place player at the entrance hole
+    // Place player at the known dungeon exit tile to avoid mismatch
+    const prevPX = ctx.player.x, prevPY = ctx.player.y;
     ctx.player.x = ctx.dungeonExitAt.x;
     ctx.player.y = ctx.dungeonExitAt.y;
 
@@ -142,6 +145,12 @@
       if (ctx.visible[ctx.dungeonExitAt.y]) ctx.visible[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
       if (ctx.seen[ctx.dungeonExitAt.y]) ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
     }
+
+    // Debug: log a concise position summary for entry
+    try {
+      console.log(`DungeonState.applyState: key ${key(x,y)}, exit=(${ctx.dungeonExitAt.x},${ctx.dungeonExitAt.y}), player ${prevPX},${prevPY} -> ${ctx.player.x},${ctx.player.y}, corpses=${ctx.corpses.length}, enemies=${ctx.enemies.length}`);
+      if (ctx.log) ctx.log(`DungeonState.applyState: player at (${ctx.player.x},${ctx.player.y}).`, "info");
+    } catch (_) {}
 
     ctx.recomputeFOV();
     ctx.updateCamera();

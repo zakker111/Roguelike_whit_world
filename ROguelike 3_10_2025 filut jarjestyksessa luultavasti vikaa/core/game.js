@@ -2064,28 +2064,29 @@
     if (mode !== "world" || !world) return false;
     const t = world.map[player.y][player.x];
     if (t && World.TILES && t === World.TILES.DUNGEON) {
+      const enterWX = player.x, enterWY = player.y;
       cameFromWorld = true;
-      worldReturnPos = { x: player.x, y: player.y };
+      worldReturnPos = { x: enterWX, y: enterWY };
 
       // Look up dungeon info (level, size) from world POIs
       currentDungeon = null;
       try {
         if (Array.isArray(world.dungeons)) {
-          currentDungeon = world.dungeons.find(d => d.x === player.x && d.y === player.y) || null;
+          currentDungeon = world.dungeons.find(d => d.x === enterWX && d.y === enterWY) || null;
         }
       } catch (_) { currentDungeon = null; }
       // Default fallback
-      if (!currentDungeon) currentDungeon = { x: player.x, y: player.y, level: 1, size: "medium" };
+      if (!currentDungeon) currentDungeon = { x: enterWX, y: enterWY, level: 1, size: "medium" };
 
       // If dungeon already has a saved state, load it and return
-      try { console.log(`[TRACE] Attempting to load dungeon state for ${currentDungeon.x},${currentDungeon.y}`); } catch (_) {}
       if (loadDungeonStateFor(currentDungeon.x, currentDungeon.y)) {
-        try { log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}.`, "notice"); } catch (_) {}
-        try { console.log(`[TRACE] Loaded saved dungeon for ${currentDungeon.x},${currentDungeon.y}`); } catch (_) {}
+        try { 
+          log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}.`, "notice"); 
+          console.log(`[DEV] Loaded saved dungeon at ${currentDungeon.x},${currentDungeon.y}. worldEnter=(${enterWX},${enterWY}) dungeonExit=(${dungeonExitAt?.x},${dungeonExitAt?.y}) player=(${player.x},${player.y})`);
+        } catch (_) {}
         return true;
       } else {
         try { log(`[DEV] No saved dungeon state for ${currentDungeon.x},${currentDungeon.y}; generating new.`, "warn"); } catch (_) {}
-        try { console.log(`[TRACE] No saved state, generating for ${currentDungeon.x},${currentDungeon.y}`); } catch (_) {}
       }
 
       // Set dungeon difficulty = level; we keep 'floor' equal to dungeon level for UI/logic
@@ -2107,6 +2108,15 @@
       saveCurrentDungeonState();
       try {
         const k = `${currentDungeon.x},${currentDungeon.y}`;
+        log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
+        console.log(`[DEV] Initial dungeon save for key ${k}. worldEnter=(${enterWX},${enterWY}) dungeonExit=(${dungeonExitAt?.x},${dungeonExitAt?.y}) player=(${player.x},${player.y})`);
+      } catch (_) {}
+
+      log(`You enter the dungeon (Difficulty ${floor}${currentDungeon.size ? ", " + currentDungeon.size : ""}).`, "notice");
+      return true;
+    }
+    return false;
+  },${currentDungeon.y}`;
         log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
         console.log(`[DEV] Initial dungeon save for key ${k}.`);
       } catch (_) {}
