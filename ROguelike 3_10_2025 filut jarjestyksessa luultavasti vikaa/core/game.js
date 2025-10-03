@@ -585,6 +585,8 @@
 
   
   function log(msg, type = "info") {
+    // Always mirror logs to console for debugging visibility
+    try { console.debug(`[${type}] ${msg}`); } catch (_) {}
     if (window.Logger && typeof Logger.log === "function") {
       Logger.log(msg, type);
       return;
