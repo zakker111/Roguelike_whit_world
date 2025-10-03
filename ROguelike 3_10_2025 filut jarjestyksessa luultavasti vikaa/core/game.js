@@ -2068,7 +2068,8 @@
               let extraLines = [];
               if (res.residents && typeof res.residents.total === "number") {
                 const r = res.residents;
-                extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atInn}/${r.total} at inn.`);
+                // TownAI returns atTavern; display as "inn" for consistency
+                extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
               }
               // Per-resident list of late-night away residents
               if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
@@ -2077,7 +2078,7 @@
                   extraLines.push(`- ${d.name} at (${d.x},${d.y})`);
                 });
                 if (res.residentsAwayLate.length > 10) {
-                  extraLines.push(`...and ${res.residentsAwayLate - 10} more.`);
+                  extraLines.push(`...and ${res.residentsAwayLate.length - 10} more.`);
                 }
               }
               if (res.skipped) {
