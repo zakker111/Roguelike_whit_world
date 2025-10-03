@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-03 20:45 UTC
+Last updated: 2025-10-03 21:20 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,21 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.16 — More dungeons, spawn near dungeon, and smoke test auto-routes/loots
+- Changed: Increased dungeon density and terrain bias
+  - world/world.js: wantDungeons now scales with map area; plains (GRASS) have a higher placement chance while keeping forest/mountain preference.
+- Changed: Player starts near a dungeon
+  - world/pickTownStart prefers towns within 20 tiles of a dungeon; if no towns, spawns near a dungeon entrance or nearest walkable tile.
+- Added: GameAPI for smoke test and diagnostics
+  - core/game.js exposes GameAPI with helpers: getMode/getWorld/getPlayer, nearestDungeon/routeTo/gotoNearestDungeon (overworld), getEnemies/routeToDungeon/isWalkableDungeon (dungeon).
+- Changed: Smoke test flows
+  - ui/smoketest_runner.js routes to the nearest dungeon on the overworld and attempts entry automatically.
+  - In dungeon mode, spawns a low-level enemy nearby, routes to it, bumps to attack, and attempts to loot underfoot via G.
+- UI: GOD “Run Smoke Test” button
+  - index.html + ui/ui.js + core/game.js: button reloads the page with ?smoketest=1 (preserving ?dev=1 when enabled) so the loader injects and runs the smoke test.
+  - Fallback in UI ensures reload even if handler is missing.
+- Dev: Optional smoke test loader logs in console (“[SMOKE] loader: …”) for visibility.
 
 v1.15 — Corpses no longer block; occupancy and tests updated
 - Fixed: Corpses in dungeons blocking player movement
