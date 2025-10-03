@@ -219,7 +219,18 @@
     const Modes = ctx.Modes || window.Modes;
 
     if (ctx.mode === "world") {
-      if (!(typeof Modes?.enterTownIfOnTile === "function" && Modes.enterTownIfOnTile(ctx))) {
+      // Debug: report current tile underfoot
+      try {
+        const t = ctx.world && ctx.world.map ? ctx.world.map[ctx.player.y][ctx.player.x] : null;
+        const WT = ctx.World && ctx.World.TILES;
+        if (WT && typeof ctx.log === "function") {
+          const name = (t === WT.TOWN) ? "TOWN" : (t === WT.DUNGEON) ? "DUNGEON" : "other";
+          ctx.log(`[TRACE] Action in world on tile: ${name} at (${ctx.player.x},${ctx.player.y})`, "info");
+        }
+      } catch (_) {}
+
+      const didTown = (typeof Modes?.enterTownIfOnTile === "function") ? !!Modes.enterTownIfOnTile(ctx) : false;
+      if (!didTown) {
         if (typeof Modes?.enterDungeonIfOnEntrance === "function") Modes.enterDungeonIfOnEntrance(ctx);
       }
       return;
