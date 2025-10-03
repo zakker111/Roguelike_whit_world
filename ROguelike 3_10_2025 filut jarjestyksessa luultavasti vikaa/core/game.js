@@ -1189,7 +1189,10 @@
       updateUI();
       requestDraw();
       return;
-    function requestLeaveTown() {
+    }
+  }
+
+  function requestLeaveTown() {
     // Handle confirm here so we can sync locals after leaving
     const doLeave = () => leaveTownNow();
     if (window.UI && typeof UI.showConfirm === "function") {
