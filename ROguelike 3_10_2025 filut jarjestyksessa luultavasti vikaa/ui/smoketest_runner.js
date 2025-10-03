@@ -74,6 +74,24 @@
     return false;
   }
 
+  // Utilities for checking the main log
+  function getTopLogLine() {
+    try {
+      const el = document.getElementById("log");
+      if (!el || !el.firstChild) return "";
+      return (el.firstChild.textContent || "").trim();
+    } catch (_) { return ""; }
+  }
+  async function waitForLogChange(prev, timeoutMs = 1000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const cur = getTopLogLine();
+      if (cur && cur !== prev) return cur;
+      await sleep(60);
+    }
+    return "";
+  }
+
   async function spawnEnemyAndKillOne() {
     clickById("god-open-btn");
     await sleep(120);
@@ -186,36 +204,43 @@
     return { equipped, unequipped };
   }
 
-  async function enterTownCheckAndExit() {
-    if (getMode() !== "world") {
-      if (getMode() === "dungeon") {
-        clickById("god-open-btn"); await sleep(100);
-        clickById("god-spawn-stairs-btn"); await sleep(80);
-        key("Escape"); await sleep(80);
-        key("KeyG"); await sleep(420);
-      }
-    }
-    if (getMode() !== "world") return { entered: false, signs: 0, npcs: 0, walkedToNPC: false, exited: false };
+  // Town checks: home routes, NPC bump and dialog, and shop sign interaction
+  async function townDeepChecks() {
+    if (getMode() !== "town") return { homeRoutes: false, npcExists: false, npcBumpSaid: false, shopSignSaid: false };
 
-    const routed = await routeToNearestTown();
+    // 1) Push "Check Home Routes" button in GOD
+    clickById("god-open-btn");
     await sleep(120);
-    await enterIfOnSpecialTile("town");
-    const entered = getMode() === "town";
-    if (!entered) return { entered: false, signs: 0, npcs: 0, walkedToNPC: false, exited: false };
+    const prevLog = getTopLogLine();
+    try { clickById("god-check-home-btn"); } catch (_) {}
+    await sleep(300);
+    // Check either the GOD output or a log entry mentions "Home route check"
+    let homeRoutes = false;
+    try {
+      const el = document.getElementById("god-check-output");
+      if (el && el.innerText && el.innerText.toLowerCase().includes("home route check")) homeRoutes = true;
+    } catch (_) {}
+    if (!homeRoutes) {
+      const changed = await waitForLogChange(prevLog, 1200);
+      if (changed.toLowerCase().includes("home route")) homeRoutes = true;
+    }
+    key("Escape");
+    await sleep(100);
 
-    const props = (GameAPI.getTownProps ? GameAPI.getTownProps() : []);
-    const signs = props.filter(p => p.type === "sign").length;
+    // 2) Ensure there is at least one NPC and try bumping into them to trigger speech
     const npcs = (GameAPI.getNPCs ? GameAPI.getNPCs() : []);
-    const npcCount = npcs.length;
-
-    let walkedToNPC = false;
-    if (npcCount > 0) {
+    const npcExists = npcs.length > 0;
+    let npcBumpSaid = false;
+    if (npcExists) {
+      // find nearest npc
       const p0 = GameAPI.getPlayer();
       let best = npcs[0], bestD = Math.abs(best.x - p0.x) + Math.abs(best.y - p0.y);
       for (const n of npcs) {
         const d = Math.abs(n.x - p0.x) + Math.abs(n.y - p0.y);
         if (d < bestD) { best = n; bestD = d; }
       }
+      // move toward and attempt to step into npc tile a few times
+      const prev = getTopLogLine();
       for (let i = 0; i < 20; i++) {
         const p = GameAPI.getPlayer();
         const dx = Math.sign(best.x - p.x);
@@ -223,29 +248,47 @@
         const keyName = dx !== 0 ? (dx === -1 ? "ArrowLeft" : "ArrowRight") : (dy === -1 ? "ArrowUp" : "ArrowDown");
         key(keyName);
         await sleep(80);
-        const pd = Math.abs(best.x - GameAPI.getPlayer().x) + Math.abs(best.y - GameAPI.getPlayer().y);
-        if (pd <= 1) { walkedToNPC = true; break; }
+        // after each attempt, see if a new log line appeared (NPC dialog or "Excuse me!")
+        const changed = await waitForLogChange(prev, 80);
+        if (changed) {
+          npcBumpSaid = true;
+          break;
+        }
       }
     }
 
-    let exited = false;
-    try {
-      const btn = (UI && UI.els && UI.els.townExitBtn) ? UI.els.townExitBtn : document.querySelector("button[title='Leave the town']");
-      if (btn) {
-        btn.click();
-        await sleep(120);
-        const okBtn = document.querySelector("div#ui-confirm-text") ? document.querySelector("div#ui-confirm-text").parentElement.parentElement.querySelector("button[data-act='ok']") : document.querySelector("button[data-act='ok']");
-        if (okBtn) okBtn.click();
-        await sleep(420);
-        exited = getMode() === "world";
-      } else {
-        key("KeyG");
-        await sleep(420);
-        exited = getMode() === "world";
+    // 3) Check one shop sign: route to a sign and press G; validate that log says "Sign:"
+    let shopSignSaid = false;
+    const props = (GameAPI.getTownProps ? GameAPI.getTownProps() : []);
+    const signs = props.filter(p => p.type === "sign");
+    if (signs.length) {
+      // pick sign nearest to player
+      const p0 = GameAPI.getPlayer();
+      let best = signs[0], bestD = Math.abs(best.x - p0.x) + Math.abs(best.y - p0.y);
+      for (const s of signs) {
+        const d = Math.abs(s.x - p0.x) + Math.abs(s.y - p0.y);
+        if (d < bestD) { best = s; bestD = d; }
       }
-    } catch (_) {}
+      // walk towards sign; Town.interactProps triggers if on or adjacent
+      for (let i = 0; i < 40; i++) {
+        const p = GameAPI.getPlayer();
+        const d = Math.abs(best.x - p.x) + Math.abs(best.y - p.y);
+        if (d <= 1) break;
+        const dx = Math.sign(best.x - p.x);
+        const dy = Math.sign(best.y - p.y);
+        const keyName = dx !== 0 ? (dx === -1 ? "ArrowLeft" : "ArrowRight") : (dy === -1 ? "ArrowUp" : "ArrowDown");
+        key(keyName);
+        await sleep(70);
+      }
+      const before = getTopLogLine();
+      key("KeyG");
+      const changed = await waitForLogChange(before, 600);
+      if (changed && (changed.startsWith("Sign:") || changed.toLowerCase().includes("welcome to"))) {
+        shopSignSaid = true;
+      }
+    }
 
-    return { entered: true, signs, npcs: npcCount, walkedToNPC, exited };
+    return { homeRoutes, npcExists, npcBumpSaid, shopSignSaid };
   }
 
   // Run one scenario with a specific seed; returns checklist entries for that run
@@ -311,9 +354,42 @@
       }
 
       // Town flow
-      const town = await enterTownCheckAndExit();
-      const townOk = town.entered && town.signs >= 1 && town.npcs >= 1 && town.walkedToNPC && town.exited;
-      mark("Town: enter, see sign(s), see NPC(s), approach NPC, exit", townOk, `signs=${town.signs}, npcs=${town.npcs}`);
+      const routedT = await routeToNearestTown();
+      await sleep(120);
+      const enteredT = await enterIfOnSpecialTile("town");
+      const inTown = getMode() === "town";
+      mark("Enter town", routedT && enteredT && inTown);
+
+      // Deep town checks
+      let td = { homeRoutes: false, npcExists: false, npcBumpSaid: false, shopSignSaid: false };
+      if (inTown) {
+        td = await townDeepChecks();
+      }
+      mark("Town: Check Home Routes", td.homeRoutes);
+      mark("Town: NPC exists", td.npcExists);
+      mark("Town: bump into NPC yields dialog", td.npcBumpSaid);
+      mark("Town: interacting with a sign yields text", td.shopSignSaid);
+
+      // Exit town
+      let exited = false;
+      if (inTown) {
+        try {
+          const btn = (UI && UI.els && UI.els.townExitBtn) ? UI.els.townExitBtn : document.querySelector("button[title='Leave the town']");
+          if (btn) {
+            btn.click();
+            await sleep(120);
+            const okBtn = document.querySelector("div#ui-confirm-text") ? document.querySelector("div#ui-confirm-text").parentElement.parentElement.querySelector("button[data-act='ok']") : document.querySelector("button[data-act='ok']");
+            if (okBtn) okBtn.click();
+            await sleep(420);
+            exited = getMode() === "world";
+          } else {
+            key("KeyG");
+            await sleep(420);
+            exited = getMode() === "world";
+          }
+        } catch (_) {}
+      }
+      mark("Town: exit to overworld", exited);
 
       // Diagnostics
       clickById("god-open-btn");
