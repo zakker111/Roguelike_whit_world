@@ -168,5 +168,19 @@
   <script src="core/modes.js"></script>
   <script src="core/game_loop.js"></script>
   <script src="core/game.js"></script>
+  <!-- Optional smoke test runner: load when ?smoketest=1 -->
+  <script>
+    (function () {
+      try {
+        var params = new URLSearchParams(location.search);
+        if (params.get("smoketest") === "1") {
+          var s = document.createElement("script");
+          s.src = "ui/smoketest_runner.js";
+          s.defer = true;
+          document.body.appendChild(s);
+        }
+      } catch (_) {}
+    })();
+  </script>
 </body>
 </html>
