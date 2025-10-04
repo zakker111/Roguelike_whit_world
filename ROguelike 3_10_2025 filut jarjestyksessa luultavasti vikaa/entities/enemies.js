@@ -45,7 +45,7 @@
       equipChance: 0.65,
     },
 
-    mime_ghost: {
+    seppo: {
       key: "seppo",
       glyph: "s",
       color: "#101942",
