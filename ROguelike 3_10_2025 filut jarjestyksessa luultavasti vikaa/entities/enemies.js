@@ -45,7 +45,20 @@
       equipChance: 0.65,
     },
 
-    
+    mime_ghost: {
+      key: "seppo",
+      glyph: "s",
+      color: "#101942",
+      tier: 2,
+      blockBase: 0.06,
+      // make seppo rare
+      weight(depth) { return depth <= 2 ? 0.15 : 0.20; },
+      hp(depth) { return 3 + Math.floor(depth / 2); },
+      atk(depth) { return 1 + Math.floor(depth / 4); },
+      xp(depth) { return 5 + Math.floor(depth / 2); },
+      potionWeights: { lesser: 0.30, average: 0.30, strong: 0.20 },
+      equipChance: 0.50,
+    },
 
     hell_houndin: {
       key: "hell_houndin",
