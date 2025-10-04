@@ -67,6 +67,11 @@
       name: (mat) => `${mat} sword`,
       atkRange: { 1: [0.5, 2.4], 2: [1.2, 3.4], 3: [2.2, 4.0] } },
 
+    sakset: { key: "sakset", slot: "hand", twoHanded: true,
+      weight: 0.10,
+      name: (mat) => `${mat} sword`,
+      atkRange: { 1: [0.5, 2.4], 2: [1.2, 3.4], 3: [2.2, 4.0] } },
+
     axe: { key: "axe", slot: "hand", twoHanded: false,
       weight: 0.25,
       name: (mat) => `${mat} axe`,
