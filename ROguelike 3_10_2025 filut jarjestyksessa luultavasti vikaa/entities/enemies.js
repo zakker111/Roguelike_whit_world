@@ -45,6 +45,8 @@
       equipChance: 0.65,
     },
 
+    
+
     hell_houndin: {
       key: "hell_houndin",
       glyph: "h",

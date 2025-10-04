@@ -2508,8 +2508,47 @@
         path.reverse();
         return path;
       },
-      // Town helpers (NPC inspection)
-      getNPCs: () => (Array.isArray(npcs) ? npcs.map(n => ({ x: n.x, y: n.y, name: n.name })) : [])
+      // Town helpers (NPC/props inspection and routing)
+      getNPCs: () => (Array.isArray(npcs) ? npcs.map(n => ({ x: n.x, y: n.y, name: n.name })) : []),
+      getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type, name: p.name })) : []),
+      isWalkableTown: (x, y) => inBounds(x, y) && isWalkable(x, y),
+      routeToTown: (tx, ty) => {
+        // BFS on current town map
+        const w = map[0] ? map[0].length : 0;
+        const h = map.length;
+        if (w === 0 || h === 0) return [];
+        const start = { x: player.x, y: player.y };
+        const q = [start];
+        const prev = new Map();
+        const seen = new Set([`${start.x},${start.y}`]);
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+        while (q.length) {
+          const cur = q.shift();
+          if (cur.x === tx && cur.y === ty) break;
+          for (const d of dirs) {
+            const nx = cur.x + d.dx, ny = cur.y + d.dy;
+            const key = `${nx},${ny}`;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            if (seen.has(key)) continue;
+            if (!window.GameAPI.isWalkableTown(nx, ny)) continue;
+            seen.add(key);
+            prev.set(key, cur);
+            q.push({ x: nx, y: ny });
+          }
+        }
+        const path = [];
+        let curKey = `${tx},${ty}`;
+        if (!prev.has(curKey) && !(start.x === tx && start.y === ty)) return [];
+        let cur = { x: tx, y: ty };
+        while (!(cur.x === start.x && cur.y === start.y)) {
+          path.push(cur);
+          const p = prev.get(`${cur.x},${cur.y}`);
+          if (!p) break;
+          cur = p;
+        }
+        path.reverse();
+        return path;
+      }
     };
   } catch (_) {}
 

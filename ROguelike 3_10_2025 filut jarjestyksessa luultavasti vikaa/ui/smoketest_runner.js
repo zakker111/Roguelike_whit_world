@@ -1,6 +1,6 @@
 // Tiny Roguelike Smoke Test Runner
 // Injected dynamically by GOD panel; runs a full scenario and reports progress via Logger, console, and an on-screen banner.
-// Scenario: overworld -> dungeon -> spawn enemy -> kill -> loot -> exit to overworld -> enter town -> bump NPC -> GOD checks -> diagnostics.
+// Scenario: overworld -> dungeon -> spawn enemy -> kill -> loot -> exit to overworld -> enter town -> bump NPC -> check town sign -> GOD checks -> diagnostics.
 
 (function () {
   // Create a floating banner for smoke test progress
@@ -202,15 +202,63 @@
         log("Attempted town entry.", "info");
       }
 
-      // Step 9: bump an NPC (move around a bit; bump triggers dialog)
+      // Step 9: bump an NPC (move to nearest NPC and bump)
       if (window.GameAPI.getMode && window.GameAPI.getMode() === "town") {
-        log("Searching for NPC to bump…", "info");
-        // Small random walk; bumping into NPC tiles is logged by game
-        const walk = ["ArrowRight","ArrowRight","ArrowUp","ArrowLeft","ArrowDown","ArrowDown","ArrowRight","ArrowUp","ArrowLeft","ArrowLeft","ArrowDown"];
-        for (const m of walk) { key(m); await sleep(120); }
-        log("NPC bump attempt made.", "info");
+        // Sanity: ensure there are residents (NPCs) around
+        const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
+        log(`NPCs present: ${npcs.length}`, npcs.length ? "info" : "warn");
 
-        // Step 10: open GOD and run town checks (home routes and inn)
+        log("Routing to nearest NPC and bumping…", "info");
+        if (npcs && npcs.length) {
+          let best = npcs[0];
+          let bestD = Math.abs(best.x - window.GameAPI.getPlayer().x) + Math.abs(best.y - window.GameAPI.getPlayer().y);
+          for (const n of npcs) {
+            const d = Math.abs(n.x - window.GameAPI.getPlayer().x) + Math.abs(n.y - window.GameAPI.getPlayer().y);
+            if (d < bestD) { best = n; bestD = d; }
+          }
+          const pathToNpc = (typeof window.GameAPI.routeToTown === "function") ? window.GameAPI.routeToTown(best.x, best.y) : [];
+          for (const step of pathToNpc.slice(0, 30)) {
+            const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+            const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+            key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+            await sleep(120);
+          }
+          // final bump if adjacent
+          const px = window.GameAPI.getPlayer().x, py = window.GameAPI.getPlayer().y;
+          if (Math.abs(best.x - px) + Math.abs(best.y - py) <= 1) {
+            if (best.x === px + 1 && best.y === py) key("ArrowRight");
+            else if (best.x === px - 1 && best.y === py) key("ArrowLeft");
+            else if (best.x === px && best.y === py + 1) key("ArrowDown");
+            else if (best.x === px && best.y === py - 1) key("ArrowUp");
+            await sleep(150);
+          }
+        }
+
+        // Step 10: find a sign and interact (press G) to verify sign schedules/info
+        try {
+          const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
+          const signs = props.filter(p => (p.type || "").toLowerCase() === "sign");
+          if (signs.length) {
+            const tgt = signs[0];
+            log(`Routing to town sign at (${tgt.x},${tgt.y})…`, "info");
+            const path = (typeof window.GameAPI.routeToTown === "function") ? window.GameAPI.routeToTown(tgt.x, tgt.y) : [];
+            for (const step of path.slice(0, 40)) {
+              const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+              const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(120);
+            }
+            key("KeyG"); // interact with sign
+            await sleep(250);
+            log("Checked town sign.", "info");
+          } else {
+            log("No town signs found in props; skipping sign check.", "warn");
+          }
+        } catch (e) {
+          log("Sign check error: " + (e && e.message ? e.message : String(e)), "bad");
+        }
+
+        // Step 11: open GOD and run town checks (home routes and inn)
         clickById("god-open-btn");
         await sleep(250);
         clickById("god-check-home-btn");
@@ -223,7 +271,7 @@
         log("Not in town; skipping NPC bump and town checks.", "warn");
       }
 
-      // Step 11: Diagnostics
+      // Step 12: Diagnostics
       clickById("god-open-btn");
       await sleep(250);
       clickById("god-diagnostics-btn");
