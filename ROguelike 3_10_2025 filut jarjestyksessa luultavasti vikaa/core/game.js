@@ -2361,6 +2361,7 @@
       getWorld: () => world,
       getPlayer: () => ({ x: player.x, y: player.y }),
       moveStep: (dx, dy) => { tryMovePlayer(dx, dy); },
+      // Overworld helpers
       isWalkableOverworld: (x, y) => {
         if (!world || !world.map) return false;
         const t = world.map[y] && world.map[y][x];
@@ -2373,6 +2374,16 @@
         for (const d of world.dungeons) {
           const dd = Math.abs(d.x - sx) + Math.abs(d.y - sy);
           if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+        }
+        return best;
+      },
+      nearestTown: () => {
+        if (!world || !Array.isArray(world.towns) || world.towns.length === 0) return null;
+        const sx = player.x, sy = player.y;
+        let best = null, bestD = Infinity;
+        for (const t of world.towns) {
+          const dd = Math.abs(t.x - sx) + Math.abs(t.y - sy);
+          if (dd < bestD) { bestD = dd; best = { x: t.x, y: t.y }; }
         }
         return best;
       },
@@ -2426,11 +2437,27 @@
         }
         return true;
       },
-      // Dungeon helpers for smoke test
+      gotoNearestTown: async () => {
+        const target = window.GameAPI.nearestTown();
+        if (!target) { return true; }
+        const path = window.GameAPI.routeTo(target.x, target.y);
+        if (!path || !path.length) { return false; }
+        for (const step of path) {
+          const dx = Math.sign(step.x - player.x);
+          const dy = Math.sign(step.y - player.y);
+          try { window.GameAPI.moveStep(dx, dy); } catch (_) {}
+          await new Promise(r => setTimeout(r, 60));
+        }
+        return true;
+      },
+      // Current map pathing helpers (town/dungeon)
       getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type })),
+      getNPCs: () => (Array.isArray(npcs) ? npcs.map(n => ({ x: n.x, y: n.y, name: n.name })) : []),
+      getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
+      getDungeonExit: () => (dungeonExitAt ? { x: dungeonExitAt.x, y: dungeonExitAt.y } : null),
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
       routeToDungeon: (tx, ty) => {
-        // BFS on current dungeon map
+        // BFS on current map (works for both town and dungeon as it uses isWalkable)
         const w = map[0] ? map[0].length : 0;
         const h = map.length;
         if (w === 0 || h === 0) return [];
