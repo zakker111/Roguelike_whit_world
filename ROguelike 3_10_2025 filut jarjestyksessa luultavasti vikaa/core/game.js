@@ -1494,6 +1494,22 @@
           const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
           const li = randInt(0, lines.length - 1);
           log(`${npc.name || "Villager"}: ${lines[li]}`, "info");
+
+          // Heuristic: if NPC is at/near a shop door, open a simple shop UI to buy potions and gear
+          try {
+            const nearShop = (() => {
+              if (!Array.isArray(shops)) return false;
+              for (const s of shops) {
+                const d = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
+                if (d <= 1) return true;
+              }
+              return false;
+            })();
+            if (nearShop) {
+              openShopFor(npc);
+            }
+          } catch (_) {}
+
           requestDraw();
         } else {
           log("Excuse me!", "info");
@@ -1673,6 +1689,141 @@
     const wasHidden = panel.hidden === true;
     panel.hidden = true;
     if (!wasHidden) requestDraw();
+  }
+
+  // ---------------- Simple Shop UI (fallback) ----------------
+  let currentShopStock = null; // [{item, price}]
+  function priceFor(item) {
+    if (!item) return 10;
+    if (item.kind === "potion") {
+      const h = item.heal != null ? item.heal : 5;
+      return Math.max(5, Math.min(50, Math.round(h * 2)));
+    }
+    const base = (item.atk || 0) * 10 + (item.def || 0) * 10;
+    const tier = (item.tier || 1);
+    return Math.max(15, Math.round(base + tier * 15));
+  }
+  function cloneItem(it) {
+    try { return JSON.parse(JSON.stringify(it)); } catch (_) {}
+    return Object.assign({}, it);
+  }
+  function ensureShopPanel() {
+    let el = document.getElementById("shop-panel");
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "shop-panel";
+    el.style.position = "fixed";
+    el.style.left = "50%";
+    el.style.top = "50%";
+    el.style.transform = "translate(-50%,-50%)";
+    el.style.zIndex = "9998";
+    el.style.minWidth = "300px";
+    el.style.maxWidth = "520px";
+    el.style.maxHeight = "60vh";
+    el.style.overflow = "auto";
+    el.style.padding = "12px";
+    el.style.background = "rgba(14, 18, 28, 0.95)";
+    el.style.color = "#e5e7eb";
+    el.style.border = "1px solid #334155";
+    el.style.borderRadius = "8px";
+    el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong>Shop</strong>
+        <button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button>
+      </div>
+      <div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div>
+      <div id="shop-list"></div>
+    `;
+    document.body.appendChild(el);
+    const btn = el.querySelector("#shop-close-btn");
+    if (btn) btn.onclick = () => hideShopPanel();
+    return el;
+  }
+  function renderShopPanel() {
+    const el = ensureShopPanel();
+    el.hidden = false;
+    const goldDiv = el.querySelector("#shop-gold");
+    const listDiv = el.querySelector("#shop-list");
+    const gold = (player.inventory.find(i => i && i.kind === "gold")?.amount) || 0;
+    if (goldDiv) goldDiv.textContent = `Gold: ${gold}`;
+    if (!listDiv) return;
+    if (!Array.isArray(currentShopStock) || currentShopStock.length === 0) {
+      listDiv.innerHTML = `<div style="color:#94a3b8;">No items for sale.</div>`;
+      return;
+    }
+    listDiv.innerHTML = currentShopStock.map((row, idx) => {
+      const name = describeItem(row.item) || "item";
+      const p = row.price | 0;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">
+        <div>${name} — <span style="color:#93c5fd;">${p}g</span></div>
+        <button data-idx="${idx}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Buy</button>
+      </div>`;
+    }).join("");
+    // Attach handlers
+    Array.from(listDiv.querySelectorAll("button[data-idx]")).forEach(btn => {
+      btn.onclick = () => {
+        const i = Number(btn.getAttribute("data-idx") || -1);
+        shopBuyIndex(i);
+      };
+    });
+  }
+  function hideShopPanel() {
+    const el = document.getElementById("shop-panel");
+    if (el) el.hidden = true;
+    requestDraw();
+  }
+  function openShopFor(npc) {
+    // Generate a small stock list
+    const stock = [];
+    // A couple of potions
+    stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
+    stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
+    // Some equipment via Items if available
+    try {
+      if (window.Items && typeof Items.createEquipment === "function") {
+        const t1 = Items.createEquipment(1, rng);
+        const t2 = Items.createEquipment(2, rng);
+        if (t1) stock.push({ item: t1, price: priceFor(t1) });
+        if (t2) stock.push({ item: t2, price: priceFor(t2) });
+      } else {
+        // fallback simple gear
+        const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: initialDecay(1) };
+        const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: initialDecay(1) };
+        stock.push({ item: s, price: priceFor(s) });
+        stock.push({ item: a, price: priceFor(a) });
+      }
+    } catch (_) {}
+    currentShopStock = stock;
+    renderShopPanel();
+  }
+  function shopBuyIndex(idx) {
+    if (!Array.isArray(currentShopStock) || idx < 0 || idx >= currentShopStock.length) return;
+    const row = currentShopStock[idx];
+    const cost = row.price | 0;
+    let goldObj = player.inventory.find(i => i && i.kind === "gold");
+    const cur = goldObj && typeof goldObj.amount === "number" ? goldObj.amount : 0;
+    if (cur < cost) {
+      log("You don't have enough gold.", "warn");
+      renderShopPanel();
+      return;
+    }
+    const copy = cloneItem(row.item);
+    // Deduct gold and add item
+    if (!goldObj) { goldObj = { kind: "gold", amount: 0, name: "gold" }; player.inventory.push(goldObj); }
+    goldObj.amount = (goldObj.amount | 0) - cost;
+    if (copy.kind === "potion") {
+      // Merge same potions
+      const same = player.inventory.find(i => i && i.kind === "potion" && (i.heal ?? 0) === (copy.heal ?? 0));
+      if (same) same.count = (same.count || 1) + (copy.count || 1);
+      else player.inventory.push(copy);
+    } else {
+      player.inventory.push(copy);
+    }
+    updateUI();
+    renderInventoryPanel();
+    log(`You bought ${describeItem(copy)} for ${cost} gold.`, "good");
+    renderShopPanel();
   }
 
   // GOD mode actions
@@ -2361,6 +2512,7 @@
       getWorld: () => world,
       getPlayer: () => ({ x: player.x, y: player.y }),
       moveStep: (dx, dy) => { tryMovePlayer(dx, dy); },
+      // Overworld helpers
       isWalkableOverworld: (x, y) => {
         if (!world || !world.map) return false;
         const t = world.map[y] && world.map[y][x];
@@ -2373,6 +2525,16 @@
         for (const d of world.dungeons) {
           const dd = Math.abs(d.x - sx) + Math.abs(d.y - sy);
           if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+        }
+        return best;
+      },
+      nearestTown: () => {
+        if (!world || !Array.isArray(world.towns) || world.towns.length === 0) return null;
+        const sx = player.x, sy = player.y;
+        let best = null, bestD = Infinity;
+        for (const t of world.towns) {
+          const dd = Math.abs(t.x - sx) + Math.abs(t.y - sy);
+          if (dd < bestD) { bestD = dd; best = { x: t.x, y: t.y }; }
         }
         return best;
       },
@@ -2426,11 +2588,160 @@
         }
         return true;
       },
-      // Dungeon helpers for smoke test
+      gotoNearestTown: async () => {
+        const target = window.GameAPI.nearestTown();
+        if (!target) { return true; }
+        const path = window.GameAPI.routeTo(target.x, target.y);
+        if (!path || !path.length) { return false; }
+        for (const step of path) {
+          const dx = Math.sign(step.x - player.x);
+          const dy = Math.sign(step.y - player.y);
+          try { window.GameAPI.moveStep(dx, dy); } catch (_) {}
+          await new Promise(r => setTimeout(r, 60));
+        }
+        return true;
+      },
+      enterTownIfOnTile: () => {
+        try {
+          if (window.Modes && typeof Modes.enterTownIfOnTile === "function") {
+            return !!Modes.enterTownIfOnTile(getCtx());
+          }
+        } catch (_) {}
+        return false;
+      },
+      // Current map pathing helpers (town/dungeon)
       getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type })),
+      // Include index so runner can correlate to NPC internals when needed
+      getNPCs: () => (Array.isArray(npcs) ? npcs.map((n, i) => ({ i, x: n.x, y: n.y, name: n.name })) : []),
+      getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
+      getDungeonExit: () => (dungeonExitAt ? { x: dungeonExitAt.x, y: dungeonExitAt.y } : null),
+      getCorpses: () => (Array.isArray(corpses) ? corpses.map(c => ({ kind: c.kind || "corpse", x: c.x, y: c.y, looted: !!c.looted, lootCount: Array.isArray(c.loot) ? c.loot.length : 0 })) : []),
+      getChestsDetailed: () => {
+        if (!Array.isArray(corpses)) return [];
+        const list = [];
+        for (const c of corpses) {
+          if (c && c.kind === "chest") {
+            const items = Array.isArray(c.loot) ? c.loot : [];
+            const names = items.map(it => {
+              if (!it) return "(null)";
+              if (it.name) return it.name;
+              if (it.kind === "equip") {
+                const stats = [];
+                if (typeof it.atk === "number") stats.push(`+${it.atk} atk`);
+                if (typeof it.def === "number") stats.push(`+${it.def} def`);
+                return `${it.slot || "equip"}${stats.length ? ` (${stats.join(", ")})` : ""}`;
+              }
+              if (it.kind === "potion") return it.name || "potion";
+              return it.kind || "item";
+            });
+            list.push({ x: c.x, y: c.y, items: names });
+          }
+        }
+        return list;
+      },
+      getInventory: () => (Array.isArray(player.inventory) ? player.inventory.map((it, i) => ({ i, kind: it.kind, slot: it.slot, name: it.name, atk: it.atk, def: it.def, decay: it.decay, count: it.count })) : []),
+      getEquipment: () => {
+        const eq = player.equipment || {};
+        function info(it) { return it ? { name: it.name, slot: it.slot, atk: it.atk, def: it.def, decay: it.decay, twoHanded: !!it.twoHanded } : null; }
+        return { left: info(eq.left), right: info(eq.right), head: info(eq.head), torso: info(eq.torso), legs: info(eq.legs), hands: info(eq.hands) };
+      },
+      equipItemAtIndex: (idx) => { try { equipItemByIndex(idx|0); return true; } catch(_) { return false; } },
+      unequipSlot: (slot) => { try { unequipSlot(String(slot)); return true; } catch(_) { return false; } },
+      getGold: () => {
+        try {
+          const g = player.inventory.find(i => i && i.kind === "gold");
+          return g && typeof g.amount === "number" ? g.amount : 0;
+        } catch(_) { return 0; }
+      },
+      addGold: (amt) => {
+        try {
+          const amount = Number(amt) || 0;
+          if (amount <= 0) return false;
+          let g = player.inventory.find(i => i && i.kind === "gold");
+          if (!g) { g = { kind: "gold", amount: 0, name: "gold" }; player.inventory.push(g); }
+          g.amount += amount;
+          updateUI(); renderInventoryPanel();
+          return true;
+        } catch(_) { return false; }
+      },
+      removeGold: (amt) => {
+        try {
+          const amount = Number(amt) || 0;
+          if (amount <= 0) return true;
+          let g = player.inventory.find(i => i && i.kind === "gold");
+          if (!g) return false;
+          g.amount = Math.max(0, (g.amount|0) - amount);
+          updateUI(); renderInventoryPanel();
+          return true;
+        } catch(_) { return false; }
+      },
+      // Debug helpers for town buildings/props
+      getNPCHomeByIndex: (idx) => {
+        try {
+          if (!Array.isArray(npcs) || idx < 0 || idx >= npcs.length) return null;
+          const n = npcs[idx];
+          const b = n && n._home && n._home.building ? n._home.building : null;
+          if (!b) return null;
+          const propsIn = (Array.isArray(townProps) ? townProps.filter(p => (p.x > b.x && p.x < b.x + b.w - 1 && p.y > b.y && p.y < b.y + b.h - 1)) : []).map(p => ({ x: p.x, y: p.y, type: p.type || "" }));
+          return { building: { x: b.x, y: b.y, w: b.w, h: b.h, door: b.door ? { x: b.door.x, y: b.door.y } : null }, props: propsIn };
+        } catch (_) { return null; }
+      },
+      equipBestFromInventory: () => {
+        // Try to equip any better items from inventory using existing helper; return names equipped
+        const equipped = [];
+        if (!Array.isArray(player.inventory) || player.inventory.length === 0) return equipped;
+        // Iterate a snapshot since equip may mutate inventory
+        const snap = player.inventory.slice(0);
+        for (const it of snap) {
+          if (it && it.kind === "equip") {
+            if (equipIfBetter(it)) {
+              // Remove equipped item from inventory snapshot? equipIfBetter does not mutate inventory by default; ensure no duping
+              // Best-effort: if inventory still contains same object, remove one instance
+              const idx = player.inventory.indexOf(it);
+              if (idx !== -1) player.inventory.splice(idx, 1);
+              equipped.push(it.name || "equip");
+            }
+          }
+        }
+        return equipped;
+      },
+      // Shops/time/perf helpers for test runner
+      getShops: () => (Array.isArray(shops) ? shops.map(s => ({ x: s.x, y: s.y, name: s.name || "", alwaysOpen: !!s.alwaysOpen, openMin: s.openMin, closeMin: s.closeMin })) : []),
+      isShopOpenNowFor: (shop) => {
+        try { return isShopOpenNow(shop); } catch (_) { return false; }
+      },
+      getShopSchedule: (shop) => {
+        try { return shopScheduleStr(shop); } catch (_) { return ""; }
+      },
+      // Town home route diagnostic (programmatic access for smoke tests)
+      checkHomeRoutes: () => {
+        try {
+          if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
+            return TownAI.checkHomeRoutes(getCtx()) || null;
+          }
+        } catch (_) {}
+        return null;
+      },
+      getClock: () => getClock(),
+      restUntilMorning: () => { try { restUntilMorning(); } catch (_) {} },
+      restAtInn: () => { try { restAtInn(); } catch (_) {} },
+      getPerf: () => {
+        try { return { lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }; } catch (_) { return { lastTurnMs: 0, lastDrawMs: 0 }; }
+      },
+      getDecalsCount: () => Array.isArray(decals) ? decals.length : 0,
+      returnToWorldIfAtExit: () => {
+        try {
+          return !!returnToWorldIfAtExit();
+        } catch(_) { return false; }
+      },
+      enterDungeonIfOnEntrance: () => {
+        try {
+          return !!enterDungeonIfOnEntrance();
+        } catch(_) { return false; }
+      },
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
       routeToDungeon: (tx, ty) => {
-        // BFS on current dungeon map
+        // BFS on current map (works for both town and dungeon as it uses isWalkable)
         const w = map[0] ? map[0].length : 0;
         const h = map.length;
         if (w === 0 || h === 0) return [];

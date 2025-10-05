@@ -66,6 +66,9 @@
       this.els.godCheckHomeBtn = document.getElementById("god-check-home-btn");
       // Check Inn/Tavern button
       this.els.godCheckInnTavernBtn = document.getElementById("god-check-inn-tavern-btn");
+      // Smoke test run count
+      this.els.godSmokeCount = document.getElementById("god-smoke-count");
+      
 
       // transient hand-chooser element
       this.els.handChooser = document.createElement("div");
@@ -184,22 +187,46 @@
       });
       const smokeBtn = document.getElementById("god-run-smoke-btn");
       smokeBtn?.addEventListener("click", () => {
+        const countRaw = (this.els.godSmokeCount && this.els.godSmokeCount.value) ? this.els.godSmokeCount.value.trim() : "1";
+        const count = Math.max(1, Math.min(20, parseInt(countRaw, 10) || 1));
+        // If the runner is already loaded, run in-page to allow reporting into GOD panel
+        if (window.SmokeTest && typeof window.SmokeTest.runSeries === "function") {
+          try {
+            // Ensure the GOD panel is visible for live reporting
+            this.showGod();
+          } catch (_) {}
+          window.SmokeTest.runSeries(count);
+          return;
+        }
+        // Otherwise, reload with params to autoload the runner
         if (typeof this.handlers.onGodRunSmokeTest === "function") {
-          this.handlers.onGodRunSmokeTest();
-        } else {
-          // Fallback: reload with smoketest=1 to trigger loader auto-run
+          // Pass desired count via URL params
           try {
             const url = new URL(window.location.href);
             url.searchParams.set("smoketest", "1");
+            url.searchParams.set("smokecount", String(count));
+            if (window.DEV || localStorage.getItem("DEV") === "1") {
+              url.searchParams.set("dev", "1");
+            }
+            window.location.href = url.toString();
+          } catch (_) {
+            window.location.search = `?smoketest=1&smokecount=${encodeURIComponent(String(count))}`;
+          }
+        } else {
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set("smoketest", "1");
+            url.searchParams.set("smokecount", String(count));
             if (window.DEV || localStorage.getItem("DEV") === "1") {
               url.searchParams.set("dev", "1");
             }
             window.location.assign(url.toString());
           } catch (e) {
-            window.location.search = "?smoketest=1";
+            window.location.search = `?smoketest=1&smokecount=${encodeURIComponent(String(count))}`;
           }
         }
       });
+      
       if (this.els.godFov) {
         const updateFov = () => {
           const val = parseInt(this.els.godFov.value, 10);
