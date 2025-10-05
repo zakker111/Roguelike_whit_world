@@ -3,7 +3,18 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
-  const RUNNER_VERSION = "1.2.0";
+  const RUNNER_VERSION = "1.3.0";
+  const CONFIG = {
+    timeouts: {
+      route: 5000,       // ms budget for any routing/path-following sequence
+      interact: 2500,    // ms budget for local interactions (loot/G/use)
+      battle: 5000,      // ms budget for short combat burst
+    },
+    perfBudget: {
+      turnMs: 6.0,       // soft target per-turn
+      drawMs: 12.0       // soft target per-draw
+    }
+  };
 
   // Global collection of console/browser errors during smoke test runs
   const ConsoleCapture = {
@@ -139,6 +150,16 @@
       // re-ensure status element stays visible at top after overwrite
       ensureStatusEl();
     } catch (_) {}
+  }
+
+  // Budget helpers
+  function makeBudget(ms) {
+    const start = Date.now();
+    const deadline = start + Math.max(0, ms | 0);
+    return {
+      exceeded: () => Date.now() > deadline,
+      remain: () => Math.max(0, deadline - Date.now())
+    };
   }
 
   function appendToPanel(html) {
@@ -355,14 +376,17 @@
             const chest = corpses.find(c => c.kind === "chest");
             if (chest) {
               const pathC = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(chest.x, chest.y) : [];
+              const budget = makeBudget(CONFIG.timeouts.route);
               for (const step of pathC) {
+                if (budget.exceeded()) { recordSkip("Routing to chest timed out"); break; }
                 const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
                 const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
                 key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                 await sleep(110);
               }
+              const ib = makeBudget(CONFIG.timeouts.interact);
               key("KeyG"); // open/loot chest
-              await sleep(250);
+              await sleep(Math.min(ib.remain(), 250));
               record(true, `Looted chest at (${chest.x},${chest.y})`);
             } else {
               record(true, "No chest found in dungeon (skipping chest loot)");
@@ -410,14 +434,18 @@
               if (d < bestD) { best = e; bestD = d; }
             }
             const path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
+            const budget = makeBudget(CONFIG.timeouts.route);
             for (const step of path) {
+              if (budget.exceeded()) { recordSkip("Routing to enemy timed out"); break; }
               const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
               const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(110);
             }
             // Do a few bumps to attack
+            const bb = makeBudget(CONFIG.timeouts.battle);
             for (let t = 0; t < 3; t++) {
+              if (bb.exceeded()) { recordSkip("Combat burst timed out"); break; }
               const dx = Math.sign(best.x - window.GameAPI.getPlayer().x);
               const dy = Math.sign(best.y - window.GameAPI.getPlayer().y);
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
@@ -541,11 +569,15 @@
                 // Route to door, then to a prop (or interior) and press G
                 const door = b.door || { x: b.x + Math.floor(b.w / 2), y: b.y };
                 let pathDoor = window.GameAPI.routeToDungeon(door.x, door.y);
-                for (const step of pathDoor) {
-                  const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                  const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                  await sleep(100);
+                {
+                  const budget = makeBudget(CONFIG.timeouts.route);
+                  for (const step of pathDoor) {
+                    if (budget.exceeded()) { recordSkip("Routing to NPC home door timed out"); break; }
+                    const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(100);
+                  }
                 }
                 // Pick a target inside: either a prop tile or adjacent to it
                 let target = null;
@@ -565,7 +597,9 @@
                   target = { path: route, interact: null };
                 }
                 if (target && target.path) {
+                  const budget = makeBudget(CONFIG.timeouts.route);
                   for (const step of target.path) {
+                    if (budget.exceeded()) { recordSkip("Routing inside NPC home timed out"); break; }
                     const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
                     const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
@@ -573,8 +607,9 @@
                   }
                   if (target.interact) {
                     // Press G to attempt interaction with the decoration/prop
+                    const ib = makeBudget(CONFIG.timeouts.interact);
                     key("KeyG");
-                    await sleep(160);
+                    await sleep(Math.min(ib.remain(), 160));
                     record(true, "Interacted inside NPC home (prop/decoration)");
                   } else {
                     record(true, "Reached inside NPC home");
@@ -604,16 +639,19 @@
                 if (d < bestD) { best = p; bestD = d; }
               }
               const path = window.GameAPI.routeToDungeon(best.x, best.y);
-              for (const step of path) {
-                const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(110);
-              }
-              // press G to interact with decoration
-              key("KeyG");
-              await sleep(220);
-              record(true, "Interacted with nearby decoration/prop (G)");
+            const budget = makeBudget(CONFIG.timeouts.route);
+            for (const step of path) {
+              if (budget.exceeded()) { recordSkip("Routing to town prop timed out"); break; }
+              const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+              const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(110);
+            }
+            // press G to interact with decoration
+            const ib = makeBudget(CONFIG.timeouts.interact);
+            key("KeyG");
+            await sleep(Math.min(ib.remain(), 220));
+            record(true, "Interacted with nearby decoration/prop (G)");
             } else {
               record(true, "No town decorations/props reported");
             }
@@ -795,11 +833,19 @@
       totalSkippedSteps += Array.isArray(r.skipped) ? r.skipped.length : 0;
     }
 
+    // Perf budget warnings
+    const perfWarnings = [];
+    const aTurn = parseFloat(avgTurn);
+    const aDraw = parseFloat(avgDraw);
+    if (aTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg turn ${avgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
+    if (aDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
+
     const summary = [
       `<div><strong>Smoke Test Summary:</strong></div>`,
       `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${fail ? "#ef4444" : "#86efac"};">${fail}</span></div>`,
       `<div>Checks: passed ${totalPassedSteps}, failed <span style="color:${totalFailedSteps ? "#ef4444" : "#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
       `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
+      perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
       n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
       n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
