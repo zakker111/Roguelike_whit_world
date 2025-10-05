@@ -2287,51 +2287,6 @@
               window.location.search = "?smoketest=1";
             }
           },
-          onGodPlayerDeploy: () => {
-            // Minimal in-page automation to place the player into a dungeon without reload
-            const run = async () => {
-              try {
-                log("PlayerDeploy: starting…", "notice");
-                // Close GOD panel for unobstructed view
-                try { if (window.UI && UI.hideGod) UI.hideGod(); } catch (_) {}
-                // Ensure we're in the overworld
-                if (mode !== "world") {
-                  initWorld();
-                  await new Promise(r => setTimeout(r, 200));
-                }
-                // Auto-route to nearest dungeon entrance, then enter
-                if (window.GameAPI && typeof window.GameAPI.gotoNearestDungeon === "function") {
-                  const ok = await window.GameAPI.gotoNearestDungeon();
-                  if (!ok) log("PlayerDeploy: auto-route failed, attempting manual entry.", "warn");
-                }
-                // Try entering the dungeon now
-                enterDungeonIfOnEntrance();
-                await new Promise(r => setTimeout(r, 200));
-                if (mode !== "dungeon") {
-                  // Try pressing descend action (Enter mapping differs; use doAction path)
-                  enterDungeonIfOnEntrance();
-                }
-                if (mode === "dungeon") {
-                  log("PlayerDeploy: entered dungeon.", "good");
-                  // Spawn a nearby test enemy for immediate interaction
-                  godSpawnEnemyNearby(1);
-                  requestDraw();
-                } else {
-                  log("PlayerDeploy: not in dungeon (couldn't enter). Move onto 'D' and press Enter.", "warn");
-                }
-                // Final diagnostics for context
-                try {
-                  const ctx = getCtx();
-                  const seedStr = (typeof currentSeed === "number") ? String(currentSeed >>> 0) : "(random)";
-                  log(`[PlayerDeploy] Mode=${mode} Floor=${floor} Seed=${seedStr}`, "info");
-                } catch (_) {}
-              } catch (e) {
-                try { console.error(e); } catch (_) {}
-                log("PlayerDeploy failed: " + (e && e.message ? e.message : String(e)), "bad");
-              }
-            };
-            run();
-          },
         });
       }
     }
