@@ -3,6 +3,8 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
+  const RUNNER_VERSION = "1.2.0";
+
   // Global collection of console/browser errors during smoke test runs
   const ConsoleCapture = {
     errors: [],
@@ -146,6 +148,49 @@
     } catch (_) {}
   }
 
+  // Capability detection for future-proofing
+  function detectCaps() {
+    const caps = {};
+    try {
+      caps.GameAPI = !!window.GameAPI;
+      const api = window.GameAPI || {};
+      caps.getMode = typeof api.getMode === "function";
+      caps.getEnemies = typeof api.getEnemies === "function";
+      caps.getTownProps = typeof api.getTownProps === "function";
+      caps.getNPCs = typeof api.getNPCs === "function";
+      caps.routeToDungeon = typeof api.routeToDungeon === "function";
+      caps.gotoNearestDungeon = typeof api.gotoNearestDungeon === "function";
+      caps.gotoNearestTown = typeof api.gotoNearestTown === "function";
+      caps.getChestsDetailed = typeof api.getChestsDetailed === "function";
+      caps.getDungeonExit = typeof api.getDungeonExit === "function";
+      caps.checkHomeRoutes = typeof api.checkHomeRoutes === "function";
+      caps.getShops = typeof api.getShops === "function";
+      caps.isShopOpenNowFor = typeof api.isShopOpenNowFor === "function";
+      caps.getShopSchedule = typeof api.getShopSchedule === "function";
+    } catch (_) {}
+    return caps;
+  }
+
+  // Safe element access
+  function hasEl(id) {
+    return !!document.getElementById(id);
+  }
+  function safeClick(id) {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    try { el.click(); return true; } catch (_) { return false; }
+  }
+  function safeSetInput(id, v) {
+    const el = document.getElementById(id);
+    if (!el) return false;
+    try {
+      el.value = String(v);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    } catch (_) { return false; }
+  }
+
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -177,11 +222,17 @@
   async function runOnce(seedOverride) {
     const steps = [];
     const errors = [];
-    const runMeta = { console: null, determinism: {}, seed: null };
+    const skipped = [];
+    const runMeta = { console: null, determinism: {}, seed: null, caps: detectCaps(), runnerVersion: RUNNER_VERSION };
     const record = (ok, msg) => {
       steps.push({ ok, msg });
       if (!ok) errors.push(msg);
       log((ok ? "OK: " : "ERR: ") + msg, ok ? "good" : "bad");
+    };
+    const recordSkip = (msg) => {
+      skipped.push(msg);
+      steps.push({ ok: true, skipped: true, msg });
+      log("SKIP: " + msg, "info");
     };
 
     try {
@@ -191,8 +242,11 @@
       // Step 1: open GOD panel
       try {
         await sleep(250);
-        clickById("god-open-btn");
-        record(true, "Opened GOD panel");
+        if (safeClick("god-open-btn")) {
+          record(true, "Opened GOD panel");
+        } else {
+          recordSkip("GOD open button not present");
+        }
       } catch (e) {
         record(false, "Open GOD panel: " + (e && e.message ? e.message : String(e)));
       }
@@ -202,9 +256,13 @@
       try {
         const seed = (typeof seedOverride === "number" && isFinite(seedOverride)) ? (seedOverride >>> 0) : ((Date.now() % 0xffffffff) >>> 0);
         runMeta.seed = seed;
-        setInputValue("god-seed-input", seed);
-        clickById("god-apply-seed-btn");
-        record(true, `Applied seed ${seed}`);
+        const okIn = safeSetInput("god-seed-input", seed);
+        const okBtn = safeClick("god-apply-seed-btn");
+        if (okIn && okBtn) {
+          record(true, `Applied seed ${seed}`);
+        } else {
+          recordSkip("Seed controls not present; skipping seed apply");
+        }
       } catch (e) {
         record(false, "Apply seed failed: " + (e && e.message ? e.message : String(e)));
       }
@@ -325,10 +383,16 @@
           }
 
           // 9c: spawn an enemy, record pre-decay, attack, compare decay
-          clickById("god-open-btn");
-          await sleep(200);
-          clickById("god-spawn-enemy-btn");
-          record(true, "Spawned test enemy in dungeon");
+          if (safeClick("god-open-btn")) {
+            await sleep(200);
+            if (safeClick("god-spawn-enemy-btn")) {
+              record(true, "Spawned test enemy in dungeon");
+            } else {
+              recordSkip("Spawn enemy button not present");
+            }
+          } else {
+            recordSkip("GOD open button not present (spawn)");
+          }
           await sleep(200);
           key("Escape");
           await sleep(120);
@@ -561,9 +625,16 @@
 
       // Diagnostics + shop schedule/time check
       try {
-        clickById("god-open-btn");
-        await sleep(250);
-        clickById("god-diagnostics-btn");
+        if (safeClick("god-open-btn")) {
+          await sleep(250);
+          if (safeClick("god-diagnostics-btn")) {
+            // ok
+          } else {
+            recordSkip("Diagnostics button not present");
+          }
+        } else {
+          recordSkip("GOD open button not present (diagnostics)");
+        }
         await sleep(250);
         // If in town, run extra diagnostics: shops + home routes
         if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town") {
@@ -617,8 +688,13 @@
       const failedSteps = steps.filter(s => !s.ok).map(s => s.msg);
 
       // Report into GOD panel
-      const detailsHtml = steps.map(s => `<div style="color:${s.ok ? "#86efac" : "#fca5a5"};">${s.ok ? "✔" : "✖"} ${s.msg}</div>`).join("");
+      const detailsHtml = steps.map(s => {
+        const color = s.ok ? (s.skipped ? "#fde68a" : "#86efac") : "#fca5a5";
+        const mark = s.ok ? (s.skipped ? "⏭" : "✔") : "✖";
+        return `<div style="color:${color};">${mark} ${s.msg}</div>`;
+      }).join("");
       const passedHtml = passedSteps.length ? (`<div style="margin-top:6px;"><strong>Passed (${passedSteps.length}):</strong></div>` + passedSteps.map(m => `<div style="color:#86efac;">• ${m}</div>`).join("")) : "";
+      const skippedHtml = skipped.length ? (`<div style="margin-top:6px;"><strong>Skipped (${skipped.length}):</strong></div>` + skipped.map(m => `<div style="color:#fde68a;">• ${m}</div>`).join("")) : "";
       const extraErrors = []
         .concat((runMeta.console.consoleErrors || []).map(m => `console.error: ${m}`))
         .concat((runMeta.console.windowErrors || []).map(m => `window: ${m}`))
@@ -629,17 +705,21 @@
           errors.map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") +
           (extraErrors.length ? `<div style="color:#f87171; margin-top:4px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 8).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
         : "";
+      const caps = runMeta.caps || {};
+      const capsLine = Object.keys(caps).length ? `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION} | Caps: ${Object.keys(caps).filter(k => caps[k]).join(", ")}</div>` : `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`;
       const html = [
         `<div><strong>Smoke Test Result:</strong> ${ok ? "PASS" : "PARTIAL/FAIL"}</div>`,
         `<div>Steps: ${steps.length}  Errors: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>`,
+        capsLine,
         issuesHtml,
         passedHtml,
+        skippedHtml,
         `<div style="margin-top:6px;"><strong>Details</strong></div>`,
         detailsHtml,
       ].join("");
       panelReport(html);
 
-      return { ok, steps, errors, passedSteps, failedSteps, console: runMeta.console, determinism: runMeta.determinism };
+      return { ok, steps, errors, passedSteps, failedSteps, skipped, console: runMeta.console, determinism: runMeta.determinism, seed: runMeta.seed, caps: runMeta.caps, runnerVersion: RUNNER_VERSION };
     } catch (err) {
       log("Smoke test failed: " + (err && err.message ? err.message : String(err)), "bad");
       try { console.error(err); } catch (_) {}
@@ -704,20 +784,22 @@
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)).toFixed(2) : "0.00";
 
     // Aggregate step counts
-    let totalPassedSteps = 0, totalFailedSteps = 0;
+    let totalPassedSteps = 0, totalFailedSteps = 0, totalSkippedSteps = 0;
     for (const r of all) {
       totalPassedSteps += Array.isArray(r.passedSteps) ? r.passedSteps.length : 0;
       totalFailedSteps += Array.isArray(r.failedSteps) ? r.failedSteps.length : 0;
+      totalSkippedSteps += Array.isArray(r.skipped) ? r.skipped.length : 0;
     }
 
     const summary = [
       `<div><strong>Smoke Test Summary:</strong></div>`,
       `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${fail ? "#ef4444" : "#86efac"};">${fail}</span></div>`,
-      `<div>Checks: passed ${totalPassedSteps}, failed <span style="color:${totalFailedSteps ? "#ef4444" : "#86efac"};">${totalFailedSteps}</span></div>`,
+      `<div>Checks: passed ${totalPassedSteps}, failed <span style="color:${totalFailedSteps ? "#ef4444" : "#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
       `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
       n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
       n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
       n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
+      `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
       fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
     ].join("");
     panelReport(summary);
@@ -726,9 +808,10 @@
     // Provide export button for JSON report
     try {
       const report = {
+        runnerVersion: RUNNER_VERSION,
         runs: n,
         pass, fail,
-        totalPassedSteps, totalFailedSteps,
+        totalPassedSteps, totalFailedSteps, totalSkippedSteps,
         avgTurnMs: Number(avgTurn),
         avgDrawMs: Number(avgDraw),
         seeds,
@@ -762,7 +845,7 @@
       }, 0);
     } catch (_) {}
 
-    return { pass, fail, results: all, totalPassedSteps, totalFailedSteps, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), seeds, determinism: det };
+    return { pass, fail, results: all, totalPassedSteps, totalFailedSteps, totalSkippedSteps, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), seeds, determinism: det, runnerVersion: RUNNER_VERSION };
   }
 
   // Expose a global trigger
