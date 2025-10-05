@@ -421,11 +421,18 @@
       log(ok ? "Smoke test completed." : "Smoke test completed with errors.", ok ? "good" : "warn");
 
       // Report into GOD panel
+      const detailsHtml = steps.map(s => `<div style="color:${s.ok ? "#86efac" : "#fca5a5"};">${s.ok ? "✔" : "✖"} ${s.msg}</div>`).join("");
+      const issuesHtml = errors.length
+        ? `<div style="margin-top:8px; color:#ef4444;"><strong>Issues (${errors.length}):</strong></div>` +
+          errors.map(e => `<div style="color:#f87171;">• ${e}</div>`).join("")
+        : "";
       const html = [
         `<div><strong>Smoke Test Result:</strong> ${ok ? "PASS" : "PARTIAL/FAIL"}</div>`,
-        `<div>Steps: ${steps.length}  Errors: ${errors.length}</div>`,
-        `<div style="margin-top:6px;"><strong>Details</strong></div>`
-      ].concat(steps.map(s => `<div style="color:${s.ok ? "#86efac" : "#fca5a5"};">${s.ok ? "✔" : "✖"} ${s.msg}</div>`)).join("");
+        `<div>Steps: ${steps.length}  Errors: <span style="color:${errors.length ? "#ef4444" : "#86efac"};">${errors.length}</span></div>`,
+        issuesHtml,
+        `<div style="margin-top:6px;"><strong>Details</strong></div>`,
+        detailsHtml,
+      ].join("");
       panelReport(html);
 
       return { ok, steps, errors };
@@ -480,9 +487,10 @@
 
     const summary = [
       `<div><strong>Smoke Test Summary:</strong></div>`,
-      `<div>Runs: ${n}  Pass: ${pass}  Fail: ${fail}</div>`,
+      `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${fail ? "#ef4444" : "#86efac"};">${fail}</span></div>`,
       `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
-      determinismSeed ? `<div>Determinism sample (first NPC|prop): ${determinismSeed}</div>` : ``
+      determinismSeed ? `<div>Determinism sample (first NPC|prop): ${determinismSeed}</div>` : ``,
+      fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
     ].join("");
     panelReport(summary);
     log(`Smoke test series done. Pass=${pass} Fail=${fail} AvgTurn=${avgTurn} AvgDraw=${avgDraw}`, fail === 0 ? "good" : "warn");
