@@ -525,15 +525,28 @@
         await sleep(250);
         clickById("god-diagnostics-btn");
         await sleep(250);
-        // If in town, check shops for schedule and open/closed state, attempt resting at inn
+        // If in town, run extra diagnostics: shops + home routes
         if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town") {
+          // Shops schedule check
           const shops = (typeof window.GameAPI.getShops === "function") ? window.GameAPI.getShops() : [];
           if (shops && shops.length) {
             const s0 = shops[0];
             const openNow = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : false;
             const sched = (typeof window.GameAPI.getShopSchedule === "function") ? window.GameAPI.getShopSchedule(s0) : "";
             record(true, `Shop check: ${s0.name || "Shop"} is ${openNow ? "OPEN" : "CLOSED"} (${sched})`);
-            // Try rest at inn if one found by name heuristic
+          } else {
+            record(true, "No shops available to check");
+          }
+          // Town home-routes check: verify there are residents
+          try {
+            const res = (typeof window.GameAPI.checkHomeRoutes === "function") ? window.GameAPI.checkHomeRoutes() : null;
+            const hasResidents = !!(res && res.residents && typeof res.residents.total === "number" && res.residents.total > 0);
+            record(hasResidents, `Home routes: residents ${hasResidents ? res.residents.total : 0}${res && typeof res.unreachable === "number" ? `, unreachable ${res.unreachable}` : ""}`);
+          } catch (e) {
+            record(false, "Home routes check failed: " + (e && e.message ? e.message : String(e)));
+          }
+          // Resting (advance time)
+          try {
             const inn = shops.find(s => (s.name || "").toLowerCase().includes("inn"));
             if (inn && typeof window.GameAPI.restAtInn === "function") {
               window.GameAPI.restAtInn();
@@ -542,8 +555,8 @@
               window.GameAPI.restUntilMorning();
               record(true, "Rested until morning");
             }
-          } else {
-            record(true, "No shops available to check");
+          } catch (e) {
+            record(false, "Resting failed: " + (e && e.message ? e.message : String(e)));
           }
         }
         record(true, "Ran Diagnostics");

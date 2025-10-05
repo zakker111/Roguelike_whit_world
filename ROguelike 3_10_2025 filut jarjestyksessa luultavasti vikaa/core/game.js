@@ -2524,6 +2524,15 @@
       getShopSchedule: (shop) => {
         try { return shopScheduleStr(shop); } catch (_) { return ""; }
       },
+      // Town home route diagnostic (programmatic access for smoke tests)
+      checkHomeRoutes: () => {
+        try {
+          if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
+            return TownAI.checkHomeRoutes(getCtx()) || null;
+          }
+        } catch (_) {}
+        return null;
+      },
       getClock: () => getClock(),
       restUntilMorning: () => { try { restUntilMorning(); } catch (_) {} },
       restAtInn: () => { try { restAtInn(); } catch (_) {} },
