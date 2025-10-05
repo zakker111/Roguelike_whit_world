@@ -395,15 +395,29 @@
             record(false, "Chest loot failed: " + (e && e.message ? e.message : String(e)));
           }
 
-          // 9b: equip best items from inventory (if any)
+          // 9b: equip best items from inventory (if any) and test manual equip/unequip
           try {
+            const inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
             const beforeEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
             const equippedNames = (typeof window.GameAPI.equipBestFromInventory === "function") ? window.GameAPI.equipBestFromInventory() : [];
             const afterEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-            const changed = JSON.stringify(beforeEq) !== JSON.stringify(afterEq);
             record(true, `Equipped from chest loot: ${equippedNames.length ? equippedNames.join(", ") : "no changes"}`);
+
+            // Manual equip: find first equip item in inventory and equip it, then unequip the same slot
+            const equipIdx = inv.findIndex(it => it && it.kind === "equip");
+            if (equipIdx !== -1 && typeof window.GameAPI.equipItemAtIndex === "function" && typeof window.GameAPI.unequipSlot === "function") {
+              const item = inv[equipIdx];
+              const ok1 = window.GameAPI.equipItemAtIndex(equipIdx);
+              await sleep(120);
+              const slot = item.slot || "hand";
+              const ok2 = window.GameAPI.unequipSlot(slot);
+              await sleep(120);
+              record(ok1 && ok2, `Manual equip/unequip (${item.name || "equip"} in slot ${slot})`);
+            } else {
+              record(true, "No direct equip/unequip test performed (no equip item or API not present)");
+            }
           } catch (e) {
-            record(false, "Equip from inventory failed: " + (e && e.message ? e.message : String(e)));
+            record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
           }
 
           // 9c: spawn an enemy, record pre-decay, attack, compare decay
@@ -750,6 +764,61 @@
           } else {
             record(true, "No shops available to check");
           }
+
+          // Basic currency check (future-proof to shop interactions)
+          try {
+            if (typeof window.GameAPI.getGold === "function" && typeof window.GameAPI.addGold === "function" && typeof window.GameAPI.removeGold === "function") {
+              const g0 = window.GameAPI.getGold();
+              window.GameAPI.addGold(25);
+              const g1 = window.GameAPI.getGold();
+              const addOk = g1 >= g0 + 25;
+              window.GameAPI.removeGold(10);
+              const g2 = window.GameAPI.getGold();
+              const remOk = g2 === (g1 - 10) || g2 <= g1;
+              record(addOk && remOk, `Gold ops: ${g0} -> ${g1} -> ${g2}`);
+            } else {
+              recordSkip("Gold ops not available in GameAPI");
+            }
+          } catch (e) {
+            record(false, "Gold ops failed: " + (e && e.message ? e.message : String(e)));
+          }
+
+          // Optional: attempt to route to first shop and interact (press G)
+          try {
+            if (shops && shops.length) {
+              const shop = shops[0];
+              const pathS = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(shop.x, shop.y) : [];
+              const budget = makeBudget(CONFIG.timeouts.route);
+              for (const step of pathS) {
+                if (budget.exceeded()) { recordSkip("Routing to shop timed out"); break; }
+                const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(100);
+              }
+              const ib = makeBudget(CONFIG.timeouts.interact);
+              key("KeyG");
+              await sleep(Math.min(ib.remain(), 180));
+              // If future GameAPI provides shopBuy/shopSell, try them
+              let didAny = false;
+              if (typeof window.GameAPI.shopBuyFirst === "function") {
+                const okB = !!window.GameAPI.shopBuyFirst();
+                record(okB, "Shop buy (first item)");
+                didAny = true;
+              }
+              if (typeof window.GameAPI.shopSellFirst === "function") {
+                const okS = !!window.GameAPI.shopSellFirst();
+                record(okS, "Shop sell (first inventory item)");
+                didAny = true;
+              }
+              if (!didAny) {
+                record(true, "Interacted at shop (G). No programmatic buy/sell API; skipped.");
+              }
+            }
+          } catch (e) {
+            record(false, "Shop interaction failed: " + (e && e.message ? e.message : String(e)));
+          }
+
           // Town home-routes check: verify there are residents
           try {
             const res = (typeof window.GameAPI.checkHomeRoutes === "function") ? window.GameAPI.checkHomeRoutes() : null;

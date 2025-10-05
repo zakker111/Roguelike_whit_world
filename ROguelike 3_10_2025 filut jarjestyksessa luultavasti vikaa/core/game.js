@@ -2488,11 +2488,41 @@
         }
         return list;
       },
-      getInventory: () => (Array.isArray(player.inventory) ? player.inventory.map(it => ({ kind: it.kind, slot: it.slot, name: it.name, atk: it.atk, def: it.def, decay: it.decay, count: it.count })) : []),
+      getInventory: () => (Array.isArray(player.inventory) ? player.inventory.map((it, i) => ({ i, kind: it.kind, slot: it.slot, name: it.name, atk: it.atk, def: it.def, decay: it.decay, count: it.count })) : []),
       getEquipment: () => {
         const eq = player.equipment || {};
         function info(it) { return it ? { name: it.name, slot: it.slot, atk: it.atk, def: it.def, decay: it.decay, twoHanded: !!it.twoHanded } : null; }
         return { left: info(eq.left), right: info(eq.right), head: info(eq.head), torso: info(eq.torso), legs: info(eq.legs), hands: info(eq.hands) };
+      },
+      equipItemAtIndex: (idx) => { try { equipItemByIndex(idx|0); return true; } catch(_) { return false; } },
+      unequipSlot: (slot) => { try { unequipSlot(String(slot)); return true; } catch(_) { return false; } },
+      getGold: () => {
+        try {
+          const g = player.inventory.find(i => i && i.kind === "gold");
+          return g && typeof g.amount === "number" ? g.amount : 0;
+        } catch(_) { return 0; }
+      },
+      addGold: (amt) => {
+        try {
+          const amount = Number(amt) || 0;
+          if (amount <= 0) return false;
+          let g = player.inventory.find(i => i && i.kind === "gold");
+          if (!g) { g = { kind: "gold", amount: 0, name: "gold" }; player.inventory.push(g); }
+          g.amount += amount;
+          updateUI(); renderInventoryPanel();
+          return true;
+        } catch(_) { return false; }
+      },
+      removeGold: (amt) => {
+        try {
+          const amount = Number(amt) || 0;
+          if (amount <= 0) return true;
+          let g = player.inventory.find(i => i && i.kind === "gold");
+          if (!g) return false;
+          g.amount = Math.max(0, (g.amount|0) - amount);
+          updateUI(); renderInventoryPanel();
+          return true;
+        } catch(_) { return false; }
       },
       // Debug helpers for town buildings/props
       getNPCHomeByIndex: (idx) => {
