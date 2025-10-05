@@ -612,8 +612,13 @@
       // Capture console/browser errors for this run
       runMeta.console = ConsoleCapture.snapshot();
 
+      // Derive passed/failed lists
+      const passedSteps = steps.filter(s => s.ok).map(s => s.msg);
+      const failedSteps = steps.filter(s => !s.ok).map(s => s.msg);
+
       // Report into GOD panel
       const detailsHtml = steps.map(s => `<div style="color:${s.ok ? "#86efac" : "#fca5a5"};">${s.ok ? "✔" : "✖"} ${s.msg}</div>`).join("");
+      const passedHtml = passedSteps.length ? (`<div style="margin-top:6px;"><strong>Passed (${passedSteps.length}):</strong></div>` + passedSteps.map(m => `<div style="color:#86efac;">• ${m}</div>`).join("")) : "";
       const extraErrors = []
         .concat((runMeta.console.consoleErrors || []).map(m => `console.error: ${m}`))
         .concat((runMeta.console.windowErrors || []).map(m => `window: ${m}`))
@@ -622,24 +627,25 @@
       const issuesHtml = totalIssues
         ? `<div style="margin-top:8px; color:#ef4444;"><strong>Issues (${totalIssues}):</strong></div>` +
           errors.map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") +
-          (extraErrors.length ? `<div style="color:#f87171; margin-top:4px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 6).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
+          (extraErrors.length ? `<div style="color:#f87171; margin-top:4px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 8).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
         : "";
       const html = [
         `<div><strong>Smoke Test Result:</strong> ${ok ? "PASS" : "PARTIAL/FAIL"}</div>`,
         `<div>Steps: ${steps.length}  Errors: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>`,
         issuesHtml,
+        passedHtml,
         `<div style="margin-top:6px;"><strong>Details</strong></div>`,
         detailsHtml,
       ].join("");
       panelReport(html);
 
-      return { ok, steps, errors, console: runMeta.console, determinism: runMeta.determinism };
+      return { ok, steps, errors, passedSteps, failedSteps, console: runMeta.console, determinism: runMeta.determinism };
     } catch (err) {
       log("Smoke test failed: " + (err && err.message ? err.message : String(err)), "bad");
       try { console.error(err); } catch (_) {}
       const html = `<div><strong>Smoke Test Result:</strong> FAIL (runner crashed)</div><div>${(err && err.message) ? err.message : String(err)}</div>`;
       panelReport(html);
-      return { ok: false, steps: [], errors: [String(err)], console: ConsoleCapture.snapshot(), determinism: {} };
+      return { ok: false, steps: [], errors: [String(err)], passedSteps: [], failedSteps: [], console: ConsoleCapture.snapshot(), determinism: {} };
     }
   }
 
@@ -697,9 +703,17 @@
     const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)).toFixed(2) : "0.00";
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)).toFixed(2) : "0.00";
 
+    // Aggregate step counts
+    let totalPassedSteps = 0, totalFailedSteps = 0;
+    for (const r of all) {
+      totalPassedSteps += Array.isArray(r.passedSteps) ? r.passedSteps.length : 0;
+      totalFailedSteps += Array.isArray(r.failedSteps) ? r.failedSteps.length : 0;
+    }
+
     const summary = [
       `<div><strong>Smoke Test Summary:</strong></div>`,
       `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${fail ? "#ef4444" : "#86efac"};">${fail}</span></div>`,
+      `<div>Checks: passed ${totalPassedSteps}, failed <span style="color:${totalFailedSteps ? "#ef4444" : "#86efac"};">${totalFailedSteps}</span></div>`,
       `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
       n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
       n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
@@ -714,6 +728,7 @@
       const report = {
         runs: n,
         pass, fail,
+        totalPassedSteps, totalFailedSteps,
         avgTurnMs: Number(avgTurn),
         avgDrawMs: Number(avgDraw),
         seeds,
@@ -747,7 +762,7 @@
       }, 0);
     } catch (_) {}
 
-    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), seeds, determinism: det };
+    return { pass, fail, results: all, totalPassedSteps, totalFailedSteps, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), seeds, determinism: det };
   }
 
   // Expose a global trigger
