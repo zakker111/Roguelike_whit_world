@@ -483,8 +483,12 @@
             for (const m of moves) { key(m); await sleep(120); }
           }
           key("Enter"); // enter town (press Enter on T)
-          await sleep(500);
-          record(true, "Attempted town entry");
+          await sleep(400);
+          // Fallback: call API to enter if available
+          try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
+          await sleep(200);
+          const nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+          record(nowMode === "town", nowMode === "town" ? "Entered town" : "Failed to enter town (still in " + nowMode + ")");
 
           // NPC check: route to nearest NPC and bump into them
           let lastNPC = null;

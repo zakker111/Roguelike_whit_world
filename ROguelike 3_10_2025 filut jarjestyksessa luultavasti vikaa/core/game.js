@@ -2450,6 +2450,14 @@
         }
         return true;
       },
+      enterTownIfOnTile: () => {
+        try {
+          if (window.Modes && typeof Modes.enterTownIfOnTile === "function") {
+            return !!Modes.enterTownIfOnTile(getCtx());
+          }
+        } catch (_) {}
+        return false;
+      },
       // Current map pathing helpers (town/dungeon)
       getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type })),
       // Include index so runner can correlate to NPC internals when needed
