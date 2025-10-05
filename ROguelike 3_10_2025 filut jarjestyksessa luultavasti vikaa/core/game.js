@@ -2457,6 +2457,29 @@
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
       getDungeonExit: () => (dungeonExitAt ? { x: dungeonExitAt.x, y: dungeonExitAt.y } : null),
       getCorpses: () => (Array.isArray(corpses) ? corpses.map(c => ({ kind: c.kind || "corpse", x: c.x, y: c.y, looted: !!c.looted, lootCount: Array.isArray(c.loot) ? c.loot.length : 0 })) : []),
+      getChestsDetailed: () => {
+        if (!Array.isArray(corpses)) return [];
+        const list = [];
+        for (const c of corpses) {
+          if (c && c.kind === "chest") {
+            const items = Array.isArray(c.loot) ? c.loot : [];
+            const names = items.map(it => {
+              if (!it) return "(null)";
+              if (it.name) return it.name;
+              if (it.kind === "equip") {
+                const stats = [];
+                if (typeof it.atk === "number") stats.push(`+${it.atk} atk`);
+                if (typeof it.def === "number") stats.push(`+${it.def} def`);
+                return `${it.slot || "equip"}${stats.length ? ` (${stats.join(", ")})` : ""}`;
+              }
+              if (it.kind === "potion") return it.name || "potion";
+              return it.kind || "item";
+            });
+            list.push({ x: c.x, y: c.y, items: names });
+          }
+        }
+        return list;
+      },
       getInventory: () => (Array.isArray(player.inventory) ? player.inventory.map(it => ({ kind: it.kind, slot: it.slot, name: it.name, atk: it.atk, def: it.def, decay: it.decay, count: it.count })) : []),
       getEquipment: () => {
         const eq = player.equipment || {};

@@ -3,6 +3,60 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
+  // Global collection of console/browser errors during smoke test runs
+  const ConsoleCapture = {
+    errors: [],
+    warns: [],
+    onerrors: [],
+    installed: false,
+    install() {
+      if (this.installed) return;
+      this.installed = true;
+      const self = this;
+      // Wrap console.error/warn
+      try {
+        const cerr = console.error.bind(console);
+        const cwarn = console.warn.bind(console);
+        console.error = function (...args) {
+          try { self.errors.push(args.map(String).join(" ")); } catch (_) {}
+          return cerr(...args);
+        };
+        console.warn = function (...args) {
+          try { self.warns.push(args.map(String).join(" ")); } catch (_) {}
+          return cwarn(...args);
+        };
+      } catch (_) {}
+      // window.onerror
+      try {
+        window.addEventListener("error", (ev) => {
+          try {
+            const msg = ev && ev.message ? ev.message : String(ev);
+            self.onerrors.push(msg);
+          } catch (_) {}
+        });
+        window.addEventListener("unhandledrejection", (ev) => {
+          try {
+            const msg = ev && ev.reason ? (ev.reason.message || String(ev.reason)) : String(ev);
+            self.onerrors.push("unhandledrejection: " + msg);
+          } catch (_) {}
+        });
+      } catch (_) {}
+    },
+    reset() {
+      this.errors = [];
+      this.warns = [];
+      this.onerrors = [];
+    },
+    snapshot() {
+      return {
+        consoleErrors: this.errors.slice(0),
+        consoleWarns: this.warns.slice(0),
+        windowErrors: this.onerrors.slice(0),
+      };
+    }
+  };
+  ConsoleCapture.install();
+
   // Create a floating banner for smoke test progress
   function ensureBanner() {
     let el = document.getElementById("smoke-banner");
@@ -47,6 +101,13 @@
     } catch (_) {}
   }
 
+  function appendToPanel(html) {
+    try {
+      const el = document.getElementById("god-check-output");
+      if (el) el.innerHTML += html;
+    } catch (_) {}
+  }
+
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -78,6 +139,7 @@
   async function runOnce() {
     const steps = [];
     const errors = [];
+    const runMeta = { console: null, determinism: {} };
     const record = (ok, msg) => {
       steps.push({ ok, msg });
       if (!ok) errors.push(msg);
@@ -85,6 +147,7 @@
     };
 
     try {
+      ConsoleCapture.reset();
       log("Starting smoke test…", "notice");
 
       // Step 1: open GOD panel
@@ -131,6 +194,15 @@
           key("Enter"); // Enter dungeon (press Enter on D)
           await sleep(500);
           record(true, "Attempted dungeon entry");
+          // Determinism sample: first enemy type and chest loot names before any runner mutations
+          try {
+            const enemies0 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+            const firstEnemyType = enemies0 && enemies0.length ? (enemies0[0].type || "") : "";
+            const chests = (typeof window.GameAPI.getChestsDetailed === "function") ? window.GameAPI.getChestsDetailed() : [];
+            const chestItems = chests && chests.length ? (chests[0].items || []) : [];
+            runMeta.determinism.firstEnemyType = firstEnemyType;
+            runMeta.determinism.chestItems = chestItems.slice(0);
+          } catch (_) {}
         } else {
           record(true, "Skipped routing (not in overworld)");
         }
@@ -484,28 +556,37 @@
       const ok = errors.length === 0;
       log(ok ? "Smoke test completed." : "Smoke test completed with errors.", ok ? "good" : "warn");
 
+      // Capture console/browser errors for this run
+      runMeta.console = ConsoleCapture.snapshot();
+
       // Report into GOD panel
       const detailsHtml = steps.map(s => `<div style="color:${s.ok ? "#86efac" : "#fca5a5"};">${s.ok ? "✔" : "✖"} ${s.msg}</div>`).join("");
-      const issuesHtml = errors.length
-        ? `<div style="margin-top:8px; color:#ef4444;"><strong>Issues (${errors.length}):</strong></div>` +
-          errors.map(e => `<div style="color:#f87171;">• ${e}</div>`).join("")
+      const extraErrors = []
+        .concat((runMeta.console.consoleErrors || []).map(m => `console.error: ${m}`))
+        .concat((runMeta.console.windowErrors || []).map(m => `window: ${m}`))
+        .concat((runMeta.console.consoleWarns || []).map(m => `console.warn: ${m}`));
+      const totalIssues = errors.length + extraErrors.length;
+      const issuesHtml = totalIssues
+        ? `<div style="margin-top:8px; color:#ef4444;"><strong>Issues (${totalIssues}):</strong></div>` +
+          errors.map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") +
+          (extraErrors.length ? `<div style="color:#f87171; margin-top:4px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 6).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
         : "";
       const html = [
         `<div><strong>Smoke Test Result:</strong> ${ok ? "PASS" : "PARTIAL/FAIL"}</div>`,
-        `<div>Steps: ${steps.length}  Errors: <span style="color:${errors.length ? "#ef4444" : "#86efac"};">${errors.length}</span></div>`,
+        `<div>Steps: ${steps.length}  Errors: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>`,
         issuesHtml,
         `<div style="margin-top:6px;"><strong>Details</strong></div>`,
         detailsHtml,
       ].join("");
       panelReport(html);
 
-      return { ok, steps, errors };
+      return { ok, steps, errors, console: runMeta.console, determinism: runMeta.determinism };
     } catch (err) {
       log("Smoke test failed: " + (err && err.message ? err.message : String(err)), "bad");
       try { console.error(err); } catch (_) {}
       const html = `<div><strong>Smoke Test Result:</strong> FAIL (runner crashed)</div><div>${(err && err.message) ? err.message : String(err)}</div>`;
       panelReport(html);
-      return { ok: false, steps: [], errors: [String(err)] };
+      return { ok: false, steps: [], errors: [String(err)], console: ConsoleCapture.snapshot(), determinism: {} };
     }
   }
 
@@ -514,7 +595,14 @@
     let pass = 0, fail = 0;
     const all = [];
     let perfSumTurn = 0, perfSumDraw = 0;
-    let determinismSeed = null;
+
+    const det = {
+      npcPropSample: null,
+      firstEnemyType: null,
+      chestItemsCSV: null,
+      mismatches: []
+    };
+
     log(`Running smoke test ${n} time(s)…`, "notice");
     for (let i = 0; i < n; i++) {
       const res = await runOnce();
@@ -530,15 +618,32 @@
         }
       } catch (_) {}
 
-      // Capture determinism sample: first NPC name and first prop type in town (if visited during run)
+      // Capture determinism samples
       try {
+        // Town sample (NPC|prop)
         if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town") {
           const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
           const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
-          const sample = `${npcs[0] ? (npcs[0].name || "") : ""}|${props[0] ? (props[0].type || "") : ""}`;
-          determinismSeed = determinismSeed || sample;
-          if (determinismSeed !== sample) {
-            log("Determinism check: mismatch in first NPC/prop sample within series", "warn");
+          const sampleTown = `${npcs[0] ? (npcs[0].name || "") : ""}|${props[0] ? (props[0].type || "") : ""}`;
+          det.npcPropSample = det.npcPropSample || sampleTown;
+          if (det.npcPropSample !== sampleTown) {
+            det.mismatches.push("NPC/prop determinism mismatch");
+          }
+        }
+        // Dungeon samples returned from runOnce metadata
+        if (res && res.determinism) {
+          if (res.determinism.firstEnemyType) {
+            det.firstEnemyType = det.firstEnemyType || res.determinism.firstEnemyType;
+            if (det.firstEnemyType !== res.determinism.firstEnemyType) {
+              det.mismatches.push("First enemy type mismatch");
+            }
+          }
+          if (Array.isArray(res.determinism.chestItems)) {
+            const csv = res.determinism.chestItems.join(",");
+            det.chestItemsCSV = det.chestItemsCSV || csv;
+            if (det.chestItemsCSV !== csv) {
+              det.mismatches.push("Chest loot determinism mismatch");
+            }
           }
         }
       } catch (_) {}
@@ -553,12 +658,53 @@
       `<div><strong>Smoke Test Summary:</strong></div>`,
       `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${fail ? "#ef4444" : "#86efac"};">${fail}</span></div>`,
       `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
-      determinismSeed ? `<div>Determinism sample (first NPC|prop): ${determinismSeed}</div>` : ``,
+      det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
+      det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
+      det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
+      det.mismatches.length ? `<div style="margin-top:6px; color:#ef4444;"><strong>Determinism mismatches:</strong> ${det.mismatches.join("; ")}</div>` : ``,
       fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
     ].join("");
     panelReport(summary);
     log(`Smoke test series done. Pass=${pass} Fail=${fail} AvgTurn=${avgTurn} AvgDraw=${avgDraw}`, fail === 0 ? "good" : "warn");
-    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw) };
+
+    // Provide export button for JSON report
+    try {
+      const report = {
+        runs: n,
+        pass, fail,
+        avgTurnMs: Number(avgTurn),
+        avgDrawMs: Number(avgDraw),
+        determinism: det,
+        results: all
+      };
+      window.SmokeTest.lastReport = report;
+      const btnHtml = `<div style="margin-top:8px;"><button id="smoke-export-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Report (JSON)</button></div>`;
+      appendToPanel(btnHtml);
+      setTimeout(() => {
+        const b = document.getElementById("smoke-export-btn");
+        if (b) {
+          b.onclick = () => {
+            try {
+              const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "smoketest_report.json";
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }, 100);
+            } catch (e) {
+              console.error("Export failed", e);
+            }
+          };
+        }
+      }, 0);
+    } catch (_) {}
+
+    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), determinism: det };
   }
 
   // Expose a global trigger
