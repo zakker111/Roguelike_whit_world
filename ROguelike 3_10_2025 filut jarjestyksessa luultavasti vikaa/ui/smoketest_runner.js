@@ -488,20 +488,64 @@
             record(true, "No enemies found to route/loot");
           }
 
-          // 9d: Attempt to return to overworld via dungeon exit ('>')
+          // 9d: Attempt to return to overworld via dungeon exit ('>') + persistence pass
           try {
             const exit = (typeof window.GameAPI.getDungeonExit === "function") ? window.GameAPI.getDungeonExit() : null;
             if (exit) {
+              // Capture pre-exit persistence markers
+              const preCorpses = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().map(c => `${c.x},${c.y}:${c.kind}`) : [];
+              const preDecals = (typeof window.GameAPI.getDecalsCount === "function") ? window.GameAPI.getDecalsCount() : 0;
+
               const pathBack = window.GameAPI.routeToDungeon(exit.x, exit.y);
+              const budget = makeBudget(CONFIG.timeouts.route);
               for (const step of pathBack) {
+                if (budget.exceeded()) { recordSkip("Routing to dungeon exit timed out"); break; }
                 const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
                 const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
                 key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                 await sleep(110);
               }
               key("KeyG"); // exit on '>'
-              await sleep(360);
-              record(true, "Returned to overworld from dungeon");
+              await sleep(300);
+
+              // Confirm we are in overworld
+              const m1 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+              record(m1 === "world", m1 === "world" ? "Returned to overworld from dungeon" : "Attempted return to overworld (mode=" + m1 + ")");
+
+              // Persistence pass: immediately re-enter the same dungeon and verify state
+              try {
+                if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") {
+                  window.GameAPI.enterDungeonIfOnEntrance();
+                  await sleep(300);
+                  const m2 = window.GameAPI.getMode ? window.GameAPI.getMode() : "";
+                  if (m2 === "dungeon") {
+                    const postCorpses = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().map(c => `${c.x},${c.y}:${c.kind}`) : [];
+                    const postDecals = (typeof window.GameAPI.getDecalsCount === "function") ? window.GameAPI.getDecalsCount() : 0;
+                    // Compare simple invariants: at least as many corpses; some overlap of corpse keys; decals not less (allow equal)
+                    const overlap = preCorpses.filter(k => postCorpses.includes(k)).length;
+                    const corpsesOk = postCorpses.length >= preCorpses.length && (preCorpses.length === 0 || overlap > 0);
+                    const decalsOk = postDecals >= preDecals;
+                    record(corpsesOk, `Persistence corpses: before ${preCorpses.length}, after ${postCorpses.length}, overlap ${overlap}`);
+                    record(decalsOk, `Persistence decals: before ${preDecals}, after ${postDecals}`);
+                    // Return to world again to proceed with town flow
+                    if (typeof window.GameAPI.returnToWorldIfAtExit === "function") {
+                      const ok = window.GameAPI.returnToWorldIfAtExit();
+                      await sleep(240);
+                      if (!ok) {
+                        // as fallback, press G on '>'
+                        key("KeyG");
+                        await sleep(240);
+                      }
+                    }
+                  } else {
+                    recordSkip("Persistence check skipped: failed to re-enter dungeon");
+                  }
+                } else {
+                  recordSkip("Persistence check not available (enterDungeonIfOnEntrance API missing)");
+                }
+              } catch (e) {
+                record(false, "Persistence pass failed: " + (e && e.message ? e.message : String(e)));
+              }
             } else {
               record(true, "Skipped return to overworld (no exit info)");
             }

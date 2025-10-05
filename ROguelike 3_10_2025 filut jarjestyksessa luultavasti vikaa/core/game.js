@@ -2577,6 +2577,17 @@
       getPerf: () => {
         try { return { lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }; } catch (_) { return { lastTurnMs: 0, lastDrawMs: 0 }; }
       },
+      getDecalsCount: () => Array.isArray(decals) ? decals.length : 0,
+      returnToWorldIfAtExit: () => {
+        try {
+          return !!returnToWorldIfAtExit();
+        } catch(_) { return false; }
+      },
+      enterDungeonIfOnEntrance: () => {
+        try {
+          return !!enterDungeonIfOnEntrance();
+        } catch(_) { return false; }
+      },
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
       routeToDungeon: (tx, ty) => {
         // BFS on current map (works for both town and dungeon as it uses isWalkable)
