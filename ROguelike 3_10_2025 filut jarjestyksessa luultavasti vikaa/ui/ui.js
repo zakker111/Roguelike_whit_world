@@ -66,6 +66,8 @@
       this.els.godCheckHomeBtn = document.getElementById("god-check-home-btn");
       // Check Inn/Tavern button
       this.els.godCheckInnTavernBtn = document.getElementById("god-check-inn-tavern-btn");
+      // Player Deploy button
+      this.els.godPlayerDeployBtn = document.getElementById("god-player-deploy-btn");
 
       // transient hand-chooser element
       this.els.handChooser = document.createElement("div");
@@ -198,6 +200,12 @@
           } catch (e) {
             window.location.search = "?smoketest=1";
           }
+        }
+      });
+      // Player Deploy action
+      this.els.godPlayerDeployBtn?.addEventListener("click", () => {
+        if (typeof this.handlers.onGodPlayerDeploy === "function") {
+          this.handlers.onGodPlayerDeploy();
         }
       });
       if (this.els.godFov) {
@@ -476,7 +484,7 @@
       if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
     },
 
-    setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest } = {}) {
+    setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodPlayerDeploy } = {}) {
       if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
       if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
       if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -496,6 +504,7 @@
       if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
       if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
       if (typeof onGodDiagnostics === "function") this.handlers.onGodDiagnostics = onGodDiagnostics;
+      if (typeof onGodPlayerDeploy === "function") this.handlers.onGodPlayerDeploy = onGodPlayerDeploy;
     },
 
     updateStats(player, floor, getAtk, getDef, time) {
