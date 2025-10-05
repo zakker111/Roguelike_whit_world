@@ -512,10 +512,65 @@
           }
           key("Enter"); // enter town (press Enter on T)
           await sleep(400);
-          // Fallback: call API to enter if available
+          // Fallback 1: call API to enter if available
           try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
           await sleep(200);
-          const nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+          let nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+          if (nowMode !== "town") {
+            // Fallback 2: if standing adjacent to a Town tile, step onto it and try again
+            try {
+              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
+              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
+              if (world && player && T && typeof T.TOWN === "number" && Array.isArray(world.map)) {
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                let stepped = false;
+                for (const d of adj) {
+                  const nx = player.x + d.dx, ny = player.y + d.dy;
+                  if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
+                    if (world.map[ny][nx] === T.TOWN) {
+                      // move onto town tile
+                      if (typeof window.GameAPI.moveStep === "function") {
+                        window.GameAPI.moveStep(d.dx, d.dy);
+                        await sleep(120);
+                        try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
+                        await sleep(200);
+                        stepped = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+                if (!stepped) {
+                  // As a last resort, attempt a short radius-2 scan to find a Town tile and route to it
+                  const r = 2;
+                  const candidates = [];
+                  for (let dy = -r; dy <= r; dy++) {
+                    for (let dx = -r; dx <= r; dx++) {
+                      const nx = player.x + dx, ny = player.y + dy;
+                      if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
+                        if (world.map[ny][nx] === T.TOWN) candidates.push({ x: nx, y: ny });
+                      }
+                    }
+                  }
+                  if (candidates.length && typeof window.GameAPI.routeTo === "function") {
+                    const path = window.GameAPI.routeTo(candidates[0].x, candidates[0].y);
+                    const budget = makeBudget(1500);
+                    for (const step of path) {
+                      if (budget.exceeded()) break;
+                      const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                      const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                      key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(90);
+                    }
+                    try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
+                    await sleep(200);
+                  }
+                }
+              }
+            } catch (_) {}
+          }
+          nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
           record(nowMode === "town", nowMode === "town" ? "Entered town" : "Failed to enter town (still in " + nowMode + ")");
 
           // NPC check: route to nearest NPC and bump into them
