@@ -80,10 +80,46 @@
     return el;
   }
 
+  function ensureStatusEl() {
+    try {
+      let host = document.getElementById("god-check-output");
+      if (!host) return null;
+      let el = document.getElementById("smoke-status");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "smoke-status";
+        el.style.margin = "6px 0";
+        el.style.color = "#93c5fd";
+        // Prepend status at the top of GOD panel output
+        host.prepend(el);
+      }
+      return el;
+    } catch (_) { return null; }
+  }
+
+  function currentMode() {
+    try {
+      if (window.GameAPI && typeof window.GameAPI.getMode === "function") {
+        return String(window.GameAPI.getMode() || "").toLowerCase();
+      }
+    } catch (_) {}
+    return "";
+  }
+
+  function setStatus(msg) {
+    const m = currentMode();
+    const el = ensureStatusEl();
+    if (el) {
+      el.textContent = `[${m || "unknown"}] ${msg}`;
+    }
+  }
+
   function log(msg, type) {
     const banner = ensureBanner();
-    const line = "[SMOKE] " + msg;
+    const m = currentMode();
+    const line = "[SMOKE]" + (m ? ` [${m}]` : "") + " " + msg;
     banner.textContent = line;
+    setStatus(msg);
     try {
       if (window.Logger && typeof Logger.log === "function") {
         Logger.log(line, type || "info");
@@ -98,6 +134,8 @@
     try {
       const el = document.getElementById("god-check-output");
       if (el) el.innerHTML = html;
+      // re-ensure status element stays visible at top after overwrite
+      ensureStatusEl();
     } catch (_) {}
   }
 
