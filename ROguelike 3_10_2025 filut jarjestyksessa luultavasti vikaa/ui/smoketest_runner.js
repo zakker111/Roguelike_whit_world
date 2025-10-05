@@ -176,17 +176,56 @@
         record(false, "Loot attempt failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Step 9: if in dungeon, spawn low-level enemy nearby and try to loot it
+      // Step 9: if in dungeon, chest loot + equip + decay check, then enemy loot and return
       try {
         if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
+          // 9a: find chest in corpses, route and press G to loot it
+          try {
+            const corpses = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses() : [];
+            const chest = corpses.find(c => c.kind === "chest");
+            if (chest) {
+              const pathC = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(chest.x, chest.y) : [];
+              for (const step of pathC) {
+                const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(110);
+              }
+              key("KeyG"); // open/loot chest
+              await sleep(250);
+              record(true, `Looted chest at (${chest.x},${chest.y})`);
+            } else {
+              record(true, "No chest found in dungeon (skipping chest loot)");
+            }
+          } catch (e) {
+            record(false, "Chest loot failed: " + (e && e.message ? e.message : String(e)));
+          }
+
+          // 9b: equip best items from inventory (if any)
+          try {
+            const beforeEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+            const equippedNames = (typeof window.GameAPI.equipBestFromInventory === "function") ? window.GameAPI.equipBestFromInventory() : [];
+            const afterEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+            const changed = JSON.stringify(beforeEq) !== JSON.stringify(afterEq);
+            record(true, `Equipped from chest loot: ${equippedNames.length ? equippedNames.join(", ") : "no changes"}`);
+          } catch (e) {
+            record(false, "Equip from inventory failed: " + (e && e.message ? e.message : String(e)));
+          }
+
+          // 9c: spawn an enemy, record pre-decay, attack, compare decay
           clickById("god-open-btn");
-          await sleep(250);
+          await sleep(200);
           clickById("god-spawn-enemy-btn");
           record(true, "Spawned test enemy in dungeon");
-          await sleep(250);
+          await sleep(200);
           key("Escape");
-          await sleep(150);
+          await sleep(120);
+
           const enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+          const eqBefore = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+          const leftBefore = (eqBefore && eqBefore.left && typeof eqBefore.left.decay === "number") ? eqBefore.left.decay : null;
+          const rightBefore = (eqBefore && eqBefore.right && typeof eqBefore.right.decay === "number") ? eqBefore.right.decay : null;
+
           if (enemies && enemies.length) {
             let best = enemies[0];
             let bestD = Math.abs(best.x - window.GameAPI.getPlayer().x) + Math.abs(best.y - window.GameAPI.getPlayer().y);
@@ -199,16 +238,39 @@
               const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
               const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-              await sleep(120);
+              await sleep(110);
             }
+            // Do a few bumps to attack
+            for (let t = 0; t < 3; t++) {
+              const dx = Math.sign(best.x - window.GameAPI.getPlayer().x);
+              const dy = Math.sign(best.y - window.GameAPI.getPlayer().y);
+              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(140);
+            }
+            const eqAfter = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+            const leftAfter = (eqAfter && eqAfter.left && typeof eqAfter.left.decay === "number") ? eqAfter.left.decay : null;
+            const rightAfter = (eqAfter && eqAfter.right && typeof eqAfter.right.decay === "number") ? eqAfter.right.decay : null;
+
+            const leftChanged = (leftBefore != null && leftAfter != null) ? (leftAfter > leftBefore) : false;
+            const rightChanged = (rightBefore != null && rightAfter != null) ? (rightAfter > rightBefore) : false;
+            if (leftBefore != null || rightBefore != null) {
+              record(true, `Decay check: left ${leftBefore} -> ${leftAfter}, right ${rightBefore} -> ${rightAfter}`);
+              if (!leftChanged && !rightChanged) {
+                record(false, "Decay did not increase on equipped hand item(s)");
+              }
+            } else {
+              record(true, "No hand equipment to measure decay");
+            }
+
+            // Attempt to loot underfoot if enemy died
             key("KeyG");
-            await sleep(250);
+            await sleep(220);
             record(true, "Attempted to loot defeated enemy");
           } else {
             record(true, "No enemies found to route/loot");
           }
 
-          // Attempt to return to overworld via dungeon exit ('>')
+          // 9d: Attempt to return to overworld via dungeon exit ('>')
           try {
             const exit = (typeof window.GameAPI.getDungeonExit === "function") ? window.GameAPI.getDungeonExit() : null;
             if (exit) {
@@ -217,10 +279,10 @@
                 const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
                 const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
                 key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(120);
+                await sleep(110);
               }
               key("KeyG"); // exit on '>'
-              await sleep(400);
+              await sleep(360);
               record(true, "Returned to overworld from dungeon");
             } else {
               record(true, "Skipped return to overworld (no exit info)");
@@ -229,7 +291,7 @@
             record(false, "Return to overworld failed: " + (e && e.message ? e.message : String(e)));
           }
         } else {
-          record(true, "Skipped enemy spawn/loot (not in dungeon)");
+          record(true, "Skipped dungeon chest/decay steps (not in dungeon)");
         }
       } catch (e) {
         record(false, "Dungeon test error: " + (e && e.message ? e.message : String(e)));

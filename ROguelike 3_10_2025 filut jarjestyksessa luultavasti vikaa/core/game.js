@@ -2455,6 +2455,32 @@
       getNPCs: () => (Array.isArray(npcs) ? npcs.map(n => ({ x: n.x, y: n.y, name: n.name })) : []),
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
       getDungeonExit: () => (dungeonExitAt ? { x: dungeonExitAt.x, y: dungeonExitAt.y } : null),
+      getCorpses: () => (Array.isArray(corpses) ? corpses.map(c => ({ kind: c.kind || "corpse", x: c.x, y: c.y, looted: !!c.looted, lootCount: Array.isArray(c.loot) ? c.loot.length : 0 })) : []),
+      getInventory: () => (Array.isArray(player.inventory) ? player.inventory.map(it => ({ kind: it.kind, slot: it.slot, name: it.name, atk: it.atk, def: it.def, decay: it.decay, count: it.count })) : []),
+      getEquipment: () => {
+        const eq = player.equipment || {};
+        function info(it) { return it ? { name: it.name, slot: it.slot, atk: it.atk, def: it.def, decay: it.decay, twoHanded: !!it.twoHanded } : null; }
+        return { left: info(eq.left), right: info(eq.right), head: info(eq.head), torso: info(eq.torso), legs: info(eq.legs), hands: info(eq.hands) };
+      },
+      equipBestFromInventory: () => {
+        // Try to equip any better items from inventory using existing helper; return names equipped
+        const equipped = [];
+        if (!Array.isArray(player.inventory) || player.inventory.length === 0) return equipped;
+        // Iterate a snapshot since equip may mutate inventory
+        const snap = player.inventory.slice(0);
+        for (const it of snap) {
+          if (it && it.kind === "equip") {
+            if (equipIfBetter(it)) {
+              // Remove equipped item from inventory snapshot? equipIfBetter does not mutate inventory by default; ensure no duping
+              // Best-effort: if inventory still contains same object, remove one instance
+              const idx = player.inventory.indexOf(it);
+              if (idx !== -1) player.inventory.splice(idx, 1);
+              equipped.push(it.name || "equip");
+            }
+          }
+        }
+        return equipped;
+      },
       // Shops/time/perf helpers for test runner
       getShops: () => (Array.isArray(shops) ? shops.map(s => ({ x: s.x, y: s.y, name: s.name || "", alwaysOpen: !!s.alwaysOpen, openMin: s.openMin, closeMin: s.closeMin })) : []),
       isShopOpenNowFor: (shop) => {
