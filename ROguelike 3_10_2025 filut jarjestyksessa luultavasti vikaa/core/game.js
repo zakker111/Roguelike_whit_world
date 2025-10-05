@@ -1494,6 +1494,47 @@
           const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
           const li = randInt(0, lines.length - 1);
           log(`${npc.name || "Villager"}: ${lines[li]}`, "info");
+
+          // Heuristic: if NPC is at/near a shop door, attempt a simple purchase on bump
+          try {
+            const nearShop = (() => {
+              if (!Array.isArray(shops)) return false;
+              for (const s of shops) {
+                const d = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
+                if (d <= 1) return true;
+              }
+              return false;
+            })();
+            if (nearShop) {
+              // Perform a minimal purchase: cost depends on item; default 15 gold
+              const cost = 15;
+              const goldObj = player.inventory.find(i => i && i.kind === "gold");
+              const curGold = goldObj && typeof goldObj.amount === "number" ? goldObj.amount : 0;
+              if (curGold >= cost) {
+                // Create a simple item to "buy"
+                let bought = null;
+                if (window.Items && typeof Items.createEquipment === "function") {
+                  const tier = 1;
+                  bought = Items.createEquipment(tier, rng);
+                } else {
+                  // fallback: potion
+                  bought = { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" };
+                }
+                if (bought) {
+                  // Deduct gold and add item to inventory
+                  if (goldObj) goldObj.amount = (goldObj.amount | 0) - cost;
+                  else player.inventory.push({ kind: "gold", amount: 0, name: "gold" });
+                  player.inventory.push(bought);
+                  log(`${npc.name || "Shopkeeper"} sells you ${describeItem(bought)} for ${cost} gold.`, "good");
+                  updateUI();
+                  renderInventoryPanel();
+                }
+              } else {
+                log(`${npc.name || "Shopkeeper"}: You can't afford anything right now.`, "warn");
+              }
+            }
+          } catch (_) {}
+
           requestDraw();
         } else {
           log("Excuse me!", "info");
