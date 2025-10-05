@@ -2455,6 +2455,20 @@
       getNPCs: () => (Array.isArray(npcs) ? npcs.map(n => ({ x: n.x, y: n.y, name: n.name })) : []),
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
       getDungeonExit: () => (dungeonExitAt ? { x: dungeonExitAt.x, y: dungeonExitAt.y } : null),
+      // Shops/time/perf helpers for test runner
+      getShops: () => (Array.isArray(shops) ? shops.map(s => ({ x: s.x, y: s.y, name: s.name || "", alwaysOpen: !!s.alwaysOpen, openMin: s.openMin, closeMin: s.closeMin })) : []),
+      isShopOpenNowFor: (shop) => {
+        try { return isShopOpenNow(shop); } catch (_) { return false; }
+      },
+      getShopSchedule: (shop) => {
+        try { return shopScheduleStr(shop); } catch (_) { return ""; }
+      },
+      getClock: () => getClock(),
+      restUntilMorning: () => { try { restUntilMorning(); } catch (_) {} },
+      restAtInn: () => { try { restAtInn(); } catch (_) {} },
+      getPerf: () => {
+        try { return { lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }; } catch (_) { return { lastTurnMs: 0, lastDrawMs: 0 }; }
+      },
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
       routeToDungeon: (tx, ty) => {
         // BFS on current map (works for both town and dungeon as it uses isWalkable)

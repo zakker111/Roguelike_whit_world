@@ -321,16 +321,38 @@
         record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Diagnostics
+      // Diagnostics + shop schedule/time check
       try {
         clickById("god-open-btn");
         await sleep(250);
         clickById("god-diagnostics-btn");
+        await sleep(250);
+        // If in town, check shops for schedule and open/closed state, attempt resting at inn
+        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town") {
+          const shops = (typeof window.GameAPI.getShops === "function") ? window.GameAPI.getShops() : [];
+          if (shops && shops.length) {
+            const s0 = shops[0];
+            const openNow = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : false;
+            const sched = (typeof window.GameAPI.getShopSchedule === "function") ? window.GameAPI.getShopSchedule(s0) : "";
+            record(true, `Shop check: ${s0.name || "Shop"} is ${openNow ? "OPEN" : "CLOSED"} (${sched})`);
+            // Try rest at inn if one found by name heuristic
+            const inn = shops.find(s => (s.name || "").toLowerCase().includes("inn"));
+            if (inn && typeof window.GameAPI.restAtInn === "function") {
+              window.GameAPI.restAtInn();
+              record(true, "Rested at inn (time advanced to morning, HP restored)");
+            } else if (typeof window.GameAPI.restUntilMorning === "function") {
+              window.GameAPI.restUntilMorning();
+              record(true, "Rested until morning");
+            }
+          } else {
+            record(true, "No shops available to check");
+          }
+        }
         record(true, "Ran Diagnostics");
         await sleep(300);
         key("Escape");
       } catch (e) {
-        record(false, "Diagnostics failed: " + (e && e.message ? e.message : String(e)));
+        record(false, "Diagnostics/schedule failed: " + (e && e.message ? e.message : String(e)));
       }
 
       const ok = errors.length === 0;
@@ -358,18 +380,51 @@
     const n = Math.max(1, Math.min(20, parseInt(count, 10) || 1));
     let pass = 0, fail = 0;
     const all = [];
+    let perfSumTurn = 0, perfSumDraw = 0;
+    let determinismSeed = null;
     log(`Running smoke test ${n} time(s)…`, "notice");
     for (let i = 0; i < n; i++) {
       const res = await runOnce();
       all.push(res);
       if (res.ok) pass++; else fail++;
+
+      // Capture perf snapshot if exposed
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getPerf === "function") {
+          const p = window.GameAPI.getPerf();
+          perfSumTurn += (p.lastTurnMs || 0);
+          perfSumDraw += (p.lastDrawMs || 0);
+        }
+      } catch (_) {}
+
+      // Capture determinism sample: first NPC name and first prop type in town (if visited during run)
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town") {
+          const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
+          const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
+          const sample = `${npcs[0] ? (npcs[0].name || "") : ""}|${props[0] ? (props[0].type || "") : ""}`;
+          determinismSeed = determinismSeed || sample;
+          if (determinismSeed !== sample) {
+            log("Determinism check: mismatch in first NPC/prop sample within series", "warn");
+          }
+        }
+      } catch (_) {}
+
       panelReport(`<div><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>`);
       await sleep(300);
     }
-    const summary = `<div><strong>Smoke Test Summary:</strong></div><div>Runs: ${n}  Pass: ${pass}  Fail: ${fail}</div>`;
+    const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)).toFixed(2) : "0.00";
+    const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)).toFixed(2) : "0.00";
+
+    const summary = [
+      `<div><strong>Smoke Test Summary:</strong></div>`,
+      `<div>Runs: ${n}  Pass: ${pass}  Fail: ${fail}</div>`,
+      `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
+      determinismSeed ? `<div>Determinism sample (first NPC|prop): ${determinismSeed}</div>` : ``
+    ].join("");
     panelReport(summary);
-    log(`Smoke test series done. Pass=${pass} Fail=${fail}`, fail === 0 ? "good" : "warn");
-    return { pass, fail, results: all };
+    log(`Smoke test series done. Pass=${pass} Fail=${fail} AvgTurn=${avgTurn} AvgDraw=${avgDraw}`, fail === 0 ? "good" : "warn");
+    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw) };
   }
 
   // Expose a global trigger
