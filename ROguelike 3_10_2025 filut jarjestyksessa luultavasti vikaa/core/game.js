@@ -2452,7 +2452,8 @@
       },
       // Current map pathing helpers (town/dungeon)
       getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type })),
-      getNPCs: () => (Array.isArray(npcs) ? npcs.map(n => ({ x: n.x, y: n.y, name: n.name })) : []),
+      // Include index so runner can correlate to NPC internals when needed
+      getNPCs: () => (Array.isArray(npcs) ? npcs.map((n, i) => ({ i, x: n.x, y: n.y, name: n.name })) : []),
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
       getDungeonExit: () => (dungeonExitAt ? { x: dungeonExitAt.x, y: dungeonExitAt.y } : null),
       getCorpses: () => (Array.isArray(corpses) ? corpses.map(c => ({ kind: c.kind || "corpse", x: c.x, y: c.y, looted: !!c.looted, lootCount: Array.isArray(c.loot) ? c.loot.length : 0 })) : []),
@@ -2461,6 +2462,17 @@
         const eq = player.equipment || {};
         function info(it) { return it ? { name: it.name, slot: it.slot, atk: it.atk, def: it.def, decay: it.decay, twoHanded: !!it.twoHanded } : null; }
         return { left: info(eq.left), right: info(eq.right), head: info(eq.head), torso: info(eq.torso), legs: info(eq.legs), hands: info(eq.hands) };
+      },
+      // Debug helpers for town buildings/props
+      getNPCHomeByIndex: (idx) => {
+        try {
+          if (!Array.isArray(npcs) || idx < 0 || idx >= npcs.length) return null;
+          const n = npcs[idx];
+          const b = n && n._home && n._home.building ? n._home.building : null;
+          if (!b) return null;
+          const propsIn = (Array.isArray(townProps) ? townProps.filter(p => (p.x > b.x && p.x < b.x + b.w - 1 && p.y > b.y && p.y < b.y + b.h - 1)) : []).map(p => ({ x: p.x, y: p.y, type: p.type || "" }));
+          return { building: { x: b.x, y: b.y, w: b.w, h: b.h, door: b.door ? { x: b.door.x, y: b.door.y } : null }, props: propsIn };
+        } catch (_) { return null; }
       },
       equipBestFromInventory: () => {
         // Try to equip any better items from inventory using existing helper; return names equipped

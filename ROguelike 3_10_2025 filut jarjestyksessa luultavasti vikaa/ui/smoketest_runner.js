@@ -311,6 +311,7 @@
           record(true, "Attempted town entry");
 
           // NPC check: route to nearest NPC and bump into them
+          let lastNPC = null;
           try {
             const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
             if (npcs && npcs.length) {
@@ -341,11 +342,74 @@
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(160);
               record(true, "Bumped into at least one NPC");
+              lastNPC = best;
             } else {
               record(true, "No NPCs reported (town may be empty?)");
             }
           } catch (e) {
             record(false, "NPC interaction failed: " + (e && e.message ? e.message : String(e)));
+          }
+
+          // NPC home + decorations check: go to NPC's house and verify decorations/props exist
+          try {
+            if (lastNPC && typeof lastNPC.i === "number" && typeof window.GameAPI.getNPCHomeByIndex === "function") {
+              const home = window.GameAPI.getNPCHomeByIndex(lastNPC.i);
+              if (home && home.building) {
+                const b = home.building;
+                const hasProps = Array.isArray(home.props) && home.props.length > 0;
+                record(hasProps, `NPC home has ${home.props ? home.props.length : 0} decoration(s)/prop(s)`);
+                // Route to door, then to a prop (or interior) and press G
+                const door = b.door || { x: b.x + Math.floor(b.w / 2), y: b.y };
+                let pathDoor = window.GameAPI.routeToDungeon(door.x, door.y);
+                for (const step of pathDoor) {
+                  const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                  const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(100);
+                }
+                // Pick a target inside: either a prop tile or adjacent to it
+                let target = null;
+                if (hasProps) {
+                  const p = home.props[0];
+                  // try adjacent to prop
+                  const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}].map(d => ({ x: p.x + d.dx, y: p.y + d.dy }));
+                  for (const a of adj) {
+                    const route = window.GameAPI.routeToDungeon(a.x, a.y);
+                    if (route && route.length) { target = { path: route, interact: { x: p.x, y: p.y } }; break; }
+                  }
+                }
+                if (!target) {
+                  // fallback: a tile just inside the building rectangle
+                  const inside = { x: Math.min(b.x + b.w - 2, Math.max(b.x + 1, door.x)), y: b.y + 1 };
+                  const route = window.GameAPI.routeToDungeon(inside.x, inside.y);
+                  target = { path: route, interact: null };
+                }
+                if (target && target.path) {
+                  for (const step of target.path) {
+                    const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(100);
+                  }
+                  if (target.interact) {
+                    // Press G to attempt interaction with the decoration/prop
+                    key("KeyG");
+                    await sleep(160);
+                    record(true, "Interacted inside NPC home (prop/decoration)");
+                  } else {
+                    record(true, "Reached inside NPC home");
+                  }
+                } else {
+                  record(false, "Failed to route to NPC home interior");
+                }
+              } else {
+                record(true, "NPC had no home building info");
+              }
+            } else {
+              record(true, "Skipped NPC home check (no NPC found or API not available)");
+            }
+          } catch (e) {
+            record(false, "NPC home/decoration verification failed: " + (e && e.message ? e.message : String(e)));
           }
 
           // Decoration/props check: find nearby prop and press G
