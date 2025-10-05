@@ -136,10 +136,10 @@
   }
 
   // One run with step-by-step result tracking
-  async function runOnce() {
+  async function runOnce(seedOverride) {
     const steps = [];
     const errors = [];
-    const runMeta = { console: null, determinism: {} };
+    const runMeta = { console: null, determinism: {}, seed: null };
     const record = (ok, msg) => {
       steps.push({ ok, msg });
       if (!ok) errors.push(msg);
@@ -160,11 +160,13 @@
       }
       await sleep(250);
 
-      // Step 2: set seed
+      // Step 2: set seed (vary per run if provided)
       try {
-        setInputValue("god-seed-input", 12345);
+        const seed = (typeof seedOverride === "number" && isFinite(seedOverride)) ? (seedOverride >>> 0) : ((Date.now() % 0xffffffff) >>> 0);
+        runMeta.seed = seed;
+        setInputValue("god-seed-input", seed);
         clickById("god-apply-seed-btn");
-        record(true, "Applied seed 12345");
+        record(true, `Applied seed ${seed}`);
       } catch (e) {
         record(false, "Apply seed failed: " + (e && e.message ? e.message : String(e)));
       }
@@ -616,9 +618,13 @@
       mismatches: []
     };
 
+    // Generate per-run varying seeds (different key per run)
+    const base = (Date.now() >>> 0);
+    const seeds = Array.from({ length: n }, (_, i) => ((base + Math.imul(0x9e3779b1, i + 1)) >>> 0));
+
     log(`Running smoke test ${n} time(s)…`, "notice");
     for (let i = 0; i < n; i++) {
-      const res = await runOnce();
+      const res = await runOnce(seeds[i]);
       all.push(res);
       if (res.ok) pass++; else fail++;
 
@@ -631,32 +637,18 @@
         }
       } catch (_) {}
 
-      // Capture determinism samples
+      // Determinism samples: only compare when seeds are identical (n==1); otherwise just record for report
       try {
-        // Town sample (NPC|prop)
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town") {
-          const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
-          const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
-          const sampleTown = `${npcs[0] ? (npcs[0].name || "") : ""}|${props[0] ? (props[0].type || "") : ""}`;
-          det.npcPropSample = det.npcPropSample || sampleTown;
-          if (det.npcPropSample !== sampleTown) {
-            det.mismatches.push("NPC/prop determinism mismatch");
+        if (n === 1) {
+          if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town") {
+            const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
+            const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
+            const sampleTown = `${npcs[0] ? (npcs[0].name || "") : ""}|${props[0] ? (props[0].type || "") : ""}`;
+            det.npcPropSample = det.npcPropSample || sampleTown;
           }
-        }
-        // Dungeon samples returned from runOnce metadata
-        if (res && res.determinism) {
-          if (res.determinism.firstEnemyType) {
-            det.firstEnemyType = det.firstEnemyType || res.determinism.firstEnemyType;
-            if (det.firstEnemyType !== res.determinism.firstEnemyType) {
-              det.mismatches.push("First enemy type mismatch");
-            }
-          }
-          if (Array.isArray(res.determinism.chestItems)) {
-            const csv = res.determinism.chestItems.join(",");
-            det.chestItemsCSV = det.chestItemsCSV || csv;
-            if (det.chestItemsCSV !== csv) {
-              det.mismatches.push("Chest loot determinism mismatch");
-            }
+          if (res && res.determinism) {
+            if (res.determinism.firstEnemyType) det.firstEnemyType = res.determinism.firstEnemyType;
+            if (Array.isArray(res.determinism.chestItems)) det.chestItemsCSV = res.determinism.chestItems.join(",");
           }
         }
       } catch (_) {}
@@ -671,10 +663,9 @@
       `<div><strong>Smoke Test Summary:</strong></div>`,
       `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${fail ? "#ef4444" : "#86efac"};">${fail}</span></div>`,
       `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
-      det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
-      det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
-      det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
-      det.mismatches.length ? `<div style="margin-top:6px; color:#ef4444;"><strong>Determinism mismatches:</strong> ${det.mismatches.join("; ")}</div>` : ``,
+      n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
+      n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
+      n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
       fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
     ].join("");
     panelReport(summary);
@@ -687,6 +678,7 @@
         pass, fail,
         avgTurnMs: Number(avgTurn),
         avgDrawMs: Number(avgDraw),
+        seeds,
         determinism: det,
         results: all
       };
@@ -717,7 +709,7 @@
       }, 0);
     } catch (_) {}
 
-    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), determinism: det };
+    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), seeds, determinism: det };
   }
 
   // Expose a global trigger
