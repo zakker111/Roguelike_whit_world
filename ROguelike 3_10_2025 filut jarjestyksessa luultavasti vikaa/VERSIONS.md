@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-03 21:20 UTC
+Last updated: 2025-10-06 00:00 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,23 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.18 — Click-to-loot containers and canvas click support
+- Added: Precise click-to-loot in dungeon
+  - core/game.js: clicking a chest/corpse tile now targets that specific container.
+    - If standing on it: loots immediately.
+    - If adjacent: takes one step onto the container, then auto-loots.
+    - If farther away: shows a hint to move next to the container first.
+- Changed: Canvas click QoL
+  - core/game.js: adjacent tile clicks move one step (dungeon and town).
+  - Town: clicking your own tile triggers the context action (talk/exit/loot underfoot), unchanged.
+- Dev: Clicks are ignored while inventory/loot/GOD panels are open to avoid accidental actions.
+
+v1.17 — Deterministic RNG init order hardening
+- Changed: index.html loads core/rng_service.js immediately after core/ctx.js.
+  - Ensures all subsequently loaded modules bind to the centralized RNG service rather than constructing fallbacks.
+  - Removed later duplicate RNG load position (no behavior change intended beyond initialization timing).
+- Dev: No data migrations required; determinism preserved across seeds.
 
 v1.16 — More dungeons, spawn near dungeon, and smoke test auto-routes/loots
 - Changed: Increased dungeon density and terrain bias
