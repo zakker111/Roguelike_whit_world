@@ -45,6 +45,8 @@
   "rules": {
     "no-unused-vars": ["warn", { "args": "none", "ignoreRestSiblings": true }],
     "no-undef": "error",
+    "no-redeclare": "warn",
+    "consistent-return": "warn",
     "no-console": "off",
     "eqeqeq": ["warn", "smart"],
     "no-constant-condition": ["warn", { "checkLoops": false }],

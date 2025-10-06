@@ -951,7 +951,8 @@
 
     updateSeedUI() {
       const seed = this.getSeedState();
-      if (this.els.godSeedInput && !this.els.godSeedInput.value) {
+      // Always reflect persisted seed into UI on init to avoid stale values
+      if (this.els.godSeedInput) {
         this.els.godSeedInput.value = seed;
       }
       if (this.els.godSeedHelp) {

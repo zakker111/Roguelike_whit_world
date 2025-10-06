@@ -32,6 +32,16 @@
     ready: null,
   };
 
+  function logNotice(msg) {
+    try {
+      if (window.Logger && typeof Logger.log === "function") {
+        Logger.log(msg, "notice");
+      } else if (window.DEV && typeof console !== "undefined") {
+        console.debug("[GameData] " + msg);
+      }
+    } catch (_) {}
+  }
+
   GameData.ready = (async function loadAll() {
     try {
       const [items, enemies, npcs, consumables] = await Promise.all([
@@ -47,12 +57,17 @@
       if (window.DEV) {
         try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables }); } catch (_) {}
       }
+      // Surface a gentle notice if any registry failed; system will fall back gracefully
+      if (!GameData.items || !GameData.enemies || !GameData.npcs) {
+        logNotice("Some registries failed to load; using fallback data where needed.");
+      }
     } catch (e) {
       try { console.warn("[GameData] load error", e); } catch (_) {}
       GameData.items = GameData.items || null;
       GameData.enemies = GameData.enemies || null;
       GameData.npcs = GameData.npcs || null;
       GameData.consumables = GameData.consumables || null;
+      logNotice("Registry load error; using fallback data.");
     }
   })();
 
