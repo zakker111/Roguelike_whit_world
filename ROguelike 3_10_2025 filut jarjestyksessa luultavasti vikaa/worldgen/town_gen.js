@@ -489,6 +489,78 @@
     addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
     addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
 
+    // Benches and market decor around the plaza
+    (function placePlazaDecor() {
+      // Place benches along the inner perimeter of the plaza, spaced out
+      const bx0 = ((plaza.x - (plazaW / 2)) | 0) + 1;
+      const bx1 = ((plaza.x + (plazaW / 2)) | 0) - 1;
+      const by0 = ((plaza.y - (plazaH / 2)) | 0) + 1;
+      const by1 = ((plaza.y + (plazaH / 2)) | 0) - 1;
+
+      const benchSpots = [];
+      // top and bottom edges
+      for (let x = bx0; x <= bx1; x += 3) {
+        benchSpots.push({ x, y: by0 });
+        benchSpots.push({ x, y: by1 });
+      }
+      // left and right edges
+      for (let y = by0 + 2; y <= by1 - 2; y += 3) {
+        benchSpots.push({ x: bx0, y });
+        benchSpots.push({ x: bx1, y });
+      }
+      // Try to place up to a limit to avoid clutter
+      let placed = 0;
+      const limit = Math.min(12, Math.max(6, Math.floor((plazaW + plazaH) / 3)));
+      for (const p of benchSpots) {
+        if (placed >= limit) break;
+        // Only place on clear floor and keep a tile free next to the bench
+        if (p.x <= 0 || p.y <= 0 || p.x >= W - 1 || p.y >= H - 1) continue;
+        if (ctx.map[p.y][p.x] !== ctx.TILES.FLOOR) continue;
+        if (ctx.townProps.some(q => q.x === p.x && q.y === p.y)) continue;
+        if ((p.x === ctx.player.x && p.y === ctx.player.y)) continue;
+        if (addProp(p.x, p.y, "bench", "Bench")) placed++;
+      }
+
+      // Small market stalls on four sides of the plaza (not blocking the center)
+      const stallOffsets = [
+        { dx: -((plazaW / 2) | 0) + 2, dy: 0 },
+        { dx: ((plazaW / 2) | 0) - 2, dy: 0 },
+        { dx: 0, dy: -((plazaH / 2) | 0) + 2 },
+        { dx: 0, dy: ((plazaH / 2) | 0) - 2 },
+      ];
+      for (const o of stallOffsets) {
+        const sx = Math.max(1, Math.min(W - 2, plaza.x + o.dx));
+        const sy = Math.max(1, Math.min(H - 2, plaza.y + o.dy));
+        if (ctx.map[sy][sx] === ctx.TILES.FLOOR) {
+          addProp(sx, sy, "stall", "Market Stall");
+          // scatter a crate/barrel next to each stall if space allows
+          const neighbors = [
+            { x: sx + 1, y: sy }, { x: sx - 1, y: sy },
+            { x: sx, y: sy + 1 }, { x: sx, y: sy - 1 },
+          ];
+          for (const n of neighbors) {
+            if (n.x <= 0 || n.y <= 0 || n.x >= W - 1 || n.y >= H - 1) continue;
+            if (ctx.map[n.y][n.x] !== ctx.TILES.FLOOR) continue;
+            if (ctx.townProps.some(p => p.x === n.x && p.y === n.y)) continue;
+            const kind = ctx.rng() < 0.5 ? "crate" : "barrel";
+            addProp(n.x, n.y, kind, kind === "crate" ? "Crate" : "Barrel");
+            break;
+          }
+        }
+      }
+
+      // A few plants to soften the plaza
+      const plantTry = Math.min(8, Math.max(3, Math.floor((plazaW + plazaH) / 10)));
+      let tries = 0, planted = 0;
+      while (planted < plantTry && tries++ < 80) {
+        const rx = Math.max(1, Math.min(W - 2, plaza.x + (Math.floor(ctx.rng() * plazaW) - (plazaW / 2 | 0))));
+        const ry = Math.max(1, Math.min(H - 2, plaza.y + (Math.floor(ctx.rng() * plazaH) - (plazaH / 2 | 0))));
+        if (ctx.map[ry][rx] !== ctx.TILES.FLOOR) continue;
+        if (ctx.townProps.some(p => p.x === rx && p.y === ry)) continue;
+        if (addProp(rx, ry, "plant", "Plant")) planted++;
+      }
+    })();
+
     // Furnish building interiors for variety (beds, tables, chairs, fireplace, storage, shelves, plants, rugs)
     (function furnishInteriors() {
       function insideFloor(b, x, y) { return x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1 && ctx.map[y][x] === ctx.TILES.FLOOR; }
