@@ -2494,11 +2494,20 @@
   initWorld();
   setupInput();
 
-  // Mouse/click support on the canvas: make dungeon crates/chests and looting clickable
+  // Mouse/click support on the canvas: click specific containers (chests/corpses) to loot
   (function setupMouse() {
     try {
       const canvasEl = document.getElementById("game");
       if (!canvasEl) return;
+
+      function hasContainerAt(x, y) {
+        try {
+          return Array.isArray(corpses) && corpses.find(c => c && c.x === x && c.y === y && (!c.looted || (Array.isArray(c.loot) && c.loot.length > 0)));
+        } catch (_) {
+          return null;
+        }
+      }
+
       canvasEl.addEventListener("click", (ev) => {
         try {
           // If UI modals are open, let them handle clicks
@@ -2521,30 +2530,45 @@
           if (!inBounds(tx, ty)) return;
 
           if (mode === "dungeon") {
-            // If clicked on player's tile: perform context action (loot)
-            if (tx === player.x && ty === player.y) {
-              lootCorpse();
+            const targetContainer = hasContainerAt(tx, ty);
+
+            if (targetContainer) {
+              // If clicked on our own tile and there is a container here, loot it
+              if (tx === player.x && ty === player.y) {
+                lootCorpse();
+                return;
+              }
+              // If adjacent to the clicked container, step onto it and loot
+              const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
+              if (md === 1) {
+                const dx = Math.sign(tx - player.x);
+                const dy = Math.sign(ty - player.y);
+                tryMovePlayer(dx, dy);
+                // If we arrived on the container, auto-loot
+                setTimeout(() => {
+                  try {
+                    if (player.x === tx && player.y === ty) lootCorpse();
+                  } catch (_) {}
+                }, 0);
+                return;
+              }
+              // Not adjacent: inform the player
+              log("Move next to the chest/corpse and click it to loot.", "info");
               return;
             }
-            // If clicked adjacent: attempt to move a single step toward it; then auto-loot if standing on a container
+
+            // If no container was clicked, allow simple adjacent click-to-move QoL
             const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
             if (md === 1) {
               const dx = Math.sign(tx - player.x);
               const dy = Math.sign(ty - player.y);
               tryMovePlayer(dx, dy);
-              // If we arrived on a container, auto-loot
-              if (player.x === tx && player.y === ty) {
-                // Small defer: let movement turn resolve, then loot
-                setTimeout(() => { try { lootCorpse(); } catch(_) {} }, 0);
-              }
-              return;
             }
-            // If clicked a visible container within view but not adjacent, do nothing for now
             return;
           }
 
           if (mode === "town") {
-            // In town, treat click on player's tile as generic action (talk/loot/exit)
+            // In town, click on player's tile performs the context action (talk/exit/loot if chest underfoot)
             if (tx === player.x && ty === player.y) {
               doAction();
               return;
