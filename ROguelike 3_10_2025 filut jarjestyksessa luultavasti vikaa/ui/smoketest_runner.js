@@ -1106,139 +1106,201 @@
     if (aDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
 
     const summary = [
-      `<div><strong>Smoke Test Summary:</strong></div>`,
-      `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${fail ? "#ef4444" : "#86efac"};">${fail}</span></div>`,
-      `<div>Checks: passed ${totalPassedSteps}, failed <span style="color:${totalFailedSteps ? "#ef4444" : "#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
-      `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
-      perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
-      n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
-      n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
-      n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
-      `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
-      fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
-    ].join("");
-    panelReport(summary);
-    log(`Smoke test series done. Pass=${pass} Fail=${fail} AvgTurn=${avgTurn} AvgDraw=${avgDraw}`, fail === 0 ? "good" : "warn");
+        `<div><strong>Smoke Test Summary:</strong></div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
+        `<div>Checks: passed ${totalPassedSteps}, failed <span style="${totalFailedSteps ? "color:#ef4444" : "color:#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
+        `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
+        perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
+        n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
+        n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
+        n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
+        `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
+        fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
+      ].join("");
+      panelReport(summary);
 
-    // Provide export buttons for JSON and TXT summary
-    try {
-      const report = {
-        runnerVersion: RUNNER_VERSION,
-        runs: n,
-        pass, fail,
-        totalPassedSteps, totalFailedSteps, totalSkippedSteps,
-        avgTurnMs: Number(avgTurn),
-        avgDrawMs: Number(avgDraw),
-        seeds,
-        determinism: det,
-        results: all
-      };
-      window.SmokeTest.lastReport = report;
+      log(`Smoke test series done. Pass=${pass} Fail=${fail} AvgTurn=${avgTurn} AvgDraw=${avgDraw}`, fail === 0 ? "good" : "warn");
 
-      function buildSummaryText(rep) {
-        const lines = [];
-        lines.push(`Roguelike Smoke Test Summary (Runner v${rep.runnerVersion || RUNNER_VERSION})`);
-        lines.push(`Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`);
-        lines.push(`Checks: passed ${rep.totalPassedSteps}, failed ${rep.totalFailedSteps}, skipped ${rep.totalSkippedSteps}`);
-        lines.push(`Avg PERF: turn ${rep.avgTurnMs} ms, draw ${rep.avgDrawMs} ms`);
-        if (Array.isArray(rep.seeds)) lines.push(`Seeds: ${rep.seeds.join(", ")}`);
-        if (rep.determinism) {
-          if (rep.determinism.npcPropSample) lines.push(`Determinism (NPC|prop): ${rep.determinism.npcPropSample}`);
-          if (rep.determinism.firstEnemyType) lines.push(`Determinism (first enemy): ${rep.determinism.firstEnemyType}`);
-          if (rep.determinism.chestItemsCSV) lines.push(`Determinism (chest loot): ${rep.determinism.chestItemsCSV}`);
-        }
-        lines.push("");
-        const good = [];
-        const bad = [];
-        const skipped = [];
-        for (let i = 0; i < rep.results.length; i++) {
-          const r = rep.results[i];
-          const runId = `Run ${i + 1}${r.seed != null ? ` (seed ${r.seed})` : ""}`;
-          if (Array.isArray(r.passedSteps)) for (const m of r.passedSteps) good.push(`${runId}: ${m}`);
-          if (Array.isArray(r.failedSteps)) for (const m of r.failedSteps) bad.push(`${runId}: ${m}`);
-          if (Array.isArray(r.skipped)) for (const m of r.skipped) skipped.push(`${runId}: ${m}`);
-        }
-        lines.push("GOOD:");
-        if (good.length) lines.push(...good.map(s => `  + ${s}`)); else lines.push("  (none)");
-        lines.push("");
-        lines.push("PROBLEMS:");
-        if (bad.length) lines.push(...bad.map(s => `  - ${s}`)); else lines.push("  (none)");
-        lines.push("");
-        lines.push("SKIPPED:");
-        if (skipped.length) lines.push(...skipped.map(s => `  ~ ${s}`)); else lines.push("  (none)");
-        lines.push("");
-        // Include top few console/browser issues
-        const consoleIssues = [];
-        for (let i = 0; i < rep.results.length; i++) {
-          const r = rep.results[i];
-          const id = `Run ${i + 1}`;
-          const c = (r.console && (r.console.consoleErrors || [])).slice(0, 3).map(x => `${id}: console.error: ${x}`);
-          const w = (r.console && (r.console.windowErrors || [])).slice(0, 3).map(x => `${id}: window: ${x}`);
-          const cw = (r.console && (r.console.consoleWarns || [])).slice(0, 2).map(x => `${id}: console.warn: ${x}`);
-          consoleIssues.push(...c, ...w, ...cw);
-        }
-        if (consoleIssues.length) {
-          lines.push("Console/Browser issues:");
-          lines.push(...consoleIssues.map(s => `  ! ${s}`));
+      // Provide export buttons for JSON and TXT summary + Checklist rendering
+      try {
+        const report = {
+          runnerVersion: RUNNER_VERSION,
+          runs: n,
+          pass, fail,
+          totalPassedSteps, totalFailedSteps, totalSkippedSteps,
+          avgTurnMs: Number(avgTurn),
+          avgDrawMs: Number(avgDraw),
+          seeds,
+          determinism: det,
+          results: all
+        };
+        window.SmokeTest.lastReport = report;
+
+        function buildSummaryText(rep) {
+          const lines = [];
+          lines.push(`Roguelike Smoke Test Summary (Runner v${rep.runnerVersion || RUNNER_VERSION})`);
+          lines.push(`Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`);
+          lines.push(`Checks: passed ${rep.totalPassedSteps}, failed ${rep.totalFailedSteps}, skipped ${rep.totalSkippedSteps}`);
+          lines.push(`Avg PERF: turn ${rep.avgTurnMs} ms, draw ${rep.avgDrawMs} ms`);
+          if (Array.isArray(rep.seeds)) lines.push(`Seeds: ${rep.seeds.join(", ")}`);
+          if (rep.determinism) {
+            if (rep.determinism.npcPropSample) lines.push(`Determinism (NPC|prop): ${rep.determinism.npcPropSample}`);
+            if (rep.determinism.firstEnemyType) lines.push(`Determinism (first enemy): ${rep.determinism.firstEnemyType}`);
+            if (rep.determinism.chestItemsCSV) lines.push(`Determinism (chest loot): ${rep.determinism.chestItemsCSV}`);
+          }
           lines.push("");
+          const good = [];
+          const bad = [];
+          const skipped = [];
+          for (let i = 0; i < rep.results.length; i++) {
+            const r = rep.results[i];
+            const runId = `Run ${i + 1}${r.seed != null ? ` (seed ${r.seed})` : ""}`;
+            if (Array.isArray(r.passedSteps)) for (const m of r.passedSteps) good.push(`${runId}: ${m}`);
+            if (Array.isArray(r.failedSteps)) for (const m of r.failedSteps) bad.push(`${runId}: ${m}`);
+            if (Array.isArray(r.skipped)) for (const m of r.skipped) skipped.push(`${runId}: ${m}`);
+          }
+          lines.push("GOOD:");
+          if (good.length) lines.push(...good.map(s => `  + ${s}`)); else lines.push("  (none)");
+          lines.push("");
+          lines.push("PROBLEMS:");
+          if (bad.length) lines.push(...bad.map(s => `  - ${s}`)); else lines.push("  (none)");
+          lines.push("");
+          lines.push("SKIPPED:");
+          if (skipped.length) lines.push(...skipped.map(s => `  ~ ${s}`)); else lines.push("  (none)");
+          lines.push("");
+          // Include top few console/browser issues
+          const consoleIssues = [];
+          for (let i = 0; i < rep.results.length; i++) {
+            const r = rep.results[i];
+            const id = `Run ${i + 1}`;
+            const c = (r.console && (r.console.consoleErrors || [])).slice(0, 3).map(x => `${id}: console.error: ${x}`);
+            const w = (r.console && (r.console.windowErrors || [])).slice(0, 3).map(x => `${id}: window: ${x}`);
+            const cw = (r.console && (r.console.consoleWarns || [])).slice(0, 2).map(x => `${id}: console.warn: ${x}`);
+            consoleIssues.push(...c, ...w, ...cw);
+          }
+          if (consoleIssues.length) {
+            lines.push("Console/Browser issues:");
+            lines.push(...consoleIssues.map(s => `  ! ${s}`));
+            lines.push("");
+          }
+          lines.push("End of report.");
+          return lines.join("\n");
         }
-        lines.push("End of report.");
-        return lines.join("\n");
-      }
 
-      const summaryText = buildSummaryText(report);
-      window.SmokeTest.lastSummaryText = summaryText;
-
-      const btnHtml = `
-        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-          <button id="smoke-export-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Report (JSON)</button>
-          <button id="smoke-export-summary-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Summary (TXT)</button>
-        </div>`;
-      appendToPanel(btnHtml);
-
-      setTimeout(() => {
-        const jsonBtn = document.getElementById("smoke-export-btn");
-        if (jsonBtn) {
-          jsonBtn.onclick = () => {
-            try {
-              const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "smoketest_report.json";
-              document.body.appendChild(a);
-              a.click();
-              setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-              }, 100);
-            } catch (e) {
-              console.error("Export failed", e);
+        function buildChecklistText(rep) {
+          const lines = [];
+          lines.push(`Roguelike Smoke Test Checklist (Runner v${rep.runnerVersion || RUNNER_VERSION})`);
+          lines.push(`Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`);
+          lines.push("");
+          for (let i = 0; i < rep.results.length; i++) {
+            const r = rep.results[i];
+            const runId = `Run ${i + 1}${r.seed != null ? ` (seed ${r.seed})` : ""}`;
+            lines.push(runId + ":");
+            if (Array.isArray(r.passedSteps)) {
+              for (const m of r.passedSteps) lines.push(`[x] ${m}`);
             }
-          };
-        }
-        const txtBtn = document.getElementById("smoke-export-summary-btn");
-        if (txtBtn) {
-          txtBtn.onclick = () => {
-            try {
-              const blob = new Blob([summaryText], { type: "text/plain" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "smoketest_summary.txt";
-              document.body.appendChild(a);
-              a.click();
-              setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-              }, 100);
-            } catch (e) {
-              console.error("Export summary failed", e);
+            if (Array.isArray(r.failedSteps)) {
+              for (const m of r.failedSteps) lines.push(`[ ] ${m}`);
             }
-          };
+            if (Array.isArray(r.skipped)) {
+              for (const m of r.skipped) lines.push(`[-] ${m}`);
+            }
+            lines.push("");
+          }
+          return lines.join("\n");
         }
-      }, 0);
-    } catch (_) {}
+
+        const summaryText = buildSummaryText(report);
+        const checklistText = buildChecklistText(report);
+        window.SmokeTest.lastSummaryText = summaryText;
+        window.SmokeTest.lastChecklistText = checklistText;
+
+        // Render concise checklist into GOD panel as well
+        const checklistHtml = (() => {
+          const items = [];
+          for (let i = 0; i < all.length; i++) {
+            const r = all[i];
+            const runId = `Run ${i + 1}${r.seed != null ? ` (seed ${r.seed})` : ""}`;
+            items.push(`<div style="margin-top:6px;"><strong>${runId}</strong></div>`);
+            if (Array.isArray(r.passedSteps)) for (const m of r.passedSteps) items.push(`<div style="color:#86efac;">[x] ${m}</div>`);
+            if (Array.isArray(r.failedSteps)) for (const m of r.failedSteps) items.push(`<div style="color:#fca5a5;">[ ] ${m}</div>`);
+            if (Array.isArray(r.skipped)) for (const m of r.skipped) items.push(`<div style="color:#fde68a;">[-] ${m}</div>`);
+          }
+          return `<div style="margin-top:8px;"><strong>Checklist</strong></div>` + items.join("");
+        })();
+        appendToPanel(checklistHtml);
+
+        const btnHtml = `
+          <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="smoke-export-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Report (JSON)</button>
+            <button id="smoke-export-summary-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Summary (TXT)</button>
+            <button id="smoke-export-checklist-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Checklist (TXT)</button>
+          </div>`;
+        appendToPanel(btnHtml);
+
+        setTimeout(() => {
+          const jsonBtn = document.getElementById("smoke-export-btn");
+          if (jsonBtn) {
+            jsonBtn.onclick = () => {
+              try {
+                const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "smoketest_report.json";
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }, 100);
+              } catch (e) {
+                console.error("Export failed", e);
+              }
+            };
+          }
+          const txtBtn = document.getElementById("smoke-export-summary-btn");
+          if (txtBtn) {
+            txtBtn.onclick = () => {
+              try {
+                const blob = new Blob([summaryText], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "smoketest_summary.txt";
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }, 100);
+              } catch (e) {
+                console.error("Export summary failed", e);
+              }
+            };
+          }
+          const clBtn = document.getElementById("smoke-export-checklist-btn");
+          if (clBtn) {
+            clBtn.onclick = () => {
+              try {
+                const blob = new Blob([checklistText], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "smoketest_checklist.txt";
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }, 100);
+              } catch (e) {
+                console.error("Export checklist failed", e);
+              }
+            };
+          }
+        }, 0);
+      } catch (_) {}
 
     return { pass, fail, results: all, totalPassedSteps, totalFailedSteps, totalSkippedSteps, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), seeds, determinism: det, runnerVersion: RUNNER_VERSION };
   }
