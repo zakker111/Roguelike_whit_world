@@ -3,7 +3,7 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
-  const RUNNER_VERSION = "1.4.0";
+  const RUNNER_VERSION = "1.5.0";
   const CONFIG = {
     timeouts: {
       route: 5000,       // ms budget for any routing/path-following sequence
@@ -15,6 +15,12 @@
       drawMs: 12.0       // soft target per-draw
     }
   };
+
+  // URL params
+  let URL_PARAMS = {};
+  try {
+    URL_PARAMS = Object.fromEntries(new URLSearchParams(location.search).entries());
+  } catch (_) {}
 
   // Global collection of console/browser errors during smoke test runs
   const ConsoleCapture = {
@@ -281,6 +287,28 @@
       log("SKIP: " + msg, "info");
     };
 
+    // Phase-2 seed reload determinism check (boot-level)
+    try {
+      if (String(URL_PARAMS.phase || "") === "2") {
+        const raw = localStorage.getItem("SMOKE_ANCHOR");
+        if (raw) {
+          const anchor = JSON.parse(raw);
+          // Compute anchors now (after boot) without any movement
+          const townNow = (window.GameAPI && typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+          const dungNow = (window.GameAPI && typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+          const townOk = (!!anchor && !!anchor.anchorTown && !!townNow) ? (anchor.anchorTown.x === townNow.x && anchor.anchorTown.y === townNow.y) : true;
+          const dungOk = (!!anchor && !!anchor.anchorDungeon && !!dungNow) ? (anchor.anchorDungeon.x === dungNow.x && anchor.anchorDungeon.y === dungNow.y) : true;
+          record(townOk && dungOk, `Reload-phase seed invariants: nearestTown=${townOk ? "OK" : "MISMATCH"} nearestDungeon=${dungOk ? "OK" : "MISMATCH"}`);
+          // Clear anchor to avoid affecting subsequent runs
+          try { localStorage.removeItem("SMOKE_ANCHOR"); localStorage.removeItem("SMOKE_RELOAD_DONE"); } catch (_) {}
+        } else {
+          recordSkip("Reload-phase: no anchor found");
+        }
+      }
+    } catch (e) {
+      record(false, "Reload-phase check failed: " + (e && e.message ? e.message : String(e)));
+    }
+
     try {
       ConsoleCapture.reset();
       log("Starting smoke test…", "notice");
@@ -327,6 +355,27 @@
         }
       } catch (_) {}
 
+      // Optional reload-phase determinism: only when not already done and not in multi-run series
+      try {
+        if (String(URL_PARAMS.phase || "") !== "2" && localStorage.getItem("SMOKE_RELOAD_DONE") !== "1" && (!URL_PARAMS.smokecount || URL_PARAMS.smokecount === "1")) {
+          const anchorData = {
+            seed: runMeta.seed,
+            anchorTown: runMeta.determinism.anchorTown || null,
+            anchorDungeon: runMeta.determinism.anchorDungeon || null
+          };
+          localStorage.setItem("SMOKE_ANCHOR", JSON.stringify(anchorData));
+          localStorage.setItem("SMOKE_RELOAD_DONE", "1");
+          // Reload with phase=2 to assert boot-level determinism anchors
+          const url = new URL(window.location.href);
+          url.searchParams.set("smoketest", "1");
+          url.searchParams.set("phase", "2");
+          if (window.DEV || localStorage.getItem("DEV") === "1") url.searchParams.set("dev", "1");
+          log("Reloading for phase-2 seed determinism check…", "notice");
+          window.location.assign(url.toString());
+          return { ok: true, steps, errors, passedSteps: [], failedSteps: [], skipped, console: ConsoleCapture.snapshot(), determinism: runMeta.determinism, seed: runMeta.seed, caps: runMeta.caps, runnerVersion: RUNNER_VERSION };
+        }
+      } catch (_) {}
+
       // Step 3: adjust FOV to 10 via slider (if present)
       try {
         const fov = document.getElementById("god-fov");
@@ -345,9 +394,21 @@
         key("ArrowRight");
         await sleep(140);
         const p1 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
-        key("Escape"); // close inventory
         const immobile = (p0.x === p1.x) && (p0.y === p1.y);
         record(immobile, "Modal priority: movement ignored while Inventory is open");
+        // Stack priority: open GOD while inventory is open, ESC should close GOD first, then ESC closes inventory
+        const invOpen0 = (window.UI && typeof window.UI.isInventoryOpen === "function") ? window.UI.isInventoryOpen() : false;
+        safeClick("god-open-btn"); await sleep(160);
+        const godOpen1 = (window.UI && typeof window.UI.isGodOpen === "function") ? window.UI.isGodOpen() : false;
+        key("ArrowLeft"); await sleep(140);
+        const p2 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+        const stillImmobile = (p1.x === p2.x) && (p1.y === p2.y);
+        key("Escape"); await sleep(140);
+        const godClosed = (window.UI && typeof window.UI.isGodOpen === "function") ? !window.UI.isGodOpen() : true;
+        const invStillOpen = (window.UI && typeof window.UI.isInventoryOpen === "function") ? window.UI.isInventoryOpen() : false;
+        key("Escape"); await sleep(140);
+        const invClosed = (window.UI && typeof window.UI.isInventoryOpen === "function") ? !window.UI.isInventoryOpen() : true;
+        record(invOpen0 && godOpen1 && stillImmobile && godClosed && invStillOpen && invClosed, "Modal stack priority: GOD closes before Inventory; movement ignored while any modal open");
       } catch (e) {
         record(false, "Modal priority check failed: " + (e && e.message ? e.message : String(e)));
       }
