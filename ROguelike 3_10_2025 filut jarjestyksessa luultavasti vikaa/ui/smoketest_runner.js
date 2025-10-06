@@ -1246,6 +1246,19 @@
         })();
         appendToPanel(checklistHtml);
 
+        // Render full report JSON inline (collapsible)
+        try {
+          const fullReportJson = JSON.stringify(report, null, 2);
+          const fullHtml = `
+            <div style="margin-top:10px;">
+              <details open>
+                <summary style="cursor:pointer;"><strong>Full Report (JSON)</strong></summary>
+                <pre id="smoke-full-report" style="white-space:pre-wrap; background:#0f1522; color:#d6deeb; padding:10px; border:1px solid #334155; border-radius:6px; max-height:40vh; overflow:auto; margin-top:6px;">${fullReportJson.replace(/[&<]/g, s => s === '&' ? '&amp;' : '&lt;')}</pre>
+              </details>
+            </div>`;
+          appendToPanel(fullHtml);
+        } catch (_) {}
+
         const btnHtml = `
           <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
             <button id="smoke-export-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Report (JSON)</button>
