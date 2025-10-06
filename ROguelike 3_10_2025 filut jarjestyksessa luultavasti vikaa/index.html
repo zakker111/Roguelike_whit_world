@@ -131,6 +131,8 @@
     })();
   </script>
   <script src="core/ctx.js"></script>
+  <!-- Load central RNG service early so all following modules can bind to it deterministically -->
+  <script src="core/rng_service.js"></script>
   <script src="world/world.js"></script>
   <script src="world/los.js"></script>
   <script src="entities/enemies.js"></script>
@@ -148,8 +150,6 @@
   <script src="entities/player_utils.js"></script>
   <script src="entities/player_equip.js"></script>
   <script src="entities/player.js"></script>
-  <!-- Central RNG service must load before items/game to avoid duplicate PRNG implementations -->
-  <script src="core/rng_service.js"></script>
   <script src="services/time_service.js"></script>
   <script src="entities/items.js"></script>
   <script src="dungeon/dungeon_items.js"></script>
