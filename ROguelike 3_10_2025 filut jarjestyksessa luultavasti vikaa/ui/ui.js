@@ -185,6 +185,12 @@
       diagBtn?.addEventListener("click", () => {
         if (typeof this.handlers.onGodDiagnostics === "function") this.handlers.onGodDiagnostics();
       });
+      const newGameBtn = document.getElementById("god-newgame-btn");
+      newGameBtn?.addEventListener("click", () => {
+        // Close GOD panel and trigger restart/new game
+        try { this.hideGod(); } catch (_) {}
+        if (typeof this.handlers.onRestart === "function") this.handlers.onRestart();
+      });
       const smokeBtn = document.getElementById("god-run-smoke-btn");
       smokeBtn?.addEventListener("click", () => {
         const countRaw = (this.els.godSmokeCount && this.els.godSmokeCount.value) ? this.els.godSmokeCount.value.trim() : "1";
@@ -951,7 +957,8 @@
 
     updateSeedUI() {
       const seed = this.getSeedState();
-      if (this.els.godSeedInput && !this.els.godSeedInput.value) {
+      // Always reflect persisted seed into UI on init to avoid stale values
+      if (this.els.godSeedInput) {
         this.els.godSeedInput.value = seed;
       }
       if (this.els.godSeedHelp) {

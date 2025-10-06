@@ -21,7 +21,11 @@
   // --- Built-in loot factories ---
   const lootFactories = {
     potion: (ctx) => {
-      const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
+      const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
+        ? RNG.rng
+        : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
+            ? RNGFallback.getRng()
+            : Math.random));
       const r = rng();
       if (r < 0.5) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
       if (r < 0.85) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
@@ -30,7 +34,11 @@
 
     armor: (ctx, opts = {}) => {
       const tier = opts.tier ?? 2;
-      const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
+      const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
+        ? RNG.rng
+        : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
+            ? RNGFallback.getRng()
+            : Math.random));
       const slots = ["head", "torso", "legs", "hands"];
       const slot = slots[Math.floor(rng() * slots.length)];
       const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));

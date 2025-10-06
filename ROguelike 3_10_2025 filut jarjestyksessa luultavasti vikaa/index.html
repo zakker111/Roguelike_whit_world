@@ -92,6 +92,7 @@
       <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
       <button id="god-check-inn-tavern-btn" class="btn" title="Report if this town has an Inn/Tavern and where">Check Inn/Tavern</button>
       <button id="god-diagnostics-btn" class="btn" title="Show system diagnostics (determinism source, seed, module handles) in log">Diagnostics</button>
+      <button id="god-newgame-btn" class="btn" title="Start a new game immediately">Start New Game</button>
       <div style="display:flex; gap:6px; align-items:center;">
         <button id="god-run-smoke-btn" class="btn" title="Run automated smoke test (opens GOD, applies seed, spawns enemy, moves, and runs Diagnostics)">Run Smoke Test</button>
         <label for="god-smoke-count" class="help" style="font-size:12px; color:#8a98b0;">Runs:</label>
@@ -109,6 +110,7 @@
     <div class="loot-hint">Press Esc to close</div>
   </div>
 
+  <!-- Boot flags and persisted preferences -->
   <script>
     (function () {
       try {
@@ -130,51 +132,99 @@
       } catch (_) {}
     })();
   </script>
-  <script src="core/ctx.js"></script>
-  <!-- Load central RNG service early so all following modules can bind to it deterministically -->
-  <script src="core/rng_service.js"></script>
-  <script src="world/world.js"></script>
-  <script src="world/los.js"></script>
-  <script src="entities/enemies.js"></script>
-  <script src="world/fov.js"></script>
-  <script src="dungeon/dungeon.js"></script>
-  <script src="ui/logger.js"></script>
+
+  <!-- Core context and deterministic RNG service -->
+  <script src="core/ctx.js" defer></script>
+  <script src="core/rng_service.js" defer></script>
+  <!-- Boot diagnostics: log RNG source and seed -->
   <script>
-    if (window.Logger && typeof Logger.init === "function") {
-      try { Logger.init(undefined, 80); } catch (e) {}
-    }
+    (function () {
+      try {
+        var src = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
+        var seed = "(random)";
+        if (typeof window !== "undefined" && window.RNG && typeof RNG.getSeed === "function") {
+          var s = RNG.getSeed();
+          if (s != null) seed = String((Number(s) >>> 0));
+        } else {
+          try {
+            var sRaw = localStorage.getItem("SEED");
+            if (sRaw != null) seed = String((Number(sRaw) >>> 0));
+          } catch (_) {}
+        }
+        if (window.Logger && typeof Logger.log === "function") {
+          Logger.log("Boot: RNG=" + src + "  Seed=" + seed, "notice");
+        } else if (window.DEV) {
+          console.debug("[BOOT] RNG=" + src + "  Seed=" + seed);
+        }
+      } catch (_) {}
+    })();
   </script>
-  <script src="ui/ui.js"></script>
-  <script src="ui/tileset.js"></script>
-  <script src="ui/render.js"></script>
-  <script src="entities/player_utils.js"></script>
-  <script src="entities/player_equip.js"></script>
-  <script src="entities/player.js"></script>
-  <script src="services/time_service.js"></script>
-  <script src="services/shop_service.js"></script>
-  <script src="data/loader.js"></script>
-  <script src="entities/items.js"></script>
-  <script src="dungeon/dungeon_items.js"></script>
-  <script src="entities/loot.js"></script>
-  <script src="combat/combat_utils.js"></script>
-  <script src="combat/combat.js"></script>
-  <script src="combat/stats.js"></script>
-  <script src="combat/status_effects.js"></script>
-  <script src="data/flavor.js"></script>
-  <script src="utils/utils.js"></script>
-  <script src="ai/ai.js"></script>
-  <script src="core/input.js"></script>
-  <script src="ai/town_ai.js"></script>
-  <!-- New modularized helpers -->
-  <script src="ui/decals.js"></script>
-  <script src="dungeon/occupancy_grid.js"></script>
-  <script src="dungeon/dungeon_state.js"></script>
-  <script src="data/god.js"></script>
-  <script src="core/actions.js"></script>
-  <script src="worldgen/town_gen.js"></script>
-  <script src="core/modes.js"></script>
-  <script src="core/game_loop.js"></script>
-  <script src="core/game.js"></script>
+
+  <!-- World modules -->
+  <script src="world/world.js" defer></script>
+  <script src="world/los.js" defer></script>
+  <script src="world/fov.js" defer></script>
+
+  <!-- Entities and dungeon -->
+  <script src="entities/enemies.js" defer></script>
+  <script src="dungeon/dungeon.js" defer></script>
+
+  <!-- UI and rendering -->
+  <script src="ui/logger.js" defer></script>
+  <script>
+    // Initialize Logger once DOM is ready; deferred scripts will have loaded by then
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        if (window.Logger && typeof Logger.init === 'function') {
+          Logger.init(undefined, 80);
+        }
+      } catch (e) {}
+    });
+  </script>
+  <script src="ui/ui.js" defer></script>
+  <script src="ui/tileset.js" defer></script>
+  <script src="ui/render.js" defer></script>
+
+  <!-- Player and equipment -->
+  <script src="entities/player_utils.js" defer></script>
+  <script src="entities/player_equip.js" defer></script>
+  <script src="entities/player.js" defer></script>
+
+  <!-- Services -->
+  <script src="services/time_service.js" defer></script>
+  <script src="services/shop_service.js" defer></script>
+
+  <!-- Data and registries -->
+  <script src="data/loader.js" defer></script>
+  <script src="entities/items.js" defer></script>
+  <script src="dungeon/dungeon_items.js" defer></script>
+  <script src="entities/loot.js" defer></script>
+  <script src="data/flavor.js" defer></script>
+
+  <!-- Utilities -->
+  <script src="utils/utils.js" defer></script>
+  <script src="utils/rng_fallback.js" defer></script>
+
+  <!-- AI -->
+  <script src="ai/ai.js" defer></script>
+  <script src="ai/town_ai.js" defer></script>
+
+  <!-- Modularized helpers -->
+  <script src="ui/decals.js" defer></script>
+  <script src="dungeon/occupancy_grid.js" defer></script>
+  <script src="dungeon/dungeon_state.js" defer></script>
+
+  <!-- GOD helpers -->
+  <script src="data/god.js" defer></script>
+
+  <!-- Actions, modes, loop, game -->
+  <script src="core/actions.js" defer></script>
+  <script src="worldgen/town_gen.js" defer></script>
+  <script src="core/modes.js" defer></script>
+  <script src="core/game_loop.js" defer></script>
+  <script src="core/input.js" defer></script>
+  <script src="core/game.js" defer></script>
+
   <!-- Optional smoke test runner: load when ?smoketest=1 -->
   <script>
     (function () {

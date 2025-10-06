@@ -3,7 +3,7 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
-  const RUNNER_VERSION = "1.3.0";
+  const RUNNER_VERSION = "1.6.0";
   const CONFIG = {
     timeouts: {
       route: 5000,       // ms budget for any routing/path-following sequence
@@ -15,6 +15,19 @@
       drawMs: 12.0       // soft target per-draw
     }
   };
+
+  // URL params
+  let URL_PARAMS = {};
+  try {
+    URL_PARAMS = Object.fromEntries(new URLSearchParams(location.search).entries());
+  } catch (_) {}
+
+  // Scenario selection (comma-separated): world,dungeon,town,combat,inventory,perf,overlays
+  const SCENARIOS = (() => {
+    const s = String(URL_PARAMS.smoke || "").trim();
+    if (!s) return new Set(["world","dungeon","town","combat","inventory","perf","overlays"]);
+    return new Set(s.split(",").map(x => x.trim().toLowerCase()).filter(Boolean));
+  })();
 
   // Global collection of console/browser errors during smoke test runs
   const ConsoleCapture = {
@@ -213,8 +226,44 @@
       caps.getShops = typeof api.getShops === "function";
       caps.isShopOpenNowFor = typeof api.isShopOpenNowFor === "function";
       caps.getShopSchedule = typeof api.getShopSchedule === "function";
+      caps.advanceMinutes = typeof api.advanceMinutes === "function";
+      caps.getClock = typeof api.getClock === "function";
+      caps.equipItemAtIndexHand = typeof api.equipItemAtIndexHand === "function";
     } catch (_) {}
     return caps;
+  }
+
+  // DEV: simple Math.random audit to discourage nondeterministic generators
+  function devRandomAudit() {
+    try {
+      if (!(window.DEV || localStorage.getItem("DEV") === "1")) return { scanned: 0, hits: [] };
+      const scripts = Array.from(document.scripts || []);
+      const hits = [];
+      for (const s of scripts) {
+        const src = s.src || "";
+        if (!src) continue;
+        // Heuristic: fetch content only for same-origin/local scripts if possible (skip cross-origin)
+        if (src.startsWith(location.origin)) {
+          // note: we can't fetch here; just record the url and rely on a server-side audit if needed
+          // As a compromise, record the src and mark "UNKNOWN" since inline content isn't accessible here.
+          // Developers can run a separate audit tool. We still scan script text for inline scripts.
+        }
+        // For inline scripts, check text content
+        if (!src && s.text && s.text.includes("Math.random")) {
+          hits.push({ type: "inline", snippet: (s.text || "").slice(0, 120) });
+        }
+      }
+      // Quick DOM scan for Math.random mentions
+      try {
+        const html = document.documentElement.outerHTML || "";
+        if ((html.match(/Math\.random/g) || []).length > 0) {
+          hits.push({ type: "dom", note: "Math.random appears in page HTML (might be harmless)." });
+        }
+      } catch (_) {}
+      return { scanned: scripts.length, hits };
+    } catch (_) {
+      return { scanned: 0, hits: [] };
+    }
   }
 
   // Safe element access
@@ -234,6 +283,31 @@
       el.dispatchEvent(new Event("input", { bubbles: true }));
       el.dispatchEvent(new Event("change", { bubbles: true }));
       return true;
+    } catch (_) { return false; }
+  }
+
+  // Lightweight polling helpers (bounded) to avoid flaky state reads
+  async function waitUntilTrue(fn, timeoutMs = 400, intervalMs = 40) {
+    const deadline = Date.now() + Math.max(0, timeoutMs | 0);
+    while (Date.now() < deadline) {
+      try { if (fn()) return true; } catch (_) {}
+      await sleep(intervalMs);
+    }
+    return fn();
+  }
+
+  function isInvOpen() {
+    try {
+      if (window.UI && typeof window.UI.isInventoryOpen === "function") return !!window.UI.isInventoryOpen();
+      const el = document.getElementById("inv-panel");
+      return !!(el && el.hidden === false);
+    } catch (_) { return false; }
+  }
+  function isGodOpen() {
+    try {
+      if (window.UI && typeof window.UI.isGodOpen === "function") return !!window.UI.isGodOpen();
+      const el = document.getElementById("god-panel");
+      return !!(el && el.hidden === false);
     } catch (_) { return false; }
   }
 
@@ -281,6 +355,28 @@
       log("SKIP: " + msg, "info");
     };
 
+    // Phase-2 seed reload determinism check (boot-level)
+    try {
+      if (String(URL_PARAMS.phase || "") === "2") {
+        const raw = localStorage.getItem("SMOKE_ANCHOR");
+        if (raw) {
+          const anchor = JSON.parse(raw);
+          // Compute anchors now (after boot) without any movement
+          const townNow = (window.GameAPI && typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+          const dungNow = (window.GameAPI && typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+          const townOk = (!!anchor && !!anchor.anchorTown && !!townNow) ? (anchor.anchorTown.x === townNow.x && anchor.anchorTown.y === townNow.y) : true;
+          const dungOk = (!!anchor && !!anchor.anchorDungeon && !!dungNow) ? (anchor.anchorDungeon.x === dungNow.x && anchor.anchorDungeon.y === dungNow.y) : true;
+          record(townOk && dungOk, `Reload-phase seed invariants: nearestTown=${townOk ? "OK" : "MISMATCH"} nearestDungeon=${dungOk ? "OK" : "MISMATCH"}`);
+          // Clear anchor to avoid affecting subsequent runs
+          try { localStorage.removeItem("SMOKE_ANCHOR"); localStorage.removeItem("SMOKE_RELOAD_DONE"); } catch (_) {}
+        } else {
+          recordSkip("Reload-phase: no anchor found");
+        }
+      }
+    } catch (e) {
+      record(false, "Reload-phase check failed: " + (e && e.message ? e.message : String(e)));
+    }
+
     try {
       ConsoleCapture.reset();
       log("Starting smoke test…", "notice");
@@ -314,6 +410,40 @@
       }
       await sleep(600);
 
+      // Capture anchor invariants immediately after seed application (before any movement)
+      try {
+        if (window.GameAPI) {
+          const anchorPos = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+          const anchorTown = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+          const anchorDung = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+          runMeta.determinism.anchorPos = anchorPos;
+          runMeta.determinism.anchorTown = anchorTown;
+          runMeta.determinism.anchorDungeon = anchorDung;
+          record(true, "Captured seed anchor invariants (start nearestTown/dungeon)");
+        }
+      } catch (_) {}
+
+      // Optional reload-phase determinism: only when not already done and not in multi-run series
+      try {
+        if (String(URL_PARAMS.phase || "") !== "2" && localStorage.getItem("SMOKE_RELOAD_DONE") !== "1" && (!URL_PARAMS.smokecount || URL_PARAMS.smokecount === "1")) {
+          const anchorData = {
+            seed: runMeta.seed,
+            anchorTown: runMeta.determinism.anchorTown || null,
+            anchorDungeon: runMeta.determinism.anchorDungeon || null
+          };
+          localStorage.setItem("SMOKE_ANCHOR", JSON.stringify(anchorData));
+          localStorage.setItem("SMOKE_RELOAD_DONE", "1");
+          // Reload with phase=2 to assert boot-level determinism anchors
+          const url = new URL(window.location.href);
+          url.searchParams.set("smoketest", "1");
+          url.searchParams.set("phase", "2");
+          if (window.DEV || localStorage.getItem("DEV") === "1") url.searchParams.set("dev", "1");
+          log("Reloading for phase-2 seed determinism check…", "notice");
+          window.location.assign(url.toString());
+          return { ok: true, steps, errors, passedSteps: [], failedSteps: [], skipped, console: ConsoleCapture.snapshot(), determinism: runMeta.determinism, seed: runMeta.seed, caps: runMeta.caps, runnerVersion: RUNNER_VERSION };
+        }
+      } catch (_) {}
+
       // Step 3: adjust FOV to 10 via slider (if present)
       try {
         const fov = document.getElementById("god-fov");
@@ -323,6 +453,34 @@
         record(false, "Adjust FOV failed: " + (e && e.message ? e.message : String(e)));
       }
       await sleep(250);
+
+      // Step 3.1: Modal priority — open inventory and attempt to move; assert no movement
+      try {
+        const p0 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+        key("KeyI"); // open inventory
+        await waitUntilTrue(() => isInvOpen(), 500, 50);
+        key("ArrowRight");
+        await sleep(200);
+        const p1 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+        const immobile = (p0.x === p1.x) && (p0.y === p1.y);
+        record(immobile, "Modal priority: movement ignored while Inventory is open");
+        // Stack priority: open GOD while inventory is open, ESC should close GOD first, then ESC closes inventory
+        const invOpen0 = isInvOpen();
+        safeClick("god-open-btn"); await waitUntilTrue(() => isGodOpen(), 600, 60);
+        const godOpen1 = isGodOpen();
+        key("ArrowLeft"); await sleep(200);
+        const p2 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+        const stillImmobile = (p1.x === p2.x) && (p1.y === p2.y);
+        key("Escape"); await waitUntilTrue(() => !isGodOpen(), 600, 60);
+        const godClosed = !isGodOpen();
+        const invStillOpen = isInvOpen();
+        key("Escape"); await waitUntilTrue(() => !isInvOpen(), 600, 60);
+        const invClosed = !isInvOpen();
+        record(invOpen0 && godOpen1 && stillImmobile && godClosed && invStillOpen && invClosed, "Modal stack priority: GOD closes before Inventory; movement ignored while any modal open");
+      } catch (e) {
+        record(false, "Modal priority check failed: " + (e && e.message ? e.message : String(e)));
+      }
+      await sleep(200);
 
       // Step 4: close GOD and route to nearest dungeon in overworld
       try {
@@ -413,6 +571,34 @@
               key("KeyG"); // open/loot chest
               await sleep(Math.min(ib.remain(), 250));
               record(true, `Looted chest at (${chest.x},${chest.y})`);
+
+              // Chest invariant: exit and re-enter, chest should remain empty
+              try {
+                // Return to world via exit '>'
+                const exit = (typeof window.GameAPI.getDungeonExit === "function") ? window.GameAPI.getDungeonExit() : null;
+                if (exit) {
+                  const pathBack = window.GameAPI.routeToDungeon(exit.x, exit.y);
+                  for (const step of pathBack) {
+                    const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(100);
+                  }
+                  key("KeyG"); await sleep(260);
+                  // Immediately re-enter same dungeon
+                  if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") {
+                    window.GameAPI.enterDungeonIfOnEntrance(); await sleep(260);
+                  }
+                  const corpsesAfter = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses() : [];
+                  const sameChest = corpsesAfter.find(c => c.kind === "chest" && c.x === chest.x && c.y === chest.y);
+                  const emptyOk = !!(sameChest && sameChest.looted && (sameChest.lootCount === 0));
+                  record(emptyOk, `Chest invariant: (${chest.x},${chest.y}) looted persists (looted=${sameChest ? sameChest.looted : "?"}, lootCount=${sameChest ? sameChest.lootCount : "?"})`);
+                  // Return to world to continue town flow
+                  if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
+                }
+              } catch (eInv) {
+                record(false, "Chest invariant check failed: " + (eInv && eInv.message ? eInv.message : String(eInv)));
+              }
             } else {
               record(true, "No chest found in dungeon (skipping chest loot)");
             }
@@ -470,8 +656,80 @@
                 record(true, "No potions available to drink (skipped)");
               }
             } catch (e2) {
-              record(false, "Drink potion failed: " + (e2 && e2.message ? e2.message : String(e2)));
+              record(false, "Drink potion failed: " + (e2 && e.message ? e2.message : String(e2)));
             }
+
+            // 9b.2: two-handed equip/unequip behavior if available + hand chooser branch coverage
+          try {
+            const inv2 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+            // Two-handed check
+            const idx2h = inv2.findIndex(it => it && it.kind === "equip" && it.twoHanded);
+            if (idx2h !== -1 && typeof window.GameAPI.equipItemAtIndex === "function") {
+              const okEq = !!window.GameAPI.equipItemAtIndex(idx2h);
+              await sleep(140);
+              const eqInfo = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              const bothHandsSame = !!(eqInfo.left && eqInfo.right && eqInfo.left.name === eqInfo.right.name);
+              // Unequip one hand should remove both if same object (two-handed)
+              const okUn = (typeof window.GameAPI.unequipSlot === "function") ? !!window.GameAPI.unequipSlot("left") : false;
+              await sleep(140);
+              const eqInfo2 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              const handsCleared = !eqInfo2.left && !eqInfo2.right;
+              record(okEq && bothHandsSame && okUn && handsCleared, "Two-handed equip/unequip behavior");
+            } else {
+              record(true, "Skipped two-handed equip test (no two-handed item)");
+            }
+
+            // Hand chooser branch coverage
+            // Ensure we have a 1-hand item in inventory
+            let inv3 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+            let idxHand = inv3.findIndex(it => it && it.kind === "equip" && it.slot === "hand" && !it.twoHanded);
+            if (idxHand === -1 && typeof window.GameAPI.getStats === "function") {
+              // Spawn items to populate inventory
+              safeClick("god-open-btn"); await sleep(120);
+              safeClick("god-spawn-btn"); await sleep(240);
+              key("Escape"); await sleep(120);
+              inv3 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+              idxHand = inv3.findIndex(it => it && it.kind === "equip" && it.slot === "hand" && !it.twoHanded);
+            }
+            if (idxHand !== -1) {
+              // Case A: both hands empty -> choose left explicitly, expect left equipped
+              (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
+              (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("right");
+              await sleep(120);
+              const okLeft = (typeof window.GameAPI.equipItemAtIndexHand === "function") ? !!window.GameAPI.equipItemAtIndexHand(idxHand, "left") : (!!window.GameAPI.equipItemAtIndex(idxHand));
+              await sleep(140);
+              let eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              const leftOk = !!(eqInfoA.left && (!eqInfoA.right || eqInfoA.right.name !== eqInfoA.left.name));
+              record(okLeft && leftOk, "Hand chooser: both empty -> equip left");
+
+              // Case B: right occupied, left empty -> auto equip to left when using generic equip
+              // First, ensure right has an item (reuse left item by moving if needed)
+              if (!(eqInfoA.right)) {
+                // Unequip left and re-equip to right
+                (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
+                await sleep(100);
+                const okRight = (typeof window.GameAPI.equipItemAtIndexHand === "function") ? !!window.GameAPI.equipItemAtIndexHand(idxHand, "right") : (!!window.GameAPI.equipItemAtIndex(idxHand));
+                await sleep(140);
+                eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+                if (!eqInfoA.right) {
+                  record(true, "Skipped auto equip test (unable to occupy right hand)");
+                }
+              }
+              // Now right occupied, left empty
+              (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
+              await sleep(120);
+              // Equip generically (no hand), expect left chosen
+              const okAuto = (typeof window.GameAPI.equipItemAtIndex === "function") ? !!window.GameAPI.equipItemAtIndex(idxHand) : false;
+              await sleep(140);
+              const eqInfoB = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              const autoLeft = !!(eqInfoB.left);
+              record(okAuto && autoLeft, "Hand chooser: one empty -> auto equip to empty hand");
+            } else {
+              record(true, "Skipped hand chooser test (no 1-hand item available)");
+            }
+          } catch (e2h) {
+            record(false, "Hand chooser tests failed: " + (e2h && e2h.message ? e2h.message : String(e2h)));
+          }
           } catch (e) {
             record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
           }
@@ -492,6 +750,7 @@
           await sleep(120);
 
           const enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+          const corpsesBeforeCombat = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().length : 0;
           const eqBefore = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
           const leftBefore = (eqBefore && eqBefore.left && typeof eqBefore.left.decay === "number") ? eqBefore.left.decay : null;
           const rightBefore = (eqBefore && eqBefore.right && typeof eqBefore.right.decay === "number") ? eqBefore.right.decay : null;
@@ -539,7 +798,37 @@
             // Attempt to loot underfoot if enemy died
             key("KeyG");
             await sleep(220);
+            const corpsesAfterCombat = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().length : corpsesBeforeCombat;
+            const killedEnemy = corpsesAfterCombat > corpsesBeforeCombat;
+            record(killedEnemy, `Killed enemy: ${killedEnemy ? "YES" : "NO"} (corpses ${corpsesBeforeCombat} -> ${corpsesAfterCombat})`);
             record(true, "Attempted to loot defeated enemy");
+
+            // FOV/LOS/occupancy spot-checks
+            try {
+              const pl = window.GameAPI.getPlayer();
+              const visSelf = (typeof window.GameAPI.getVisibilityAt === "function") ? window.GameAPI.getVisibilityAt(pl.x, pl.y) : true;
+              record(visSelf, "FOV: player tile visible");
+              // Adjacent tiles visibility sample
+              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+              let visAdjCount = 0;
+              for (const d of adj) {
+                const vx = pl.x + d.dx, vy = pl.y + d.dy;
+                if (typeof window.GameAPI.getVisibilityAt === "function" && window.GameAPI.getVisibilityAt(vx, vy)) visAdjCount++;
+              }
+              record(visAdjCount >= 1, `FOV: adjacent visible count ${visAdjCount}`);
+
+              // LOS sample to enemy tile if present
+              if (best) {
+                const hasLos = (typeof window.GameAPI.hasLOS === "function") ? window.GameAPI.hasLOS(pl.x, pl.y, best.x, best.y) : true;
+                record(hasLos, "LOS: player -> enemy line-of-sight (sample)");
+                const occEnemy = (typeof window.GameAPI.hasEnemy === "function") ? window.GameAPI.hasEnemy(best.x, best.y) : true;
+                record(occEnemy, "Occupancy: enemy tile marked occupied");
+                const occPlayerEnemy = (typeof window.GameAPI.hasEnemy === "function") ? window.GameAPI.hasEnemy(pl.x, pl.y) : false;
+                record(!occPlayerEnemy, "Occupancy: player tile not occupied by enemy");
+              }
+            } catch (eOcc) {
+              record(false, "FOV/LOS/occupancy spot-checks failed: " + (eOcc && eOcc.message ? eOcc.message : String(eOcc)));
+            }
 
             // Equipment breakage test: force near-break decay and attack until it breaks
             try {
@@ -660,6 +949,69 @@
                 const dmgCritHead = Math.max(0, (hpH0 != null && hpH1 != null) ? (hpH0 - hpH1) : 0);
                 record(dmgCritHead >= dmgNoCrit, `Crit damage check: non-crit ${dmgNoCrit}, head-crit ${dmgCritHead}`);
 
+                // Block/hit distribution sanity over multiple bumps
+                try {
+                  // Ensure an enemy is present
+                  if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
+                  await sleep(120);
+                  let es3 = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                  if (es3 && es3.length) {
+                    // route adjacent
+                    let tgt3 = es3[0];
+                    let bestD3 = Math.abs(tgt3.x - window.GameAPI.getPlayer().x) + Math.abs(tgt3.y - window.GameAPI.getPlayer().y);
+                    for (const e3 of es3) {
+                      const d3 = Math.abs(e3.x - window.GameAPI.getPlayer().x) + Math.abs(e3.y - window.GameAPI.getPlayer().y);
+                      if (d3 < bestD3) { bestD3 = d3; tgt3 = e3; }
+                    }
+                    const path3 = window.GameAPI.routeToDungeon ? window.GameAPI.routeToDungeon(tgt3.x, tgt3.y) : [];
+                    for (const step of path3) {
+                      const dx3 = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                      const dy3 = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                      key(dx3 === -1 ? "ArrowLeft" : dx3 === 1 ? "ArrowRight" : (dy3 === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(80);
+                    }
+                    let blocks = 0, hits = 0;
+                    // Perform 10 bumps and measure hp change
+                    for (let t = 0; t < 10; t++) {
+                      es3 = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                      let cur = es3.find(e => e.x === tgt3.x && e.y === tgt3.y) || tgt3;
+                      const hpBefore = cur ? cur.hp : null;
+                      const dx4 = Math.sign(tgt3.x - window.GameAPI.getPlayer().x);
+                      const dy4 = Math.sign(tgt3.y - window.GameAPI.getPlayer().y);
+                      key(dx4 === -1 ? "ArrowLeft" : dx4 === 1 ? "ArrowRight" : (dy4 === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(120);
+                      es3 = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                      cur = es3.find(e => e.x === tgt3.x && e.y === tgt3.y) || cur;
+                      const hpAfter = cur ? cur.hp : hpBefore;
+                      if (hpBefore != null && hpAfter != null) {
+                        const diff = hpBefore - hpAfter;
+                        if (diff > 0) hits++;
+                        else blocks++;
+                      }
+                      if (!cur) break; // enemy died
+                    }
+                    const okSpread = hits >= 1 && blocks >= 1;
+                    record(okSpread, `Block/Hit spread: hits=${hits} blocks=${blocks} (10 bumps)`);
+                  } else {
+                    record(true, "Skipped block/hit spread (no enemy)");
+                  }
+                } catch (eS) {
+                  record(false, "Block/Hit spread check failed: " + (eS && eS.message ? eS.message : String(eS)));
+                }
+
+                // Dazed behavior: set 2 turns and ensure movement is ignored
+                try {
+                  const p0 = window.GameAPI.getPlayer();
+                  const okSetD = (typeof window.GameAPI.setPlayerDazedTurns === "function") ? !!window.GameAPI.setPlayerDazedTurns(2) : false;
+                  key("ArrowRight"); await sleep(120);
+                  key("ArrowRight"); await sleep(120);
+                  const p1 = window.GameAPI.getPlayer();
+                  const dazedOk = okSetD && (p0.x === p1.x) && (p0.y === p1.y);
+                  record(dazedOk, "Dazed: movement consumed by dazedTurns");
+                } catch (eD) {
+                  record(false, "Dazed behavior check failed: " + (eD && eD.message ? eD.message : String(eD)));
+                }
+
                 // Legs crit immobilization
                 if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("legs");
                 if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
@@ -685,14 +1037,23 @@
                 es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
                 let tgtL2 = es.find(e => e.x === tgtL.x && e.y === tgtL.y) || tgtL;
                 const imm0 = tgtL2 ? (tgtL2.immobileTurns || 0) : 0;
+                const bleed0 = tgtL2 ? (tgtL2.bleedTurns || 0) : 0;
                 // wait two turns to tick effects
                 key("Numpad5"); await sleep(90);
                 key("Numpad5"); await sleep(90);
                 es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
                 let tgtL3 = es.find(e => e.x === tgtL.x && e.y === tgtL.y);
                 const imm1 = tgtL3 ? (tgtL3.immobileTurns || 0) : 0;
+                const bleed1 = tgtL3 ? (tgtL3.bleedTurns || 0) : 0;
                 const immOk = imm0 >= 1 && (imm1 <= imm0);
                 record(immOk, `Legs-crit immobilization: immobileTurns ${imm0} -> ${imm1}`);
+                // Bleed tick check (optional depending on Combat/Status module)
+                if (bleed0 || bleed1) {
+                  const bleedOk = bleed1 <= bleed0;
+                  record(bleedOk, `Bleed turns: ${bleed0} -> ${bleed1}`);
+                } else {
+                  record(true, "Bleed check skipped (no bleedTurns on enemy)");
+                }
               } else {
                 record(true, "Skipped crit/status tests (no enemies found)");
               }
@@ -706,10 +1067,36 @@
             record(true, "No enemies found to route/loot");
           }
 
-          // 9d: Attempt to return to overworld via dungeon exit ('>') + persistence pass
+          // 9d: Attempt to return to overworld via dungeon exit ('>') + persistence pass + stair guard
           try {
             const exit = (typeof window.GameAPI.getDungeonExit === "function") ? window.GameAPI.getDungeonExit() : null;
             if (exit) {
+              // Stair guard: stand on a non-stair tile and press G; assert mode stays dungeon
+              try {
+                // Pick an adjacent walkable non-stair tile if possible
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                let moved = false;
+                for (const d of adj) {
+                  const nx = window.GameAPI.getPlayer().x + d.dx;
+                  const ny = window.GameAPI.getPlayer().y + d.dy;
+                  if (typeof window.GameAPI.isWalkableDungeon === "function" ? window.GameAPI.isWalkableDungeon(nx, ny) : true) {
+                    // attempt move
+                    const dx = Math.sign(nx - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(ny - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(120);
+                    moved = true;
+                    break;
+                  }
+                }
+                key("KeyG");
+                await sleep(160);
+                const modeGuard = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+                record(modeGuard === "dungeon", "Stair guard: G on non-stair does not exit dungeon");
+              } catch (eGuard) {
+                record(false, "Stair guard check failed: " + (eGuard && eGuard.message ? eGuard.message : String(eGuard)));
+              }
+
               // Capture pre-exit persistence markers
               const preCorpses = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().map(c => `${c.x},${c.y}:${c.kind}`) : [];
               const preDecals = (typeof window.GameAPI.getDecalsCount === "function") ? window.GameAPI.getDecalsCount() : 0;
@@ -730,9 +1117,11 @@
               const m1 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
               record(m1 === "world", m1 === "world" ? "Returned to overworld from dungeon" : "Attempted return to overworld (mode=" + m1 + ")");
 
-              // Persistence pass: immediately re-enter the same dungeon and verify state
+              // Persistence pass: immediately re-enter the same dungeon and verify state + player anchor
               try {
                 if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") {
+                  // Capture player anchor before re-enter (overworld entrance tile)
+                  const playerBeforeReenter = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
                   window.GameAPI.enterDungeonIfOnEntrance();
                   await sleep(300);
                   const m2 = window.GameAPI.getMode ? window.GameAPI.getMode() : "";
@@ -745,6 +1134,16 @@
                     const decalsOk = postDecals >= preDecals;
                     record(corpsesOk, `Persistence corpses: before ${preCorpses.length}, after ${postCorpses.length}, overlap ${overlap}`);
                     record(decalsOk, `Persistence decals: before ${preDecals}, after ${postDecals}`);
+
+                    // Player non-teleport check during persistence: ensure player pos only changes due to intended transitions
+                    const playerAfterReenter = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+                    const playerStable = !!(playerBeforeReenter && playerAfterReenter && (Math.abs(playerBeforeReenter.x - playerAfterReenter.x) + Math.abs(playerBeforeReenter.y - playerAfterReenter.y) <= 1));
+                    record(playerStable, `Player teleport guard (re-enter): Δ <= 1 tile`);
+
+                    // Aggregate: dungeon persistence summary
+                    const dungeonPersistent = corpsesOk && decalsOk;
+                    record(dungeonPersistent, `Dungeon persistent: ${dungeonPersistent ? "YES" : "NO"}`);
+
                     // Return to world again to proceed with town flow
                     if (typeof window.GameAPI.returnToWorldIfAtExit === "function") {
                       const ok = window.GameAPI.returnToWorldIfAtExit();
@@ -780,20 +1179,54 @@
       // Step 10: from overworld, visit nearest town and interact
       try {
         if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
-          const okTown = await window.GameAPI.gotoNearestTown();
+          // Seed determinism invariants: nearestTown/nearestDungeon before routing
+          let nearestTownBefore = null, nearestDungeonBefore = null;
+          try {
+            nearestTownBefore = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+            nearestDungeonBefore = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+          } catch (_) {}
+
+          // Prefer precise routing to nearestTown coordinate if available
+          let okTown = false;
+          try {
+            const nt = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+            if (nt && typeof window.GameAPI.routeTo === "function") {
+              const pathNT = window.GameAPI.routeTo(nt.x, nt.y);
+              const budgetNT = makeBudget(2500);
+              for (const step of pathNT) {
+                if (budgetNT.exceeded()) break;
+                const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(90);
+              }
+              okTown = true;
+            } else {
+              okTown = await window.GameAPI.gotoNearestTown();
+            }
+          } catch (_) {
+            okTown = await window.GameAPI.gotoNearestTown();
+          }
           if (!okTown) {
             // try a few manual moves
             const moves = ["ArrowRight","ArrowUp","ArrowLeft","ArrowDown","ArrowRight","ArrowRight"];
-            for (const m of moves) { key(m); await sleep(120); }
+            for (const m of moves) { key(m); await sleep(140); }
           }
+          // Attempt to enter town multiple ways with small delays
           key("Enter"); // enter town (press Enter on T)
-          await sleep(400);
-          // Fallback 1: call API to enter if available
+          await sleep(300);
           try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-          await sleep(200);
+          await sleep(240);
+          // Retry enter if still not in town
           let nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
           if (nowMode !== "town") {
-            // Fallback 2: if standing adjacent to a Town tile, step onto it and try again
+            key("Enter"); await sleep(240);
+            try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
+            await sleep(240);
+          }
+          nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+          if (nowMode !== "town") {
+            // Fallback: if standing adjacent to a Town tile, step onto it and try again
             try {
               const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
               const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
@@ -805,12 +1238,11 @@
                   const nx = player.x + d.dx, ny = player.y + d.dy;
                   if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
                     if (world.map[ny][nx] === T.TOWN) {
-                      // move onto town tile
                       if (typeof window.GameAPI.moveStep === "function") {
                         window.GameAPI.moveStep(d.dx, d.dy);
-                        await sleep(120);
+                        await sleep(140);
                         try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-                        await sleep(200);
+                        await sleep(240);
                         stepped = true;
                         break;
                       }
@@ -818,8 +1250,8 @@
                   }
                 }
                 if (!stepped) {
-                  // As a last resort, attempt a short radius-2 scan to find a Town tile and route to it
-                  const r = 2;
+                  // As a last resort, attempt a short radius-3 scan to find a Town tile and route to it
+                  const r = 3;
                   const candidates = [];
                   for (let dy = -r; dy <= r; dy++) {
                     for (let dx = -r; dx <= r; dx++) {
@@ -831,7 +1263,7 @@
                   }
                   if (candidates.length && typeof window.GameAPI.routeTo === "function") {
                     const path = window.GameAPI.routeTo(candidates[0].x, candidates[0].y);
-                    const budget = makeBudget(1500);
+                    const budget = makeBudget(2000);
                     for (const step of path) {
                       if (budget.exceeded()) break;
                       const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
@@ -840,7 +1272,7 @@
                       await sleep(90);
                     }
                     try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-                    await sleep(200);
+                    await sleep(240);
                   }
                 }
               }
@@ -850,8 +1282,35 @@
           if (nowMode === "town") {
             record(true, "Entered town");
           } else {
-            // Not an error for some maps/runs; treat as skipped to avoid failing the run.
             recordSkip("Town entry not achieved (still in " + nowMode + ")");
+          }
+
+          // Seed determinism invariants (same-seed regeneration without reload)
+          try {
+            // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
+            key("Escape"); await sleep(160);
+            if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
+            await sleep(240);
+            const seedRaw = (localStorage.getItem("SEED") || "");
+            const s = seedRaw ? (Number(seedRaw) >>> 0) : null;
+            if (s != null) {
+              // Open GOD, set seed (same) and regenerate overworld
+              safeClick("god-open-btn"); await sleep(120);
+              safeSetInput("god-seed-input", s);
+              safeClick("god-apply-seed-btn"); await sleep(400);
+              key("Escape"); await sleep(160);
+              const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+              const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+              const anchorTown = runMeta.determinism.anchorTown || null;
+              const anchorDung = runMeta.determinism.anchorDungeon || null;
+              const townSame = (!!anchorTown && !!nearestTownAfter) ? (anchorTown.x === nearestTownAfter.x && anchorTown.y === nearestTownAfter.y) : true;
+              const dungSame = (!!anchorDung && !!nearestDungeonAfter) ? (anchorDung.x === nearestDungeonAfter.x && anchorDung.y === nearestDungeonAfter.y) : true;
+              record(townSame && dungSame, `Seed invariants: nearestTown=${townSame ? "OK" : "MISMATCH"} nearestDungeon=${dungSame ? "OK" : "MISMATCH"}`);
+            } else {
+              recordSkip("Seed invariants skipped (no SEED persisted)");
+            }
+          } catch (e) {
+            record(false, "Seed invariants check failed: " + (e && e.message ? e.message : String(e)));
           }
 
           // NPC check: route to nearest NPC and bump into them
@@ -994,6 +1453,47 @@
           } catch (e) {
             record(false, "Decoration/prop interaction failed: " + (e && e.message ? e.message : String(e)));
           }
+
+          // Wait in town for a few turns (advance time) and run Home Routes check
+          try {
+            // Ensure we truly are in town and have some NPCs; otherwise try to spawn greeters
+            let modeTown = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() === "town" : false;
+            let npcCount = 0;
+            try { npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0; } catch (_) {}
+            if (modeTown && npcCount === 0) {
+              // Open GOD, run Check Home Routes which may populate diagnostics; if Town exposes greeter spawn, rely on it
+              safeClick("god-open-btn"); await sleep(120);
+              // If Town.spawnGateGreeters is not exposed via GameAPI, this is a no-op; continue
+              key("Escape"); await sleep(100);
+              // Recount
+              try { npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0; } catch (_) {}
+            }
+
+            // Advance a few turns to let TownAI act
+            for (let t = 0; t < 8; t++) { key("Numpad5"); await sleep(60); }
+            // If minute-level advance is available, push into late night (02:00) for stricter routing
+            try {
+              if (typeof window.GameAPI.getClock === "function" && typeof window.GameAPI.advanceMinutes === "function") {
+                const clk = window.GameAPI.getClock();
+                const curMin = clk.hours * 60 + clk.minutes;
+                const to2am = ((2 * 60) - curMin + 24 * 60) % (24 * 60);
+                window.GameAPI.advanceMinutes(to2am);
+                await sleep(120);
+              }
+            } catch (_) {}
+            const res = (typeof window.GameAPI.checkHomeRoutes === "function") ? window.GameAPI.checkHomeRoutes() : null;
+            // Harden result reading
+            const residentsTotal = (res && res.residents && typeof res.residents.total === "number") ? res.residents.total : 0;
+            const unreachable = (res && typeof res.unreachable === "number") ? res.unreachable : null;
+            const hasResidents = residentsTotal > 0;
+            record(hasResidents, `Home routes after waits: residents ${residentsTotal}${unreachable != null ? `, unreachable ${unreachable}` : ""}`);
+            if (!hasResidents) {
+              // Log raw object for diagnostics
+              try { console.warn("[SMOKE] HomeRoutes raw:", res); } catch (_) {}
+            }
+          } catch (eHR) {
+            record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
+          }
         } else {
           record(true, "Skipped town visit (not in overworld)");
         }
@@ -1023,6 +1523,29 @@
             const openNow = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : false;
             const sched = (typeof window.GameAPI.getShopSchedule === "function") ? window.GameAPI.getShopSchedule(s0) : "";
             record(true, `Shop check: ${s0.name || "Shop"} is ${openNow ? "OPEN" : "CLOSED"} (${sched})`);
+            // Boundary sanity: try exact minute-level transitions if advanceMinutes is available
+            try {
+              const clk = (typeof window.GameAPI.getClock === "function") ? window.GameAPI.getClock() : null;
+              if (clk && typeof window.GameAPI.advanceMinutes === "function") {
+                // Move to 07:59 (assuming typical 08:00 open) then to 08:00
+                const curMin = clk.hours * 60 + clk.minutes;
+                const to759 = ((8 * 60 - 1) - curMin + 24 * 60) % (24 * 60);
+                window.GameAPI.advanceMinutes(to759);
+                await sleep(120);
+                const at759 = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : false;
+                window.GameAPI.advanceMinutes(1); // to 08:00
+                await sleep(120);
+                const at800 = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : false;
+                record(true, `Shop boundary: 07:59=${at759 ? "OPEN" : "CLOSED"} 08:00=${at800 ? "OPEN" : "CLOSED"}`);
+              } else {
+                // Fallback: reach morning
+                const before = openNow;
+                if (typeof window.GameAPI.restUntilMorning === "function") window.GameAPI.restUntilMorning();
+                await sleep(200);
+                const after = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : before;
+                record(true, `Shop open state after morning: ${after ? "OPEN" : "CLOSED"}`);
+              }
+            } catch (_) {}
           } else {
             record(true, "No shops available to check");
           }
@@ -1154,7 +1677,45 @@
           } catch (e) {
             record(false, "Resting failed: " + (e && e.message ? e.message : String(e)));
           }
+
+          // Overlay toggles + perf snapshot (town-only overlays)
+          try {
+            // Toggle routes/home paths to exercise renderer, then capture perf
+            const perfBefore = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+            safeClick("god-toggle-route-paths-btn"); await sleep(100);
+            safeClick("god-toggle-home-paths-btn"); await sleep(100);
+            const perfAfter = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+            const perfOk = (perfAfter.lastDrawMs || 0) <= (CONFIG.perfBudget.drawMs * 2.0); // lenient budget
+            record(perfOk, `Overlay perf: draw ${perfAfter.lastDrawMs?.toFixed ? perfAfter.lastDrawMs.toFixed(2) : perfAfter.lastDrawMs}ms`);
+          } catch (e) {
+            record(false, "Overlay/perf snapshot failed: " + (e && e.message ? e.message : String(e)));
+          }
         }
+
+        // Global overlays (grid) perf snapshot
+        try {
+          const perfA = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+          safeClick("god-toggle-grid-btn"); await sleep(120);
+          const perfB = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+          const okGridPerf = (perfB.lastDrawMs || 0) <= (CONFIG.perfBudget.drawMs * 2.0);
+          record(okGridPerf, `Grid perf: draw ${perfB.lastDrawMs?.toFixed ? perfB.lastDrawMs.toFixed(2) : perfB.lastDrawMs}ms`);
+        } catch (e) {
+          record(false, "Grid perf snapshot failed: " + (e && e.message ? e.message : String(e)));
+        }
+
+        // Restart via GOD panel (Start New Game) and assert mode resets to world
+        try {
+          if (safeClick("god-newgame-btn")) {
+            await sleep(400);
+            const m = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            record(m === "world", "Restart via GOD: returned to overworld");
+          } else {
+            recordSkip("Restart button not present in GOD panel");
+          }
+        } catch (e) {
+          record(false, "Restart via GOD failed: " + (e && e.message ? e.message : String(e)));
+        }
+
         record(true, "Ran Diagnostics");
         await sleep(300);
         key("Escape");
@@ -1203,6 +1764,35 @@
         detailsHtml,
       ].join("");
       panelReport(html);
+      // Expose a simple PASS/FAIL token for CI
+      try {
+        let token = document.getElementById("smoke-pass-token");
+        if (!token) {
+          token = document.createElement("div");
+          token.id = "smoke-pass-token";
+          token.style.display = "none";
+          document.body.appendChild(token);
+        }
+        token.textContent = ok ? "PASS" : "FAIL";
+        // Also expose compact JSON summary
+        let jsonToken = document.getElementById("smoke-json-token");
+        if (!jsonToken) {
+          jsonToken = document.createElement("div");
+          jsonToken.id = "smoke-json-token";
+          jsonToken.style.display = "none";
+          document.body.appendChild(jsonToken);
+        }
+        const compact = {
+          ok,
+          passCount: passedSteps.length,
+          failCount: failedSteps.length,
+          skipCount: skipped.length,
+          seed: runMeta.seed,
+          caps: Object.keys(runMeta.caps || {}).filter(k => runMeta.caps[k]),
+          determinism: runMeta.determinism || {}
+        };
+        jsonToken.textContent = JSON.stringify(compact);
+      } catch (_) {}
 
       return { ok, steps, errors, passedSteps, failedSteps, skipped, console: runMeta.console, determinism: runMeta.determinism, seed: runMeta.seed, caps: runMeta.caps, runnerVersion: RUNNER_VERSION };
     } catch (err) {
@@ -1210,6 +1800,25 @@
       try { console.error(err); } catch (_) {}
       const html = `<div><strong>Smoke Test Result:</strong> FAIL (runner crashed)</div><div>${(err && err.message) ? err.message : String(err)}</div>`;
       panelReport(html);
+      try {
+        let token = document.getElementById("smoke-pass-token");
+        if (!token) {
+          token = document.createElement("div");
+          token.id = "smoke-pass-token";
+          token.style.display = "none";
+          document.body.appendChild(token);
+        }
+        token.textContent = "FAIL";
+        let jsonToken = document.getElementById("smoke-json-token");
+        if (!jsonToken) {
+          jsonToken = document.createElement("div");
+          jsonToken.id = "smoke-json-token";
+          jsonToken.style.display = "none";
+          document.body.appendChild(jsonToken);
+        }
+        const compact = { ok: false, passCount: 0, failCount: 1, skipCount: 0, seed: null, caps: [], determinism: {} };
+        jsonToken.textContent = JSON.stringify(compact);
+      } catch (_) {}
       return { ok: false, steps: [], errors: [String(err)], passedSteps: [], failedSteps: [], console: ConsoleCapture.snapshot(), determinism: {} };
     }
   }

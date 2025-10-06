@@ -1,0 +1,58 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "script"
+  },
+  "globals": {
+    "window": "readonly",
+    "document": "readonly",
+    "localStorage": "readonly",
+
+    "Logger": "readonly",
+    "UI": "readonly",
+    "RNG": "readonly",
+    "World": "readonly",
+    "Enemies": "readonly",
+    "FOV": "readonly",
+    "Dungeon": "readonly",
+    "DungeonItems": "readonly",
+    "Player": "readonly",
+    "PlayerUtils": "readonly",
+    "Status": "readonly",
+    "ShopService": "readonly",
+    "TimeService": "readonly",
+    "Town": "readonly",
+    "TownAI": "readonly",
+    "God": "readonly",
+    "Ctx": "readonly",
+    "Actions": "readonly",
+    "Modes": "readonly",
+    "GameLoop": "readonly",
+    "OccupancyGrid": "readonly",
+    "Decals": "readonly",
+    "Flavor": "readonly",
+    "Utils": "readonly",
+    "GameAPI": "readonly"
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "rules": {
+    "no-unused-vars": ["warn", { "args": "none", "ignoreRestSiblings": true }],
+    "no-undef": "error",
+    "no-redeclare": "warn",
+    "consistent-return": "warn",
+    "no-console": "off",
+    "eqeqeq": ["warn", "smart"],
+    "no-constant-condition": ["warn", { "checkLoops": false }],
+    "no-var": "warn",
+    "prefer-const": ["warn", { "destructuring": "all" }],
+    "curly": ["warn", "multi-line"],
+    "no-debugger": "warn"
+  }
+}

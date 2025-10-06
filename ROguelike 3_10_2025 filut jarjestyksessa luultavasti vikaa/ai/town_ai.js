@@ -1,8 +1,22 @@
 /**
- * TownAI: handles town NPC population and behavior.
+ * TownAI
+ * Handles town NPC population, scheduling, pathing, and per-turn routines.
+ *
  * Exports (window.TownAI):
  *  - populateTown(ctx): spawn shopkeepers, residents, pets, greeters
  *  - townNPCsAct(ctx): per-turn movement and routines
+ *  - checkHomeRoutes(ctx): diagnostics for reachability to homes (and late-night shelter)
+ *
+ * How it's structured
+ * - Schedules: shop hours and day phases decide intent (work, plaza, home, tavern).
+ * - Pathfinding: budgeted A* (computePathBudgeted) + greedy nudge to avoid CPU spikes in dense towns.
+ * - Movement: stepTowards consumes planned paths; waits and recomputes when blocked.
+ * - Populate: assigns homes/work; residents get beds if present and staggered return times.
+ * - Diagnostics: optional debug paths for home and current destination help visualize routing.
+ *
+ * Performance notes
+ * - Pathfinding budget scales with NPC count; MAX_VISITS prevents worst-case traversal bursts.
+ * - Runtime occupancy considers blocking props; relaxed occupancy is used only for debug visualization.
  */
 (function () {
   function randInt(ctx, a, b) { return Math.floor(ctx.rng() * (b - a + 1)) + a; }

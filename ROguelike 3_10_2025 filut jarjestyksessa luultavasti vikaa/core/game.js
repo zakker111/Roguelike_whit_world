@@ -1,15 +1,32 @@
 /**
- * Game: main loop, world state, combat, FOV/render orchestration, and glue.
+ * Game
+ * Main loop, world/town/dungeon state, combat orchestration, FOV/render, and module glue.
  *
- * Responsibilities:
- * - Manage map, entities, player, RNG, and turn sequence
- * - Handle movement, bump-to-attack, blocks/crits/body-part, damage/DR, equipment decay
- * - Orchestrate FOV and drawing; bridge to UI and modules via ctx
- * - GOD toggles: always-crit (with forced body-part)
+ * What this file does
+ * - Holds player/map/enemies state and advances turns.
+ * - Routes input to movement and context actions (enter town/dungeon, loot, exit).
+ * - Bridges modules via a normalized ctx (Ctx.create) so features can evolve independently.
+ * - Provides deterministic RNG (via RNG service; falls back to mulberry32 when unavailable).
+ * - Keeps FOV and camera view up-to-date and requests draws efficiently.
+ * - Persists dungeon state per entrance so revisiting restores corpses/loot/visibility.
  *
- * Notes:
- * - Uses Ctx.create(base) to provide a normalized ctx to modules.
- * - Randomness is deterministic via mulberry32; helpers (randInt, randFloat, chance) built over it.
+ * How to read this file
+ * - Modes and state: top-level variables track whether we are in world/town/dungeon and related anchors.
+ * - RNG and determinism: centralized seed/init; helpers (randInt, randFloat, chance) prefer RNG service.
+ * - FOV and camera: cache invalidation avoids unnecessary recomputes; camera centers on player.
+ * - UI orchestration: updateStats/log/loot/inventory are routed through UI when present, with safe fallbacks.
+ * - Dungeon persistence: save/load by world entrance key ("x,y"); modules can override via DungeonState.
+ * - Town helpers: basic interactions (talk, shop), occupancy grid rebuild cadence, and bench/rest flows.
+ * - Combat helpers: block chance, damage, crits, hit location, decay of equipment.
+ * - Turn loop: ticks time, drives NPC/AI, applies status effects, and schedules a render.
+ *
+ * Notes on module handles
+ * - Most features prefer ctx.* handles (Ctx.create(base)) to avoid window.* tight coupling.
+ * - When a module is missing, minimal fallbacks keep the game playable (e.g., flat-floor dungeon).
+ *
+ * Determinism
+ * - RNG is seeded via the GOD panel or auto-init; seed is persisted to localStorage ("SEED").
+ * - Diagnostics in GOD and boot logs show current RNG source and seed for reproducibility.
  */
 (() => {
   try {
@@ -182,18 +199,14 @@
   let rng = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
     ? RNG.rng
     : (function () {
-        // minimal fallback mulberry32 if RNG service not available
-        function mulberry32(a) {
-          return function() {
-            let t = a += 0x6D2B79F5;
-            t = Math.imul(t ^ (t >>> 15), t | 1);
-            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-          };
-        }
-        const seed = (currentSeed == null ? (Date.now() % 0xffffffff) : currentSeed) >>> 0;
-        const _rng = mulberry32(seed);
-        return function () { return _rng(); };
+        // Shared centralized fallback (deterministic) if RNG service not available
+        try {
+          if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
+            return RNGFallback.getRng(currentSeed);
+          }
+        } catch (_) {}
+        // Ultimate fallback: non-deterministic
+        return Math.random;
       })();
   let isDead = false;
   let startRoomRect = null;
@@ -2114,16 +2127,15 @@
       RNG.applySeed(s);
       rng = RNG.rng;
     } else {
-      function mulberry32(a) {
-        return function() {
-          let t = a += 0x6D2B79F5;
-          t = Math.imul(t ^ (t >>> 15), t | 1);
-          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
+      try {
+        if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
+          rng = RNGFallback.getRng(s);
+        } else {
+          rng = Math.random;
+        }
+      } catch (_) {
+        rng = Math.random;
       }
-      const _rng = mulberry32(s);
-      rng = function () { return _rng(); };
     }
     if (mode === "world") {
       log(`GOD: Applied seed ${s}. Regenerating overworld...`, "notice");
@@ -2288,8 +2300,9 @@
     } else if (mode === "town") {
       townTick = (townTick + 1) | 0;
       townNPCsAct();
-      // Rebuild occupancy less frequently to reduce per-turn cost
-      if ((townTick % 4) === 0) {
+      // Rebuild occupancy at a modest stride to avoid ghost-blocking after NPC bursts
+      const TOWN_OCC_STRIDE = 2;
+      if ((townTick % TOWN_OCC_STRIDE) === 0) {
         rebuildOccupancy();
       }
     }
@@ -2761,6 +2774,7 @@
         } catch(_) { return { atk: 0, def: 0, hp: player.hp, maxHp: player.maxHp, level: player.level }; }
       },
       equipItemAtIndex: (idx) => { try { equipItemByIndex(idx|0); return true; } catch(_) { return false; } },
+      equipItemAtIndexHand: (idx, hand) => { try { equipItemByIndexHand(idx|0, String(hand || "left")); return true; } catch(_) { return false; } },
       unequipSlot: (slot) => { try { unequipSlot(String(slot)); return true; } catch(_) { return false; } },
       // Potions
       getPotions: () => {
@@ -2853,6 +2867,7 @@
         return null;
       },
       getClock: () => getClock(),
+      advanceMinutes: (mins) => { try { advanceTimeMinutes((Number(mins) || 0) | 0); updateUI(); requestDraw(); return true; } catch (_) { return false; } },
       restUntilMorning: () => { try { restUntilMorning(); } catch (_) {} },
       restAtInn: () => { try { restAtInn(); } catch (_) {} },
       getPerf: () => {
@@ -2870,6 +2885,39 @@
       getPlayerStatus: () => { try { return { hp: player.hp, maxHp: player.maxHp, dazedTurns: player.dazedTurns | 0 }; } catch(_) { return { hp: 0, maxHp: 0, dazedTurns: 0 }; } },
       setPlayerDazedTurns: (n) => { try { player.dazedTurns = Math.max(0, (Number(n) || 0) | 0); return true; } catch(_) { return false; } },
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
+      // Visibility/FOV helpers for smoketest
+      getVisibilityAt: (x, y) => {
+        try {
+          if (!inBounds(x|0, y|0)) return false;
+          return !!(visible[y|0] && visible[y|0][x|0]);
+        } catch(_) { return false; }
+      },
+      getTiles: () => ({ WALL: TILES.WALL, FLOOR: TILES.FLOOR, DOOR: TILES.DOOR, STAIRS: TILES.STAIRS, WINDOW: TILES.WINDOW }),
+      getTile: (x, y) => {
+        try {
+          if (!inBounds(x|0, y|0)) return null;
+          return map[y|0][x|0];
+        } catch(_) { return null; }
+      },
+      hasEnemy: (x, y) => {
+        try {
+          if (occupancy && typeof occupancy.hasEnemy === "function") return !!occupancy.hasEnemy(x|0, y|0);
+          return enemies.some(e => (e.x|0) === (x|0) && (e.y|0) === (y|0));
+        } catch(_) { return false; }
+      },
+      hasNPC: (x, y) => {
+        try {
+          if (occupancy && typeof occupancy.hasNPC === "function") return !!occupancy.hasNPC(x|0, y|0);
+          return npcs.some(n => (n.x|0) === (x|0) && (n.y|0) === (y|0));
+        } catch(_) { return false; }
+      },
+      hasLOS: (x0, y0, x1, y1) => {
+        try {
+          const c = getCtx();
+          if (c && c.los && typeof c.los.hasLOS === "function") return !!c.los.hasLOS(c, x0|0, y0|0, x1|0, y1|0);
+        } catch(_) {}
+        return false;
+      },
       routeToDungeon: (tx, ty) => {
         // BFS on current map (works for both town and dungeon as it uses isWalkable)
         const w = map[0] ? map[0].length : 0;

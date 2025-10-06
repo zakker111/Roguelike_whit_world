@@ -1,11 +1,25 @@
 /**
- * Town: generation and helpers.
+ * Town
+ * Compact town generation and helpers used by the game and TownAI.
  *
  * API:
  *   Town.generate(ctx) -> handled:boolean (true if it generated town and mutated ctx)
  *   Town.ensureSpawnClear(ctx) -> handled:boolean
  *   Town.spawnGateGreeters(ctx, count) -> handled:boolean
  *   Town.interactProps(ctx) -> handled:boolean
+ *
+ * Layout overview
+ * - Walls and a gate near the player (fast travel into town).
+ * - Plaza at center with lamps/benches/market decor.
+ * - Roads in a grid connecting gate and plaza.
+ * - Buildings: hollow rectangles with doors placed on accessible sides.
+ * - Shops near plaza: door + interior reference, plus a sign and schedule.
+ * - Props placed inside buildings (beds, tables, chairs, fireplace, storage, shelves, plants, rugs).
+ *
+ * Notes
+ * - Window tiles on building perimeters allow light but block movement.
+ * - Visibility and enemies are reset for town mode; TownAI populates NPCs after layout.
+ * - Interactions (signs, well, benches) give quick flavor and small resting options.
  */
 (function () {
   function inBounds(ctx, x, y) {
