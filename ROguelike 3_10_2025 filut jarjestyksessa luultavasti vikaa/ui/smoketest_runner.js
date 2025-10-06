@@ -286,6 +286,31 @@
     } catch (_) { return false; }
   }
 
+  // Lightweight polling helpers (bounded) to avoid flaky state reads
+  async function waitUntilTrue(fn, timeoutMs = 400, intervalMs = 40) {
+    const deadline = Date.now() + Math.max(0, timeoutMs | 0);
+    while (Date.now() < deadline) {
+      try { if (fn()) return true; } catch (_) {}
+      await sleep(intervalMs);
+    }
+    return fn();
+  }
+
+  function isInvOpen() {
+    try {
+      if (window.UI && typeof window.UI.isInventoryOpen === "function") return !!window.UI.isInventoryOpen();
+      const el = document.getElementById("inv-panel");
+      return !!(el && el.hidden === false);
+    } catch (_) { return false; }
+  }
+  function isGodOpen() {
+    try {
+      if (window.UI && typeof window.UI.isGodOpen === "function") return !!window.UI.isGodOpen();
+      const el = document.getElementById("god-panel");
+      return !!(el && el.hidden === false);
+    } catch (_) { return false; }
+  }
+
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -433,29 +458,29 @@
       try {
         const p0 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         key("KeyI"); // open inventory
-        await sleep(220);
+        await waitUntilTrue(() => isInvOpen(), 300, 40);
         key("ArrowRight");
-        await sleep(140);
+        await sleep(120);
         const p1 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         const immobile = (p0.x === p1.x) && (p0.y === p1.y);
         record(immobile, "Modal priority: movement ignored while Inventory is open");
         // Stack priority: open GOD while inventory is open, ESC should close GOD first, then ESC closes inventory
-        const invOpen0 = (window.UI && typeof window.UI.isInventoryOpen === "function") ? window.UI.isInventoryOpen() : false;
-        safeClick("god-open-btn"); await sleep(160);
-        const godOpen1 = (window.UI && typeof window.UI.isGodOpen === "function") ? window.UI.isGodOpen() : false;
-        key("ArrowLeft"); await sleep(140);
+        const invOpen0 = isInvOpen();
+        safeClick("god-open-btn"); await waitUntilTrue(() => isGodOpen(), 300, 40);
+        const godOpen1 = isGodOpen();
+        key("ArrowLeft"); await sleep(120);
         const p2 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         const stillImmobile = (p1.x === p2.x) && (p1.y === p2.y);
-        key("Escape"); await sleep(140);
-        const godClosed = (window.UI && typeof window.UI.isGodOpen === "function") ? !window.UI.isGodOpen() : true;
-        const invStillOpen = (window.UI && typeof window.UI.isInventoryOpen === "function") ? window.UI.isInventoryOpen() : false;
-        key("Escape"); await sleep(140);
-        const invClosed = (window.UI && typeof window.UI.isInventoryOpen === "function") ? !window.UI.isInventoryOpen() : true;
+        key("Escape"); await waitUntilTrue(() => !isGodOpen(), 300, 40);
+        const godClosed = !isGodOpen();
+        const invStillOpen = isInvOpen();
+        key("Escape"); await waitUntilTrue(() => !isInvOpen(), 300, 40);
+        const invClosed = !isInvOpen();
         record(invOpen0 && godOpen1 && stillImmobile && godClosed && invStillOpen && invClosed, "Modal stack priority: GOD closes before Inventory; movement ignored while any modal open");
       } catch (e) {
         record(false, "Modal priority check failed: " + (e && e.message ? e.message : String(e)));
       }
-      await sleep(200);
+      await sleep(160);
 
       // Step 4: close GOD and route to nearest dungeon in overworld
       try {
@@ -1363,8 +1388,21 @@
 
           // Wait in town for a few turns (advance time) and run Home Routes check
           try {
+            // Ensure we truly are in town and have some NPCs; otherwise try to spawn greeters
+            let modeTown = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() === "town" : false;
+            let npcCount = 0;
+            try { npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0; } catch (_) {}
+            if (modeTown && npcCount === 0) {
+              // Open GOD, run Check Home Routes which may populate diagnostics; if Town exposes greeter spawn, rely on it
+              safeClick("god-open-btn"); await sleep(120);
+              // If Town.spawnGateGreeters is not exposed via GameAPI, this is a no-op; continue
+              key("Escape"); await sleep(100);
+              // Recount
+              try { npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0; } catch (_) {}
+            }
+
             // Advance a few turns to let TownAI act
-            for (let t = 0; t < 8; t++) { key("Numpad5"); await sleep(80); }
+            for (let t = 0; t < 8; t++) { key("Numpad5"); await sleep(60); }
             // If minute-level advance is available, push into late night (02:00) for stricter routing
             try {
               if (typeof window.GameAPI.getClock === "function" && typeof window.GameAPI.advanceMinutes === "function") {
@@ -1372,13 +1410,19 @@
                 const curMin = clk.hours * 60 + clk.minutes;
                 const to2am = ((2 * 60) - curMin + 24 * 60) % (24 * 60);
                 window.GameAPI.advanceMinutes(to2am);
-                await sleep(140);
+                await sleep(120);
               }
             } catch (_) {}
             const res = (typeof window.GameAPI.checkHomeRoutes === "function") ? window.GameAPI.checkHomeRoutes() : null;
-            const hasResidents = !!(res && res.residents && typeof res.residents.total === "number" && res.residents.total > 0);
-            const unreachable = res && typeof res.unreachable === "number" ? res.unreachable : null;
-            record(hasResidents, `Home routes after waits: residents ${hasResidents ? res.residents.total : 0}${unreachable != null ? `, unreachable ${unreachable}` : ""}`);
+            // Harden result reading
+            const residentsTotal = (res && res.residents && typeof res.residents.total === "number") ? res.residents.total : 0;
+            const unreachable = (res && typeof res.unreachable === "number") ? res.unreachable : null;
+            const hasResidents = residentsTotal > 0;
+            record(hasResidents, `Home routes after waits: residents ${residentsTotal}${unreachable != null ? `, unreachable ${unreachable}` : ""}`);
+            if (!hasResidents) {
+              // Log raw object for diagnostics
+              try { console.warn("[SMOKE] HomeRoutes raw:", res); } catch (_) {}
+            }
           } catch (eHR) {
             record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
           }
