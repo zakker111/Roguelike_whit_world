@@ -1360,6 +1360,28 @@
           } catch (e) {
             record(false, "Decoration/prop interaction failed: " + (e && e.message ? e.message : String(e)));
           }
+
+          // Wait in town for a few turns (advance time) and run Home Routes check
+          try {
+            // Advance a few turns to let TownAI act
+            for (let t = 0; t < 8; t++) { key("Numpad5"); await sleep(80); }
+            // If minute-level advance is available, push into late night (02:00) for stricter routing
+            try {
+              if (typeof window.GameAPI.getClock === "function" && typeof window.GameAPI.advanceMinutes === "function") {
+                const clk = window.GameAPI.getClock();
+                const curMin = clk.hours * 60 + clk.minutes;
+                const to2am = ((2 * 60) - curMin + 24 * 60) % (24 * 60);
+                window.GameAPI.advanceMinutes(to2am);
+                await sleep(140);
+              }
+            } catch (_) {}
+            const res = (typeof window.GameAPI.checkHomeRoutes === "function") ? window.GameAPI.checkHomeRoutes() : null;
+            const hasResidents = !!(res && res.residents && typeof res.residents.total === "number" && res.residents.total > 0);
+            const unreachable = res && typeof res.unreachable === "number" ? res.unreachable : null;
+            record(hasResidents, `Home routes after waits: residents ${hasResidents ? res.residents.total : 0}${unreachable != null ? `, unreachable ${unreachable}` : ""}`);
+          } catch (eHR) {
+            record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
+          }
         } else {
           record(true, "Skipped town visit (not in overworld)");
         }
