@@ -588,6 +588,120 @@
             } catch (e) {
               record(false, "Breakage test failed: " + (e && e.message ? e.message : String(e)));
             }
+
+            // Crit damage and status tests
+            try {
+              // Ensure Always Crit off for baseline
+              if (typeof window.GameAPI.setAlwaysCrit === "function") window.GameAPI.setAlwaysCrit(false);
+              if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("");
+
+              // Spawn baseline target and measure non-crit damage
+              if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
+              await sleep(140);
+              let es = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+              if (es && es.length) {
+                // choose nearest
+                let tgt = es[0];
+                let bestD = Math.abs(tgt.x - window.GameAPI.getPlayer().x) + Math.abs(tgt.y - window.GameAPI.getPlayer().y);
+                for (const e2 of es) {
+                  const d2 = Math.abs(e2.x - window.GameAPI.getPlayer().x) + Math.abs(e2.y - window.GameAPI.getPlayer().y);
+                  if (d2 < bestD) { bestD = d2; tgt = e2; }
+                }
+                // route adjacent then bump once
+                const path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(tgt.x, tgt.y) : [];
+                const budget = makeBudget(CONFIG.timeouts.battle);
+                for (const step of path) {
+                  if (budget.exceeded()) break;
+                  const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                  const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(90);
+                }
+                // record hp before and attempt one bump
+                es = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+                let tgt2 = es.find(e => e.x === tgt.x && e.y === tgt.y) || tgt;
+                const hp0 = tgt2.hp;
+                const dx = Math.sign(tgt2.x - window.GameAPI.getPlayer().x);
+                const dy = Math.sign(tgt2.y - window.GameAPI.getPlayer().y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                tgt2 = es.find(e => e.x === tgt.x && e.y === tgt.y) || tgt2;
+                const hp1 = tgt2 ? tgt2.hp : hp0; // might have died
+                const dmgNoCrit = Math.max(0, (hp0 != null && hp1 != null) ? (hp0 - hp1) : 0);
+
+                // Head crit for higher damage
+                if (typeof window.GameAPI.setAlwaysCrit === "function") window.GameAPI.setAlwaysCrit(true);
+                if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("head");
+                if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtH = es[0];
+                let bestDH = Infinity;
+                for (const e2 of es) {
+                  const d2 = Math.abs(e2.x - window.GameAPI.getPlayer().x) + Math.abs(e2.y - window.GameAPI.getPlayer().y);
+                  if (d2 < bestDH) { bestDH = d2; tgtH = e2; }
+                }
+                const pathH = window.GameAPI.routeToDungeon ? window.GameAPI.routeToDungeon(tgtH.x, tgtH.y) : [];
+                for (const step of pathH) {
+                  const dxh = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                  const dyh = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  key(dxh === -1 ? "ArrowLeft" : dxh === 1 ? "ArrowRight" : (dyh === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(80);
+                }
+                const hpH0 = tgtH.hp;
+                const dxh = Math.sign(tgtH.x - window.GameAPI.getPlayer().x);
+                const dyh = Math.sign(tgtH.y - window.GameAPI.getPlayer().y);
+                key(dxh === -1 ? "ArrowLeft" : dxh === 1 ? "ArrowRight" : (dyh === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtH2 = es.find(e => e.x === tgtH.x && e.y === tgtH.y) || tgtH;
+                const hpH1 = tgtH2 ? tgtH2.hp : hpH0;
+                const dmgCritHead = Math.max(0, (hpH0 != null && hpH1 != null) ? (hpH0 - hpH1) : 0);
+                record(dmgCritHead >= dmgNoCrit, `Crit damage check: non-crit ${dmgNoCrit}, head-crit ${dmgCritHead}`);
+
+                // Legs crit immobilization
+                if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("legs");
+                if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtL = es[0];
+                let bestDL = Infinity;
+                for (const e2 of es) {
+                  const d2 = Math.abs(e2.x - window.GameAPI.getPlayer().x) + Math.abs(e2.y - window.GameAPI.getPlayer().y);
+                  if (d2 < bestDL) { bestDL = d2; tgtL = e2; }
+                }
+                const pathL = window.GameAPI.routeToDungeon ? window.GameAPI.routeToDungeon(tgtL.x, tgtL.y) : [];
+                for (const step of pathL) {
+                  const dxl = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                  const dyl = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  key(dxl === -1 ? "ArrowLeft" : dxl === 1 ? "ArrowRight" : (dyl === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(80);
+                }
+                const dxl = Math.sign(tgtL.x - window.GameAPI.getPlayer().x);
+                const dyl = Math.sign(tgtL.y - window.GameAPI.getPlayer().y);
+                key(dxl === -1 ? "ArrowLeft" : dxl === 1 ? "ArrowRight" : (dyl === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtL2 = es.find(e => e.x === tgtL.x && e.y === tgtL.y) || tgtL;
+                const imm0 = tgtL2 ? (tgtL2.immobileTurns || 0) : 0;
+                // wait two turns to tick effects
+                key("Numpad5"); await sleep(90);
+                key("Numpad5"); await sleep(90);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtL3 = es.find(e => e.x === tgtL.x && e.y === tgtL.y);
+                const imm1 = tgtL3 ? (tgtL3.immobileTurns || 0) : 0;
+                const immOk = imm0 >= 1 && (imm1 <= imm0);
+                record(immOk, `Legs-crit immobilization: immobileTurns ${imm0} -> ${imm1}`);
+              } else {
+                record(true, "Skipped crit/status tests (no enemies found)");
+              }
+              // Reset crit toggles
+              if (typeof window.GameAPI.setAlwaysCrit === "function") window.GameAPI.setAlwaysCrit(false);
+              if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("");
+            } catch (e) {
+              record(false, "Crit/Status tests failed: " + (e && e.message ? e.message : String(e)));
+            }
           } else {
             record(true, "No enemies found to route/loot");
           }

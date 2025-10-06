@@ -2711,7 +2711,7 @@
         return false;
       },
       // Current map pathing helpers (town/dungeon)
-      getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type })),
+      getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type, immobileTurns: e.immobileTurns || 0, bleedTurns: e.bleedTurns || 0 })),
       // Include index so runner can correlate to NPC internals when needed
       getNPCs: () => (Array.isArray(npcs) ? npcs.map((n, i) => ({ i, x: n.x, y: n.y, name: n.name })) : []),
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
@@ -2855,24 +2855,11 @@
           return !!returnToWorldIfAtExit();
         } catch(_) { return false; }
       },
-      // Test helpers for determinism/equipment integrity
-      setEquipDecay: (slot, value) => {
-        try {
-          const s = String(slot);
-          if (!player || !player.equipment || !player.equipment[s]) return false;
-          player.equipment[s].decay = Math.max(0, Math.min(100, Number(value) || 0));
-          updateUI(); renderInventoryPanel();
-          return true;
-        } catch(_) { return false; }
-      },
-      spawnEnemyNearby: (count = 1) => {
-        try { godSpawnEnemyNearby(count|0); return true; } catch(_) { return false; }
-      },
-      enterDungeonIfOnEntrance: () => {
-        try {
-          return !!enterDungeonIfOnEntrance();
-        } catch(_) { return false; }
-      },
+      // Crit/status test helpers
+      setAlwaysCrit: (v) => { try { setAlwaysCrit(!!v); return true; } catch(_) { return false; } },
+      setCritPart: (part) => { try { setCritPart(String(part || "")); return true; } catch(_) { return false; } },
+      getPlayerStatus: () => { try { return { hp: player.hp, maxHp: player.maxHp, dazedTurns: player.dazedTurns | 0 }; } catch(_) { return { hp: 0, maxHp: 0, dazedTurns: 0 }; } },
+      setPlayerDazedTurns: (n) => { try { player.dazedTurns = Math.max(0, (Number(n) || 0) | 0); return true; } catch(_) { return false; } },
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
       routeToDungeon: (tx, ty) => {
         // BFS on current map (works for both town and dungeon as it uses isWalkable)
