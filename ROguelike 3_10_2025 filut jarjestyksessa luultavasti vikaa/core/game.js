@@ -1035,34 +1035,43 @@
 
   // Town shops helpers and resting
   function shopAt(x, y) {
+    if (window.ShopService && typeof ShopService.shopAt === "function") {
+      return ShopService.shopAt(getCtx(), x, y);
+    }
     if (!Array.isArray(shops)) return null;
     return shops.find(s => s.x === x && s.y === y) || null;
   }
-  // Shop schedule helpers
-  function minutesOfDay(h, m = 0) { return ((h | 0) * 60 + (m | 0)) % DAY_MINUTES; }
+  // Shop schedule helpers (delegated to ShopService)
+  function minutesOfDay(h, m = 0) {
+    if (window.ShopService && typeof ShopService.minutesOfDay === "function") {
+      return ShopService.minutesOfDay(h, m, DAY_MINUTES);
+    }
+    return ((h | 0) * 60 + (m | 0)) % DAY_MINUTES;
+  }
   function isOpenAt(shop, minutes) {
+    if (window.ShopService && typeof ShopService.isOpenAt === "function") {
+      return ShopService.isOpenAt(shop, minutes);
+    }
     if (!shop) return false;
     if (shop.alwaysOpen) return true;
     if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
     const o = shop.openMin, c = shop.closeMin;
-    if (o === c) {
-      // Interpret o===c with alwaysOpen=false as closed all day
-      return false;
-    }
-    if (c > o) return minutes >= o && minutes < c; // same-day window
-    // overnight window (e.g., 18:00 -> 06:00)
-    return minutes >= o || minutes < c;
+    if (o === c) return false;
+    return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
   }
   function isShopOpenNow(shop = null) {
+    if (window.ShopService && typeof ShopService.isShopOpenNow === "function") {
+      return ShopService.isShopOpenNow(getCtx(), shop || null);
+    }
     const t = getClock();
     const minutes = t.hours * 60 + t.minutes;
-    if (!shop) {
-      // Fallback: original behavior when no shop provided
-      return t.phase === "day";
-    }
+    if (!shop) return t.phase === "day";
     return isOpenAt(shop, minutes);
   }
   function shopScheduleStr(shop) {
+    if (window.ShopService && typeof ShopService.shopScheduleStr === "function") {
+      return ShopService.shopScheduleStr(shop);
+    }
     if (!shop) return "";
     const h2 = (min) => {
       const hh = ((min / 60) | 0) % 24;

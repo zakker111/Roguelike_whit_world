@@ -3,6 +3,7 @@
  *
  * Exports (window.Utils):
  * - manhattan(ax, ay, bx, by)
+ * - inBounds(ctx, x, y)
  * - isFreeFloor(ctx, x, y): generic free-floor check (dungeon/town maps)
  * - isFreeTownFloor(ctx, x, y): town-specific free tile check including props/NPCs
  */
@@ -11,10 +12,14 @@
     return Math.abs(ax - bx) + Math.abs(ay - by);
   }
 
-  function isWalkableTile(ctx, x, y) {
+  function inBounds(ctx, x, y) {
     if (!ctx || !Array.isArray(ctx.map) || !ctx.map.length) return false;
     const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
-    if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+    return x >= 0 && y >= 0 && x < cols && y < rows;
+  }
+
+  function isWalkableTile(ctx, x, y) {
+    if (!inBounds(ctx, x, y)) return false;
     const t = ctx.map[y][x];
     const T = ctx.TILES || {};
     // Walkable tiles for dungeon/town maps
@@ -42,6 +47,7 @@
 
   window.Utils = {
     manhattan,
+    inBounds,
     isFreeFloor,
     isFreeTownFloor,
   };

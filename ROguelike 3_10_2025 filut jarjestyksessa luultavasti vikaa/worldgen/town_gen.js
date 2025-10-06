@@ -9,6 +9,9 @@
  */
 (function () {
   function inBounds(ctx, x, y) {
+    try {
+      if (window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
+    } catch (_) {}
     const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
     return x >= 0 && y >= 0 && x < cols && y < rows;
   }
@@ -389,7 +392,14 @@
       }
       return { openMin: minutesOfDay( ctx, openH ), closeMin: minutesOfDay( ctx, closeH ), alwaysOpen };
     }
-    function minutesOfDay(ctx, h, m = 0) { return ((h | 0) * 60 + (m | 0)) % (24 * 60); }
+    function minutesOfDay(ctx, h, m = 0) {
+      try {
+        if (window.ShopService && typeof ShopService.minutesOfDay === "function") {
+          return ShopService.minutesOfDay(h, m, 24 * 60);
+        }
+      } catch (_) {}
+      return ((h | 0) * 60 + (m | 0)) % (24 * 60);
+    }
 
     const scored = buildings.map(b => ({ b, d: Math.abs((b.x + (b.w / 2)) - plaza.x) + Math.abs((b.y + (b.h / 2)) - plaza.y) }));
     scored.sort((a, b) => a.d - b.d);
@@ -713,8 +723,12 @@
   }
 
   // ---- Shop helpers for interactProps ----
-  function minutesOfDayLocal(h, m = 0) { return ((h | 0) * 60 + (m | 0)) % (24 * 60); }
+  function minutesOfDayLocal(h, m = 0) {
+    try { if (window.ShopService && typeof ShopService.minutesOfDay === "function") return ShopService.minutesOfDay(h, m, 24 * 60); } catch (_){}
+    return ((h | 0) * 60 + (m | 0)) % (24 * 60);
+  }
   function isOpenAt(ctx, shop, minutes) {
+    if (window.ShopService && typeof ShopService.isOpenAt === "function") return ShopService.isOpenAt(shop, minutes);
     if (!shop) return false;
     if (shop.alwaysOpen) return true;
     if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
@@ -723,12 +737,14 @@
     return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
   }
   function isShopOpenNow(ctx, shop = null) {
+    if (window.ShopService && typeof ShopService.isShopOpenNow === "function") return ShopService.isShopOpenNow(ctx, shop);
     const t = ctx.time;
     const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
     if (!shop) return t && t.phase === "day";
     return isOpenAt(ctx, shop, minutes);
   }
   function shopScheduleStr(ctx, shop) {
+    if (window.ShopService && typeof ShopService.shopScheduleStr === "function") return ShopService.shopScheduleStr(shop);
     if (!shop) return "";
     const h2 = (min) => {
       const hh = ((min / 60) | 0) % 24;
@@ -737,6 +753,7 @@
     return `Opens ${h2(shop.openMin)}:00, closes ${h2(shop.closeMin)}:00`;
   }
   function shopAt(ctx, x, y) {
+    if (window.ShopService && typeof ShopService.shopAt === "function") return ShopService.shopAt(ctx, x, y);
     const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
     return shops.find(s => s.x === x && s.y === y) || null;
   }
