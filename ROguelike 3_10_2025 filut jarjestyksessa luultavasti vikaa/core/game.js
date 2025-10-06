@@ -2316,6 +2316,14 @@
           onGodApplySeed: (seed) => applySeed(seed),
           onGodRerollSeed: () => rerollSeed(),
           onTownExit: () => requestLeaveTown(),
+          // Panels for ESC-close default behavior
+          isShopOpen: () => {
+            try {
+              const el = document.getElementById("shop-panel");
+              return !!(el && el.hidden === false);
+            } catch (_) { return false; }
+          },
+          onHideShop: () => hideShopPanel(),
           onGodCheckHomes: () => {
             const ctx = getCtx();
             if (ctx.mode !== "town") {
