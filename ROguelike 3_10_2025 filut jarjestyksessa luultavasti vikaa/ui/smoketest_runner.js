@@ -1267,6 +1267,24 @@
           </div>`;
         appendToPanel(btnHtml);
 
+        // Ensure GOD panel is open so the report is visible, and scroll to it
+        try {
+          if (window.UI && typeof UI.showGod === "function") {
+            UI.showGod();
+          } else {
+            // Fallback to clicking the GOD button
+            try { document.getElementById("god-open-btn")?.click(); } catch (_) {}
+          }
+          setTimeout(() => {
+            try {
+              const pre = document.getElementById("smoke-full-report");
+              if (pre && typeof pre.scrollIntoView === "function") {
+                pre.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            } catch (_) {}
+          }, 50);
+        } catch (_) {}
+
         setTimeout(() => {
           const jsonBtn = document.getElementById("smoke-export-btn");
           if (jsonBtn) {
