@@ -423,21 +423,34 @@
           // 9b: equip best items from inventory (if any) and test manual equip/unequip
           try {
             const inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+            const statsBeforeBest = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
             const beforeEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
             const equippedNames = (typeof window.GameAPI.equipBestFromInventory === "function") ? window.GameAPI.equipBestFromInventory() : [];
             const afterEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-            record(true, `Equipped from chest loot: ${equippedNames.length ? equippedNames.join(", ") : "no changes"}`);
+            const statsAfterBest = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
+            const atkDelta = (statsAfterBest.atk || 0) - (statsBeforeBest.atk || 0);
+            const defDelta = (statsAfterBest.def || 0) - (statsBeforeBest.def || 0);
+            const improved = (atkDelta > 0) || (defDelta > 0);
+            record(true, `Equipped from chest loot: ${equippedNames.length ? equippedNames.join(", ") : "no changes"} (Δ atk ${atkDelta.toFixed ? atkDelta.toFixed(1) : atkDelta}, def ${defDelta.toFixed ? defDelta.toFixed(1) : defDelta})${equippedNames.length ? (improved ? "" : " [no stat increase]") : ""}`);
 
-            // Manual equip: find first equip item in inventory and equip it, then unequip the same slot
+            // Manual equip: find first equip item in inventory and equip it, then unequip the same slot and compare stats
             const equipIdx = inv.findIndex(it => it && it.kind === "equip");
             if (equipIdx !== -1 && typeof window.GameAPI.equipItemAtIndex === "function" && typeof window.GameAPI.unequipSlot === "function") {
               const item = inv[equipIdx];
-              const ok1 = window.GameAPI.equipItemAtIndex(equipIdx);
-              await sleep(120);
               const slot = item.slot || "hand";
+              const s0 = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
+              const ok1 = window.GameAPI.equipItemAtIndex(equipIdx);
+              await sleep(140);
+              const s1 = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
               const ok2 = window.GameAPI.unequipSlot(slot);
-              await sleep(120);
-              record(ok1 && ok2, `Manual equip/unequip (${item.name || "equip"} in slot ${slot})`);
+              await sleep(140);
+              const s2 = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
+              const equipDeltaAtk = (s1.atk || 0) - (s0.atk || 0);
+              const equipDeltaDef = (s1.def || 0) - (s0.def || 0);
+              const unequipDeltaAtk = (s2.atk || 0) - (s1.atk || 0);
+              const unequipDeltaDef = (s2.def || 0) - (s1.def || 0);
+              const okStats = (ok1 && ok2);
+              record(okStats, `Manual equip/unequip (${item.name || "equip"} in slot ${slot}) — equip Δ (atk ${equipDeltaAtk.toFixed ? equipDeltaAtk.toFixed(1) : equipDeltaAtk}, def ${equipDeltaDef.toFixed ? equipDeltaDef.toFixed(1) : equipDeltaDef}), unequip Δ (atk ${unequipDeltaAtk.toFixed ? unequipDeltaAtk.toFixed(1) : unequipDeltaAtk}, def ${unequipDeltaDef.toFixed ? unequipDeltaDef.toFixed(1) : unequipDeltaDef})`);
             } else {
               record(true, "No direct equip/unequip test performed (no equip item or API not present)");
             }
@@ -447,9 +460,12 @@
               const pots = (typeof window.GameAPI.getPotions === "function") ? window.GameAPI.getPotions() : [];
               if (pots && pots.length && typeof window.GameAPI.drinkPotionAtIndex === "function") {
                 const pi = pots[0].i;
+                const hpBefore = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats().hp : null;
                 const okDrink = !!window.GameAPI.drinkPotionAtIndex(pi);
                 await sleep(140);
-                record(okDrink, `Drank potion at index ${pi} (${pots[0].name || "potion"})`);
+                const hpAfter = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats().hp : null;
+                const dhp = (hpAfter != null && hpBefore != null) ? (hpAfter - hpBefore) : null;
+                record(okDrink, `Drank potion at index ${pi} (${pots[0].name || "potion"})${dhp != null ? `, HP +${dhp}` : ""}`);
               } else {
                 record(true, "No potions available to drink (skipped)");
               }

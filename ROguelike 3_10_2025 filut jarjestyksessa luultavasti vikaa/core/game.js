@@ -2738,6 +2738,11 @@
         function info(it) { return it ? { name: it.name, slot: it.slot, atk: it.atk, def: it.def, decay: it.decay, twoHanded: !!it.twoHanded } : null; }
         return { left: info(eq.left), right: info(eq.right), head: info(eq.head), torso: info(eq.torso), legs: info(eq.legs), hands: info(eq.hands) };
       },
+      getStats: () => {
+        try {
+          return { atk: getPlayerAttack(), def: getPlayerDefense(), hp: player.hp, maxHp: player.maxHp, level: player.level };
+        } catch(_) { return { atk: 0, def: 0, hp: player.hp, maxHp: player.maxHp, level: player.level }; }
+      },
       equipItemAtIndex: (idx) => { try { equipItemByIndex(idx|0); return true; } catch(_) { return false; } },
       unequipSlot: (slot) => { try { unequipSlot(String(slot)); return true; } catch(_) { return false; } },
       // Potions
