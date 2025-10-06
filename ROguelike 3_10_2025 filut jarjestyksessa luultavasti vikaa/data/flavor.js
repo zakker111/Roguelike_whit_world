@@ -19,7 +19,11 @@
     }
     const r = (ctx && typeof ctx.rng === "function")
       ? ctx.rng
-      : (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function" ? RNG.rng : Math.random);
+      : (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function"
+        ? RNG.rng
+        : (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function"
+            ? RNGFallback.getRng()
+            : Math.random));
     return arr[Math.floor(r() * arr.length)];
   }
 

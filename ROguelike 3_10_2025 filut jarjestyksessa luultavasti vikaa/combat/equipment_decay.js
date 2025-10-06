@@ -17,7 +17,13 @@
       }
     } catch (_) {}
     // Fallback (mirrors game.js/items.js behavior)
-    const r = (typeof rng === "function") ? rng : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
+    const r = (typeof rng === "function")
+      ? rng
+      : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
+          ? RNG.rng
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
+              ? RNGFallback.getRng()
+              : Math.random));
     const float = (min, max, decimals = 0) => {
       const v = min + r() * (max - min);
       const p = Math.pow(10, decimals);
@@ -70,8 +76,14 @@
 
     const eq = player.equipment || {};
     const float = (min, max) => {
-      const r = (typeof rng === "function") ? rng() : Math.random();
-      const v = min + r * (max - min);
+      const rv = (typeof rng === "function")
+        ? rng()
+        : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
+            ? RNG.rng()
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
+                ? RNGFallback.getRng()()
+                : Math.random()));
+      const v = min + rv * (max - min);
       return Math.round(v * 10) / 10;
     };
     const amtMain = light ? float(0.6, 1.6) : float(1.0, 2.2);

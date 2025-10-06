@@ -55,6 +55,12 @@ Smoke testing
   - Dungeon persistence (re-enter check)
   - Town NPC interactions, shops, home routes, inn resting
   - Performance snapshot
+- Scenario selection:
+  - Use ?smoke=world,dungeon,town,combat,inventory,perf,overlays to run targeted subsets (comma-separated).
+  - Omit ?smoke to run all scenarios.
+- CI tokens:
+  - PASS/FAIL: a hidden element with id "smoke-pass-token" containing "PASS" or "FAIL".
+  - Compact JSON: a hidden element with id "smoke-json-token" containing a compact summary: { ok, passCount, failCount, skipCount, seed, caps, determinism }.
 - Results are shown in the GOD panel and can be downloaded as JSON/TXT.
 
 Notes

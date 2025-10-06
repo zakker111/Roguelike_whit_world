@@ -17,7 +17,11 @@
   function rollHitLocation(rng) {
     const r = (typeof rng === "function")
       ? rng()
-      : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng() : Math.random());
+      : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
+          ? RNG.rng()
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
+              ? RNGFallback.getRng()()
+              : Math.random()));
     if (r < 0.50) return profiles.torso;
     if (r < 0.65) return profiles.head;
     if (r < 0.80) return profiles.hands;
@@ -27,7 +31,11 @@
   function critMultiplier(rng) {
     const r = (typeof rng === "function")
       ? rng()
-      : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng() : Math.random());
+      : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
+          ? RNG.rng()
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
+              ? RNGFallback.getRng()()
+              : Math.random()));
     return 1.6 + r * 0.4;
   }
 

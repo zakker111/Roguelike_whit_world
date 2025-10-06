@@ -56,9 +56,9 @@
   function enemiesAct(ctx) {
     const { player, enemies } = ctx;
     const U = (ctx && ctx.utils) ? ctx.utils : null;
-    const randFloat = U && U.randFloat ? U.randFloat : (ctx.randFloat || ((a,b,dec=1)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():Math.random()));const v=a+rv*(b-a);const p=Math.pow(10,dec);return Math.round(v*p)/p;}));
-    const randInt = U && U.randInt ? U.randInt : (ctx.randInt || ((min,max)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():Math.random()));return Math.floor(rv*(max-min+1))+min;}));
-    const chance = U && U.chance ? U.chance : (ctx.chance || ((p)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():Math.random()));return rv<p;}));
+    const randFloat = U && U.randFloat ? U.randFloat : (ctx.randFloat || ((a,b,dec=1)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():((typeof window!=="undefined"&&window.RNGFallback&&typeof RNGFallback.getRng==="function")?RNGFallback.getRng()():Math.random()))));const v=a+rv*(b-a);const p=Math.pow(10,dec);return Math.round(v*p)/p;}));
+    const randInt = U && U.randInt ? U.randInt : (ctx.randInt || ((min,max)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():((typeof window!=="undefined"&&window.RNGFallback&&typeof RNGFallback.getRng==="function")?RNGFallback.getRng()():Math.random()))));return Math.floor(rv*(max-min+1))+min;}));
+    const chance = U && U.chance ? U.chance : (ctx.chance || ((p)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():((typeof window!=="undefined"&&window.RNGFallback&&typeof RNGFallback.getRng==="function")?RNGFallback.getRng()():Math.random()))));return rv<p;}));
     const Cap = U && U.capitalize ? U.capitalize : (s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
     const senseRange = 8;
