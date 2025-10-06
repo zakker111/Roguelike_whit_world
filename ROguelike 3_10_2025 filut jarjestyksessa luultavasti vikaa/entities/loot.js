@@ -25,6 +25,29 @@
    * Returns a plain item object: { kind: "potion", name, heal }
    */
   function pickPotion(ctx, source) {
+    // Prefer JSON-driven consumables when available; fallback to enemy-weighted defaults
+    const CD = (typeof window !== "undefined" && window.GameData && GameData.consumables) ? GameData.consumables : null;
+    const potions = (CD && Array.isArray(CD.potions)) ? CD.potions : null;
+    const r = ctx.rng();
+
+    function weightedPick(list) {
+      const total = list.reduce((s, it) => s + (Number(it.weight) || 0), 0);
+      if (total <= 0) return list[0];
+      let x = r * total;
+      for (const it of list) {
+        const w = Number(it.weight) || 0;
+        if (x < w) return it;
+        x -= w;
+      }
+      return list[0];
+    }
+
+    if (potions && potions.length) {
+      const chosen = weightedPick(potions);
+      return { name: chosen.name || "potion", kind: "potion", heal: Number(chosen.heal) || 3 };
+    }
+
+    // Fallback: use enemy-type weighting when JSON not present
     const t = source?.type || "goblin";
     let wL = 0.6, wA = 0.3, wS = 0.1;
     const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
@@ -37,9 +60,9 @@
       if (t === "troll") { wL = 0.5; wA = 0.35; wS = 0.15; }
       if (t === "ogre")  { wL = 0.4; wA = 0.35; wS = 0.25; }
     }
-    const r = ctx.rng();
-    if (r < wL) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
-    if (r < wL + wA) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
+    const rr = ctx.rng();
+    if (rr < wL) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
+    if (rr < wL + wA) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
     return { name: "strong potion (+10 HP)", kind: "potion", heal: 10 };
   }
 
