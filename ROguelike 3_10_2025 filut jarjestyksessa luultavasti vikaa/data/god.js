@@ -146,10 +146,35 @@
         if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
           ctx.rng = RNGFallback.getRng(s);
         } else {
-          ctx.rng = Math.random;
+          // As a last resort, use a time-seeded deterministic fallback
+          ctx.rng = (function () {
+            try { return RNGFallback.getRng(s); } catch (_) {}
+            const seed = ((Date.now() % 0xffffffff) >>> 0);
+            function mulberry32(a) {
+              return function () {
+                let t = a += 0x6D2B79F5;
+                t = Math.imul(t ^ (t >>> 15), t | 1);
+                t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+              };
+            }
+            const f = mulberry32(seed);
+            return function () { return f(); };
+          })();
         }
       } catch (_) {
-        ctx.rng = Math.random;
+        // Same last-resort deterministic fallback
+        const seed = ((Date.now() % 0xffffffff) >>> 0);
+        function mulberry32(a) {
+          return function () {
+            let t = a += 0x6D2B79F5;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+          };
+        }
+        const f = mulberry32(seed);
+        ctx.rng = function () { return f(); };
       }
     }
     if (ctx.mode === "world") {

@@ -113,7 +113,25 @@
 
     const eq = player.equipment || {};
     const float = (min, max) => {
-      const r = (typeof rng === "function") ? rng() : Math.random();
+      const r = (typeof rng === "function")
+        ? rng()
+        : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
+            ? RNG.rng()
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
+                ? RNGFallback.getRng()()
+                : (function () {
+                    // deterministic last resort
+                    const seed = ((Date.now() % 0xffffffff) >>> 0);
+                    function mulberry32(a) {
+                      return function () {
+                        let t = a += 0x6D2B79F5;
+                        t = Math.imul(t ^ (t >>> 15), t | 1);
+                        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+                      };
+                    }
+                    return mulberry32(seed)();
+                  })()));
       const v = min + r * (max - min);
       return Math.round(v * 10) / 10;
     };
