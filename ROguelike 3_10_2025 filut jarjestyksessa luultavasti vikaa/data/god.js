@@ -142,16 +142,15 @@
       RNG.applySeed(s);
       ctx.rng = RNG.rng;
     } else {
-      function mulberry32(a) {
-        return function() {
-          let t = a += 0x6D2B79F5;
-          t = Math.imul(t ^ (t >>> 15), t | 1);
-          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
+      try {
+        if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
+          ctx.rng = RNGFallback.getRng(s);
+        } else {
+          ctx.rng = Math.random;
+        }
+      } catch (_) {
+        ctx.rng = Math.random;
       }
-      const _rng = mulberry32(s);
-      ctx.rng = function () { return _rng(); };
     }
     if (ctx.mode === "world") {
       ctx.log(`GOD: Applied seed ${s}. Regenerating overworld...`, "notice");

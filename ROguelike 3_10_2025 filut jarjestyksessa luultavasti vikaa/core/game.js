@@ -199,18 +199,14 @@
   let rng = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
     ? RNG.rng
     : (function () {
-        // minimal fallback mulberry32 if RNG service not available
-        function mulberry32(a) {
-          return function() {
-            let t = a += 0x6D2B79F5;
-            t = Math.imul(t ^ (t >>> 15), t | 1);
-            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-          };
-        }
-        const seed = (currentSeed == null ? (Date.now() % 0xffffffff) : currentSeed) >>> 0;
-        const _rng = mulberry32(seed);
-        return function () { return _rng(); };
+        // Shared centralized fallback (deterministic) if RNG service not available
+        try {
+          if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
+            return RNGFallback.getRng(currentSeed);
+          }
+        } catch (_) {}
+        // Ultimate fallback: non-deterministic
+        return Math.random;
       })();
   let isDead = false;
   let startRoomRect = null;
@@ -2131,16 +2127,15 @@
       RNG.applySeed(s);
       rng = RNG.rng;
     } else {
-      function mulberry32(a) {
-        return function() {
-          let t = a += 0x6D2B79F5;
-          t = Math.imul(t ^ (t >>> 15), t | 1);
-          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
+      try {
+        if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
+          rng = RNGFallback.getRng(s);
+        } else {
+          rng = Math.random;
+        }
+      } catch (_) {
+        rng = Math.random;
       }
-      const _rng = mulberry32(s);
-      rng = function () { return _rng(); };
     }
     if (mode === "world") {
       log(`GOD: Applied seed ${s}. Regenerating overworld...`, "notice");
@@ -2305,8 +2300,9 @@
     } else if (mode === "town") {
       townTick = (townTick + 1) | 0;
       townNPCsAct();
-      // Rebuild occupancy less frequently to reduce per-turn cost
-      if ((townTick % 4) === 0) {
+      // Rebuild occupancy at a modest stride to avoid ghost-blocking after NPC bursts
+      const TOWN_OCC_STRIDE = 2;
+      if ((townTick % TOWN_OCC_STRIDE) === 0) {
         rebuildOccupancy();
       }
     }

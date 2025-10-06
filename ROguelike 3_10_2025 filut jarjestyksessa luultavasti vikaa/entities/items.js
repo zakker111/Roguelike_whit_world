@@ -14,38 +14,25 @@
 (function () {
   const round1 = (n) => Math.round(n * 10) / 10;
 
-  // Minimal mulberry32 PRNG for deterministic fallback when rng isn't provided.
-  function mulberry32(a) {
-    return function() {
-      let t = a += 0x6D2B79F5;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  }
+  // RNG selection: prefer centralized RNG service, otherwise use shared fallback
   function getRng(rng) {
     if (typeof rng === "function") return rng;
-    // Prefer centralized RNG service if available
     try {
       if (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") {
-        // Ensure it is initialized
         if (typeof RNG.getSeed !== "function" || RNG.getSeed() == null) {
           if (typeof RNG.autoInit === "function") RNG.autoInit();
         }
         return RNG.rng;
       }
     } catch (_) {}
-    // Prefer saved SEED for deterministic behavior if available
+    // Shared fallback for determinism without duplicating PRNG implementations
     try {
-      const sRaw = (typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
-      if (sRaw != null) {
-        const s = (Number(sRaw) >>> 0);
-        return mulberry32(s);
+      if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
+        return RNGFallback.getRng();
       }
     } catch (_) {}
-    // Fallback: time-based seed
-    const s = ((Date.now() % 0xffffffff) >>> 0);
-    return mulberry32(s);
+    // Ultimate fallback: non-deterministic
+    return Math.random;
   }
 
   /* MATERIALS: map numeric tier (1..3) to material name used by item name builders */
