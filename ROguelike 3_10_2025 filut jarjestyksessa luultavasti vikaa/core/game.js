@@ -1,15 +1,32 @@
 /**
- * Game: main loop, world state, combat, FOV/render orchestration, and glue.
+ * Game
+ * Main loop, world/town/dungeon state, combat orchestration, FOV/render, and module glue.
  *
- * Responsibilities:
- * - Manage map, entities, player, RNG, and turn sequence
- * - Handle movement, bump-to-attack, blocks/crits/body-part, damage/DR, equipment decay
- * - Orchestrate FOV and drawing; bridge to UI and modules via ctx
- * - GOD toggles: always-crit (with forced body-part)
+ * What this file does
+ * - Holds player/map/enemies state and advances turns.
+ * - Routes input to movement and context actions (enter town/dungeon, loot, exit).
+ * - Bridges modules via a normalized ctx (Ctx.create) so features can evolve independently.
+ * - Provides deterministic RNG (via RNG service; falls back to mulberry32 when unavailable).
+ * - Keeps FOV and camera view up-to-date and requests draws efficiently.
+ * - Persists dungeon state per entrance so revisiting restores corpses/loot/visibility.
  *
- * Notes:
- * - Uses Ctx.create(base) to provide a normalized ctx to modules.
- * - Randomness is deterministic via mulberry32; helpers (randInt, randFloat, chance) built over it.
+ * How to read this file
+ * - Modes and state: top-level variables track whether we are in world/town/dungeon and related anchors.
+ * - RNG and determinism: centralized seed/init; helpers (randInt, randFloat, chance) prefer RNG service.
+ * - FOV and camera: cache invalidation avoids unnecessary recomputes; camera centers on player.
+ * - UI orchestration: updateStats/log/loot/inventory are routed through UI when present, with safe fallbacks.
+ * - Dungeon persistence: save/load by world entrance key ("x,y"); modules can override via DungeonState.
+ * - Town helpers: basic interactions (talk, shop), occupancy grid rebuild cadence, and bench/rest flows.
+ * - Combat helpers: block chance, damage, crits, hit location, decay of equipment.
+ * - Turn loop: ticks time, drives NPC/AI, applies status effects, and schedules a render.
+ *
+ * Notes on module handles
+ * - Most features prefer ctx.* handles (Ctx.create(base)) to avoid window.* tight coupling.
+ * - When a module is missing, minimal fallbacks keep the game playable (e.g., flat-floor dungeon).
+ *
+ * Determinism
+ * - RNG is seeded via the GOD panel or auto-init; seed is persisted to localStorage ("SEED").
+ * - Diagnostics in GOD and boot logs show current RNG source and seed for reproducibility.
  */
 (() => {
   try {

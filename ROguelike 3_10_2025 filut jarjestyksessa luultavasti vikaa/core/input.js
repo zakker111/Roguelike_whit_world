@@ -1,5 +1,6 @@
 /**
- * Input: keyboard bindings and dispatch to game handlers.
+ * Input
+ * Keyboard bindings and dispatch to game handlers, with modal priority.
  *
  * Exports (window.Input):
  * - init(handlers): installs keydown listener. `handlers` can include:
@@ -7,8 +8,12 @@
  *     onHideLoot, onHideGod, onHideShop, onShowGod, onMove(dx,dy), onWait, onLoot, onDescend, adjustFov(delta) }
  * - destroy(): removes listener.
  *
- * Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5. Inventory: I. Loot: G. Descend: N or Enter.
- * GOD panel: P to open; Esc to close when open. FOV adjust: [-] and [+]/[=] (also Numpad +/-).
+ * Rules and priorities
+ * - If a modal is open (inventory/loot/GOD/shop), Escape closes it and other keys are ignored.
+ * - Movement only when no modal is open.
+ * - Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5.
+ * - Inventory: I. Loot/Action: G. Descend/Enter: N or Enter.
+ * - GOD panel: P to open. FOV adjust: [-] and [+]/[=] (also Numpad +/-).
  */
 (() => {
   const KEY_DIRS = {
