@@ -43,33 +43,7 @@
       }
 
       
-      if (_handlers.isInventoryOpen && _handlers.isInventoryOpen()) {
-        const isEsc = e.key === "Escape" || e.key === "Esc";
-        if (e.key && (e.key.toLowerCase() === "i" || isEsc)) {
-          e.preventDefault();
-          _handlers.onHideInventory && _handlers.onHideInventory();
-        } else {
-          e.preventDefault();
-        }
-        return;
-      }
-
-      
-      if (_handlers.isLootOpen && _handlers.isLootOpen()) {
-        e.preventDefault();
-        _handlers.onHideLoot && _handlers.onHideLoot();
-        return;
-      }
-
-      
-      if (e.key && e.key.toLowerCase() === "i") {
-        e.preventDefault();
-        _handlers.onShowInventory && _handlers.onShowInventory();
-        return;
-      }
-
-      
-      // Close any other panels on Escape by default (e.g., GOD, Shop)
+      // Close top-most modals first: GOD, Shop, then Inventory/Loot
       if (_handlers.isGodOpen && _handlers.isGodOpen()) {
         const isEsc = e.key === "Escape" || e.key === "Esc";
         if (isEsc) {
@@ -88,6 +62,29 @@
         } else {
           e.preventDefault();
         }
+        return;
+      }
+
+      if (_handlers.isInventoryOpen && _handlers.isInventoryOpen()) {
+        const isEsc = e.key === "Escape" || e.key === "Esc";
+        if (e.key && (e.key.toLowerCase() === "i" || isEsc)) {
+          e.preventDefault();
+          _handlers.onHideInventory && _handlers.onHideInventory();
+        } else {
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (_handlers.isLootOpen && _handlers.isLootOpen()) {
+        e.preventDefault();
+        _handlers.onHideLoot && _handlers.onHideLoot();
+        return;
+      }
+
+      if (e.key && e.key.toLowerCase() === "i") {
+        e.preventDefault();
+        _handlers.onShowInventory && _handlers.onShowInventory();
         return;
       }
 
