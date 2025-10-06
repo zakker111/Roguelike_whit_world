@@ -3,7 +3,7 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
-  const RUNNER_VERSION = "1.5.0";
+  const RUNNER_VERSION = "1.6.0";
   const CONFIG = {
     timeouts: {
       route: 5000,       // ms budget for any routing/path-following sequence
@@ -21,6 +21,13 @@
   try {
     URL_PARAMS = Object.fromEntries(new URLSearchParams(location.search).entries());
   } catch (_) {}
+
+  // Scenario selection (comma-separated): world,dungeon,town,combat,inventory,perf,overlays
+  const SCENARIOS = (() => {
+    const s = String(URL_PARAMS.smoke || "").trim();
+    if (!s) return new Set(["world","dungeon","town","combat","inventory","perf","overlays"]);
+    return new Set(s.split(",").map(x => x.trim().toLowerCase()).filter(Boolean));
+  })();
 
   // Global collection of console/browser errors during smoke test runs
   const ConsoleCapture = {
@@ -219,8 +226,44 @@
       caps.getShops = typeof api.getShops === "function";
       caps.isShopOpenNowFor = typeof api.isShopOpenNowFor === "function";
       caps.getShopSchedule = typeof api.getShopSchedule === "function";
+      caps.advanceMinutes = typeof api.advanceMinutes === "function";
+      caps.getClock = typeof api.getClock === "function";
+      caps.equipItemAtIndexHand = typeof api.equipItemAtIndexHand === "function";
     } catch (_) {}
     return caps;
+  }
+
+  // DEV: simple Math.random audit to discourage nondeterministic generators
+  function devRandomAudit() {
+    try {
+      if (!(window.DEV || localStorage.getItem("DEV") === "1")) return { scanned: 0, hits: [] };
+      const scripts = Array.from(document.scripts || []);
+      const hits = [];
+      for (const s of scripts) {
+        const src = s.src || "";
+        if (!src) continue;
+        // Heuristic: fetch content only for same-origin/local scripts if possible (skip cross-origin)
+        if (src.startsWith(location.origin)) {
+          // note: we can't fetch here; just record the url and rely on a server-side audit if needed
+          // As a compromise, record the src and mark "UNKNOWN" since inline content isn't accessible here.
+          // Developers can run a separate audit tool. We still scan script text for inline scripts.
+        }
+        // For inline scripts, check text content
+        if (!src && s.text && s.text.includes("Math.random")) {
+          hits.push({ type: "inline", snippet: (s.text || "").slice(0, 120) });
+        }
+      }
+      // Quick DOM scan for Math.random mentions
+      try {
+        const html = document.documentElement.outerHTML || "";
+        if ((html.match(/Math\.random/g) || []).length > 0) {
+          hits.push({ type: "dom", note: "Math.random appears in page HTML (might be harmless)." });
+        }
+      } catch (_) {}
+      return { scanned: scripts.length, hits };
+    } catch (_) {
+      return { scanned: 0, hits: [] };
+    }
   }
 
   // Safe element access
