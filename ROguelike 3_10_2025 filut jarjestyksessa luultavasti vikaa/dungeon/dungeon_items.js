@@ -23,7 +23,11 @@
     potion: (ctx) => {
       const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
         ? RNG.rng
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback      if (r < 0.5) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
+        : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
+            ? RNGFallback.getRng()
+            : Math.random));
+      const r = rng();
+      if (r < 0.5) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
       if (r < 0.85) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
       return { name: "strong potion (+10 HP)", kind: "potion", heal: 10 };
     },

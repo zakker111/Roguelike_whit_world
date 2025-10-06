@@ -56,9 +56,16 @@
   function enemiesAct(ctx) {
     const { player, enemies } = ctx;
     const U = (ctx && ctx.utils) ? ctx.utils : null;
-    const randFloat = U && U.randFloat ? U.randFloat : (ctx.randFloat || ((a,b,dec=1)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():((typeof window!=="undefined"&&window.RNGFallback&&typeof RNGFallback.getRng==="function")?RNGFallback.getRng()():Math.random()))));const v=a+rv*(b-a);const p=Math.pow(10,dec);return Math.round(v*p)/p;}));
-    const randInt = U && U.randInt ? U.randInt : (ctx.randInt || ((min,max)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():((typeof window!=="undefined"&&window.RNGFallback&&typeof RNGFallback.getRng==="function")?RNGFallback.getRng()():Math.random()))));return Math.floor(rv*(max-min+1))+min;}));
-    const chance = U && U.chance ? U.chance : (ctx.chance || ((p)=>{const rv=(ctx.rng?ctx.rng():((typeof window!=="undefined"&&window.RNG&&typeof RNG.rng==="function")?RNG.rng():((typeof window!=="undefined"&&window.RNGFallback&&typeof RNGFallback.getRng==="function")?RNGFallback.getRng()():Math.random()))));return rv<p;}));
+    // Local RNG value helper to reduce nested ternaries and avoid syntax pitfalls
+    const rv = () => {
+      if (ctx.rng) return ctx.rng();
+      if (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") return RNG.rng();
+      if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") return RNGFallback.getRng()();
+      return Math.random();
+    };
+    const randFloat = U && U.randFloat ? U.randFloat : (ctx.randFloat || ((a,b,dec=1)=>{const r=rv();const v=a+r*(b-a);const p=Math.pow(10,dec);return Math.round(v*p)/p;}));
+    const randInt = U && U.randInt ? U.randInt : (ctx.randInt || ((min,max)=>{const r=rv();return Math.floor(r*(max-min+1))+min;}));
+    const chance = U && U.chance ? U.chance : (ctx.chance || ((p)=>{const r=rv();return r<p;}));
     const Cap = U && U.capitalize ? U.capitalize : (s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
     const senseRange = 8;
