@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-06 00:00 UTC
+Last updated: 2025-10-06 00:45 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,32 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.19 — Data-driven content, plaza decor, ESC close, and expanded smoke tests
+- Added: JSON data loader and integrations
+  - data/loader.js now loads items.json, enemies.json, npcs.json, and consumables.json into window.GameData.
+  - entities/items.js and entities/enemies.js extend registries from JSON with safe fallbacks.
+  - ai/town_ai.js pulls NPC names/dialog from data/npcs.json when available.
+  - data/consumables.json defines potion entries (name, heal, weight); Loot prefers JSON-driven potions.
+- Added: Missing enemy definitions to data/enemies.json
+  - mime_ghost, hell_houndin (with weights, scaling, and potion weights).
+- Added: Town plaza decor
+  - Benches along plaza perimeter; market stalls with nearby crates/barrels; scattered plants.
+- Changed: Starting gold
+  - Player defaults now include 50 gold at game start.
+- UI: Escape closes all panels by default
+  - Inventory, Loot, GOD panel, and fallback Shop panel wired to close on ESC.
+- Smoke test upgrades
+  - Potion: drinks a potion and reports exact HP delta.
+  - Checklist: inline checklist with [x]/[ ]/[-] and downloadable smoketest_checklist.txt; summary TXT retained.
+  - Full report: renders the entire smoketest_report.json inline in the GOD panel (collapsible) and auto-opens/scrolls to it.
+  - Determinism duplicate run: re-runs the first seed and compares firstEnemyType and chest loot list; reports OK/MISMATCH.
+  - Equipment breakage: forces decay ≈99% on a hand item, swings until it breaks or reaches near 100%; records outcome.
+  - Crit/status: compares non-crit vs head-crit damage; legs-crit applies immobilization and verifies immobileTurns ticks down.
+- Dev: GameAPI extensions to support tests and UI behavior
+  - getStats(), getPotions()/drinkPotionAtIndex(), setEquipDecay(slot,val), spawnEnemyNearby(n).
+  - setAlwaysCrit(bool), setCritPart(part), getEnemies() now includes immobileTurns/bleedTurns.
+  - isShopOpen()/onHideShop() added so ESC reliably closes Shop panel.
 
 v1.18 — Click-to-loot containers and canvas click support
 - Added: Precise click-to-loot in dungeon
