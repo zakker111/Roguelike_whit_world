@@ -2493,6 +2493,75 @@
   
   initWorld();
   setupInput();
+
+  // Mouse/click support on the canvas: make dungeon crates/chests and looting clickable
+  (function setupMouse() {
+    try {
+      const canvasEl = document.getElementById("game");
+      if (!canvasEl) return;
+      canvasEl.addEventListener("click", (ev) => {
+        try {
+          // If UI modals are open, let them handle clicks
+          if (window.UI) {
+            if (typeof UI.isLootOpen === "function" && UI.isLootOpen()) return;
+            if (typeof UI.isInventoryOpen === "function" && UI.isInventoryOpen()) return;
+            if (typeof UI.isGodOpen === "function" && UI.isGodOpen()) return;
+          }
+          // Only act in dungeon and town; for world we ignore clicks for now
+          if (mode !== "dungeon" && mode !== "town") return;
+
+          const rect = canvasEl.getBoundingClientRect();
+          const px = ev.clientX - rect.left;
+          const py = ev.clientY - rect.top;
+
+          // Map pixel to tile coordinates considering camera
+          const tx = Math.floor((camera.x + Math.max(0, px)) / TILE);
+          const ty = Math.floor((camera.y + Math.max(0, py)) / TILE);
+
+          if (!inBounds(tx, ty)) return;
+
+          if (mode === "dungeon") {
+            // If clicked on player's tile: perform context action (loot)
+            if (tx === player.x && ty === player.y) {
+              lootCorpse();
+              return;
+            }
+            // If clicked adjacent: attempt to move a single step toward it; then auto-loot if standing on a container
+            const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
+            if (md === 1) {
+              const dx = Math.sign(tx - player.x);
+              const dy = Math.sign(ty - player.y);
+              tryMovePlayer(dx, dy);
+              // If we arrived on a container, auto-loot
+              if (player.x === tx && player.y === ty) {
+                // Small defer: let movement turn resolve, then loot
+                setTimeout(() => { try { lootCorpse(); } catch(_) {} }, 0);
+              }
+              return;
+            }
+            // If clicked a visible container within view but not adjacent, do nothing for now
+            return;
+          }
+
+          if (mode === "town") {
+            // In town, treat click on player's tile as generic action (talk/loot/exit)
+            if (tx === player.x && ty === player.y) {
+              doAction();
+              return;
+            }
+            // Adjacent tile click: small QoL move
+            const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
+            if (md === 1) {
+              const dx = Math.sign(tx - player.x);
+              const dy = Math.sign(ty - player.y);
+              tryMovePlayer(dx, dy);
+            }
+          }
+        } catch (_) {}
+      });
+    } catch (_) {}
+  })();
+
   {
     const GL = modHandle("GameLoop");
     if (GL && typeof GL.start === "function") {
