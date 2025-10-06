@@ -28,7 +28,7 @@
     level: 1,
     xp: 0,
     xpNext: 20,
-    inventory: [],
+    inventory: [{ kind: "gold", amount: 50, name: "gold" }],
     equipment: { ...DEFAULT_EQUIPMENT },
   };
 

@@ -3,8 +3,8 @@
  *
  * Exports (window.Input):
  * - init(handlers): installs keydown listener. `handlers` can include:
- *   { isDead, isInventoryOpen, isLootOpen, isGodOpen, onRestart, onShowInventory, onHideInventory,
- *     onHideLoot, onHideGod, onShowGod, onMove(dx,dy), onWait, onLoot, onDescend, adjustFov(delta) }
+ *   { isDead, isInventoryOpen, isLootOpen, isGodOpen, isShopOpen, onRestart, onShowInventory, onHideInventory,
+ *     onHideLoot, onHideGod, onHideShop, onShowGod, onMove(dx,dy), onWait, onLoot, onDescend, adjustFov(delta) }
  * - destroy(): removes listener.
  *
  * Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5. Inventory: I. Loot: G. Descend: N or Enter.
@@ -64,11 +64,22 @@
       }
 
       
+      // Close any other panels on Escape by default (e.g., GOD, Shop)
       if (_handlers.isGodOpen && _handlers.isGodOpen()) {
         const isEsc = e.key === "Escape" || e.key === "Esc";
         if (isEsc) {
           e.preventDefault();
           _handlers.onHideGod && _handlers.onHideGod();
+        } else {
+          e.preventDefault();
+        }
+        return;
+      }
+      if (_handlers.isShopOpen && _handlers.isShopOpen()) {
+        const isEsc = e.key === "Escape" || e.key === "Esc";
+        if (isEsc) {
+          e.preventDefault();
+          _handlers.onHideShop && _handlers.onHideShop();
         } else {
           e.preventDefault();
         }

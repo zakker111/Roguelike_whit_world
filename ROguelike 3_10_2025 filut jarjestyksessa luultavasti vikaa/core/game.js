@@ -1035,34 +1035,43 @@
 
   // Town shops helpers and resting
   function shopAt(x, y) {
+    if (window.ShopService && typeof ShopService.shopAt === "function") {
+      return ShopService.shopAt(getCtx(), x, y);
+    }
     if (!Array.isArray(shops)) return null;
     return shops.find(s => s.x === x && s.y === y) || null;
   }
-  // Shop schedule helpers
-  function minutesOfDay(h, m = 0) { return ((h | 0) * 60 + (m | 0)) % DAY_MINUTES; }
+  // Shop schedule helpers (delegated to ShopService)
+  function minutesOfDay(h, m = 0) {
+    if (window.ShopService && typeof ShopService.minutesOfDay === "function") {
+      return ShopService.minutesOfDay(h, m, DAY_MINUTES);
+    }
+    return ((h | 0) * 60 + (m | 0)) % DAY_MINUTES;
+  }
   function isOpenAt(shop, minutes) {
+    if (window.ShopService && typeof ShopService.isOpenAt === "function") {
+      return ShopService.isOpenAt(shop, minutes);
+    }
     if (!shop) return false;
     if (shop.alwaysOpen) return true;
     if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
     const o = shop.openMin, c = shop.closeMin;
-    if (o === c) {
-      // Interpret o===c with alwaysOpen=false as closed all day
-      return false;
-    }
-    if (c > o) return minutes >= o && minutes < c; // same-day window
-    // overnight window (e.g., 18:00 -> 06:00)
-    return minutes >= o || minutes < c;
+    if (o === c) return false;
+    return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
   }
   function isShopOpenNow(shop = null) {
+    if (window.ShopService && typeof ShopService.isShopOpenNow === "function") {
+      return ShopService.isShopOpenNow(getCtx(), shop || null);
+    }
     const t = getClock();
     const minutes = t.hours * 60 + t.minutes;
-    if (!shop) {
-      // Fallback: original behavior when no shop provided
-      return t.phase === "day";
-    }
+    if (!shop) return t.phase === "day";
     return isOpenAt(shop, minutes);
   }
   function shopScheduleStr(shop) {
+    if (window.ShopService && typeof ShopService.shopScheduleStr === "function") {
+      return ShopService.shopScheduleStr(shop);
+    }
     if (!shop) return "";
     const h2 = (min) => {
       const hh = ((min / 60) | 0) % 24;
@@ -2316,6 +2325,14 @@
           onGodApplySeed: (seed) => applySeed(seed),
           onGodRerollSeed: () => rerollSeed(),
           onTownExit: () => requestLeaveTown(),
+          // Panels for ESC-close default behavior
+          isShopOpen: () => {
+            try {
+              const el = document.getElementById("shop-panel");
+              return !!(el && el.hidden === false);
+            } catch (_) { return false; }
+          },
+          onHideShop: () => hideShopPanel(),
           onGodCheckHomes: () => {
             const ctx = getCtx();
             if (ctx.mode !== "town") {
@@ -2703,7 +2720,7 @@
         return false;
       },
       // Current map pathing helpers (town/dungeon)
-      getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type })),
+      getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type, immobileTurns: e.immobileTurns || 0, bleedTurns: e.bleedTurns || 0 })),
       // Include index so runner can correlate to NPC internals when needed
       getNPCs: () => (Array.isArray(npcs) ? npcs.map((n, i) => ({ i, x: n.x, y: n.y, name: n.name })) : []),
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
@@ -2738,8 +2755,28 @@
         function info(it) { return it ? { name: it.name, slot: it.slot, atk: it.atk, def: it.def, decay: it.decay, twoHanded: !!it.twoHanded } : null; }
         return { left: info(eq.left), right: info(eq.right), head: info(eq.head), torso: info(eq.torso), legs: info(eq.legs), hands: info(eq.hands) };
       },
+      getStats: () => {
+        try {
+          return { atk: getPlayerAttack(), def: getPlayerDefense(), hp: player.hp, maxHp: player.maxHp, level: player.level };
+        } catch(_) { return { atk: 0, def: 0, hp: player.hp, maxHp: player.maxHp, level: player.level }; }
+      },
       equipItemAtIndex: (idx) => { try { equipItemByIndex(idx|0); return true; } catch(_) { return false; } },
       unequipSlot: (slot) => { try { unequipSlot(String(slot)); return true; } catch(_) { return false; } },
+      // Potions
+      getPotions: () => {
+        try {
+          if (!Array.isArray(player.inventory)) return [];
+          const out = [];
+          for (let i = 0; i < player.inventory.length; i++) {
+            const it = player.inventory[i];
+            if (it && it.kind === "potion") {
+              out.push({ i, heal: it.heal, count: it.count, name: it.name });
+            }
+          }
+          return out;
+        } catch(_) { return []; }
+      },
+      drinkPotionAtIndex: (idx) => { try { drinkPotionByIndex(idx|0); return true; } catch(_) { return false; } },
       getGold: () => {
         try {
           const g = player.inventory.find(i => i && i.kind === "gold");
@@ -2827,11 +2864,11 @@
           return !!returnToWorldIfAtExit();
         } catch(_) { return false; }
       },
-      enterDungeonIfOnEntrance: () => {
-        try {
-          return !!enterDungeonIfOnEntrance();
-        } catch(_) { return false; }
-      },
+      // Crit/status test helpers
+      setAlwaysCrit: (v) => { try { setAlwaysCrit(!!v); return true; } catch(_) { return false; } },
+      setCritPart: (part) => { try { setCritPart(String(part || "")); return true; } catch(_) { return false; } },
+      getPlayerStatus: () => { try { return { hp: player.hp, maxHp: player.maxHp, dazedTurns: player.dazedTurns | 0 }; } catch(_) { return { hp: 0, maxHp: 0, dazedTurns: 0 }; } },
+      setPlayerDazedTurns: (n) => { try { player.dazedTurns = Math.max(0, (Number(n) || 0) | 0); return true; } catch(_) { return false; } },
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
       routeToDungeon: (tx, ty) => {
         // BFS on current map (works for both town and dungeon as it uses isWalkable)

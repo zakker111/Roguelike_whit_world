@@ -15,7 +15,9 @@
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
   // Enemy type registry: define base stats, behavior weights, visuals
+  // TYPES registry now can be extended from JSON at runtime
   const TYPES = {
+    // keep minimal defaults, will be augmented by JSON
     goblin: {
       key: "goblin",
       glyph: "g",
@@ -29,36 +31,6 @@
       potionWeights: { lesser: 0.60, average: 0.30, strong: 0.10 },
       equipChance: 0.35,
     },
-
-    mime_ghost: {
-      key: "mime_ghost",
-      glyph: "m",
-      color: "#e6eec7",
-      tier: 1,
-      blockBase: 0.06,
-      // Make mime_ghost significantly rarer than goblins
-      weight(depth) { return depth <= 2 ? 0.15 : 0.20; },
-      hp(depth) { return 3 + Math.floor(depth / 2); },
-      atk(depth) { return 1 + Math.floor(depth / 4); },
-      xp(depth) { return 5 + Math.floor(depth / 2); },
-      potionWeights: { lesser: 0.60, average: 0.30, strong: 0.10 },
-      equipChance: 0.65,
-    },
-
-    hell_houndin: {
-      key: "hell_houndin",
-      glyph: "h",
-      color: "#d65d5d",
-      tier: 3,
-      blockBase: 0.07,
-      weight(depth) { return depth <= 2 ? 0.02 : 0.08; },
-      hp(depth) { return 5 + Math.floor(depth * 0.9); },
-      atk(depth) { return 2 + Math.floor(depth / 3); },
-      xp(depth) { return 14 + Math.floor(depth); },
-      potionWeights: { lesser: 0.45, average: 0.35, strong: 0.20 },
-      equipChance: 0.60,
-    },
-
     troll: {
       key: "troll",
       glyph: "T",
@@ -85,22 +57,52 @@
       potionWeights: { lesser: 0.40, average: 0.35, strong: 0.25 },
       equipChance: 0.75,
     },
-
-    // Example enemy template (reference; weight() returns 0 so it won't spawn)
-    example_enemy: {
-      key: "example_enemy",
-      glyph: "S",
-      color: "#cbd5e1",
-      tier: 2,
-      blockBase: 0.07,
-      weight(depth) { return 0; },
-      hp(depth) { return 5 + Math.floor(depth * 0.7); },
-      atk(depth) { return 2 + Math.floor(depth / 3); },
-      xp(depth) { return 10 + depth; },
-      potionWeights: { lesser: 0.55, average: 0.35, strong: 0.10 },
-      equipChance: 0.50,
-    },
   };
+
+  function applyJsonEnemies(json) {
+    if (!Array.isArray(json)) return;
+    for (const row of json) {
+      const key = row.id || row.key;
+      if (!key) continue;
+      const base = TYPES[key] || {};
+      function weight(depth) {
+        const table = row.weightByDepth || [];
+        if (!table.length) return typeof base.weight === "function" ? base.weight(depth) : 0.0;
+        // pick the last entry whose minDepth <= depth
+        let w = 0;
+        for (const entry of table) {
+          const minD = entry[0] | 0;
+          const weight = Number(entry[1] || 0);
+          if (depth >= minD) w = weight;
+        }
+        return w;
+      }
+      function linearAt(arr, depth) {
+        // arr: [ [minDepth, base, slope] ... ] choose last <= depth and evaluate base + slope * (depth - minDepth)
+        if (!Array.isArray(arr) || arr.length === 0) return 1;
+        let chosen = arr[0];
+        for (const e of arr) {
+          if ((e[0] | 0) <= depth) chosen = e;
+        }
+        const minD = chosen[0] | 0, baseV = Number(chosen[1] || 1), slope = Number(chosen[2] || 0);
+        const delta = Math.max(0, depth - minD);
+        return Math.max(1, Math.floor(baseV + slope * delta));
+      }
+      TYPES[key] = {
+        key,
+        glyph: row.glyph || base.glyph || "?",
+        color: row.color || base.color || "#cbd5e1",
+        tier: Number(row.tier || base.tier || 1),
+        blockBase: typeof row.blockBase === "number" ? row.blockBase : (base.blockBase || 0.06),
+        weight,
+        hp(depth) { return linearAt(row.hp, depth); },
+        atk(depth) { return linearAt(row.atk, depth); },
+        xp(depth)  { return linearAt(row.xp, depth); },
+        potionWeights: row.potionWeights || base.potionWeights || { lesser: 0.6, average: 0.3, strong: 0.1 },
+        equipChance: typeof row.equipChance === "number" ? row.equipChance : (base.equipChance || 0.35),
+      };
+    }
+  }
 
   function listTypes() {
     return Object.keys(TYPES);
@@ -171,6 +173,17 @@
       announced: false,
     };
   }
+
+  // If GameData is present, extend TYPES after data is ready
+  try {
+    if (window.GameData && GameData.ready && typeof GameData.ready.then === "function") {
+      GameData.ready.then(() => {
+        try { applyJsonEnemies(GameData.enemies); } catch (_) {}
+      });
+    } else if (window.GameData && Array.isArray(GameData.enemies)) {
+      applyJsonEnemies(GameData.enemies);
+    }
+  } catch (_) {}
 
   window.Enemies = {
     TYPES,

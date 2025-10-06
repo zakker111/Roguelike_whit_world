@@ -320,7 +320,9 @@
     // Shopkeepers with homes and signs
     (function spawnShopkeepers() {
       if (!Array.isArray(shops) || shops.length === 0) return;
-      const keeperLines = ["We open on schedule.","Welcome in!","Back soon."];
+      const ND = (window.GameData && GameData.npcs) ? GameData.npcs : null;
+      const keeperLines = (ND && Array.isArray(ND.shopkeeperLines) && ND.shopkeeperLines.length) ? ND.shopkeeperLines : ["We open on schedule.","Welcome in!","Back soon."];
+      const keeperNames = (ND && Array.isArray(ND.shopkeeperNames) && ND.shopkeeperNames.length) ? ND.shopkeeperNames : ["Shopkeeper","Trader","Smith"];
       for (const s of shops) {
         addSignNear(ctx, s.x, s.y, s.name || "Shop");
         // choose spawn near door
@@ -346,9 +348,12 @@
           home = { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y } };
         }
 
+        const shopBase = s.name ? `${s.name} ` : "";
+        const keeperName = shopBase ? `${shopBase}Keeper` : (keeperNames[Math.floor(rng() * keeperNames.length)] || "Shopkeeper");
+
         npcs.push({
           x: spot.x, y: spot.y,
-          name: s.name ? `${s.name} Keeper` : "Shopkeeper",
+          name: keeperName,
           lines: keeperLines,
           isShopkeeper: true,
           _work: { x: s.x, y: s.y },
@@ -377,7 +382,9 @@
         return null;
       }
 
-      const linesHome = ["Home sweet home.","A quiet day indoors.","Just tidying up."];
+      const ND = (window.GameData && GameData.npcs) ? GameData.npcs : null;
+      const linesHome = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length) ? ND.residentLines : ["Home sweet home.","A quiet day indoors.","Just tidying up."];
+      const residentNames = (ND && Array.isArray(ND.residentNames) && ND.residentNames.length) ? ND.residentNames : ["Resident","Villager"];
 
       const benches = (ctx.townProps || []).filter(p => p.type === "bench");
       const pickBenchNearPlaza = () => {
@@ -417,9 +424,10 @@
             const bidx = randInt(ctx, 0, bedList.length - 1);
             sleepSpot = { x: bedList[bidx].x, y: bedList[bidx].y };
           }
+          const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
           npcs.push({
             x: pos.x, y: pos.y,
-            name: rng() < 0.2 ? `Child` : `Resident`,
+            name: rng() < 0.2 ? `Child` : rname,
             lines: linesHome,
             isResident: true,
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: sleepSpot },
@@ -430,9 +438,10 @@
         // Guarantee at least one occupant
         if (created === 0) {
           const pos = firstFreeInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
+          const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
           npcs.push({
             x: pos.x, y: pos.y,
-            name: `Resident`,
+            name: rname,
             lines: linesHome,
             isResident: true,
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: null },
@@ -446,8 +455,9 @@
     // Pets
     (function spawnPets() {
       const maxCats = 2, maxDogs = 2;
-      const namesCat = ["Cat","Mittens","Whiskers"];
-      const namesDog = ["Dog","Rover","Buddy"];
+      const ND = (window.GameData && GameData.npcs) ? GameData.npcs : null;
+      const namesCat = (ND && Array.isArray(ND.petCats) && ND.petCats.length) ? ND.petCats : ["Cat","Mittens","Whiskers"];
+      const namesDog = (ND && Array.isArray(ND.petDogs) && ND.petDogs.length) ? ND.petDogs : ["Dog","Rover","Buddy"];
       function placeFree() {
         for (let t = 0; t < 200; t++) {
           const x = randInt(ctx, 2, ctx.map[0].length - 3);

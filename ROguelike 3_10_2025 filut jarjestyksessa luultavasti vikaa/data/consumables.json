@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "potions": [
+    { "id": "potion_lesser",  "name": "lesser potion (+3 HP)",   "heal": 3,  "weight": 0.60 },
+    { "id": "potion_average", "name": "average potion (+6 HP)",  "heal": 6,  "weight": 0.30 },
+    { "id": "potion_strong",  "name": "strong potion (+10 HP)",  "heal": 10, "weight": 0.10 }
+  ]
+}

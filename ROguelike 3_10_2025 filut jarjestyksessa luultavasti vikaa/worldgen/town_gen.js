@@ -9,6 +9,9 @@
  */
 (function () {
   function inBounds(ctx, x, y) {
+    try {
+      if (window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
+    } catch (_) {}
     const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
     return x >= 0 && y >= 0 && x < cols && y < rows;
   }
@@ -389,7 +392,14 @@
       }
       return { openMin: minutesOfDay( ctx, openH ), closeMin: minutesOfDay( ctx, closeH ), alwaysOpen };
     }
-    function minutesOfDay(ctx, h, m = 0) { return ((h | 0) * 60 + (m | 0)) % (24 * 60); }
+    function minutesOfDay(ctx, h, m = 0) {
+      try {
+        if (window.ShopService && typeof ShopService.minutesOfDay === "function") {
+          return ShopService.minutesOfDay(h, m, 24 * 60);
+        }
+      } catch (_) {}
+      return ((h | 0) * 60 + (m | 0)) % (24 * 60);
+    }
 
     const scored = buildings.map(b => ({ b, d: Math.abs((b.x + (b.w / 2)) - plaza.x) + Math.abs((b.y + (b.h / 2)) - plaza.y) }));
     scored.sort((a, b) => a.d - b.d);
@@ -488,6 +498,78 @@
     addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
     addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
     addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
+
+    // Benches and market decor around the plaza
+    (function placePlazaDecor() {
+      // Place benches along the inner perimeter of the plaza, spaced out
+      const bx0 = ((plaza.x - (plazaW / 2)) | 0) + 1;
+      const bx1 = ((plaza.x + (plazaW / 2)) | 0) - 1;
+      const by0 = ((plaza.y - (plazaH / 2)) | 0) + 1;
+      const by1 = ((plaza.y + (plazaH / 2)) | 0) - 1;
+
+      const benchSpots = [];
+      // top and bottom edges
+      for (let x = bx0; x <= bx1; x += 3) {
+        benchSpots.push({ x, y: by0 });
+        benchSpots.push({ x, y: by1 });
+      }
+      // left and right edges
+      for (let y = by0 + 2; y <= by1 - 2; y += 3) {
+        benchSpots.push({ x: bx0, y });
+        benchSpots.push({ x: bx1, y });
+      }
+      // Try to place up to a limit to avoid clutter
+      let placed = 0;
+      const limit = Math.min(12, Math.max(6, Math.floor((plazaW + plazaH) / 3)));
+      for (const p of benchSpots) {
+        if (placed >= limit) break;
+        // Only place on clear floor and keep a tile free next to the bench
+        if (p.x <= 0 || p.y <= 0 || p.x >= W - 1 || p.y >= H - 1) continue;
+        if (ctx.map[p.y][p.x] !== ctx.TILES.FLOOR) continue;
+        if (ctx.townProps.some(q => q.x === p.x && q.y === p.y)) continue;
+        if ((p.x === ctx.player.x && p.y === ctx.player.y)) continue;
+        if (addProp(p.x, p.y, "bench", "Bench")) placed++;
+      }
+
+      // Small market stalls on four sides of the plaza (not blocking the center)
+      const stallOffsets = [
+        { dx: -((plazaW / 2) | 0) + 2, dy: 0 },
+        { dx: ((plazaW / 2) | 0) - 2, dy: 0 },
+        { dx: 0, dy: -((plazaH / 2) | 0) + 2 },
+        { dx: 0, dy: ((plazaH / 2) | 0) - 2 },
+      ];
+      for (const o of stallOffsets) {
+        const sx = Math.max(1, Math.min(W - 2, plaza.x + o.dx));
+        const sy = Math.max(1, Math.min(H - 2, plaza.y + o.dy));
+        if (ctx.map[sy][sx] === ctx.TILES.FLOOR) {
+          addProp(sx, sy, "stall", "Market Stall");
+          // scatter a crate/barrel next to each stall if space allows
+          const neighbors = [
+            { x: sx + 1, y: sy }, { x: sx - 1, y: sy },
+            { x: sx, y: sy + 1 }, { x: sx, y: sy - 1 },
+          ];
+          for (const n of neighbors) {
+            if (n.x <= 0 || n.y <= 0 || n.x >= W - 1 || n.y >= H - 1) continue;
+            if (ctx.map[n.y][n.x] !== ctx.TILES.FLOOR) continue;
+            if (ctx.townProps.some(p => p.x === n.x && p.y === n.y)) continue;
+            const kind = ctx.rng() < 0.5 ? "crate" : "barrel";
+            addProp(n.x, n.y, kind, kind === "crate" ? "Crate" : "Barrel");
+            break;
+          }
+        }
+      }
+
+      // A few plants to soften the plaza
+      const plantTry = Math.min(8, Math.max(3, Math.floor((plazaW + plazaH) / 10)));
+      let tries = 0, planted = 0;
+      while (planted < plantTry && tries++ < 80) {
+        const rx = Math.max(1, Math.min(W - 2, plaza.x + (Math.floor(ctx.rng() * plazaW) - (plazaW / 2 | 0))));
+        const ry = Math.max(1, Math.min(H - 2, plaza.y + (Math.floor(ctx.rng() * plazaH) - (plazaH / 2 | 0))));
+        if (ctx.map[ry][rx] !== ctx.TILES.FLOOR) continue;
+        if (ctx.townProps.some(p => p.x === rx && p.y === ry)) continue;
+        if (addProp(rx, ry, "plant", "Plant")) planted++;
+      }
+    })();
 
     // Furnish building interiors for variety (beds, tables, chairs, fireplace, storage, shelves, plants, rugs)
     (function furnishInteriors() {
@@ -641,8 +723,12 @@
   }
 
   // ---- Shop helpers for interactProps ----
-  function minutesOfDayLocal(h, m = 0) { return ((h | 0) * 60 + (m | 0)) % (24 * 60); }
+  function minutesOfDayLocal(h, m = 0) {
+    try { if (window.ShopService && typeof ShopService.minutesOfDay === "function") return ShopService.minutesOfDay(h, m, 24 * 60); } catch (_){}
+    return ((h | 0) * 60 + (m | 0)) % (24 * 60);
+  }
   function isOpenAt(ctx, shop, minutes) {
+    if (window.ShopService && typeof ShopService.isOpenAt === "function") return ShopService.isOpenAt(shop, minutes);
     if (!shop) return false;
     if (shop.alwaysOpen) return true;
     if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
@@ -651,12 +737,14 @@
     return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
   }
   function isShopOpenNow(ctx, shop = null) {
+    if (window.ShopService && typeof ShopService.isShopOpenNow === "function") return ShopService.isShopOpenNow(ctx, shop);
     const t = ctx.time;
     const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
     if (!shop) return t && t.phase === "day";
     return isOpenAt(ctx, shop, minutes);
   }
   function shopScheduleStr(ctx, shop) {
+    if (window.ShopService && typeof ShopService.shopScheduleStr === "function") return ShopService.shopScheduleStr(shop);
     if (!shop) return "";
     const h2 = (min) => {
       const hh = ((min / 60) | 0) % 24;
@@ -665,6 +753,7 @@
     return `Opens ${h2(shop.openMin)}:00, closes ${h2(shop.closeMin)}:00`;
   }
   function shopAt(ctx, x, y) {
+    if (window.ShopService && typeof ShopService.shopAt === "function") return ShopService.shopAt(ctx, x, y);
     const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
     return shops.find(s => s.x === x && s.y === y) || null;
   }

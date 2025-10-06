@@ -423,23 +423,54 @@
           // 9b: equip best items from inventory (if any) and test manual equip/unequip
           try {
             const inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+            const statsBeforeBest = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
             const beforeEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
             const equippedNames = (typeof window.GameAPI.equipBestFromInventory === "function") ? window.GameAPI.equipBestFromInventory() : [];
             const afterEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-            record(true, `Equipped from chest loot: ${equippedNames.length ? equippedNames.join(", ") : "no changes"}`);
+            const statsAfterBest = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
+            const atkDelta = (statsAfterBest.atk || 0) - (statsBeforeBest.atk || 0);
+            const defDelta = (statsAfterBest.def || 0) - (statsBeforeBest.def || 0);
+            const improved = (atkDelta > 0) || (defDelta > 0);
+            record(true, `Equipped from chest loot: ${equippedNames.length ? equippedNames.join(", ") : "no changes"} (Δ atk ${atkDelta.toFixed ? atkDelta.toFixed(1) : atkDelta}, def ${defDelta.toFixed ? defDelta.toFixed(1) : defDelta})${equippedNames.length ? (improved ? "" : " [no stat increase]") : ""}`);
 
-            // Manual equip: find first equip item in inventory and equip it, then unequip the same slot
+            // Manual equip: find first equip item in inventory and equip it, then unequip the same slot and compare stats
             const equipIdx = inv.findIndex(it => it && it.kind === "equip");
             if (equipIdx !== -1 && typeof window.GameAPI.equipItemAtIndex === "function" && typeof window.GameAPI.unequipSlot === "function") {
               const item = inv[equipIdx];
-              const ok1 = window.GameAPI.equipItemAtIndex(equipIdx);
-              await sleep(120);
               const slot = item.slot || "hand";
+              const s0 = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
+              const ok1 = window.GameAPI.equipItemAtIndex(equipIdx);
+              await sleep(140);
+              const s1 = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
               const ok2 = window.GameAPI.unequipSlot(slot);
-              await sleep(120);
-              record(ok1 && ok2, `Manual equip/unequip (${item.name || "equip"} in slot ${slot})`);
+              await sleep(140);
+              const s2 = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
+              const equipDeltaAtk = (s1.atk || 0) - (s0.atk || 0);
+              const equipDeltaDef = (s1.def || 0) - (s0.def || 0);
+              const unequipDeltaAtk = (s2.atk || 0) - (s1.atk || 0);
+              const unequipDeltaDef = (s2.def || 0) - (s1.def || 0);
+              const okStats = (ok1 && ok2);
+              record(okStats, `Manual equip/unequip (${item.name || "equip"} in slot ${slot}) — equip Δ (atk ${equipDeltaAtk.toFixed ? equipDeltaAtk.toFixed(1) : equipDeltaAtk}, def ${equipDeltaDef.toFixed ? equipDeltaDef.toFixed(1) : equipDeltaDef}), unequip Δ (atk ${unequipDeltaAtk.toFixed ? unequipDeltaAtk.toFixed(1) : unequipDeltaAtk}, def ${unequipDeltaDef.toFixed ? unequipDeltaDef.toFixed(1) : unequipDeltaDef})`);
             } else {
               record(true, "No direct equip/unequip test performed (no equip item or API not present)");
+            }
+
+            // 9b.1: attempt to drink a potion via GameAPI if any are present
+            try {
+              const pots = (typeof window.GameAPI.getPotions === "function") ? window.GameAPI.getPotions() : [];
+              if (pots && pots.length && typeof window.GameAPI.drinkPotionAtIndex === "function") {
+                const pi = pots[0].i;
+                const hpBefore = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats().hp : null;
+                const okDrink = !!window.GameAPI.drinkPotionAtIndex(pi);
+                await sleep(140);
+                const hpAfter = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats().hp : null;
+                const dhp = (hpAfter != null && hpBefore != null) ? (hpAfter - hpBefore) : null;
+                record(okDrink, `Drank potion at index ${pi} (${pots[0].name || "potion"})${dhp != null ? `, HP +${dhp}` : ""}`);
+              } else {
+                record(true, "No potions available to drink (skipped)");
+              }
+            } catch (e2) {
+              record(false, "Drink potion failed: " + (e2 && e2.message ? e2.message : String(e2)));
             }
           } catch (e) {
             record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
@@ -509,6 +540,168 @@
             key("KeyG");
             await sleep(220);
             record(true, "Attempted to loot defeated enemy");
+
+            // Equipment breakage test: force near-break decay and attack until it breaks
+            try {
+              const eq0 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              // Pick a hand with an item (prefer left)
+              const slot = (eq0.left ? "left" : (eq0.right ? "right" : null));
+              if (slot && typeof window.GameAPI.setEquipDecay === "function") {
+                const okSet = window.GameAPI.setEquipDecay(slot, 99.0);
+                await sleep(60);
+                // Ensure an enemy is nearby to swing at
+                if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
+                await sleep(120);
+                // Step toward nearest enemy (reuse pathing)
+                const enemies2 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+                if (enemies2 && enemies2.length) {
+                  let tgt = enemies2[0];
+                  let bestD2 = Math.abs(tgt.x - window.GameAPI.getPlayer().x) + Math.abs(tgt.y - window.GameAPI.getPlayer().y);
+                  for (const e2 of enemies2) {
+                    const d2 = Math.abs(e2.x - window.GameAPI.getPlayer().x) + Math.abs(e2.y - window.GameAPI.getPlayer().y);
+                    if (d2 < bestD2) { bestD2 = d2; tgt = e2; }
+                  }
+                  const path2 = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(tgt.x, tgt.y) : [];
+                  const budget2 = makeBudget(CONFIG.timeouts.battle);
+                  for (const step of path2) {
+                    if (budget2.exceeded()) break;
+                    const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(90);
+                  }
+                  // Bump a few times to ensure at least one swing
+                  for (let t = 0; t < 3; t++) {
+                    const dx = Math.sign(tgt.x - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(tgt.y - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(120);
+                  }
+                }
+                const eq1 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+                const broken = !eq1[slot];
+                record(okSet && (broken || (eq1[slot] && typeof eq1[slot].decay === "number" && eq1[slot].decay >= 99.5)),
+                  `Breakage test (${slot}): ${broken ? "item broke" : "still equipped"}${eq1[slot] && eq1[slot].decay != null ? `, decay=${eq1[slot].decay}` : ""}`);
+              } else {
+                record(true, "Skipped breakage test (no hand equipment)");
+              }
+            } catch (e) {
+              record(false, "Breakage test failed: " + (e && e.message ? e.message : String(e)));
+            }
+
+            // Crit damage and status tests
+            try {
+              // Ensure Always Crit off for baseline
+              if (typeof window.GameAPI.setAlwaysCrit === "function") window.GameAPI.setAlwaysCrit(false);
+              if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("");
+
+              // Spawn baseline target and measure non-crit damage
+              if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
+              await sleep(140);
+              let es = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+              if (es && es.length) {
+                // choose nearest
+                let tgt = es[0];
+                let bestD = Math.abs(tgt.x - window.GameAPI.getPlayer().x) + Math.abs(tgt.y - window.GameAPI.getPlayer().y);
+                for (const e2 of es) {
+                  const d2 = Math.abs(e2.x - window.GameAPI.getPlayer().x) + Math.abs(e2.y - window.GameAPI.getPlayer().y);
+                  if (d2 < bestD) { bestD = d2; tgt = e2; }
+                }
+                // route adjacent then bump once
+                const path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(tgt.x, tgt.y) : [];
+                const budget = makeBudget(CONFIG.timeouts.battle);
+                for (const step of path) {
+                  if (budget.exceeded()) break;
+                  const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                  const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(90);
+                }
+                // record hp before and attempt one bump
+                es = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+                let tgt2 = es.find(e => e.x === tgt.x && e.y === tgt.y) || tgt;
+                const hp0 = tgt2.hp;
+                const dx = Math.sign(tgt2.x - window.GameAPI.getPlayer().x);
+                const dy = Math.sign(tgt2.y - window.GameAPI.getPlayer().y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                tgt2 = es.find(e => e.x === tgt.x && e.y === tgt.y) || tgt2;
+                const hp1 = tgt2 ? tgt2.hp : hp0; // might have died
+                const dmgNoCrit = Math.max(0, (hp0 != null && hp1 != null) ? (hp0 - hp1) : 0);
+
+                // Head crit for higher damage
+                if (typeof window.GameAPI.setAlwaysCrit === "function") window.GameAPI.setAlwaysCrit(true);
+                if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("head");
+                if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtH = es[0];
+                let bestDH = Infinity;
+                for (const e2 of es) {
+                  const d2 = Math.abs(e2.x - window.GameAPI.getPlayer().x) + Math.abs(e2.y - window.GameAPI.getPlayer().y);
+                  if (d2 < bestDH) { bestDH = d2; tgtH = e2; }
+                }
+                const pathH = window.GameAPI.routeToDungeon ? window.GameAPI.routeToDungeon(tgtH.x, tgtH.y) : [];
+                for (const step of pathH) {
+                  const dxh = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                  const dyh = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  key(dxh === -1 ? "ArrowLeft" : dxh === 1 ? "ArrowRight" : (dyh === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(80);
+                }
+                const hpH0 = tgtH.hp;
+                const dxh = Math.sign(tgtH.x - window.GameAPI.getPlayer().x);
+                const dyh = Math.sign(tgtH.y - window.GameAPI.getPlayer().y);
+                key(dxh === -1 ? "ArrowLeft" : dxh === 1 ? "ArrowRight" : (dyh === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtH2 = es.find(e => e.x === tgtH.x && e.y === tgtH.y) || tgtH;
+                const hpH1 = tgtH2 ? tgtH2.hp : hpH0;
+                const dmgCritHead = Math.max(0, (hpH0 != null && hpH1 != null) ? (hpH0 - hpH1) : 0);
+                record(dmgCritHead >= dmgNoCrit, `Crit damage check: non-crit ${dmgNoCrit}, head-crit ${dmgCritHead}`);
+
+                // Legs crit immobilization
+                if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("legs");
+                if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtL = es[0];
+                let bestDL = Infinity;
+                for (const e2 of es) {
+                  const d2 = Math.abs(e2.x - window.GameAPI.getPlayer().x) + Math.abs(e2.y - window.GameAPI.getPlayer().y);
+                  if (d2 < bestDL) { bestDL = d2; tgtL = e2; }
+                }
+                const pathL = window.GameAPI.routeToDungeon ? window.GameAPI.routeToDungeon(tgtL.x, tgtL.y) : [];
+                for (const step of pathL) {
+                  const dxl = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                  const dyl = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  key(dxl === -1 ? "ArrowLeft" : dxl === 1 ? "ArrowRight" : (dyl === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(80);
+                }
+                const dxl = Math.sign(tgtL.x - window.GameAPI.getPlayer().x);
+                const dyl = Math.sign(tgtL.y - window.GameAPI.getPlayer().y);
+                key(dxl === -1 ? "ArrowLeft" : dxl === 1 ? "ArrowRight" : (dyl === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(140);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtL2 = es.find(e => e.x === tgtL.x && e.y === tgtL.y) || tgtL;
+                const imm0 = tgtL2 ? (tgtL2.immobileTurns || 0) : 0;
+                // wait two turns to tick effects
+                key("Numpad5"); await sleep(90);
+                key("Numpad5"); await sleep(90);
+                es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+                let tgtL3 = es.find(e => e.x === tgtL.x && e.y === tgtL.y);
+                const imm1 = tgtL3 ? (tgtL3.immobileTurns || 0) : 0;
+                const immOk = imm0 >= 1 && (imm1 <= imm0);
+                record(immOk, `Legs-crit immobilization: immobileTurns ${imm0} -> ${imm1}`);
+              } else {
+                record(true, "Skipped crit/status tests (no enemies found)");
+              }
+              // Reset crit toggles
+              if (typeof window.GameAPI.setAlwaysCrit === "function") window.GameAPI.setAlwaysCrit(false);
+              if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("");
+            } catch (e) {
+              record(false, "Crit/Status tests failed: " + (e && e.message ? e.message : String(e)));
+            }
           } else {
             record(true, "No enemies found to route/loot");
           }
@@ -1075,6 +1268,23 @@
     const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)).toFixed(2) : "0.00";
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)).toFixed(2) : "0.00";
 
+    // Determinism duplicate run: re-run first seed and compare key invariants
+    try {
+      if (all.length >= 1) {
+        log("Determinism duplicate run (same seed) …", "info");
+        const dup = await runOnce(seeds[0]);
+        const a = all[0] || {};
+        const aDet = a.determinism || {};
+        const bDet = dup.determinism || {};
+        const sameEnemy = (aDet.firstEnemyType || "") === (bDet.firstEnemyType || "");
+        const aChest = Array.isArray(aDet.chestItems) ? aDet.chestItems.join(",") : (aDet.chestItemsCSV || "");
+        const bChest = Array.isArray(bDet.chestItems) ? bDet.chestItems.join(",") : (bDet.chestItemsCSV || "");
+        const sameChest = aChest === bChest;
+        const msg = `Determinism: firstEnemy=${aDet.firstEnemyType || ""}/${bDet.firstEnemyType || ""} (${sameEnemy ? "OK" : "MISMATCH"}), chest=${sameChest ? "OK" : "MISMATCH"}`;
+        appendToPanel(`<div style="color:${(sameEnemy && sameChest) ? "#86efac" : "#fca5a5"}; margin-top:6px;"><strong>${msg}</strong></div>`);
+      }
+    } catch (_) {}
+
     // Aggregate step counts
     let totalPassedSteps = 0, totalFailedSteps = 0, totalSkippedSteps = 0;
     for (const r of all) {
@@ -1091,139 +1301,232 @@
     if (aDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
 
     const summary = [
-      `<div><strong>Smoke Test Summary:</strong></div>`,
-      `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${fail ? "#ef4444" : "#86efac"};">${fail}</span></div>`,
-      `<div>Checks: passed ${totalPassedSteps}, failed <span style="color:${totalFailedSteps ? "#ef4444" : "#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
-      `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
-      perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
-      n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
-      n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
-      n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
-      `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
-      fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
-    ].join("");
-    panelReport(summary);
-    log(`Smoke test series done. Pass=${pass} Fail=${fail} AvgTurn=${avgTurn} AvgDraw=${avgDraw}`, fail === 0 ? "good" : "warn");
+        `<div><strong>Smoke Test Summary:</strong></div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
+        `<div>Checks: passed ${totalPassedSteps}, failed <span style="${totalFailedSteps ? "color:#ef4444" : "color:#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
+        `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
+        perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
+        n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
+        n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
+        n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
+        `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
+        fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
+      ].join("");
+      panelReport(summary);
 
-    // Provide export buttons for JSON and TXT summary
-    try {
-      const report = {
-        runnerVersion: RUNNER_VERSION,
-        runs: n,
-        pass, fail,
-        totalPassedSteps, totalFailedSteps, totalSkippedSteps,
-        avgTurnMs: Number(avgTurn),
-        avgDrawMs: Number(avgDraw),
-        seeds,
-        determinism: det,
-        results: all
-      };
-      window.SmokeTest.lastReport = report;
+      log(`Smoke test series done. Pass=${pass} Fail=${fail} AvgTurn=${avgTurn} AvgDraw=${avgDraw}`, fail === 0 ? "good" : "warn");
 
-      function buildSummaryText(rep) {
-        const lines = [];
-        lines.push(`Roguelike Smoke Test Summary (Runner v${rep.runnerVersion || RUNNER_VERSION})`);
-        lines.push(`Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`);
-        lines.push(`Checks: passed ${rep.totalPassedSteps}, failed ${rep.totalFailedSteps}, skipped ${rep.totalSkippedSteps}`);
-        lines.push(`Avg PERF: turn ${rep.avgTurnMs} ms, draw ${rep.avgDrawMs} ms`);
-        if (Array.isArray(rep.seeds)) lines.push(`Seeds: ${rep.seeds.join(", ")}`);
-        if (rep.determinism) {
-          if (rep.determinism.npcPropSample) lines.push(`Determinism (NPC|prop): ${rep.determinism.npcPropSample}`);
-          if (rep.determinism.firstEnemyType) lines.push(`Determinism (first enemy): ${rep.determinism.firstEnemyType}`);
-          if (rep.determinism.chestItemsCSV) lines.push(`Determinism (chest loot): ${rep.determinism.chestItemsCSV}`);
-        }
-        lines.push("");
-        const good = [];
-        const bad = [];
-        const skipped = [];
-        for (let i = 0; i < rep.results.length; i++) {
-          const r = rep.results[i];
-          const runId = `Run ${i + 1}${r.seed != null ? ` (seed ${r.seed})` : ""}`;
-          if (Array.isArray(r.passedSteps)) for (const m of r.passedSteps) good.push(`${runId}: ${m}`);
-          if (Array.isArray(r.failedSteps)) for (const m of r.failedSteps) bad.push(`${runId}: ${m}`);
-          if (Array.isArray(r.skipped)) for (const m of r.skipped) skipped.push(`${runId}: ${m}`);
-        }
-        lines.push("GOOD:");
-        if (good.length) lines.push(...good.map(s => `  + ${s}`)); else lines.push("  (none)");
-        lines.push("");
-        lines.push("PROBLEMS:");
-        if (bad.length) lines.push(...bad.map(s => `  - ${s}`)); else lines.push("  (none)");
-        lines.push("");
-        lines.push("SKIPPED:");
-        if (skipped.length) lines.push(...skipped.map(s => `  ~ ${s}`)); else lines.push("  (none)");
-        lines.push("");
-        // Include top few console/browser issues
-        const consoleIssues = [];
-        for (let i = 0; i < rep.results.length; i++) {
-          const r = rep.results[i];
-          const id = `Run ${i + 1}`;
-          const c = (r.console && (r.console.consoleErrors || [])).slice(0, 3).map(x => `${id}: console.error: ${x}`);
-          const w = (r.console && (r.console.windowErrors || [])).slice(0, 3).map(x => `${id}: window: ${x}`);
-          const cw = (r.console && (r.console.consoleWarns || [])).slice(0, 2).map(x => `${id}: console.warn: ${x}`);
-          consoleIssues.push(...c, ...w, ...cw);
-        }
-        if (consoleIssues.length) {
-          lines.push("Console/Browser issues:");
-          lines.push(...consoleIssues.map(s => `  ! ${s}`));
+      // Provide export buttons for JSON and TXT summary + Checklist rendering
+      try {
+        const report = {
+          runnerVersion: RUNNER_VERSION,
+          runs: n,
+          pass, fail,
+          totalPassedSteps, totalFailedSteps, totalSkippedSteps,
+          avgTurnMs: Number(avgTurn),
+          avgDrawMs: Number(avgDraw),
+          seeds,
+          determinism: det,
+          results: all
+        };
+        window.SmokeTest.lastReport = report;
+
+        function buildSummaryText(rep) {
+          const lines = [];
+          lines.push(`Roguelike Smoke Test Summary (Runner v${rep.runnerVersion || RUNNER_VERSION})`);
+          lines.push(`Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`);
+          lines.push(`Checks: passed ${rep.totalPassedSteps}, failed ${rep.totalFailedSteps}, skipped ${rep.totalSkippedSteps}`);
+          lines.push(`Avg PERF: turn ${rep.avgTurnMs} ms, draw ${rep.avgDrawMs} ms`);
+          if (Array.isArray(rep.seeds)) lines.push(`Seeds: ${rep.seeds.join(", ")}`);
+          if (rep.determinism) {
+            if (rep.determinism.npcPropSample) lines.push(`Determinism (NPC|prop): ${rep.determinism.npcPropSample}`);
+            if (rep.determinism.firstEnemyType) lines.push(`Determinism (first enemy): ${rep.determinism.firstEnemyType}`);
+            if (rep.determinism.chestItemsCSV) lines.push(`Determinism (chest loot): ${rep.determinism.chestItemsCSV}`);
+          }
           lines.push("");
+          const good = [];
+          const bad = [];
+          const skipped = [];
+          for (let i = 0; i < rep.results.length; i++) {
+            const r = rep.results[i];
+            const runId = `Run ${i + 1}${r.seed != null ? ` (seed ${r.seed})` : ""}`;
+            if (Array.isArray(r.passedSteps)) for (const m of r.passedSteps) good.push(`${runId}: ${m}`);
+            if (Array.isArray(r.failedSteps)) for (const m of r.failedSteps) bad.push(`${runId}: ${m}`);
+            if (Array.isArray(r.skipped)) for (const m of r.skipped) skipped.push(`${runId}: ${m}`);
+          }
+          lines.push("GOOD:");
+          if (good.length) lines.push(...good.map(s => `  + ${s}`)); else lines.push("  (none)");
+          lines.push("");
+          lines.push("PROBLEMS:");
+          if (bad.length) lines.push(...bad.map(s => `  - ${s}`)); else lines.push("  (none)");
+          lines.push("");
+          lines.push("SKIPPED:");
+          if (skipped.length) lines.push(...skipped.map(s => `  ~ ${s}`)); else lines.push("  (none)");
+          lines.push("");
+          // Include top few console/browser issues
+          const consoleIssues = [];
+          for (let i = 0; i < rep.results.length; i++) {
+            const r = rep.results[i];
+            const id = `Run ${i + 1}`;
+            const c = (r.console && (r.console.consoleErrors || [])).slice(0, 3).map(x => `${id}: console.error: ${x}`);
+            const w = (r.console && (r.console.windowErrors || [])).slice(0, 3).map(x => `${id}: window: ${x}`);
+            const cw = (r.console && (r.console.consoleWarns || [])).slice(0, 2).map(x => `${id}: console.warn: ${x}`);
+            consoleIssues.push(...c, ...w, ...cw);
+          }
+          if (consoleIssues.length) {
+            lines.push("Console/Browser issues:");
+            lines.push(...consoleIssues.map(s => `  ! ${s}`));
+            lines.push("");
+          }
+          lines.push("End of report.");
+          return lines.join("\n");
         }
-        lines.push("End of report.");
-        return lines.join("\n");
-      }
 
-      const summaryText = buildSummaryText(report);
-      window.SmokeTest.lastSummaryText = summaryText;
-
-      const btnHtml = `
-        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-          <button id="smoke-export-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Report (JSON)</button>
-          <button id="smoke-export-summary-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Summary (TXT)</button>
-        </div>`;
-      appendToPanel(btnHtml);
-
-      setTimeout(() => {
-        const jsonBtn = document.getElementById("smoke-export-btn");
-        if (jsonBtn) {
-          jsonBtn.onclick = () => {
-            try {
-              const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "smoketest_report.json";
-              document.body.appendChild(a);
-              a.click();
-              setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-              }, 100);
-            } catch (e) {
-              console.error("Export failed", e);
+        function buildChecklistText(rep) {
+          const lines = [];
+          lines.push(`Roguelike Smoke Test Checklist (Runner v${rep.runnerVersion || RUNNER_VERSION})`);
+          lines.push(`Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`);
+          lines.push("");
+          for (let i = 0; i < rep.results.length; i++) {
+            const r = rep.results[i];
+            const runId = `Run ${i + 1}${r.seed != null ? ` (seed ${r.seed})` : ""}`;
+            lines.push(runId + ":");
+            if (Array.isArray(r.passedSteps)) {
+              for (const m of r.passedSteps) lines.push(`[x] ${m}`);
             }
-          };
-        }
-        const txtBtn = document.getElementById("smoke-export-summary-btn");
-        if (txtBtn) {
-          txtBtn.onclick = () => {
-            try {
-              const blob = new Blob([summaryText], { type: "text/plain" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "smoketest_summary.txt";
-              document.body.appendChild(a);
-              a.click();
-              setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-              }, 100);
-            } catch (e) {
-              console.error("Export summary failed", e);
+            if (Array.isArray(r.failedSteps)) {
+              for (const m of r.failedSteps) lines.push(`[ ] ${m}`);
             }
-          };
+            if (Array.isArray(r.skipped)) {
+              for (const m of r.skipped) lines.push(`[-] ${m}`);
+            }
+            lines.push("");
+          }
+          return lines.join("\n");
         }
-      }, 0);
-    } catch (_) {}
+
+        const summaryText = buildSummaryText(report);
+        const checklistText = buildChecklistText(report);
+        window.SmokeTest.lastSummaryText = summaryText;
+        window.SmokeTest.lastChecklistText = checklistText;
+
+        // Render concise checklist into GOD panel as well
+        const checklistHtml = (() => {
+          const items = [];
+          for (let i = 0; i < all.length; i++) {
+            const r = all[i];
+            const runId = `Run ${i + 1}${r.seed != null ? ` (seed ${r.seed})` : ""}`;
+            items.push(`<div style="margin-top:6px;"><strong>${runId}</strong></div>`);
+            if (Array.isArray(r.passedSteps)) for (const m of r.passedSteps) items.push(`<div style="color:#86efac;">[x] ${m}</div>`);
+            if (Array.isArray(r.failedSteps)) for (const m of r.failedSteps) items.push(`<div style="color:#fca5a5;">[ ] ${m}</div>`);
+            if (Array.isArray(r.skipped)) for (const m of r.skipped) items.push(`<div style="color:#fde68a;">[-] ${m}</div>`);
+          }
+          return `<div style="margin-top:8px;"><strong>Checklist</strong></div>` + items.join("");
+        })();
+        appendToPanel(checklistHtml);
+
+        // Render full report JSON inline (collapsible)
+        try {
+          const fullReportJson = JSON.stringify(report, null, 2);
+          const fullHtml = `
+            <div style="margin-top:10px;">
+              <details open>
+                <summary style="cursor:pointer;"><strong>Full Report (JSON)</strong></summary>
+                <pre id="smoke-full-report" style="white-space:pre-wrap; background:#0f1522; color:#d6deeb; padding:10px; border:1px solid #334155; border-radius:6px; max-height:40vh; overflow:auto; margin-top:6px;">${fullReportJson.replace(/[&<]/g, s => s === '&' ? '&amp;' : '&lt;')}</pre>
+              </details>
+            </div>`;
+          appendToPanel(fullHtml);
+        } catch (_) {}
+
+        const btnHtml = `
+          <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="smoke-export-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Report (JSON)</button>
+            <button id="smoke-export-summary-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Summary (TXT)</button>
+            <button id="smoke-export-checklist-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Checklist (TXT)</button>
+          </div>`;
+        appendToPanel(btnHtml);
+
+        // Ensure GOD panel is open so the report is visible, and scroll to it
+        try {
+          if (window.UI && typeof UI.showGod === "function") {
+            UI.showGod();
+          } else {
+            // Fallback to clicking the GOD button
+            try { document.getElementById("god-open-btn")?.click(); } catch (_) {}
+          }
+          setTimeout(() => {
+            try {
+              const pre = document.getElementById("smoke-full-report");
+              if (pre && typeof pre.scrollIntoView === "function") {
+                pre.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            } catch (_) {}
+          }, 50);
+        } catch (_) {}
+
+        setTimeout(() => {
+          const jsonBtn = document.getElementById("smoke-export-btn");
+          if (jsonBtn) {
+            jsonBtn.onclick = () => {
+              try {
+                const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "smoketest_report.json";
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }, 100);
+              } catch (e) {
+                console.error("Export failed", e);
+              }
+            };
+          }
+          const txtBtn = document.getElementById("smoke-export-summary-btn");
+          if (txtBtn) {
+            txtBtn.onclick = () => {
+              try {
+                const blob = new Blob([summaryText], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "smoketest_summary.txt";
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }, 100);
+              } catch (e) {
+                console.error("Export summary failed", e);
+              }
+            };
+          }
+          const clBtn = document.getElementById("smoke-export-checklist-btn");
+          if (clBtn) {
+            clBtn.onclick = () => {
+              try {
+                const blob = new Blob([checklistText], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "smoketest_checklist.txt";
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }, 100);
+              } catch (e) {
+                console.error("Export checklist failed", e);
+              }
+            };
+          }
+        }, 0);
+      } catch (_) {}
 
     return { pass, fail, results: all, totalPassedSteps, totalFailedSteps, totalSkippedSteps, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), seeds, determinism: det, runnerVersion: RUNNER_VERSION };
   }

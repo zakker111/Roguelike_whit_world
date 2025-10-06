@@ -56,84 +56,58 @@
   };
 
   // Item types registry (flat, enemy-like), keyed by item key
+  // TYPES registry is now optionally extended from JSON at load time.
+  // Start with a minimal base; JSON will augment/override on loader ready.
   const TYPES = {
-    sword: { key: "sword", slot: "hand", twoHanded: false,
-      weight: 0.35,
-      name: (mat) => `${mat} sword`,
-      atkRange: { 1: [0.5, 2.4], 2: [1.2, 3.4], 3: [2.2, 4.0] } },
-
-    axe: { key: "axe", slot: "hand", twoHanded: false,
-      weight: 0.25,
-      name: (mat) => `${mat} axe`,
-      atkRange: { 1: [0.5, 2.4], 2: [1.2, 3.4], 3: [2.2, 4.0] },
-      atkBonus: { 1: [0.0, 0.3], 2: [0.1, 0.5], 3: [0.2, 0.6] } },
-
-switch_blade: { key: "switch_blade", slot: "hand", twoHanded: false,
-      weight: 0.12,
-      name: (mat) => `${mat} switch blade`,
-      atkRange: { 1: [0.6, 1.4], 2: [1.3, 2.6], 3: [2.0, 3.2] },
-      atkBonus: { 1: [0.0, 0.3], 2: [0.1, 0.5], 3: [0.2, 0.6] } },
-
-      
-    gasoline_thrower: { key: "gasoline_thrower", slot: "hand", twoHanded: false,
-      weight: 0.21,
-      name: (mat) => `${mat} gasoline thrower`,
-      atkRange: { 1: [0.5, 2.4], 2: [1.2, 3.4], 3: [2.2, 4.0] },
-      atkBonus: { 1: [0.1, 0.4], 2: [0.2, 0.6], 3: [0.2, 0.6] } },
-
-    bow: { key: "bow", slot: "hand", twoHanded: false,
-      weight: 0.20,
-      name: (mat) => `${mat} bow`,
-      atkRange: { 1: [0.6, 2.2], 2: [1.0, 3.0], 3: [2.0, 3.6] } },
-
-    shield: { key: "shield", slot: "hand", twoHanded: false,
-      weight: 0.15,
-      name: (mat) => `${mat} shield`,
-      defRange: { 1: [0.4, 2.0], 2: [1.2, 3.2], 3: [2.0, 4.0] } },
-
-    two_handed_axe: { key: "two_handed_axe", slot: "hand", twoHanded: true,
-      weight: 0.05,
-      minTier: 2,
-      name: (mat) => `${mat} two-handed axe`,
-      atkRange: { 2: [2.6, 3.6], 3: [3.2, 4.0] } },
-
-    helmet: { key: "helmet", slot: "head",
-      weight: 1.0,
-      name: (mat, tier) => tier >= 3 ? `${mat} great helm` : `${mat} helmet`,
-      defRange: { 1: [0.2, 1.6], 2: [0.8, 2.8], 3: [1.6, 3.6] } },
-
-    torso_armor: { key: "torso_armor", slot: "torso",
-      weight: 1.0,
-      name: (mat, tier) => tier >= 3 ? `${mat} plate armor` : (tier === 2 ? `${mat} chainmail` : `${mat} leather armor`),
-      defRange: { 1: [0.6, 2.6], 2: [1.6, 3.6], 3: [2.4, 4.0] } },
-
-    leg_armor: { key: "leg_armor", slot: "legs",
-      weight: 1.0,
-      name: (mat) => `${mat} leg armor`,
-      defRange: { 1: [0.3, 1.8], 2: [1.0, 3.0], 3: [1.8, 3.8] } },
-
-    gloves: { key: "gloves", slot: "hands",
-      weight: 1.0,
-      name: (mat, tier) => tier >= 2 ? `${mat} gauntlets` : `${mat} gloves`,
-      defRange: { 1: [0.2, 1.2], 2: [0.8, 2.4], 3: [1.2, 3.0] },
-      handAtkBonus: { 2: [0.1, 0.6], 3: [0.2, 1.0] },
-      handAtkChance: 0.5 },
-
-    // Example item template (reference; weight=0 prevents random spawns)
-    example_item: {
-      key: "example_item",
-      slot: "hand",
-      weight: 0,
-      minTier: 1,
-      name: (mat, tier) => `${mat} spear`,
-      twoHanded: false,
-      atkRange: {
-        1: [0.7, 2.2],
-        2: [1.4, 3.2],
-        3: [2.2, 4.0]
-      },
-    },
+    // Kept empty to prefer JSON. Existing code paths still work if JSON missing.
   };
+
+  function applyJsonItems(json) {
+    if (!Array.isArray(json)) return;
+    for (const row of json) {
+      const key = row.id || row.key || row.name;
+      if (!key || !row.slot) continue;
+      const def = {
+        key,
+        slot: row.slot,
+        twoHanded: !!row.twoHanded,
+        minTier: Math.max(1, Number(row.tierMin || 1)),
+      };
+      // weights per tier or flat weight
+      def.weight = function (tier) {
+        const map = row.weights || {};
+        const k = String(Math.max(1, Math.min(3, tier || 1)));
+        if (typeof map[k] === "number") return map[k];
+        return typeof row.weight === "number" ? row.weight : 1.0;
+      };
+      // ranges
+      if (row.atk) {
+        def.atkRange = {
+          1: row.atk["1"] || row.atk[1],
+          2: row.atk["2"] || row.atk[2],
+          3: row.atk["3"] || row.atk[3],
+        };
+      }
+      if (row.def) {
+        def.defRange = {
+          1: row.def["1"] || row.def[1],
+          2: row.def["2"] || row.def[2],
+          3: row.def["3"] || row.def[3],
+        };
+      }
+      if (row.handAtkBonus) def.handAtkBonus = { 2: row.handAtkBonus["2"], 3: row.handAtkBonus["3"] };
+      if (typeof row.handAtkChance === "number") def.handAtkChance = row.handAtkChance;
+      // naming: use provided name as base; still allow material prefixing
+      def.name = (mat, tier) => {
+        const base = row.name || key;
+        if (row.slot === "head" || row.slot === "torso" || row.slot === "legs" || row.slot === "hands") {
+          return `${mat} ${base}`;
+        }
+        return `${mat} ${base}`;
+      };
+      TYPES[key] = def;
+    }
+  }
 
   // SLOT_WEIGHTS: relative chance to pick each equipment slot when generating a random item.
   // Tuning these changes overall drop mix without touching per-type weights inside a slot.
@@ -377,6 +351,17 @@ switch_blade: { key: "switch_blade", slot: "hand", twoHanded: false,
     if (config.twoHanded) item.twoHanded = true;
     return item;
   }
+
+  // If GameData is present, extend TYPES after data is ready
+  try {
+    if (window.GameData && GameData.ready && typeof GameData.ready.then === "function") {
+      GameData.ready.then(() => {
+        try { applyJsonItems(GameData.items); } catch (_) {}
+      });
+    } else if (window.GameData && Array.isArray(GameData.items)) {
+      applyJsonItems(GameData.items);
+    }
+  } catch (_) {}
 
   window.Items = {
     // creation
