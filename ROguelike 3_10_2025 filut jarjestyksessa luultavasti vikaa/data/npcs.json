@@ -1,0 +1,8 @@
+{
+  "residentNames": ["Resident","Villager","Traveler","Merchant","Guard","Scholar","Carpenter","Mason","Tailor","Baker"],
+  "residentLines": ["Home sweet home.","A quiet day indoors.","Just tidying up.","Lovely day on the plaza.","How's the dungeon?"],
+  "shopkeeperNames": ["Shopkeeper","Trader","Smith","Armorer","Apothecary"],
+  "shopkeeperLines": ["We open on schedule.","Welcome in!","Back soon.","Best prices in town!"],
+  "petCats": ["Cat","Mittens","Whiskers","Shadow","Pumpkin"],
+  "petDogs": ["Dog","Rover","Buddy","Spot","Luna"]
+}

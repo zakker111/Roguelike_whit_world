@@ -1,0 +1,26 @@
+[
+  { "id": "goblin", "glyph": "g", "color": "#8bd5a0", "tier": 1, "blockBase": 0.06,
+    "weightByDepth": [ [0, 0.70], [3, 0.50], [6, 0.35] ],
+    "hp": [ [0, 3, 0.5] ],
+    "atk": [ [0, 1, 0.25] ],
+    "xp":  [ [0, 5, 0.5] ],
+    "equipChance": 0.35,
+    "potionWeights": { "lesser": 0.60, "average": 0.30, "strong": 0.10 }
+  },
+  { "id": "troll", "glyph": "T", "color": "#e0af68", "tier": 2, "blockBase": 0.08,
+    "weightByDepth": [ [0, 0.25], [3, 0.35], [6, 0.25] ],
+    "hp": [ [0, 6, 0.8] ],
+    "atk": [ [0, 2, 0.33] ],
+    "xp":  [ [0, 12, 1.0] ],
+    "equipChance": 0.55,
+    "potionWeights": { "lesser": 0.50, "average": 0.35, "strong": 0.15 }
+  },
+  { "id": "ogre", "glyph": "O", "color": "#f7768e", "tier": 3, "blockBase": 0.10,
+    "weightByDepth": [ [0, 0.05], [3, 0.15], [6, 0.20] ],
+    "hp": [ [0, 10, 1.2] ],
+    "atk": [ [0, 3, 0.5] ],
+    "xp":  [ [0, 20, 2.0] ],
+    "equipChance": 0.75,
+    "potionWeights": { "lesser": 0.40, "average": 0.35, "strong": 0.25 }
+  }
+]
