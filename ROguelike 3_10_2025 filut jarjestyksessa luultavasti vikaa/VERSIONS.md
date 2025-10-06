@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-06 00:45 UTC
+Last updated: 2025-10-06 01:10 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,17 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.20 — Helper deduplication: ShopService + Utils.inBounds
+- Added: services/shop_service.js centralizing shop/time helpers:
+  - minutesOfDay(h,m), isOpenAt(shop,minutes), isShopOpenNow(ctx,shop), shopScheduleStr(shop), shopAt(ctx,x,y)
+  - index.html now loads services/shop_service.js
+- Added: Utils.inBounds(ctx,x,y) in utils/utils.js
+- Changed: Replaced duplicated helpers to use the centralized service
+  - core/game.js now delegates shopAt/minutesOfDay/isOpenAt/isShopOpenNow/shopScheduleStr to ShopService (with safe fallbacks)
+  - core/actions.js delegates minutesOfDay/isOpenAtShop/isShopOpenNow/shopScheduleStr to ShopService and uses Utils.inBounds
+  - worldgen/town_gen.js uses Utils.inBounds and ShopService for shop time helpers
+- Dev: Reduced code duplication; future shop/time changes live in one place
 
 v1.19 — Data-driven content, plaza decor, ESC close, and expanded smoke tests
 - Added: JSON data loader and integrations
