@@ -2885,6 +2885,39 @@
       getPlayerStatus: () => { try { return { hp: player.hp, maxHp: player.maxHp, dazedTurns: player.dazedTurns | 0 }; } catch(_) { return { hp: 0, maxHp: 0, dazedTurns: 0 }; } },
       setPlayerDazedTurns: (n) => { try { player.dazedTurns = Math.max(0, (Number(n) || 0) | 0); return true; } catch(_) { return false; } },
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
+      // Visibility/FOV helpers for smoketest
+      getVisibilityAt: (x, y) => {
+        try {
+          if (!inBounds(x|0, y|0)) return false;
+          return !!(visible[y|0] && visible[y|0][x|0]);
+        } catch(_) { return false; }
+      },
+      getTiles: () => ({ WALL: TILES.WALL, FLOOR: TILES.FLOOR, DOOR: TILES.DOOR, STAIRS: TILES.STAIRS, WINDOW: TILES.WINDOW }),
+      getTile: (x, y) => {
+        try {
+          if (!inBounds(x|0, y|0)) return null;
+          return map[y|0][x|0];
+        } catch(_) { return null; }
+      },
+      hasEnemy: (x, y) => {
+        try {
+          if (occupancy && typeof occupancy.hasEnemy === "function") return !!occupancy.hasEnemy(x|0, y|0);
+          return enemies.some(e => (e.x|0) === (x|0) && (e.y|0) === (y|0));
+        } catch(_) { return false; }
+      },
+      hasNPC: (x, y) => {
+        try {
+          if (occupancy && typeof occupancy.hasNPC === "function") return !!occupancy.hasNPC(x|0, y|0);
+          return npcs.some(n => (n.x|0) === (x|0) && (n.y|0) === (y|0));
+        } catch(_) { return false; }
+      },
+      hasLOS: (x0, y0, x1, y1) => {
+        try {
+          const c = getCtx();
+          if (c && c.los && typeof c.los.hasLOS === "function") return !!c.los.hasLOS(c, x0|0, y0|0, x1|0, y1|0);
+        } catch(_) {}
+        return false;
+      },
       routeToDungeon: (tx, ty) => {
         // BFS on current map (works for both town and dungeon as it uses isWalkable)
         const w = map[0] ? map[0].length : 0;

@@ -803,6 +803,33 @@
             record(killedEnemy, `Killed enemy: ${killedEnemy ? "YES" : "NO"} (corpses ${corpsesBeforeCombat} -> ${corpsesAfterCombat})`);
             record(true, "Attempted to loot defeated enemy");
 
+            // FOV/LOS/occupancy spot-checks
+            try {
+              const pl = window.GameAPI.getPlayer();
+              const visSelf = (typeof window.GameAPI.getVisibilityAt === "function") ? window.GameAPI.getVisibilityAt(pl.x, pl.y) : true;
+              record(visSelf, "FOV: player tile visible");
+              // Adjacent tiles visibility sample
+              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+              let visAdjCount = 0;
+              for (const d of adj) {
+                const vx = pl.x + d.dx, vy = pl.y + d.dy;
+                if (typeof window.GameAPI.getVisibilityAt === "function" && window.GameAPI.getVisibilityAt(vx, vy)) visAdjCount++;
+              }
+              record(visAdjCount >= 1, `FOV: adjacent visible count ${visAdjCount}`);
+
+              // LOS sample to enemy tile if present
+              if (best) {
+                const hasLos = (typeof window.GameAPI.hasLOS === "function") ? window.GameAPI.hasLOS(pl.x, pl.y, best.x, best.y) : true;
+                record(hasLos, "LOS: player -> enemy line-of-sight (sample)");
+                const occEnemy = (typeof window.GameAPI.hasEnemy === "function") ? window.GameAPI.hasEnemy(best.x, best.y) : true;
+                record(occEnemy, "Occupancy: enemy tile marked occupied");
+                const occPlayerEnemy = (typeof window.GameAPI.hasEnemy === "function") ? window.GameAPI.hasEnemy(pl.x, pl.y) : false;
+                record(!occPlayerEnemy, "Occupancy: player tile not occupied by enemy");
+              }
+            } catch (eOcc) {
+              record(false, "FOV/LOS/occupancy spot-checks failed: " + (eOcc && eOcc.message ? eOcc.message : String(eOcc)));
+            }
+
             // Equipment breakage test: force near-break decay and attack until it breaks
             try {
               const eq0 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
