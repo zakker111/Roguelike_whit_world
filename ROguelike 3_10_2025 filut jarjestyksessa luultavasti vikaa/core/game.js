@@ -2740,6 +2740,21 @@
       },
       equipItemAtIndex: (idx) => { try { equipItemByIndex(idx|0); return true; } catch(_) { return false; } },
       unequipSlot: (slot) => { try { unequipSlot(String(slot)); return true; } catch(_) { return false; } },
+      // Potions
+      getPotions: () => {
+        try {
+          if (!Array.isArray(player.inventory)) return [];
+          const out = [];
+          for (let i = 0; i < player.inventory.length; i++) {
+            const it = player.inventory[i];
+            if (it && it.kind === "potion") {
+              out.push({ i, heal: it.heal, count: it.count, name: it.name });
+            }
+          }
+          return out;
+        } catch(_) { return []; }
+      },
+      drinkPotionAtIndex: (idx) => { try { drinkPotionByIndex(idx|0); return true; } catch(_) { return false; } },
       getGold: () => {
         try {
           const g = player.inventory.find(i => i && i.kind === "gold");

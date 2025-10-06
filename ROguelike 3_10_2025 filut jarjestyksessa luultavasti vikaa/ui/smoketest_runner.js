@@ -441,6 +441,21 @@
             } else {
               record(true, "No direct equip/unequip test performed (no equip item or API not present)");
             }
+
+            // 9b.1: attempt to drink a potion via GameAPI if any are present
+            try {
+              const pots = (typeof window.GameAPI.getPotions === "function") ? window.GameAPI.getPotions() : [];
+              if (pots && pots.length && typeof window.GameAPI.drinkPotionAtIndex === "function") {
+                const pi = pots[0].i;
+                const okDrink = !!window.GameAPI.drinkPotionAtIndex(pi);
+                await sleep(140);
+                record(okDrink, `Drank potion at index ${pi} (${pots[0].name || "potion"})`);
+              } else {
+                record(true, "No potions available to drink (skipped)");
+              }
+            } catch (e2) {
+              record(false, "Drink potion failed: " + (e2 && e2.message ? e2.message : String(e2)));
+            }
           } catch (e) {
             record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
           }
