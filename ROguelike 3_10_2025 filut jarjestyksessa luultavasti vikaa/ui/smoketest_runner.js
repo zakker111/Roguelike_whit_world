@@ -314,6 +314,19 @@
       }
       await sleep(600);
 
+      // Capture anchor invariants immediately after seed application (before any movement)
+      try {
+        if (window.GameAPI) {
+          const anchorPos = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+          const anchorTown = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+          const anchorDung = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+          runMeta.determinism.anchorPos = anchorPos;
+          runMeta.determinism.anchorTown = anchorTown;
+          runMeta.determinism.anchorDungeon = anchorDung;
+          record(true, "Captured seed anchor invariants (start nearestTown/dungeon)");
+        }
+      } catch (_) {}
+
       // Step 3: adjust FOV to 10 via slider (if present)
       try {
         const fov = document.getElementById("god-fov");
@@ -937,8 +950,10 @@
               key("Escape"); await sleep(160);
               const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
               const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-              const townSame = (!!nearestTownBefore && !!nearestTownAfter) ? (nearestTownBefore.x === nearestTownAfter.x && nearestTownBefore.y === nearestTownAfter.y) : true;
-              const dungSame = (!!nearestDungeonBefore && !!nearestDungeonAfter) ? (nearestDungeonBefore.x === nearestDungeonAfter.x && nearestDungeonBefore.y === nearestDungeonAfter.y) : true;
+              const anchorTown = runMeta.determinism.anchorTown || null;
+              const anchorDung = runMeta.determinism.anchorDungeon || null;
+              const townSame = (!!anchorTown && !!nearestTownAfter) ? (anchorTown.x === nearestTownAfter.x && anchorTown.y === nearestTownAfter.y) : true;
+              const dungSame = (!!anchorDung && !!nearestDungeonAfter) ? (anchorDung.x === nearestDungeonAfter.x && anchorDung.y === nearestDungeonAfter.y) : true;
               record(townSame && dungSame, `Seed invariants: nearestTown=${townSame ? "OK" : "MISMATCH"} nearestDungeon=${dungSame ? "OK" : "MISMATCH"}`);
             } else {
               recordSkip("Seed invariants skipped (no SEED persisted)");
