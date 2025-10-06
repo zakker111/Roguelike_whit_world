@@ -750,6 +750,7 @@
           await sleep(120);
 
           const enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+          const corpsesBeforeCombat = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().length : 0;
           const eqBefore = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
           const leftBefore = (eqBefore && eqBefore.left && typeof eqBefore.left.decay === "number") ? eqBefore.left.decay : null;
           const rightBefore = (eqBefore && eqBefore.right && typeof eqBefore.right.decay === "number") ? eqBefore.right.decay : null;
@@ -797,6 +798,9 @@
             // Attempt to loot underfoot if enemy died
             key("KeyG");
             await sleep(220);
+            const corpsesAfterCombat = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().length : corpsesBeforeCombat;
+            const killedEnemy = corpsesAfterCombat > corpsesBeforeCombat;
+            record(killedEnemy, `Killed enemy: ${killedEnemy ? "YES" : "NO"} (corpses ${corpsesBeforeCombat} -> ${corpsesAfterCombat})`);
             record(true, "Attempted to loot defeated enemy");
 
             // Equipment breakage test: force near-break decay and attack until it breaks
@@ -1086,9 +1090,11 @@
               const m1 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
               record(m1 === "world", m1 === "world" ? "Returned to overworld from dungeon" : "Attempted return to overworld (mode=" + m1 + ")");
 
-              // Persistence pass: immediately re-enter the same dungeon and verify state
+              // Persistence pass: immediately re-enter the same dungeon and verify state + player anchor
               try {
                 if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") {
+                  // Capture player anchor before re-enter (overworld entrance tile)
+                  const playerBeforeReenter = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
                   window.GameAPI.enterDungeonIfOnEntrance();
                   await sleep(300);
                   const m2 = window.GameAPI.getMode ? window.GameAPI.getMode() : "";
@@ -1101,6 +1107,16 @@
                     const decalsOk = postDecals >= preDecals;
                     record(corpsesOk, `Persistence corpses: before ${preCorpses.length}, after ${postCorpses.length}, overlap ${overlap}`);
                     record(decalsOk, `Persistence decals: before ${preDecals}, after ${postDecals}`);
+
+                    // Player non-teleport check during persistence: ensure player pos only changes due to intended transitions
+                    const playerAfterReenter = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+                    const playerStable = !!(playerBeforeReenter && playerAfterReenter && (Math.abs(playerBeforeReenter.x - playerAfterReenter.x) + Math.abs(playerBeforeReenter.y - playerAfterReenter.y) <= 1));
+                    record(playerStable, `Player teleport guard (re-enter): Δ <= 1 tile`);
+
+                    // Aggregate: dungeon persistence summary
+                    const dungeonPersistent = corpsesOk && decalsOk;
+                    record(dungeonPersistent, `Dungeon persistent: ${dungeonPersistent ? "YES" : "NO"}`);
+
                     // Return to world again to proceed with town flow
                     if (typeof window.GameAPI.returnToWorldIfAtExit === "function") {
                       const ok = window.GameAPI.returnToWorldIfAtExit();
