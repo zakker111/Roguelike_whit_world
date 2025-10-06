@@ -1650,7 +1650,45 @@
           } catch (e) {
             record(false, "Resting failed: " + (e && e.message ? e.message : String(e)));
           }
+
+          // Overlay toggles + perf snapshot (town-only overlays)
+          try {
+            // Toggle routes/home paths to exercise renderer, then capture perf
+            const perfBefore = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+            safeClick("god-toggle-route-paths-btn"); await sleep(100);
+            safeClick("god-toggle-home-paths-btn"); await sleep(100);
+            const perfAfter = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+            const perfOk = (perfAfter.lastDrawMs || 0) <= (CONFIG.perfBudget.drawMs * 2.0); // lenient budget
+            record(perfOk, `Overlay perf: draw ${perfAfter.lastDrawMs?.toFixed ? perfAfter.lastDrawMs.toFixed(2) : perfAfter.lastDrawMs}ms`);
+          } catch (e) {
+            record(false, "Overlay/perf snapshot failed: " + (e && e.message ? e.message : String(e)));
+          }
         }
+
+        // Global overlays (grid) perf snapshot
+        try {
+          const perfA = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+          safeClick("god-toggle-grid-btn"); await sleep(120);
+          const perfB = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+          const okGridPerf = (perfB.lastDrawMs || 0) <= (CONFIG.perfBudget.drawMs * 2.0);
+          record(okGridPerf, `Grid perf: draw ${perfB.lastDrawMs?.toFixed ? perfB.lastDrawMs.toFixed(2) : perfB.lastDrawMs}ms`);
+        } catch (e) {
+          record(false, "Grid perf snapshot failed: " + (e && e.message ? e.message : String(e)));
+        }
+
+        // Restart via GOD panel (Start New Game) and assert mode resets to world
+        try {
+          if (safeClick("god-newgame-btn")) {
+            await sleep(400);
+            const m = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            record(m === "world", "Restart via GOD: returned to overworld");
+          } else {
+            recordSkip("Restart button not present in GOD panel");
+          }
+        } catch (e) {
+          record(false, "Restart via GOD failed: " + (e && e.message ? e.message : String(e)));
+        }
+
         record(true, "Ran Diagnostics");
         await sleep(300);
         key("Escape");
