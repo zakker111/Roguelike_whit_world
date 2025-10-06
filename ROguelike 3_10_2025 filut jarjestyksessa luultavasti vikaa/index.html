@@ -171,9 +171,14 @@
   <!-- UI and rendering -->
   <script src="ui/logger.js" defer></script>
   <script>
-    if (window.Logger && typeof Logger.init === "function") {
-      try { Logger.init(undefined, 80); } catch (e) {}
-    }
+    // Initialize Logger once DOM is ready; deferred scripts will have loaded by then
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        if (window.Logger && typeof Logger.init === 'function') {
+          Logger.init(undefined, 80);
+        }
+      } catch (e) {}
+    });
   </script>
   <script src="ui/ui.js" defer></script>
   <script src="ui/tileset.js" defer></script>
@@ -215,8 +220,8 @@
   <script src="worldgen/town_gen.js" defer></script>
   <script src="core/modes.js" defer></script>
   <script src="core/game_loop.js" defer></script>
-  <script src="core/game.js" defer></script>
   <script src="core/input.js" defer></script>
+  <script src="core/game.js" defer></script>
 
   <!-- Optional smoke test runner: load when ?smoketest=1 -->
   <script>
