@@ -503,6 +503,34 @@
               key("KeyG"); // open/loot chest
               await sleep(Math.min(ib.remain(), 250));
               record(true, `Looted chest at (${chest.x},${chest.y})`);
+
+              // Chest invariant: exit and re-enter, chest should remain empty
+              try {
+                // Return to world via exit '>'
+                const exit = (typeof window.GameAPI.getDungeonExit === "function") ? window.GameAPI.getDungeonExit() : null;
+                if (exit) {
+                  const pathBack = window.GameAPI.routeToDungeon(exit.x, exit.y);
+                  for (const step of pathBack) {
+                    const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(100);
+                  }
+                  key("KeyG"); await sleep(260);
+                  // Immediately re-enter same dungeon
+                  if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") {
+                    window.GameAPI.enterDungeonIfOnEntrance(); await sleep(260);
+                  }
+                  const corpsesAfter = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses() : [];
+                  const sameChest = corpsesAfter.find(c => c.kind === "chest" && c.x === chest.x && c.y === chest.y);
+                  const emptyOk = !!(sameChest && sameChest.looted && (sameChest.lootCount === 0));
+                  record(emptyOk, `Chest invariant: (${chest.x},${chest.y}) looted persists (looted=${sameChest ? sameChest.looted : "?"}, lootCount=${sameChest ? sameChest.lootCount : "?"})`);
+                  // Return to world to continue town flow
+                  if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
+                }
+              } catch (eInv) {
+                record(false, "Chest invariant check failed: " + (eInv && eInv.message ? eInv.message : String(eInv)));
+              }
             } else {
               record(true, "No chest found in dungeon (skipping chest loot)");
             }
@@ -563,27 +591,77 @@
               record(false, "Drink potion failed: " + (e2 && e.message ? e2.message : String(e2)));
             }
 
-            // 9b.2: two-handed equip/unequip behavior if available
-            try {
-              const inv2 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
-              const idx2h = inv2.findIndex(it => it && it.kind === "equip" && it.twoHanded);
-              if (idx2h !== -1 && typeof window.GameAPI.equipItemAtIndex === "function") {
-                const okEq = !!window.GameAPI.equipItemAtIndex(idx2h);
-                await sleep(140);
-                const eqInfo = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-                const bothHandsSame = !!(eqInfo.left && eqInfo.right && eqInfo.left.name === eqInfo.right.name);
-                // Unequip one hand should remove both if same object (two-handed)
-                const okUn = (typeof window.GameAPI.unequipSlot === "function") ? !!window.GameAPI.unequipSlot("left") : false;
-                await sleep(140);
-                const eqInfo2 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
-                const handsCleared = !eqInfo2.left && !eqInfo2.right;
-                record(okEq && bothHandsSame && okUn && handsCleared, "Two-handed equip/unequip behavior");
-              } else {
-                record(true, "Skipped two-handed equip test (no two-handed item)");
-              }
-            } catch (e2h) {
-              record(false, "Two-handed equip/unequip failed: " + (e2h && e2h.message ? e2h.message : String(e2h)));
+            // 9b.2: two-handed equip/unequip behavior if available + hand chooser branch coverage
+          try {
+            const inv2 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+            // Two-handed check
+            const idx2h = inv2.findIndex(it => it && it.kind === "equip" && it.twoHanded);
+            if (idx2h !== -1 && typeof window.GameAPI.equipItemAtIndex === "function") {
+              const okEq = !!window.GameAPI.equipItemAtIndex(idx2h);
+              await sleep(140);
+              const eqInfo = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              const bothHandsSame = !!(eqInfo.left && eqInfo.right && eqInfo.left.name === eqInfo.right.name);
+              // Unequip one hand should remove both if same object (two-handed)
+              const okUn = (typeof window.GameAPI.unequipSlot === "function") ? !!window.GameAPI.unequipSlot("left") : false;
+              await sleep(140);
+              const eqInfo2 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              const handsCleared = !eqInfo2.left && !eqInfo2.right;
+              record(okEq && bothHandsSame && okUn && handsCleared, "Two-handed equip/unequip behavior");
+            } else {
+              record(true, "Skipped two-handed equip test (no two-handed item)");
             }
+
+            // Hand chooser branch coverage
+            // Ensure we have a 1-hand item in inventory
+            let inv3 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+            let idxHand = inv3.findIndex(it => it && it.kind === "equip" && it.slot === "hand" && !it.twoHanded);
+            if (idxHand === -1 && typeof window.GameAPI.getStats === "function") {
+              // Spawn items to populate inventory
+              safeClick("god-open-btn"); await sleep(120);
+              safeClick("god-spawn-btn"); await sleep(240);
+              key("Escape"); await sleep(120);
+              inv3 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+              idxHand = inv3.findIndex(it => it && it.kind === "equip" && it.slot === "hand" && !it.twoHanded);
+            }
+            if (idxHand !== -1) {
+              // Case A: both hands empty -> choose left explicitly, expect left equipped
+              (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
+              (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("right");
+              await sleep(120);
+              const okLeft = (typeof window.GameAPI.equipItemAtIndexHand === "function") ? !!window.GameAPI.equipItemAtIndexHand(idxHand, "left") : (!!window.GameAPI.equipItemAtIndex(idxHand));
+              await sleep(140);
+              let eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              const leftOk = !!(eqInfoA.left && (!eqInfoA.right || eqInfoA.right.name !== eqInfoA.left.name));
+              record(okLeft && leftOk, "Hand chooser: both empty -> equip left");
+
+              // Case B: right occupied, left empty -> auto equip to left when using generic equip
+              // First, ensure right has an item (reuse left item by moving if needed)
+              if (!(eqInfoA.right)) {
+                // Unequip left and re-equip to right
+                (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
+                await sleep(100);
+                const okRight = (typeof window.GameAPI.equipItemAtIndexHand === "function") ? !!window.GameAPI.equipItemAtIndexHand(idxHand, "right") : (!!window.GameAPI.equipItemAtIndex(idxHand));
+                await sleep(140);
+                eqInfoA = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+                if (!eqInfoA.right) {
+                  record(true, "Skipped auto equip test (unable to occupy right hand)");
+                }
+              }
+              // Now right occupied, left empty
+              (typeof window.GameAPI.unequipSlot === "function") && window.GameAPI.unequipSlot("left");
+              await sleep(120);
+              // Equip generically (no hand), expect left chosen
+              const okAuto = (typeof window.GameAPI.equipItemAtIndex === "function") ? !!window.GameAPI.equipItemAtIndex(idxHand) : false;
+              await sleep(140);
+              const eqInfoB = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              const autoLeft = !!(eqInfoB.left);
+              record(okAuto && autoLeft, "Hand chooser: one empty -> auto equip to empty hand");
+            } else {
+              record(true, "Skipped hand chooser test (no 1-hand item available)");
+            }
+          } catch (e2h) {
+            record(false, "Hand chooser tests failed: " + (e2h && e2h.message ? e2h.message : String(e2h)));
+          }
           } catch (e) {
             record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
           }
@@ -890,10 +968,36 @@
             record(true, "No enemies found to route/loot");
           }
 
-          // 9d: Attempt to return to overworld via dungeon exit ('>') + persistence pass
+          // 9d: Attempt to return to overworld via dungeon exit ('>') + persistence pass + stair guard
           try {
             const exit = (typeof window.GameAPI.getDungeonExit === "function") ? window.GameAPI.getDungeonExit() : null;
             if (exit) {
+              // Stair guard: stand on a non-stair tile and press G; assert mode stays dungeon
+              try {
+                // Pick an adjacent walkable non-stair tile if possible
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                let moved = false;
+                for (const d of adj) {
+                  const nx = window.GameAPI.getPlayer().x + d.dx;
+                  const ny = window.GameAPI.getPlayer().y + d.dy;
+                  if (typeof window.GameAPI.isWalkableDungeon === "function" ? window.GameAPI.isWalkableDungeon(nx, ny) : true) {
+                    // attempt move
+                    const dx = Math.sign(nx - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(ny - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(120);
+                    moved = true;
+                    break;
+                  }
+                }
+                key("KeyG");
+                await sleep(160);
+                const modeGuard = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+                record(modeGuard === "dungeon", "Stair guard: G on non-stair does not exit dungeon");
+              } catch (eGuard) {
+                record(false, "Stair guard check failed: " + (eGuard && eGuard.message ? eGuard.message : String(eGuard)));
+              }
+
               // Capture pre-exit persistence markers
               const preCorpses = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().map(c => `${c.x},${c.y}:${c.kind}`) : [];
               const preDecals = (typeof window.GameAPI.getDecalsCount === "function") ? window.GameAPI.getDecalsCount() : 0;
@@ -1242,19 +1346,28 @@
             const openNow = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : false;
             const sched = (typeof window.GameAPI.getShopSchedule === "function") ? window.GameAPI.getShopSchedule(s0) : "";
             record(true, `Shop check: ${s0.name || "Shop"} is ${openNow ? "OPEN" : "CLOSED"} (${sched})`);
-            // Boundary sanity: try to reach morning and check transition; if API exposes exact clock we'll assert edge transitions
+            // Boundary sanity: try exact minute-level transitions if advanceMinutes is available
             try {
-              const before = openNow;
-              if (typeof window.GameAPI.restUntilMorning === "function") window.GameAPI.restUntilMorning();
-              await sleep(200);
-              const after = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : before;
-              // If schedule string is available, we try to infer open hour and assert transition accordingly
-              let boundaryMsg = "";
-              if (sched && /\bOpens\b/i.test(sched)) {
-                boundaryMsg = ` (Schedule: ${sched})`;
+              const clk = (typeof window.GameAPI.getClock === "function") ? window.GameAPI.getClock() : null;
+              if (clk && typeof window.GameAPI.advanceMinutes === "function") {
+                // Move to 07:59 (assuming typical 08:00 open) then to 08:00
+                const curMin = clk.hours * 60 + clk.minutes;
+                const to759 = ((8 * 60 - 1) - curMin + 24 * 60) % (24 * 60);
+                window.GameAPI.advanceMinutes(to759);
+                await sleep(120);
+                const at759 = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : false;
+                window.GameAPI.advanceMinutes(1); // to 08:00
+                await sleep(120);
+                const at800 = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : false;
+                record(true, `Shop boundary: 07:59=${at759 ? "OPEN" : "CLOSED"} 08:00=${at800 ? "OPEN" : "CLOSED"}`);
+              } else {
+                // Fallback: reach morning
+                const before = openNow;
+                if (typeof window.GameAPI.restUntilMorning === "function") window.GameAPI.restUntilMorning();
+                await sleep(200);
+                const after = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : before;
+                record(true, `Shop open state after morning: ${after ? "OPEN" : "CLOSED"}`);
               }
-              const transitioned = (before !== after);
-              record(true, `Shop open state after morning: ${after ? "OPEN" : "CLOSED"}${transitioned ? " (changed)" : ""}${boundaryMsg}`);
             } catch (_) {}
           } else {
             record(true, "No shops available to check");

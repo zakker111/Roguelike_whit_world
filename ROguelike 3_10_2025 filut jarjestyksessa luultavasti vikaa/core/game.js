@@ -2774,6 +2774,7 @@
         } catch(_) { return { atk: 0, def: 0, hp: player.hp, maxHp: player.maxHp, level: player.level }; }
       },
       equipItemAtIndex: (idx) => { try { equipItemByIndex(idx|0); return true; } catch(_) { return false; } },
+      equipItemAtIndexHand: (idx, hand) => { try { equipItemByIndexHand(idx|0, String(hand || "left")); return true; } catch(_) { return false; } },
       unequipSlot: (slot) => { try { unequipSlot(String(slot)); return true; } catch(_) { return false; } },
       // Potions
       getPotions: () => {
@@ -2866,6 +2867,7 @@
         return null;
       },
       getClock: () => getClock(),
+      advanceMinutes: (mins) => { try { advanceTimeMinutes((Number(mins) || 0) | 0); updateUI(); requestDraw(); return true; } catch (_) { return false; } },
       restUntilMorning: () => { try { restUntilMorning(); } catch (_) {} },
       restAtInn: () => { try { restAtInn(); } catch (_) {} },
       getPerf: () => {
