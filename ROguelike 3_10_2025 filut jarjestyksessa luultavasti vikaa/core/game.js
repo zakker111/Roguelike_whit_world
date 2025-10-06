@@ -2855,6 +2855,19 @@
           return !!returnToWorldIfAtExit();
         } catch(_) { return false; }
       },
+      // Test helpers for determinism/equipment integrity
+      setEquipDecay: (slot, value) => {
+        try {
+          const s = String(slot);
+          if (!player || !player.equipment || !player.equipment[s]) return false;
+          player.equipment[s].decay = Math.max(0, Math.min(100, Number(value) || 0));
+          updateUI(); renderInventoryPanel();
+          return true;
+        } catch(_) { return false; }
+      },
+      spawnEnemyNearby: (count = 1) => {
+        try { godSpawnEnemyNearby(count|0); return true; } catch(_) { return false; }
+      },
       enterDungeonIfOnEntrance: () => {
         try {
           return !!enterDungeonIfOnEntrance();

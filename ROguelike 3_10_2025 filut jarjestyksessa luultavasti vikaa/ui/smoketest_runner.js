@@ -540,6 +540,54 @@
             key("KeyG");
             await sleep(220);
             record(true, "Attempted to loot defeated enemy");
+
+            // Equipment breakage test: force near-break decay and attack until it breaks
+            try {
+              const eq0 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              // Pick a hand with an item (prefer left)
+              const slot = (eq0.left ? "left" : (eq0.right ? "right" : null));
+              if (slot && typeof window.GameAPI.setEquipDecay === "function") {
+                const okSet = window.GameAPI.setEquipDecay(slot, 99.0);
+                await sleep(60);
+                // Ensure an enemy is nearby to swing at
+                if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
+                await sleep(120);
+                // Step toward nearest enemy (reuse pathing)
+                const enemies2 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+                if (enemies2 && enemies2.length) {
+                  let tgt = enemies2[0];
+                  let bestD2 = Math.abs(tgt.x - window.GameAPI.getPlayer().x) + Math.abs(tgt.y - window.GameAPI.getPlayer().y);
+                  for (const e2 of enemies2) {
+                    const d2 = Math.abs(e2.x - window.GameAPI.getPlayer().x) + Math.abs(e2.y - window.GameAPI.getPlayer().y);
+                    if (d2 < bestD2) { bestD2 = d2; tgt = e2; }
+                  }
+                  const path2 = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(tgt.x, tgt.y) : [];
+                  const budget2 = makeBudget(CONFIG.timeouts.battle);
+                  for (const step of path2) {
+                    if (budget2.exceeded()) break;
+                    const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(90);
+                  }
+                  // Bump a few times to ensure at least one swing
+                  for (let t = 0; t < 3; t++) {
+                    const dx = Math.sign(tgt.x - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(tgt.y - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(120);
+                  }
+                }
+                const eq1 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+                const broken = !eq1[slot];
+                record(okSet && (broken || (eq1[slot] && typeof eq1[slot].decay === "number" && eq1[slot].decay >= 99.5)),
+                  `Breakage test (${slot}): ${broken ? "item broke" : "still equipped"}${eq1[slot] && eq1[slot].decay != null ? `, decay=${eq1[slot].decay}` : ""}`);
+              } else {
+                record(true, "Skipped breakage test (no hand equipment)");
+              }
+            } catch (e) {
+              record(false, "Breakage test failed: " + (e && e.message ? e.message : String(e)));
+            }
           } else {
             record(true, "No enemies found to route/loot");
           }
@@ -1105,6 +1153,23 @@
     }
     const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)).toFixed(2) : "0.00";
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)).toFixed(2) : "0.00";
+
+    // Determinism duplicate run: re-run first seed and compare key invariants
+    try {
+      if (all.length >= 1) {
+        log("Determinism duplicate run (same seed) …", "info");
+        const dup = await runOnce(seeds[0]);
+        const a = all[0] || {};
+        const aDet = a.determinism || {};
+        const bDet = dup.determinism || {};
+        const sameEnemy = (aDet.firstEnemyType || "") === (bDet.firstEnemyType || "");
+        const aChest = Array.isArray(aDet.chestItems) ? aDet.chestItems.join(",") : (aDet.chestItemsCSV || "");
+        const bChest = Array.isArray(bDet.chestItems) ? bDet.chestItems.join(",") : (bDet.chestItemsCSV || "");
+        const sameChest = aChest === bChest;
+        const msg = `Determinism: firstEnemy=${aDet.firstEnemyType || ""}/${bDet.firstEnemyType || ""} (${sameEnemy ? "OK" : "MISMATCH"}), chest=${sameChest ? "OK" : "MISMATCH"}`;
+        appendToPanel(`<div style="color:${(sameEnemy && sameChest) ? "#86efac" : "#fca5a5"}; margin-top:6px;"><strong>${msg}</strong></div>`);
+      }
+    } catch (_) {}
 
     // Aggregate step counts
     let totalPassedSteps = 0, totalFailedSteps = 0, totalSkippedSteps = 0;
