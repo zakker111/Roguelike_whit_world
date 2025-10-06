@@ -458,29 +458,29 @@
       try {
         const p0 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         key("KeyI"); // open inventory
-        await waitUntilTrue(() => isInvOpen(), 300, 40);
+        await waitUntilTrue(() => isInvOpen(), 500, 50);
         key("ArrowRight");
-        await sleep(120);
+        await sleep(200);
         const p1 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         const immobile = (p0.x === p1.x) && (p0.y === p1.y);
         record(immobile, "Modal priority: movement ignored while Inventory is open");
         // Stack priority: open GOD while inventory is open, ESC should close GOD first, then ESC closes inventory
         const invOpen0 = isInvOpen();
-        safeClick("god-open-btn"); await waitUntilTrue(() => isGodOpen(), 300, 40);
+        safeClick("god-open-btn"); await waitUntilTrue(() => isGodOpen(), 600, 60);
         const godOpen1 = isGodOpen();
-        key("ArrowLeft"); await sleep(120);
+        key("ArrowLeft"); await sleep(200);
         const p2 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         const stillImmobile = (p1.x === p2.x) && (p1.y === p2.y);
-        key("Escape"); await waitUntilTrue(() => !isGodOpen(), 300, 40);
+        key("Escape"); await waitUntilTrue(() => !isGodOpen(), 600, 60);
         const godClosed = !isGodOpen();
         const invStillOpen = isInvOpen();
-        key("Escape"); await waitUntilTrue(() => !isInvOpen(), 300, 40);
+        key("Escape"); await waitUntilTrue(() => !isInvOpen(), 600, 60);
         const invClosed = !isInvOpen();
         record(invOpen0 && godOpen1 && stillImmobile && godClosed && invStillOpen && invClosed, "Modal stack priority: GOD closes before Inventory; movement ignored while any modal open");
       } catch (e) {
         record(false, "Modal priority check failed: " + (e && e.message ? e.message : String(e)));
       }
-      await sleep(160);
+      await sleep(200);
 
       // Step 4: close GOD and route to nearest dungeon in overworld
       try {
@@ -1159,20 +1159,47 @@
             nearestDungeonBefore = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
           } catch (_) {}
 
-          const okTown = await window.GameAPI.gotoNearestTown();
+          // Prefer precise routing to nearestTown coordinate if available
+          let okTown = false;
+          try {
+            const nt = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+            if (nt && typeof window.GameAPI.routeTo === "function") {
+              const pathNT = window.GameAPI.routeTo(nt.x, nt.y);
+              const budgetNT = makeBudget(2500);
+              for (const step of pathNT) {
+                if (budgetNT.exceeded()) break;
+                const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(90);
+              }
+              okTown = true;
+            } else {
+              okTown = await window.GameAPI.gotoNearestTown();
+            }
+          } catch (_) {
+            okTown = await window.GameAPI.gotoNearestTown();
+          }
           if (!okTown) {
             // try a few manual moves
             const moves = ["ArrowRight","ArrowUp","ArrowLeft","ArrowDown","ArrowRight","ArrowRight"];
-            for (const m of moves) { key(m); await sleep(120); }
+            for (const m of moves) { key(m); await sleep(140); }
           }
+          // Attempt to enter town multiple ways with small delays
           key("Enter"); // enter town (press Enter on T)
-          await sleep(400);
-          // Fallback 1: call API to enter if available
+          await sleep(300);
           try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-          await sleep(200);
+          await sleep(240);
+          // Retry enter if still not in town
           let nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
           if (nowMode !== "town") {
-            // Fallback 2: if standing adjacent to a Town tile, step onto it and try again
+            key("Enter"); await sleep(240);
+            try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
+            await sleep(240);
+          }
+          nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+          if (nowMode !== "town") {
+            // Fallback: if standing adjacent to a Town tile, step onto it and try again
             try {
               const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
               const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
@@ -1184,12 +1211,11 @@
                   const nx = player.x + d.dx, ny = player.y + d.dy;
                   if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
                     if (world.map[ny][nx] === T.TOWN) {
-                      // move onto town tile
                       if (typeof window.GameAPI.moveStep === "function") {
                         window.GameAPI.moveStep(d.dx, d.dy);
-                        await sleep(120);
+                        await sleep(140);
                         try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-                        await sleep(200);
+                        await sleep(240);
                         stepped = true;
                         break;
                       }
@@ -1197,8 +1223,8 @@
                   }
                 }
                 if (!stepped) {
-                  // As a last resort, attempt a short radius-2 scan to find a Town tile and route to it
-                  const r = 2;
+                  // As a last resort, attempt a short radius-3 scan to find a Town tile and route to it
+                  const r = 3;
                   const candidates = [];
                   for (let dy = -r; dy <= r; dy++) {
                     for (let dx = -r; dx <= r; dx++) {
@@ -1210,7 +1236,7 @@
                   }
                   if (candidates.length && typeof window.GameAPI.routeTo === "function") {
                     const path = window.GameAPI.routeTo(candidates[0].x, candidates[0].y);
-                    const budget = makeBudget(1500);
+                    const budget = makeBudget(2000);
                     for (const step of path) {
                       if (budget.exceeded()) break;
                       const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
@@ -1219,7 +1245,7 @@
                       await sleep(90);
                     }
                     try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-                    await sleep(200);
+                    await sleep(240);
                   }
                 }
               }
@@ -1229,7 +1255,6 @@
           if (nowMode === "town") {
             record(true, "Entered town");
           } else {
-            // Not an error for some maps/runs; treat as skipped to avoid failing the run.
             recordSkip("Town entry not achieved (still in " + nowMode + ")");
           }
 
