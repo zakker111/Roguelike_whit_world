@@ -3,7 +3,7 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
-  const RUNNER_VERSION = "1.3.0";
+  const RUNNER_VERSION = "1.4.0";
   const CONFIG = {
     timeouts: {
       route: 5000,       // ms budget for any routing/path-following sequence
@@ -324,6 +324,22 @@
       }
       await sleep(250);
 
+      // Step 3.1: Modal priority — open inventory and attempt to move; assert no movement
+      try {
+        const p0 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+        key("KeyI"); // open inventory
+        await sleep(220);
+        key("ArrowRight");
+        await sleep(140);
+        const p1 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+        key("Escape"); // close inventory
+        const immobile = (p0.x === p1.x) && (p0.y === p1.y);
+        record(immobile, "Modal priority: movement ignored while Inventory is open");
+      } catch (e) {
+        record(false, "Modal priority check failed: " + (e && e.message ? e.message : String(e)));
+      }
+      await sleep(200);
+
       // Step 4: close GOD and route to nearest dungeon in overworld
       try {
         key("Escape");
@@ -470,7 +486,29 @@
                 record(true, "No potions available to drink (skipped)");
               }
             } catch (e2) {
-              record(false, "Drink potion failed: " + (e2 && e2.message ? e2.message : String(e2)));
+              record(false, "Drink potion failed: " + (e2 && e.message ? e2.message : String(e2)));
+            }
+
+            // 9b.2: two-handed equip/unequip behavior if available
+            try {
+              const inv2 = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+              const idx2h = inv2.findIndex(it => it && it.kind === "equip" && it.twoHanded);
+              if (idx2h !== -1 && typeof window.GameAPI.equipItemAtIndex === "function") {
+                const okEq = !!window.GameAPI.equipItemAtIndex(idx2h);
+                await sleep(140);
+                const eqInfo = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+                const bothHandsSame = !!(eqInfo.left && eqInfo.right && eqInfo.left.name === eqInfo.right.name);
+                // Unequip one hand should remove both if same object (two-handed)
+                const okUn = (typeof window.GameAPI.unequipSlot === "function") ? !!window.GameAPI.unequipSlot("left") : false;
+                await sleep(140);
+                const eqInfo2 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+                const handsCleared = !eqInfo2.left && !eqInfo2.right;
+                record(okEq && bothHandsSame && okUn && handsCleared, "Two-handed equip/unequip behavior");
+              } else {
+                record(true, "Skipped two-handed equip test (no two-handed item)");
+              }
+            } catch (e2h) {
+              record(false, "Two-handed equip/unequip failed: " + (e2h && e2h.message ? e2h.message : String(e2h)));
             }
           } catch (e) {
             record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
@@ -660,6 +698,19 @@
                 const dmgCritHead = Math.max(0, (hpH0 != null && hpH1 != null) ? (hpH0 - hpH1) : 0);
                 record(dmgCritHead >= dmgNoCrit, `Crit damage check: non-crit ${dmgNoCrit}, head-crit ${dmgCritHead}`);
 
+                // Dazed behavior: set 2 turns and ensure movement is ignored
+                try {
+                  const p0 = window.GameAPI.getPlayer();
+                  const okSetD = (typeof window.GameAPI.setPlayerDazedTurns === "function") ? !!window.GameAPI.setPlayerDazedTurns(2) : false;
+                  key("ArrowRight"); await sleep(120);
+                  key("ArrowRight"); await sleep(120);
+                  const p1 = window.GameAPI.getPlayer();
+                  const dazedOk = okSetD && (p0.x === p1.x) && (p0.y === p1.y);
+                  record(dazedOk, "Dazed: movement consumed by dazedTurns");
+                } catch (eD) {
+                  record(false, "Dazed behavior check failed: " + (eD && eD.message ? eD.message : String(eD)));
+                }
+
                 // Legs crit immobilization
                 if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("legs");
                 if (typeof window.GameAPI.spawnEnemyNearby === "function") window.GameAPI.spawnEnemyNearby(1);
@@ -685,14 +736,23 @@
                 es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
                 let tgtL2 = es.find(e => e.x === tgtL.x && e.y === tgtL.y) || tgtL;
                 const imm0 = tgtL2 ? (tgtL2.immobileTurns || 0) : 0;
+                const bleed0 = tgtL2 ? (tgtL2.bleedTurns || 0) : 0;
                 // wait two turns to tick effects
                 key("Numpad5"); await sleep(90);
                 key("Numpad5"); await sleep(90);
                 es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
                 let tgtL3 = es.find(e => e.x === tgtL.x && e.y === tgtL.y);
                 const imm1 = tgtL3 ? (tgtL3.immobileTurns || 0) : 0;
+                const bleed1 = tgtL3 ? (tgtL3.bleedTurns || 0) : 0;
                 const immOk = imm0 >= 1 && (imm1 <= imm0);
                 record(immOk, `Legs-crit immobilization: immobileTurns ${imm0} -> ${imm1}`);
+                // Bleed tick check (optional depending on Combat/Status module)
+                if (bleed0 || bleed1) {
+                  const bleedOk = bleed1 <= bleed0;
+                  record(bleedOk, `Bleed turns: ${bleed0} -> ${bleed1}`);
+                } else {
+                  record(true, "Bleed check skipped (no bleedTurns on enemy)");
+                }
               } else {
                 record(true, "Skipped crit/status tests (no enemies found)");
               }
@@ -780,6 +840,13 @@
       // Step 10: from overworld, visit nearest town and interact
       try {
         if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
+          // Seed determinism invariants: nearestTown/nearestDungeon before routing
+          let nearestTownBefore = null, nearestDungeonBefore = null;
+          try {
+            nearestTownBefore = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+            nearestDungeonBefore = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+          } catch (_) {}
+
           const okTown = await window.GameAPI.gotoNearestTown();
           if (!okTown) {
             // try a few manual moves
@@ -852,6 +919,32 @@
           } else {
             // Not an error for some maps/runs; treat as skipped to avoid failing the run.
             recordSkip("Town entry not achieved (still in " + nowMode + ")");
+          }
+
+          // Seed determinism invariants (same-seed regeneration without reload)
+          try {
+            // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
+            key("Escape"); await sleep(160);
+            if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
+            await sleep(240);
+            const seedRaw = (localStorage.getItem("SEED") || "");
+            const s = seedRaw ? (Number(seedRaw) >>> 0) : null;
+            if (s != null) {
+              // Open GOD, set seed (same) and regenerate overworld
+              safeClick("god-open-btn"); await sleep(120);
+              safeSetInput("god-seed-input", s);
+              safeClick("god-apply-seed-btn"); await sleep(400);
+              key("Escape"); await sleep(160);
+              const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+              const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+              const townSame = (!!nearestTownBefore && !!nearestTownAfter) ? (nearestTownBefore.x === nearestTownAfter.x && nearestTownBefore.y === nearestTownAfter.y) : true;
+              const dungSame = (!!nearestDungeonBefore && !!nearestDungeonAfter) ? (nearestDungeonBefore.x === nearestDungeonAfter.x && nearestDungeonBefore.y === nearestDungeonAfter.y) : true;
+              record(townSame && dungSame, `Seed invariants: nearestTown=${townSame ? "OK" : "MISMATCH"} nearestDungeon=${dungSame ? "OK" : "MISMATCH"}`);
+            } else {
+              recordSkip("Seed invariants skipped (no SEED persisted)");
+            }
+          } catch (e) {
+            record(false, "Seed invariants check failed: " + (e && e.message ? e.message : String(e)));
           }
 
           // NPC check: route to nearest NPC and bump into them
@@ -1023,6 +1116,15 @@
             const openNow = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : false;
             const sched = (typeof window.GameAPI.getShopSchedule === "function") ? window.GameAPI.getShopSchedule(s0) : "";
             record(true, `Shop check: ${s0.name || "Shop"} is ${openNow ? "OPEN" : "CLOSED"} (${sched})`);
+            // Boundary sanity: rest until morning and re-check (expect potential transition)
+            try {
+              const before = openNow;
+              if (typeof window.GameAPI.restUntilMorning === "function") window.GameAPI.restUntilMorning();
+              await sleep(160);
+              const after = (typeof window.GameAPI.isShopOpenNowFor === "function") ? window.GameAPI.isShopOpenNowFor(s0) : before;
+              const transitioned = (before !== after);
+              record(true, `Shop open state after morning: ${after ? "OPEN" : "CLOSED"}${transitioned ? " (changed)" : ""}`);
+            } catch (_) {}
           } else {
             record(true, "No shops available to check");
           }
@@ -1203,6 +1305,17 @@
         detailsHtml,
       ].join("");
       panelReport(html);
+      // Expose a simple PASS/FAIL token for CI
+      try {
+        let token = document.getElementById("smoke-pass-token");
+        if (!token) {
+          token = document.createElement("div");
+          token.id = "smoke-pass-token";
+          token.style.display = "none";
+          document.body.appendChild(token);
+        }
+        token.textContent = ok ? "PASS" : "FAIL";
+      } catch (_) {}
 
       return { ok, steps, errors, passedSteps, failedSteps, skipped, console: runMeta.console, determinism: runMeta.determinism, seed: runMeta.seed, caps: runMeta.caps, runnerVersion: RUNNER_VERSION };
     } catch (err) {
@@ -1210,6 +1323,16 @@
       try { console.error(err); } catch (_) {}
       const html = `<div><strong>Smoke Test Result:</strong> FAIL (runner crashed)</div><div>${(err && err.message) ? err.message : String(err)}</div>`;
       panelReport(html);
+      try {
+        let token = document.getElementById("smoke-pass-token");
+        if (!token) {
+          token = document.createElement("div");
+          token.id = "smoke-pass-token";
+          token.style.display = "none";
+          document.body.appendChild(token);
+        }
+        token.textContent = "FAIL";
+      } catch (_) {}
       return { ok: false, steps: [], errors: [String(err)], passedSteps: [], failedSteps: [], console: ConsoleCapture.snapshot(), determinism: {} };
     }
   }
