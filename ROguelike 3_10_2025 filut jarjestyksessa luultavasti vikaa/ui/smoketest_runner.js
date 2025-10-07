@@ -1656,8 +1656,7 @@
           } catch (eHR) {
             record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
           }
-        } else {
-          recordSkip("Skipped town visit (not in overworld)");
+        // Seed determinism invariants (same-seed regeneration without reload)
         }
       } catch (e) {
         record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
