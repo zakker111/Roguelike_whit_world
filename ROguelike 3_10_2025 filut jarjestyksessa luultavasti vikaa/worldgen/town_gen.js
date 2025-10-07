@@ -392,19 +392,15 @@
     }
 
     ctx.shops = [];
-    const shopNames = ["Blacksmith", "Apothecary", "Armorer", "Trader", "Inn"];
-    function pickShopHours(name) {
-      const n = (name || "").toLowerCase();
-      let openH = 8, closeH = 18;
-      let alwaysOpen = false;
-      if (n.includes("blacksmith") || n.includes("armorer") || n.includes("trader")) {
-        openH = 8; closeH = 17;
-      } else if (n.includes("apothecary")) {
-        openH = 9; closeH = 18;
-      } else if (n.includes("inn")) {
-        alwaysOpen = true; openH = 0; closeH = 0;
-      }
-      return { openMin: minutesOfDay( ctx, openH ), closeMin: minutesOfDay( ctx, closeH ), alwaysOpen };
+
+    // Data-first shop selection: use GameData.shops when available
+    function parseHHMMToMinutes(s) {
+      if (!s || typeof s !== "string") return null;
+      const m = s.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
+      const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
+      return ((h | 0) * 60 + (min | 0)) % (24 * 60);
     }
     function minutesOfDay(ctx, h, m = 0) {
       try {
@@ -414,15 +410,35 @@
       } catch (_) {}
       return ((h | 0) * 60 + (m | 0)) % (24 * 60);
     }
+    function scheduleFromData(row) {
+      if (!row) return { openMin: minutesOfDay(ctx, 8), closeMin: minutesOfDay(ctx, 18), alwaysOpen: false };
+      if (row.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
+      const o = parseHHMMToMinutes(row.open);
+      const c = parseHHMMToMinutes(row.close);
+      if (o == null || c == null) return { openMin: minutesOfDay(ctx, 8), closeMin: minutesOfDay(ctx, 18), alwaysOpen: false };
+      return { openMin: o, closeMin: c, alwaysOpen: false };
+    }
 
+    const shopDefs = (window.GameData && Array.isArray(GameData.shops)) ? GameData.shops.slice(0) : [
+      { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
+      { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
+      { type: "armorer", name: "Armorer", open: "08:00", close: "17:00" },
+      { type: "trader", name: "Trader", open: "08:00", close: "18:00" },
+      { type: "inn", name: "Inn", alwaysOpen: true },
+    ];
+
+    // Score buildings by distance to plaza and assign shops to closest buildings
     const scored = buildings.map(b => ({ b, d: Math.abs((b.x + (b.w / 2)) - plaza.x) + Math.abs((b.y + (b.h / 2)) - plaza.y) }));
     scored.sort((a, b) => a.d - b.d);
-    const shopCount = Math.min(shopNames.length, scored.length);
+    const shopCount = Math.min(shopDefs.length, scored.length);
+
     for (let i = 0; i < shopCount; i++) {
       const b = scored[i].b;
       const door = ensureDoor(b);
-      const name = shopNames[i % shopNames.length];
-      const sched = pickShopHours(name);
+      const def = shopDefs[i % shopDefs.length];
+      const sched = scheduleFromData(def);
+      const name = def.name || def.type || "Shop";
+
       // inside near door
       const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
       let inside = null;
@@ -436,7 +452,18 @@
         const cy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2)));
         inside = { x: cx, y: cy };
       }
-      ctx.shops.push({ x: door.x, y: door.y, type: "shop", name, openMin: sched.openMin, closeMin: sched.closeMin, alwaysOpen: !!sched.alwaysOpen, building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: door.x, y: door.y } }, inside });
+
+      ctx.shops.push({
+        x: door.x,
+        y: door.y,
+        type: def.type || "shop",
+        name,
+        openMin: sched.openMin,
+        closeMin: sched.closeMin,
+        alwaysOpen: !!sched.alwaysOpen,
+        building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: door.x, y: door.y } },
+        inside
+      });
     }
 
     // Town buildings metadata
