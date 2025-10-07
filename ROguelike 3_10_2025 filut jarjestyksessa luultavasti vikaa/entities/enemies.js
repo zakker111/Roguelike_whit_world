@@ -43,9 +43,22 @@
 
   function applyJsonEnemies(json) {
     if (!Array.isArray(json)) return;
+    const warn = (msg, row) => {
+      try {
+        if (window.Logger && typeof Logger.log === "function") Logger.log(`[Enemies] ${msg}`, "warn");
+        else if (window.DEV && typeof console !== "undefined") console.warn("[Enemies] " + msg, row);
+      } catch (_) {}
+    };
     for (const row of json) {
       const key = row.id || row.key;
-      if (!key) continue;
+      if (!key) { warn("Missing id/key for enemy entry; skipped.", row); continue; }
+      if (!row.glyph || typeof row.glyph !== "string" || row.glyph.length === 0) { warn(`Enemy '${key}' missing glyph; defaulting to '?'`, row); }
+      if (!Array.isArray(row.weightByDepth) || row.weightByDepth.length === 0) { warn(`Enemy '${key}' missing weightByDepth; it may never spawn.`, row); }
+      const hpOk = Array.isArray(row.hp) && row.hp.length > 0;
+      const atkOk = Array.isArray(row.atk) && row.atk.length > 0;
+      const xpOk = Array.isArray(row.xp) && row.xp.length > 0;
+      if (!hpOk || !atkOk || !xpOk) { warn(`Enemy '${key}' missing hp/atk/xp arrays; using fallbacks where needed.`, row); }
+
       TYPES[key] = {
         key,
         glyph: row.glyph || "?",

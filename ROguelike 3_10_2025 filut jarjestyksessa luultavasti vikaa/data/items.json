@@ -130,5 +130,37 @@
     },
     "handAtkChance": 0.5,
     "notes": "Occasional small hand attack bonus at higher tiers."
+  },
+  {
+    "id": "greatsword",
+    "slot": "hand",
+    "name": "greatsword",
+    "twoHanded": true,
+    "tierMin": 2,
+    "weights": {
+      "2": 0.20,
+      "3": 0.25
+    },
+    "atk": {
+      "2": [2.0, 3.4],
+      "3": [2.6, 4.2]
+    },
+    "notes": "Two-handed heavy sword; higher damage, occupies both hands."
+  },
+  {
+    "id": "longbow",
+    "slot": "hand",
+    "name": "longbow",
+    "twoHanded": true,
+    "tierMin": 2,
+    "weights": {
+      "2": 0.18,
+      "3": 0.22
+    },
+    "atk": {
+      "2": [1.8, 3.0],
+      "3": [2.4, 3.8]
+    },
+    "notes": "Two-handed ranged weapon; balanced damage."
   }
 ]
