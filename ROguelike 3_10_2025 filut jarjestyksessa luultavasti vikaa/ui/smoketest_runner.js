@@ -1224,57 +1224,49 @@
                 await sleep(90);
               }
               okTown = true;
-            } else {
+            } else if (typeof window.GameAPI.gotoNearestTown === "function") {
               okTown = await window.GameAPI.gotoNearestTown();
             }
           } catch (_) {
-            okTown = await window.GameAPI.gotoNearestTown();
+            if (typeof window.GameAPI.gotoNearestTown === "function") {
+              okTown = await window.GameAPI.gotoNearestTown();
+            }
           }
-          if (!okTown) {
-            // try a few manual moves
-            const moves = ["ArrowRight","ArrowUp","ArrowLeft","ArrowDown","ArrowRight","ArrowRight"];
-            for (const m of moves) { key(m); await sleep(140); }
-          }
-          // Attempt to enter town multiple ways with small delays
-          key("Enter"); // enter town (press Enter on T)
-          await sleep(300);
-          try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-          await sleep(240);
-          // Retry enter if still not in town
+          // Attempt multiple entry tries: Enter key and direct API
+          const tryEnterTown = async () => {
+            key("Enter"); await sleep(300);
+            try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
+            await sleep(240);
+          };
+          await tryEnterTown();
           let nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
           if (nowMode !== "town") {
-            key("Enter"); await sleep(240);
-            try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-            await sleep(240);
+            await tryEnterTown();
           }
           nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
           if (nowMode !== "town") {
-            // Fallback: if standing adjacent to a Town tile, step onto it and try again
+            // Fallback: scan wider radius for a Town tile and route to it, then try enter again
             try {
               const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
               const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
               const T = (window.World && window.World.TILES) ? window.World.TILES : null;
               if (world && player && T && typeof T.TOWN === "number" && Array.isArray(world.map)) {
+                // Prioritize immediate adjacency, then expand search radius to 6
                 const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
                 let stepped = false;
                 for (const d of adj) {
                   const nx = player.x + d.dx, ny = player.y + d.dy;
                   if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
-                    if (world.map[ny][nx] === T.TOWN) {
-                      if (typeof window.GameAPI.moveStep === "function") {
-                        window.GameAPI.moveStep(d.dx, d.dy);
-                        await sleep(140);
-                        try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-                        await sleep(240);
-                        stepped = true;
-                        break;
-                      }
+                    if (world.map[ny][nx] === T.TOWN && typeof window.GameAPI.moveStep === "function") {
+                      window.GameAPI.moveStep(d.dx, d.dy);
+                      await sleep(140);
+                      stepped = true;
+                      break;
                     }
                   }
                 }
                 if (!stepped) {
-                  // As a last resort, attempt a short radius-3 scan to find a Town tile and route to it
-                  const r = 3;
+                  const r = 6;
                   const candidates = [];
                   for (let dy = -r; dy <= r; dy++) {
                     for (let dx = -r; dx <= r; dx++) {
@@ -1286,7 +1278,7 @@
                   }
                   if (candidates.length && typeof window.GameAPI.routeTo === "function") {
                     const path = window.GameAPI.routeTo(candidates[0].x, candidates[0].y);
-                    const budget = makeBudget(2000);
+                    const budget = makeBudget(3000);
                     for (const step of path) {
                       if (budget.exceeded()) break;
                       const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
@@ -1294,10 +1286,10 @@
                       key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
                       await sleep(90);
                     }
-                    try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-                    await sleep(240);
                   }
                 }
+                await tryEnterTown();
+                await tryEnterTown();
               }
             } catch (_) {}
           }
@@ -1305,7 +1297,16 @@
           if (nowMode === "town") {
             record(true, "Entered town");
           } else {
-            recordSkip("Town entry not achieved (still in " + nowMode + ")");
+            // Extra diagnostic to help understand why it failed
+            try {
+              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
+              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
+              const tile = (world && player && T && world.map[player.y] && world.map[player.y][player.x] === T.TOWN) ? "TOWN" : "OTHER";
+              recordSkip("Town entry not achieved (mode=" + nowMode + ", standing on tile=" + tile + ")");
+            } catch (_) {
+              recordSkip("Town entry not achieved (still in " + nowMode + ")");
+            }
           }
 
           // Seed determinism invariants (same-seed regeneration without reload)
