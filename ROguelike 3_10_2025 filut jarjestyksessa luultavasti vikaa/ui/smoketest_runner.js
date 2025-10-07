@@ -1409,38 +1409,43 @@
           // NPC check: route to nearest NPC and bump into them
           let lastNPC = null;
           try {
-            const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
-            if (npcs && npcs.length) {
-              // nearest by manhattan
-              const pl = window.GameAPI.getPlayer();
-              let best = npcs[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
-              for (const n of npcs) {
-                const d = Math.abs(n.x - pl.x) + Math.abs(n.y - pl.y);
-                if (d < bestD) { best = n; bestD = d; }
-              }
-              // route to adjacent tile, then bump into NPC tile to trigger dialogue
-              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
-                .map(v => ({ x: best.x + v.dx, y: best.y + v.dy }));
-              let path = [];
-              for (const a of adj) {
-                const p = window.GameAPI.routeToDungeon(a.x, a.y);
-                if (p && p.length) { path = p; break; }
-              }
-              for (const step of path) {
-                const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(110);
-              }
-              // bump into NPC tile
-              const dx = Math.sign(best.x - window.GameAPI.getPlayer().x);
-              const dy = Math.sign(best.y - window.GameAPI.getPlayer().y);
-              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-              await sleep(160);
-              record(true, "Bumped into at least one NPC");
-              lastNPC = best;
+            const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            if (modeNow !== "town") {
+              recordSkip("NPC checks skipped (not in town)");
             } else {
-              recordSkip("No NPCs reported (town may be empty?)");
+              const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
+              if (npcs && npcs.length) {
+                // nearest by manhattan
+                const pl = window.GameAPI.getPlayer();
+                let best = npcs[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
+                for (const n of npcs) {
+                  const d = Math.abs(n.x - pl.x) + Math.abs(n.y - pl.y);
+                  if (d < bestD) { best = n; bestD = d; }
+                }
+                // route to adjacent tile, then bump into NPC tile to trigger dialogue
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
+                  .map(v => ({ x: best.x + v.dx, y: best.y + v.dy }));
+                let path = [];
+                for (const a of adj) {
+                  const p = window.GameAPI.routeToDungeon(a.x, a.y);
+                  if (p && p.length) { path = p; break; }
+                }
+                for (const step of path) {
+                  const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                  const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(110);
+                }
+                // bump into NPC tile
+                const dx = Math.sign(best.x - window.GameAPI.getPlayer().x);
+                const dy = Math.sign(best.y - window.GameAPI.getPlayer().y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(160);
+                record(true, "Bumped into at least one NPC");
+                lastNPC = best;
+              } else {
+                recordSkip("No NPCs reported (town may be empty?)");
+              }
             }
           } catch (e) {
             record(false, "NPC interaction failed: " + (e && e.message ? e.message : String(e)));
@@ -1448,7 +1453,10 @@
 
           // NPC home + decorations check: go to NPC's house and verify decorations/props exist
           try {
-            if (lastNPC && typeof lastNPC.i === "number" && typeof window.GameAPI.getNPCHomeByIndex === "function") {
+            const modeNow2 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            if (modeNow2 !== "town") {
+              recordSkip("NPC home check skipped (not in town)");
+            } else if (lastNPC && typeof lastNPC.i === "number" && typeof window.GameAPI.getNPCHomeByIndex === "function") {
               const home = window.GameAPI.getNPCHomeByIndex(lastNPC.i);
               if (home && home.building) {
                 const b = home.building;
@@ -1517,31 +1525,36 @@
 
           // Decoration/props check: find nearby prop and press G
           try {
-            const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
-            if (props && props.length) {
-              const pl = window.GameAPI.getPlayer();
-              // nearest prop
-              let best = props[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
-              for (const p of props) {
-                const d = Math.abs(p.x - pl.x) + Math.abs(p.y - pl.y);
-                if (d < bestD) { best = p; bestD = d; }
-              }
-              const path = window.GameAPI.routeToDungeon(best.x, best.y);
-            const budget = makeBudget(CONFIG.timeouts.route);
-            for (const step of path) {
-              if (budget.exceeded()) { recordSkip("Routing to town prop timed out"); break; }
-              const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-              const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-              await sleep(110);
-            }
-            // press G to interact with decoration
-            const ib = makeBudget(CONFIG.timeouts.interact);
-            key("KeyG");
-            await sleep(Math.min(ib.remain(), 220));
-            record(true, "Interacted with nearby decoration/prop (G)");
+            const modeNow3 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            if (modeNow3 !== "town") {
+              recordSkip("Town prop interaction skipped (not in town)");
             } else {
-              recordSkip("No town decorations/props reported");
+              const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
+              if (props && props.length) {
+                const pl = window.GameAPI.getPlayer();
+                // nearest prop
+                let best = props[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
+                for (const p of props) {
+                  const d = Math.abs(p.x - pl.x) + Math.abs(p.y - pl.y);
+                  if (d < bestD) { best = p; bestD = d; }
+                }
+                const path = window.GameAPI.routeToDungeon(best.x, best.y);
+              const budget = makeBudget(CONFIG.timeouts.route);
+              for (const step of path) {
+                if (budget.exceeded()) { recordSkip("Routing to town prop timed out"); break; }
+                const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(110);
+              }
+              // press G to interact with decoration
+              const ib = makeBudget(CONFIG.timeouts.interact);
+              key("KeyG");
+              await sleep(Math.min(ib.remain(), 220));
+              record(true, "Interacted with nearby decoration/prop (G)");
+              } else {
+                recordSkip("No town decorations/props reported");
+              }
             }
           } catch (e) {
             record(false, "Decoration/prop interaction failed: " + (e && e.message ? e.message : String(e)));
