@@ -565,11 +565,54 @@
             } catch (_) {}
           }
 
-          // Attempt 3: a few manual steps and retry Enter/API
+          // Attempt 3: scan world map for a visible dungeon tile, route to it, then try multiple entry methods
+          if (!entered) {
+            try {
+              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
+              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
+              if (world && player && T && typeof T.DUNGEON === "number" && Array.isArray(world.map)) {
+                // Search increasing radius around the player for a DUNGEON tile
+                const maxR = 20;
+                let target = null;
+                for (let r = 2; r <= maxR && !target; r++) {
+                  for (let dy = -r; dy <= r; dy++) {
+                    for (let dx = -r; dx <= r; dx++) {
+                      const nx = player.x + dx, ny = player.y + dy;
+                      if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
+                        if (world.map[ny][nx] === T.DUNGEON) { target = { x: nx, y: ny }; break; }
+                      }
+                    }
+                    if (target) break;
+                  }
+                }
+                if (target && typeof window.GameAPI.routeTo === "function") {
+                  const path = window.GameAPI.routeTo(target.x, target.y);
+                  const budget = makeBudget(CONFIG.timeouts.route);
+                  for (const step of path) {
+                    if (budget.exceeded()) break;
+                    const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                    const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                    key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(90);
+                  }
+                  // Try both Enter and G, plus API
+                  key("Enter"); await sleep(200);
+                  key("KeyG"); await sleep(200);
+                  if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+                  await sleep(260);
+                  entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+                }
+              }
+            } catch (_) {}
+          }
+
+          // Attempt 4: a few manual steps and retry Enter/API
           if (!entered) {
             const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
             for (const m of moves) { key(m); await sleep(110); }
-            key("Enter"); await sleep(240);
+            key("Enter"); await sleep(200);
+            key("KeyG"); await sleep(200);
             if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
             await sleep(240);
             entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
