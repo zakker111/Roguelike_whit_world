@@ -1808,33 +1808,55 @@
       const failedSteps = steps.filter(s => !s.ok).map(s => s.msg);
 
       // Report into GOD panel
-      const detailsHtml = steps.map(s => {
-        const color = s.ok ? (s.skipped ? "#fde68a" : "#86efac") : "#fca5a5";
-        const mark = s.ok ? (s.skipped ? "⏭" : "✔") : "✖";
-        return `<div style="color:${color};">${mark} ${s.msg}</div>`;
-      }).join("");
-      const passedHtml = passedSteps.length ? (`<div style="margin-top:6px;"><strong>Passed (${passedSteps.length}):</strong></div>` + passedSteps.map(m => `<div style="color:#86efac;">• ${m}</div>`).join("")) : "";
-      const skippedHtml = skipped.length ? (`<div style="margin-top:6px;"><strong>Skipped (${skipped.length}):</strong></div>` + skipped.map(m => `<div style="color:#fde68a;">• ${m}</div>`).join("")) : "";
+      // Pretty step list renderer
+      function renderStepsPretty(list) {
+        return list.map(s => {
+          const bg = s.ok ? (s.skipped ? "rgba(234,179,8,0.10)" : "rgba(34,197,94,0.10)") : "rgba(239,68,68,0.10)";
+          const border = s.ok ? (s.skipped ? "#fde68a" : "#86efac") : "#fca5a5";
+          const color = s.ok ? (s.skipped ? "#fde68a" : "#86efac") : "#fca5a5";
+          const mark = s.ok ? (s.skipped ? "⏭" : "✔") : "✖";
+          return `<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid ${border};border-radius:6px;background:${bg};margin:4px 0;">
+            <div style="min-width:16px;color:${color};font-weight:bold;">${mark}</div>
+            <div style="color:${color}">${s.msg}</div>
+          </div>`;
+        }).join("");
+      }
+
+      const detailsHtml = renderStepsPretty(steps);
+      const passedHtml = passedSteps.length
+        ? (`<div style="margin-top:8px;"><strong>Passed (${passedSteps.length}):</strong></div>` + passedSteps.map(m => `<div style="color:#86efac;">• ${m}</div>`).join(""))
+        : "";
+      const skippedHtml = skipped.length
+        ? (`<div style="margin-top:8px;"><strong>Skipped (${skipped.length}):</strong></div>` + skipped.map(m => `<div style="color:#fde68a;">• ${m}</div>`).join(""))
+        : "";
       const extraErrors = []
         .concat((runMeta.console.consoleErrors || []).map(m => `console.error: ${m}`))
         .concat((runMeta.console.windowErrors || []).map(m => `window: ${m}`))
         .concat((runMeta.console.consoleWarns || []).map(m => `console.warn: ${m}`));
       const totalIssues = errors.length + extraErrors.length;
       const issuesHtml = totalIssues
-        ? `<div style="margin-top:8px; color:#ef4444;"><strong>Issues (${totalIssues}):</strong></div>` +
+        ? `<div style="margin-top:10px; color:#ef4444;"><strong>Issues (${totalIssues}):</strong></div>` +
           errors.map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") +
-          (extraErrors.length ? `<div style="color:#f87171; margin-top:4px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 8).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
+          (extraErrors.length ? `<div style="color:#f87171; margin-top:6px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 8).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
         : "";
       const caps = runMeta.caps || {};
-      const capsLine = Object.keys(caps).length ? `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION} | Caps: ${Object.keys(caps).filter(k => caps[k]).join(", ")}</div>` : `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`;
+      const capsLine = Object.keys(caps).length
+        ? `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${RUNNER_VERSION} | Caps: ${Object.keys(caps).filter(k => caps[k]).join(", ")}</div>`
+        : `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${RUNNER_VERSION}</div>`;
+
+      const headerHtml = `
+        <div style="margin-bottom:6px;">
+          <div><strong>Smoke Test Result:</strong> ${ok ? "<span style='color:#86efac'>PASS</span>" : "<span style='color:#fca5a5'>PARTIAL/FAIL</span>"}</div>
+          <div>Steps: ${steps.length}  Issues: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>
+          ${capsLine}
+        </div>`;
+
       const html = [
-        `<div><strong>Smoke Test Result:</strong> ${ok ? "PASS" : "PARTIAL/FAIL"}</div>`,
-        `<div>Steps: ${steps.length}  Errors: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>`,
-        capsLine,
+        headerHtml,
         issuesHtml,
         passedHtml,
         skippedHtml,
-        `<div style="margin-top:6px;"><strong>Details</strong></div>`,
+        `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
         detailsHtml,
       ].join("");
       panelReport(html);
