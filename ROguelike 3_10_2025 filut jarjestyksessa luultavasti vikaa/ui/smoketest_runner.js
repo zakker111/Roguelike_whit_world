@@ -1654,18 +1654,11 @@
                 record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
             }
         } // end town visit else
-      } // end town visit try
-      catch (e) {
+      } catch (e) {
         record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
     }
 
     // Seed determinism invariants (same-seed regeneration without reload)
-
-
-    // Seed determinism invariants (same-seed regeneration without reload)
-
-
-
 
 
     const ok = errors.length === 0;
