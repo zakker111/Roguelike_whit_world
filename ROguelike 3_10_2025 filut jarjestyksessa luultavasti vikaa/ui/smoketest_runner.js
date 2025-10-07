@@ -454,6 +454,20 @@
       }
       await sleep(250);
 
+      // Step 3.0: JSON registries loaded (data-first validation)
+      try {
+        const GD = window.GameData || null;
+        const loaded = !!GD && !!GD.items && !!GD.enemies && !!GD.npcs && !!GD.shops && !!GD.town;
+        record(loaded, `Data registries: items=${!!(GD&&GD.items)} enemies=${!!(GD&&GD.enemies)} npcs=${!!(GD&&GD.npcs)} shops=${!!(GD&&GD.shops)} town=${!!(GD&&GD.town)}`);
+        if (!loaded) {
+          // Surface raw object snapshot to console for debugging
+          try { console.warn("[SMOKE] GameData snapshot:", GD); } catch (_) {}
+        }
+      } catch (e) {
+        record(false, "Data registries check failed: " + (e && e.message ? e.message : String(e)));
+      }
+      await sleep(150);
+
       // Step 3.1: Modal priority — open inventory and attempt to move; assert no movement
       try {
         const p0 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
@@ -1485,11 +1499,17 @@
             // Harden result reading
             const residentsTotal = (res && res.residents && typeof res.residents.total === "number") ? res.residents.total : 0;
             const unreachable = (res && typeof res.unreachable === "number") ? res.unreachable : null;
+            const reachable = (res && typeof res.reachable === "number") ? res.reachable : null;
             const hasResidents = residentsTotal > 0;
-            record(hasResidents, `Home routes after waits: residents ${residentsTotal}${unreachable != null ? `, unreachable ${unreachable}` : ""}`);
+            record(hasResidents, `Home routes after waits: residents ${residentsTotal}${unreachable != null ? `, unreachable ${unreachable}` : ""}${reachable != null ? `, reachable ${reachable}` : ""}`);
             if (!hasResidents) {
               // Log raw object for diagnostics
               try { console.warn("[SMOKE] HomeRoutes raw:", res); } catch (_) {}
+            }
+            // Stricter late-night behavior: prefer unreachable == 0 when residents exist
+            if (hasResidents && unreachable != null) {
+              const lateOk = unreachable === 0;
+              record(lateOk, `Late-night home routes: unreachable ${unreachable} (expected 0)`);
             }
           } catch (eHR) {
             record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
@@ -1620,7 +1640,7 @@
             record(false, "Bump-buy failed: " + (e && e.message ? e.message : String(e)));
           }
 
-          // Optional: attempt to route to first shop and interact (press G)
+          // Optional: attempt to route to first shop and interact (press G), then Esc-close UI
           try {
             if (shops && shops.length) {
               const shop = shops[0];
@@ -1634,8 +1654,19 @@
                 await sleep(100);
               }
               const ib = makeBudget(CONFIG.timeouts.interact);
-              key("KeyG");
-              await sleep(Math.min(ib.remain(), 180));
+              key("KeyG"); // open shop interaction
+              await sleep(Math.min(ib.remain(), 220));
+              // Esc closes Shop UI fallback panel
+              try {
+                const open = !!(document.getElementById("shop-panel") && document.getElementById("shop-panel").hidden === false);
+                if (open) {
+                  key("Escape");
+                  const closed = await waitUntilTrue(() => { const el = document.getElementById("shop-panel"); return !!(el && el.hidden === true); }, 600, 60);
+                  record(closed, "Shop UI closes with Esc");
+                } else {
+                  record(true, "Shop UI not open (no Esc-close needed)");
+                }
+              } catch (_) {}
               // If future GameAPI provides shopBuy/shopSell, try them
               let didAny = false;
               if (typeof window.GameAPI.shopBuyFirst === "function") {
