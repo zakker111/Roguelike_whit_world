@@ -1811,13 +1811,21 @@
       // Pretty step list renderer
       function renderStepsPretty(list) {
         return list.map(s => {
-          const bg = s.ok ? (s.skipped ? "rgba(234,179,8,0.10)" : "rgba(34,197,94,0.10)") : "rgba(239,68,68,0.10)";
-          const border = s.ok ? (s.skipped ? "#fde68a" : "#86efac") : "#fca5a5";
-          const color = s.ok ? (s.skipped ? "#fde68a" : "#86efac") : "#fca5a5";
-          const mark = s.ok ? (s.skipped ? "⏭" : "✔") : "✖";
+          const isSkip = !!s.skipped;
+          const isOk = !!s.ok && !isSkip;
+          const isFail = !s.ok && !isSkip;
+
+          const bg = isSkip ? "rgba(234,179,8,0.10)" : (isOk ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)");
+          const border = isSkip ? "#fde68a" : (isOk ? "#86efac" : "#fca5a5");
+          const color = border;
+          const mark = isSkip ? "⏭" : (isOk ? "✔" : "✖");
+          const badge = isSkip ? `<span style="font-size:10px;color:#1f2937;background:#fde68a;border:1px solid #f59e0b;padding:1px 4px;border-radius:4px;margin-left:6px;">SKIP</span>`
+                               : (isOk ? `<span style="font-size:10px;color:#1f2937;background:#86efac;border:1px solid #22c55e;padding:1px 4px;border-radius:4px;margin-left:6px;">OK</span>`
+                                       : `<span style="font-size:10px;color:#1f2937;background:#fca5a5;border:1px solid #ef4444;padding:1px 4px;border-radius:4px;margin-left:6px;">FAIL</span>`);
+
           return `<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid ${border};border-radius:6px;background:${bg};margin:4px 0;">
             <div style="min-width:16px;color:${color};font-weight:bold;">${mark}</div>
-            <div style="color:${color}">${s.msg}</div>
+            <div style="color:${color}">${s.msg}${badge}</div>
           </div>`;
         }).join("");
       }
