@@ -1495,12 +1495,20 @@
         isInventoryOpen: () => !!(window.UI && UI.isInventoryOpen && UI.isInventoryOpen()),
         isLootOpen: () => !!(window.UI && UI.isLootOpen && UI.isLootOpen()),
         isGodOpen: () => !!(window.UI && UI.isGodOpen && UI.isGodOpen()),
+        // Ensure shop modal is part of the modal stack priority
+        isShopOpen: () => {
+          try {
+            const el = document.getElementById("shop-panel");
+            return !!(el && el.hidden === false);
+          } catch (_) { return false; }
+        },
         // actions
         onRestart: () => restartGame(),
         onShowInventory: () => showInventoryPanel(),
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => { if (window.UI && UI.hideGod) UI.hideGod(); requestDraw(); },
+        onHideShop: () => hideShopPanel(),
         onShowGod: () => {
           if (window.UI) {
             if (typeof UI.setGodFov === "function") UI.setGodFov(fovRadius);
