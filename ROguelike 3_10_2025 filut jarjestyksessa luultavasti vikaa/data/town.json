@@ -1,0 +1,29 @@
+{
+  "sizes": {
+    "small": { "W": 60, "H": 40 },
+    "big":   { "W": 90, "H": 60 },
+    "city":  { "W": 120, "H": 80 }
+  },
+  "plaza": {
+    "small": { "w": 10, "h": 8 },
+    "big":   { "w": 14, "h": 12 },
+    "city":  { "w": 18, "h": 14 }
+  },
+  "roads": {
+    "xStride": 10,
+    "yStride": 8
+  },
+  "buildings": {
+    "max": 18,
+    "blockW": 8,
+    "blockH": 6
+  },
+  "props": {
+    "benchLimit": {
+      "small": 8,
+      "big": 12,
+      "city": 16
+    },
+    "plantTryFactor": 10
+  }
+}

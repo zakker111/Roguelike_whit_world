@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-06 01:10 UTC
+Last updated: 2025-10-07 00:35 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,23 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.21 — Enemy glyph fallback, town greeter, and smoketest runner hardening
+- Fixed: “?” glyphs for spawned enemies
+  - dungeon/dungeon.js and data/god.js now resolve glyph via the Enemies registry or JSON and fall back to the first letter of the enemy type id, avoiding “?” unless type/glyph is genuinely missing.
+- Added: Town gate greeter
+  - worldgen/town_gen.js: spawns one greeter near the gate on town generation and logs a welcome line immediately.
+- Changed: Smoketest runner resilience and reporting
+  - ui/smoketest_runner.js:
+    - Robust dungeon entry detection: extended settle window and added log scan (“enter the dungeon”/“re-enter the dungeon”) to mark success even if mode quickly flips back.
+    - Modal closing pre-routing: ensureAllModalsClosed() closes GOD/Inventory/Shop/Loot via UI APIs, Escape, and close button, preventing movement blocks.
+    - Key Checklist: added per-run high-level checklist (Entered dungeon, Looted chest, Spawned enemy, persistence checks, town/NPC/shop checks) next to the raw step list; also duplicated in series summary.
+    - Bad JSON validation: waits for ValidationLog.warnings when dev+validatebad is set, reducing race conditions.
+    - Cleaned up duplicated/inconclusive modal messages; timing-sensitive checks downgrade to SKIP.
+- Fixed: Syntax errors and typos in runner
+  - Corrected malformed while loop condition in transient dungeon detection.
+  - Fixed potion error handler to use e2.message.
+- Dev: Minor diagnostics and timing adjustments for more robust automation.
 
 v1.20 — Helper deduplication: ShopService + Utils.inBounds
 - Added: services/shop_service.js centralizing shop/time helpers:
@@ -407,11 +424,16 @@ Planned / Ideas
 - District themes (market/residential/temple) and signage
 - Movement costs or effects per biome (swamp slow, snow visibility, desert hazard)
 - if there is not enought beds for npc at home make em sleep at floor
+- flavor text to json file
 
-Bugs
+Things to chek
+- some files are realy big it would be fine to start cut em to portions if it makes sens
+
+BUGS
 - chek there is not sleep walkers some npc have z top of them dont sure is thiss still existing
 - when inn god panel in routes it shows unendifid/17 it is not correct chek too that inn is used
 - inns dont have invidual rooms and not enought beds
 - some npc stay at their homes at day time 
 - some npc dont sleep in theid beds
 - residents go home at night but they get stuck in door if bed is just adjacent tile of door
+- some work needed for smoketestrunner

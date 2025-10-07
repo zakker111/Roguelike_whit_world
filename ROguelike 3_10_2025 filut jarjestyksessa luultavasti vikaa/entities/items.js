@@ -51,9 +51,29 @@
 
   function applyJsonItems(json) {
     if (!Array.isArray(json)) return;
+    const warn = (msg, row) => {
+      try {
+        // Collect into shared validation log for smoketest visibility
+        window.ValidationLog = window.ValidationLog || { warnings: [], notices: [] };
+        window.ValidationLog.warnings.push(`[Items] ${msg}`);
+      } catch (_) {}
+      try {
+        if (window.Logger && typeof Logger.log === "function") Logger.log(`[Items] ${msg}`, "warn");
+        else if (window.DEV && typeof console !== "undefined") console.warn("[Items] " + msg, row);
+      } catch (_) {}
+    };
+    const VALID_SLOTS = new Set(["hand","head","torso","legs","hands"]);
     for (const row of json) {
       const key = row.id || row.key || row.name;
-      if (!key || !row.slot) continue;
+      if (!key) { warn("Missing id/key for item entry; skipped.", row); continue; }
+      if (!row.slot || !VALID_SLOTS.has(row.slot)) { warn(`Invalid or missing slot for item '${key}'; expected one of hand/head/torso/legs/hands.`, row); continue; }
+      if (row.twoHanded && row.slot !== "hand") { warn(`twoHanded is true for '${key}' but slot is '${row.slot}'; twoHanded only applies to 'hand'.`, row); }
+      const hasAtk = !!row.atk;
+      const hasDef = !!row.def;
+      if (!hasAtk && !hasDef) { warn(`Item '${key}' has neither atk nor def ranges; it may be useless.`, row); }
+      const weights = row.weights || null;
+      if (!weights && typeof row.weight !== "number") { warn(`Item '${key}' has no weights; defaulting to 1.0.`, row); }
+
       const def = {
         key,
         slot: row.slot,

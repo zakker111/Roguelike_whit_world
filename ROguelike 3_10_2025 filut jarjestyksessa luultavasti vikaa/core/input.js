@@ -82,14 +82,14 @@
         return;
       }
 
-      if (e.key && e.key.toLowerCase() === "i") {
+      if ((e.key && e.key.toLowerCase() === "i") || e.code === "KeyI") {
         e.preventDefault();
         _handlers.onShowInventory && _handlers.onShowInventory();
         return;
       }
 
       
-      if (e.key && e.key.toLowerCase() === "p") {
+      if ((e.key && e.key.toLowerCase() === "p") || e.code === "KeyP") {
         e.preventDefault();
         _handlers.onShowGod && _handlers.onShowGod();
         return;

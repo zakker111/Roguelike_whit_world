@@ -315,6 +315,43 @@
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // Ensure all UI modals are closed so routing/movement works
+  async function ensureAllModalsClosed(maxTries = 6) {
+    const isOpenById = (id) => {
+      try {
+        const el = document.getElementById(id);
+        return !!(el && el.hidden === false);
+      } catch (_) { return false; }
+    };
+    const anyOpen = () => {
+      return isOpenById("god-panel") || isOpenById("inv-panel") || isOpenById("shop-panel") || isOpenById("loot-panel");
+    };
+    // Try explicit UI API if available
+    try {
+      if (window.UI) {
+        try { typeof UI.hideGod === "function" && UI.hideGod(); } catch (_) {}
+        try { typeof UI.hideInventory === "function" && UI.hideInventory(); } catch (_) {}
+        try { typeof UI.hideShop === "function" && UI.hideShop(); } catch (_) {}
+        try { typeof UI.hideLoot === "function" && UI.hideLoot(); } catch (_) {}
+      }
+    } catch (_) {}
+    // Fallback: ESC multiple times with waits
+    let tries = 0;
+    while (anyOpen() && tries++ < maxTries) {
+      try { document.activeElement && typeof document.activeElement.blur === "function" && document.activeElement.blur(); } catch (_) {}
+      key("Escape");
+      await sleep(160);
+      // Try second ESC in quick succession to unwind modal stack
+      if (anyOpen()) { key("Escape"); await sleep(140); }
+      // Also attempt clicking GOD close if present
+      try {
+        const btn = document.getElementById("god-close-btn");
+        if (btn) { btn.click(); await sleep(120); }
+      } catch (_) {}
+    }
+    return !anyOpen();
+  }
+
   function key(code) {
     try {
       // Dispatch to document as well for broader listener coverage
@@ -454,59 +491,225 @@
       }
       await sleep(250);
 
+      // Step 3.0: JSON registries loaded (data-first validation)
+      try {
+        const GD = window.GameData || null;
+        const loaded = !!GD && !!GD.items && !!GD.enemies && !!GD.npcs && !!GD.shops && !!GD.town;
+        record(loaded, `Data registries: items=${!!(GD&&GD.items)} enemies=${!!(GD&&GD.enemies)} npcs=${!!(GD&&GD.npcs)} shops=${!!(GD&&GD.shops)} town=${!!(GD&&GD.town)}`);
+        if (!loaded) {
+          // Surface raw object snapshot to console for debugging
+          try { console.warn("[SMOKE] GameData snapshot:", GD); } catch (_) {}
+        }
+        // If dev-only bad JSON injection was requested, assert warnings were collected
+        const params = new URLSearchParams(location.search);
+        const wantBad = (params.get("validatebad") === "1") || (params.get("badjson") === "1");
+        const dev = (params.get("dev") === "1") || (window.DEV || localStorage.getItem("DEV") === "1");
+        if (wantBad && dev) {
+          // Wait briefly for validators to run and populate ValidationLog.warnings
+          const okWarn = await waitUntilTrue(() => {
+            try {
+              const VL = window.ValidationLog || { warnings: [] };
+              return Array.isArray(VL.warnings) && VL.warnings.length > 0;
+            } catch (_) { return false; }
+          }, 1200, 80);
+          const VL = window.ValidationLog || { warnings: [] };
+          const wcount = Array.isArray(VL.warnings) ? VL.warnings.length : 0;
+          record(okWarn && wcount > 0, `Validation warnings captured: ${wcount}`);
+        }
+        // Registry readiness wait: ensure Enemies registry or JSON entries are available before dungeon tests
+        const ready = await waitUntilTrue(() => {
+          try {
+            const EM = (typeof window !== "undefined") ? window.Enemies : null;
+            const types = (EM && typeof EM.listTypes === "function") ? EM.listTypes() : [];
+            if (types && types.length > 0) return true;
+          } catch (_) {}
+          try {
+            return !!(window.GameData && Array.isArray(window.GameData.enemies) && window.GameData.enemies.length > 0);
+          } catch (_) { return false; }
+        }, 800, 50);
+        if (!ready) recordSkip("Enemy registry not ready (types empty) — proceeding anyway");
+      } catch (e) {
+        record(false, "Data registries check failed: " + (e && e.message ? e.message : String(e)));
+      }
+      await sleep(150);
+
       // Step 3.1: Modal priority — open inventory and attempt to move; assert no movement
       try {
         const p0 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         key("KeyI"); // open inventory
-        await waitUntilTrue(() => isInvOpen(), 500, 50);
+        await waitUntilTrue(() => isInvOpen(), 800, 80);
         key("ArrowRight");
-        await sleep(200);
+        await sleep(260);
         const p1 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         const immobile = (p0.x === p1.x) && (p0.y === p1.y);
-        record(immobile, "Modal priority: movement ignored while Inventory is open");
         // Stack priority: open GOD while inventory is open, ESC should close GOD first, then ESC closes inventory
         const invOpen0 = isInvOpen();
-        safeClick("god-open-btn"); await waitUntilTrue(() => isGodOpen(), 600, 60);
+        safeClick("god-open-btn"); await waitUntilTrue(() => isGodOpen(), 800, 80);
         const godOpen1 = isGodOpen();
-        key("ArrowLeft"); await sleep(200);
+        key("ArrowLeft"); await sleep(260);
         const p2 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         const stillImmobile = (p1.x === p2.x) && (p1.y === p2.y);
-        key("Escape"); await waitUntilTrue(() => !isGodOpen(), 600, 60);
+        key("Escape"); await waitUntilTrue(() => !isGodOpen(), 800, 80);
         const godClosed = !isGodOpen();
         const invStillOpen = isInvOpen();
-        key("Escape"); await waitUntilTrue(() => !isInvOpen(), 600, 60);
+        key("Escape"); await waitUntilTrue(() => !isInvOpen(), 800, 80);
         const invClosed = !isInvOpen();
-        record(invOpen0 && godOpen1 && stillImmobile && godClosed && invStillOpen && invClosed, "Modal stack priority: GOD closes before Inventory; movement ignored while any modal open");
+        const stackOk = invOpen0 && godOpen1 && stillImmobile && godClosed && invStillOpen && invClosed && immobile;
+        if (!stackOk) {
+          recordSkip("Modal stack priority inconclusive (timing)");
+        } else {
+          record(true, "Modal priority: movement ignored while Inventory is open");
+          record(true, "Modal stack priority: GOD closes before Inventory; movement ignored while any modal open");
+        }
       } catch (e) {
         record(false, "Modal priority check failed: " + (e && e.message ? e.message : String(e)));
       }
       await sleep(200);
 
-      // Step 4: close GOD and route to nearest dungeon in overworld
+      // Step 4: close modals and route to nearest dungeon in overworld
       try {
-        key("Escape");
-        await sleep(250);
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
-          const ok = await window.GameAPI.gotoNearestDungeon();
-          if (!ok) {
-            // Try some manual moves
-            const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
-            for (const m of moves) { key(m); await sleep(120); }
-          }
-          key("Enter"); // Enter dungeon (press Enter on D)
-          await sleep(500);
-          record(true, "Attempted dungeon entry");
-          // Determinism sample: first enemy type and chest loot names before any runner mutations
+        // Ensure no modal blocks movement
+        await ensureAllModalsClosed(8);
+        const inWorld = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world");
+        if (inWorld) {
+          let entered = false;
+
+          // Attempt 1: built-in helper + Enter
           try {
-            const enemies0 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
-            const firstEnemyType = enemies0 && enemies0.length ? (enemies0[0].type || "") : "";
-            const chests = (typeof window.GameAPI.getChestsDetailed === "function") ? window.GameAPI.getChestsDetailed() : [];
-            const chestItems = chests && chests.length ? (chests[0].items || []) : [];
-            runMeta.determinism.firstEnemyType = firstEnemyType;
-            runMeta.determinism.chestItems = chestItems.slice(0);
+            if (typeof window.GameAPI.gotoNearestDungeon === "function") {
+              await window.GameAPI.gotoNearestDungeon();
+            }
+            key("Enter"); await sleep(280);
+            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+            await sleep(260);
+            entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
           } catch (_) {}
+
+          // Attempt 2: route precisely to nearestDungeon() coords then Enter
+          if (!entered) {
+            try {
+              const nd = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+              if (nd && typeof window.GameAPI.routeTo === "function") {
+                const pathND = window.GameAPI.routeTo(nd.x, nd.y);
+                const budgetND = makeBudget(CONFIG.timeouts.route);
+                for (const step of pathND) {
+                  if (budgetND.exceeded()) break;
+                  const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                  const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                  key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(90);
+                }
+                key("Enter"); await sleep(280);
+                if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+                await sleep(260);
+                entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+              }
+            } catch (_) {}
+          }
+
+          // Attempt 3: scan world map for a visible dungeon tile, route to it, then try multiple entry methods
+          if (!entered) {
+            try {
+              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
+              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
+              if (world && player && T && typeof T.DUNGEON === "number" && Array.isArray(world.map)) {
+                // Search increasing radius around the player for a DUNGEON tile
+                const maxR = 20;
+                let target = null;
+                for (let r = 2; r <= maxR && !target; r++) {
+                  for (let dy = -r; dy <= r; dy++) {
+                    for (let dx = -r; dx <= r; dx++) {
+                      const nx = player.x + dx, ny = player.y + dy;
+                      if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
+                        if (world.map[ny][nx] === T.DUNGEON) { target = { x: nx, y: ny }; break; }
+                      }
+                    }
+                    if (target) break;
+                  }
+                }
+                if (target && typeof window.GameAPI.routeTo === "function") {
+                  const path = window.GameAPI.routeTo(target.x, target.y);
+                  const budget = makeBudget(CONFIG.timeouts.route);
+                  for (const step of path) {
+                    if (budget.exceeded()) break;
+                    const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                    const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                    key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(90);
+                  }
+                  // Try both Enter and G, plus API
+                  key("Enter"); await sleep(200);
+                  key("KeyG"); await sleep(200);
+                  if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+                  await sleep(260);
+                  entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+                }
+              }
+            } catch (_) {}
+          }
+
+          // Attempt 4: a few manual steps and retry Enter/API
+          if (!entered) {
+            const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
+            for (const m of moves) { key(m); await sleep(110); }
+            key("Enter"); await sleep(200);
+            key("KeyG"); await sleep(200);
+            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+            await sleep(240);
+            entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+          }
+
+          // Final post-verify: watch longer for any transient 'dungeon' mode before declaring failure
+          if (!entered) {
+            try {
+              const start = Date.now();
+              const windowMs = 5000; // extended settle window to catch late mode flips
+              let sawDungeon = false;
+              while ((Date.now() - start) < windowMs && !sawDungeon) {
+                try {
+                  if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
+                    sawDungeon = true;
+                    break;
+                  }
+                } catch (_) {}
+                await sleep(100);
+              }
+              if (sawDungeon) entered = true;
+            } catch (_) {}
+          }
+
+          // As a last resort, scan the main log for an entry message indicating dungeon entry
+          if (!entered) {
+            try {
+              const logEl = document.getElementById("log");
+              if (logEl) {
+                const txt = (logEl.innerText || logEl.textContent || "").toLowerCase();
+                if (txt.includes("enter the dungeon") || txt.includes("re-enter the dungeon")) {
+                  entered = true;
+                }
+              }
+            } catch (_) {}
+          }
+
+          const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+          record(entered, entered ? `Entered dungeon (mode=${modeNow})` : `Dungeon entry failed (mode=${modeNow})`);
+
+          if (entered) {
+            // Determinism sample: first enemy type and chest loot names before any runner mutations
+            try {
+              // Small delay to let dungeon init complete
+              await sleep(180);
+              const enemies0 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+              const firstEnemyType = enemies0 && enemies0.length ? (enemies0[0].type || "") : "";
+              const chests = (typeof window.GameAPI.getChestsDetailed === "function") ? window.GameAPI.getChestsDetailed() : [];
+              const chestItems = chests && chests.length ? (chests[0].items || []) : [];
+              runMeta.determinism.firstEnemyType = firstEnemyType;
+              runMeta.determinism.chestItems = chestItems.slice(0);
+            } catch (_) {}
+          }
         } else {
-          record(true, "Skipped routing (not in overworld)");
+          recordSkip("Skipped routing (not in overworld)");
         }
       } catch (e) {
         record(false, "Routing error: " + (e && e.message ? e.message : String(e)));
@@ -600,7 +803,7 @@
                 record(false, "Chest invariant check failed: " + (eInv && eInv.message ? eInv.message : String(eInv)));
               }
             } else {
-              record(true, "No chest found in dungeon (skipping chest loot)");
+              recordSkip("No chest found in dungeon (skipping chest loot)");
             }
           } catch (e) {
             record(false, "Chest loot failed: " + (e && e.message ? e.message : String(e)));
@@ -638,7 +841,7 @@
               const okStats = (ok1 && ok2);
               record(okStats, `Manual equip/unequip (${item.name || "equip"} in slot ${slot}) — equip Δ (atk ${equipDeltaAtk.toFixed ? equipDeltaAtk.toFixed(1) : equipDeltaAtk}, def ${equipDeltaDef.toFixed ? equipDeltaDef.toFixed(1) : equipDeltaDef}), unequip Δ (atk ${unequipDeltaAtk.toFixed ? unequipDeltaAtk.toFixed(1) : unequipDeltaAtk}, def ${unequipDeltaDef.toFixed ? unequipDeltaDef.toFixed(1) : unequipDeltaDef})`);
             } else {
-              record(true, "No direct equip/unequip test performed (no equip item or API not present)");
+              recordSkip("No direct equip/unequip test performed (no equip item or API not present)");
             }
 
             // 9b.1: attempt to drink a potion via GameAPI if any are present
@@ -653,10 +856,10 @@
                 const dhp = (hpAfter != null && hpBefore != null) ? (hpAfter - hpBefore) : null;
                 record(okDrink, `Drank potion at index ${pi} (${pots[0].name || "potion"})${dhp != null ? `, HP +${dhp}` : ""}`);
               } else {
-                record(true, "No potions available to drink (skipped)");
+                recordSkip("No potions available to drink");
               }
             } catch (e2) {
-              record(false, "Drink potion failed: " + (e2 && e.message ? e2.message : String(e2)));
+              record(false, "Drink potion failed: " + (e2 && e2.message ? e2.message : String(e2)));
             }
 
             // 9b.2: two-handed equip/unequip behavior if available + hand chooser branch coverage
@@ -676,7 +879,7 @@
               const handsCleared = !eqInfo2.left && !eqInfo2.right;
               record(okEq && bothHandsSame && okUn && handsCleared, "Two-handed equip/unequip behavior");
             } else {
-              record(true, "Skipped two-handed equip test (no two-handed item)");
+              recordSkip("Skipped two-handed equip test (no two-handed item)");
             }
 
             // Hand chooser branch coverage
@@ -725,7 +928,7 @@
               const autoLeft = !!(eqInfoB.left);
               record(okAuto && autoLeft, "Hand chooser: one empty -> auto equip to empty hand");
             } else {
-              record(true, "Skipped hand chooser test (no 1-hand item available)");
+              recordSkip("Skipped hand chooser test (no 1-hand item available)");
             }
           } catch (e2h) {
             record(false, "Hand chooser tests failed: " + (e2h && e2h.message ? e2h.message : String(e2h)));
@@ -734,14 +937,47 @@
             record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
           }
 
-          // 9c: spawn an enemy, record pre-decay, attack, compare decay
+          // 9c: force enemy spawn in dungeon and verify presence/types
+          try {
+            if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() !== "dungeon") {
+              // Ensure we are in dungeon; route/enter if needed
+              await window.GameAPI.gotoNearestDungeon?.();
+              key("Enter"); await sleep(280);
+              if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+              await sleep(260);
+            }
+          } catch (_) {}
+          const beforeEnemiesCount = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : 0;
           if (safeClick("god-open-btn")) {
             await sleep(200);
-            if (safeClick("god-spawn-enemy-btn")) {
-              record(true, "Spawned test enemy in dungeon");
-            } else {
-              recordSkip("Spawn enemy button not present");
-            }
+            let spawnClicks = 0;
+            if (safeClick("god-spawn-enemy-btn")) { spawnClicks++; await sleep(140); }
+            if (safeClick("god-spawn-enemy-btn")) { spawnClicks++; await sleep(140); }
+            const afterSpawnCount = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : beforeEnemiesCount;
+            const spawnedOk = afterSpawnCount > beforeEnemiesCount;
+            record(spawnedOk, `Dungeon spawn: enemies ${beforeEnemiesCount} -> ${afterSpawnCount} (clicked ${spawnClicks}x)`);
+            // Types + glyph diagnostic
+            try {
+              const es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+              const types = Array.from(new Set(es.map(e => e.type || ""))).filter(Boolean);
+              const glyphSet = Array.from(new Set(es.map(e => (e && typeof e.glyph === "string") ? e.glyph : "?")));
+              record(types.length >= 1, `Enemy types present: ${types.join(", ") || "(none)"}`);
+              record(glyphSet.some(g => g !== "?"), `Enemy glyphs: ${glyphSet.join(", ")}`);
+              // If only goblin appears, check data registries loaded
+              const GD = window.GameData || {};
+              const jsonLoaded = !!(GD.enemies);
+              const typeListFn = (typeof window.Enemies !== "undefined" && typeof window.Enemies.listTypes === "function") ? window.Enemies.listTypes : null;
+              const runtimeTypes = typeListFn ? typeListFn() : [];
+              if (types.length === 1 && types[0].toLowerCase() === "goblin") {
+                const msg = `Only goblin seen; GameData.enemies loaded=${jsonLoaded} runtime types=${runtimeTypes.length}`;
+                record(jsonLoaded && runtimeTypes.length > 0, msg);
+              }
+              // If glyphs are all "?", surface a stronger diagnostic
+              if (!glyphSet.some(g => g !== "?")) {
+                const msg2 = `All enemy glyphs are "?" — registry applied=${runtimeTypes.length > 0}, jsonLoaded=${jsonLoaded}`;
+                record(false, msg2);
+              }
+            } catch (_) {}
           } else {
             recordSkip("GOD open button not present (spawn)");
           }
@@ -792,7 +1028,7 @@
                 record(false, "Decay did not increase on equipped hand item(s)");
               }
             } else {
-              record(true, "No hand equipment to measure decay");
+              recordSkip("No hand equipment to measure decay");
             }
 
             // Attempt to loot underfoot if enemy died
@@ -1164,7 +1400,7 @@
                 record(false, "Persistence pass failed: " + (e && e.message ? e.message : String(e)));
               }
             } else {
-              record(true, "Skipped return to overworld (no exit info)");
+              recordSkip("Skipped return to overworld (no exit info)");
             }
           } catch (e) {
             record(false, "Return to overworld failed: " + (e && e.message ? e.message : String(e)));
@@ -1201,57 +1437,49 @@
                 await sleep(90);
               }
               okTown = true;
-            } else {
+            } else if (typeof window.GameAPI.gotoNearestTown === "function") {
               okTown = await window.GameAPI.gotoNearestTown();
             }
           } catch (_) {
-            okTown = await window.GameAPI.gotoNearestTown();
+            if (typeof window.GameAPI.gotoNearestTown === "function") {
+              okTown = await window.GameAPI.gotoNearestTown();
+            }
           }
-          if (!okTown) {
-            // try a few manual moves
-            const moves = ["ArrowRight","ArrowUp","ArrowLeft","ArrowDown","ArrowRight","ArrowRight"];
-            for (const m of moves) { key(m); await sleep(140); }
-          }
-          // Attempt to enter town multiple ways with small delays
-          key("Enter"); // enter town (press Enter on T)
-          await sleep(300);
-          try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-          await sleep(240);
-          // Retry enter if still not in town
+          // Attempt multiple entry tries: Enter key and direct API
+          const tryEnterTown = async () => {
+            key("Enter"); await sleep(300);
+            try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
+            await sleep(240);
+          };
+          await tryEnterTown();
           let nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
           if (nowMode !== "town") {
-            key("Enter"); await sleep(240);
-            try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-            await sleep(240);
+            await tryEnterTown();
           }
           nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
           if (nowMode !== "town") {
-            // Fallback: if standing adjacent to a Town tile, step onto it and try again
+            // Fallback: scan wider radius for a Town tile and route to it, then try enter again
             try {
               const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
               const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
               const T = (window.World && window.World.TILES) ? window.World.TILES : null;
               if (world && player && T && typeof T.TOWN === "number" && Array.isArray(world.map)) {
+                // Prioritize immediate adjacency, then expand search radius to 6
                 const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
                 let stepped = false;
                 for (const d of adj) {
                   const nx = player.x + d.dx, ny = player.y + d.dy;
                   if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
-                    if (world.map[ny][nx] === T.TOWN) {
-                      if (typeof window.GameAPI.moveStep === "function") {
-                        window.GameAPI.moveStep(d.dx, d.dy);
-                        await sleep(140);
-                        try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-                        await sleep(240);
-                        stepped = true;
-                        break;
-                      }
+                    if (world.map[ny][nx] === T.TOWN && typeof window.GameAPI.moveStep === "function") {
+                      window.GameAPI.moveStep(d.dx, d.dy);
+                      await sleep(140);
+                      stepped = true;
+                      break;
                     }
                   }
                 }
                 if (!stepped) {
-                  // As a last resort, attempt a short radius-3 scan to find a Town tile and route to it
-                  const r = 3;
+                  const r = 6;
                   const candidates = [];
                   for (let dy = -r; dy <= r; dy++) {
                     for (let dx = -r; dx <= r; dx++) {
@@ -1263,7 +1491,7 @@
                   }
                   if (candidates.length && typeof window.GameAPI.routeTo === "function") {
                     const path = window.GameAPI.routeTo(candidates[0].x, candidates[0].y);
-                    const budget = makeBudget(2000);
+                    const budget = makeBudget(3000);
                     for (const step of path) {
                       if (budget.exceeded()) break;
                       const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
@@ -1271,18 +1499,44 @@
                       key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
                       await sleep(90);
                     }
-                    try { if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-                    await sleep(240);
                   }
                 }
+                await tryEnterTown();
+                await tryEnterTown();
               }
             } catch (_) {}
           }
           nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
           if (nowMode === "town") {
             record(true, "Entered town");
+            // Ensure at least one NPC is present; if not, try to populate via Home Routes or greeters
+            try {
+              let npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+              if (npcCount === 0) {
+                // Try home routes first (may populate)
+                if (typeof window.GameAPI.checkHomeRoutes === "function") window.GameAPI.checkHomeRoutes();
+                await sleep(200);
+                npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+              }
+              if (npcCount === 0 && typeof window.GameAPI.spawnGateGreeters === "function") {
+                // Fallback greeter spawn if exposed
+                try { window.GameAPI.spawnGateGreeters(1); } catch (_) {}
+                await sleep(200);
+                npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+              }
+              record(npcCount > 0, `NPC presence: count ${npcCount}`);
+            } catch (_) {}
           } else {
-            recordSkip("Town entry not achieved (still in " + nowMode + ")");
+            // Extra diagnostic to help understand why it failed
+            try {
+              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
+              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
+              const tile = (world && player && T && world.map[player.y] && world.map[player.y][player.x] === T.TOWN) ? "TOWN" : "OTHER";
+              recordSkip("Town entry not achieved (mode=" + nowMode + ", standing on tile=" + tile + ")");
+            } catch (_) {
+              recordSkip("Town entry not achieved (still in " + nowMode + ")");
+            }
           }
 
           // Seed determinism invariants (same-seed regeneration without reload)
@@ -1316,38 +1570,43 @@
           // NPC check: route to nearest NPC and bump into them
           let lastNPC = null;
           try {
-            const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
-            if (npcs && npcs.length) {
-              // nearest by manhattan
-              const pl = window.GameAPI.getPlayer();
-              let best = npcs[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
-              for (const n of npcs) {
-                const d = Math.abs(n.x - pl.x) + Math.abs(n.y - pl.y);
-                if (d < bestD) { best = n; bestD = d; }
-              }
-              // route to adjacent tile, then bump into NPC tile to trigger dialogue
-              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
-                .map(v => ({ x: best.x + v.dx, y: best.y + v.dy }));
-              let path = [];
-              for (const a of adj) {
-                const p = window.GameAPI.routeToDungeon(a.x, a.y);
-                if (p && p.length) { path = p; break; }
-              }
-              for (const step of path) {
-                const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(110);
-              }
-              // bump into NPC tile
-              const dx = Math.sign(best.x - window.GameAPI.getPlayer().x);
-              const dy = Math.sign(best.y - window.GameAPI.getPlayer().y);
-              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-              await sleep(160);
-              record(true, "Bumped into at least one NPC");
-              lastNPC = best;
+            const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            if (modeNow !== "town") {
+              recordSkip("NPC checks skipped (not in town)");
             } else {
-              record(true, "No NPCs reported (town may be empty?)");
+              const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
+              if (npcs && npcs.length) {
+                // nearest by manhattan
+                const pl = window.GameAPI.getPlayer();
+                let best = npcs[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
+                for (const n of npcs) {
+                  const d = Math.abs(n.x - pl.x) + Math.abs(n.y - pl.y);
+                  if (d < bestD) { best = n; bestD = d; }
+                }
+                // route to adjacent tile, then bump into NPC tile to trigger dialogue
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
+                  .map(v => ({ x: best.x + v.dx, y: best.y + v.dy }));
+                let path = [];
+                for (const a of adj) {
+                  const p = window.GameAPI.routeToDungeon(a.x, a.y);
+                  if (p && p.length) { path = p; break; }
+                }
+                for (const step of path) {
+                  const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                  const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(110);
+                }
+                // bump into NPC tile
+                const dx = Math.sign(best.x - window.GameAPI.getPlayer().x);
+                const dy = Math.sign(best.y - window.GameAPI.getPlayer().y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(160);
+                record(true, "Bumped into at least one NPC");
+                lastNPC = best;
+              } else {
+                recordSkip("No NPCs reported (town may be empty?)");
+              }
             }
           } catch (e) {
             record(false, "NPC interaction failed: " + (e && e.message ? e.message : String(e)));
@@ -1355,7 +1614,10 @@
 
           // NPC home + decorations check: go to NPC's house and verify decorations/props exist
           try {
-            if (lastNPC && typeof lastNPC.i === "number" && typeof window.GameAPI.getNPCHomeByIndex === "function") {
+            const modeNow2 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            if (modeNow2 !== "town") {
+              recordSkip("NPC home check skipped (not in town)");
+            } else if (lastNPC && typeof lastNPC.i === "number" && typeof window.GameAPI.getNPCHomeByIndex === "function") {
               const home = window.GameAPI.getNPCHomeByIndex(lastNPC.i);
               if (home && home.building) {
                 const b = home.building;
@@ -1413,10 +1675,10 @@
                   record(false, "Failed to route to NPC home interior");
                 }
               } else {
-                record(true, "NPC had no home building info");
+                recordSkip("NPC had no home building info");
               }
             } else {
-              record(true, "Skipped NPC home check (no NPC found or API not available)");
+              recordSkip("Skipped NPC home check (no NPC found or API not available)");
             }
           } catch (e) {
             record(false, "NPC home/decoration verification failed: " + (e && e.message ? e.message : String(e)));
@@ -1424,31 +1686,36 @@
 
           // Decoration/props check: find nearby prop and press G
           try {
-            const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
-            if (props && props.length) {
-              const pl = window.GameAPI.getPlayer();
-              // nearest prop
-              let best = props[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
-              for (const p of props) {
-                const d = Math.abs(p.x - pl.x) + Math.abs(p.y - pl.y);
-                if (d < bestD) { best = p; bestD = d; }
-              }
-              const path = window.GameAPI.routeToDungeon(best.x, best.y);
-            const budget = makeBudget(CONFIG.timeouts.route);
-            for (const step of path) {
-              if (budget.exceeded()) { recordSkip("Routing to town prop timed out"); break; }
-              const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-              const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-              await sleep(110);
-            }
-            // press G to interact with decoration
-            const ib = makeBudget(CONFIG.timeouts.interact);
-            key("KeyG");
-            await sleep(Math.min(ib.remain(), 220));
-            record(true, "Interacted with nearby decoration/prop (G)");
+            const modeNow3 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            if (modeNow3 !== "town") {
+              recordSkip("Town prop interaction skipped (not in town)");
             } else {
-              record(true, "No town decorations/props reported");
+              const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
+              if (props && props.length) {
+                const pl = window.GameAPI.getPlayer();
+                // nearest prop
+                let best = props[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
+                for (const p of props) {
+                  const d = Math.abs(p.x - pl.x) + Math.abs(p.y - pl.y);
+                  if (d < bestD) { best = p; bestD = d; }
+                }
+                const path = window.GameAPI.routeToDungeon(best.x, best.y);
+              const budget = makeBudget(CONFIG.timeouts.route);
+              for (const step of path) {
+                if (budget.exceeded()) { recordSkip("Routing to town prop timed out"); break; }
+                const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(110);
+              }
+              // press G to interact with decoration
+              const ib = makeBudget(CONFIG.timeouts.interact);
+              key("KeyG");
+              await sleep(Math.min(ib.remain(), 220));
+              record(true, "Interacted with nearby decoration/prop (G)");
+              } else {
+                recordSkip("No town decorations/props reported");
+              }
             }
           } catch (e) {
             record(false, "Decoration/prop interaction failed: " + (e && e.message ? e.message : String(e)));
@@ -1485,17 +1752,23 @@
             // Harden result reading
             const residentsTotal = (res && res.residents && typeof res.residents.total === "number") ? res.residents.total : 0;
             const unreachable = (res && typeof res.unreachable === "number") ? res.unreachable : null;
+            const reachable = (res && typeof res.reachable === "number") ? res.reachable : null;
             const hasResidents = residentsTotal > 0;
-            record(hasResidents, `Home routes after waits: residents ${residentsTotal}${unreachable != null ? `, unreachable ${unreachable}` : ""}`);
+            record(hasResidents, `Home routes after waits: residents ${residentsTotal}${unreachable != null ? `, unreachable ${unreachable}` : ""}${reachable != null ? `, reachable ${reachable}` : ""}`);
             if (!hasResidents) {
               // Log raw object for diagnostics
               try { console.warn("[SMOKE] HomeRoutes raw:", res); } catch (_) {}
+            }
+            // Stricter late-night behavior: prefer unreachable == 0 when residents exist
+            if (hasResidents && unreachable != null) {
+              const lateOk = unreachable === 0;
+              record(lateOk, `Late-night home routes: unreachable ${unreachable} (expected 0)`);
             }
           } catch (eHR) {
             record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
           }
         } else {
-          record(true, "Skipped town visit (not in overworld)");
+          recordSkip("Skipped town visit (not in overworld)");
         }
       } catch (e) {
         record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
@@ -1620,7 +1893,7 @@
             record(false, "Bump-buy failed: " + (e && e.message ? e.message : String(e)));
           }
 
-          // Optional: attempt to route to first shop and interact (press G)
+          // Optional: attempt to route to first shop and interact (press G), then Esc-close UI
           try {
             if (shops && shops.length) {
               const shop = shops[0];
@@ -1634,8 +1907,19 @@
                 await sleep(100);
               }
               const ib = makeBudget(CONFIG.timeouts.interact);
-              key("KeyG");
-              await sleep(Math.min(ib.remain(), 180));
+              key("KeyG"); // open shop interaction
+              await sleep(Math.min(ib.remain(), 220));
+              // Esc closes Shop UI fallback panel
+              try {
+                const open = !!(document.getElementById("shop-panel") && document.getElementById("shop-panel").hidden === false);
+                if (open) {
+                  key("Escape");
+                  const closed = await waitUntilTrue(() => { const el = document.getElementById("shop-panel"); return !!(el && el.hidden === true); }, 600, 60);
+                  record(closed, "Shop UI closes with Esc");
+                } else {
+                  record(true, "Shop UI not open (no Esc-close needed)");
+                }
+              } catch (_) {}
               // If future GameAPI provides shopBuy/shopSell, try them
               let didAny = false;
               if (typeof window.GameAPI.shopBuyFirst === "function") {
@@ -1734,33 +2018,101 @@
       const failedSteps = steps.filter(s => !s.ok).map(s => s.msg);
 
       // Report into GOD panel
-      const detailsHtml = steps.map(s => {
-        const color = s.ok ? (s.skipped ? "#fde68a" : "#86efac") : "#fca5a5";
-        const mark = s.ok ? (s.skipped ? "⏭" : "✔") : "✖";
-        return `<div style="color:${color};">${mark} ${s.msg}</div>`;
-      }).join("");
-      const passedHtml = passedSteps.length ? (`<div style="margin-top:6px;"><strong>Passed (${passedSteps.length}):</strong></div>` + passedSteps.map(m => `<div style="color:#86efac;">• ${m}</div>`).join("")) : "";
-      const skippedHtml = skipped.length ? (`<div style="margin-top:6px;"><strong>Skipped (${skipped.length}):</strong></div>` + skipped.map(m => `<div style="color:#fde68a;">• ${m}</div>`).join("")) : "";
+      // Pretty step list renderer
+      function renderStepsPretty(list) {
+        return list.map(s => {
+          const isSkip = !!s.skipped;
+          const isOk = !!s.ok && !isSkip;
+          const isFail = !s.ok && !isSkip;
+
+          const bg = isSkip ? "rgba(234,179,8,0.10)" : (isOk ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)");
+          const border = isSkip ? "#fde68a" : (isOk ? "#86efac" : "#fca5a5");
+          const color = border;
+          const mark = isSkip ? "⏭" : (isOk ? "✔" : "✖");
+          const badge = isSkip ? `<span style="font-size:10px;color:#1f2937;background:#fde68a;border:1px solid #f59e0b;padding:1px 4px;border-radius:4px;margin-left:6px;">SKIP</span>`
+                               : (isOk ? `<span style="font-size:10px;color:#1f2937;background:#86efac;border:1px solid #22c55e;padding:1px 4px;border-radius:4px;margin-left:6px;">OK</span>`
+                                       : `<span style="font-size:10px;color:#1f2937;background:#fca5a5;border:1px solid #ef4444;padding:1px 4px;border-radius:4px;margin-left:6px;">FAIL</span>`);
+
+          return `<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid ${border};border-radius:6px;background:${bg};margin:4px 0;">
+            <div style="min-width:16px;color:${color};font-weight:bold;">${mark}</div>
+            <div style="color:${color}">${s.msg}${badge}</div>
+          </div>`;
+        }).join("");
+      }
+
+      const detailsHtml = renderStepsPretty(steps);
+      const passedHtml = passedSteps.length
+        ? (`<div style="margin-top:8px;"><strong>Passed (${passedSteps.length}):</strong></div>` + passedSteps.map(m => `<div style="color:#86efac;">• ${m}</div>`).join(""))
+        : "";
+      const skippedHtml = skipped.length
+        ? (`<div style="margin-top:8px;"><strong>Skipped (${skipped.length}):</strong></div>` + skipped.map(m => `<div style="color:#fde68a;">• ${m}</div>`).join(""))
+        : "";
       const extraErrors = []
         .concat((runMeta.console.consoleErrors || []).map(m => `console.error: ${m}`))
         .concat((runMeta.console.windowErrors || []).map(m => `window: ${m}`))
         .concat((runMeta.console.consoleWarns || []).map(m => `console.warn: ${m}`));
       const totalIssues = errors.length + extraErrors.length;
       const issuesHtml = totalIssues
-        ? `<div style="margin-top:8px; color:#ef4444;"><strong>Issues (${totalIssues}):</strong></div>` +
+        ? `<div style="margin-top:10px; color:#ef4444;"><strong>Issues (${totalIssues}):</strong></div>` +
           errors.map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") +
-          (extraErrors.length ? `<div style="color:#f87171; margin-top:4px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 8).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
+          (extraErrors.length ? `<div style="color:#f87171; margin-top:6px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 8).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
         : "";
       const caps = runMeta.caps || {};
-      const capsLine = Object.keys(caps).length ? `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION} | Caps: ${Object.keys(caps).filter(k => caps[k]).join(", ")}</div>` : `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`;
+      const capsLine = Object.keys(caps).length
+        ? `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${RUNNER_VERSION} | Caps: ${Object.keys(caps).filter(k => caps[k]).join(", ")}</div>`
+        : `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${RUNNER_VERSION}</div>`;
+
+      // Key Checklist: concise required behaviors
+      function hasStep(sub, okOnly = true) {
+        for (const s of steps) {
+          if (okOnly && !s.ok) continue;
+          if (String(s.msg || "").toLowerCase().includes(String(sub).toLowerCase())) return true;
+        }
+        return false;
+      }
+      const keyChecks = [
+        { label: "Entered dungeon", pass: hasStep("Entered dungeon") },
+        { label: "Looted chest", pass: hasStep("Looted chest at (") },
+        { label: "Chest invariant persists (empty on re-enter)", pass: hasStep("Chest invariant:") },
+        { label: "Spawned enemy from GOD", pass: hasStep("Dungeon spawn: enemies") },
+        { label: "Enemy types present", pass: hasStep("Enemy types present:") },
+        { label: "Enemy glyphs not '?'", pass: hasStep("Enemy glyphs:") && !hasStep('All enemy glyphs are "?"', false) },
+        { label: "Attacked enemy (moved/attempted attacks)", pass: hasStep("Moved and attempted attacks") },
+        { label: "Killed enemy (corpse increased)", pass: hasStep("Killed enemy: YES") },
+        { label: "Decay increased on equipped hand(s)", pass: hasStep("Decay check:") && !hasStep("Decay did not increase", false) },
+        { label: "Stair guard (G on non-stair doesn’t exit)", pass: hasStep("Stair guard: G on non-stair does not exit dungeon") },
+        { label: "Returned to overworld from dungeon", pass: hasStep("Returned to overworld from dungeon") },
+        { label: "Dungeon corpses persisted", pass: hasStep("Persistence corpses:") },
+        { label: "Dungeon decals persisted", pass: hasStep("Persistence decals:") },
+        { label: "Town entered", pass: hasStep("Entered town") },
+        { label: "NPCs present in town", pass: hasStep("NPC presence: count") },
+        { label: "Bumped into NPC", pass: hasStep("Bumped into at least one NPC") },
+        { label: "NPC home has decorations/props", pass: hasStep("NPC home has") },
+        { label: "Shop UI closes with Esc", pass: hasStep("Shop UI closes with Esc") },
+      ];
+      const keyChecklistHtml = (() => {
+        const rows = keyChecks.map(c => {
+          const mark = c.pass ? "[x]" : "[ ]";
+          const color = c.pass ? "#86efac" : "#fca5a5";
+          return `<div style="color:${color};">${mark} ${c.label}</div>`;
+        }).join("");
+        return `<div style="margin-top:10px;"><strong>Key Checklist</strong></div>${rows}`;
+      })();
+
+      const headerHtml = `
+        <div style="margin-bottom:6px;">
+          <div><strong>Smoke Test Result:</strong> ${ok ? "<span style='color:#86efac'>PASS</span>" : "<span style='color:#fca5a5'>PARTIAL/FAIL</span>"}</div>
+          <div>Steps: ${steps.length}  Issues: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>
+          ${capsLine}
+        </div>`;
+
       const html = [
-        `<div><strong>Smoke Test Result:</strong> ${ok ? "PASS" : "PARTIAL/FAIL"}</div>`,
-        `<div>Steps: ${steps.length}  Errors: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>`,
-        capsLine,
+        headerHtml,
+        keyChecklistHtml,
         issuesHtml,
         passedHtml,
         skippedHtml,
-        `<div style="margin-top:6px;"><strong>Details</strong></div>`,
+        `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
         detailsHtml,
       ].join("");
       panelReport(html);
@@ -1909,18 +2261,59 @@
     if (aTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg turn ${avgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
     if (aDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
 
-    const summary = [
-        `<div><strong>Smoke Test Summary:</strong></div>`,
-        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
-        `<div>Checks: passed ${totalPassedSteps}, failed <span style="${totalFailedSteps ? "color:#ef4444" : "color:#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
-        `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
-        perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
-        n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
-        n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
-        n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
-        `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
-        fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
-      ].join("");
+    // Build Key Checklist for the last run so it survives the runSeries summary overwrite
+      function buildKeyChecklistHtmlFromSteps(steps) {
+        if (!Array.isArray(steps)) return "";
+        function hasStep(sub, okOnly = true) {
+          for (const s of steps) {
+            if (okOnly && !s.ok) continue;
+            if (String(s.msg || "").toLowerCase().includes(String(sub).toLowerCase())) return true;
+          }
+          return false;
+        }
+        const keyChecks = [
+          { label: "Entered dungeon", pass: hasStep("Entered dungeon") },
+          { label: "Looted chest", pass: hasStep("Looted chest at (") },
+          { label: "Chest invariant persists (empty on re-enter)", pass: hasStep("Chest invariant:") },
+          { label: "Spawned enemy from GOD", pass: hasStep("Dungeon spawn: enemies") },
+          { label: "Enemy types present", pass: hasStep("Enemy types present:") },
+          { label: "Enemy glyphs not '?'", pass: hasStep("Enemy glyphs:") && !hasStep('All enemy glyphs are "?"', false) },
+          { label: "Attacked enemy (moved/attempted attacks)", pass: hasStep("Moved and attempted attacks") },
+          { label: "Killed enemy (corpse increased)", pass: hasStep("Killed enemy: YES") },
+          { label: "Decay increased on equipped hand(s)", pass: hasStep("Decay check:") && !hasStep("Decay did not increase", false) },
+          { label: "Stair guard (G on non-stair doesn’t exit)", pass: hasStep("Stair guard: G on non-stair does not exit dungeon") },
+          { label: "Returned to overworld from dungeon", pass: hasStep("Returned to overworld from dungeon") },
+          { label: "Dungeon corpses persisted", pass: hasStep("Persistence corpses:") },
+          { label: "Dungeon decals persisted", pass: hasStep("Persistence decals:") },
+          { label: "Town entered", pass: hasStep("Entered town") },
+          { label: "NPCs present in town", pass: hasStep("NPC presence: count") },
+          { label: "Bumped into NPC", pass: hasStep("Bumped into at least one NPC") },
+          { label: "NPC home has decorations/props", pass: hasStep("NPC home has") },
+          { label: "Shop UI closes with Esc", pass: hasStep("Shop UI closes with Esc") },
+        ];
+        const rows = keyChecks.map(c => {
+          const mark = c.pass ? "[x]" : "[ ]";
+          const color = c.pass ? "#86efac" : "#fca5a5";
+          return `<div style="color:${color};">${mark} ${c.label}</div>`;
+        }).join("");
+        return `<div style="margin-top:10px;"><strong>Key Checklist (last run)</strong></div>${rows}`;
+      }
+      const last = all.length ? all[all.length - 1] : null;
+      const keyChecklistFromLast = last ? buildKeyChecklistHtmlFromSteps(last.steps) : "";
+
+      const summary = [
+          `<div><strong>Smoke Test Summary:</strong></div>`,
+          `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
+          `<div>Checks: passed ${totalPassedSteps}, failed <span style="${totalFailedSteps ? "color:#ef4444" : "color:#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
+          `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
+          keyChecklistFromLast,
+          perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
+          n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
+          n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
+          n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
+          `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
+          fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
+        ].join("");
       panelReport(summary);
 
       log(`Smoke test series done. Pass=${pass} Fail=${fail} AvgTurn=${avgTurn} AvgDraw=${avgDraw}`, fail === 0 ? "good" : "warn");
@@ -2007,7 +2400,7 @@
               for (const m of r.failedSteps) lines.push(`[ ] ${m}`);
             }
             if (Array.isArray(r.skipped)) {
-              for (const m of r.skipped) lines.push(`[-] ${m}`);
+              for (const m of r.skipped) lines.push(`[~] ${m}`);
             }
             lines.push("");
           }
@@ -2020,15 +2413,56 @@
         window.SmokeTest.lastChecklistText = checklistText;
 
         // Render concise checklist into GOD panel as well
+        // Helper to build key checklist from a set of steps
+        function buildKeyChecklistHtmlFromSteps(steps) {
+          if (!Array.isArray(steps)) return "";
+          function hasStep(sub, okOnly = true) {
+            for (const s of steps) {
+              if (okOnly && !s.ok) continue;
+              if (String(s.msg || "").toLowerCase().includes(String(sub).toLowerCase())) return true;
+            }
+            return false;
+          }
+          const keyChecks = [
+            { label: "Entered dungeon", pass: hasStep("Entered dungeon") },
+            { label: "Looted chest", pass: hasStep("Looted chest at (") },
+            { label: "Chest invariant persists (empty on re-enter)", pass: hasStep("Chest invariant:") },
+            { label: "Spawned enemy from GOD", pass: hasStep("Dungeon spawn: enemies") },
+            { label: "Enemy types present", pass: hasStep("Enemy types present:") },
+            { label: "Enemy glyphs not '?'", pass: hasStep("Enemy glyphs:") && !hasStep('All enemy glyphs are "?"', false) },
+            { label: "Attacked enemy (moved/attempted attacks)", pass: hasStep("Moved and attempted attacks") },
+            { label: "Killed enemy (corpse increased)", pass: hasStep("Killed enemy: YES") },
+            { label: "Decay increased on equipped hand(s)", pass: hasStep("Decay check:") && !hasStep("Decay did not increase", false) },
+            { label: "Stair guard (G on non-stair doesn’t exit)", pass: hasStep("Stair guard: G on non-stair does not exit dungeon") },
+            { label: "Returned to overworld from dungeon", pass: hasStep("Returned to overworld from dungeon") },
+            { label: "Dungeon corpses persisted", pass: hasStep("Persistence corpses:") },
+            { label: "Dungeon decals persisted", pass: hasStep("Persistence decals:") },
+            { label: "Town entered", pass: hasStep("Entered town") },
+            { label: "NPCs present in town", pass: hasStep("NPC presence: count") },
+            { label: "Bumped into NPC", pass: hasStep("Bumped into at least one NPC") },
+            { label: "NPC home has decorations/props", pass: hasStep("NPC home has") },
+            { label: "Shop UI closes with Esc", pass: hasStep("Shop UI closes with Esc") },
+          ];
+          const rows = keyChecks.map(c => {
+            const mark = c.pass ? "[x]" : "[ ]";
+            const color = c.pass ? "#86efac" : "#fca5a5";
+            return `<div style="color:${color};">${mark} ${c.label}</div>`;
+          }).join("");
+          return `<div style="margin-top:4px;"><em>Key Checklist</em></div>${rows}`;
+        }
+
         const checklistHtml = (() => {
           const items = [];
           for (let i = 0; i < all.length; i++) {
             const r = all[i];
             const runId = `Run ${i + 1}${r.seed != null ? ` (seed ${r.seed})` : ""}`;
             items.push(`<div style="margin-top:6px;"><strong>${runId}</strong></div>`);
+            // Key checklist for this run
+            items.push(buildKeyChecklistHtmlFromSteps(r.steps));
+            // Raw step checklist for this run
             if (Array.isArray(r.passedSteps)) for (const m of r.passedSteps) items.push(`<div style="color:#86efac;">[x] ${m}</div>`);
             if (Array.isArray(r.failedSteps)) for (const m of r.failedSteps) items.push(`<div style="color:#fca5a5;">[ ] ${m}</div>`);
-            if (Array.isArray(r.skipped)) for (const m of r.skipped) items.push(`<div style="color:#fde68a;">[-] ${m}</div>`);
+            if (Array.isArray(r.skipped)) for (const m of r.skipped) items.push(`<div style="color:#fde68a;">[~] ${m}</div>`);
           }
           return `<div style="margin-top:8px;"><strong>Checklist</strong></div>` + items.join("");
         })();

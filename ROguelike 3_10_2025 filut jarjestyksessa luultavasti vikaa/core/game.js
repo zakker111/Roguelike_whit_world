@@ -608,14 +608,68 @@
       });
     }
     if (!item || item.kind !== "equip") return false;
+
+    // Normalize slot: "hand" items must choose left or right (and may be two-handed)
+    const eq = player.equipment || {};
+    const score = (it) => (it ? ((it.atk || 0) + (it.def || 0)) : -Infinity);
+
+    if (item.slot === "hand") {
+      // Two-handed: occupies both hands; compare against combined current hand score
+      if (item.twoHanded) {
+        const currentLeft = eq.left || null;
+        const currentRight = eq.right || null;
+        const currentScore = score(currentLeft) + score(currentRight);
+        const newScore = (item.atk || 0) + (item.def || 0); // treat two-handed as single score; it's usually higher atk
+        const better = !currentLeft && !currentRight ? true : (newScore > currentScore + 1e-9);
+        if (!better) return false;
+
+        // Equip two-handed: same object in both hands to preserve decay semantics elsewhere
+        eq.left = item;
+        eq.right = item;
+        const parts = [];
+        if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+        if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+        const statStr = parts.join(", ");
+        log(`You equip ${item.name} (two-handed${statStr ? ", " + statStr : ""}).`);
+        updateUI();
+        renderInventoryPanel();
+        return true;
+      }
+
+      // One-handed: prefer empty hand; otherwise replace the weaker hand
+      const leftScore = score(eq.left);
+      const rightScore = score(eq.right);
+      const newScore = (item.atk || 0) + (item.def || 0);
+
+      let target = null;
+      if (!eq.left) target = "left";
+      else if (!eq.right) target = "right";
+      else target = leftScore <= rightScore ? "left" : "right";
+
+      const curScore = target === "left" ? leftScore : rightScore;
+      const better = !eq[target] || newScore > curScore + 1e-9;
+      if (!better) return false;
+
+      eq[target] = item;
+      const parts = [];
+      if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+      if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+      const statStr = parts.join(", ");
+      log(`You equip ${item.name} (${target}${statStr ? ", " + statStr : ""}).`);
+      updateUI();
+      renderInventoryPanel();
+      return true;
+    }
+
+    // Non-hand slots ("head","torso","legs","hands")
     const slot = item.slot;
-    const current = player.equipment[slot];
+    const current = eq[slot];
     const newScore = (item.atk || 0) + (item.def || 0);
-    const curScore = current ? ((current.atk || 0) + (current.def || 0)) : -Infinity;
+    const curScore = score(current);
     const better = !current || newScore > curScore + 1e-9;
 
     if (better) {
-      player.equipment[slot] = item;
+      eq[slot] = item;
       const parts = [];
       if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
       if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
@@ -690,8 +744,8 @@
       updateUI();
       // Unified message: dungeons are single-level; exploration only
       log("You explore the dungeon.");
-      // Save initial dungeon state snapshot
-      saveCurrentDungeonState();
+      // Save initial dungeon state snapshot (log once on entry)
+      saveCurrentDungeonState(true);
       requestDraw();
       return;
     }
@@ -712,10 +766,9 @@
     updateUI();
     // Unified message: dungeons are single-level; exploration only
     log("You explore the dungeon.");
-    // Save fallback dungeon state as well
-    saveCurrentDungeonState();
-    requestDraw();
-  }
+    // Save fallback dungeon state as well (log once on entry)
+    saveCurrentDungeonState(true);
+}
 
   function inBounds(x, y) {
     const mh = map.length || MAP_ROWS;
@@ -731,9 +784,9 @@
     return `${x},${y}`;
   }
 
-  function saveCurrentDungeonState() {
+  function saveCurrentDungeonState(logOnce = false) {
     if (window.DungeonState && typeof DungeonState.save === "function") {
-      try { if (window.DEV) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
+      try { if (window.DEV && logOnce) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
       DungeonState.save(getCtx());
       return;
     }
@@ -750,11 +803,25 @@
       info: currentDungeon,
       level: floor
     };
-    try {
-      const msg = `[DEV] Fallback save key ${key}: enemies=${Array.isArray(enemies)?enemies.length:0}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
-      log(msg, "notice");
-      if (window.DEV) console.log("[TRACE] " + msg);
-    } catch (_) {}
+    if (logOnce) {
+      try {
+        const totalEnemies = Array.isArray(enemies) ? enemies.length : 0;
+        const typeCounts = (() => {
+          try {
+            if (!Array.isArray(enemies) || enemies.length === 0) return "";
+            const mapCounts = {};
+            for (const e of enemies) {
+              const t = (e && e.type) ? String(e.type) : "(unknown)";
+              mapCounts[t] = (mapCounts[t] || 0) + 1;
+            }
+            const parts = Object.keys(mapCounts).sort().map(k => `${k}:${mapCounts[k]}`);
+            return parts.join(", ");
+          } catch (_) { return ""; }
+        })();
+        const msg = `Dungeon snapshot: enemies=${totalEnemies}${typeCounts ? ` [${typeCounts}]` : ""}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
+        log(msg, "notice");
+      } catch (_) {}
+    }
   }
 
   function loadDungeonStateFor(x, y) {
@@ -1441,12 +1508,20 @@
         isInventoryOpen: () => !!(window.UI && UI.isInventoryOpen && UI.isInventoryOpen()),
         isLootOpen: () => !!(window.UI && UI.isLootOpen && UI.isLootOpen()),
         isGodOpen: () => !!(window.UI && UI.isGodOpen && UI.isGodOpen()),
+        // Ensure shop modal is part of the modal stack priority
+        isShopOpen: () => {
+          try {
+            const el = document.getElementById("shop-panel");
+            return !!(el && el.hidden === false);
+          } catch (_) { return false; }
+        },
         // actions
         onRestart: () => restartGame(),
         onShowInventory: () => showInventoryPanel(),
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => { if (window.UI && UI.hideGod) UI.hideGod(); requestDraw(); },
+        onHideShop: () => hideShopPanel(),
         onShowGod: () => {
           if (window.UI) {
             if (typeof UI.setGodFov === "function") UI.setGodFov(fovRadius);
@@ -2018,11 +2093,59 @@
       log("That item cannot be equipped.");
       return;
     }
-    const slot = item.slot || "hand";
-    const prev = player.equipment[slot];
-    player.inventory.splice(idx, 1);
-    player.equipment[slot] = item;
-    const statStr = ("atk" in item) ? `+${item.atk} atk` : ("def" in item) ? `+${item.def} def` : "";
+
+    const eq = player.equipment || {};
+    const takeFromInventory = () => { player.inventory.splice(idx, 1); };
+
+    if (item.slot === "hand") {
+      // Handle two-handed vs one-handed equip consistently
+      takeFromInventory();
+
+      if (item.twoHanded) {
+        // Unequip any existing hand items and stow them
+        if (eq.left) { player.inventory.push(eq.left); }
+        if (eq.right && eq.right !== eq.left) { player.inventory.push(eq.right); }
+        eq.left = item;
+        eq.right = item;
+        const parts = [];
+        if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+        if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+        const statStr = parts.join(", ");
+        log(`You equip ${item.name} (two-handed${statStr ? ", " + statStr : ""}).`);
+        updateUI();
+        renderInventoryPanel();
+        return;
+      }
+
+      // One-handed: prefer an empty hand; otherwise replace left by default
+      let target = null;
+      if (!eq.left) target = "left";
+      else if (!eq.right) target = "right";
+      else target = "left";
+
+      const prev = eq[target] || null;
+      eq[target] = item;
+
+      const parts = [];
+      if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+      if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+      const statStr = parts.join(", ");
+      log(`You equip ${item.name} (${target}${statStr ? ", " + statStr : ""}).`);
+      if (prev) {
+        player.inventory.push(prev);
+        log(`You stow ${describeItem(prev)} into your inventory.`);
+      }
+      updateUI();
+      renderInventoryPanel();
+      return;
+    }
+
+    // Non-hand slots
+    const slot = item.slot;
+    const prev = eq[slot] || null;
+    takeFromInventory();
+    eq[slot] = item;
+    const statStr = ("atk" in item) ? `+${Number(item.atk).toFixed(1)} atk` : ("def" in item) ? `+${Number(item.def).toFixed(1)} def` : "";
     log(`You equip ${item.name} (${slot}${statStr ? ", " + statStr : ""}).`);
     if (prev) {
       player.inventory.push(prev);
@@ -2043,8 +2166,52 @@
       });
       return;
     }
-    // fallback to generic equip if Player module missing
-    equipItemByIndex(idx);
+    // Fallback: explicitly equip to requested hand
+    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
+    const item = player.inventory[idx];
+    if (!item || item.kind !== "equip") {
+      log("That item cannot be equipped.");
+      return;
+    }
+    if (item.slot !== "hand") {
+      // Not a hand item; delegate to generic equip
+      equipItemByIndex(idx);
+      return;
+    }
+    const eq = player.equipment || {};
+    const target = (hand === "right") ? "right" : "left";
+
+    // Two-handed items occupy both hands
+    player.inventory.splice(idx, 1);
+    if (item.twoHanded) {
+      if (eq.left) { player.inventory.push(eq.left); }
+      if (eq.right && eq.right !== eq.left) { player.inventory.push(eq.right); }
+      eq.left = item;
+      eq.right = item;
+      const parts = [];
+      if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+      if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+      const statStr = parts.join(", ");
+      log(`You equip ${item.name} (two-handed${statStr ? ", " + statStr : ""}).`);
+      updateUI();
+      renderInventoryPanel();
+      return;
+    }
+
+    // One-handed: replace only the requested hand
+    const prev = eq[target] || null;
+    eq[target] = item;
+    const parts = [];
+    if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+    if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+    const statStr = parts.join(", ");
+    log(`You equip ${item.name} (${target}${statStr ? ", " + statStr : ""}).`);
+    if (prev) {
+      player.inventory.push(prev);
+      log(`You stow ${describeItem(prev)} into your inventory.`);
+    }
+    updateUI();
+    renderInventoryPanel();
   }
 
   function unequipSlot(slot) {
@@ -2295,8 +2462,8 @@
       // clamp corpse list length
       if (corpses.length > 50) corpses = corpses.slice(-50);
 
-      // Persist dungeon state after each dungeon turn
-      saveCurrentDungeonState();
+      // Persistence snapshot logging removed from per-turn to avoid noise.
+      // DungeonState.save is still called on key events (entry, kills, explicit saves).
     } else if (mode === "town") {
       townTick = (townTick + 1) | 0;
       townNPCsAct();
@@ -2353,6 +2520,16 @@
               requestDraw();
               return;
             }
+            // Ensure town NPCs are populated before running the check
+            try {
+              if ((!Array.isArray(ctx.npcs) || ctx.npcs.length === 0) && window.TownAI && typeof TownAI.populateTown === "function") {
+                TownAI.populateTown(ctx);
+                // Sync back any mutations
+                syncFromCtx(ctx);
+                rebuildOccupancy();
+              }
+            } catch (_) {}
+
             if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
               const res = TownAI.checkHomeRoutes(ctx) || {};
               const totalChecked = (typeof res.total === "number")
@@ -2366,6 +2543,9 @@
                 const r = res.residents;
                 // TownAI returns atTavern; display as "inn" for consistency
                 extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
+              } else {
+                // Provide a hint if no residents were counted
+                extraLines.push("No residents were counted; ensure town NPCs are populated.");
               }
               // Per-resident list of late-night away residents
               if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {

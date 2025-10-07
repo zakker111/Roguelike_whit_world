@@ -1,69 +1,75 @@
-Tiny Roguelike — Developer Guide
+Tiny Roguelike — README
 
-Quick start
-- Open index.html in a browser.
-- Movement: Arrows or Numpad (8-direction with numpad).
-- Action (G): interact/loot/enter/exit depending on context.
-- Inventory: I. GOD panel: P. Wait: Numpad5 or the Wait button.
-- To run smoke tests: append ?smoketest=1 to the URL, optionally &smokecount=3.
+What this is
+- A small browser-based roguelike with a data-driven content model (items, enemies, NPCs, shops, town layout).
+- Deterministic seeds for repeatable runs, simple UI, single-floor dungeons, and a built-in smoketest runner.
 
-Module load order (index.html)
-- Core: ctx.js, rng_service.js
-  - Context handles and deterministic RNG must load first.
-- World, LOS, FOV, Dungeon
-- UI: logger.js, ui.js, tileset.js, render.js
-- Player + services (time_service, shop_service)
-- Data and registries (loader.js, items.js, dungeon_items.js, flavor.js)
-- Utilities
-- AI: ai.js, town_ai.js
-- Helpers: decals.js, occupancy_grid.js, dungeon_state.js
-- GOD helpers
-- Actions, worldgen/town_gen.js, modes, game_loop
-- Input, Game
-  - Input must load before Game so Game can install handlers.
+Play it
+- Open index.html in a browser (or the deployed URL).
+- Controls:
+  - Move: Arrow keys or Numpad
+  - Action (G): interact, loot, enter/exit
+  - Inventory: I
+  - GOD panel: P
+  - Wait: Numpad5
 
-Flags and URL parameters
-- dev=1: enable DEV mode (extra console logs). dev=0 disables and clears localStorage DEV.
-- mirror=1|0: side log mirror on/off. Persists to localStorage LOG_MIRROR.
-- smoketest=1: inject and run the smoke test runner (ui/smoketest_runner.js).
-  - smokecount=N: number of runs to execute (1–20).
-- Seed is persisted to localStorage SEED. GOD panel shows and lets you apply seeds.
+Data-driven configuration
+- JSON files under data/ drive most content:
+  - items.json: equipment types and stat ranges
+  - enemies.json: enemy types, glyphs/colors, spawn weights, stat formulas
+  - npcs.json: names and flavor lines
+  - consumables.json: potions/consumables
+  - shops.json: shop names/types and open/close schedules
+  - town.json: map size, plaza size, roads, buildings, props
+- These are loaded by data/loader.js and adapted at runtime; missing fields fall back safely.
 
-Determinism and RNG
-- RNG is centralized via core/rng_service.js (window.RNG).
-- If RNG.service is not available, modules use utils/rng_fallback.js to get a deterministic PRNG seeded from SEED (or time-based).
-- Boot and GOD Diagnostics log the RNG source and current seed.
+Determinism and seeds
+- RNG is centralized; apply seeds in the GOD panel.
+- With the same seed and context, generation and item rolls are repeatable.
 
-Town occupancy cadence
-- Occupancy grid rebuild cadence is set modestly (every 2 ticks) to reduce ghost-blocking after NPC movement bursts.
+Smoketest (optional)
+- Auto-run: append ?smoketest=1 to the URL; add &dev=1 for diagnostics.
+- Multiple runs: &smokecount=N.
+- DEV-only JSON validation injection: &validatebad=1 (or &badjson=1) + &dev=1.
+- The GOD panel shows:
+  - Step Details (OK/FAIL/SKIP)
+  - Key Checklist (entered dungeon, chest/persistence, enemy spawn/types/glyphs, town/NPC/shop checks)
+  - Full JSON report with download buttons (JSON/TXT)
 
-Linting and formatting
-- ESLint config in .eslintrc.json:
-  - Browser + ES2021 env; known globals declared; rules: no-undef, no-redeclare, no-shadow, consistent-return, prefer-const, etc.
-- Prettier config in .prettierrc:
-  - Single quotes, semicolons, trailing commas (ES5), 2 spaces, print width 100.
-- Run manually:
-  - npx eslint .
-  - npx prettier -c .
-  - npx prettier -w . (to format)
+Key features at a glance
+- Single-floor dungeons with connected rooms, guaranteed stairs, and data-driven enemies.
+- Interaction-first gameplay: bump-to-attack, G to loot/interact/enter/exit.
+- Inventory/equipment:
+  - Two-handed items occupy both hands; unequipping one removes both.
+  - One-handed items auto-equip to the empty hand or can be equipped explicitly left/right.
+  - Decay increases through combat; breakage is supported.
+- Towns with shops and NPCs:
+  - Shops, schedules, and greeters; basic bump-buy test hooks (if enabled).
+  - NPC bump dialogue; home/prop checks; ESC closes the Shop panel.
+- UI/UX:
+  - FOV and LOS consistent; seen tiles dim when not visible.
+  - Escape closes modals; movement is ignored while any modal is open.
 
-Smoke testing
-- The runner covers:
-  - Boot diagnostics and seed application
-  - Overworld routing to dungeon/town, transitions
-  - Dungeon combat, loot, equipment, decay, crit/status
-  - Dungeon persistence (re-enter check)
-  - Town NPC interactions, shops, home routes, inn resting
-  - Performance snapshot
-- Scenario selection:
-  - Use ?smoke=world,dungeon,town,combat,inventory,perf,overlays to run targeted subsets (comma-separated).
-  - Omit ?smoke to run all scenarios.
-- CI tokens:
-  - PASS/FAIL: a hidden element with id "smoke-pass-token" containing "PASS" or "FAIL".
-  - Compact JSON: a hidden element with id "smoke-json-token" containing a compact summary: { ok, passCount, failCount, skipCount, seed, caps, determinism }.
-- Results are shown in the GOD panel and can be downloaded as JSON/TXT.
+Useful flags and persistence
+- dev=1: enable DEV mode (extra logs); dev=0 disables.
+- mirror=1|0: side log mirror on/off (persists in localStorage).
+- Seed persists in localStorage SEED and is shown in the GOD panel.
+
+Project layout (brief)
+- core/: engine, loop, ctx, input, modes
+- world/: overworld generation and walkability
+- dungeon/: generation, items, state persistence
+- entities/: items and enemies adapters over JSON
+- ui/: logger, renderer, tileset, smoketest runner
+- services/: RNG, time, shop helpers
+- data/: JSON registries and loader
+- worldgen/: town generation utilities
+
+Development
+- Lint: npx eslint .
+- Format: npx prettier -c . / -w .
+- See VERSIONS.md for a concise changelog and recent improvements.
 
 Notes
-- Modules should prefer ctx.* handles over window.*.
-- UI panels follow ESC-to-close consistently.
-- Input prioritizes closing modals before movement.
+- Prefer ctx.* over window.* in modules.
+- UI panels are ESC-to-close; input prioritizes closing modals before movement.

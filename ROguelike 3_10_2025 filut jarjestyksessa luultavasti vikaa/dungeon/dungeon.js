@@ -205,9 +205,84 @@
     const baseEnemies = 6 + Math.floor(depth * 3);
     const enemyCount = Math.max(4, Math.floor(baseEnemies * sizeMult));
     const makeEnemy = ctx.enemyFactory || defaultEnemyFactory;
+
+    // For now: ensure diversity — cycle through available types so each dungeon has different enemies regardless of level
+    const EM = (typeof window !== "undefined" ? window.Enemies : null);
+    let cycleTypes = [];
+    try {
+      if (EM && typeof EM.listTypes === "function" && typeof EM.getTypeDef === "function") {
+        cycleTypes = EM.listTypes().slice(0);
+      }
+      // Fallback: use GameData.enemies ids if registry not yet applied
+      if ((!cycleTypes || cycleTypes.length === 0) && typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies)) {
+        cycleTypes = window.GameData.enemies.map(e => e.id || e.key).filter(Boolean);
+      }
+      // Deterministic shuffle using drng
+      for (let i = cycleTypes.length - 1; i > 0; i--) {
+        const j = Math.floor(drng() * (i + 1));
+        const tmp = cycleTypes[i]; cycleTypes[i] = cycleTypes[j]; cycleTypes[j] = tmp;
+      }
+    } catch (_) {}
+
+    // Helper for linear stat tables when building from raw JSON
+    function linearAt(arr, d, fallback = 1) {
+      if (!Array.isArray(arr) || arr.length === 0) return fallback;
+      let chosen = arr[0];
+      for (const e of arr) { if ((e[0] | 0) <= d) chosen = e; }
+      const minD = chosen[0] | 0, baseV = Number(chosen[1] || fallback), slope = Number(chosen[2] || 0);
+      const delta = Math.max(0, d - minD);
+      return Math.max(1, Math.floor(baseV + slope * delta));
+    }
+
     for (let i = 0; i < enemyCount; i++) {
       const p = randomFloor(ctx, rooms, ri);
-      ctx.enemies.push(makeEnemy(p.x, p.y, depth, drng));
+      let enemy = makeEnemy(p.x, p.y, depth, drng);
+
+      // If factory fails or to enforce diversity, build from registry cycling through types
+      if (!enemy || typeof enemy.x !== "number" || typeof enemy.y !== "number" || cycleTypes.length) {
+        try {
+          if (cycleTypes.length) {
+            const pickKey = cycleTypes[i % cycleTypes.length] || "goblin";
+            let td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef(pickKey) : null;
+            if (td) {
+              enemy = {
+                x: p.x, y: p.y,
+                type: pickKey,
+                glyph: (td.glyph && td.glyph.length) ? td.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
+                hp: td.hp(depth),
+                atk: td.atk(depth),
+                xp: td.xp(depth),
+                level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, depth, drng) : depth,
+                announced: false
+              };
+            } else {
+              // Build directly from GameData.enemies JSON if registry not yet applied
+              const row = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies))
+                ? window.GameData.enemies.find(e => (e.id || e.key) === pickKey)
+                : null;
+              if (row) {
+                enemy = {
+                  x: p.x, y: p.y,
+                  type: pickKey,
+                  glyph: (row.glyph && row.glyph.length) ? row.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
+                  hp: linearAt(row.hp || [], depth, 3),
+                  atk: linearAt(row.atk || [], depth, 1),
+                  xp: linearAt(row.xp || [], depth, 5),
+                  level: depth,
+                  announced: false
+                };
+              } else {
+                enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+              }
+            }
+          } else {
+            enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+          }
+        } catch (_) {
+          enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+        }
+      }
+      ctx.enemies.push(enemy);
     }
 
     const FlavorMod = (ctx.Flavor || (typeof window !== "undefined" ? window.Flavor : null));
@@ -261,6 +336,9 @@
     const rCols = (rRows > 0 && Array.isArray(ctx.map[0])) ? ctx.map[0].length : 0;
     const inBounds = (x, y) => x >= 0 && y >= 0 && x < rCols && y < rRows;
 
+    // Helper to check if a position is currently occupied by an enemy; guards nulls
+    const isEnemyAt = (xx, yy) => Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === xx && e.y === yy);
+
     let x, y;
     let tries = 0;
     do {
@@ -275,7 +353,7 @@
             if (ctx.map[yy][xx] !== TILES.FLOOR) continue;
             if ((xx === player.x && yy === player.y)) continue;
             if (ctx.startRoomRect && inRect(xx, yy, ctx.startRoomRect)) continue;
-            if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e.x === xx && e.y === yy)) continue;
+            if (isEnemyAt(xx, yy)) continue;
             return { x: xx, y: yy };
           }
         }
@@ -286,7 +364,7 @@
           if (!inBounds(xx, yy)) continue;
           if (ctx.map[yy][xx] !== TILES.FLOOR) continue;
           if (ctx.startRoomRect && inRect(xx, yy, ctx.startRoomRect)) continue;
-          if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e.x === xx && e.y === yy)) continue;
+          if (isEnemyAt(xx, yy)) continue;
           return { x: xx, y: yy };
         }
         // Final fallback: any floor tile that's not the player's tile
@@ -306,7 +384,7 @@
     } while (!(inBounds(x, y) && ctx.map[y][x] === TILES.FLOOR) ||
              (x === player.x && y === player.y) ||
              (ctx.startRoomRect && inRect(x, y, ctx.startRoomRect)) ||
-             (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e.x === x && e.y === y)));
+             isEnemyAt(x, y));
     return { x, y };
   }
 
