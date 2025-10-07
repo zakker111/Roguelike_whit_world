@@ -136,6 +136,11 @@
   <!-- Core context and deterministic RNG service -->
   <script src="core/ctx.js" defer></script>
   <script src="core/rng_service.js" defer></script>
+
+  <!-- Utilities (available early for modules that use shared helpers/RNG fallback) -->
+  <script src="utils/utils.js" defer></script>
+  <script src="utils/rng_fallback.js" defer></script>
+
   <!-- Boot diagnostics: log RNG source and seed -->
   <script>
     (function () {
@@ -165,9 +170,24 @@
   <script src="world/los.js" defer></script>
   <script src="world/fov.js" defer></script>
 
-  <!-- Entities and dungeon -->
+  <!-- Data (load registries before adapters so they're ready sooner) -->
+  <script src="data/loader.js" defer></script>
+  <script src="data/flavor.js" defer></script>
+  <script src="data/god.js" defer></script>
+
+  <!-- Entities and dungeon adapters -->
+  <script src="entities/items.js" defer></script>
   <script src="entities/enemies.js" defer></script>
+  <script src="dungeon/dungeon_items.js" defer></script>
+
+  <!-- Dungeon core and helpers -->
+  <script src="dungeon/occupancy_grid.js" defer></script>
+  <script src="dungeon/dungeon_state.js" defer></script>
   <script src="dungeon/dungeon.js" defer></script>
+
+  <!-- Services -->
+  <script src="services/time_service.js" defer></script>
+  <script src="services/shop_service.js" defer></script>
 
   <!-- UI and rendering -->
   <script src="ui/logger.js" defer></script>
@@ -181,45 +201,25 @@
       } catch (e) {}
     });
   </script>
-  <script src="ui/ui.js" defer></script>
   <script src="ui/tileset.js" defer></script>
   <script src="ui/render.js" defer></script>
+  <script src="ui/decals.js" defer></script>
+  <script src="ui/ui.js" defer></script>
 
   <!-- Player and equipment -->
   <script src="entities/player_utils.js" defer></script>
   <script src="entities/player_equip.js" defer></script>
   <script src="entities/player.js" defer></script>
 
-  <!-- Services -->
-  <script src="services/time_service.js" defer></script>
-  <script src="services/shop_service.js" defer></script>
-
-  <!-- Data and registries -->
-  <script src="data/loader.js" defer></script>
-  <script src="entities/items.js" defer></script>
-  <script src="dungeon/dungeon_items.js" defer></script>
-  <script src="entities/loot.js" defer></script>
-  <script src="data/flavor.js" defer></script>
-
-  <!-- Utilities -->
-  <script src="utils/utils.js" defer></script>
-  <script src="utils/rng_fallback.js" defer></script>
-
   <!-- AI -->
   <script src="ai/ai.js" defer></script>
   <script src="ai/town_ai.js" defer></script>
 
-  <!-- Modularized helpers -->
-  <script src="ui/decals.js" defer></script>
-  <script src="dungeon/occupancy_grid.js" defer></script>
-  <script src="dungeon/dungeon_state.js" defer></script>
-
-  <!-- GOD helpers -->
-  <script src="data/god.js" defer></script>
-
-  <!-- Actions, modes, loop, game -->
-  <script src="core/actions.js" defer></script>
+  <!-- Worldgen -->
   <script src="worldgen/town_gen.js" defer></script>
+
+  <!-- Core runtime -->
+  <script src="core/actions.js" defer></script>
   <script src="core/modes.js" defer></script>
   <script src="core/game_loop.js" defer></script>
   <script src="core/input.js" defer></script>
