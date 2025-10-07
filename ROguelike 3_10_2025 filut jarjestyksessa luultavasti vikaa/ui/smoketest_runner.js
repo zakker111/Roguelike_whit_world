@@ -1734,6 +1734,7 @@
 
       // Diagnostics + shop schedule/time check
       try {
+        // Open GOD panel and diagnostics (if available)
         if (safeClick("god-open-btn")) {
           await sleep(250);
           if (safeClick("god-diagnostics-btn")) {
@@ -1745,6 +1746,7 @@
           recordSkip("GOD open button not present (diagnostics)");
         }
         await sleep(250);
+
         // If in town, run extra diagnostics: shops + home routes
         if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town") {
           // Shops schedule check
@@ -1777,164 +1779,165 @@
                 record(true, `Shop open state after morning: ${after ? "OPEN" : "CLOSED"}`);
               }
             } catch (_) {}
-          } else {
-            record(true, "No shops available to check");
-          }
 
-          // Basic currency check (future-proof to shop interactions)
-          try {
-            if (typeof window.GameAPI.getGold === "function" && typeof window.GameAPI.addGold === "function" && typeof window.GameAPI.removeGold === "function") {
-              const g0 = window.GameAPI.getGold();
-              window.GameAPI.addGold(25);
-              const g1 = window.GameAPI.getGold();
-              const addOk = g1 >= g0 + 25;
-              window.GameAPI.removeGold(10);
-              const g2 = window.GameAPI.getGold();
-              const remOk = g2 === (g1 - 10) || g2 <= g1;
-              record(addOk && remOk, `Gold ops: ${g0} -> ${g1} -> ${g2}`);
-            } else {
-              recordSkip("Gold ops not available in GameAPI");
-            }
-          } catch (e) {
-            record(false, "Gold ops failed: " + (e && e.message ? e.message : String(e)));
-          }
-
-          // Attempt bump-buy: find NPC adjacent to a shop and bump into them; verify gold or inventory changes
-          try {
-            const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
-            if (shops && shops.length && npcs && npcs.length && typeof window.GameAPI.getGold === "function") {
-              // Find first NPC within Manhattan distance <= 1 of any shop
-              let targetNPC = null;
-              for (const n of npcs) {
-                let near = false;
-                for (const s of shops) {
-                  const d = Math.abs(n.x - s.x) + Math.abs(n.y - s.y);
-                  if (d <= 1) { near = true; break; }
-                }
-                if (near) { targetNPC = n; break; }
+            // Basic currency check (future-proof to shop interactions)
+            try {
+              if (typeof window.GameAPI.getGold === "function" && typeof window.GameAPI.addGold === "function" && typeof window.GameAPI.removeGold === "function") {
+                const g0 = window.GameAPI.getGold();
+                window.GameAPI.addGold(25);
+                const g1 = window.GameAPI.getGold();
+                const addOk = g1 >= g0 + 25;
+                window.GameAPI.removeGold(10);
+                const g2 = window.GameAPI.getGold();
+                const remOk = g2 === (g1 - 10) || g2 <= g1;
+                record(addOk && remOk, `Gold ops: ${g0} -> ${g1} -> ${g2}`);
+              } else {
+                recordSkip("Gold ops not available in GameAPI");
               }
-              if (targetNPC) {
-                const gBefore = window.GameAPI.getGold();
-                // route to adjacent tile to the NPC and then bump
-                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
-                  .map(v => ({ x: targetNPC.x + v.dx, y: targetNPC.y + v.dy }));
-                let path = [];
-                for (const a of adj) {
-                  const p = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(a.x, a.y) : [];
-                  if (p && p.length) { path = p; break; }
+            } catch (e) {
+              record(false, "Gold ops failed: " + (e && e.message ? e.message : String(e)));
+            }
+
+            // Attempt bump-buy: find NPC adjacent to a shop and bump into them; verify gold or inventory changes
+            try {
+              const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
+              if (shops && shops.length && npcs && npcs.length && typeof window.GameAPI.getGold === "function") {
+                // Find first NPC within Manhattan distance <= 1 of any shop
+                let targetNPC = null;
+                for (const n of npcs) {
+                  let near = false;
+                  for (const s of shops) {
+                    const d = Math.abs(n.x - s.x) + Math.abs(n.y - s.y);
+                    if (d <= 1) { near = true; break; }
+                  }
+                  if (near) { targetNPC = n; break; }
                 }
+                if (targetNPC) {
+                  const gBefore = window.GameAPI.getGold();
+                  // route to adjacent tile to the NPC and then bump
+                  const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
+                    .map(v => ({ x: targetNPC.x + v.dx, y: targetNPC.y + v.dy }));
+                  let path = [];
+                  for (const a of adj) {
+                    const p = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(a.x, a.y) : [];
+                    if (p && p.length) { path = p; break; }
+                  }
+                  const budget = makeBudget(CONFIG.timeouts.route);
+                  for (const step of path) {
+                    if (budget.exceeded()) { recordSkip("Routing to shopkeeper timed out"); break; }
+                    const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                    const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(100);
+                  }
+                  // bump into shopkeeper
+                  const dx = Math.sign(targetNPC.x - window.GameAPI.getPlayer().x);
+                  const dy = Math.sign(targetNPC.y - window.GameAPI.getPlayer().y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(220);
+                  const gAfter = window.GameAPI.getGold();
+                  const inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+                  const gotItem = inv && inv.length ? true : false; // heuristic: any new item appeared (can't precisely diff without snapshot)
+                  const spentGold = gAfter < gBefore;
+                  record(spentGold || gotItem, `Bump-buy near shop: gold ${gBefore} -> ${gAfter}${gotItem ? ", inventory updated" : ""}`);
+                } else {
+                  recordSkip("No NPC found near a shop for bump-buy");
+                }
+              } else {
+                recordSkip("Bump-buy skipped (no shops/NPCs or gold API missing)");
+              }
+            } catch (e) {
+              record(false, "Bump-buy failed: " + (e && e.message ? e.message : String(e)));
+            }
+
+            // Optional: attempt to route to first shop and interact (press G), then Esc-close UI
+            try {
+              if (shops && shops.length) {
+                const shop = shops[0];
+                const pathS = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(shop.x, shop.y) : [];
                 const budget = makeBudget(CONFIG.timeouts.route);
-                for (const step of path) {
-                  if (budget.exceeded()) { recordSkip("Routing to shopkeeper timed out"); break; }
+                for (const step of pathS) {
+                  if (budget.exceeded()) { recordSkip("Routing to shop timed out"); break; }
                   const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
                   const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
                   key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                   await sleep(100);
                 }
-                // bump into shopkeeper
-                const dx = Math.sign(targetNPC.x - window.GameAPI.getPlayer().x);
-                const dy = Math.sign(targetNPC.y - window.GameAPI.getPlayer().y);
-                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(220);
-                const gAfter = window.GameAPI.getGold();
-                const inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
-                const gotItem = inv && inv.length ? true : false; // heuristic: any new item appeared (can't precisely diff without snapshot)
-                const spentGold = gAfter < gBefore;
-                record(spentGold || gotItem, `Bump-buy near shop: gold ${gBefore} -> ${gAfter}${gotItem ? ", inventory updated" : ""}`);
-              } else {
-                recordSkip("No NPC found near a shop for bump-buy");
-              }
-            } else {
-              recordSkip("Bump-buy skipped (no shops/NPCs or gold API missing)");
-            }
-          } catch (e) {
-            record(false, "Bump-buy failed: " + (e && e.message ? e.message : String(e)));
-          }
-
-          // Optional: attempt to route to first shop and interact (press G), then Esc-close UI
-          try {
-            if (shops && shops.length) {
-              const shop = shops[0];
-              const pathS = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(shop.x, shop.y) : [];
-              const budget = makeBudget(CONFIG.timeouts.route);
-              for (const step of pathS) {
-                if (budget.exceeded()) { recordSkip("Routing to shop timed out"); break; }
-                const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(100);
-              }
-              const ib = makeBudget(CONFIG.timeouts.interact);
-              key("KeyG"); // open shop interaction
-              await sleep(Math.min(ib.remain(), 220));
-              // Esc closes Shop UI fallback panel
-              try {
-                const open = !!(document.getElementById("shop-panel") && document.getElementById("shop-panel").hidden === false);
-                if (open) {
-                  key("Escape");
-                  const closed = await waitUntilTrue(() => { const el = document.getElementById("shop-panel"); return !!(el && el.hidden === true); }, 600, 60);
-                  record(closed, "Shop UI closes with Esc");
-                } else {
-                  record(true, "Shop UI not open (no Esc-close needed)");
+                const ib = makeBudget(CONFIG.timeouts.interact);
+                key("KeyG"); // open shop interaction
+                await sleep(Math.min(ib.remain(), 220));
+                // Esc closes Shop UI fallback panel
+                try {
+                  const open = !!(document.getElementById("shop-panel") && document.getElementById("shop-panel").hidden === false);
+                  if (open) {
+                    key("Escape");
+                    const closed = await waitUntilTrue(() => { const el = document.getElementById("shop-panel"); return !!(el && el.hidden === true); }, 600, 60);
+                    record(closed, "Shop UI closes with Esc");
+                  } else {
+                    record(true, "Shop UI not open (no Esc-close needed)");
+                  }
+                } catch (_) {}
+                // If future GameAPI provides shopBuy/shopSell, try them
+                let didAny = false;
+                if (typeof window.GameAPI.shopBuyFirst === "function") {
+                  const okB = !!window.GameAPI.shopBuyFirst();
+                  record(okB, "Shop buy (first item)");
+                  didAny = true;
                 }
-              } catch (_) {}
-              // If future GameAPI provides shopBuy/shopSell, try them
-              let didAny = false;
-              if (typeof window.GameAPI.shopBuyFirst === "function") {
-                const okB = !!window.GameAPI.shopBuyFirst();
-                record(okB, "Shop buy (first item)");
-                didAny = true;
+                if (typeof window.GameAPI.shopSellFirst === "function") {
+                  const okS = !!window.GameAPI.shopSellFirst();
+                  record(okS, "Shop sell (first inventory item)");
+                  didAny = true;
+                }
+                if (!didAny) {
+                  record(true, "Interacted at shop (G). No programmatic buy/sell API; skipped.");
+                }
               }
-              if (typeof window.GameAPI.shopSellFirst === "function") {
-                const okS = !!window.GameAPI.shopSellFirst();
-                record(okS, "Shop sell (first inventory item)");
-                didAny = true;
-              }
-              if (!didAny) {
-                record(true, "Interacted at shop (G). No programmatic buy/sell API; skipped.");
-              }
+            } catch (e) {
+              record(false, "Shop interaction failed: " + (e && e.message ? e.message : String(e)));
             }
-          } catch (e) {
-            record(false, "Shop interaction failed: " + (e && e.message ? e.message : String(e)));
-          }
 
-          // Town home-routes check: verify there are residents
-          try {
-            const res = (typeof window.GameAPI.checkHomeRoutes === "function") ? window.GameAPI.checkHomeRoutes() : null;
-            const hasResidents = !!(res && res.residents && typeof res.residents.total === "number" && res.residents.total > 0);
-            record(hasResidents, `Home routes: residents ${hasResidents ? res.residents.total : 0}${res && typeof res.unreachable === "number" ? `, unreachable ${res.unreachable}` : ""}`);
-          } catch (e) {
-            record(false, "Home routes check failed: " + (e && e.message ? e.message : String(e)));
-          }
-          // Resting (advance time)
-          try {
-            const inn = shops.find(s => (s.name || "").toLowerCase().includes("inn"));
-            if (inn && typeof window.GameAPI.restAtInn === "function") {
-              window.GameAPI.restAtInn();
-              record(true, "Rested at inn (time advanced to morning, HP restored)");
-            } else if (typeof window.GameAPI.restUntilMorning === "function") {
-              window.GameAPI.restUntilMorning();
-              record(true, "Rested until morning");
+            // Town home-routes check: verify there are residents
+            try {
+              const res = (typeof window.GameAPI.checkHomeRoutes === "function") ? window.GameAPI.checkHomeRoutes() : null;
+              const hasResidents = !!(res && res.residents && typeof res.residents.total === "number" && res.residents.total > 0);
+              record(hasResidents, `Home routes: residents ${hasResidents ? res.residents.total : 0}${res && typeof res.unreachable === "number" ? `, unreachable ${res.unreachable}` : ""}`);
+            } catch (e) {
+              record(false, "Home routes check failed: " + (e && e.message ? e.message : String(e)));
             }
-          } catch (e) {
-            record(false, "Resting failed: " + (e && e.message ? e.message : String(e)));
-          }
 
-          // Overlay toggles + perf snapshot (town-only overlays)
-          try {
-            // Toggle routes/home paths to exercise renderer, then capture perf
-            const perfBefore = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
-            safeClick("god-toggle-route-paths-btn"); await sleep(100);
-            safeClick("god-toggle-home-paths-btn"); await sleep(100);
-            const perfAfter = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
-            const perfOk = (perfAfter.lastDrawMs || 0) <= (CONFIG.perfBudget.drawMs * 2.0); // lenient budget
-            record(perfOk, `Overlay perf: draw ${perfAfter.lastDrawMs?.toFixed ? perfAfter.lastDrawMs.toFixed(2) : perfAfter.lastDrawMs}ms`);
-          } catch (e) {
-            record(false, "Overlay/perf snapshot failed: " + (e && e.message ? e.message : String(e)));
+            // Resting (advance time)
+            try {
+              const inn = shops.find(s => (s.name || "").toLowerCase().includes("inn"));
+              if (inn && typeof window.GameAPI.restAtInn === "function") {
+                window.GameAPI.restAtInn();
+                record(true, "Rested at inn (time advanced to morning, HP restored)");
+              } else if (typeof window.GameAPI.restUntilMorning === "function") {
+                window.GameAPI.restUntilMorning();
+                record(true, "Rested until morning");
+              }
+            } catch (e) {
+              record(false, "Resting failed: " + (e && e.message ? e.message : String(e)));
+            }
+
+            // Overlay toggles + perf snapshot (town-only overlays)
+            try {
+              // Toggle routes/home paths to exercise renderer, then capture perf
+              const perfBefore = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+              safeClick("god-toggle-route-paths-btn"); await sleep(100);
+              safeClick("god-toggle-home-paths-btn"); await sleep(100);
+              const perfAfter = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+              const perfOk = (perfAfter.lastDrawMs || 0) <= (CONFIG.perfBudget.drawMs * 2.0); // lenient budget
+              record(perfOk, `Overlay perf: draw ${perfAfter.lastDrawMs?.toFixed ? perfAfter.lastDrawMs.toFixed(2) : perfAfter.lastDrawMs}ms`);
+            } catch (e) {
+              record(false, "Overlay/perf snapshot failed: " + (e && e.message ? e.message : String(e)));
+            }
+          } else {
+            recordSkip("Town diagnostics skipped (not in town)");
           }
         }
 
-        // Global overlays (grid) perf snapshot
+        // Global overlays (grid) perf snapshot (outside town-only section)
         try {
           const perfA = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
           safeClick("god-toggle-grid-btn"); await sleep(120);
@@ -1944,10 +1947,9 @@
         } catch (e) {
           record(false, "Grid perf snapshot failed: " + (e && e.message ? e.message : String(e)));
         }
-      }
-      catch (e) {
+      } catch (e) {
         record(false, "Diagnostics/schedule failed: " + (e && e.message ? e.message : String(e)));
-   _code  new </}
+      }
 }
 
         // Restart via GOD panel (Start New Game) and assert mode resets to world
