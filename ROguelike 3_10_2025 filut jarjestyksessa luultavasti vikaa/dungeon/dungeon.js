@@ -205,44 +205,41 @@
     const baseEnemies = 6 + Math.floor(depth * 3);
     const enemyCount = Math.max(4, Math.floor(baseEnemies * sizeMult));
     const makeEnemy = ctx.enemyFactory || defaultEnemyFactory;
+
+    // For now: ensure diversity — cycle through available types so each dungeon has different enemies regardless of level
+    const EM = (typeof window !== "undefined" ? window.Enemies : null);
+    let cycleTypes = [];
+    try {
+      if (EM && typeof EM.listTypes === "function" && typeof EM.getTypeDef === "function") {
+        cycleTypes = EM.listTypes().slice(0);
+        // Deterministic shuffle using drng
+        for (let i = cycleTypes.length - 1; i > 0; i--) {
+          const j = Math.floor(drng() * (i + 1));
+          const tmp = cycleTypes[i]; cycleTypes[i] = cycleTypes[j]; cycleTypes[j] = tmp;
+        }
+      }
+    } catch (_) {}
+
     for (let i = 0; i < enemyCount; i++) {
       const p = randomFloor(ctx, rooms, ri);
       let enemy = makeEnemy(p.x, p.y, depth, drng);
-      if (!enemy || typeof enemy.x !== "number" || typeof enemy.y !== "number") {
-        // Try to construct from Enemies registry if available for variety
+
+      // If factory fails or to enforce diversity, build from registry cycling through types
+      if (!enemy || typeof enemy.x !== "number" || typeof enemy.y !== "number" || cycleTypes.length) {
         try {
-          const EM = (typeof window !== "undefined" ? window.Enemies : null);
-          if (EM && typeof EM.listTypes === "function" && typeof EM.getTypeDef === "function") {
-            const types = EM.listTypes();
-            if (types && types.length) {
-              const entries = types.map(k => {
-                const tdef = EM.getTypeDef(k);
-                const w = (typeof tdef.weight === "function") ? tdef.weight(depth) : (tdef._weightByDepth ? tdef._weightByDepth[0]?.[1] || 1 : 1);
-                return { key: k, w: Math.max(0, Number(w) || 0) };
-              });
-              const total = entries.reduce((s, e) => s + e.w, 0);
-              let pickKey = entries[0]?.key || "goblin";
-              if (total > 0) {
-                let r = drng() * total;
-                for (const e of entries) {
-                  if (r < e.w) { pickKey = e.key; break; }
-                  r -= e.w;
-                }
-              }
-              const td = EM.getTypeDef(pickKey);
-              enemy = {
-                x: p.x, y: p.y,
-                type: pickKey,
-                glyph: td.glyph,
-                hp: td.hp(depth),
-                atk: td.atk(depth),
-                xp: td.xp(depth),
-                level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, depth, drng) : depth,
-                announced: false
-              };
-            } else {
-              enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
-            }
+          if (cycleTypes.length) {
+            const pickKey = cycleTypes[i % cycleTypes.length] || "goblin";
+            const td = EM.getTypeDef(pickKey);
+            enemy = {
+              x: p.x, y: p.y,
+              type: pickKey,
+              glyph: td.glyph,
+              hp: td.hp(depth),
+              atk: td.atk(depth),
+              xp: td.xp(depth),
+              level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, depth, drng) : depth,
+              announced: false
+            };
           } else {
             enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
           }
