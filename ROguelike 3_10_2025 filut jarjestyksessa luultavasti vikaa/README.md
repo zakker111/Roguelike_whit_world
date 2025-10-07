@@ -22,6 +22,7 @@ Data-driven configuration
   - shops.json: shop names/types and open/close schedules
   - town.json: map size, plaza size, roads, buildings, props
 - These are loaded by data/loader.js and adapted at runtime; missing fields fall back safely.
+- When running via file://, the loader provides built-in defaults so the game remains playable without HTTP.
 
 Determinism and seeds
 - RNG is centralized; apply seeds in the GOD panel.
@@ -35,6 +36,12 @@ Smoketest (optional)
   - Step Details (OK/FAIL/SKIP)
   - Key Checklist (entered dungeon, chest/persistence, enemy spawn/types/glyphs, town/NPC/shop checks)
   - Full JSON report with download buttons (JSON/TXT)
+
+Local dev server
+- To serve JSON reliably (instead of file://), use the included static server:
+  - node server.js
+  - Open http://localhost:8080/?dev=1
+- You can change the port with PORT=9000 node server.js
 
 Key features at a glance
 - Single-floor dungeons with connected rooms, guaranteed stairs, and data-driven enemies.

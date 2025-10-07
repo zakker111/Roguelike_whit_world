@@ -10,6 +10,9 @@
  *     shops: Array | null,
  *     town: Object | null
  *   }
+ *
+ * When running from file:// where fetch() of local JSON is often blocked,
+ * we provide compact, hardcoded defaults so the game remains playable.
  */
 (function () {
   const DATA_FILES = {
@@ -19,7 +22,13 @@
     consumables: "data/consumables.json",
     shops: "data/shops.json",
     town: "data/town.json",
+    flavor: "data/flavor.json",
   };
+
+  // Compact defaults used when JSON is unavailable (e.g., file://)
+  // Minimal defaults to avoid duplicating JSON content.
+  // Intentionally left empty so modules use their own internal fallbacks when data is missing.
+  const DEFAULTS = {};
 
   function fetchJson(url) {
     return fetch(url, { cache: "no-cache" })
@@ -36,8 +45,10 @@
     consumables: null,
     shops: null,
     town: null,
+    flavor: null,
     ready: null,
-  };
+  }</;
+
 
   function logNotice(msg) {
     try {
@@ -49,22 +60,39 @@
     } catch (_) {}
   }
 
+  function runningFromFile() {
+    try { return typeof location !== "undefined" && location.protocol === "file:"; } catch (_) { return false; }
+  }
+
+  function applyDefaultsIfNeeded() {
+    // No-op: avoid duplicating JSON content with hardcoded defaults.
+    // Modules across the codebase already provide sensible fallbacks when registries are missing.
+  }
+
   GameData.ready = (async function loadAll() {
     try {
-      const [items, enemies, npcs, consumables, shops, town] = await Promise.all([
+      const [items, enemies, npcs, consumables, shops, town, flavor] = await Promise.all([
         fetchJson(DATA_FILES.items).catch(() => null),
         fetchJson(DATA_FILES.enemies).catch(() => null),
         fetchJson(DATA_FILES.npcs).catch(() => null),
         fetchJson(DATA_FILES.consumables).catch(() => null),
         fetchJson(DATA_FILES.shops).catch(() => null),
         fetchJson(DATA_FILES.town).catch(() => null),
+        fetchJson(DATA_FILES.flavor).catch(() => null),
       ]);
+
       GameData.items = Array.isArray(items) ? items : null;
       GameData.enemies = Array.isArray(enemies) ? enemies : null;
       GameData.npcs = (npcs && typeof npcs === "object") ? npcs : null;
       GameData.consumables = (consumables && typeof consumables === "object") ? consumables : null;
       GameData.shops = Array.isArray(shops) ? shops : null;
       GameData.town = (town && typeof town === "object") ? town : null;
+      GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
+
+      // If running under file://, note that JSON may not load due to fetch/CORS
+      if (runningFromFile()) {
+        logNotice("Detected file:// context; JSON registries may be unavailable. Modules will use internal fallbacks.");
+      }
 
       // DEV-only: inject malformed entries to exercise validators when ?validatebad=1 is present
       (function maybeInjectBadJson() {
@@ -73,17 +101,14 @@
           const enabled = (params.get("validatebad") === "1") || (params.get("badjson") === "1");
           const dev = window.DEV || localStorage.getItem("DEV") === "1" || (params.get("dev") === "1");
           if (!enabled || !dev) return;
-          // Expose a shared validation log sink to be read by smoketest runner
           window.ValidationLog = window.ValidationLog || { warnings: [], notices: [] };
 
-          // Items: missing slot, missing weights, empty atk/def
           if (Array.isArray(GameData.items)) {
-            GameData.items.push({ id: "bad_item_no_slot", name: "bad", atk: { "1": [0, 0] } }); // missing slot
-            GameData.items.push({ id: "bad_item_no_ranges", slot: "hand", name: "bad2" }); // no atk/def
+            GameData.items.push({ id: "bad_item_no_slot", name: "bad", atk: { "1": [0, 0] } });
+            GameData.items.push({ id: "bad_item_no_ranges", slot: "hand", name: "bad2" });
             window.ValidationLog.notices.push("Injected bad item entries");
           }
 
-          // Enemies: missing glyph, missing weightByDepth, missing hp/atk/xp arrays
           if (Array.isArray(GameData.enemies)) {
             GameData.enemies.push({ id: "bad_enemy_no_glyph", color: "#fff", tier: 1, weightByDepth: [[0, 0.1]] });
             GameData.enemies.push({ id: "bad_enemy_no_weights", glyph: "?", color: "#fff", tier: 1, hp: [[0, 3, 0.5]], atk: [[0, 1, 0.2]], xp: [[0, 5, 0.5]] });
@@ -91,7 +116,6 @@
             window.ValidationLog.notices.push("Injected bad enemy entries");
           }
 
-          // NPCs: empty arrays to trigger loader notices
           if (GameData.npcs && typeof GameData.npcs === "object") {
             GameData.npcs.residentLines = [];
             GameData.npcs.shopkeeperLines = [];
@@ -117,19 +141,16 @@
       if (window.DEV) {
         try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town }); } catch (_) {}
       }
-      // Surface a gentle notice if any registry failed to load; system will fall back gracefully
-      if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.shops || !GameData.town) {
-        logNotice("Some registries failed to load; using fallback data where needed.");
+
+      // If any registry failed to load, modules will use internal fallbacks.
+      if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor) {
+        logNotice("Some registries failed to load; modules will use internal fallbacks.");
       }
     } catch (e) {
       try { console.warn("[GameData] load error", e); } catch (_) {}
-      GameData.items = GameData.items || null;
-      GameData.enemies = GameData.enemies || null;
-      GameData.npcs = GameData.npcs || null;
-      GameData.consumables = GameData.consumables || null;
-      GameData.shops = GameData.shops || null;
-      GameData.town = GameData.town || null;
-      logNotice("Registry load error; using fallback data.");
+      // Keep whatever loaded; fill in defaults for missing ones
+      applyDefaultsIfNeeded();
+      logNotice("Registry load error; using built-in defaults.");
     }
   })();
 

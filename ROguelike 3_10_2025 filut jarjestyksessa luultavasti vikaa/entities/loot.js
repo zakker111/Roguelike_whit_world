@@ -206,12 +206,38 @@
    */
   function lootHere(ctx) {
     const { player, corpses } = ctx;
-    const here = corpses.filter(c => c.x === player.x && c.y === player.y);
+
+    // Prefer standing on the container; if none underfoot, allow adjacent loot QoL
+    let here = corpses.filter(c => c && c.x === player.x && c.y === player.y);
+    if (here.length === 0) {
+      // Look for adjacent chest/corpse and step onto it if walkable and not occupied by an enemy
+      try {
+        const neighbors = [
+          { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
+        ];
+        let target = null;
+        for (const d of neighbors) {
+          const tx = player.x + d.dx, ty = player.y + d.dy;
+          const found = corpses.find(c => c && c.x === tx && c.y === ty);
+          if (found) { target = { x: tx, y: ty }; break; }
+        }
+        if (target) {
+          const walkable = (ctx.inBounds(target.x, target.y) && (ctx.map[target.y][target.x] === ctx.TILES.FLOOR || ctx.map[target.y][target.x] === ctx.TILES.DOOR));
+          const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
+          if (walkable && !enemyBlocks) {
+            player.x = target.x; player.y = target.y;
+            here = corpses.filter(c => c && c.x === player.x && c.y === player.y);
+          }
+        }
+      } catch (_) {}
+    }
+
     if (here.length === 0) {
       ctx.log("There is no corpse here to loot.");
       return;
     }
-    const container = here.find(c => c.loot && c.loot.length > 0);
+
+    const container = here.find(c => Array.isArray(c.loot) && c.loot.length > 0);
     if (!container) {
       here.forEach(c => c.looted = true);
       if (here.some(c => c.kind === "chest")) ctx.log("The chest is empty.");
@@ -230,7 +256,7 @@
 
     const acquired = [];
     for (const item of container.loot) {
-      if (item.kind === "equip") {
+      if (item && item.kind === "equip") {
         const equipped = ctx.equipIfBetter(item);
         acquired.push(equipped ? `equipped ${ctx.describeItem(item)}` : ctx.describeItem(item));
         if (!equipped) {
@@ -240,41 +266,38 @@
             ctx.renderInventory();
           }
         }
-      } else if (item.kind === "gold") {
-        const existing = player.inventory.find(i => i.kind === "gold");
+      } else if (item && item.kind === "gold") {
+        const existing = player.inventory.find(i => i && i.kind === "gold");
         if (existing) existing.amount += item.amount;
         else player.inventory.push({ kind: "gold", amount: item.amount, name: "gold" });
-        acquired.push(item.name);
-      } else if (item.kind === "potion") {
+        acquired.push(item.name || `${item.amount} gold`);
+      } else if (item && item.kind === "potion") {
         const heal = item.heal || 3;
         if (player.hp >= player.maxHp) {
           ctx.addPotionToInventory(heal, item.name);
-          acquired.push(`${item.name}`);
+          acquired.push(`${item.name || `potion (+${heal} HP)`}`);
         } else {
           const before = player.hp;
           player.hp = Math.min(player.maxHp, player.hp + heal);
           const gained = player.hp - before;
           ctx.log(`You drink a potion and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
-          acquired.push(item.name);
+          acquired.push(item.name || `potion (+${heal} HP)`);
         }
-      } else {
+      } else if (item) {
         player.inventory.push(item);
-        acquired.push(item.name);
+        acquired.push(item.name || (item.kind || "item"));
       }
     }
 
     ctx.updateUI();
     container.loot = [];
     container.looted = true;
-    // Persist dungeon state immediately so revisits remember emptied chest
+    // Persist dungeon state immediately so revisits remember emptied chest/corpse
     try {
       if (window.DungeonState && typeof DungeonState.save === "function") {
-        console.log("[TRACE] Loot: calling DungeonState.save after chest looted");
         DungeonState.save(ctx);
-      } else {
-        console.log("[TRACE] Loot: DungeonState.save not available");
       }
-    } catch (e) { console.log("[TRACE] Loot: DungeonState.save threw", e); }
+    } catch (_) {}
 
     showLoot(ctx, acquired);
     ctx.log(`You loot: ${acquired.join(", ")}.`);

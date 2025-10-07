@@ -1,0 +1,28 @@
+{
+  "headCrit": [
+    "A brutal crack to the skull; your ears ring.",
+    "You take a hard hit to the head; your ears ring."
+  ],
+  "torsoStingPlayer": [
+    "A sharp jab to your ribs knocks the wind out.",
+    "You clutch your ribs; the hit steals your breath."
+  ],
+  "bloodSpill": [
+    "Blood spills across the floor.",
+    "Dark blood splashes on the stone.",
+    "A stain spreads underfoot."
+  ],
+  "enemyTorsoSting": [
+    "You jab its ribs; it wheezes.",
+    "A punch to its ribs knocks the wind out."
+  ],
+  "playerCritHeadVariants": [
+    "A clean crack to the {name}'s head; it reels.",
+    "Your strike slams the {name}'s head; it staggers."
+  ],
+  "playerGoodHitVariants": [
+    "A heavy blow to the {name}'s {part}!",
+    "A solid hit to the {name}'s {part}!",
+    "A telling strike to the {name}'s {part}!"
+  ]
+}
