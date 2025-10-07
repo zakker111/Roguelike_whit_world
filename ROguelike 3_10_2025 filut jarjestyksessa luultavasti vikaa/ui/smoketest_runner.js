@@ -1944,6 +1944,9 @@
         } catch (e) {
           record(false, "Grid perf snapshot failed: " + (e && e.message ? e.message : String(e)));
         }
+      } catch (e) {
+        record(false, "Diagnostics/schedule failed: " + (e && e.message ? e.message : String(e)));
+      }
 
         // Restart via GOD panel (Start New Game) and assert mode resets to world
         try {
