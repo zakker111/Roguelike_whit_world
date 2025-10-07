@@ -8,10 +8,11 @@
  *
  * Behavior:
  * - Logs flavor lines based on hit location and crits using pools from GameData.flavor.
- * - Deterministic via ctx.rng; falls back to built-in defaults if JSON is missing.
+ * - Deterministic via ctx.rng; if JSON is missing or a pool is absent, it skips logging (no hardcoded duplicates).
  */
 (function () {
   function pickFrom(arr, ctx) {
+    if (!Array.isArray(arr) || arr.length === 0) return null;
     if (ctx && ctx.utils && typeof ctx.utils.pick === "function") {
       return ctx.utils.pick(arr, ctx.rng);
     }
@@ -26,62 +27,33 @@
   }
 
   function tmpl(str, vars) {
-    return String(str).replace(/\{(\w+)\}/g, (_, k) => (vars && k in vars) ? String(vars[k]) : "");
+    if (typeof str !== "string") return "";
+    return str.replace(/\{(\w+)\}/g, (_, k) => (vars && k in vars) ? String(vars[k]) : "");
   }
 
-  // Defaults (used when GameData.flavor missing or incomplete)
-  const DEFAULT = {
-    headCrit: [
-      "A brutal crack to the skull; your ears ring.",
-      "You take a hard hit to the head; your ears ring."
-    ],
-    torsoStingPlayer: [
-      "A sharp jab to your ribs knocks the wind out.",
-      "You clutch your ribs; the hit steals your breath."
-    ],
-    bloodSpill: [
-      "Blood spills across the floor.",
-      "Dark blood splashes on the stone.",
-      "A stain spreads underfoot."
-    ],
-    enemyTorsoSting: [
-      "You jab its ribs; it wheezes.",
-      "A punch to its ribs knocks the wind out."
-    ],
-    playerCritHeadVariants: [
-      "A clean crack to the {name}'s head; it reels.",
-      "Your strike slams the {name}'s head; it staggers."
-    ],
-    playerGoodHitVariants: [
-      "A heavy blow to the {name}'s {part}!",
-      "A solid hit to the {name}'s {part}!",
-      "A telling strike to the {name}'s {part}!"
-    ]
-  };
-
-  function F() {
+  function pools() {
     try {
       if (typeof window !== "undefined" && window.GameData && GameData.flavor && typeof GameData.flavor === "object") {
         return GameData.flavor;
       }
     } catch (_) {}
-    return DEFAULT;
+    return null;
   }
 
   function logHit(ctx, opts) {
     if (!ctx || typeof ctx.log !== "function" || typeof ctx.rng !== "function") return;
     const loc = (opts && opts.loc) || {};
     const crit = !!(opts && opts.crit);
-    const pools = F();
+    const P = pools(); if (!P) return;
 
     if (crit && loc.part === "head") {
-      const arr = Array.isArray(pools.headCrit) ? pools.headCrit : DEFAULT.headCrit;
-      if (ctx.rng() < 0.6) ctx.log(pickFrom(arr, ctx), "flavor");
+      const line = pickFrom(P.headCrit, ctx);
+      if (line && ctx.rng() < 0.6) ctx.log(line, "flavor");
       return;
     }
     if (loc.part === "torso") {
-      const arr = Array.isArray(pools.torsoStingPlayer) ? pools.torsoStingPlayer : DEFAULT.torsoStingPlayer;
-      if (ctx.rng() < 0.5) ctx.log(pickFrom(arr, ctx), "info");
+      const line = pickFrom(P.torsoStingPlayer, ctx);
+      if (line && ctx.rng() < 0.5) ctx.log(line, "info");
       return;
     }
   }
@@ -92,20 +64,20 @@
     const loc = (opts && opts.loc) || {};
     const crit = !!(opts && opts.crit);
     const dmg = (opts && typeof opts.dmg === "number") ? opts.dmg : null;
-    const pools = F();
+    const P = pools(); if (!P) return;
 
     // Blood spill flavor
     if (dmg != null && dmg > 0) {
+      const line = pickFrom(P.bloodSpill, ctx);
       const p = crit ? 0.5 : 0.25;
-      const arr = Array.isArray(pools.bloodSpill) ? pools.bloodSpill : DEFAULT.bloodSpill;
-      if (ctx.rng() < p) ctx.log(pickFrom(arr, ctx), "flavor");
+      if (line && ctx.rng() < p) ctx.log(line, "flavor");
     }
 
     // Crit head variants
     if (crit && loc.part === "head") {
       const name = (target && target.type) ? target.type : "enemy";
-      const arr = Array.isArray(pools.playerCritHeadVariants) ? pools.playerCritHeadVariants : DEFAULT.playerCritHeadVariants;
-      if (ctx.rng() < 0.6) ctx.log(tmpl(pickFrom(arr, ctx), { name }), "notice");
+      const tmplStr = pickFrom(P.playerCritHeadVariants, ctx);
+      if (tmplStr && ctx.rng() < 0.6) ctx.log(tmpl(tmplStr, { name }), "notice");
       return;
     }
 
@@ -113,13 +85,13 @@
     if (!crit && dmg != null && dmg >= 2.0) {
       const name = (target && target.type) ? target.type : "enemy";
       const part = (loc && loc.part) ? loc.part : "body";
-      const arr = Array.isArray(pools.playerGoodHitVariants) ? pools.playerGoodHitVariants : DEFAULT.playerGoodHitVariants;
-      if (ctx.rng() < 0.8) ctx.log(tmpl(pickFrom(arr, ctx), { name, part }), "good");
+      const tmplStr = pickFrom(P.playerGoodHitVariants, ctx);
+      if (tmplStr && ctx.rng() < 0.8) ctx.log(tmpl(tmplStr, { name, part }), "good");
     }
 
     if (loc.part === "torso") {
-      const arr = Array.isArray(pools.enemyTorsoSting) ? pools.enemyTorsoSting : DEFAULT.enemyTorsoSting;
-      if (ctx.rng() < 0.5) ctx.log(pickFrom(arr, ctx), "info");
+      const line = pickFrom(P.enemyTorsoSting, ctx);
+      if (line && ctx.rng() < 0.5) ctx.log(line, "info");
       return;
     }
   }
