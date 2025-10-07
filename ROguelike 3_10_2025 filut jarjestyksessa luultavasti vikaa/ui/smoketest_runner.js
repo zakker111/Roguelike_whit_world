@@ -1363,7 +1363,7 @@
 
       // Step 10: API-first town entry with retries and settle waits
       try {
-        const isWorld = (window.GameAPI?.getMode?.() === "world");
+        const isWorld = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world");
         if (!isWorld) {
           recordSkip("Skipped town visit (not in overworld)");
         } else {
@@ -1376,59 +1376,46 @@
             return window.GameAPI?.getMode?.() === target;
           };
 
-          // Prefer API gotoNearestTown, else routeTo nearestTown
+          // Navigate to town (API-first, fallback routing)
           try {
             if (typeof window.GameAPI.gotoNearestTown === "function") {
               await window.GameAPI.gotoNearestTown();
             } else {
               const nt = window.GameAPI?.nearestTown?.();
-              if (nt) {
-                const pathNT = window.GameAPI.routeTo?.(nt.x, nt.y) || [];
+              if (nt && typeof window.GameAPI.routeTo === "function") {
+                const pathNT = window.GameAPI.routeTo(nt.x, nt.y) || [];
                 const budgetNT = makeBudget(3000);
                 for (const step of pathNT) {
                   if (budgetNT.exceeded()) break;
-                  const ddx = Math.sign(step.x - (window.GameAPI.getPlayer()?.x ?? step.x));
-                  const ddy = Math.sign(step.y - (window.GameAPI.getPlayer()?.y ?? step.y));
+                  const pl = window.GameAPI.getPlayer?.();
+                  const ddx = Math.sign(step.x - (pl?.x ?? step.x));
+                  const ddy = Math.sign(step.y - (pl?.y ?? step.y));
                   key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
                   await sleep(100);
                 }
               }
             }
-          } catch (_) {}
+          } catch (eNav) {
+            record(false, "Town navigation failed: " + (eNav && eNav.message ? eNav.message : String(eNav)));
+          }
 
-          // API enter first, fallback keys
+          // Enter town (API-first, fallback Enter)
           let enteredTown = false;
           try { enteredTown = !!window.GameAPI.enterTownIfOnTile?.(); } catch (_) {}
-          if (!enteredTown) {
-            key("Enter");
-            await sleep(280);
-            try { window.GameAPI.enterTownIfOnTile?.(); } catch (_) {}
-          }
+          if (!enteredTown) { key("Enter"); await sleep(280); try { window.GameAPI.enterTownIfOnTile?.(); } catch (_) {} }
           enteredTown = await waitForMode("town", 5000, 140);
 
           if (enteredTown) {
             record(true, "Entered town");
-            // Ensure NPC presence after short settle; spawn greeters if exposed
+            // Minimal NPC presence check
             try {
-              let npcCount = window.GameAPI?.getNPCs?.().length || 0;
-              if (npcCount === 0) {
-                try { window.GameAPI?.checkHomeRoutes?.(); } catch (_) {}
-                await sleep(240);
-                npcCount = window.GameAPI?.getNPCs?.().length || 0;
-              }
+              let npcCount = Array.isArray(window.GameAPI?.getNPCs?.()) ? window.GameAPI.getNPCs().length : 0;
+              if (npcCount === 0) { try { window.GameAPI?.checkHomeRoutes?.(); } catch (_) {} await sleep(240); npcCount = Array.isArray(window.GameAPI?.getNPCs?.()) ? window.GameAPI.getNPCs().length : 0; }
               record(npcCount > 0, `NPC presence: count ${npcCount}`);
             } catch (_) {}
           } else {
             const nowMode = window.GameAPI?.getMode?.() || "";
-            try {
-              const world = window.GameAPI?.getWorld?.() || null;
-              const player = window.GameAPI?.getPlayer?.() || null;
-              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
-              const tile = (world && player && T && world.map[player.y] && world.map[player.y][player.x] === T.TOWN) ? "TOWN" : "OTHER";
-              recordSkip("Town entry not achieved (mode=" + nowMode + ", standing on tile=" + tile + ")");
-            } catch (_) {
-              recordSkip("Town entry not achieved (still in " + nowMode + ")");
-            }
+            recordSkip("Town entry not achieved (mode=" + nowMode + ")");
           }
         }
       } catch (e) {
