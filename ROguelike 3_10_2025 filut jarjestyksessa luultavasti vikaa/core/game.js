@@ -2499,6 +2499,16 @@
               requestDraw();
               return;
             }
+            // Ensure town NPCs are populated before running the check
+            try {
+              if ((!Array.isArray(ctx.npcs) || ctx.npcs.length === 0) && window.TownAI && typeof TownAI.populateTown === "function") {
+                TownAI.populateTown(ctx);
+                // Sync back any mutations
+                syncFromCtx(ctx);
+                rebuildOccupancy();
+              }
+            } catch (_) {}
+
             if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
               const res = TownAI.checkHomeRoutes(ctx) || {};
               const totalChecked = (typeof res.total === "number")
@@ -2512,6 +2522,9 @@
                 const r = res.residents;
                 // TownAI returns atTavern; display as "inn" for consistency
                 extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
+              } else {
+                // Provide a hint if no residents were counted
+                extraLines.push("No residents were counted; ensure town NPCs are populated.");
               }
               // Per-resident list of late-night away residents
               if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
