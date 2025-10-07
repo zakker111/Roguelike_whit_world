@@ -472,6 +472,18 @@
           const wcount = Array.isArray(VL.warnings) ? VL.warnings.length : 0;
           record(wcount > 0, `Validation warnings captured: ${wcount}`);
         }
+        // Registry readiness wait: ensure Enemies registry or JSON entries are available before dungeon tests
+        const ready = await waitUntilTrue(() => {
+          try {
+            const EM = (typeof window !== "undefined") ? window.Enemies : null;
+            const types = (EM && typeof EM.listTypes === "function") ? EM.listTypes() : [];
+            if (types && types.length > 0) return true;
+          } catch (_) {}
+          try {
+            return !!(window.GameData && Array.isArray(window.GameData.enemies) && window.GameData.enemies.length > 0);
+          } catch (_) { return false; }
+        }, 800, 50);
+        if (!ready) recordSkip("Enemy registry not ready (types empty) — proceeding anyway");
       } catch (e) {
         record(false, "Data registries check failed: " + (e && e.message ? e.message : String(e)));
       }
@@ -679,7 +691,7 @@
                 recordSkip("No potions available to drink");
               }
             } catch (e2) {
-              record(false, "Drink potion failed: " + (e2 && e.message ? e2.message : String(e2)));
+              record(false, "Drink potion failed: " + (e2 && e2message ? e2.message : String(e2)));
             }
 
             // 9b.2: two-handed equip/unequip behavior if available + hand chooser branch coverage
