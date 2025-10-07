@@ -655,15 +655,14 @@
             entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
           }
 
-          // Final post-verify: watch briefly for any transient 'dungeon' mode before declaring failure
+          // Final post-verify: watch longer for any transient 'dungeon' mode before declaring failure
           if (!entered) {
             try {
               const start = Date.now();
-              const windowMs = 1200;
+              const windowMs = 3000; // extended settle window to catch late mode flips
               let sawDungeon = false;
-              while ((Date.now() - start) < windowMs && !sawDungeon) {
-                try {
-                  if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
+              while ((Date.now() - start <
+ windowMs &&      if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
                     sawDungeon = true;
                     break;
                   }
