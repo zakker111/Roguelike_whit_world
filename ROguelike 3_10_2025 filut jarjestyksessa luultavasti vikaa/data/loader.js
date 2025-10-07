@@ -22,6 +22,7 @@
     consumables: "data/consumables.json",
     shops: "data/shops.json",
     town: "data/town.json",
+    flavor: "data/flavor.json",
   };
 
   // Compact defaults used when JSON is unavailable (e.g., file://)
@@ -80,6 +81,25 @@
       roads: { xStride: 10, yStride: 8 },
       buildings: { max: 18, blockW: 8, blockH: 6 },
       props: { benchLimit: { small: 8, big: 12, city: 16 }, plantTryFactor: 10 }
+    },
+    flavor: {
+      headCrit: [
+        "A brutal crack to the skull; your ears ring.",
+        "You take a hard hit to the head; your ears ring."
+      ],
+      torsoStingPlayer: [
+        "A sharp jab to your ribs knocks the wind out.",
+        "You clutch your ribs; the hit steals your breath."
+      ],
+      bloodSpill: [
+        "Blood spills across the floor.",
+        "Dark blood splashes on the stone.",
+        "A stain spreads underfoot."
+      ],
+      enemyTorsoSting: [
+        "You jab its ribs; it wheezes.",
+        "A punch to its ribs knocks the wind out."
+      ]
     }
   };
 
@@ -98,8 +118,10 @@
     consumables: null,
     shops: null,
     town: null,
+    flavor: null,
     ready: null,
-  };
+  }</;
+
 
   function logNotice(msg) {
     try {
@@ -127,13 +149,14 @@
 
   GameData.ready = (async function loadAll() {
     try {
-      const [items, enemies, npcs, consumables, shops, town] = await Promise.all([
+      const [items, enemies, npcs, consumables, shops, town, flavor] = await Promise.all([
         fetchJson(DATA_FILES.items).catch(() => null),
         fetchJson(DATA_FILES.enemies).catch(() => null),
         fetchJson(DATA_FILES.npcs).catch(() => null),
         fetchJson(DATA_FILES.consumables).catch(() => null),
         fetchJson(DATA_FILES.shops).catch(() => null),
         fetchJson(DATA_FILES.town).catch(() => null),
+        fetchJson(DATA_FILES.flavor).catch(() => null),
       ]);
 
       GameData.items = Array.isArray(items) ? items : null;
@@ -142,6 +165,7 @@
       GameData.consumables = (consumables && typeof consumables === "object") ? consumables : null;
       GameData.shops = Array.isArray(shops) ? shops : null;
       GameData.town = (town && typeof town === "object") ? town : null;
+      GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
 
       // If running under file://, prefer defaults immediately to avoid fetch/CORS issues
       if (runningFromFile()) {
