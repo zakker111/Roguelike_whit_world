@@ -742,6 +742,33 @@
       } catch (e) {
         record(false, "Inventory open/close failed: " + (e && e.message ? e.message : String(e)));
       }
+
+      // Step 7.1: Spawn random items via GOD and check diversity
+      try {
+        // Open GOD panel
+        if (safeClick("god-open-btn")) {
+          await sleep(180);
+          // Click spawn multiple times to accumulate a small sample
+          let clicks = 0;
+          for (let t = 0; t < 3; t++) {
+            if (safeClick("god-spawn-btn")) { clicks++; await sleep(160); }
+          }
+          // Read inventory and compute diversity for equip items
+          const inv = (typeof window.GameAPI?.getInventory === "function") ? window.GameAPI.getInventory() : [];
+          const equipNames = inv.filter(it => it && it.kind === "equip").map(it => it.name || "");
+          const uniq = Array.from(new Set(equipNames.filter(Boolean)));
+          const diverse = uniq.length >= 2;
+          record(diverse, `Spawn random items diversity: clicked ${clicks}x, unique equip names ${uniq.length}${uniq.length ? " — " + uniq.slice(0, 6).join(", ") : ""}`);
+          // Close GOD
+          key("Escape");
+          await sleep(140);
+        } else {
+          recordSkip("GOD open button not present (spawn diversity)");
+        }
+      } catch (e) {
+        record(false, "Spawn random items diversity failed: " + (e && e.message ? e.message : String(e)));
+      }
+
       await sleep(250);
 
       // Step 8: loot (G) any corpse beneath player (if present)
