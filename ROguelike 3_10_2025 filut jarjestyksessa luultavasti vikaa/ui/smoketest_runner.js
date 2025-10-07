@@ -528,25 +528,65 @@
       try {
         key("Escape");
         await sleep(250);
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
-          const ok = await window.GameAPI.gotoNearestDungeon();
-          if (!ok) {
-            // Try some manual moves
-            const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
-            for (const m of moves) { key(m); await sleep(120); }
-          }
-          key("Enter"); // Enter dungeon (press Enter on D)
-          await sleep(500);
-          record(true, "Attempted dungeon entry");
-          // Determinism sample: first enemy type and chest loot names before any runner mutations
+        const inWorld = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world");
+        if (inWorld) {
+          let entered = false;
+
+          // Attempt 1: built-in helper + Enter
           try {
-            const enemies0 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
-            const firstEnemyType = enemies0 && enemies0.length ? (enemies0[0].type || "") : "";
-            const chests = (typeof window.GameAPI.getChestsDetailed === "function") ? window.GameAPI.getChestsDetailed() : [];
-            const chestItems = chests && chests.length ? (chests[0].items || []) : [];
-            runMeta.determinism.firstEnemyType = firstEnemyType;
-            runMeta.determinism.chestItems = chestItems.slice(0);
+            if (typeof window.GameAPI.gotoNearestDungeon === "function") {
+              await window.GameAPI.gotoNearestDungeon();
+            }
+            key("Enter"); await sleep(280);
+            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+            await sleep(260);
+            entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
           } catch (_) {}
+
+          // Attempt 2: route precisely to nearestDungeon() coords then Enter
+          if (!entered) {
+            try {
+              const nd = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+              if (nd && typeof window.GameAPI.routeTo === "function") {
+                const pathND = window.GameAPI.routeTo(nd.x, nd.y);
+                const budgetND = makeBudget(CONFIG.timeouts.route);
+                for (const step of pathND) {
+                  if (budgetND.exceeded()) break;
+                  const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                  const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                  key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(90);
+                }
+                key("Enter"); await sleep(280);
+                if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+                await sleep(260);
+                entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+              }
+            } catch (_) {}
+          }
+
+          // Attempt 3: a few manual steps and retry Enter/API
+          if (!entered) {
+            const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
+            for (const m of moves) { key(m); await sleep(110); }
+            key("Enter"); await sleep(240);
+            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+            await sleep(240);
+            entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+          }
+
+          record(entered, entered ? "Entered dungeon" : "Dungeon entry failed");
+          if (entered) {
+            // Determinism sample: first enemy type and chest loot names before any runner mutations
+            try {
+              const enemies0 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+              const firstEnemyType = enemies0 && enemies0.length ? (enemies0[0].type || "") : "";
+              const chests = (typeof window.GameAPI.getChestsDetailed === "function") ? window.GameAPI.getChestsDetailed() : [];
+              const chestItems = chests && chests.length ? (chests[0].items || []) : [];
+              runMeta.determinism.firstEnemyType = firstEnemyType;
+              runMeta.determinism.chestItems = chestItems.slice(0);
+            } catch (_) {}
+          }
         } else {
           recordSkip("Skipped routing (not in overworld)");
         }
