@@ -315,6 +315,43 @@
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // Ensure all UI modals are closed so routing/movement works
+  async function ensureAllModalsClosed(maxTries = 6) {
+    const isOpenById = (id) => {
+      try {
+        const el = document.getElementById(id);
+        return !!(el && el.hidden === false);
+      } catch (_) { return false; }
+    };
+    const anyOpen = () => {
+      return isOpenById("god-panel") || isOpenById("inv-panel") || isOpenById("shop-panel") || isOpenById("loot-panel");
+    };
+    // Try explicit UI API if available
+    try {
+      if (window.UI) {
+        try { typeof UI.hideGod === "function" && UI.hideGod(); } catch (_) {}
+        try { typeof UI.hideInventory === "function" && UI.hideInventory(); } catch (_) {}
+        try { typeof UI.hideShop === "function" && UI.hideShop(); } catch (_) {}
+        try { typeof UI.hideLoot === "function" && UI.hideLoot(); } catch (_) {}
+      }
+    } catch (_) {}
+    // Fallback: ESC multiple times with waits
+    let tries = 0;
+    while (anyOpen() && tries++ < maxTries) {
+      try { document.activeElement && typeof document.activeElement.blur === "function" && document.activeElement.blur(); } catch (_) {}
+      key("Escape");
+      await sleep(160);
+      // Try second ESC in quick succession to unwind modal stack
+      if (anyOpen()) { key("Escape"); await sleep(140); }
+      // Also attempt clicking GOD close if present
+      try {
+        const btn = document.getElementById("god-close-btn");
+        if (btn) { btn.click(); await sleep(120); }
+      } catch (_) {}
+    }
+    return !anyOpen();
+  }
+
   function key(code) {
     try {
       // Dispatch to document as well for broader listener coverage
@@ -524,10 +561,10 @@
       }
       await sleep(200);
 
-      // Step 4: close GOD and route to nearest dungeon in overworld
+      // Step 4: close modals and route to nearest dungeon in overworld
       try {
-        key("Escape");
-        await sleep(250);
+        // Ensure no modal blocks movement
+        await ensureAllModalsClosed(8);
         const inWorld = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world");
         if (inWorld) {
           let entered = false;
