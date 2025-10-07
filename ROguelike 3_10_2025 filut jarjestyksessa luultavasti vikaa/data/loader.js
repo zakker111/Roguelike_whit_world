@@ -47,7 +47,7 @@
     town: null,
     flavor: null,
     ready: null,
-  }</;
+  };</;
 
 
   function logNotice(msg) {
