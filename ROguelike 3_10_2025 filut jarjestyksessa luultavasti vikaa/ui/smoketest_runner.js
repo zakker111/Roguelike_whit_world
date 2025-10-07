@@ -1365,8 +1365,9 @@
       // Step 10: API-first town entry with retries and settle waits
       try {
         const isWorld = (window.GameAPI?.getMode?.() === "world");
-        if (!isWorld) { recordSkip("Skipped town visit (not in overworld)"); }
-        else {
+        if (!isWorld) {
+          recordSkip("Skipped town visit (not in overworld)");
+        } else {
           const waitForMode = async (target, timeoutMs = 4000, interval = 120) => {
             const deadline = Date.now() + timeoutMs;
             while (Date.now() < deadline) {
@@ -1375,6 +1376,7 @@
             }
             return window.GameAPI?.getMode?.() === target;
           };
+
           // Prefer API gotoNearestTown, else routeTo nearestTown
           try {
             if (typeof window.GameAPI.gotoNearestTown === "function") {
@@ -1394,11 +1396,13 @@
               }
             }
           } catch (_) {}
+
           // API enter first, fallback keys
           let enteredTown = false;
           try { enteredTown = !!window.GameAPI.enterTownIfOnTile?.(); } catch (_) {}
           if (!enteredTown) { key("Enter"); await sleep(280); try { window.GameAPI.enterTownIfOnTile?.(); } catch (_) {} }
           enteredTown = await waitForMode("town", 5000, 140);
+
           if (enteredTown) {
             record(true, "Entered town");
             // Ensure NPC presence after short settle; spawn greeters if exposed
@@ -1428,33 +1432,33 @@
         record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
       }
 
-          // Seed determinism invariants (same-seed regeneration without reload)
-          try {
-            // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
-            key("Escape"); await sleep(160);
-            if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
-            await sleep(240);
-            const seedRaw = (localStorage.getItem("SEED") || "");
-            const s = seedRaw ? (Number(seedRaw) >>> 0) : null;
-            if (s != null) {
-              // Open GOD, set seed (same) and regenerate overworld
-              safeClick("god-open-btn"); await sleep(120);
-              safeSetInput("god-seed-input", s);
-              safeClick("god-apply-seed-btn"); await sleep(400);
-              key("Escape"); await sleep(160);
-              const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-              const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-              const anchorTown = runMeta.determinism.anchorTown || null;
-              const anchorDung = runMeta.determinism.anchorDungeon || null;
-              const townSame = (!!anchorTown && !!nearestTownAfter) ? (anchorTown.x === nearestTownAfter.x && anchorTown.y === nearestTownAfter.y) : true;
-              const dungSame = (!!anchorDung && !!nearestDungeonAfter) ? (anchorDung.x === nearestDungeonAfter.x && anchorDung.y === nearestDungeonAfter.y) : true;
-              record(townSame && dungSame, `Seed invariants: nearestTown=${townSame ? "OK" : "MISMATCH"} nearestDungeon=${dungSame ? "OK" : "MISMATCH"}`);
-            } else {
-              recordSkip("Seed invariants skipped (no SEED persisted)");
-            }
-          } catch (e) {
-            record(false, "Seed invariants check failed: " + (e && e.message ? e.message : String(e)));
-          }
+      // Seed determinism invariants (same-seed regeneration without reload)
+      try {
+        // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
+        key("Escape"); await sleep(160);
+        if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
+        await sleep(240);
+        const seedRaw = (localStorage.getItem("SEED") || "");
+        const s = seedRaw ? (Number(seedRaw) >>> 0) : null;
+        if (s != null) {
+          // Open GOD, set seed (same) and regenerate overworld
+          safeClick("god-open-btn"); await sleep(120);
+          safeSetInput("god-seed-input", s);
+          safeClick("god-apply-seed-btn"); await sleep(400);
+          key("Escape"); await sleep(160);
+          const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+          const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+          const anchorTown = runMeta.determinism.anchorTown || null;
+          const anchorDung = runMeta.determinism.anchorDungeon || null;
+          const townSame = (!!anchorTown && !!nearestTownAfter) ? (anchorTown.x === nearestTownAfter.x && anchorTown.y === nearestTownAfter.y) : true;
+          const dungSame = (!!anchorDung && !!nearestDungeonAfter) ? (anchorDung.x === nearestDungeonAfter.x && anchorDung.y === nearestDungeonAfter.y) : true;
+          record(townSame && dungSame, `Seed invariants: nearestTown=${townSame ? "OK" : "MISMATCH"} nearestDungeon=${dungSame ? "OK" : "MISMATCH"}`);
+        } else {
+          recordSkip("Seed invariants skipped (no SEED persisted)");
+        }
+      } catch (e) {
+        record(false, "Seed invariants check failed: " + (e && e.message ? e.message : String(e)));
+      }
 
           // NPC check: route to nearest NPC and bump into them
           let lastNPC = null;
