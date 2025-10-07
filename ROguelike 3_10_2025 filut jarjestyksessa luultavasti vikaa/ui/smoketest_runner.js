@@ -1,9 +1,13 @@
-// Tiny Roguelike Smoke Test Runner
+>
+ Tiny Roguelike Smoke Test Runner
 // Loads when index.html?smoketest=1; runs a minimal scenario and reports pass/fail to Logger, console, and an on-screen banner.
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
+/* jshint esversion: 6 */
+/* globals window, document, console, Logger, UI, GameAPI */
 
 (function () {
-    'use strict';
+    'use stri_codectnew'</;
+trict';
     const RUNNER_VERSION = "1.6.0";
     const CONFIG = {
         timeouts: {
@@ -194,7 +198,7 @@
     // Budget helpers
     function makeBudget(ms) {
         const start = Date.now();
-        const deadline = start + Math.max(0, ms | 0);
+        const deadline = start + Math.max(0, parseInt(ms, 10) || 0);
         return {
             exceeded: () => Date.now() > deadline,
             remain: () => Math.max(0, deadline - Date.now())
