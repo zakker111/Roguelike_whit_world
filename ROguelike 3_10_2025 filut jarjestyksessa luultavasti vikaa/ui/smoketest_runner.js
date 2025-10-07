@@ -1,13 +1,11 @@
->
- Tiny Roguelike Smoke Test Runner
+Tiny Roguelike Smoke Test Runner
 // Loads when index.html?smoketest=1; runs a minimal scenario and reports pass/fail to Logger, console, and an on-screen banner.
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 /* jshint esversion: 6 */
 /* globals window, document, console, Logger, UI, GameAPI */
 
 (function () {
-    'use stri_codectnew'</;
-trict';
+    'use strict';
     const RUNNER_VERSION = "1.6.0";
     const CONFIG = {
         timeouts: {
@@ -293,7 +291,7 @@ trict';
 
     // Lightweight polling helpers (bounded) to avoid flaky state reads
     async function waitUntilTrue(fn, timeoutMs = 400, intervalMs = 40) {
-        const deadline = Date.now() + Math.max(0, timeoutMs | 0);
+        const deadline = Date.now() + Math.max(0, parseInt(timeoutMs, 10) || 0);
         while (Date.now() < deadline) {
             try { if (fn()) return true; } catch (_) { }
             await sleep(intervalMs);
@@ -1659,8 +1657,7 @@ trict';
                 record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
             }
         }
-        }
-      catch (e) {
+      } catch (e) {
         record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
     }
 
