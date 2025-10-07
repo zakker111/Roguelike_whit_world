@@ -443,3 +443,4 @@ BUGS
 
 - UNCORFIRMED MENTIONS
 - chek that enemies scale up whit dungeon level
+- 

@@ -1400,7 +1400,11 @@
           // API enter first, fallback keys
           let enteredTown = false;
           try { enteredTown = !!window.GameAPI.enterTownIfOnTile?.(); } catch (_) {}
-          if (!enteredTown) { key("Enter"); await sleep(280); try { window.GameAPI.enterTownIfOnTile?.(); } catch (_) {} }
+          if (!enteredTown) {
+            key("Enter");
+            await sleep(280);
+            try { window.GameAPI.enterTownIfOnTile?.(); } catch (_) {}
+          }
           enteredTown = await waitForMode("town", 5000, 140);
 
           if (enteredTown) {
@@ -1435,17 +1439,21 @@
       // Seed determinism invariants (same-seed regeneration without reload)
       try {
         // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
-        key("Escape"); await sleep(160);
-        if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
+        key("Escape");
+        await sleep(160);
+        try { window.GameAPI.returnToWorldIfAtExit?.(); } catch (_) {}
         await sleep(240);
         const seedRaw = (localStorage.getItem("SEED") || "");
         const s = seedRaw ? (Number(seedRaw) >>> 0) : null;
         if (s != null) {
           // Open GOD, set seed (same) and regenerate overworld
-          safeClick("god-open-btn"); await sleep(120);
+          safeClick("god-open-btn");
+          await sleep(120);
           safeSetInput("god-seed-input", s);
-          safeClick("god-apply-seed-btn"); await sleep(400);
-          key("Escape"); await sleep(160);
+          safeClick("god-apply-seed-btn");
+          await sleep(400);
+          key("Escape");
+          await sleep(160);
           const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
           const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
           const anchorTown = runMeta.determinism.anchorTown || null;
