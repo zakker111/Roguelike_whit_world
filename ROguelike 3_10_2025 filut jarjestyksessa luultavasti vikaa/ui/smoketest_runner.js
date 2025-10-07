@@ -1654,7 +1654,8 @@
                 record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
             }
         } // end town visit else
-      } catch (e) {
+      } // end town visit try
+      catch (e) {
         record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
     }
 
