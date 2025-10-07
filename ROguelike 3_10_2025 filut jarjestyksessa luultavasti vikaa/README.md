@@ -33,6 +33,30 @@ Data-first configuration
   - data/town.json — town layout parameters (sizes, plaza, roads, buildings, props)
 - If a JSON fails to load, modules fall back gracefully to safe defaults, and a notice is logged.
 
+JSON schema quick reference
+- data/enemies.json (array)
+  - id/key: string
+  - glyph: string (single character)
+  - color: string (hex)
+  - tier: number (1..n), influences level adjustment
+  - blockBase: number (0..1), base block chance modifier
+  - weightByDepth: array of [minDepth, weight]
+  - hp/atk/xp: array of [minDepth, base, slope] — base + slope*(depth-minDepth)
+  - potionWeights: { lesser, average, strong }
+  - equipChance: number (0..1)
+- data/shops.json (array)
+  - type: string (e.g., blacksmith, apothecary, inn)
+  - name: string
+  - open: "HH:MM" (optional if alwaysOpen)
+  - close: "HH:MM" (optional if alwaysOpen)
+  - alwaysOpen: boolean
+- data/town.json (object)
+  - sizes: { small:{W,H}, big:{W,H}, city:{W,H} }
+  - plaza: { small:{w,h}, big:{w,h}, city:{w,h} }
+  - roads: { xStride, yStride }
+  - buildings: { max, blockW, blockH }
+  - props: { benchLimit:{small,big,city}, plantTryFactor }
+
 Flags and URL parameters
 - dev=1: enable DEV mode (extra console logs). dev=0 disables and clears localStorage DEV.
 - mirror=1|0: side log mirror on/off. Persists to localStorage LOG_MIRROR.
