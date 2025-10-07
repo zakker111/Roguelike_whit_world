@@ -468,9 +468,16 @@
         const wantBad = (params.get("validatebad") === "1") || (params.get("badjson") === "1");
         const dev = (params.get("dev") === "1") || (window.DEV || localStorage.getItem("DEV") === "1");
         if (wantBad && dev) {
+          // Wait briefly for validators to run and populate ValidationLog.warnings
+          const okWarn = await waitUntilTrue(() => {
+            try {
+              const VL = window.ValidationLog || { warnings: [] };
+              return Array.isArray(VL.warnings) && VL.warnings.length > 0;
+            } catch (_) { return false; }
+          }, 1200, 80);
           const VL = window.ValidationLog || { warnings: [] };
           const wcount = Array.isArray(VL.warnings) ? VL.warnings.length : 0;
-          record(wcount > 0, `Validation warnings captured: ${wcount}`);
+          record(okWarn && wcount > 0, `Validation warnings captured: ${wcount}`);
         }
         // Registry readiness wait: ensure Enemies registry or JSON entries are available before dungeon tests
         const ready = await waitUntilTrue(() => {
@@ -2140,7 +2147,7 @@
               for (const m of r.failedSteps) lines.push(`[ ] ${m}`);
             }
             if (Array.isArray(r.skipped)) {
-              for (const m of r.skipped) lines.push(`[-] ${m}`);
+              for (const m of r.skipped) lines.push(`[~] ${m}`);
             }
             lines.push("");
           }
@@ -2161,7 +2168,7 @@
             items.push(`<div style="margin-top:6px;"><strong>${runId}</strong></div>`);
             if (Array.isArray(r.passedSteps)) for (const m of r.passedSteps) items.push(`<div style="color:#86efac;">[x] ${m}</div>`);
             if (Array.isArray(r.failedSteps)) for (const m of r.failedSteps) items.push(`<div style="color:#fca5a5;">[ ] ${m}</div>`);
-            if (Array.isArray(r.skipped)) for (const m of r.skipped) items.push(`<div style="color:#fde68a;">[-] ${m}</div>`);
+            if (Array.isArray(r.skipped)) for (const m of r.skipped) items.push(`<div style="color:#fde68a;">[~] ${m}</div>`);
           }
           return `<div style="margin-top:8px;"><strong>Checklist</strong></div>` + items.join("");
         })();
