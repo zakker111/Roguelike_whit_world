@@ -566,150 +566,75 @@
       }
       await sleep(200);
 
-      // Step 4: close modals and route to nearest dungeon in overworld
+      // Step 4: API-first routing to nearest dungeon with retries and settle waits
       try {
-        // Ensure no modal blocks movement
         await ensureAllModalsClosed(8);
-        const inWorld = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world");
-        if (inWorld) {
+        const isWorld = (window.GameAPI?.getMode?.() === "world");
+        if (!isWorld) { recordSkip("Skipped routing (not in overworld)"); }
+        else {
+          const waitForMode = async (target, timeoutMs = 4000, interval = 120) => {
+            const deadline = Date.now() + timeoutMs;
+            while (Date.now() < deadline) {
+              try { if (window.GameAPI?.getMode?.() === target) return true; } catch (_) {}
+              await sleep(interval);
+            }
+            return window.GameAPI?.getMode?.() === target;
+          };
           let entered = false;
 
-          // Attempt 1: built-in helper + Enter
+          // Attempt A: API route helper then API enter
           try {
             if (typeof window.GameAPI.gotoNearestDungeon === "function") {
               await window.GameAPI.gotoNearestDungeon();
             }
-            key("Enter"); await sleep(280);
-            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-            await sleep(260);
-            entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") {
+              window.GameAPI.enterDungeonIfOnEntrance();
+            }
+            entered = await waitForMode("dungeon", 4500, 140);
           } catch (_) {}
 
-          // Attempt 2: route precisely to nearestDungeon() coords then Enter
+          // Attempt B: precise route-to nearest coords then API enter
           if (!entered) {
             try {
-              const nd = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+              const nd = window.GameAPI?.nearestDungeon?.();
               if (nd && typeof window.GameAPI.routeTo === "function") {
                 const pathND = window.GameAPI.routeTo(nd.x, nd.y);
                 const budgetND = makeBudget(CONFIG.timeouts.route);
                 for (const step of pathND) {
                   if (budgetND.exceeded()) break;
-                  const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                  const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                  const ddx = Math.sign(step.x - (window.GameAPI.getPlayer()?.x ?? step.x));
+                  const ddy = Math.sign(step.y - (window.GameAPI.getPlayer()?.y ?? step.y));
                   key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-                  await sleep(90);
+                  await sleep(100);
                 }
-                key("Enter"); await sleep(280);
-                if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-                await sleep(260);
-                entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+                window.GameAPI.enterDungeonIfOnEntrance?.();
+                entered = await waitForMode("dungeon", 4500, 140);
               }
             } catch (_) {}
           }
 
-          // Attempt 3: scan world map for a visible dungeon tile, route to it, then try multiple entry methods
+          // Attempt C: fallback keys (Enter/G) then API enter, with longer settle
           if (!entered) {
-            try {
-              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
-              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
-              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
-              if (world && player && T && typeof T.DUNGEON === "number" && Array.isArray(world.map)) {
-                // Search increasing radius around the player for a DUNGEON tile
-                const maxR = 20;
-                let target = null;
-                for (let r = 2; r <= maxR && !target; r++) {
-                  for (let dy = -r; dy <= r; dy++) {
-                    for (let dx = -r; dx <= r; dx++) {
-                      const nx = player.x + dx, ny = player.y + dy;
-                      if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
-                        if (world.map[ny][nx] === T.DUNGEON) { target = { x: nx, y: ny }; break; }
-                      }
-                    }
-                    if (target) break;
-                  }
-                }
-                if (target && typeof window.GameAPI.routeTo === "function") {
-                  const path = window.GameAPI.routeTo(target.x, target.y);
-                  const budget = makeBudget(CONFIG.timeouts.route);
-                  for (const step of path) {
-                    if (budget.exceeded()) break;
-                    const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                    const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
-                    key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-                    await sleep(90);
-                  }
-                  // Try both Enter and G, plus API
-                  key("Enter"); await sleep(200);
-                  key("KeyG"); await sleep(200);
-                  if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-                  await sleep(260);
-                  entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
-                }
-              }
-            } catch (_) {}
+            key("Enter"); await sleep(260);
+            key("KeyG"); await sleep(260);
+            window.GameAPI.enterDungeonIfOnEntrance?.();
+            entered = await waitForMode("dungeon", 5000, 150);
           }
 
-          // Attempt 4: a few manual steps and retry Enter/API
-          if (!entered) {
-            const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
-            for (const m of moves) { key(m); await sleep(110); }
-            key("Enter"); await sleep(200);
-            key("KeyG"); await sleep(200);
-            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-            await sleep(240);
-            entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
-          }
-
-          // Final post-verify: watch longer for any transient 'dungeon' mode before declaring failure
-          if (!entered) {
-            try {
-              const start = Date.now();
-              const windowMs = 5000; // extended settle window to catch late mode flips
-              let sawDungeon = false;
-              while ((Date.now() - start) < windowMs && !sawDungeon) {
-                try {
-                  if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
-                    sawDungeon = true;
-                    break;
-                  }
-                } catch (_) {}
-                await sleep(100);
-              }
-              if (sawDungeon) entered = true;
-            } catch (_) {}
-          }
-
-          // As a last resort, scan the main log for an entry message indicating dungeon entry
-          if (!entered) {
-            try {
-              const logEl = document.getElementById("log");
-              if (logEl) {
-                const txt = (logEl.innerText || logEl.textContent || "").toLowerCase();
-                if (txt.includes("enter the dungeon") || txt.includes("re-enter the dungeon")) {
-                  entered = true;
-                }
-              }
-            } catch (_) {}
-          }
-
-          const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+          const modeNow = window.GameAPI?.getMode?.() || "";
           record(entered, entered ? `Entered dungeon (mode=${modeNow})` : `Dungeon entry failed (mode=${modeNow})`);
 
           if (entered) {
-            // Determinism sample: first enemy type and chest loot names before any runner mutations
             try {
-              // Small delay to let dungeon init complete
-              await sleep(180);
-              const enemies0 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+              await sleep(280);
+              const enemies0 = window.GameAPI?.getEnemies?.() || [];
               const firstEnemyType = enemies0 && enemies0.length ? (enemies0[0].type || "") : "";
-              const chests = (typeof window.GameAPI.getChestsDetailed === "function") ? window.GameAPI.getChestsDetailed() : [];
+              const chests = window.GameAPI?.getChestsDetailed?.() || [];
               const chestItems = chests && chests.length ? (chests[0].items || []) : [];
               runMeta.determinism.firstEnemyType = firstEnemyType;
               runMeta.determinism.chestItems = chestItems.slice(0);
             } catch (_) {}
           }
-        } else {
-          recordSkip("Skipped routing (not in overworld)");
         }
       } catch (e) {
         record(false, "Routing error: " + (e && e.message ? e.message : String(e)));
@@ -1330,41 +1255,46 @@
             record(true, "No enemies found to route/loot");
           }
 
-          // 9d: Attempt to return to overworld via dungeon exit ('>') + persistence pass + stair guard
+          // 9d: API-first return to overworld via dungeon exit ('>') + persistence pass + stair guard, with settle waits
           try {
-            const exit = (typeof window.GameAPI.getDungeonExit === "function") ? window.GameAPI.getDungeonExit() : null;
-            if (exit) {
-              // Stair guard: stand on a non-stair tile and press G; assert mode stays dungeon
+            const waitForMode = async (target, timeoutMs = 4000, interval = 120) => {
+              const deadline = Date.now() + timeoutMs;
+              while (Date.now() < deadline) {
+                try { if (window.GameAPI?.getMode?.() === target) return true; } catch (_) {}
+                await sleep(interval);
+              }
+              return window.GameAPI?.getMode?.() === target;
+            };
+            const exit = window.GameAPI?.getDungeonExit?.();
+            if (!exit) { recordSkip("Skipped return to overworld (no exit info)"); }
+            else {
+              // Stair guard on non-stair tile
               try {
-                // Pick an adjacent walkable non-stair tile if possible
                 const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                let moved = false;
                 for (const d of adj) {
                   const nx = window.GameAPI.getPlayer().x + d.dx;
                   const ny = window.GameAPI.getPlayer().y + d.dy;
-                  if (typeof window.GameAPI.isWalkableDungeon === "function" ? window.GameAPI.isWalkableDungeon(nx, ny) : true) {
-                    // attempt move
+                  if (window.GameAPI.isWalkableDungeon?.(nx, ny)) {
                     const dx = Math.sign(nx - window.GameAPI.getPlayer().x);
                     const dy = Math.sign(ny - window.GameAPI.getPlayer().y);
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                    await sleep(120);
-                    moved = true;
+                    await sleep(140);
                     break;
                   }
                 }
-                key("KeyG");
-                await sleep(160);
-                const modeGuard = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+                key("KeyG"); await sleep(200);
+                const modeGuard = window.GameAPI?.getMode?.() || "";
                 record(modeGuard === "dungeon", "Stair guard: G on non-stair does not exit dungeon");
               } catch (eGuard) {
                 record(false, "Stair guard check failed: " + (eGuard && eGuard.message ? eGuard.message : String(eGuard)));
               }
 
               // Capture pre-exit persistence markers
-              const preCorpses = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().map(c => `${c.x},${c.y}:${c.kind}`) : [];
-              const preDecals = (typeof window.GameAPI.getDecalsCount === "function") ? window.GameAPI.getDecalsCount() : 0;
+              const preCorpses = window.GameAPI?.getCorpses?.().map(c => `${c.x},${c.y}:${c.kind}`) || [];
+              const preDecals = window.GameAPI?.getDecalsCount?.() || 0;
 
-              const pathBack = window.GameAPI.routeToDungeon(exit.x, exit.y);
+              // Route to exit and exit via API first
+              const pathBack = window.GameAPI?.routeToDungeon?.(exit.x, exit.y) || [];
               const budget = makeBudget(CONFIG.timeouts.route);
               for (const step of pathBack) {
                 if (budget.exceeded()) { recordSkip("Routing to dungeon exit timed out"); break; }
@@ -1373,50 +1303,44 @@
                 key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                 await sleep(110);
               }
-              key("KeyG"); // exit on '>'
-              await sleep(300);
-
-              // Confirm we are in overworld
-              const m1 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-              record(m1 === "world", m1 === "world" ? "Returned to overworld from dungeon" : "Attempted return to overworld (mode=" + m1 + ")");
-
-              // Persistence pass: immediately re-enter the same dungeon and verify state + player anchor
+              // API-first exit
+              let returned = false;
               try {
-                if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") {
-                  // Capture player anchor before re-enter (overworld entrance tile)
-                  const playerBeforeReenter = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+                if (typeof window.GameAPI.returnToWorldIfAtExit === "function") {
+                  returned = !!window.GameAPI.returnToWorldIfAtExit();
+                }
+              } catch (_) {}
+              if (!returned) { key("KeyG"); await sleep(280); }
+              const m1ok = await waitForMode("world", 5000, 140);
+              record(m1ok, m1ok ? "Returned to overworld from dungeon" : `Attempted return to overworld (mode=${window.GameAPI?.getMode?.() || ""})`);
+
+              // Persistence pass: re-enter and compare
+              try {
+                if (window.GameAPI?.enterDungeonIfOnEntrance) {
+                  const playerBeforeReenter = window.GameAPI?.getPlayer?.() || null;
                   window.GameAPI.enterDungeonIfOnEntrance();
-                  await sleep(300);
-                  const m2 = window.GameAPI.getMode ? window.GameAPI.getMode() : "";
-                  if (m2 === "dungeon") {
-                    const postCorpses = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().map(c => `${c.x},${c.y}:${c.kind}`) : [];
-                    const postDecals = (typeof window.GameAPI.getDecalsCount === "function") ? window.GameAPI.getDecalsCount() : 0;
-                    // Compare simple invariants: at least as many corpses; some overlap of corpse keys; decals not less (allow equal)
+                  const reEntered = await waitForMode("dungeon", 4500, 140);
+                  if (reEntered) {
+                    const postCorpses = window.GameAPI?.getCorpses?.().map(c => `${c.x},${c.y}:${c.kind}`) || [];
+                    const postDecals = window.GameAPI?.getDecalsCount?.() || 0;
                     const overlap = preCorpses.filter(k => postCorpses.includes(k)).length;
                     const corpsesOk = postCorpses.length >= preCorpses.length && (preCorpses.length === 0 || overlap > 0);
                     const decalsOk = postDecals >= preDecals;
                     record(corpsesOk, `Persistence corpses: before ${preCorpses.length}, after ${postCorpses.length}, overlap ${overlap}`);
                     record(decalsOk, `Persistence decals: before ${preDecals}, after ${postDecals}`);
 
-                    // Player non-teleport check during persistence: ensure player pos only changes due to intended transitions
-                    const playerAfterReenter = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+                    const playerAfterReenter = window.GameAPI?.getPlayer?.() || null;
                     const playerStable = !!(playerBeforeReenter && playerAfterReenter && (Math.abs(playerBeforeReenter.x - playerAfterReenter.x) + Math.abs(playerBeforeReenter.y - playerAfterReenter.y) <= 1));
                     record(playerStable, `Player teleport guard (re-enter): Δ <= 1 tile`);
 
-                    // Aggregate: dungeon persistence summary
                     const dungeonPersistent = corpsesOk && decalsOk;
                     record(dungeonPersistent, `Dungeon persistent: ${dungeonPersistent ? "YES" : "NO"}`);
 
-                    // Return to world again to proceed with town flow
-                    if (typeof window.GameAPI.returnToWorldIfAtExit === "function") {
-                      const ok = window.GameAPI.returnToWorldIfAtExit();
-                      await sleep(240);
-                      if (!ok) {
-                        // as fallback, press G on '>'
-                        key("KeyG");
-                        await sleep(240);
-                      }
-                    }
+                    // Return to world to proceed
+                    let back = false;
+                    try { back = !!window.GameAPI.returnToWorldIfAtExit?.(); } catch (_) {}
+                    if (!back) { key("KeyG"); await sleep(260); }
+                    await waitForMode("world", 4500, 140);
                   } else {
                     recordSkip("Persistence check skipped: failed to re-enter dungeon");
                   }
@@ -1426,8 +1350,6 @@
               } catch (e) {
                 record(false, "Persistence pass failed: " + (e && e.message ? e.message : String(e)));
               }
-            } else {
-              recordSkip("Skipped return to overworld (no exit info)");
             }
           } catch (e) {
             record(false, "Return to overworld failed: " + (e && e.message ? e.message : String(e)));
@@ -1439,125 +1361,60 @@
         record(false, "Dungeon test error: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Step 10: from overworld, visit nearest town and interact
+      // Step 10: API-first town entry with retries and settle waits
       try {
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
-          // Seed determinism invariants: nearestTown/nearestDungeon before routing
-          let nearestTownBefore = null, nearestDungeonBefore = null;
-          try {
-            nearestTownBefore = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-            nearestDungeonBefore = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-          } catch (_) {}
-
-          // Prefer precise routing to nearestTown coordinate if available
-          let okTown = false;
-          try {
-            const nt = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-            if (nt && typeof window.GameAPI.routeTo === "function") {
-              const pathNT = window.GameAPI.routeTo(nt.x, nt.y);
-              const budgetNT = makeBudget(2500);
-              for (const step of pathNT) {
-                if (budgetNT.exceeded()) break;
-                const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
-                key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(90);
-              }
-              okTown = true;
-            } else if (typeof window.GameAPI.gotoNearestTown === "function") {
-              okTown = await window.GameAPI.gotoNearestTown();
+        const isWorld = (window.GameAPI?.getMode?.() === "world");
+        if (!isWorld) { recordSkip("Skipped town visit (not in overworld)"); }
+        else {
+          const waitForMode = async (target, timeoutMs = 4000, interval = 120) => {
+            const deadline = Date.now() + timeoutMs;
+            while (Date.now() < deadline) {
+              try { if (window.GameAPI?.getMode?.() === target) return true; } catch (_) {}
+              await sleep(interval);
             }
-          } catch (_) {
-            if (typeof window.GameAPI.gotoNearestTown === "function") {
-              okTown = await window.GameAPI.gotoNearestTown();
-            }
-          }
-          // Attempt multiple entry tries: Enter key and direct API
-          const tryEnterTown = async () => {
-            key("Enter"); await sleep(300);
-            try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-            await sleep(240);
+            return window.GameAPI?.getMode?.() === target;
           };
-          await tryEnterTown();
-          let nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-          if (nowMode !== "town") {
-            await tryEnterTown();
-          }
-          nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-          if (nowMode !== "town") {
-            // Fallback: scan wider radius for a Town tile and route to it, then try enter again
-            try {
-              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
-              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
-              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
-              if (world && player && T && typeof T.TOWN === "number" && Array.isArray(world.map)) {
-                // Prioritize immediate adjacency, then expand search radius to 6
-                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                let stepped = false;
-                for (const d of adj) {
-                  const nx = player.x + d.dx, ny = player.y + d.dy;
-                  if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
-                    if (world.map[ny][nx] === T.TOWN && typeof window.GameAPI.moveStep === "function") {
-                      window.GameAPI.moveStep(d.dx, d.dy);
-                      await sleep(140);
-                      stepped = true;
-                      break;
-                    }
-                  }
+          // Prefer API gotoNearestTown, else routeTo nearestTown
+          try {
+            if (typeof window.GameAPI.gotoNearestTown === "function") {
+              await window.GameAPI.gotoNearestTown();
+            } else {
+              const nt = window.GameAPI?.nearestTown?.();
+              if (nt) {
+                const pathNT = window.GameAPI.routeTo?.(nt.x, nt.y) || [];
+                const budgetNT = makeBudget(3000);
+                for (const step of pathNT) {
+                  if (budgetNT.exceeded()) break;
+                  const ddx = Math.sign(step.x - (window.GameAPI.getPlayer()?.x ?? step.x));
+                  const ddy = Math.sign(step.y - (window.GameAPI.getPlayer()?.y ?? step.y));
+                  key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(100);
                 }
-                if (!stepped) {
-                  const r = 6;
-                  const candidates = [];
-                  for (let dy = -r; dy <= r; dy++) {
-                    for (let dx = -r; dx <= r; dx++) {
-                      const nx = player.x + dx, ny = player.y + dy;
-                      if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
-                        if (world.map[ny][nx] === T.TOWN) candidates.push({ x: nx, y: ny });
-                      }
-                    }
-                  }
-                  if (candidates.length && typeof window.GameAPI.routeTo === "function") {
-                    const path = window.GameAPI.routeTo(candidates[0].x, candidates[0].y);
-                    const budget = makeBudget(3000);
-                    for (const step of path) {
-                      if (budget.exceeded()) break;
-                      const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                      const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
-                      key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-                      await sleep(90);
-                    }
-                  }
-                }
-                await tryEnterTown();
-                await tryEnterTown();
               }
-            } catch (_) {}
-          }
-          nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-          if (nowMode === "town") {
+            }
+          } catch (_) {}
+          // API enter first, fallback keys
+          let enteredTown = false;
+          try { enteredTown = !!window.GameAPI.enterTownIfOnTile?.(); } catch (_) {}
+          if (!enteredTown) { key("Enter"); await sleep(280); try { window.GameAPI.enterTownIfOnTile?.(); } catch (_) {} }
+          enteredTown = await waitForMode("town", 5000, 140);
+          if (enteredTown) {
             record(true, "Entered town");
-            // Ensure at least one NPC is present; if not, try to populate via Home Routes or greeters
+            // Ensure NPC presence after short settle; spawn greeters if exposed
             try {
-              let npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+              let npcCount = window.GameAPI?.getNPCs?.().length || 0;
               if (npcCount === 0) {
-                // Try home routes first (may populate)
-                if (typeof window.GameAPI.checkHomeRoutes === "function") window.GameAPI.checkHomeRoutes();
-                await sleep(200);
-                npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
-              }
-              if (npcCount === 0 && typeof window.GameAPI.spawnGateGreeters === "function") {
-                // Fallback greeter spawn if exposed
-                try { window.GameAPI.spawnGateGreeters(1); } catch (_) {}
-                await sleep(200);
-                npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+                try { window.GameAPI?.checkHomeRoutes?.(); } catch (_) {}
+                await sleep(240);
+                npcCount = window.GameAPI?.getNPCs?.().length || 0;
               }
               record(npcCount > 0, `NPC presence: count ${npcCount}`);
             } catch (_) {}
           } else {
-            // Extra diagnostic to help understand why it failed
+            const nowMode = window.GameAPI?.getMode?.() || "";
             try {
-              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
-              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+              const world = window.GameAPI?.getWorld?.() || null;
+              const player = window.GameAPI?.getPlayer?.() || null;
               const T = (window.World && window.World.TILES) ? window.World.TILES : null;
               const tile = (world && player && T && world.map[player.y] && world.map[player.y][player.x] === T.TOWN) ? "TOWN" : "OTHER";
               recordSkip("Town entry not achieved (mode=" + nowMode + ", standing on tile=" + tile + ")");
@@ -1565,6 +1422,10 @@
               recordSkip("Town entry not achieved (still in " + nowMode + ")");
             }
           }
+        }
+      } catch (e) {
+        record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
+      }
 
           // Seed determinism invariants (same-seed regeneration without reload)
           try {
