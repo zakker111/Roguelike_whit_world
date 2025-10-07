@@ -2265,18 +2265,59 @@
     if (aTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg turn ${avgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
     if (aDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
 
-    const summary = [
-        `<div><strong>Smoke Test Summary:</strong></div>`,
-        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
-        `<div>Checks: passed ${totalPassedSteps}, failed <span style="${totalFailedSteps ? "color:#ef4444" : "color:#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
-        `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
-        perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
-        n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
-        n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
-        n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
-        `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
-        fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
-      ].join("");
+    // Build Key Checklist for the last run so it survives the runSeries summary overwrite
+      function buildKeyChecklistHtmlFromSteps(steps) {
+        if (!Array.isArray(steps)) return "";
+        function hasStep(sub, okOnly = true) {
+          for (const s of steps) {
+            if (okOnly && !s.ok) continue;
+            if (String(s.msg || "").toLowerCase().includes(String(sub).toLowerCase())) return true;
+          }
+          return false;
+        }
+        const keyChecks = [
+          { label: "Entered dungeon", pass: hasStep("Entered dungeon") },
+          { label: "Looted chest", pass: hasStep("Looted chest at (") },
+          { label: "Chest invariant persists (empty on re-enter)", pass: hasStep("Chest invariant:") },
+          { label: "Spawned enemy from GOD", pass: hasStep("Dungeon spawn: enemies") },
+          { label: "Enemy types present", pass: hasStep("Enemy types present:") },
+          { label: "Enemy glyphs not '?'", pass: hasStep("Enemy glyphs:") && !hasStep('All enemy glyphs are "?"', false) },
+          { label: "Attacked enemy (moved/attempted attacks)", pass: hasStep("Moved and attempted attacks") },
+          { label: "Killed enemy (corpse increased)", pass: hasStep("Killed enemy: YES") },
+          { label: "Decay increased on equipped hand(s)", pass: hasStep("Decay check:") && !hasStep("Decay did not increase", false) },
+          { label: "Stair guard (G on non-stair doesn’t exit)", pass: hasStep("Stair guard: G on non-stair does not exit dungeon") },
+          { label: "Returned to overworld from dungeon", pass: hasStep("Returned to overworld from dungeon") },
+          { label: "Dungeon corpses persisted", pass: hasStep("Persistence corpses:") },
+          { label: "Dungeon decals persisted", pass: hasStep("Persistence decals:") },
+          { label: "Town entered", pass: hasStep("Entered town") },
+          { label: "NPCs present in town", pass: hasStep("NPC presence: count") },
+          { label: "Bumped into NPC", pass: hasStep("Bumped into at least one NPC") },
+          { label: "NPC home has decorations/props", pass: hasStep("NPC home has") },
+          { label: "Shop UI closes with Esc", pass: hasStep("Shop UI closes with Esc") },
+        ];
+        const rows = keyChecks.map(c => {
+          const mark = c.pass ? "[x]" : "[ ]";
+          const color = c.pass ? "#86efac" : "#fca5a5";
+          return `<div style="color:${color};">${mark} ${c.label}</div>`;
+        }).join("");
+        return `<div style="margin-top:10px;"><strong>Key Checklist (last run)</strong></div>${rows}`;
+      }
+      const last = all.length ? all[all.length - 1] : null;
+      const keyChecklistFromLast = last ? buildKeyChecklistHtmlFromSteps(last.steps) : "";
+
+      const summary = [
+          `<div><strong>Smoke Test Summary:</strong></div>`,
+          `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
+          `<div>Checks: passed ${totalPassedSteps}, failed <span style="${totalFailedSteps ? "color:#ef4444" : "color:#86efac"};">${totalFailedSteps}</span>, skipped <span style="color:#fde68a;">${totalSkippedSteps}</span></div>`,
+          `<div>Avg PERF: turn ${avgTurn} ms, draw ${avgDraw} ms</div>`,
+          keyChecklistFromLast,
+          perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
+          n === 1 && det.npcPropSample ? `<div>Determinism sample (NPC|prop): ${det.npcPropSample}</div>` : ``,
+          n === 1 && det.firstEnemyType ? `<div>Determinism sample (first enemy): ${det.firstEnemyType}</div>` : ``,
+          n === 1 && det.chestItemsCSV ? `<div>Determinism sample (chest loot): ${det.chestItemsCSV}</div>` : ``,
+          `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
+          fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
+        ].join("");
       panelReport(summary);
 
       log(`Smoke test series done. Pass=${pass} Fail=${fail} AvgTurn=${avgTurn} AvgDraw=${avgDraw}`, fail === 0 ? "good" : "warn");
