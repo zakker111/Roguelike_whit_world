@@ -62,28 +62,40 @@
   }
 
   function spawnEnemyNearby(ctx, count = 1) {
+    // Enemy spawning is supported in dungeon mode only
+    if (ctx.mode !== "dungeon") {
+      ctx.log("GOD: Enemy spawn works in dungeon mode only.", "warn");
+      return;
+    }
     const isFreeFloor = (x, y) => {
-      if (window.Utils && typeof Utils.isFreeFloor === "function") {
-        return Utils.isFreeFloor(ctx, x, y);
+      try {
+        if (!ctx.inBounds(x, y)) return false;
+        // Prefer generalized walkability over strict FLOOR to allow doors, etc.
+        const walkable = (typeof ctx.isWalkable === "function") ? ctx.isWalkable(x, y) : (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR || ctx.map[y][x] === ctx.TILES.STAIRS);
+        if (!walkable) return false;
+        if (ctx.player.x === x && ctx.player.y === y) return false;
+        // Prefer occupancy grid if available to avoid stale blocking
+        const occEnemy = (ctx.occupancy && typeof ctx.occupancy.hasEnemy === "function") ? ctx.occupancy.hasEnemy(x, y) : ctx.enemies.some(e => e && e.x === x && e.y === y);
+        if (occEnemy) return false;
+        return true;
+      } catch (_) {
+        return false;
       }
-      if (!ctx.inBounds(x, y)) return false;
-      if (ctx.map[y][x] !== ctx.TILES.FLOOR) return false;
-      if (ctx.player.x === x && ctx.player.y === y) return false;
-      if (ctx.enemies.some(e => e.x === x && e.y === y)) return false;
-      return true;
     };
     const pickNearby = () => {
-      const maxAttempts = 60;
+      const maxAttempts = 100;
       for (let i = 0; i < maxAttempts; i++) {
-        const dx = Math.floor(ctx.rng() * 11) - 5;
-        const dy = Math.floor(ctx.rng() * 11) - 5;
+        const dx = Math.floor(ctx.rng() * 17) - 8; // wider search radius
+        const dy = Math.floor(ctx.rng() * 17) - 8;
         const x = ctx.player.x + dx;
         const y = ctx.player.y + dy;
         if (isFreeFloor(x, y)) return { x, y };
       }
       const free = [];
-      for (let y = 0; y < ctx.map.length; y++) {
-        for (let x = 0; x < (ctx.map[0] ? ctx.map[0].length : 0); x++) {
+      const rows = ctx.map.length;
+      const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
           if (isFreeFloor(x, y)) free.push({ x, y });
         }
       }
