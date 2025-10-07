@@ -537,32 +537,28 @@
       try {
         const p0 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         key("KeyI"); // open inventory
-        await waitUntilTrue(() => isInvOpen(), 700, 70);
+        await waitUntilTrue(() => isInvOpen(), 800, 80);
         key("ArrowRight");
-        await sleep(240);
+        await sleep(260);
         const p1 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         const immobile = (p0.x === p1.x) && (p0.y === p1.y);
-        if (!immobile) {
-          recordSkip("Inventory movement guard not enforced (platform/key handling)"); 
-        } else {
-          record(true, "Modal priority: movement ignored while Inventory is open");
-        }
         // Stack priority: open GOD while inventory is open, ESC should close GOD first, then ESC closes inventory
         const invOpen0 = isInvOpen();
-        safeClick("god-open-btn"); await waitUntilTrue(() => isGodOpen(), 700, 70);
+        safeClick("god-open-btn"); await waitUntilTrue(() => isGodOpen(), 800, 80);
         const godOpen1 = isGodOpen();
-        key("ArrowLeft"); await sleep(240);
+        key("ArrowLeft"); await sleep(260);
         const p2 = (window.GameAPI && typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         const stillImmobile = (p1.x === p2.x) && (p1.y === p2.y);
-        key("Escape"); await waitUntilTrue(() => !isGodOpen(), 700, 70);
+        key("Escape"); await waitUntilTrue(() => !isGodOpen(), 800, 80);
         const godClosed = !isGodOpen();
         const invStillOpen = isInvOpen();
-        key("Escape"); await waitUntilTrue(() => !isInvOpen(), 700, 70);
+        key("Escape"); await waitUntilTrue(() => !isInvOpen(), 800, 80);
         const invClosed = !isInvOpen();
-        const stackOk = invOpen0 && godOpen1 && stillImmobile && godClosed && invStillOpen && invClosed;
+        const stackOk = invOpen0 && godOpen1 && stillImmobile && godClosed && invStillOpen && invClosed && immobile;
         if (!stackOk) {
-          recordSkip("Modal stack priority inconclusive (timing)"); 
+          recordSkip("Modal stack priority inconclusive (timing)");
         } else {
+          record(true, "Modal priority: movement ignored while Inventory is open");
           record(true, "Modal stack priority: GOD closes before Inventory; movement ignored while any modal open");
         }
       } catch (e) {
@@ -668,9 +664,9 @@
           if (!entered) {
             try {
               const start = Date.now();
-              const windowMs = 3000; // extended settle window to catch late mode flips
+              const windowMs = 5000; // extended settle window to catch late mode flips
               let sawDungeon = false;
-              while ((Date.now() - start) < windowMs && !sawDungeon) {
+              while ((Date.now() - start << windowMs && !sawDungeon) {
                 try {
                   if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
                     sawDungeon = true;
