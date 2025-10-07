@@ -439,3 +439,6 @@ BUGS
 - some work needed for smoketestrunner
 - smokerunner failse many dungeon stuff while it shouldnt
 - when going to dungeon again and if there is unlooted corpse it doesnt loot it only when player is next to corpse player loots it and player moves when trying to loot empty corpses
+
+- UNCORFIRMED MENTIONS
+- chek that enemies scale up whit dungeon level
