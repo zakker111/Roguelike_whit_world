@@ -885,7 +885,7 @@
           } catch (e2h) {
             record(false, "Hand chooser tests failed: " + (e2h && e2h.message ? e2h.message : String(e2h)));
           }
-          } catch (e) {
+          catch (e) {
             record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
           }
 
