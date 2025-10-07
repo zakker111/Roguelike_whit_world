@@ -757,14 +757,40 @@
             record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
           }
 
-          // 9c: spawn an enemy, record pre-decay, attack, compare decay
+          // 9c: force enemy spawn in dungeon and verify presence/types
+          try {
+            if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() !== "dungeon") {
+              // Ensure we are in dungeon; route/enter if needed
+              await window.GameAPI.gotoNearestDungeon?.();
+              key("Enter"); await sleep(280);
+              if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+              await sleep(260);
+            }
+          } catch (_) {}
+          const beforeEnemiesCount = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : 0;
           if (safeClick("god-open-btn")) {
             await sleep(200);
-            if (safeClick("god-spawn-enemy-btn")) {
-              record(true, "Spawned test enemy in dungeon");
-            } else {
-              recordSkip("Spawn enemy button not present");
-            }
+            let spawnClicks = 0;
+            if (safeClick("god-spawn-enemy-btn")) { spawnClicks++; await sleep(140); }
+            if (safeClick("god-spawn-enemy-btn")) { spawnClicks++; await sleep(140); }
+            const afterSpawnCount = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : beforeEnemiesCount;
+            const spawnedOk = afterSpawnCount > beforeEnemiesCount;
+            record(spawnedOk, `Dungeon spawn: enemies ${beforeEnemiesCount} -> ${afterSpawnCount} (clicked ${spawnClicks}x)`);
+            // Types diagnostic
+            try {
+              const es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
+              const types = Array.from(new Set(es.map(e => e.type || ""))).filter(Boolean);
+              record(types.length >= 1, `Enemy types present: ${types.join(", ") || "(none)"}`);
+              // If only goblin appears, check data registries loaded
+              const GD = window.GameData || {};
+              const jsonLoaded = !!(GD.enemies);
+              const typeListFn = (typeof window.Enemies !== "undefined" && typeof window.Enemies.listTypes === "function") ? window.Enemies.listTypes : null;
+              const runtimeTypes = typeListFn ? typeListFn() : [];
+              if (types.length === 1 && types[0].toLowerCase() === "goblin") {
+                const msg = `Only goblin seen; GameData.enemies loaded=${jsonLoaded} runtime types=${runtimeTypes.length}`;
+                record(jsonLoaded && runtimeTypes.length > 0, msg);
+              }
+            } catch (_) {}
           } else {
             recordSkip("GOD open button not present (spawn)");
           }
