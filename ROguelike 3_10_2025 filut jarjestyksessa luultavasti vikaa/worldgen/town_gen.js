@@ -778,6 +778,25 @@
     ctx.corpses = [];
     ctx.decals = [];
 
+    // Spawn a greeter near the gate and greet the player (single NPC greeting)
+    try {
+      if (typeof spawnGateGreeters === "function") {
+        spawnGateGreeters(ctx, 1);
+        // Find nearest greeter we just placed and greet
+        const greeters = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => Array.isArray(n.lines) && n.lines.length && /welcome/i.test(n.lines[0])) : [];
+        if (greeters.length) {
+          // Pick the closest to the player
+          let g = greeters[0], gd = _manhattan(ctx, ctx.player.x, ctx.player.y, g.x, g.y);
+          for (const n of greeters) {
+            const d = _manhattan(ctx, ctx.player.x, ctx.player.y, n.x, n.y);
+            if (d < gd) { g = n; gd = d; }
+          }
+          const line = g.lines[0] || `Welcome to ${ctx.townName || "our town"}.`;
+          ctx.log(`${g.name || "Greeter"}: ${line}`, "notice");
+        }
+      }
+    } catch (_) {}
+
     // Finish
     if (ctx.updateUI) ctx.updateUI();
     if (ctx.requestDraw) ctx.requestDraw();
