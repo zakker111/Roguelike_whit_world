@@ -608,14 +608,68 @@
       });
     }
     if (!item || item.kind !== "equip") return false;
+
+    // Normalize slot: "hand" items must choose left or right (and may be two-handed)
+    const eq = player.equipment || {};
+    const score = (it) => (it ? ((it.atk || 0) + (it.def || 0)) : -Infinity);
+
+    if (item.slot === "hand") {
+      // Two-handed: occupies both hands; compare against combined current hand score
+      if (item.twoHanded) {
+        const currentLeft = eq.left || null;
+        const currentRight = eq.right || null;
+        const currentScore = score(currentLeft) + score(currentRight);
+        const newScore = (item.atk || 0) + (item.def || 0); // treat two-handed as single score; it's usually higher atk
+        const better = !currentLeft && !currentRight ? true : (newScore > currentScore + 1e-9);
+        if (!better) return false;
+
+        // Equip two-handed: same object in both hands to preserve decay semantics elsewhere
+        eq.left = item;
+        eq.right = item;
+        const parts = [];
+        if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+        if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+        const statStr = parts.join(", ");
+        log(`You equip ${item.name} (two-handed${statStr ? ", " + statStr : ""}).`);
+        updateUI();
+        renderInventoryPanel();
+        return true;
+      }
+
+      // One-handed: prefer empty hand; otherwise replace the weaker hand
+      const leftScore = score(eq.left);
+      const rightScore = score(eq.right);
+      const newScore = (item.atk || 0) + (item.def || 0);
+
+      let target = null;
+      if (!eq.left) target = "left";
+      else if (!eq.right) target = "right";
+      else target = leftScore <= rightScore ? "left" : "right";
+
+      const curScore = target === "left" ? leftScore : rightScore;
+      const better = !eq[target] || newScore > curScore + 1e-9;
+      if (!better) return false;
+
+      eq[target] = item;
+      const parts = [];
+      if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+      if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+      const statStr = parts.join(", ");
+      log(`You equip ${item.name} (${target}${statStr ? ", " + statStr : ""}).`);
+      updateUI();
+      renderInventoryPanel();
+      return true;
+    }
+
+    // Non-hand slots ("head","torso","legs","hands")
     const slot = item.slot;
-    const current = player.equipment[slot];
+    const current = eq[slot];
     const newScore = (item.atk || 0) + (item.def || 0);
-    const curScore = current ? ((current.atk || 0) + (current.def || 0)) : -Infinity;
+    const curScore = score(current);
     const better = !current || newScore > curScore + 1e-9;
 
     if (better) {
-      player.equipment[slot] = item;
+      eq[slot] = item;
       const parts = [];
       if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
       if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
@@ -2018,11 +2072,59 @@
       log("That item cannot be equipped.");
       return;
     }
-    const slot = item.slot || "hand";
-    const prev = player.equipment[slot];
-    player.inventory.splice(idx, 1);
-    player.equipment[slot] = item;
-    const statStr = ("atk" in item) ? `+${item.atk} atk` : ("def" in item) ? `+${item.def} def` : "";
+
+    const eq = player.equipment || {};
+    const takeFromInventory = () => { player.inventory.splice(idx, 1); };
+
+    if (item.slot === "hand") {
+      // Handle two-handed vs one-handed equip consistently
+      takeFromInventory();
+
+      if (item.twoHanded) {
+        // Unequip any existing hand items and stow them
+        if (eq.left) { player.inventory.push(eq.left); }
+        if (eq.right && eq.right !== eq.left) { player.inventory.push(eq.right); }
+        eq.left = item;
+        eq.right = item;
+        const parts = [];
+        if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+        if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+        const statStr = parts.join(", ");
+        log(`You equip ${item.name} (two-handed${statStr ? ", " + statStr : ""}).`);
+        updateUI();
+        renderInventoryPanel();
+        return;
+      }
+
+      // One-handed: prefer an empty hand; otherwise replace left by default
+      let target = null;
+      if (!eq.left) target = "left";
+      else if (!eq.right) target = "right";
+      else target = "left";
+
+      const prev = eq[target] || null;
+      eq[target] = item;
+
+      const parts = [];
+      if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+      if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+      const statStr = parts.join(", ");
+      log(`You equip ${item.name} (${target}${statStr ? ", " + statStr : ""}).`);
+      if (prev) {
+        player.inventory.push(prev);
+        log(`You stow ${describeItem(prev)} into your inventory.`);
+      }
+      updateUI();
+      renderInventoryPanel();
+      return;
+    }
+
+    // Non-hand slots
+    const slot = item.slot;
+    const prev = eq[slot] || null;
+    takeFromInventory();
+    eq[slot] = item;
+    const statStr = ("atk" in item) ? `+${Number(item.atk).toFixed(1)} atk` : ("def" in item) ? `+${Number(item.def).toFixed(1)} def` : "";
     log(`You equip ${item.name} (${slot}${statStr ? ", " + statStr : ""}).`);
     if (prev) {
       player.inventory.push(prev);
@@ -2043,8 +2145,52 @@
       });
       return;
     }
-    // fallback to generic equip if Player module missing
-    equipItemByIndex(idx);
+    // Fallback: explicitly equip to requested hand
+    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
+    const item = player.inventory[idx];
+    if (!item || item.kind !== "equip") {
+      log("That item cannot be equipped.");
+      return;
+    }
+    if (item.slot !== "hand") {
+      // Not a hand item; delegate to generic equip
+      equipItemByIndex(idx);
+      return;
+    }
+    const eq = player.equipment || {};
+    const target = (hand === "right") ? "right" : "left";
+
+    // Two-handed items occupy both hands
+    player.inventory.splice(idx, 1);
+    if (item.twoHanded) {
+      if (eq.left) { player.inventory.push(eq.left); }
+      if (eq.right && eq.right !== eq.left) { player.inventory.push(eq.right); }
+      eq.left = item;
+      eq.right = item;
+      const parts = [];
+      if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+      if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+      const statStr = parts.join(", ");
+      log(`You equip ${item.name} (two-handed${statStr ? ", " + statStr : ""}).`);
+      updateUI();
+      renderInventoryPanel();
+      return;
+    }
+
+    // One-handed: replace only the requested hand
+    const prev = eq[target] || null;
+    eq[target] = item;
+    const parts = [];
+    if ("atk" in item) parts.push(`+${Number(item.atk).toFixed(1)} atk`);
+    if ("def" in item) parts.push(`+${Number(item.def).toFixed(1)} def`);
+    const statStr = parts.join(", ");
+    log(`You equip ${item.name} (${target}${statStr ? ", " + statStr : ""}).`);
+    if (prev) {
+      player.inventory.push(prev);
+      log(`You stow ${describeItem(prev)} into your inventory.`);
+    }
+    updateUI();
+    renderInventoryPanel();
   }
 
   function unequipSlot(slot) {
