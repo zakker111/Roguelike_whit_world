@@ -818,8 +818,8 @@
             return parts.join(", ");
           } catch (_) { return ""; }
         })();
-        const msg = `[DEV] Fallback save key ${key}: enemies=${totalEnemies}${typeCounts ? ` [${typeCounts}]` : ""}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
-        if (window.DEV) console.debug(msg);
+        const msg = `Dungeon snapshot: enemies=${totalEnemies}${typeCounts ? ` [${typeCounts}]` : ""}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
+        log(msg, "notice");
       } catch (_) {}
     }
   }

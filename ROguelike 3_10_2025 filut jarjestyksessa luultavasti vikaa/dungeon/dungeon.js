@@ -212,11 +212,15 @@
     try {
       if (EM && typeof EM.listTypes === "function" && typeof EM.getTypeDef === "function") {
         cycleTypes = EM.listTypes().slice(0);
-        // Deterministic shuffle using drng
-        for (let i = cycleTypes.length - 1; i > 0; i--) {
-          const j = Math.floor(drng() * (i + 1));
-          const tmp = cycleTypes[i]; cycleTypes[i] = cycleTypes[j]; cycleTypes[j] = tmp;
-        }
+      }
+      // Fallback: use GameData.enemies ids if registry not yet applied
+      if ((!cycleTypes || cycleTypes.length === 0) && typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies)) {
+        cycleTypes = window.GameData.enemies.map(e => e.id || e.key).filter(Boolean);
+      }
+      // Deterministic shuffle using drng
+      for (let i = cycleTypes.length - 1; i > 0; i--) {
+        const j = Math.floor(drng() * (i + 1));
+        const tmp = cycleTypes[i]; cycleTypes[i] = cycleTypes[j]; cycleTypes[j] = tmp;
       }
     } catch (_) {}
 

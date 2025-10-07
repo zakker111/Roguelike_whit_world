@@ -113,20 +113,26 @@
       // Guard against null/invalid enemy factories — fallback to a basic goblin
       let ee = e;
       if (!ee || typeof ee.x !== "number" || typeof ee.y !== "number") {
-        // Try to construct from Enemies registry for variety if available
+        // Try to construct from Enemies registry for variety if available; fallback to GameData.enemies ids
         try {
           const EM = (typeof window !== "undefined" ? window.Enemies : null);
-          if (EM && typeof EM.listTypes === "function" && typeof EM.getTypeDef === "function") {
-            const types = EM.listTypes();
-            if (types && types.length) {
-              // Weighted pick by weight(depth)
+          let types = [];
+          if (EM && typeof EM.listTypes === "function") {
+            types = EM.listTypes();
+          }
+          if ((!types || types.length === 0) && typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies)) {
+            types = window.GameData.enemies.map(e => e.id || e.key).filter(Boolean);
+          }
+          if (types && types.length) {
+            // Weighted pick by weight(depth) if EM available; otherwise uniform
+            let pickKey = types[0];
+            if (EM && typeof EM.getTypeDef === "function") {
               const entries = types.map(k => {
                 const tdef = EM.getTypeDef(k);
-                const w = (typeof tdef.weight === "function") ? tdef.weight(ctx.floor) : (tdef._weightByDepth ? tdef._weightByDepth[0]?.[1] || 1 : 1);
+                const w = (tdef && typeof tdef.weight === "function") ? tdef.weight(ctx.floor) : 1;
                 return { key: k, w: Math.max(0, Number(w) || 0) };
               });
               const total = entries.reduce((s, e) => s + e.w, 0);
-              let pickKey = entries[0]?.key || "goblin";
               if (total > 0) {
                 let r = ctx.rng() * total;
                 for (const e2 of entries) {
@@ -146,7 +152,8 @@
                 announced: false
               };
             } else {
-              ee = { x: spot.x, y: spot.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
+              // No registry methods; create a minimal enemy object
+              ee = { x: spot.x, y: spot.y, type: pickKey, glyph: "?", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
             }
           } else {
             ee = { x: spot.x, y: spot.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
