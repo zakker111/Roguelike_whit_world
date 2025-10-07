@@ -529,7 +529,7 @@
             runMeta.determinism.chestItems = chestItems.slice(0);
           } catch (_) {}
         } else {
-          record(true, "Skipped routing (not in overworld)");
+          recordSkip("Skipped routing (not in overworld)");
         }
       } catch (e) {
         record(false, "Routing error: " + (e && e.message ? e.message : String(e)));
@@ -623,7 +623,7 @@
                 record(false, "Chest invariant check failed: " + (eInv && eInv.message ? eInv.message : String(eInv)));
               }
             } else {
-              record(true, "No chest found in dungeon (skipping chest loot)");
+              recordSkip("No chest found in dungeon (skipping chest loot)");
             }
           } catch (e) {
             record(false, "Chest loot failed: " + (e && e.message ? e.message : String(e)));
@@ -661,7 +661,7 @@
               const okStats = (ok1 && ok2);
               record(okStats, `Manual equip/unequip (${item.name || "equip"} in slot ${slot}) — equip Δ (atk ${equipDeltaAtk.toFixed ? equipDeltaAtk.toFixed(1) : equipDeltaAtk}, def ${equipDeltaDef.toFixed ? equipDeltaDef.toFixed(1) : equipDeltaDef}), unequip Δ (atk ${unequipDeltaAtk.toFixed ? unequipDeltaAtk.toFixed(1) : unequipDeltaAtk}, def ${unequipDeltaDef.toFixed ? unequipDeltaDef.toFixed(1) : unequipDeltaDef})`);
             } else {
-              record(true, "No direct equip/unequip test performed (no equip item or API not present)");
+              recordSkip("No direct equip/unequip test performed (no equip item or API not present)");
             }
 
             // 9b.1: attempt to drink a potion via GameAPI if any are present
@@ -676,7 +676,7 @@
                 const dhp = (hpAfter != null && hpBefore != null) ? (hpAfter - hpBefore) : null;
                 record(okDrink, `Drank potion at index ${pi} (${pots[0].name || "potion"})${dhp != null ? `, HP +${dhp}` : ""}`);
               } else {
-                record(true, "No potions available to drink (skipped)");
+                recordSkip("No potions available to drink");
               }
             } catch (e2) {
               record(false, "Drink potion failed: " + (e2 && e.message ? e2.message : String(e2)));
@@ -699,7 +699,7 @@
               const handsCleared = !eqInfo2.left && !eqInfo2.right;
               record(okEq && bothHandsSame && okUn && handsCleared, "Two-handed equip/unequip behavior");
             } else {
-              record(true, "Skipped two-handed equip test (no two-handed item)");
+              recordSkip("Skipped two-handed equip test (no two-handed item)");
             }
 
             // Hand chooser branch coverage
@@ -748,7 +748,7 @@
               const autoLeft = !!(eqInfoB.left);
               record(okAuto && autoLeft, "Hand chooser: one empty -> auto equip to empty hand");
             } else {
-              record(true, "Skipped hand chooser test (no 1-hand item available)");
+              recordSkip("Skipped hand chooser test (no 1-hand item available)");
             }
           } catch (e2h) {
             record(false, "Hand chooser tests failed: " + (e2h && e2h.message ? e2h.message : String(e2h)));
@@ -848,7 +848,7 @@
                 record(false, "Decay did not increase on equipped hand item(s)");
               }
             } else {
-              record(true, "No hand equipment to measure decay");
+              recordSkip("No hand equipment to measure decay");
             }
 
             // Attempt to loot underfoot if enemy died
@@ -1220,7 +1220,7 @@
                 record(false, "Persistence pass failed: " + (e && e.message ? e.message : String(e)));
               }
             } else {
-              record(true, "Skipped return to overworld (no exit info)");
+              recordSkip("Skipped return to overworld (no exit info)");
             }
           } catch (e) {
             record(false, "Return to overworld failed: " + (e && e.message ? e.message : String(e)));
@@ -1404,7 +1404,7 @@
               record(true, "Bumped into at least one NPC");
               lastNPC = best;
             } else {
-              record(true, "No NPCs reported (town may be empty?)");
+              recordSkip("No NPCs reported (town may be empty?)");
             }
           } catch (e) {
             record(false, "NPC interaction failed: " + (e && e.message ? e.message : String(e)));
@@ -1470,10 +1470,10 @@
                   record(false, "Failed to route to NPC home interior");
                 }
               } else {
-                record(true, "NPC had no home building info");
+                recordSkip("NPC had no home building info");
               }
             } else {
-              record(true, "Skipped NPC home check (no NPC found or API not available)");
+              recordSkip("Skipped NPC home check (no NPC found or API not available)");
             }
           } catch (e) {
             record(false, "NPC home/decoration verification failed: " + (e && e.message ? e.message : String(e)));
@@ -1505,7 +1505,7 @@
             await sleep(Math.min(ib.remain(), 220));
             record(true, "Interacted with nearby decoration/prop (G)");
             } else {
-              record(true, "No town decorations/props reported");
+              recordSkip("No town decorations/props reported");
             }
           } catch (e) {
             record(false, "Decoration/prop interaction failed: " + (e && e.message ? e.message : String(e)));
@@ -1558,7 +1558,7 @@
             record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
           }
         } else {
-          record(true, "Skipped town visit (not in overworld)");
+          recordSkip("Skipped town visit (not in overworld)");
         }
       } catch (e) {
         record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
