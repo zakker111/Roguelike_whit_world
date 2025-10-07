@@ -1401,7 +1401,7 @@
 
                     // Enter town (API-first, fallback Enter)
                     let enteredTown = false;
-                    try { enteredTown = !!window.GameAPI.enterTownIfOnTile?.(); } catch (_) { }
+                    try { enteredTown = !!window.GameAPI.enterTownIfOnTile?.(); } catch (eEnt) { record(false, "enterTownIfOnTile failed: " + (eEnt && eEnt.message ? eEnt.message : String(eEnt))); }
                     if (!enteredTown) { key("Enter"); await sleep(280); try { window.GameAPI.enterTownIfOnTile?.(); } catch (_) { } }
                     enteredTown = await waitForMode("town", 5000, 140);
 
@@ -1412,7 +1412,7 @@
                             let npcCount = Array.isArray(window.GameAPI?.getNPCs?.()) ? window.GameAPI.getNPCs().length : 0;
                             if (npcCount === 0) { try { window.GameAPI?.checkHomeRoutes?.(); } catch (_) { } await sleep(240); npcCount = Array.isArray(window.GameAPI?.getNPCs?.()) ? window.GameAPI.getNPCs().length : 0; }
                             record(npcCount > 0, `NPC presence: count ${npcCount}`);
-                        } catch (_) { }
+                        } catch (eNPC) { record(false, "NPC presence check failed: " + (eNPC && eNPC.message ? eNPC.message : String(eNPC))); }
                     } else {
                         const nowMode = window.GameAPI?.getMode?.() || "";
                         recordSkip("Town entry not achieved (mode=" + nowMode + ")");
