@@ -747,8 +747,7 @@
       // Save initial dungeon state snapshot (log once on entry)
       saveCurrentDungeonState(true);
       requestDraw();
-      ret_codeurnewn</;
-turn;
+      return;
     }
     // Fallback: flat-floor map
     map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
