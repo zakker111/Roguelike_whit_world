@@ -66,30 +66,45 @@
     const dmg = (opts && typeof opts.dmg === "number") ? opts.dmg : null;
     const P = pools(); if (!P) return;
 
-    // Blood spill flavor
+    const name = (target && target.type) ? target.type : "enemy";
+    const part = (loc && loc.part) ? String(loc.part) : "body";
+
+    // Blood spill flavor (independent of location)
     if (dmg != null && dmg > 0) {
       const line = pickFrom(P.bloodSpill, ctx);
       const p = crit ? 0.5 : 0.25;
       if (line && ctx.rng() < p) ctx.log(line, "flavor");
     }
 
-    // Crit head variants
-    if (crit && loc.part === "head") {
-      const name = (target && target.type) ? target.type : "enemy";
-      const tmplStr = pickFrom(P.playerCritHeadVariants, ctx);
-      if (tmplStr && ctx.rng() < 0.6) ctx.log(tmpl(tmplStr, { name }), "notice");
+    // Critical hit flavor by body part
+    if (crit) {
+      let tmplStr = null;
+      if (part === "head") {
+        tmplStr = pickFrom(P.playerCritHeadVariants, ctx);
+      } else if (part === "torso" && Array.isArray(P.playerCritTorsoVariants)) {
+        tmplStr = pickFrom(P.playerCritTorsoVariants, ctx);
+      } else if (part === "hands" && Array.isArray(P.playerCritHandsVariants)) {
+        tmplStr = pickFrom(P.playerCritHandsVariants, ctx);
+      } else if (part === "legs" && Array.isArray(P.playerCritLegsVariants)) {
+        tmplStr = pickFrom(P.playerCritLegsVariants, ctx);
+      } else {
+        // Fallback: generic good-hit variants with explicit part mention
+        tmplStr = pickFrom(P.playerGoodHitVariants, ctx);
+      }
+      if (tmplStr && ctx.rng() < 0.7) {
+        ctx.log(tmpl(tmplStr, { name, part }), "notice");
+      }
       return;
     }
 
-    // Good damage variants
-    if (!crit && dmg != null && dmg >= 2.0) {
-      const name = (target && target.type) ? target.type : "enemy";
-      const part = (loc && loc.part) ? loc.part : "body";
+    // Non-crit, good damage variants (by part)
+    if (dmg != null && dmg >= 2.0) {
       const tmplStr = pickFrom(P.playerGoodHitVariants, ctx);
       if (tmplStr && ctx.rng() < 0.8) ctx.log(tmpl(tmplStr, { name, part }), "good");
     }
 
-    if (loc.part === "torso") {
+    // Additional torso sting for non-crit torso hits (enemy reaction)
+    if (part === "torso") {
       const line = pickFrom(P.enemyTorsoSting, ctx);
       if (line && ctx.rng() < 0.5) ctx.log(line, "info");
       return;
