@@ -263,31 +263,8 @@
     }
 
     if (ctx.mode === "dungeon") {
-      // QoL: if adjacent to a chest/corpse, step onto it and loot automatically
-      try {
-        const neighbors = [
-          { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-        ];
-        const hereList = Array.isArray(ctx.corpses) ? ctx.corpses : [];
-        let target = null;
-        for (const d of neighbors) {
-          const tx = ctx.player.x + d.dx, ty = ctx.player.y + d.dy;
-          const c = hereList.find(c => c && c.x === tx && c.y === ty);
-          if (c) { target = { x: tx, y: ty }; break; }
-        }
-        if (target) {
-          // Move onto the container tile if walkable and not blocked by enemy
-          const walkable = (ctx.inBounds(target.x, target.y) && (ctx.map[target.y][target.x] === ctx.TILES.FLOOR || ctx.map[target.y][target.x] === ctx.TILES.DOOR));
-          const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
-          if (walkable && !enemyBlocks) {
-            ctx.player.x = target.x; ctx.player.y = target.y;
-            if (typeof ctx.requestDraw === "function") ctx.requestDraw();
-          }
-        }
-      } catch (_) {}
-
       // Return to overworld when on the entrance tile (">") or stairs tile,
-      // regardless of cameFromWorld flag.
+      // regardless of cameFromWorld flag. Do this BEFORE any adjacent QoL movement.
       const onExit =
         (ctx.dungeonExitAt && ctx.player.x === ctx.dungeonExitAt.x && ctx.player.y === ctx.dungeonExitAt.y) ||
         (inBounds(ctx, ctx.player.x, ctx.player.y) && ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
@@ -328,6 +305,29 @@
         ctx.requestDraw();
         return true;
       }
+
+      // QoL: if adjacent to a chest/corpse, step onto it and loot automatically (only when NOT on exit)
+      try {
+        const neighbors = [
+          { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
+        ];
+        const hereList = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+        let target = null;
+        for (const d of neighbors) {
+          const tx = ctx.player.x + d.dx, ty = ctx.player.y + d.dy;
+          const c = hereList.find(c => c && c.x === tx && c.y === ty);
+          if (c) { target = { x: tx, y: ty }; break; }
+        }
+        if (target) {
+          // Move onto the container tile if walkable and not blocked by enemy
+          const walkable = (ctx.inBounds(target.x, target.y) && (ctx.map[target.y][target.x] === ctx.TILES.FLOOR || ctx.map[target.y][target.x] === ctx.TILES.DOOR));
+          const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
+          if (walkable && !enemyBlocks) {
+            ctx.player.x = target.x; ctx.player.y = target.y;
+            if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+          }
+        }
+      } catch (_) {}
 
       // Dungeon loot via Loot module
       if (ctx.Loot && typeof Loot.lootHere === "function") {
