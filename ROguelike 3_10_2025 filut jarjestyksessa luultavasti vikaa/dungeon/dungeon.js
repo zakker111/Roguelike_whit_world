@@ -207,7 +207,10 @@
     const makeEnemy = ctx.enemyFactory || defaultEnemyFactory;
     for (let i = 0; i < enemyCount; i++) {
       const p = randomFloor(ctx, rooms, ri);
-      ctx.enemies.push(makeEnemy(p.x, p.y, depth, drng));
+      const enemy = makeEnemy(p.x, p.y, depth, drng);
+      if (enemy && typeof enemy.x === "number" && typeof enemy.y === "number") {
+        ctx.enemies.push(enemy);
+      }
     }
 
     const FlavorMod = (ctx.Flavor || (typeof window !== "undefined" ? window.Flavor : null));
@@ -261,6 +264,9 @@
     const rCols = (rRows > 0 && Array.isArray(ctx.map[0])) ? ctx.map[0].length : 0;
     const inBounds = (x, y) => x >= 0 && y >= 0 && x < rCols && y < rRows;
 
+    // Helper to check if a position is currently occupied by an enemy; guards nulls
+    const isEnemyAt = (xx, yy) => Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === xx && e.y === yy);
+
     let x, y;
     let tries = 0;
     do {
@@ -275,7 +281,7 @@
             if (ctx.map[yy][xx] !== TILES.FLOOR) continue;
             if ((xx === player.x && yy === player.y)) continue;
             if (ctx.startRoomRect && inRect(xx, yy, ctx.startRoomRect)) continue;
-            if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e.x === xx && e.y === yy)) continue;
+            if (isEnemyAt(xx, yy)) continue;
             return { x: xx, y: yy };
           }
         }
@@ -286,7 +292,7 @@
           if (!inBounds(xx, yy)) continue;
           if (ctx.map[yy][xx] !== TILES.FLOOR) continue;
           if (ctx.startRoomRect && inRect(xx, yy, ctx.startRoomRect)) continue;
-          if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e.x === xx && e.y === yy)) continue;
+          if (isEnemyAt(xx, yy)) continue;
           return { x: xx, y: yy };
         }
         // Final fallback: any floor tile that's not the player's tile
@@ -306,7 +312,7 @@
     } while (!(inBounds(x, y) && ctx.map[y][x] === TILES.FLOOR) ||
              (x === player.x && y === player.y) ||
              (ctx.startRoomRect && inRect(x, y, ctx.startRoomRect)) ||
-             (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e.x === x && e.y === y)));
+             isEnemyAt(x, y));
     return { x, y };
   }
 
