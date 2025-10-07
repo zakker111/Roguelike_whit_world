@@ -26,82 +26,9 @@
   };
 
   // Compact defaults used when JSON is unavailable (e.g., file://)
-  const DEFAULTS = {
-    items: [
-      // Hand: sword/axe/shield with tiered ranges
-      { id: "sword", slot: "hand", name: "sword", weights: { "1": 0.6, "2": 0.8, "3": 0.7 },
-        atk: { "1": [0.8, 2.4], "2": [1.2, 3.4], "3": [2.0, 4.0] } },
-      { id: "axe", slot: "hand", name: "axe", weights: { "1": 0.3, "2": 0.5, "3": 0.6 },
-        atk: { "1": [1.0, 2.6], "2": [1.6, 3.6], "3": [2.4, 4.0] }, atkBonus: { 2: [0.1,0.4], 3: [0.2,0.6] } },
-      { id: "shield", slot: "hand", name: "shield", weights: { "1": 0.4, "2": 0.6, "3": 0.5 },
-        def: { "1": [0.6, 2.0], "2": [1.2, 3.0], "3": [2.0, 3.8] } },
-      // Armor pieces
-      { id: "helmet", slot: "head", name: "helmet", weight: 1.0,
-        def: { "1": [0.2, 1.4], "2": [0.8, 2.6], "3": [1.4, 3.4] } },
-      { id: "torso_armor", slot: "torso", name: "armor", weight: 1.0,
-        def: { "1": [0.6, 2.4], "2": [1.6, 3.6], "3": [2.4, 4.0] } },
-      { id: "leg_armor", slot: "legs", name: "leg armor", weight: 1.0,
-        def: { "1": [0.3, 1.8], "2": [1.0, 3.0], "3": [1.8, 3.8] } },
-      { id: "gloves", slot: "hands", name: "gloves", weight: 1.0,
-        def: { "1": [0.2, 1.2], "2": [0.8, 2.4], "3": [1.2, 3.0] }, handAtkBonus: { "2": [0.1, 0.6], "3": [0.2, 1.0] }, handAtkChance: 0.5 },
-    ],
-    enemies: [
-      { id: "goblin", glyph: "g", color: "#a3e635", tier: 1,
-        hp: [[0, 4, 0.2]], atk: [[0, 1, 0.15]], xp: [[0, 6, 0.2]],
-        weightByDepth: [[0, 1.0], [3, 0.8], [6, 0.5]],
-        equipChance: 0.35, potionWeights: { lesser: 0.6, average: 0.3, strong: 0.1 } },
-      { id: "troll", glyph: "T", color: "#34d399", tier: 2,
-        hp: [[0, 8, 0.4]], atk: [[0, 2, 0.25]], xp: [[0, 12, 0.5]],
-        weightByDepth: [[2, 0.6], [5, 0.9], [8, 0.7]],
-        equipChance: 0.55, potionWeights: { lesser: 0.5, average: 0.35, strong: 0.15 } },
-      { id: "ogre", glyph: "O", color: "#f87171", tier: 3,
-        hp: [[0, 12, 0.6]], atk: [[0, 3, 0.35]], xp: [[0, 20, 0.8]],
-        weightByDepth: [[4, 0.4], [7, 0.8], [10, 0.9]],
-        equipChance: 0.75, potionWeights: { lesser: 0.4, average: 0.35, strong: 0.25 } },
-    ],
-    npcs: {
-      residentNames: ["Ava", "Borin", "Cora", "Darin", "Eda", "Finn", "Goro", "Hana"],
-      residentLines: ["Lovely day on the plaza.", "Buy supplies before you go.", "Rest your feet a while."],
-      shopkeeperNames: ["Smith", "Apothecary", "Armorer", "Trader"],
-      shopkeeperLines: ["Open from dawn to dusk.", "Best wares in town.", "Have a look!"],
-      petCats: ["Mittens", "Shadow"],
-      petDogs: ["Rex", "Buddy"],
-    },
-    consumables: {
-      potions: [
-        { name: "lesser potion (+3 HP)", heal: 3, weight: 0.6 },
-        { name: "average potion (+6 HP)", heal: 6, weight: 0.3 },
-        { name: "strong potion (+10 HP)", heal: 10, weight: 0.1 },
-      ]
-    },
-    // Town config influences size/plaza/roads; keep minimal keys
-    town: {
-      sizes: { small: { W: 60, H: 40 }, big: { W: 90, H: 60 }, city: { W: 120, H: 80 } },
-      plaza: { small: { w: 10, h: 8 }, big: { w: 14, h: 12 }, city: { w: 18, h: 14 } },
-      roads: { xStride: 10, yStride: 8 },
-      buildings: { max: 18, blockW: 8, blockH: 6 },
-      props: { benchLimit: { small: 8, big: 12, city: 16 }, plantTryFactor: 10 }
-    },
-    flavor: {
-      headCrit: [
-        "A brutal crack to the skull; your ears ring.",
-        "You take a hard hit to the head; your ears ring."
-      ],
-      torsoStingPlayer: [
-        "A sharp jab to your ribs knocks the wind out.",
-        "You clutch your ribs; the hit steals your breath."
-      ],
-      bloodSpill: [
-        "Blood spills across the floor.",
-        "Dark blood splashes on the stone.",
-        "A stain spreads underfoot."
-      ],
-      enemyTorsoSting: [
-        "You jab its ribs; it wheezes.",
-        "A punch to its ribs knocks the wind out."
-      ]
-    }
-  };
+  // Minimal defaults to avoid duplicating JSON content.
+  // Intentionally left empty so modules use their own internal fallbacks when data is missing.
+  const DEFAULTS = {};
 
   function fetchJson(url) {
     return fetch(url, { cache: "no-cache" })
@@ -138,13 +65,8 @@
   }
 
   function applyDefaultsIfNeeded() {
-    // If any required registry is missing, hydrate from DEFAULTS
-    if (!GameData.items) GameData.items = DEFAULTS.items.slice(0);
-    if (!GameData.enemies) GameData.enemies = DEFAULTS.enemies.slice(0);
-    if (!GameData.npcs) GameData.npcs = Object.assign({}, DEFAULTS.npcs);
-    if (!GameData.consumables) GameData.consumables = Object.assign({}, DEFAULTS.consumables);
-    // shops: TownGen has internal defaults if null; leave as-is unless present
-    if (!GameData.town) GameData.town = Object.assign({}, DEFAULTS.town);
+    // No-op: avoid duplicating JSON content with hardcoded defaults.
+    // Modules across the codebase already provide sensible fallbacks when registries are missing.
   }
 
   GameData.ready = (async function loadAll() {
@@ -167,10 +89,9 @@
       GameData.town = (town && typeof town === "object") ? town : null;
       GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
 
-      // If running under file://, prefer defaults immediately to avoid fetch/CORS issues
+      // If running under file://, note that JSON may not load due to fetch/CORS
       if (runningFromFile()) {
-        applyDefaultsIfNeeded();
-        logNotice("Detected file:// context; applied built-in defaults for registries.");
+        logNotice("Detected file:// context; JSON registries may be unavailable. Modules will use internal fallbacks.");
       }
 
       // DEV-only: inject malformed entries to exercise validators when ?validatebad=1 is present
@@ -221,10 +142,9 @@
         try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town }); } catch (_) {}
       }
 
-      // If any registry failed to load, fill from DEFAULTS as a graceful fallback
-      if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town) {
-        applyDefaultsIfNeeded();
-        logNotice("Some registries failed to load; applied built-in defaults.");
+      // If any registry failed to load, modules will use internal fallbacks.
+      if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor) {
+        logNotice("Some registries failed to load; modules will use internal fallbacks.");
       }
     } catch (e) {
       try { console.warn("[GameData] load error", e); } catch (_) {}
