@@ -1,5 +1,4 @@
->
- Tiny Roguelke Smoke Test Runner
+// Tiny Roguelike Smoke Test Runner
 // Loads when index.html?smoketest=1; runs a minimal scenario and reports pass/fail to Logger, console, and an on-screen banner.
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 /* jshint esversion: 6 */
