@@ -661,13 +661,14 @@
               const start = Date.now();
               const windowMs = 3000; // extended settle window to catch late mode flips
               let sawDungeon = false;
-              while ((Date.now() - start <
- windowMs &&      if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
+              while ((Date.now() - start) < windowMs && !sawDungeon) {
+                try {
+                  if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
                     sawDungeon = true;
                     break;
                   }
                 } catch (_) {}
-                await sleep(80);
+                await sleep(100);
               }
               if (sawDungeon) entered = true;
             } catch (_) {}
