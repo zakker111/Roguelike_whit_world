@@ -224,6 +224,16 @@
       }
     } catch (_) {}
 
+    // Helper for linear stat tables when building from raw JSON
+    function linearAt(arr, d, fallback = 1) {
+      if (!Array.isArray(arr) || arr.length === 0) return fallback;
+      let chosen = arr[0];
+      for (const e of arr) { if ((e[0] | 0) <= d) chosen = e; }
+      const minD = chosen[0] | 0, baseV = Number(chosen[1] || fallback), slope = Number(chosen[2] || 0);
+      const delta = Math.max(0, d - minD);
+      return Math.max(1, Math.floor(baseV + slope * delta));
+    }
+
     for (let i = 0; i < enemyCount; i++) {
       const p = randomFloor(ctx, rooms, ri);
       let enemy = makeEnemy(p.x, p.y, depth, drng);
@@ -233,17 +243,38 @@
         try {
           if (cycleTypes.length) {
             const pickKey = cycleTypes[i % cycleTypes.length] || "goblin";
-            const td = EM.getTypeDef(pickKey);
-            enemy = {
-              x: p.x, y: p.y,
-              type: pickKey,
-              glyph: td.glyph,
-              hp: td.hp(depth),
-              atk: td.atk(depth),
-              xp: td.xp(depth),
-              level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, depth, drng) : depth,
-              announced: false
-            };
+            let td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef(pickKey) : null;
+            if (td) {
+              enemy = {
+                x: p.x, y: p.y,
+                type: pickKey,
+                glyph: td.glyph,
+                hp: td.hp(depth),
+                atk: td.atk(depth),
+                xp: td.xp(depth),
+                level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, depth, drng) : depth,
+                announced: false
+              };
+            } else {
+              // Build directly from GameData.enemies JSON if registry not yet applied
+              const row = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies))
+                ? window.GameData.enemies.find(e => (e.id || e.key) === pickKey)
+                : null;
+              if (row) {
+                enemy = {
+                  x: p.x, y: p.y,
+                  type: pickKey,
+                  glyph: row.glyph || "?",
+                  hp: linearAt(row.hp || [], depth, 3),
+                  atk: linearAt(row.atk || [], depth, 1),
+                  xp: linearAt(row.xp || [], depth, 5),
+                  level: depth,
+                  announced: false
+                };
+              } else {
+                enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+              }
+            }
           } else {
             enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
           }
