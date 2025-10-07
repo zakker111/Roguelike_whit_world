@@ -776,11 +776,13 @@
             const afterSpawnCount = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : beforeEnemiesCount;
             const spawnedOk = afterSpawnCount > beforeEnemiesCount;
             record(spawnedOk, `Dungeon spawn: enemies ${beforeEnemiesCount} -> ${afterSpawnCount} (clicked ${spawnClicks}x)`);
-            // Types diagnostic
+            // Types + glyph diagnostic
             try {
               const es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
               const types = Array.from(new Set(es.map(e => e.type || ""))).filter(Boolean);
+              const glyphSet = Array.from(new Set(es.map(e => (e && typeof e.glyph === "string") ? e.glyph : "?")));
               record(types.length >= 1, `Enemy types present: ${types.join(", ") || "(none)"}`);
+              record(glyphSet.some(g => g !== "?"), `Enemy glyphs: ${glyphSet.join(", ")}`);
               // If only goblin appears, check data registries loaded
               const GD = window.GameData || {};
               const jsonLoaded = !!(GD.enemies);
@@ -789,6 +791,11 @@
               if (types.length === 1 && types[0].toLowerCase() === "goblin") {
                 const msg = `Only goblin seen; GameData.enemies loaded=${jsonLoaded} runtime types=${runtimeTypes.length}`;
                 record(jsonLoaded && runtimeTypes.length > 0, msg);
+              }
+              // If glyphs are all "?", surface a stronger diagnostic
+              if (!glyphSet.some(g => g !== "?")) {
+                const msg2 = `All enemy glyphs are "?" — registry applied=${runtimeTypes.length > 0}, jsonLoaded=${jsonLoaded}`;
+                record(false, msg2);
               }
             } catch (_) {}
           } else {
