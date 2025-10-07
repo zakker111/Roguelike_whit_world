@@ -655,10 +655,24 @@
             entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
           }
 
-          record(entered, entered ? "Entered dungeon" : "Dungeon entry failed");
+          // Final post-verify: allow mode switch to settle before declaring failure
+          if (!entered) {
+            try {
+              const okSettle = await waitUntilTrue(() => {
+                try { return (typeof window.GameAPI.getMode === "function") && window.GameAPI.getMode() === "dungeon"; } catch (_) { return false; }
+              }, 800, 80);
+              if (okSettle) entered = true;
+            } catch (_) {}
+          }
+
+          const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+          record(entered, entered ? `Entered dungeon (mode=${modeNow})` : `Dungeon entry failed (mode=${modeNow})`);
+
           if (entered) {
             // Determinism sample: first enemy type and chest loot names before any runner mutations
             try {
+              // Small delay to let dungeon init complete
+              await sleep(180);
               const enemies0 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
               const firstEnemyType = enemies0 && enemies0.length ? (enemies0[0].type || "") : "";
               const chests = (typeof window.GameAPI.getChestsDetailed === "function") ? window.GameAPI.getChestsDetailed() : [];
