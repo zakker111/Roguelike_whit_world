@@ -3,6 +3,7 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
+    'use strict';
     const RUNNER_VERSION = "1.6.0";
     const CONFIG = {
         timeouts: {
