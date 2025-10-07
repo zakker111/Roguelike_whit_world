@@ -22,6 +22,17 @@ Module load order (index.html)
 - Input, Game
   - Input must load before Game so Game can install handlers.
 
+Data-first configuration
+- Core registries are loaded from JSON via data/loader.js and consumed by modules:
+  - data/items.json — equipment types and stat ranges (used by entities/items.js)
+  - data/enemies.json — enemy types, visuals, weights, stat formulas
+    - entities/enemies.js is now a thin adapter; all enemy definitions live in JSON only.
+  - data/npcs.json — NPC archetypes and lines (used by AI/Town modules when present)
+  - data/consumables.json — potion/consumable registries
+  - data/shops.json — shop types, names, and hours (used by worldgen/town_gen.js and ShopService)
+  - data/town.json — town layout parameters (sizes, plaza, roads, buildings, props)
+- If a JSON fails to load, modules fall back gracefully to safe defaults, and a notice is logged.
+
 Flags and URL parameters
 - dev=1: enable DEV mode (extra console logs). dev=0 disables and clears localStorage DEV.
 - mirror=1|0: side log mirror on/off. Persists to localStorage LOG_MIRROR.
@@ -33,6 +44,16 @@ Determinism and RNG
 - RNG is centralized via core/rng_service.js (window.RNG).
 - If RNG.service is not available, modules use utils/rng_fallback.js to get a deterministic PRNG seeded from SEED (or time-based).
 - Boot and GOD Diagnostics log the RNG source and current seed.
+
+Town generation (data-first)
+- Town size, plaza dimensions, road spacing, building density and props are driven by data/town.json:
+  - sizes: map W/H per size (small/big/city)
+  - plaza: inner plaza width/height per size
+  - roads: xStride/yStride for the block grid
+  - buildings: max count and block dimensions used for placement
+  - props: benchLimit per size and plantTryFactor
+- Shops are selected from data/shops.json and placed in buildings nearest to the plaza.
+- Schedules: "open"/"close" times use HH:MM; "alwaysOpen" is supported.
 
 Town occupancy cadence
 - Occupancy grid rebuild cadence is set modestly (every 2 ticks) to reduce ghost-blocking after NPC movement bursts.
