@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-06 01:10 UTC
+Last updated: 2025-10-07 00:35 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,23 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.21 — Enemy glyph fallback, town greeter, and smoketest runner hardening
+- Fixed: “?” glyphs for spawned enemies
+  - dungeon/dungeon.js and data/god.js now resolve glyph via the Enemies registry or JSON and fall back to the first letter of the enemy type id, avoiding “?” unless type/glyph is genuinely missing.
+- Added: Town gate greeter
+  - worldgen/town_gen.js: spawns one greeter near the gate on town generation and logs a welcome line immediately.
+- Changed: Smoketest runner resilience and reporting
+  - ui/smoketest_runner.js:
+    - Robust dungeon entry detection: extended settle window and added log scan (“enter the dungeon”/“re-enter the dungeon”) to mark success even if mode quickly flips back.
+    - Modal closing pre-routing: ensureAllModalsClosed() closes GOD/Inventory/Shop/Loot via UI APIs, Escape, and close button, preventing movement blocks.
+    - Key Checklist: added per-run high-level checklist (Entered dungeon, Looted chest, Spawned enemy, persistence checks, town/NPC/shop checks) next to the raw step list; also duplicated in series summary.
+    - Bad JSON validation: waits for ValidationLog.warnings when dev+validatebad is set, reducing race conditions.
+    - Cleaned up duplicated/inconclusive modal messages; timing-sensitive checks downgrade to SKIP.
+- Fixed: Syntax errors and typos in runner
+  - Corrected malformed while loop condition in transient dungeon detection.
+  - Fixed potion error handler to use e2.message.
+- Dev: Minor diagnostics and timing adjustments for more robust automation.
 
 v1.20 — Helper deduplication: ShopService + Utils.inBounds
 - Added: services/shop_service.js centralizing shop/time helpers:
