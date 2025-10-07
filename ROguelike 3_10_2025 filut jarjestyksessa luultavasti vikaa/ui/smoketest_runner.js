@@ -1466,38 +1466,7 @@
       } catch (e) {
         record(false, "Seed invariants check failed: " + (e && e.message ? e.message : String(e)));
       }
-      try {
-        // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
-        key("Escape");
-        await sleep(160);
-        try { window.GameAPI.returnToWorldIfAtExit?.(); } catch (_) {}
-        await sleep(240);
-        const seedRaw = (localStorage.getItem("SEED") || "");
-        const s = seedRaw ? (Number(seedRaw) >>> 0) : null;
-        if (s != null) {
-          // Open GOD, set seed (same) and regenerate overworld
-          safeClick("god-open-btn");
-          await sleep(120);
-          safeSetInput("god-seed-input", s);
-          safeClick("god-apply-seed-btn");
-          await sleep(400);
-          key("Escape");
-          await sleep(160);
-          const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-          const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-          const anchorTown = runMeta.determinism.anchorTown || null;
-          const anchorDung = runMeta.determinism.anchorDungeon || null;
-          const townSame = (!!anchorTown && !!nearestTownAfter) ? (anchorTown.x === nearestTownAfter.x && anchorTown.y === nearestTownAfter.y) : true;
-          const dungSame = (!!anchorDung && !!nearestDungeonAfter) ? (anchorDung.x === nearestDungeonAfter.x && anchorDung.y === nearestDungeonAfter.y) : true;
-          record(townSame && dungSame, `Seed invariants: nearestTown=${townSame ? "OK" : "MISMATCH"} nearestDungeon=${dungSame ? "OK" : "MISMATCH"}`);
-        } else {
-          recordSkip("Seed invariants skipped (no SEED persisted)");
-        }
-      } catch (e) {
-        record(false, "Seed invariants check failed: " + (e && e.message ? e.message : String(e)));
-      }
-
-          // NPC check: route to nearest NPC and bump into them
+      // NPC check: route to nearest NPC and bump into them
           let lastNPC = null;
           try {
             const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
@@ -1709,22 +1678,7 @@
 
       
 
-        // Restart via GOD panel (Start New Game) and assert mode resets to world
-        try {
-          if (safeClick("god-newgame-btn")) {
-            await sleep(400);
-            const m = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-            record(m === "world", "Restart via GOD: returned to overworld");
-          } else {
-            recordSkip("Restart button not present in GOD panel");
-          }
-        } catch (e) {
-          record(false, "Restart via GOD failed: " + (e && e.message ? e.message : String(e)));
-        }
-
-        record(true, "Ran Diagnostics");
-        await sleep(300);
-        key("Escape");
+        
 
       const ok = errors.length === 0;
       log(ok ? "Smoke test completed." : "Smoke test completed with errors.", ok ? "good" : "warn");
@@ -2317,4 +2271,4 @@
     window.addEventListener("load", () => { setTimeout(() => { runSeries(1); }, 800); });
   }
 
-        // Restart via GOD panel (Start New Game) and assert mode resets to world)();
+        
