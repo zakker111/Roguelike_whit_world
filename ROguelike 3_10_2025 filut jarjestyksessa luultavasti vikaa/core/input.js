@@ -82,15 +82,15 @@
         return;
       }
 
-      if (e.key && e.key.toLowerCase() === "i") {
+      if ((e.key && e.key.toLowerCase() === "i") || e.code === "KeyI") {
         e.preventDefault();
         _handlers.onShowInventory && _handlers.onShowInventory();
         return;
       }
 
       
-      if (e.key && e.key.toLowerCase() === "p") {
-        e.preventDefault();
+      if ((e.key && e.key.toLowerCase() === "p") || e.code === "KeyP") {
+t();
         _handlers.onShowGod && _handlers.onShowGod();
         return;
       }
