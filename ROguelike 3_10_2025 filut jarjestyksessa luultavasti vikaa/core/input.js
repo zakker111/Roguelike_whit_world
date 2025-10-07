@@ -90,7 +90,7 @@
 
       
       if ((e.key && e.key.toLowerCase() === "p") || e.code === "KeyP") {
-t();
+        e.preventDefault();
         _handlers.onShowGod && _handlers.onShowGod();
         return;
       }
