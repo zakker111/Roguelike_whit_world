@@ -744,10 +744,11 @@
       updateUI();
       // Unified message: dungeons are single-level; exploration only
       log("You explore the dungeon.");
-      // Save initial dungeon state snapshot
-      saveCurrentDungeonState();
+      // Save initial dungeon state snapshot (log once on entry)
+      saveCurrentDungeonState(true);
       requestDraw();
-      return;
+      ret_codeurnewn</;
+turn;
     }
     // Fallback: flat-floor map
     map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
@@ -766,10 +767,9 @@
     updateUI();
     // Unified message: dungeons are single-level; exploration only
     log("You explore the dungeon.");
-    // Save fallback dungeon state as well
-    saveCurrentDungeonState();
-    requestDraw();
-  }
+    // Save fallback dungeon state as well (log once on entry)
+    saveCurrentDungeonState(true);
+}
 
   function inBounds(x, y) {
     const mh = map.length || MAP_ROWS;
@@ -785,9 +785,9 @@
     return `${x},${y}`;
   }
 
-  function saveCurrentDungeonState() {
+  function saveCurrentDungeonState(logOnce = false) {
     if (window.DungeonState && typeof DungeonState.save === "function") {
-      try { if (window.DEV) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
+      try { if (window.DEV && logOnce) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
       DungeonState.save(getCtx());
       return;
     }
@@ -804,11 +804,12 @@
       info: currentDungeon,
       level: floor
     };
-    try {
-      const msg = `[DEV] Fallback save key ${key}: enemies=${Array.isArray(enemies)?enemies.length:0}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
-      log(msg, "notice");
-      if (window.DEV) console.log("[TRACE] " + msg);
-    } catch (_) {}
+    if (logOnce) {
+      try {
+        const msg = `[DEV] Fallback save key ${key}: enemies=${Array.isArray(enemies)?enemies.length:0}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
+        log(msg, "notice");
+      } catch (_) {}
+    }
   }
 
   function loadDungeonStateFor(x, y) {
