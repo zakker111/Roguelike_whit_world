@@ -666,7 +666,7 @@
               const start = Date.now();
               const windowMs = 5000; // extended settle window to catch late mode flips
               let sawDungeon = false;
-              while ((Date.now() - start << windowMs && !sawDungeon) {
+              while ((Date.now() - start) < windowMs && !sawDungeon) {
                 try {
                   if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
                     sawDungeon = true;
@@ -859,7 +859,7 @@
                 recordSkip("No potions available to drink");
               }
             } catch (e2) {
-              record(false, "Drink potion failed: " + (e2 && e2message ? e2.message : String(e2)));
+              record(false, "Drink potion failed: " + (e2 && e2.message ? e2.message : String(e2)));
             }
 
             // 9b.2: two-handed equip/unequip behavior if available + hand chooser branch coverage
