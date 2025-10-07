@@ -806,7 +806,7 @@
     if (logOnce) {
       try {
         const msg = `[DEV] Fallback save key ${key}: enemies=${Array.isArray(enemies)?enemies.length:0}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
-        log(msg, "notice");
+        if (window.DEV) console.debug(msg);
       } catch (_) {}
     }
   }

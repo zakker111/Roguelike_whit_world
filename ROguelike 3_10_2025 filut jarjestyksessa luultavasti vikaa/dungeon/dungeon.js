@@ -207,10 +207,12 @@
     const makeEnemy = ctx.enemyFactory || defaultEnemyFactory;
     for (let i = 0; i < enemyCount; i++) {
       const p = randomFloor(ctx, rooms, ri);
-      const enemy = makeEnemy(p.x, p.y, depth, drng);
-      if (enemy && typeof enemy.x === "number" && typeof enemy.y === "number") {
-        ctx.enemies.push(enemy);
+      let enemy = makeEnemy(p.x, p.y, depth, drng);
+      // Fallback to a simple goblin if factory returns null or invalid
+      if (!enemy || typeof enemy.x !== "number" || typeof enemy.y !== "number") {
+        enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
       }
+      ctx.enemies.push(enemy);
     }
 
     const FlavorMod = (ctx.Flavor || (typeof window !== "undefined" ? window.Flavor : null));

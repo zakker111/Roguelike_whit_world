@@ -110,25 +110,25 @@
       const makeEnemy = (ctx.enemyFactory || ((x, y, depth) => ({ x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false })));
       const e = makeEnemy(spot.x, spot.y, ctx.floor);
 
-      // Guard against null/invalid enemy factories
-      if (!e || typeof e.x !== "number" || typeof e.y !== "number") {
-        ctx.log("GOD: Enemy factory returned no enemy; ensure enemies.json is loaded.", "warn");
-        continue;
+      // Guard against null/invalid enemy factories — fallback to a basic goblin
+      let ee = e;
+      if (!ee || typeof ee.x !== "number" || typeof ee.y !== "number") {
+        ee = { x: spot.x, y: spot.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
       }
 
-      if (typeof e.hp === "number" && ctx.rng() < 0.7) {
+      if (typeof ee.hp === "number" && ctx.rng() < 0.7) {
         const mult = 0.85 + ctx.rng() * 0.5;
-        e.hp = Math.max(1, Math.round(e.hp * mult));
+        ee.hp = Math.max(1, Math.round(ee.hp * mult));
       }
-      if (typeof e.atk === "number" && ctx.rng() < 0.7) {
+      if (typeof ee.atk === "number" && ctx.rng() < 0.7) {
         const multA = 0.85 + ctx.rng() * 0.5;
-        e.atk = Math.max(0.1, Math.round(e.atk * multA * 10) / 10);
+        ee.atk = Math.max(0.1, Math.round(ee.atk * multA * 10) / 10);
       }
-      e.announced = false;
-      ctx.enemies.push(e);
-      spawned.push(e);
+      ee.announced = false;
+      ctx.enemies.push(ee);
+      spawned.push(ee);
       const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-      ctx.log(`GOD: Spawned ${cap(e.type || "enemy")} Lv ${e.level || 1} at (${e.x},${e.y}).`, "notice");
+      ctx.log(`GOD: Spawned ${cap(ee.type || "enemy")} Lv ${ee.level || 1} at (${ee.x},${ee.y}).`, "notice");
     }
     if (spawned.length) ctx.requestDraw();
     else ctx.log("GOD: No free space to spawn an enemy nearby.", "warn");
