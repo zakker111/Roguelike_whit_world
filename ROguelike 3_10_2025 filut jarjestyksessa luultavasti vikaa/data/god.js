@@ -171,7 +171,7 @@
           ee = {
             x: spot.x, y: spot.y,
             type: pickKey,
-            glyph: td ? td.glyph : "?",
+            glyph: td && td.glyph ? td.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
             hp: td ? td.hp(ctx.floor) : 3,
             atk: td ? td.atk(ctx.floor) : 1,
             xp: td ? td.xp(ctx.floor) : 5,

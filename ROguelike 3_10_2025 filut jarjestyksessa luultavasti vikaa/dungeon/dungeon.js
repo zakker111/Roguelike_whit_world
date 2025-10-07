@@ -248,7 +248,7 @@
               enemy = {
                 x: p.x, y: p.y,
                 type: pickKey,
-                glyph: td.glyph,
+                glyph: (td.glyph && td.glyph.length) ? td.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
                 hp: td.hp(depth),
                 atk: td.atk(depth),
                 xp: td.xp(depth),
@@ -264,7 +264,7 @@
                 enemy = {
                   x: p.x, y: p.y,
                   type: pickKey,
-                  glyph: row.glyph || "?",
+                  glyph: (row.glyph && row.glyph.length) ? row.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
                   hp: linearAt(row.hp || [], depth, 3),
                   atk: linearAt(row.atk || [], depth, 1),
                   xp: linearAt(row.xp || [], depth, 5),
