@@ -2316,4 +2316,5 @@
     // Fallback: run on load if present
     window.addEventListener("load", () => { setTimeout(() => { runSeries(1); }, 800); });
   }
-})();
+
+        // Restart via GOD panel (Start New Game) and assert mode resets to world)();
