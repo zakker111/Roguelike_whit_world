@@ -1329,6 +1329,23 @@
           nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
           if (nowMode === "town") {
             record(true, "Entered town");
+            // Ensure at least one NPC is present; if not, try to populate via Home Routes or greeters
+            try {
+              let npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+              if (npcCount === 0) {
+                // Try home routes first (may populate)
+                if (typeof window.GameAPI.checkHomeRoutes === "function") window.GameAPI.checkHomeRoutes();
+                await sleep(200);
+                npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+              }
+              if (npcCount === 0 && typeof window.GameAPI.spawnGateGreeters === "function") {
+                // Fallback greeter spawn if exposed
+                try { window.GameAPI.spawnGateGreeters(1); } catch (_) {}
+                await sleep(200);
+                npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+              }
+              record(npcCount > 0, `NPC presence: count ${npcCount}`);
+            } catch (_) {}
           } else {
             // Extra diagnostic to help understand why it failed
             try {

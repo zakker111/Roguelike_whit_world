@@ -184,7 +184,7 @@
           ee = {
             x: spot.x, y: spot.y,
             type: pickKey,
-            glyph: (row && row.glyph) || "?",
+            glyph: (row && row.glyph) ? row.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
             hp: linearAt(row && row.hp || [], ctx.floor, 3),
             atk: linearAt(row && row.atk || [], ctx.floor, 1),
             xp: linearAt(row && row.xp || [], ctx.floor, 5),
