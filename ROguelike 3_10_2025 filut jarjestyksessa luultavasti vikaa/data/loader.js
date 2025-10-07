@@ -65,6 +65,20 @@
       GameData.consumables = (consumables && typeof consumables === "object") ? consumables : null;
       GameData.shops = Array.isArray(shops) ? shops : null;
       GameData.town = (town && typeof town === "object") ? town : null;
+
+      // Minimal validation/logging for NPCs schema
+      (function validateNPCs() {
+        const ND = GameData.npcs;
+        if (!ND) { logNotice("NPCs registry missing; using defaults in AI/Town."); return; }
+        function isArr(a) { return Array.isArray(a) && a.length > 0; }
+        if (!isArr(ND.residentNames)) logNotice("NPCs: residentNames missing or empty.");
+        if (!isArr(ND.residentLines)) logNotice("NPCs: residentLines missing or empty.");
+        if (!isArr(ND.shopkeeperNames)) logNotice("NPCs: shopkeeperNames missing or empty.");
+        if (!isArr(ND.shopkeeperLines)) logNotice("NPCs: shopkeeperLines missing or empty.");
+        if (!isArr(ND.petCats)) logNotice("NPCs: petCats missing or empty.");
+        if (!isArr(ND.petDogs)) logNotice("NPCs: petDogs missing or empty.");
+      })();
+
       if (window.DEV) {
         try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town }); } catch (_) {}
       }
