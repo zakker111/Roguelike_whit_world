@@ -6,7 +6,7 @@
 
 (function () {
     'use strict';
-    const RUNNER_VERSION = "1.6.0";
+    var RUNNER_VERSION = "1.6.0";
     const CONFIG = {
         timeouts: {
             route: 5000,       // ms budget for any routing/path-following sequence
