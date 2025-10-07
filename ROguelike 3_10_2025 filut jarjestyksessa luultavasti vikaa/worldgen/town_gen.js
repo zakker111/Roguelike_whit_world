@@ -262,12 +262,16 @@
       }
     } catch (_) {}
 
-    // Size the town map according to town size to remove excessive empty space
-    const dims = (function () {
-      if (townSize === "small") return { W: Math.min(ctx.MAP_COLS, 60), H: Math.min(ctx.MAP_ROWS, 40) };
-      if (townSize === "city") return { W: Math.min(ctx.MAP_COLS, 120), H: Math.min(ctx.MAP_ROWS, 80) };
-      return { W: Math.min(ctx.MAP_COLS, 90), H: Math.min(ctx.MAP_ROWS, 60) }; // big
-    })();
+    // Size the town map from data/town.json (fallback to previous values)
+    const TOWNCFG = (window.GameData && GameData.town) || null;
+    function cfgSize(sizeKey) {
+      const d = (TOWNCFG && TOWNCFG.sizes && TOWNCFG.sizes[sizeKey]) || null;
+      if (d) return { W: Math.min(ctx.MAP_COLS, d.W | 0), H: Math.min(ctx.MAP_ROWS, d.H | 0) };
+      if (sizeKey === "small") return { W: Math.min(ctx.MAP_COLS, 60), H: Math.min(ctx.MAP_ROWS, 40) };
+      if (sizeKey === "city")  return { W: Math.min(ctx.MAP_COLS, 120), H: Math.min(ctx.MAP_ROWS, 80) };
+      return { W: Math.min(ctx.MAP_COLS, 90), H: Math.min(ctx.MAP_ROWS, 60) };
+    }
+    const dims = cfgSize(townSize);
     const W = dims.W, H = dims.H;
     ctx.map = Array.from({ length: H }, () => Array(W).fill(ctx.TILES.FLOOR));
 
@@ -311,11 +315,14 @@
     // Plaza
     const plaza = { x: (W / 2) | 0, y: (H / 2) | 0 };
     ctx.townPlaza = { x: plaza.x, y: plaza.y };
-    const plazaDims = (function () {
-      if (townSize === "small") return { w: 10, h: 8 };
-      if (townSize === "city") return { w: 18, h: 14 };
-      return { w: 14, h: 12 }; // big
-    })();
+    function cfgPlaza(sizeKey) {
+      const d = (TOWNCFG && TOWNCFG.plaza && TOWNCFG.plaza[sizeKey]) || null;
+      if (d) return { w: d.w | 0, h: d.h | 0 };
+      if (sizeKey === "small") return { w: 10, h: 8 };
+      if (sizeKey === "city") return { w: 18, h: 14 };
+      return { w: 14, h: 12 };
+    }
+    const plazaDims = cfgPlaza(townSize);
     const plazaW = plazaDims.w, plazaH = plazaDims.h;
     for (let yy = (plaza.y - (plazaH / 2)) | 0; yy <= (plaza.y + (plazaH / 2)) | 0; yy++) {
       for (let xx = (plaza.x - (plazaW / 2)) | 0; xx <= (plaza.x + (plazaW / 2)) | 0; xx++) {
@@ -333,8 +340,10 @@
     };
     carveRoad(gate.x, gate.y, plaza.x, gate.y);
     carveRoad(plaza.x, gate.y, plaza.x, plaza.y);
-    for (let y = 6; y < H - 6; y += 8) for (let x = 1; x < W - 1; x++) ctx.map[y][x] = ctx.TILES.FLOOR;
-    for (let x = 6; x < W - 6; x += 10) for (let y = 1; y < H - 1; y++) ctx.map[y][x] = ctx.TILES.FLOOR;
+    const roadYStride = (TOWNCFG && TOWNCFG.roads && (TOWNCFG.roads.yStride | 0)) || 8;
+    const roadXStride = (TOWNCFG && TOWNCFG.roads && (TOWNCFG.roads.xStride | 0)) || 10;
+    for (let y = 6; y < H - 6; y += Math.max(2, roadYStride)) for (let x = 1; x < W - 1; x++) ctx.map[y][x] = ctx.TILES.FLOOR;
+    for (let x = 6; x < W - 6; x += Math.max(2, roadXStride)) for (let y = 1; y < H - 1; y++) ctx.map[y][x] = ctx.TILES.FLOOR;
 
     // Buildings (simplified: hollow rectangles aligned to blocks)
     const buildings = [];
@@ -348,18 +357,22 @@
       }
       buildings.push({ x: bx, y: by, w: bw, h: bh });
     };
-    for (let by = 2; by < H - 10 && buildings.length < 18; by += 8) {
-      for (let bx = 2; bx < W - 12 && buildings.length < 18; bx += 10) {
+    const cfgB = (TOWNCFG && TOWNCFG.buildings) || {};
+    const maxBuildings = Math.max(1, (cfgB.max | 0) || 18);
+    const blockW = Math.max(4, (cfgB.blockW | 0) || 8);
+    const blockH = Math.max(3, (cfgB.blockH | 0) || 6);
+
+    for (let by = 2; by < H - (blockH + 4) && buildings.length < maxBuildings; by += Math.max(6, blockH + 2)) {
+      for (let bx = 2; bx < W - (blockW + 4) && buildings.length < maxBuildings; bx += Math.max(8, blockW + 2)) {
         let clear = true;
-        const blockW = 8, blockH = 6;
         for (let yy = by; yy < by + (blockH + 1) && clear; yy++) {
           for (let xx = bx; xx < bx + (blockW + 1); xx++) {
             if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { clear = false; break; }
           }
         }
         if (!clear) continue;
-        const w = Math.max(6, Math.min(blockW, 6 + ((Math.floor(ctx.rng() * 3)))));   // 6..8
-        const h = Math.max(4, Math.min(blockH, 4 + ((Math.floor(ctx.rng() * 3)))));   // 4..6
+        const w = Math.max(6, Math.min(blockW, 6 + ((Math.floor(ctx.rng() * 3)))));   // 6..blockW
+        const h = Math.max(4, Math.min(blockH, 4 + ((Math.floor(ctx.rng() * 3)))));   // 4..blockH
         const ox = Math.floor(ctx.rng() * Math.max(1, blockW - w));
         const oy = Math.floor(ctx.rng() * Math.max(1, blockH - h));
         placeBuilding(bx + 1 + ox, by + 1 + oy, w, h);
@@ -561,7 +574,9 @@
       }
       // Try to place up to a limit to avoid clutter
       let placed = 0;
-      const limit = Math.min(12, Math.max(6, Math.floor((plazaW + plazaH) / 3)));
+      const benchLimitCfg = ((TOWNCFG && TOWNCFG.props && TOWNCFG.props.benchLimit && TOWNCFG.props.benchLimit[townSize]) | 0);
+      const computedLimit = Math.min(12, Math.max(6, Math.floor((plazaW + plazaH) / 3)));
+      const limit = benchLimitCfg > 0 ? benchLimitCfg : computedLimit;
       for (const p of benchSpots) {
         if (placed >= limit) break;
         // Only place on clear floor and keep a tile free next to the bench
@@ -601,7 +616,8 @@
       }
 
       // A few plants to soften the plaza
-      const plantTry = Math.min(8, Math.max(3, Math.floor((plazaW + plazaH) / 10)));
+      const plantFactor = ((TOWNCFG && TOWNCFG.props && (TOWNCFG.props.plantTryFactor | 0)) || 10);
+      const plantTry = Math.min(8, Math.max(3, Math.floor((plazaW + plazaH) / Math.max(2, plantFactor))));
       let tries = 0, planted = 0;
       while (planted < plantTry && tries++ < 80) {
         const rx = Math.max(1, Math.min(W - 2, plaza.x + (Math.floor(ctx.rng() * plazaW) - (plazaW / 2 | 0))));

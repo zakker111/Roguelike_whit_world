@@ -1,5 +1,5 @@
 /**
- * GameData loader: loads JSON registries for items, enemies, npcs, consumables, shops.
+ * GameData loader: loads JSON registries for items, enemies, npcs, consumables, shops, town config.
  * Exposes:
  *   window.GameData = {
  *     ready: Promise<void>,
@@ -7,7 +7,8 @@
  *     enemies: Array | null,
  *     npcs: { residents: {...}, shopkeepers: {...}, pets: {...} } | null,
  *     consumables: Object | null,
- *     shops: Array | null
+ *     shops: Array | null,
+ *     town: Object | null
  *   }
  */
 (function () {
@@ -17,6 +18,7 @@
     npcs: "data/npcs.json",
     consumables: "data/consumables.json",
     shops: "data/shops.json",
+    town: "data/town.json",
   };
 
   function fetchJson(url) {
@@ -33,6 +35,7 @@
     npcs: null,
     consumables: null,
     shops: null,
+    town: null,
     ready: null,
   };
 
@@ -48,23 +51,25 @@
 
   GameData.ready = (async function loadAll() {
     try {
-      const [items, enemies, npcs, consumables, shops] = await Promise.all([
+      const [items, enemies, npcs, consumables, shops, town] = await Promise.all([
         fetchJson(DATA_FILES.items).catch(() => null),
         fetchJson(DATA_FILES.enemies).catch(() => null),
         fetchJson(DATA_FILES.npcs).catch(() => null),
         fetchJson(DATA_FILES.consumables).catch(() => null),
         fetchJson(DATA_FILES.shops).catch(() => null),
+        fetchJson(DATA_FILES.town).catch(() => null),
       ]);
       GameData.items = Array.isArray(items) ? items : null;
       GameData.enemies = Array.isArray(enemies) ? enemies : null;
       GameData.npcs = (npcs && typeof npcs === "object") ? npcs : null;
       GameData.consumables = (consumables && typeof consumables === "object") ? consumables : null;
       GameData.shops = Array.isArray(shops) ? shops : null;
+      GameData.town = (town && typeof town === "object") ? town : null;
       if (window.DEV) {
-        try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops }); } catch (_) {}
+        try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town }); } catch (_) {}
       }
       // Surface a gentle notice if any registry failed; system will fall back gracefully
-      if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.shops) {
+      if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.shops || !GameData.town) {
         logNotice("Some registries failed to load; using fallback data where needed.");
       }
     } catch (e) {
@@ -74,6 +79,7 @@
       GameData.npcs = GameData.npcs || null;
       GameData.consumables = GameData.consumables || null;
       GameData.shops = GameData.shops || null;
+      GameData.town = GameData.town || null;
       logNotice("Registry load error; using fallback data.");
     }
   })();
