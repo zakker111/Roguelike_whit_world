@@ -1,119 +1,117 @@
 # Tiny Roguelike Smoke Test
 
-Purpose: Quickly verify core gameplay, UI, combat, FOV/LOS, RNG determinism, occupancy, and recent performance/diagnostics improvements.
+Purpose: Verify core gameplay, UI, combat, FOV/LOS, RNG determinism, occupancy, persistence, and diagnostics. Includes a runner with an on‑screen report and downloadable summary/checklist.
 
-Run setup
-- Open index.html in a local web server or directly:
-  - Easiest: `python3 -m http.server` then http://localhost:8000/index.html
-  - Or open the file directly in Chrome/Firefox.
-- Confirm no errors/warnings in the browser console on load (third‑party tracker blocks can be ignored).
+How to run
+- Local: `python3 -m http.server` then open http://localhost:8000/index.html
+- Deployed site: append query parameters as needed.
 
-Seed and DEV flags
-- DEV mode:
-  - http://localhost:8000/index.html?dev=1
-  - Expect DEV perf logs (turn/draw timings) and occasional DEV notices after generation.
-- Seed determinism:
-  - Open GOD panel (P), enter a seed (e.g., 12345), click “Apply Seed”.
-  - Confirm: “GOD: Applied seed 12345. Regenerating floor …”
-  - Repeat same actions with same seed; outcomes should match.
+Runner options (URL params)
+- Run smoketest automatically: `?smoketest=1`
+- Enable DEV logs and diagnostics: `&dev=1`
+- Inject malformed JSON for validator checks (DEV only): `&validatebad=1` (or `&badjson=1`)
+- Multiple runs: `&smokecount=N` (e.g., `&smokecount=3`)
+- Example: `index.html?smoketest=1&dev=1&smokecount=2`
+
+Report and checklist
+- GOD panel shows:
+  - Step Details: color‑coded cards for OK/FAIL/SKIP.
+  - Key Checklist: per‑run high‑level outcomes (entered dungeon, chest/persistence, enemy spawn/types/glyphs, town/NPC/shop checks).
+  - Full JSON report embedded (collapsible).
+  - Download buttons: JSON (full report), Summary (TXT), Checklist (TXT).
+
+Seed and determinism
+- DEV mode: `?dev=1` shows perf logs and extra notices.
+- Apply seed in GOD panel; actions with the same seed should be repeatable.
+- Runner performs a duplicate determinism run of the first seed and compares:
+  - First enemy type
+  - Chest loot list
+
+Modal behavior (inventory, GOD, shop, loot)
+- Movement is ignored while any modal is open.
+- Escape closes GOD first, then Inventory; Shop/Loot panels also close on Escape.
+- Runner ensures modals are closed before routing to avoid false movement failures; timing‑sensitive checks may record SKIP.
+
+Dungeon entry and persistence
+- Entry:
+  - Runner attempts multiple strategies and watches for transient dungeon mode (up to several seconds).
+  - Accepts success if log shows “enter the dungeon”/“re‑enter the dungeon”.
+- Chest/persistence:
+  - Loots chest if present, exits on '>' to overworld, re‑enters immediately.
+  - Verifies chest remains empty (looted persists), corpses/decals counts not less, and corpse key overlap.
+- Exit:
+  - Stair guard: pressing G on a non‑stair tile remains in dungeon.
+
+Enemies and combat
+- GOD spawn:
+  - Spawns enemies via the GOD button; runner asserts count increase.
+  - Enemy glyphs now resolve via registry/JSON; fallback uses first letter of type id (not “?”).
+- Routing/attack:
+  - Routes to nearest enemy, bumps to attack several times.
+  - Records kill by corpse count change; decay increases on equipped hands if present.
+- Crit/status:
+  - Compares non‑crit vs head‑crit damage; legs‑crit applies immobilization and verifies ticks.
 
 FOV and LOS
-- Player tile visibility:
-  - On new floor, player tile is visible; tiles seen remain dim when not visible.
-  - If not visible, a sanity message appears and visibility is corrected.
-- FOV recompute guard:
-  - Movement should not stutter; visibility updates only when needed (position/mode/map/FOV changed).
-- LOS consistency:
-  - Enemies are not drawn through walls; towns’ windows allow light but block movement.
-
-Movement and combat
-- Movement:
-  - Arrow keys/numpad move; bump enemy to attack.
-- Attack logs:
-  - Hit location, damage, and “Critical!” when applicable.
-  - Blood decals appear and fade over turns; capped to avoid runaway memory.
-- Block and statuses:
-  - Occasional “block” logs; dazed/bleed apply and tick with logs and visuals.
+- Player tile visible; seen tiles dim when not currently visible.
+- FOV recompute guard avoids redundant recomputation (changes only when needed).
+- LOS: enemies are not drawn through walls.
 
 Inventory and equipment
-- Inventory panel (I):
-  - Stats line shows Attack/Defense; equipment slots show names with decay in tooltip.
-  - Hand items:
-    - If one hand empty: auto‑equip to that hand.
-    - If both occupied: chooser appears (Left/Right).
-    - Two‑handed: equips both; unequipping from either removes both.
-  - Potions: click to drink; HP and counts update; logs reflect changes.
-- Item labels:
-  - Potions show stack count (e.g., “x3”).
-  - Gold shows amount.
-  - Equipment summaries include atk/def where available.
+- Two‑handed items equip both hands; unequipping one removes both.
+- One‑hand items auto‑equip to empty hand or allow explicit left/right choice.
+- Potions: drinking reflects HP delta and stack counts.
+- Gold: visible; basic buy/sell tests run if shop APIs are present.
 
-Looting
-- Corpses:
-  - Kill an enemy; move onto the corpse; press G to loot.
-  - Player should be able to step onto corpse tiles immediately (no blocking).
-  - Confirm auto‑equip of strictly better items with logs.
-- Chest in start room:
-  - On floor 1, a chest may spawn near start; open for loot and verify logs.
+Town generation and interactions
+- Town entry; NPC presence:
+  - Runner routes to town; if empty, attempts home routes and greeter spawn, then asserts NPC presence.
+- NPC bump:
+  - Routes adjacent to nearest NPC and bumps to trigger dialogue.
+- NPC home/props:
+  - Routes to NPC home door; tests reaching interior and interacting with a prop.
+- Shop:
+  - Route to shop; open with G; Escape closes shop panel.
 
-Dungeon generation and exploration (single‑level)
-- Entrance/exit:
-  - Brown stairs glyph (>) marks entrance/exit; press G on '>' to return to overworld.
-  - At least one staircase per floor (fallback ensures).
-- Rooms and corridors connect; typical runs do not have unreachable areas.
+Performance and overlays
+- Grid overlay and path/home overlays toggle from GOD panel; overlays default OFF.
+- Runner records perf snapshots (turn/draw) and warns if budgets are exceeded.
 
-GOD panel and toggles (P)
-- Heal: fully heals; log shows current HP.
-- Spawn Items/Enemy/Stairs: logs appropriate actions; inventory/enemy placement verified.
-- FOV slider: clamps 3..14; logs change; visibility updates.
-- Side Log toggle: right‑side log mirror on/off; persists in localStorage.
-- Always Crit:
-  - Toggle and choose forced location (torso/head/hands/legs); attacks always crit with chosen location.
-- RNG controls:
-  - Apply Seed and Reroll; seed UI reflects current seed state.
-- Diagnostics:
-  - Click “Diagnostics”; logs determinism source, seed, mode/floor/FOV, map size, entity counts, loaded modules, and latest turn/draw timings.
-
-Renderer, overlays, tileset
-- Baseline:
-  - Tiles render with colors; optional grid toggled in GOD panel.
-- Overlays:
-  - Town overlays (occupied houses/targets) and path overlays default OFF; toggles work and render on demand.
-- Tileset (if present):
-  - Floors/walls/stairs/chest/corpse/player/enemy sprites render; decals fallback works.
-
-Flavor and logs
-- Flavor lines may appear on blocks and notable hits; logs include info/good/warn/crit/block/notice/flavor types.
-- Start‑of‑floor notice about enemy presence may appear (depending on flavor settings).
-
-Deterministic items (items.js)
-- With a seed set (e.g., 12345), spawn random items; note names/stats.
-- Re‑apply seed and spawn again — results should match given same tier context.
+Data registries and validation
+- Loader brings JSON for items, enemies, npcs, shops, town.
+- DEV + `&validatebad=1` injects malformed entries; runner waits for ValidationLog.warnings and records the count.
 
 Known edge cases
-- If UI modules are absent, fallback DOM updates should not error.
-- Tracker/telemetry errors from external domains can be ignored; they are environmental.
+- Environmental console noise (blocked trackers, editor websockets) is filtered or ignored.
+- Timing differences can cause SKIP on modal priority or specific interactions; runner continues.
 
 Pass criteria
-- No console errors during:
-  - Load, level generation, movement, combat (crits/blocks/status), inventory actions, looting, exit to overworld, GOD actions, Diagnostics.
+- No game‑origin console errors during:
+  - Load, level generation, movement, combat (crits/blocks/status), inventory actions, looting, enter/exit, GOD actions, Diagnostics.
 - Determinism verified via seed for generation and items.
 - LOS/FOV consistent (no enemies through walls; dim seen tiles).
-- Decals appear and fade; capped count maintained.
-- Corpses do not block; player can step onto and loot them immediately.
-- Performance feels smooth; DEV perf counters show reasonable turn/draw times.
+- Decals appear/fade; capped count maintained.
+- Corpses do not block; player can step onto and loot immediately.
+- Dungeon chest/decals/corpses persist on re‑entry.
+- Town/NPC/shop checks succeed (or SKIP where not applicable).
+- Performance within reasonable bounds.
 
 Quick regression checklist
 - [ ] Load index.html: console clean (ignore blocked third‑party trackers)
 - [ ] Generate floor: player tile visible; no FOV anomalies
-- [ ] Move/attack: logs correct; decals appear/fade
-- [ ] Block occurs: logs + decay applied
-- [ ] Status effects: dazed/bleed apply and tick
+- [ ] Enter dungeon: detected (mode or log) and proceed
+- [ ] Loot chest + persistence: chest empty on re‑enter; corpses/decals OK
+- [ ] GOD spawn enemy: count increases; types present; glyphs not “?”
+- [ ] Move/attack: logs correct; kill recorded by corpses; decay increases
+- [ ] Stair guard: G on non‑stair does not exit
+- [ ] Exit to overworld on '>': transition OK
+- [ ] Town entry: entered; NPC presence asserted (greeters/home routes if needed)
+- [ ] NPC bump: dialogue logged
+- [ ] NPC home/props: reached/interacted
+- [ ] Shop: opened via G; Esc closes panel
 - [ ] Inventory: equip/unequip; two‑handed behavior correct; labels show counts/stats
-- [ ] Loot corpses/chest: can step on corpse; auto‑equip better items; loot panel OK
-- [ ] Exit to overworld on '>': state transition OK
-- [ ] GOD panel: all actions + Diagnostics function correctly
-- [ ] FOV slider: changes radius and re‑renders; guard prevents redundant recomputes
+- [ ] Potions: drink reflects HP delta; stacks update
+- [ ] FOV slider: changes radius; guard prevents redundant recomputes
 - [ ] Seed determinism: repeatable outcomes
 - [ ] Overlays: toggles work; default OFF for heavy overlays
 - [ ] Tileset fallback: renders even if atlas missing
