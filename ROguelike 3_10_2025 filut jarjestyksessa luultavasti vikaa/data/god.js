@@ -113,7 +113,47 @@
       // Guard against null/invalid enemy factories — fallback to a basic goblin
       let ee = e;
       if (!ee || typeof ee.x !== "number" || typeof ee.y !== "number") {
-        ee = { x: spot.x, y: spot.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
+        // Try to construct from Enemies registry for variety if available
+        try {
+          const EM = (typeof window !== "undefined" ? window.Enemies : null);
+          if (EM && typeof EM.listTypes === "function" && typeof EM.getTypeDef === "function") {
+            const types = EM.listTypes();
+            if (types && types.length) {
+              // Weighted pick by weight(depth)
+              const entries = types.map(k => {
+                const tdef = EM.getTypeDef(k);
+                const w = (typeof tdef.weight === "function") ? tdef.weight(ctx.floor) : (tdef._weightByDepth ? tdef._weightByDepth[0]?.[1] || 1 : 1);
+                return { key: k, w: Math.max(0, Number(w) || 0) };
+              });
+              const total = entries.reduce((s, e) => s + e.w, 0);
+              let pickKey = entries[0]?.key || "goblin";
+              if (total > 0) {
+                let r = ctx.rng() * total;
+                for (const e2 of entries) {
+                  if (r < e2.w) { pickKey = e2.key; break; }
+                  r -= e2.w;
+                }
+              }
+              const td = EM.getTypeDef(pickKey);
+              ee = {
+                x: spot.x, y: spot.y,
+                type: pickKey,
+                glyph: td.glyph,
+                hp: td.hp(ctx.floor),
+                atk: td.atk(ctx.floor),
+                xp: td.xp(ctx.floor),
+                level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, ctx.floor, ctx.rng) : ctx.floor,
+                announced: false
+              };
+            } else {
+              ee = { x: spot.x, y: spot.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
+            }
+          } else {
+            ee = { x: spot.x, y: spot.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
+          }
+        } catch (_) {
+          ee = { x: spot.x, y: spot.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
+        }
       }
 
       if (typeof ee.hp === "number" && ctx.rng() < 0.7) {
