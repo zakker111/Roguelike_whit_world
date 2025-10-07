@@ -805,7 +805,20 @@
     };
     if (logOnce) {
       try {
-        const msg = `[DEV] Fallback save key ${key}: enemies=${Array.isArray(enemies)?enemies.length:0}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
+        const totalEnemies = Array.isArray(enemies) ? enemies.length : 0;
+        const typeCounts = (() => {
+          try {
+            if (!Array.isArray(enemies) || enemies.length === 0) return "";
+            const mapCounts = {};
+            for (const e of enemies) {
+              const t = (e && e.type) ? String(e.type) : "(unknown)";
+              mapCounts[t] = (mapCounts[t] || 0) + 1;
+            }
+            const parts = Object.keys(mapCounts).sort().map(k => `${k}:${mapCounts[k]}`);
+            return parts.join(", ");
+          } catch (_) { return ""; }
+        })();
+        const msg = `[DEV] Fallback save key ${key}: enemies=${totalEnemies}${typeCounts ? ` [${typeCounts}]` : ""}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
         if (window.DEV) console.debug(msg);
       } catch (_) {}
     }
@@ -2449,8 +2462,8 @@
       // clamp corpse list length
       if (corpses.length > 50) corpses = corpses.slice(-50);
 
-      // Persist dungeon state after each dungeon turn
-      saveCurrentDungeonState();
+      // Persistence snapshot logging removed from per-turn to avoid noise.
+      // DungeonState.save is still called on key events (entry, kills, explicit saves).
     } else if (mode === "town") {
       townTick = (townTick + 1) | 0;
       townNPCsAct();
