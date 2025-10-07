@@ -67,6 +67,40 @@
       ctx.log("GOD: Enemy spawn works in dungeon mode only.", "warn");
       return;
     }
+
+    // Keep a cyclic cursor to force variety across clicks
+    window.GOD_SPAWN_CYCLE = window.GOD_SPAWN_CYCLE || { list: [], idx: 0 };
+
+    // Build a type list from registry or JSON (once)
+    (function ensureTypeCycle() {
+      if (window.GOD_SPAWN_CYCLE.list.length > 0) return;
+      try {
+        const EM = (typeof window !== "undefined" ? window.Enemies : null);
+        let types = [];
+        if (EM && typeof EM.listTypes === "function") {
+          types = EM.listTypes();
+        }
+        if ((!types || types.length === 0) && typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies)) {
+          types = window.GameData.enemies.map(e => e.id || e.key).filter(Boolean);
+        }
+        if (!types || types.length === 0) {
+          // Hardcoded fallback for dev to avoid goblin-only behavior
+          types = ["goblin","troll","skeleton","bandit","ogre","mime_ghost","hell_houndin"];
+        }
+        // Deterministic shuffle using ctx.rng so order differs per seed
+        const list = types.slice(0);
+        for (let i = list.length - 1; i > 0; i--) {
+          const j = Math.floor(ctx.rng() * (i + 1));
+          const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+        }
+        window.GOD_SPAWN_CYCLE.list = list;
+        window.GOD_SPAWN_CYCLE.idx = 0;
+      } catch (_) {
+        window.GOD_SPAWN_CYCLE.list = ["goblin","troll","skeleton","bandit","ogre","mime_ghost","hell_houndin"];
+        window.GOD_SPAWN_CYCLE.idx = 0;
+      }
+    })();
+
     const isFreeFloor = (x, y) => {
       try {
         if (!ctx.inBounds(x, y)) return false;
@@ -82,6 +116,7 @@
         return false;
       }
     };
+
     const pickNearby = () => {
       const maxAttempts = 100;
       for (let i = 0; i < maxAttempts; i++) {
@@ -103,63 +138,59 @@
       return free[Math.floor(ctx.rng() * free.length)];
     };
 
+    function linearAt(arr, depth, fallback = 1) {
+      if (!Array.isArray(arr) || arr.length === 0) return fallback;
+      let chosen = arr[0];
+      for (const e of arr) { if ((e[0] | 0) <= depth) chosen = e; }
+      const minD = chosen[0] | 0, baseV = Number(chosen[1] || fallback), slope = Number(chosen[2] || 0);
+      const delta = Math.max(0, depth - minD);
+      return Math.max(1, Math.floor(baseV + slope * delta));
+    }
+
     const spawned = [];
     for (let i = 0; i < count; i++) {
       const spot = pickNearby();
       if (!spot) break;
-      const makeEnemy = (ctx.enemyFactory || ((x, y, depth) => ({ x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false })));
-      const e = makeEnemy(spot.x, spot.y, ctx.floor);
 
-      // Guard against null/invalid enemy factories — fallback to a basic goblin
-      let ee = e;
+      // Cycle pick to force variety
+      const pickKey = window.GOD_SPAWN_CYCLE.list[window.GOD_SPAWN_CYCLE.idx % window.GOD_SPAWN_CYCLE.list.length];
+      window.GOD_SPAWN_CYCLE.idx++;
+
+      // Prefer ctx.enemyFactory for consistency; if it returns null, build manually
+      let ee = null;
+      try {
+        const makeEnemy = (ctx.enemyFactory || ((x, y, depth) => ({ x, y, type: pickKey || "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false })));
+        ee = makeEnemy(spot.x, spot.y, ctx.floor);
+      } catch (_) {}
+
       if (!ee || typeof ee.x !== "number" || typeof ee.y !== "number") {
-        // Try to construct from Enemies registry for variety if available; fallback to GameData.enemies ids
-        try {
-          const EM = (typeof window !== "undefined" ? window.Enemies : null);
-          let types = [];
-          if (EM && typeof EM.listTypes === "function") {
-            types = EM.listTypes();
-          }
-          if ((!types || types.length === 0) && typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies)) {
-            types = window.GameData.enemies.map(e => e.id || e.key).filter(Boolean);
-          }
-          if (types && types.length) {
-            // Weighted pick by weight(depth) if EM available; otherwise uniform
-            let pickKey = types[0];
-            if (EM && typeof EM.getTypeDef === "function") {
-              const entries = types.map(k => {
-                const tdef = EM.getTypeDef(k);
-                const w = (tdef && typeof tdef.weight === "function") ? tdef.weight(ctx.floor) : 1;
-                return { key: k, w: Math.max(0, Number(w) || 0) };
-              });
-              const total = entries.reduce((s, e) => s + e.w, 0);
-              if (total > 0) {
-                let r = ctx.rng() * total;
-                for (const e2 of entries) {
-                  if (r < e2.w) { pickKey = e2.key; break; }
-                  r -= e2.w;
-                }
-              }
-              const td = EM.getTypeDef(pickKey);
-              ee = {
-                x: spot.x, y: spot.y,
-                type: pickKey,
-                glyph: td.glyph,
-                hp: td.hp(ctx.floor),
-                atk: td.atk(ctx.floor),
-                xp: td.xp(ctx.floor),
-                level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, ctx.floor, ctx.rng) : ctx.floor,
-                announced: false
-              };
-            } else {
-              // No registry methods; create a minimal enemy object
-              ee = { x: spot.x, y: spot.y, type: pickKey, glyph: "?", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
-            }
-          } else {
-            ee = { x: spot.x, y: spot.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
-          }
-        } catch (_) {
-          ee = { x: spot.x, y: spot.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
+        // Build from Enemies registry when available; otherwise from GameData JSON
+        const EM = (typeof window !== "undefined" ? window.Enemies : null);
+        if (EM && typeof EM.getTypeDef === "function") {
+          const td = EM.getTypeDef(pickKey) || EM.getTypeDef("goblin");
+          ee = {
+            x: spot.x, y: spot.y,
+            type: pickKey,
+            glyph: td ? td.glyph : "?",
+            hp: td ? td.hp(ctx.floor) : 3,
+            atk: td ? td.atk(ctx.floor) : 1,
+            xp: td ? td.xp(ctx.floor) : 5,
+            level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, ctx.floor, ctx.rng) : ctx.floor,
+            announced: false
+          };
+        } else {
+          // Build from raw GameData.enemies if available
+          const row = (window.GameData && Array.isArray(window.GameData.enemies)) ? window.GameData.enemies.find(e => (e.id || e.key) === pickKey) : null;
+          ee = {
+            x: spot.x, y: spot.y,
+            type: pickKey,
+            glyph: (row && row.glyph) || "?",
+            hp: linearAt(row && row.hp || [], ctx.floor, 3),
+            atk: linearAt(row && row.atk || [], ctx.floor, 1),
+            xp: linearAt(row && row.xp || [], ctx.floor, 5),
+            level: ctx.floor,
+            announced: false
+          };
         }
       }
 
@@ -172,11 +203,13 @@
         ee.atk = Math.max(0.1, Math.round(ee.atk * multA * 10) / 10);
       }
       ee.announced = false;
+
       ctx.enemies.push(ee);
       spawned.push(ee);
       const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
       ctx.log(`GOD: Spawned ${cap(ee.type || "enemy")} Lv ${ee.level || 1} at (${ee.x},${ee.y}).`, "notice");
     }
+
     if (spawned.length) ctx.requestDraw();
     else ctx.log("GOD: No free space to spawn an enemy nearby.", "warn");
   }
