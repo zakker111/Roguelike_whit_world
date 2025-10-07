@@ -45,6 +45,11 @@
     if (!Array.isArray(json)) return;
     const warn = (msg, row) => {
       try {
+        // Collect into shared validation log for smoketest visibility
+        window.ValidationLog = window.ValidationLog || { warnings: [], notices: [] };
+        window.ValidationLog.warnings.push(`[Enemies] ${msg}`);
+      } catch (_) {}
+      try {
         if (window.Logger && typeof Logger.log === "function") Logger.log(`[Enemies] ${msg}`, "warn");
         else if (window.DEV && typeof console !== "undefined") console.warn("[Enemies] " + msg, row);
       } catch (_) {}

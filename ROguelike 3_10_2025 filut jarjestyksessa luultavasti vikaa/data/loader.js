@@ -66,6 +66,41 @@
       GameData.shops = Array.isArray(shops) ? shops : null;
       GameData.town = (town && typeof town === "object") ? town : null;
 
+      // DEV-only: inject malformed entries to exercise validators when ?validatebad=1 is present
+      (function maybeInjectBadJson() {
+        try {
+          const params = new URLSearchParams(location.search);
+          const enabled = (params.get("validatebad") === "1") || (params.get("badjson") === "1");
+          const dev = window.DEV || localStorage.getItem("DEV") === "1" || (params.get("dev") === "1");
+          if (!enabled || !dev) return;
+          // Expose a shared validation log sink to be read by smoketest runner
+          window.ValidationLog = window.ValidationLog || { warnings: [], notices: [] };
+
+          // Items: missing slot, missing weights, empty atk/def
+          if (Array.isArray(GameData.items)) {
+            GameData.items.push({ id: "bad_item_no_slot", name: "bad", atk: { "1": [0, 0] } }); // missing slot
+            GameData.items.push({ id: "bad_item_no_ranges", slot: "hand", name: "bad2" }); // no atk/def
+            window.ValidationLog.notices.push("Injected bad item entries");
+          }
+
+          // Enemies: missing glyph, missing weightByDepth, missing hp/atk/xp arrays
+          if (Array.isArray(GameData.enemies)) {
+            GameData.enemies.push({ id: "bad_enemy_no_glyph", color: "#fff", tier: 1, weightByDepth: [[0, 0.1]] });
+            GameData.enemies.push({ id: "bad_enemy_no_weights", glyph: "?", color: "#fff", tier: 1, hp: [[0, 3, 0.5]], atk: [[0, 1, 0.2]], xp: [[0, 5, 0.5]] });
+            GameData.enemies.push({ id: "bad_enemy_no_stats", glyph: "x", color: "#fff", tier: 1, weightByDepth: [[0, 0.1]] });
+            window.ValidationLog.notices.push("Injected bad enemy entries");
+          }
+
+          // NPCs: empty arrays to trigger loader notices
+          if (GameData.npcs && typeof GameData.npcs === "object") {
+            GameData.npcs.residentLines = [];
+            GameData.npcs.shopkeeperLines = [];
+            window.ValidationLog.notices.push("Emptied some NPC arrays");
+          }
+          window.BAD_JSON_INJECTED = true;
+        } catch (_) {}
+      })();
+
       // Minimal validation/logging for NPCs schema
       (function validateNPCs() {
         const ND = GameData.npcs;
@@ -82,7 +117,7 @@
       if (window.DEV) {
         try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town }); } catch (_) {}
       }
-      // Surface a gentle notice if any registry failed; system will fall back gracefully
+      // Surface a gentle notice if any registry failed to load; system will fall back gracefully
       if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.shops || !GameData.town) {
         logNotice("Some registries failed to load; using fallback data where needed.");
       }

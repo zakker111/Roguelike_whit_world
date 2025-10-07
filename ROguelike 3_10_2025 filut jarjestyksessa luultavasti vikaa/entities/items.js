@@ -53,6 +53,11 @@
     if (!Array.isArray(json)) return;
     const warn = (msg, row) => {
       try {
+        // Collect into shared validation log for smoketest visibility
+        window.ValidationLog = window.ValidationLog || { warnings: [], notices: [] };
+        window.ValidationLog.warnings.push(`[Items] ${msg}`);
+      } catch (_) {}
+      try {
         if (window.Logger && typeof Logger.log === "function") Logger.log(`[Items] ${msg}`, "warn");
         else if (window.DEV && typeof console !== "undefined") console.warn("[Items] " + msg, row);
       } catch (_) {}

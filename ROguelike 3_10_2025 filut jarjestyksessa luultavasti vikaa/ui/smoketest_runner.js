@@ -463,6 +463,15 @@
           // Surface raw object snapshot to console for debugging
           try { console.warn("[SMOKE] GameData snapshot:", GD); } catch (_) {}
         }
+        // If dev-only bad JSON injection was requested, assert warnings were collected
+        const params = new URLSearchParams(location.search);
+        const wantBad = (params.get("validatebad") === "1") || (params.get("badjson") === "1");
+        const dev = (params.get("dev") === "1") || (window.DEV || localStorage.getItem("DEV") === "1");
+        if (wantBad && dev) {
+          const VL = window.ValidationLog || { warnings: [] };
+          const wcount = Array.isArray(VL.warnings) ? VL.warnings.length : 0;
+          record(wcount > 0, `Validation warnings captured: ${wcount}`);
+        }
       } catch (e) {
         record(false, "Data registries check failed: " + (e && e.message ? e.message : String(e)));
       }
