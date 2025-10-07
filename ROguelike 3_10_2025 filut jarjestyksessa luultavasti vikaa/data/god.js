@@ -98,6 +98,12 @@
       const makeEnemy = (ctx.enemyFactory || ((x, y, depth) => ({ x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false })));
       const e = makeEnemy(spot.x, spot.y, ctx.floor);
 
+      // Guard against null/invalid enemy factories
+      if (!e || typeof e.x !== "number" || typeof e.y !== "number") {
+        ctx.log("GOD: Enemy factory returned no enemy; ensure enemies.json is loaded.", "warn");
+        continue;
+      }
+
       if (typeof e.hp === "number" && ctx.rng() < 0.7) {
         const mult = 0.85 + ctx.rng() * 0.5;
         e.hp = Math.max(1, Math.round(e.hp * mult));
