@@ -2258,4 +2258,6 @@
     window.addEventListener("load", () => { setTimeout(() => { runSeries(1); }, 800); });
   }
 
+})();
+
         
