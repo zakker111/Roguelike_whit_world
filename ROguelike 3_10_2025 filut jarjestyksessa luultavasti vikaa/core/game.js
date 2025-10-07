@@ -1820,15 +1820,7 @@
   // GOD mode actions
   function godHeal() {
     if (window.God && typeof God.heal === "function") { God.heal(getCtx()); return; }
-    const prev = player.hp;
-    player.hp = player.maxHp;
-    if (player.hp > prev) {
-      log(`GOD: You are fully healed (${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)} HP).`, "good");
-    } else {
-      log(`GOD: HP already full (${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
-    }
-    updateUI();
-    requestDraw();
+    if (window.GodFallback && typeof GodFallback.heal === "function") { GodFallback.heal(getCtx()); return; }
   }
 
   function godSpawnStairsHere() {
@@ -1846,33 +1838,7 @@
 
   function godSpawnItems(count = 3) {
     if (window.God && typeof God.spawnItems === "function") { God.spawnItems(getCtx(), count); return; }
-    const created = [];
-    for (let i = 0; i < count; i++) {
-      let it = null;
-      if (window.Items && typeof Items.createEquipment === "function") {
-        const tier = Math.min(3, Math.max(1, Math.floor((floor + 1) / 2)));
-        it = Items.createEquipment(tier, rng);
-      } else if (window.DungeonItems && DungeonItems.lootFactories && typeof DungeonItems.lootFactories === "object") {
-        const keys = Object.keys(DungeonItems.lootFactories);
-        if (keys.length > 0) {
-          const k = keys[randInt(0, keys.length - 1)];
-          try { it = DungeonItems.lootFactories[k](getCtx(), { tier: 2 }); } catch (_) {}
-        }
-      }
-      if (!it) {
-        if (rng() < 0.5) it = { kind: "equip", slot: "hand", name: "debug sword", atk: 1.5, tier: 2, decay: initialDecay(2) };
-        else it = { kind: "equip", slot: "torso", name: "debug armor", def: 1.0, tier: 2, decay: initialDecay(2) };
-      }
-      player.inventory.push(it);
-      created.push(describeItem(it));
-    }
-    if (created.length) {
-      log(`GOD: Spawned ${created.length} item${created.length > 1 ? "s" : ""}:`);
-      created.forEach(n => log(`- ${n}`));
-      updateUI();
-      renderInventoryPanel();
-      requestDraw();
-    }
+    if (window.GodFallback && typeof GodFallback.spawnItems === "function") { GodFallback.spawnItems(getCtx(), count); return; }
   }
 
   /**
@@ -1883,59 +1849,7 @@
    */
   function godSpawnEnemyNearby(count = 1) {
     if (window.God && typeof God.spawnEnemyNearby === "function") { God.spawnEnemyNearby(getCtx(), count); return; }
-    const isFreeFloor = (x, y) => {
-      if (!inBounds(x, y)) return false;
-      if (map[y][x] !== TILES.FLOOR) return false;
-      if (player.x === x && player.y === y) return false;
-      if (enemies.some(e => e.x === x && e.y === y)) return false;
-      return true;
-    };
-
-    const pickNearby = () => {
-      const maxAttempts = 60;
-      for (let i = 0; i < maxAttempts; i++) {
-        const dx = randInt(-5, 5);
-        const dy = randInt(-5, 5);
-        const x = player.x + dx;
-        const y = player.y + dy;
-        if (isFreeFloor(x, y)) return { x, y };
-      }
-      const free = [];
-      for (let y = 0; y < map.length; y++) {
-        for (let x = 0; x < (map[0] ? map[0].length : 0); x++) {
-          if (isFreeFloor(x, y)) free.push({ x, y });
-        }
-      }
-      if (free.length === 0) return null;
-      return free[randInt(0, free.length - 1)];
-    };
-
-    const ctx = getCtx();
-    const spawned = [];
-    for (let i = 0; i < count; i++) {
-      const spot = pickNearby();
-      if (!spot) break;
-      const makeEnemy = (ctx.enemyFactory || ((x, y, depth) => ({ x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false })));
-      const e = makeEnemy(spot.x, spot.y, floor);
-
-      if (typeof e.hp === "number" && rng() < 0.7) {
-        const mult = 0.85 + rng() * 0.5;
-        e.hp = Math.max(1, Math.round(e.hp * mult));
-      }
-      if (typeof e.atk === "number" && rng() < 0.7) {
-        const multA = 0.85 + rng() * 0.5;
-        e.atk = Math.max(0.1, round1(e.atk * multA));
-      }
-      e.announced = false;
-      enemies.push(e);
-      spawned.push(e);
-      log(`GOD: Spawned ${capitalize(e.type || "enemy")} Lv ${e.level || 1} at (${e.x},${e.y}).`, "notice");
-    }
-    if (spawned.length > 0) {
-      requestDraw();
-    } else {
-      log("GOD: No free space to spawn an enemy nearby.", "warn");
-    }
+    if (window.GodFallback && typeof GodFallback.spawnEnemyNearby === "function") { GodFallback.spawnEnemyNearby(getCtx(), count); return; }
   }
 
   
@@ -3031,5 +2945,8 @@
       }
     };
   } catch (_) {}
+
+  // Minimal context accessor for external modules (e.g., GodFallback, click handlers)
+  try { window.__getGameCtx = () => getCtx(); } catch (_) {}
 
 })();
