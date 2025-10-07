@@ -1656,11 +1656,12 @@
           } catch (eHR) {
             record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
           }
-        // Seed determinism invariants (same-seed regeneration without reload)
-        }
+        } // end town visit else
       } catch (e) {
         record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
       }
+
+      // Seed determinism invariants (same-seed regeneration without reload)
 
       // Diagnostics + shop schedule/time check
       try {
