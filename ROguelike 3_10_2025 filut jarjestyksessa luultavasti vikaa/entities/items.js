@@ -46,7 +46,78 @@
   // TYPES registry is now optionally extended from JSON at load time.
   // Start with a minimal base; JSON will augment/override on loader ready.
   const TYPES = {
-    // Kept empty to prefer JSON. Existing code paths still work if JSON missing.
+    // Minimal built-in set to avoid degenerate fallback (only "iron sword") when JSON fails to load.
+    sword_simple: {
+      key: "sword_simple",
+      slot: "hand",
+      twoHanded: false,
+      minTier: 1,
+      weight: function (tier) { const m = { 1: 0.35, 2: 0.28, 3: 0.18 }; return m[Math.max(1, Math.min(3, tier || 1))] || 0.2; },
+      atkRange: { 1: [0.6, 2.2], 2: [1.2, 3.2], 3: [2.0, 3.8] },
+      name: (mat) => `${mat} simple sword`,
+    },
+    axe: {
+      key: "axe",
+      slot: "hand",
+      twoHanded: false,
+      minTier: 1,
+      weight: function (tier) { const m = { 1: 0.25, 2: 0.22, 3: 0.16 }; return m[Math.max(1, Math.min(3, tier || 1))] || 0.15; },
+      atkRange: { 1: [0.6, 2.2], 2: [1.2, 3.2], 3: [2.0, 4.0] },
+      atkBonus: { 1: [0.0, 0.3], 2: [0.1, 0.5], 3: [0.2, 0.6] },
+      name: (mat) => `${mat} axe`,
+    },
+    shield: {
+      key: "shield",
+      slot: "hand",
+      twoHanded: false,
+      minTier: 1,
+      weight: function (tier) { const m = { 1: 0.15, 2: 0.16, 3: 0.14 }; return m[Math.max(1, Math.min(3, tier || 1))] || 0.12; },
+      defRange: { 1: [0.4, 2.0], 2: [1.2, 3.2], 3: [2.0, 4.0] },
+      name: (mat) => `${mat} shield`,
+    },
+    helmet: {
+      key: "helmet",
+      slot: "head",
+      minTier: 1,
+      weight: function (tier) { const m = { 1: 1.0, 2: 0.8, 3: 0.6 }; return m[Math.max(1, Math.min(3, tier || 1))] || 0.5; },
+      defRange: { 1: [0.2, 1.6], 2: [0.8, 2.8], 3: [1.6, 3.6] },
+      name: (mat) => `${mat} helmet`,
+    },
+    torso_armor: {
+      key: "torso_armor",
+      slot: "torso",
+      minTier: 1,
+      weight: function (tier) { const m = { 1: 1.0, 2: 1.0, 3: 0.9 }; return m[Math.max(1, Math.min(3, tier || 1))] || 0.8; },
+      defRange: { 1: [0.6, 2.6], 2: [1.6, 3.6], 3: [2.4, 4.0] },
+      name: (mat) => `${mat} armor`,
+    },
+    leg_armor: {
+      key: "leg_armor",
+      slot: "legs",
+      minTier: 1,
+      weight: function (tier) { const m = { 1: 1.0, 2: 0.9, 3: 0.8 }; return m[Math.max(1, Math.min(3, tier || 1))] || 0.7; },
+      defRange: { 1: [0.3, 1.8], 2: [1.0, 3.0], 3: [1.8, 3.8] },
+      name: (mat) => `${mat} leg armor`,
+    },
+    gloves: {
+      key: "gloves",
+      slot: "hands",
+      minTier: 1,
+      weight: function (tier) { const m = { 1: 1.0, 2: 0.9, 3: 0.8 }; return m[Math.max(1, Math.min(3, tier || 1))] || 0.7; },
+      defRange: { 1: [0.2, 1.2], 2: [0.8, 2.4], 3: [1.2, 3.0] },
+      handAtkBonus: { 2: [0.1, 0.6], 3: [0.2, 1.0] },
+      handAtkChance: 0.5,
+      name: (mat) => `${mat} gloves`,
+    },
+    greatsword: {
+      key: "greatsword",
+      slot: "hand",
+      twoHanded: true,
+      minTier: 2,
+      weight: function (tier) { const m = { 2: 0.20, 3: 0.25 }; const k = Math.max(1, Math.min(3, tier || 2)); return m[k] || 0.15; },
+      atkRange: { 2: [2.0, 3.4], 3: [2.6, 4.2] },
+      name: (mat) => `${mat} greatsword`,
+    },
   };
 
   function applyJsonItems(json) {
