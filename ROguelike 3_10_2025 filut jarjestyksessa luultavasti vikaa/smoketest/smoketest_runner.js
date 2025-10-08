@@ -2724,19 +2724,26 @@
   // Auto-run conditions:
   // - If ?smoketest=1 param was set and script loaded during/after page load
   // - If the loader set window.SMOKETEST_REQUESTED
+  function __smokeTriggerRunSeries(n) {
+    try {
+      var RR = window.SmokeTest && window.SmokeTest.Run && window.SmokeTest.Run.runSeries;
+      if (typeof RR === "function") { RR(n); return; }
+    } catch (_) {}
+    try { runSeries(n); } catch (_) {}
+  }
   try {
     var params = new URLSearchParams(location.search);
     var shouldAuto = (params.get("smoketest") === "1") || (window.SMOKETEST_REQUESTED === true);
     var autoCount = parseInt(params.get("smokecount") || "1", 10) || 1;
     if (document.readyState !== "loading") {
-      if (shouldAuto) { setTimeout(() => { runSeries(autoCount); }, 400); }
+      if (shouldAuto) { setTimeout(() => { __smokeTriggerRunSeries(autoCount); }, 400); }
     } else {
       window.addEventListener("load", () => {
-        if (shouldAuto) { setTimeout(() => { runSeries(autoCount); }, 800); }
+        if (shouldAuto) { setTimeout(() => { __smokeTriggerRunSeries(autoCount); }, 800); }
       });
     }
   } catch (_) {
     // Fallback: run on load if present
-    window.addEventListener("load", () => { setTimeout(() => { runSeries(1); }, 800); });
+    window.addEventListener("load", () => { setTimeout(() => { __smokeTriggerRunSeries(1); }, 800); });
   }
 })();
