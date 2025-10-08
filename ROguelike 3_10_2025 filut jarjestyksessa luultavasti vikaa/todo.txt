@@ -1,3 +1,8 @@
+- simplify ui for making buttons etc buy hand atleast make some kinda ui config
+- move CHEKLIST.md to smoketest move smoketest.md to smoketest
+-update readmeas when needed and when making more code
+- chak out big files and organice them logically and in small test (cos it takes hell a lot of time) maby make kinda chek list how to organize code kinda guidelines for ai
+
 Future Development TODOs (not wired to runtime; planning notes only)
 a
 1) Enrich combat logs (flavorful, context-aware)
