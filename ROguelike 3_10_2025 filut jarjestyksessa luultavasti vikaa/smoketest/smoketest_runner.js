@@ -1,6 +1,9 @@
 // Tiny Roguelike Legacy Smoke Test Runner (thin shim)
-// Purpose: minimal legacy wrapper that opens GOD, applies seed (optional), then delegates execution and reporting to the modular orchestrator.
-// This file now avoids inline scenario logic, duplicate renderers, and heavy fallbacks.
+// Purpose: minimal legacy wrapper that delegates execution and reporting to the modular orchestrator.
+// Notes:
+// - No inline scenario logic, renderers, or UI helpers here.
+// - Orchestrator handles GOD panel visibility, logging, reporting, and CI tokens.
+// - Auto-runs only when ?smoketest=1&legacy=1 is present.
 
 (function () {
   const RUNNER_VERSION = "1.8.0";
@@ -14,40 +17,22 @@
       const sel = legacySel ? legacySel : p("scenarios", "");
       return {
         smoketest: p("smoketest", "0") === "1",
-        dev: p("dev", "0") === "1",
         legacy: p("legacy", "0") === "1",
         smokecount: Number(p("smokecount", "1")) || 1,
-        scenarios: sel.split(",").map(s => s.trim()).filter(Boolean),
-        seed: (p("seed", "") || "").trim()
+        scenarios: sel.split(",").map(s => s.trim()).filter(Boolean)
       };
     } catch (_) {
-      return { smoketest: false, dev: false, legacy: false, smokecount: 1, scenarios: [], seed: "" };
+      return { smoketest: false, legacy: false, smokecount: 1, scenarios: [] };
     }
   }
 
-  
-
-  
-
-  // Thin legacy run: open GOD and delegate to orchestrator's run()
+  // Thin legacy run: delegate to orchestrator's run()
   async function run() {
     try {
-      const params = parseParams();
-
-      // Respect scenario filter by setting window.SmokeTest.Config if available
-      try {
-        if (params.scenarios.length) {
-          window.SmokeTest = window.SmokeTest || {};
-          window.SmokeTest.__legacySelectedScenarios = params.scenarios.slice();
-        }
-      } catch (_) {}
-
-      // Delegate to orchestrator
       const OR = window.SmokeTest && window.SmokeTest.Run;
       if (OR && typeof OR.run === "function") {
         return await OR.run({});
       }
-
       // Fallback: minimal no-op report when orchestrator missing
       try {
         const Banner = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
@@ -60,7 +45,7 @@
     }
   }
 
-  // Thin legacy series: open GOD and delegate to orchestrator's runSeries()
+  // Thin legacy series: delegate to orchestrator's runSeries()
   async function runSeries(count) {
     const params = parseParams();
     const n = Math.max(1, (count | 0) || params.smokecount || 1);
