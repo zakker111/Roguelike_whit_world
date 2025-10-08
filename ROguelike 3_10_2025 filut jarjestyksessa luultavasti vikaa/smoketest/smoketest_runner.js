@@ -268,14 +268,30 @@
 
   // Safe element access
   function hasEl(id) {
+    try {
+      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
+        return window.SmokeTest.Helpers.Dom.hasEl(id);
+      }
+    } catch (_) {}
     return !!document.getElementById(id);
   }
   function safeClick(id) {
+    try {
+      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
+        return window.SmokeTest.Helpers.Dom.safeClick(id);
+      }
+    } catch (_) {}
     const el = document.getElementById(id);
     if (!el) return false;
-    try { el.click(); return true; } catch (_) { return false; }
-  }
+    try { el.click(); return true; } catch (_) { return false; }_code
+ new </}
+
   function safeSetInput(id, v) {
+    try {
+      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
+        return window.SmokeTest.Helpers.Dom.safeSetInput(id, v);
+      }
+    } catch (_) {}
     const el = document.getElementById(id);
     if (!el) return false;
     try {
@@ -283,11 +299,15 @@
       el.dispatchEvent(new Event("input", { bubbles: true }));
       el.dispatchEvent(new Event("change", { bubbles: true }));
       return true;
-    } catch (_) { return false; }
-  }
+    } catch (_) { return false;  }
 
   // Lightweight polling helpers (bounded) to avoid flaky state reads
   async function waitUntilTrue(fn, timeoutMs = 400, intervalMs = 40) {
+    try {
+      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
+        return await window.SmokeTest.Helpers.Dom.waitUntilTrue(fn, timeoutMs, intervalMs);
+      }
+    } catch (_) {}
     const deadline = Date.now() + Math.max(0, timeoutMs | 0);
     while (Date.now() < deadline) {
       try { if (fn()) return true; } catch (_) {}
@@ -312,7 +332,12 @@
   }
 
   function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    try {
+      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
+        return window.SmokeTest.Helpers.Dom.sleep(ms);
+      }
+    } catch (_) {}
+    return new Promise(resolve => setTimeout(resolve, Math.max(0, ms | 0)));
   }
 
   // Ensure all UI modals are closed so routing/movement works
@@ -354,7 +379,11 @@
 
   function key(code) {
     try {
-      // Dispatch to document as well for broader listener coverage
+      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
+        return window.SmokeTest.Helpers.Dom.key(code);
+      }
+    } catch (_) {}
+    try {
       const ev = new KeyboardEvent("keydown", { key: code, code, bubbles: true });
       window.dispatchEvent(ev);
       document.dispatchEvent(ev);
