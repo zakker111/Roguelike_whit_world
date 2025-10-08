@@ -15,6 +15,7 @@ v1.22.1 — Legacy runner thin shim, orchestrator gating, docs alignment
 - Changed: Orchestrator skips auto-run when `&legacy=1` is present; legacy shim invokes orchestrator `runSeries` to avoid double execution.
 - Changed: index.html loader comment updated to “Legacy thin shim appended below”; shim only injected when `&legacy=1`.
 - Fixed: legacy recursion/double-run risk; stabilized series runs and report display.
+- Changed: Scenarios now record SKIP before early returns when preconditions aren’t met (world, dungeon, inventory, town, dungeon_persistence) to keep logs comprehensive.
 - Docs: Updated smoketest.md, smoketest/README.md, runner/README.md, and README.md to reflect thin shim, scenario filters, and CI tokens.
 
 v1.22 — Smoketest Orchestrator default, modularization, RNG audit, CI tokens, and docs alignment
