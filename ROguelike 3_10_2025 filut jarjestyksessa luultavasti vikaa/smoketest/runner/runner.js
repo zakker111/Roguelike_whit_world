@@ -444,13 +444,31 @@
         if (!el) {
           el = document.createElement("div");
           el.id = "smoke-matchup";
-          el.style.marginTop = "8px";
-          el.style.border = "1px solid rgba(122,162,247,0.25)";
+          el.setAttribute("data-expanded", "0");
+          // Stronger, pinned styling so it remains visible at the top of the panel
+          el.style.position = "sticky";
+          el.style.top = "0px";
+          el.style.zIndex = "100";
+          el.style.marginTop = "0";
+          el.style.border = "1px solid rgba(122,162,247,0.35)";
+          el.style.borderLeft = "4px solid rgba(122,162,247,0.9)";
           el.style.borderRadius = "6px";
-          el.style.padding = "6px 8px";
-          el.style.background = "rgba(21,22,27,0.35)";
+          el.style.padding = "8px 10px";
+          el.style.background = "rgba(15,17,24,0.95)";
+          el.style.boxShadow = "0 6px 16px rgba(0,0,0,0.35)";
           // Keep the scoreboard visible at the top
           host.prepend(el);
+          // Toggle expand/collapse details
+          el._matchupHooked = true;
+          el.addEventListener("click", (ev) => {
+            const btn = ev.target && ev.target.closest && ev.target.closest("[data-act=\"toggle\"]");
+            if (btn) {
+              ev.preventDefault();
+              const expanded = el.getAttribute("data-expanded") === "1";
+              el.setAttribute("data-expanded", expanded ? "0" : "1");
+              updateMatchup();
+            }
+          });
         }
         return el;
       } catch (_) { return null; }
@@ -458,24 +476,57 @@
     function updateMatchup() {
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
-        const list = Array.from(agg.values()).map(v => ({ ok: !!v.ok, skipped: (!v.ok && !!v.skippedAny), msg: v.msg }));
-        const failed = list.filter(s => !s.ok && !s.skipped);
-        const passed = list.filter(s => s.ok && !s.skipped);
-        const skipped = list.filter(s => s.skipped);
+        // Build sorted list: FAIL first (by fail count desc), then SKIP, then OK
+        const values = Array.from(agg.values());
+        const list = values.map(v => ({
+          ok: !!v.ok,
+          skipped: (!v.ok && !!v.skippedAny),
+          msg: v.msg,
+          failCount: v.failCount || 0
+        }));
+        const fails = list.filter(s => !s.ok && !s.skipped).sort((a,b) => (b.failCount - a.failCount) || (a.msg > b.msg ? 1 : -1));
+        const skips = list.filter(s => s.skipped).sort((a,b) => a.msg > b.msg ? 1 : -1);
+        const oks = list.filter(s => s.ok && !s.skipped).sort((a,b) => a.msg > b.msg ? 1 : -1);
+        const ordered = fails.concat(skips, oks);
+
         const el = ensureMatchupEl();
         if (!el) return;
+        const expanded = el.getAttribute("data-expanded") === "1";
+        const cap = expanded ? ordered.length : Math.min(ordered.length, 20);
+        const showing = ordered.slice(0, cap);
 
-        const counts = `<div><strong>Matchup so far:</strong> OK ${passed.length} • FAIL <span style="${failed.length ? "color:#ef4444" : "color:#86efac"};">${failed.length}</span> • SKIP ${skipped.length}</div>`;
+        const failed = fails;
+        const passed = oks;
+        const skipped = skips;
 
-        // Show failures first, then SKIPs, then OKs, up to a larger cap.
-        const CAP = 20;
-        const display = [];
-        for (let i = 0; i < failed.length && display.length < CAP; i++) display.push(failed[i]);
-        for (let i = 0; i < skipped.length && display.length < CAP; i++) display.push(skipped[i]);
-        for (let i = 0; i < passed.length && display.length < CAP; i++) display.push(passed[i]);
+        const counts = [
+          `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">`,
+          `<div style="font-weight:700; letter-spacing:.2px; color:#c7d2fe;">Matchup</div>`,
+          `<div style="display:flex; gap:8px; font-size:12px;">`,
+          `<span style="background:#0a3d2a; color:#d1fae5; padding:2px 8px; border-radius:9999px;">OK ${passed.length}</span>`,
+          `<span style="background:${failed.length ? '#3b0a0a' : '#0e1726'}; color:${failed.length ? '#fecaca' : '#c7d2fe'}; padding:2px 8px; border-radius:9999px;">FAIL ${failed.length}</span>`,
+          `<span style="background:#111827; color:#e5e7eb; padding:2px 8px; border-radius:9999px;">SKIP ${skipped.length}</span>`,
+          `</div>`,
+          `<a href="#" data-act="toggle" style="font-size:12px; color:#93c5fd; text-decoration:underline; white-space:nowrap;">${expanded ? "Collapse" : "Expand"}</a>`,
+          `</div>`
+        ].join("");
 
-        const details = R ? R.renderStepsPretty(display) : "";
-        el.innerHTML = counts + (details ? `<div style="margin-top:6px;">${details}</div>` : "");
+        // Render a trimmed set of details, emphasizing fails first
+        let detailsHtml = "";
+        if (R && typeof R.renderStepsPretty === "function" && showing.length) {
+          detailsHtml = R.renderStepsPretty(showing);
+        } else if (showing.length) {
+          detailsHtml = `<ul style="margin:6px 0 0 16px; padding:0; list-style:disc;">` +
+            showing.map(s => `<li>${s.skipped ? "[SKIP] " : (s.ok ? "[OK] " : "[FAIL] ")}${s.msg}</li>`).join("") +
+            `</ul>`;
+        }
+        const meta = (!expanded && ordered.length > cap)
+          ? `<div style="margin-top:4px; font-size:12px; color:#9ca3af;">Showing ${cap} of ${ordered.length} steps (fails first)</div>`
+          : "";
+
+        el.innerHTML = counts + (detailsHtml ? `<div style="margin-top:6px;">${detailsHtml}${meta}</div>` : "");
+      } catch (_) {}
+    }</div>` : "");
       } catch (_) {}
     }
 
