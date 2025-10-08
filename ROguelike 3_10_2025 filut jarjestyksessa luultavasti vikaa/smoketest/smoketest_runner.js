@@ -283,8 +283,8 @@
     } catch (_) {}
     const el = document.getElementById(id);
     if (!el) return false;
-    try { el.click(); return true; } catch (_) { return false; }_code
- new </}
+    try { el.click(); return true; } catch (_) { return false; }
+  }
 
   function safeSetInput(id, v) {
     try {
@@ -299,7 +299,8 @@
       el.dispatchEvent(new Event("input", { bubbles: true }));
       el.dispatchEvent(new Event("change", { bubbles: true }));
       return true;
-    } catch (_) { return false;  }
+    } catch (_) { return false; }
+  }
 
   // Lightweight polling helpers (bounded) to avoid flaky state reads
   async function waitUntilTrue(fn, timeoutMs = 400, intervalMs = 40) {
