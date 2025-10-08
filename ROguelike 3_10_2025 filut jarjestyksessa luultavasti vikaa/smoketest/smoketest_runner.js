@@ -114,8 +114,14 @@
   };
   ConsoleCapture.install();
 
-  // Create a floating banner for smoke test progress
+  // Create a floating banner for smoke test progress (delegates to helper)
   function ensureBanner() {
+    try {
+      if (window.SmokeTest?.Helpers?.Logging?.ensureBanner) {
+        return window.SmokeTest.Helpers.Logging.ensureBanner();
+      }
+    } catch (_) {}
+    // Fallback inline
     let el = document.getElementById("smoke-banner");
     if (el) return el;
     el = document.createElement("div");
@@ -139,6 +145,11 @@
 
   function ensureStatusEl() {
     try {
+      if (window.SmokeTest?.Helpers?.Logging?.ensureStatusEl) {
+        return window.SmokeTest.Helpers.Logging.ensureStatusEl();
+      }
+    } catch (_) {}
+    try {
       let host = document.getElementById("god-check-output");
       if (!host) return null;
       let el = document.getElementById("smoke-status");
@@ -147,7 +158,6 @@
         el.id = "smoke-status";
         el.style.margin = "6px 0";
         el.style.color = "#93c5fd";
-        // Prepend status at the top of GOD panel output
         host.prepend(el);
       }
       return el;
@@ -155,6 +165,11 @@
   }
 
   function currentMode() {
+    try {
+      if (window.SmokeTest?.Helpers?.Logging?.currentMode) {
+        return window.SmokeTest.Helpers.Logging.currentMode();
+      }
+    } catch (_) {}
     try {
       if (window.GameAPI && typeof window.GameAPI.getMode === "function") {
         return String(window.GameAPI.getMode() || "").toLowerCase();
@@ -164,14 +179,19 @@
   }
 
   function setStatus(msg) {
-    const m = currentMode();
-    const el = ensureStatusEl();
-    if (el) {
-      el.textContent = `[${m || "unknown"}] ${msg}`;
-    }
-  }
+    try {
+      if (window.SmokeTest?.Helpers?.Logging?.setStatus) {
+        return window.SmokeTest.Helpers.Logging.setStatus(msg);
+      }
+    } catch (_) {}
+    const m = currentMode
 
   function log(msg, type) {
+    try {
+      if (window.SmokeTest?.Helpers?.Logging?.log) {
+        return window.SmokeTest.Helpers.Logging.log(msg, type);
+      }
+    } catch (_) {}
     const banner = ensureBanner();
     const m = currentMode();
     const line = "[SMOKE]" + (m ? ` [${m}]` : "") + " " + msg;
@@ -182,16 +202,18 @@
         Logger.log(line, type || "info");
       }
     } catch (_) {}
-    try {
-      console.log(line);
-    } catch (_) {}
+    try { console.log(line); } catch (_) {}
   }
 
   function panelReport(html) {
     try {
+      if (window.SmokeTest?.Helpers?.Logging?.panelReport) {
+        return window.SmokeTest.Helpers.Logging.panelReport(html);
+      }
+    } catch (_) {}
+    try {
       const el = document.getElementById("god-check-output");
       if (el) el.innerHTML = html;
-      // re-ensure status element stays visible at top after overwrite
       ensureStatusEl();
     } catch (_) {}
   }
@@ -213,10 +235,16 @@
 
   function appendToPanel(html) {
     try {
+      if (window.SmokeTest?.Helpers?.Logging?.appendToPanel) {
+        return window.SmokeTest.Helpers.Logging.appendToPanel(html);
+      }
+    } catch (_) {}
+    try {
       const el = document.getElementById("god-check-output");
       if (el) el.innerHTML += html;
-    } catch (_) {}
-  }
+    } catch (_) {}_code
+ new </}
+}
 
   // Capability detection for future-proofing
   function detectCaps() {
