@@ -149,6 +149,16 @@
 
       const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip };
 
+      // Dev-only RNG audit (if module present)
+      try {
+        if (params.dev) {
+          var RA = window.SmokeTest && window.SmokeTest.Capabilities && window.SmokeTest.Capabilities.RNGAudit;
+          if (RA && typeof RA.run === "function") {
+            await RA.run({ record, recordSkip, sleep, makeBudget, CONFIG });
+          }
+        }
+      } catch (_) {}
+
       const S = window.SmokeTest && window.SmokeTest.Scenarios ? window.SmokeTest.Scenarios : {};
       const pipeline = [
         { name: "world", fn: S.World && S.World.run },
