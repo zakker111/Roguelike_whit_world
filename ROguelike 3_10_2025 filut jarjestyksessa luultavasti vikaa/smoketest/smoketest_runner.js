@@ -252,8 +252,6 @@
 
   // DEV RNG audit removed from legacy runner (delegated to capabilities module if present)
   function devRandomAudit() {
-    return { scanned: 0, hits: [] };_codetry {
-      if (!(window.DEV || localStorage.getItem("DEV") === "1")) return { scanned: 0, hits: [] };
     return { scanned: 0, hits: [] };
   }
 
