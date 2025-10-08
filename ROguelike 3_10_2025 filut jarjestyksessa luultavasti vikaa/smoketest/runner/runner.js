@@ -100,8 +100,46 @@
     } catch (_) {}
   }
 
+  // Wait helpers: prefer Dom.waitUntilTrue if available, else fallback
+  async function waitUntilTrue(fn, timeoutMs, intervalMs) {
+    try {
+      var D = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
+      if (D && typeof D.waitUntilTrue === "function") {
+        return await D.waitUntilTrue(fn, timeoutMs, intervalMs);
+      }
+    } catch (_) {}
+    var deadline = Date.now() + Math.max(0, (timeoutMs | 0) || 0);
+    var interval = Math.max(1, (intervalMs | 0) || 50);
+    while (Date.now() < deadline) {
+      try { if (fn()) return true; } catch (_) {}
+      await sleep(interval);
+    }
+    try { return !!fn(); } catch (_) { return false; }
+  }
+
+  function isGameReady() {
+    try {
+      var G = window.GameAPI || {};
+      if (typeof G.getMode === "function") {
+        var m = G.getMode();
+        if (m === "world" || m === "dungeon" || m === "town") return true;
+      }
+      // Fallback: player exists with coordinates
+      if (typeof G.getPlayer === "function") {
+        var p = G.getPlayer();
+        if (p && typeof p.x === "number" && typeof p.y === "number") return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  async function waitUntilGameReady(timeoutMs) {
+    return await waitUntilTrue(() => isGameReady(), Math.max(500, timeoutMs | 0), 80);
+  }
+
   async function run(ctx) {
     try {
+      await waitUntilGameReady(6000);
       const caps = detectCaps();
       const params = parseParams();
       const sel = params.scenarios;
@@ -216,10 +254,11 @@
     const shouldAuto = params.smoketest;
     const count = params.smokecount || 1;
     if (shouldAuto && !params.legacy) {
+      const start = async () => { await waitUntilGameReady(6000); await runSeries(count); };
       if (document.readyState !== "loading") {
-        setTimeout(() => { runSeries(count); }, 400);
+        setTimeout(() => { start(); }, 400);
       } else {
-        window.addEventListener("load", () => { setTimeout(() => { runSeries(count); }, 800); });
+        window.addEventListener("load", () => { setTimeout(() => { start(); }, 800); });
       }
     }
   } catch (_) {}
