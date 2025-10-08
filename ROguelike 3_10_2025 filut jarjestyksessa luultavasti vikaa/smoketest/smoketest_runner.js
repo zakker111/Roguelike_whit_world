@@ -1512,7 +1512,7 @@
       }
 
       // Step 10: from overworld, visit nearest town and interact
-      try {
+      {
         let handled = false;
         try {
           var ST = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Town;
@@ -1647,8 +1647,6 @@
             }
           }
         }
-      } catch (e) {
-        record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
       }
 
           // Seed determinism invariants (same-seed regeneration without reload)
