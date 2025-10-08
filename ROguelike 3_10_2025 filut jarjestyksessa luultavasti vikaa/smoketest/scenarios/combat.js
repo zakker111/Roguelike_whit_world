@@ -19,6 +19,9 @@
         return true;
       }
 
+      // Ensure no modal (GOD/Inventory/Shop/Smoke) is intercepting keys
+      try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(8); } catch (_) {}
+
       // Ensure in dungeon; robustly handle starting from town by returning to world first
       try {
         var mode0 = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
@@ -81,26 +84,31 @@
       // Spawn enemies via GOD panel and GameAPI (multiple attempts)
       try {
         var spawnedOk = false;
-        // DOM clicks (GOD button) if present
+        // DOM clicks (GOD button) only make sense in dungeon; otherwise skip this sub-step
         try {
-          var opened = false;
-          var gob = document.getElementById("god-open-btn");
-          if (gob) { gob.click(); opened = true; }
-          if (opened) { await sleep(200); }
-          for (var c = 0; c < 2; c++) {
-            var btn = document.getElementById("god-spawn-enemy-btn");
-            if (btn) { btn.click(); await sleep(140); }
+          var modeForSpawn = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+          if (modeForSpawn === "dungeon") {
+            var opened = false;
+            var gob = document.getElementById("god-open-btn");
+            if (gob) { gob.click(); opened = true; }
+            if (opened) { await sleep(200); }
+            for (var c = 0; c < 2; c++) {
+              var btn = document.getElementById("god-spawn-enemy-btn");
+              if (btn) { btn.click(); await sleep(160); }
+            }
+            var enemiesAfterDom = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
+            spawnedOk = enemiesAfterDom > enemiesBefore;
+            record(spawnedOk, "Dungeon spawn (GOD): enemies " + enemiesBefore + " -> " + enemiesAfterDom);
+          } else {
+            recordSkip("Dungeon spawn (GOD) skipped (not in dungeon)");
           }
-          var enemiesAfterDom = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
-          spawnedOk = enemiesAfterDom > enemiesBefore;
-          record(spawnedOk, "Dungeon spawn (GOD): enemies " + enemiesBefore + " -> " + enemiesAfterDom);
         } catch (_) {}
-        // GameAPI fallback with retries
+        // GameAPI fallback with retries (works in dungeon; may also work in world depending on implementation)
         var attempts = 0;
         while (!spawnedOk && attempts < 3) {
           if (typeof window.GameAPI.spawnEnemyNearby === "function") {
             window.GameAPI.spawnEnemyNearby(2);
-            await sleep(180);
+            await sleep(200);
           }
           var enemiesNow = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
           spawnedOk = enemiesNow > enemiesBefore;
