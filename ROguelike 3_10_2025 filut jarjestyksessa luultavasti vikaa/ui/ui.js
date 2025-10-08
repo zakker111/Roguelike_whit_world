@@ -656,7 +656,8 @@
     showInventory() {
       if (this.els.lootPanel && !this.els.lootPanel.hidden) this.hideLoot();
       if (this.els.invPanel) this.els.invPanel.hidden = false;
-  _code
+    },
+
     hideInventory() {
       if (this.els.invPanel) this.els.invPanel.hidden = true;
     },
