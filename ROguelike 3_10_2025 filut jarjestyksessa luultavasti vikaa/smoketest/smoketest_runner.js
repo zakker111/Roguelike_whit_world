@@ -1867,6 +1867,14 @@
 
       // Diagnostics + shop schedule/time check
       {
+        let handledTownDiag = false;
+        try {
+          var STD = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Town && window.SmokeTest.Scenarios.Town.Diagnostics;
+          if (STD && typeof STD.run === "function") {
+            handledTownDiag = await STD.run({ key, sleep, makeBudget, record, recordSkip, CONFIG, caps: runMeta.caps });
+          }
+        } catch (_) {}
+        if (!handledTownDiag) {
         if (safeClick("god-open-btn")) {
           await sleep(250);
           if (safeClick("god-diagnostics-btn")) {
@@ -2077,6 +2085,7 @@
               }
             }
           }
+        }
         }
       }
 
