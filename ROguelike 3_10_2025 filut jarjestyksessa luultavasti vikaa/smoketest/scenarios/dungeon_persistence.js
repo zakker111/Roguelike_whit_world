@@ -17,7 +17,7 @@
 
       // Precondition: dungeon mode required
       var inDungeon = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "dungeon");
-      if (!inDungeon) return false;
+      if (!inDungeon) { recordSkip("Dungeon persistence skipped (not in dungeon)"); return true; }
 
       // Chest loot: find 'chest' corpse, route to it, press G
       try {

@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-08 00:00 UTC
+Last updated: 2025-10-08 12:00 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,14 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.22.1 — Legacy runner thin shim, orchestrator gating, docs alignment
+- Changed: Legacy runner refactored into a thin shim that delegates to the orchestrator; removed inline scenario/reporting/helpers.
+- Changed: Orchestrator skips auto-run when `&legacy=1` is present; legacy shim invokes orchestrator `runSeries` to avoid double execution.
+- Changed: index.html loader comment updated to “Legacy thin shim appended below”; shim only injected when `&legacy=1`.
+- Fixed: legacy recursion/double-run risk; stabilized series runs and report display.
+- Changed: Scenarios now record SKIP before early returns when preconditions aren’t met (world, dungeon, inventory, town, dungeon_persistence) to keep logs comprehensive.
+- Docs: Updated smoketest.md, smoketest/README.md, runner/README.md, and README.md to reflect thin shim, scenario filters, and CI tokens.
 
 v1.22 — Smoketest Orchestrator default, modularization, RNG audit, CI tokens, and docs alignment
 - Added: Orchestrator runner (smoketest/runner/runner.js) now the default when `?smoketest=1`; legacy monolithic runner only loads with `&legacy=1`.
@@ -453,3 +461,5 @@ BUGS
 - some npc dont sleep in theid beds
 - residents go home at night but they get stuck in door if bed is just adjacent tile of door
 - some work needed for smoketestrunner
+- towns schedue bugs you can buy items even if shop is not open(this is tho good for now testing phase)
+- multirun deploy dont seem to run multiple smoketest runs scenario filtter deploy dont seem to work it runs as normal one run one run doesnt wait for game to be rady it instatly almost shows god panel same in scenario deploy

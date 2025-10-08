@@ -71,6 +71,21 @@
     } catch (_) {}
   }
 
+  // Ensure the GOD panel is visible so logs render into its output area
+  function openGodPanel() {
+    try {
+      if (window.UI && typeof window.UI.showGod === "function") {
+        window.UI.showGod();
+        return true;
+      }
+    } catch (_) {}
+    try {
+      const btn = document.getElementById("god-open-btn");
+      if (btn) { btn.click(); return true; }
+    } catch (_) {}
+    return false;
+  }
+
   function detectCaps() {
     try {
       if (window.SmokeTest && window.SmokeTest.Capabilities && typeof window.SmokeTest.Capabilities.detect === "function") {
@@ -144,8 +159,31 @@
       const params = parseParams();
       const sel = params.scenarios;
       const steps = [];
-      function record(ok, msg) { steps.push({ ok: !!ok, msg: String(msg || "") }); }
-      function recordSkip(msg) { steps.push({ ok: true, msg: String(msg || ""), skipped: true }); }
+      function record(ok, msg) {
+        steps.push({ ok: !!ok, msg: String(msg || "") });
+        try {
+          var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+          if (B && typeof B.log === "function") {
+            B.log((ok ? "OK: " : "ERR: ") + String(msg || ""), ok ? "good" : "bad");
+          }
+        } catch (_) {}
+      }
+      function recordSkip(msg) {
+        steps.push({ ok: true, msg: String(msg || ""), skipped: true });
+        try {
+          var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+          if (B && typeof B.log === "function") {
+            B.log("SKIP: " + String(msg || ""), "info");
+          }
+        } catch (_) {}
+      }
+
+      // Open GOD panel to make logs visible
+      try { openGodPanel(); } catch (_) {}
+      try {
+        var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (B && typeof B.log === "function") B.log("Starting smoke test…", "notice");
+      } catch (_) {}
 
       const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip };
 
@@ -172,11 +210,31 @@
         { name: "determinism", fn: S.Determinism && S.Determinism.run },
       ];
 
+      // Stream progress into GOD panel/status
+      let Banner = null;
+      try { Banner = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner; } catch (_) {}
+
+      // Dev: log selected scenarios and capabilities upfront for more comprehensive context
+      try {
+        if (params.dev && Banner && typeof Banner.log === "function") {
+          const capsList = Object.keys(caps).filter(k => caps[k]);
+          Banner.log("Caps: " + (capsList.length ? capsList.join(", ") : "(none)"), "notice");
+          Banner.log("Selected scenarios: " + (sel && sel.length ? sel.join(", ") : "(none)"), "notice");
+        }
+      } catch (_) {}
+
       for (let i = 0; i < pipeline.length; i++) {
         const step = pipeline[i];
         if (sel.length && !sel.includes(step.name)) continue;
         if (typeof step.fn !== "function") { recordSkip("Scenario '" + step.name + "' not available"); continue; }
-        try { await step.fn(baseCtx); } catch (e) { record(false, step.name + " failed: " + (e && e.message ? e.message : String(e))); }
+        try {
+          if (Banner && typeof Banner.log === "function") Banner.log("Running scenario: " + step.name, "info");
+          await step.fn(baseCtx);
+          if (Banner && typeof Banner.log === "function") Banner.log("Scenario completed: " + step.name, "good");
+        } catch (e) {
+          if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
+          record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
+        }
       }
 
       // Build report via reporting renderer
@@ -244,45 +302,133 @@
 
   async function runSeries(count) {
     const params = parseParams();
-    // Legacy escape hatch: delegate to original smoketest_runner.js when ?legacy=1
-    if (params.legacy) {
+    const n = Math.max(1, (count | 0) || params.smokecount || 1);
+    const all = [];
+    let pass = 0, fail = 0;
+    let perfSumTurn = 0, perfSumDraw = 0;
+
+    // Ensure GOD panel visible for live progress
+    try { openGodPanel(); } catch (_) {}
+
+    for (let i = 0; i < n; i++) {
+      const res = await run({});
+      all.push(res);
+      if (res && res.ok) pass++; else fail++;
+
+      // Progress (append, do not replace main report)
       try {
-        const delayMs = 50;
-        const maxWait = 3000;
-        const deadline = Date.now() + maxWait;
-        while (!(window.SmokeTest && typeof window.SmokeTest.runSeries === "function") && Date.now() < deadline) {
-          await new Promise(r => setTimeout(r, delayMs));
-        }
-        if (window.SmokeTest && typeof window.SmokeTest.runSeries === "function") {
-          return window.SmokeTest.runSeries(count);
+        var Bprog = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>`;
+        if (Bprog && typeof Bprog.appendToPanel === "function") Bprog.appendToPanel(progHtml);
+      } catch (_) {}
+
+      // Perf snapshot aggregation
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getPerf === "function") {
+          const p = window.GameAPI.getPerf();
+          perfSumTurn += (p.lastTurnMs || 0);
+          perfSumDraw += (p.lastDrawMs || 0);
         }
       } catch (_) {}
-      try { console.warn("[SMOKE] Legacy runner not available; executing orchestrator once."); } catch (_) {}
-      return run({});
+
+      await sleep(300);
     }
-    // Default: orchestrator pipeline runs N times; display last
-    const n = Math.max(1, (count | 0) || 1);
-    let last = null;
-    for (let i = 0; i < n; i++) {
-      last = await run({});
-      await sleep(50);
-    }
-    return last;
+
+    const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)) : 0;
+    const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
+
+    // Summary via reporting module and full last-run report
+    try {
+      const last = all.length ? all[all.length - 1] : null;
+      const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+      let keyChecklistFromLast = "";
+      try {
+        if (R && typeof R.buildKeyChecklistHtmlFromSteps === "function" && last && Array.isArray(last.steps)) {
+          keyChecklistFromLast = R.buildKeyChecklistHtmlFromSteps(last.steps);
+        }
+      } catch (_) {}
+
+      const perfWarnings = [];
+      try {
+        if (avgTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg turn ${avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
+        if (avgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
+      } catch (_) {}
+
+      const summary = [
+        `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
+        perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
+      ].join("");
+
+      // Append summary (do not replace the report)
+      try {
+        var Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bsum && typeof Bsum.appendToPanel === "function") Bsum.appendToPanel(summary);
+      } catch (_) {}
+
+      // Render full last-run report (colorful details)
+      try {
+        if (last && R) {
+          const passed = last.steps.filter(s => s.ok && !s.skipped);
+          const skipped = last.steps.filter(s => s.skipped);
+          const failed = last.steps.filter(s => !s.ok && !s.skipped);
+          const issuesHtml = failed.length ? (`<div style="margin-top:10px;"><strong>Issues</strong></div>` + R.renderStepsPretty(failed)) : "";
+          const passedHtml = passed.length ? (`<div style="margin-top:10px;"><strong>Passed</strong></div>` + R.renderStepsPretty(passed)) : "";
+          const skippedHtml = skipped.length ? (`<div style="margin-top:10px;"><strong>Skipped</strong></div>` + R.renderStepsPretty(skipped)) : "";
+          const detailsHtml = R.renderStepsPretty(last.steps);
+          const headerHtml = R.renderHeader({ ok: last.ok, stepCount: last.steps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(last.caps || {}).filter(k => last.caps[k]) });
+          const main = R.renderMainReport({
+            headerHtml,
+            keyChecklistHtml: keyChecklistFromLast,
+            issuesHtml,
+            passedHtml,
+            skippedHtml,
+            detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
+            detailsHtml
+          });
+          panelReport(main);
+        }
+      } catch (_) {}
+
+      // Export buttons aggregation
+      try {
+        const E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
+        if (E && typeof E.attachButtons === "function") {
+          const rep = {
+            runnerVersion: RUNNER_VERSION,
+            runs: n,
+            pass, fail,
+            avgTurnMs: Number(avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn),
+            avgDrawMs: Number(avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw),
+            results: all
+          };
+          const summaryText = [
+            `Roguelike Smoke Test Summary (Runner v${rep.runnerVersion})`,
+            `Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`,
+            `Avg PERF: turn ${rep.avgTurnMs} ms, draw ${rep.avgDrawMs} ms`
+          ].join("\n");
+          const checklistText = (keyChecklistFromLast || "").replace(/<[^>]+>/g, "");
+          E.attachButtons(rep, summaryText, checklistText);
+        }
+      } catch (_) {}
+    } catch (_) {}
+
+    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
   }
 
   window.SmokeTest.Run = { run, runSeries, CONFIG, RUNNER_VERSION, parseParams };
-  // Back-compat aliases for UI/GOD button and legacy code paths
+  // Back-compat aliases for UI/GOD button and legacy code paths (always point to orchestrator)
   try {
     window.SmokeTest.runSeries = runSeries;
     window.SmokeTest.run = run;
   } catch (_) {}
 
-  // Auto-run orchestrator when ?smoketest=1 and not forcing legacy
+  // Auto-run orchestrator when ?smoketest=1
   try {
     const params = parseParams();
-    const shouldAuto = params.smoketest;
+    const shouldAuto = params.smoketest && !params.legacy;
     const count = params.smokecount || 1;
-    if (shouldAuto && !params.legacy) {
+    if (shouldAuto) {
       const start = async () => { await waitUntilGameReady(6000); await runSeries(count); };
       if (document.readyState !== "loading") {
         setTimeout(() => { start(); }, 400);

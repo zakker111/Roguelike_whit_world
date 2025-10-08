@@ -13,7 +13,7 @@
       var mode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
       if (mode !== "world") {
         recordSkip("World checks skipped (not in overworld)");
-        return false;
+        return true;
       }
 
       // Simple environment snapshot: nearestTown and nearestDungeon

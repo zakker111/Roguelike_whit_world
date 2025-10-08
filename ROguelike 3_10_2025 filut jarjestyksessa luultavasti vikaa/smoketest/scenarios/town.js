@@ -11,8 +11,8 @@
       var caps = (ctx && ctx.caps) || {};
       if (!caps.GameAPI || !caps.getMode) { ctx.recordSkip && ctx.recordSkip("Town scenario skipped (GameAPI/getMode not available)"); return true; }
       if (!((caps.nearestTown && caps.routeTo) || caps.gotoNearestTown)) { ctx.recordSkip && ctx.recordSkip("Town scenario skipped (nearestTown+routeTo or gotoNearestTown not available)"); return true; }
-      if (!window.GameAPI || !has(window.GameAPI.getMode)) return false;
-      if (window.GameAPI.getMode() !== "world") return false;
+      if (!window.GameAPI || !has(window.GameAPI.getMode)) { ctx.recordSkip && ctx.recordSkip("Town scenario skipped (GameAPI.getMode unavailable)"); return true; }
+      if (window.GameAPI.getMode() !== "world") { ctx.recordSkip && ctx.recordSkip("Town scenario skipped (not in overworld)"); return true; }
 
       let okTown = false;
 
