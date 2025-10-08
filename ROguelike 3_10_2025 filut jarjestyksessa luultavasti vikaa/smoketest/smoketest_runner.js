@@ -1650,7 +1650,7 @@
       }
 
           // Seed determinism invariants (same-seed regeneration without reload)
-          try {
+          {
             // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
             key("Escape"); await sleep(160);
             if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
@@ -1673,8 +1673,6 @@
             } else {
               recordSkip("Seed invariants skipped (no SEED persisted)");
             }
-          } catch (e) {
-            record(false, "Seed invariants check failed: " + (e && e.message ? e.message : String(e)));
           }
 
           // NPC check: route to nearest NPC and bump into them
