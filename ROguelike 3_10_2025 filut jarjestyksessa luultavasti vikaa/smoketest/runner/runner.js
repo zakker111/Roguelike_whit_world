@@ -365,6 +365,53 @@
     // Aggregation of steps across runs (union of success)
     const agg = new Map();
 
+    // Fresh seed helpers
+    function randomUint32(runIndex) {
+      try {
+        if (window.crypto && typeof window.crypto.getRandomValues === "function") {
+          const buf = new Uint32Array(1);
+          window.crypto.getRandomValues(buf);
+          return (buf[0] >>> 0);
+        }
+      } catch (_) {}
+      // Fallback: mix Date.now and index via xorshift-like scrambler
+      let t = (Date.now() + ((runIndex | 0) * 0x9e3779b1)) >>> 0;
+      t ^= t << 13; t >>>= 0;
+      t ^= t >> 17; t >>>= 0;
+      t ^= t << 5;  t >>>= 0;
+      return t >>> 0;
+    }
+    async function applyFreshSeedForRun(runIndex) {
+      try {
+        const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        const s = randomUint32(runIndex);
+        // Open GOD, set seed input, click apply
+        try { openGodPanel(); } catch (_) {}
+        await sleep(120);
+        try {
+          const Dom = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
+          if (Dom && typeof Dom.safeSetInput === "function") {
+            Dom.safeSetInput("god-seed-input", s);
+          } else {
+            const inp = document.getElementById("god-seed-input");
+            if (inp) {
+              inp.value = String(s);
+              try { inp.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
+              try { inp.dispatchEvent(new Event("change", { bubbles: true })); } catch (_) {}
+            }
+          }
+          if (Dom && typeof Dom.safeClick === "function") {
+            Dom.safeClick("god-apply-seed-btn");
+          } else {
+            const ab = document.getElementById("god-apply-seed-btn");
+            if (ab) ab.click();
+          }
+        } catch (_) {}
+        await sleep(420);
+        try { if (B && typeof B.log === "function") B.log(`Applied fresh seed for run ${runIndex + 1}: ${s}`, "notice"); } catch (_) {}
+      } catch (_) {}
+    }
+
     // Live "matchup" scoreboard in the panel (updates after each run)
     function ensureMatchupEl() {
       try {
@@ -402,6 +449,9 @@
     }
 
     for (let i = 0; i < n; i++) {
+      // Apply a fresh seed before each run
+      await applyFreshSeedForRun(i);
+
       const res = await run({ index: i + 1, total: n, suppressReport: false });
       all.push(res);
       if (res && res.ok) pass++; else fail++;
