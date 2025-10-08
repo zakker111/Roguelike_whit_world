@@ -880,4 +880,15 @@
     // Fallback: run on load if present
     window.addEventListener("load", () => { setTimeout(() => { runSeries(1); }, 800); });
   }
+} // end boot()
+
+// Ensure boot runs
+if (document.readyState !== "loading") {
+  try { boot(); } catch (e) { console.error("[SMOKE] boot failed", e); }
+} else {
+  window.addEventListener("load", () => {
+    try { boot(); } catch (e) { console.error("[SMOKE] boot failed", e); }
+  });
+}
+
 })();
