@@ -66,8 +66,14 @@
       this.els.godCheckHomeBtn = document.getElementById("god-check-home-btn");
       // Check Inn/Tavern button
       this.els.godCheckInnTavernBtn = document.getElementById("god-check-inn-tavern-btn");
-      // Smoke test run count
+      // Smoke test run count (legacy in GOD panel; unused for new panel)
       this.els.godSmokeCount = document.getElementById("god-smoke-count");
+      // Smoke config elements
+      this.els.smokePanel = document.getElementById("smoke-panel");
+      this.els.smokeList = document.getElementById("smoke-scenarios");
+      this.els.smokeRunBtn = document.getElementById("smoke-run-btn");
+      this.els.smokeCancelBtn = document.getElementById("smoke-cancel-btn");
+      this.els.smokeCount = document.getElementById("smoke-count");
       
 
       // transient hand-chooser element
@@ -193,44 +199,9 @@
       });
       const smokeBtn = document.getElementById("god-run-smoke-btn");
       smokeBtn?.addEventListener("click", () => {
-        const countRaw = (this.els.godSmokeCount && this.els.godSmokeCount.value) ? this.els.godSmokeCount.value.trim() : "1";
-        const count = Math.max(1, Math.min(20, parseInt(countRaw, 10) || 1));
-        // If the runner is already loaded, run in-page to allow reporting into GOD panel
-        if (window.SmokeTest && typeof window.SmokeTest.runSeries === "function") {
-          try {
-            // Ensure the GOD panel is visible for live reporting
-            this.showGod();
-          } catch (_) {}
-          window.SmokeTest.runSeries(count);
-          return;
-        }
-        // Otherwise, reload with params to autoload the runner
-        if (typeof this.handlers.onGodRunSmokeTest === "function") {
-          // Pass desired count via URL params
-          try {
-            const url = new URL(window.location.href);
-            url.searchParams.set("smoketest", "1");
-            url.searchParams.set("smokecount", String(count));
-            if (window.DEV || localStorage.getItem("DEV") === "1") {
-              url.searchParams.set("dev", "1");
-            }
-            window.location.href = url.toString();
-          } catch (_) {
-            window.location.search = `?smoketest=1&smokecount=${encodeURIComponent(String(count))}`;
-          }
-        } else {
-          try {
-            const url = new URL(window.location.href);
-            url.searchParams.set("smoketest", "1");
-            url.searchParams.set("smokecount", String(count));
-            if (window.DEV || localStorage.getItem("DEV") === "1") {
-              url.searchParams.set("dev", "1");
-            }
-            window.location.assign(url.toString());
-          } catch (e) {
-            window.location.search = `?smoketest=1&smokecount=${encodeURIComponent(String(count))}`;
-          }
-        }
+        // Close GOD mode and open Smoke Config panel
+        try { this.hideGod(); } catch (_) {}
+        try { this.showSmoke(); } catch (_) {}
       });
       
       if (this.els.godFov) {
@@ -340,6 +311,42 @@
         });
       }
       this.updateSeedUI();
+
+      // Smoke config buttons
+      if (this.els.smokeRunBtn) {
+        this.els.smokeRunBtn.addEventListener("click", () => {
+          // Collect selected scenarios
+          const boxes = (this.els.smokeList ? Array.from(this.els.smokeList.querySelectorAll("input.smoke-sel")) : []);
+          const sel = boxes.filter(b => b.checked).map(b => b.value);
+          // Fallback: all scenarios if none selected
+          const scenarios = sel.length ? sel : ["world","dungeon","inventory","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
+          // Runs
+          const countRaw = (this.els.smokeCount && this.els.smokeCount.value) ? this.els.smokeCount.value.trim() : "1";
+          const count = Math.max(1, Math.min(20, parseInt(countRaw, 10) || 1));
+          // Close panel, then start via URL params (auto-inject loader)
+          try { this.hideSmoke(); } catch (_) {}
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set("smoketest", "1");
+            url.searchParams.set("smokecount", String(count));
+            url.searchParams.set("scenarios", scenarios.join(","));
+            if (window.DEV || localStorage.getItem("DEV") === "1") {
+              url.searchParams.set("dev", "1");
+            }
+            window.location.assign(url.toString());
+          } catch (e) {
+            // Fallback query string
+            const base = window.location.pathname || "";
+            const qs = `?smoketest=1&smokecount=${encodeURIComponent(String(count))}&scenarios=${encodeURIComponent(scenarios.join(","))}${(window.DEV || localStorage.getItem("DEV") === "1") ? "&dev=1" : ""}`;
+            try { window.location.href = base + qs; } catch (_) { window.location.search = qs; }
+          }
+        });
+      }
+      if (this.els.smokeCancelBtn) {
+        this.els.smokeCancelBtn.addEventListener("click", () => {
+          try { this.hideSmoke(); } catch (_) {}
+        });
+      }
 
       // Delegate equip slot clicks (unequip)
       this.els.equipSlotsEl?.addEventListener("click", (ev) => {
@@ -461,6 +468,9 @@
             e.preventDefault();
           } else if (this.isGodOpen()) {
             this.hideGod();
+            e.preventDefault();
+          } else if (this.isSmokeOpen()) {
+            this.hideSmoke();
             e.preventDefault();
           }
         }
@@ -646,8 +656,7 @@
     showInventory() {
       if (this.els.lootPanel && !this.els.lootPanel.hidden) this.hideLoot();
       if (this.els.invPanel) this.els.invPanel.hidden = false;
-    },
-
+  _code
     hideInventory() {
       if (this.els.invPanel) this.els.invPanel.hidden = true;
     },
@@ -708,6 +717,7 @@
     showGod() {
       if (this.isLootOpen()) this.hideLoot();
       if (this.isInventoryOpen()) this.hideInventory();
+      if (this.isSmokeOpen()) this.hideSmoke();
       if (this.els.godPanel) this.els.godPanel.hidden = false;
     },
 
@@ -717,6 +727,48 @@
 
     isGodOpen() {
       return !!(this.els.godPanel && !this.els.godPanel.hidden);
+    },
+
+    // Smoke Test Configuration modal
+    showSmoke() {
+      if (this.isLootOpen()) this.hideLoot();
+      if (this.isInventoryOpen()) this.hideInventory();
+      if (this.isGodOpen()) this.hideGod();
+      if (this.els.smokePanel) {
+        // Build options on open to reflect any future changes
+        this.renderSmokeOptions();
+        this.els.smokePanel.hidden = false;
+      }
+    },
+
+    hideSmoke() {
+      if (this.els.smokePanel) this.els.smokePanel.hidden = true;
+    },
+
+    isSmokeOpen() {
+      return !!(this.els.smokePanel && !this.els.smokePanel.hidden);
+    },
+
+    renderSmokeOptions() {
+      if (!this.els.smokeList) return;
+      const scenarios = [
+        ["world", "World"],
+        ["dungeon", "Dungeon"],
+        ["inventory", "Inventory"],
+        ["combat", "Combat"],
+        ["dungeon_persistence", "Dungeon Persistence"],
+        ["town", "Town"],
+        ["town_diagnostics", "Town Diagnostics"],
+        ["overlays", "Overlays"],
+        ["determinism", "Determinism"]
+      ];
+      const html = scenarios.map(([key, label]) => {
+        return `<label style="display:flex; align-items:center; gap:6px;">
+          <input type="checkbox" class="smoke-sel" value="${key}" checked />
+          <span>${label}</span>
+        </label>`;
+      }).join("");
+      this.els.smokeList.innerHTML = html;
     },
 
     setGodFov(val) {
