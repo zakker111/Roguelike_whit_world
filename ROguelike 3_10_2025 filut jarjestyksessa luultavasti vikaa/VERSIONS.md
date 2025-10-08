@@ -454,3 +454,4 @@ BUGS
 - residents go home at night but they get stuck in door if bed is just adjacent tile of door
 - some work needed for smoketestrunner
 - towns schedue bugs you can buy items even if shop is not open(this is tho good for now testing phase)
+- multirun deploy dont seem to run multiple smoketest runs
