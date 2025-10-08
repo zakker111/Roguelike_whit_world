@@ -1872,8 +1872,6 @@
         } else {
           recordSkip("Skipped town visit (not in overworld)");
         }
-      } catch (e) {
-        record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
       }
 
       // Diagnostics + shop schedule/time check
