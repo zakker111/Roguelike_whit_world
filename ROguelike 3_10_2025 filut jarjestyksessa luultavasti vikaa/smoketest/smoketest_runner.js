@@ -1158,12 +1158,19 @@
 
   // Expose a global trigger
   window.SmokeTest = window.SmokeTest || {};
-  window.SmokeTest.run = runOnce;
-  window.SmokeTest.runSeries = runSeries;
+  try {
+    // If orchestrator is present, register under Legacy namespace and do not override orchestrator aliases.
+    if (window.SmokeTest && window.SmokeTest.Run) {
+      window.SmokeTest.Legacy = window.SmokeTest.Legacy || {};
+      window.SmokeTest.Legacy.run = runOnce;
+      window.SmokeTest.Legacy.runSeries = runSeries;
+    } else {
+      window.SmokeTest.run = runOnce;
+      window.SmokeTest.runSeries = runSeries;
+    }
+  } catch (_) {}
 
-  // Auto-run conditions:
-  // - If ?smoketest=1 param was set and script loaded during/after page load
-  // - If the loader set window.SMOKETEST_REQUESTED
+  // Auto-run only in explicit legacy mode to avoid double execution
   function __smokeTriggerRunSeries(n) {
     try {
       var RR = window.SmokeTest && window.SmokeTest.Run && window.SmokeTest.Run.runSeries;
@@ -1173,7 +1180,7 @@
   }
   try {
     var params = new URLSearchParams(location.search);
-    var shouldAuto = (params.get("smoketest") === "1") || (window.SMOKETEST_REQUESTED === true);
+    var shouldAuto = (params.get("smoketest") === "1") && (params.get("legacy") === "1");
     var autoCount = parseInt(params.get("smokecount") || "1", 10) || 1;
     if (document.readyState !== "loading") {
       if (shouldAuto) { setTimeout(() => { __smokeTriggerRunSeries(autoCount); }, 400); }
@@ -1183,7 +1190,12 @@
       });
     }
   } catch (_) {
-    // Fallback: run on load if present
-    window.addEventListener("load", () => { setTimeout(() => { __smokeTriggerRunSeries(1); }, 800); });
+    // Fallback: only run if legacy explicitly requested
+    window.addEventListener("load", () => {
+      var params2 = new URLSearchParams(location.search);
+      if ((params2.get("smoketest") === "1") && (params2.get("legacy") === "1")) {
+        setTimeout(() => { __smokeTriggerRunSeries(1); }, 800);
+      }
+    });
   }
 })();

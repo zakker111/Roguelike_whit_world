@@ -244,50 +244,102 @@
 
   async function runSeries(count) {
     const params = parseParams();
-    // Legacy escape hatch: delegate to original smoketest_runner.js when ?legacy=1
-    if (params.legacy) {
+    const n = Math.max(1, (count | 0) || params.smokecount || 1);
+    const all = [];
+    let pass = 0, fail = 0;
+    let perfSumTurn = 0, perfSumDraw = 0;
+
+    for (let i = 0; i < n; i++) {
+      const res = await run({});
+      all.push(res);
+      if (res && res.ok) pass++; else fail++;
+
+      // Progress panel
       try {
-        const delayMs = 50;
-        const maxWait = 3000;
-        const deadline = Date.now() + maxWait;
-        // Wait until a legacy runner overrides window.SmokeTest.runSeries (avoid calling ourselves)
-        while ((!(window.SmokeTest && typeof window.SmokeTest.runSeries === "function")) || window.SmokeTest.runSeries === runSeries) {
-          await new Promise(r => setTimeout(r, delayMs));
-          if (Date.now() >= deadline) break;
-        }
-        if (window.SmokeTest && typeof window.SmokeTest.runSeries === "function" && window.SmokeTest.runSeries !== runSeries) {
-          return window.SmokeTest.runSeries(count);
+        panelReport(`<div><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>`);
+      } catch (_) {}
+
+      // Perf snapshot aggregation
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getPerf === "function") {
+          const p = window.GameAPI.getPerf();
+          perfSumTurn += (p.lastTurnMs || 0);
+          perfSumDraw += (p.lastDrawMs || 0);
         }
       } catch (_) {}
-      try { console.warn("[SMOKE] Legacy runner not available; executing orchestrator once."); } catch (_) {}
-      return run({});
+
+      await sleep(300);
     }
-    // Default: orchestrator pipeline runs N times; display last
-    const n = Math.max(1, (count | 0) || 1);
-    let last = null;
-    for (let i = 0; i < n; i++) {
-      last = await run({});
-      await sleep(50);
-    }
-    return last;
+
+    const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)) : 0;
+    const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
+
+    // Summary via reporting module (concise)
+    try {
+      const last = all.length ? all[all.length - 1] : null;
+      const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+      let keyChecklistFromLast = "";
+      try {
+        if (R && typeof R.buildKeyChecklistHtmlFromSteps === "function" && last && Array.isArray(last.steps)) {
+          keyChecklistFromLast = R.buildKeyChecklistHtmlFromSteps(last.steps);
+        }
+      } catch (_) {}
+
+      const perfWarnings = [];
+      try {
+        if (avgTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg turn ${avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
+        if (avgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
+      } catch (_) {}
+
+      const summary = [
+        `<div><strong>Smoke Test Summary:</strong></div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
+        keyChecklistFromLast,
+        perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
+        `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
+        fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
+      ].join("");
+      panelReport(summary);
+
+      // Export buttons aggregation
+      try {
+        const E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
+        if (E && typeof E.attachButtons === "function") {
+          const rep = {
+            runnerVersion: RUNNER_VERSION,
+            runs: n,
+            pass, fail,
+            avgTurnMs: Number(avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn),
+            avgDrawMs: Number(avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw),
+            results: all
+          };
+          const summaryText = [
+            `Roguelike Smoke Test Summary (Runner v${rep.runnerVersion})`,
+            `Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`,
+            `Avg PERF: turn ${rep.avgTurnMs} ms, draw ${rep.avgDrawMs} ms`
+          ].join("\n");
+          const checklistText = (keyChecklistFromLast || "").replace(/<[^>]+>/g, "");
+          E.attachButtons(rep, summaryText, checklistText);
+        }
+      } catch (_) {}
+    } catch (_) {}
+
+    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
   }
 
   window.SmokeTest.Run = { run, runSeries, CONFIG, RUNNER_VERSION, parseParams };
-  // Back-compat aliases for UI/GOD button and legacy code paths (only when not legacy)
+  // Back-compat aliases for UI/GOD button and legacy code paths (always point to orchestrator)
   try {
-    const __paramsAlias = parseParams();
-    if (!__paramsAlias.legacy) {
-      window.SmokeTest.runSeries = runSeries;
-      window.SmokeTest.run = run;
-    }
+    window.SmokeTest.runSeries = runSeries;
+    window.SmokeTest.run = run;
   } catch (_) {}
 
-  // Auto-run orchestrator when ?smoketest=1 and not forcing legacy
+  // Auto-run orchestrator when ?smoketest=1
   try {
     const params = parseParams();
     const shouldAuto = params.smoketest;
     const count = params.smokecount || 1;
-    if (shouldAuto && !params.legacy) {
+    if (shouldAuto) {
       const start = async () => { await waitUntilGameReady(6000); await runSeries(count); };
       if (document.readyState !== "loading") {
         setTimeout(() => { start(); }, 400);
