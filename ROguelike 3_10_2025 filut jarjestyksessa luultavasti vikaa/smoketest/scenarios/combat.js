@@ -30,6 +30,17 @@
       } catch (_) {}
 
       var enemiesBefore = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : 0;
+
+      // Ensure baseline equipment so decay snapshot has signal
+      try {
+        var eqInfo0 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+        var hasHandEquip = !!(eqInfo0 && (eqInfo0.left || eqInfo0.right));
+        if (!hasHandEquip) {
+          if (typeof window.GameAPI.spawnItems === "function") { window.GameAPI.spawnItems(2); await sleep(160); }
+          if (typeof window.GameAPI.equipBestFromInventory === "function") { window.GameAPI.equipBestFromInventory(); await sleep(140); }
+        }
+      } catch (_) {}
+
       // Spawn two enemies from GOD panel if available
       if (typeof document !== "undefined") {
         try {

@@ -152,6 +152,24 @@
     return await waitUntilTrue(() => isGameReady(), Math.max(500, timeoutMs | 0), 80);
   }
 
+  // New: wait until scenarios have been defined (avoid "Scenario 'X' not available" due to load race)
+  async function waitUntilScenariosReady(timeoutMs) {
+    const ok = await waitUntilTrue(() => {
+      try {
+        const S = window.SmokeTest && window.SmokeTest.Scenarios;
+        if (!S) return false;
+        // Require at least a couple of core scenarios to be present
+        const hasAny =
+          (S.World && typeof S.World.run === "function") ||
+          (S.Dungeon && typeof S.Dungeon.run === "function") ||
+          (S.Inventory && typeof S.Inventory.run === "function") ||
+          (S.Combat && typeof S.Combat.run === "function");
+        return !!hasAny;
+      } catch (_) { return false; }
+    }, Math.max(600, timeoutMs | 0), 60);
+    return ok;
+  }
+
   async function run(ctx) {
     try {
       const runIndex = (ctx && ctx.index) ? (ctx.index | 0) : null;
@@ -160,6 +178,7 @@
       const suppress = !!(ctx && ctx.suppressReport);
 
       await waitUntilGameReady(6000);
+      await waitUntilScenariosReady(2000);
       const caps = detectCaps();
       const params = parseParams();
       const sel = params.scenarios;

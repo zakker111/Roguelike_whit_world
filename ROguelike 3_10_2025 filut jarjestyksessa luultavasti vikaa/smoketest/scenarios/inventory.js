@@ -5,14 +5,13 @@
   async function run(ctx) {
     try {
       var caps = (ctx && ctx.caps) || {};
-      if (!caps.GameAPI || !caps.getMode || !caps.getInventory || !caps.getStats || !caps.getEquipment) {
-        (ctx.recordSkip || function(){})("Inventory scenario skipped (required GameAPI capabilities missing)");
+      if (!caps.GameAPI || !caps.getMode) {
+        (ctx.recordSkip || function(){})("Inventory scenario skipped (GameAPI/getMode not available)");
         return true;
       }
-      // Expect runner to call this only in dungeon mode; guard regardless
+      // Ensure dungeon mode; auto-enter if needed
       var inDungeon = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon");
       if (!inDungeon) {
-        // Attempt to enter a dungeon automatically
         try {
           if (typeof window.GameAPI.gotoNearestDungeon === "function") {
             await window.GameAPI.gotoNearestDungeon();

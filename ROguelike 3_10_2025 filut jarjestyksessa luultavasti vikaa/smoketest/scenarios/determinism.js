@@ -12,8 +12,12 @@
       var key = ctx.key || function(){};
       var anchorTown = ctx.anchorTown || null;
       var anchorDung = ctx.anchorDungeon || null;
-      var caps = (ctx && ctx.caps) || {};
-      if (!caps.nearestTown && !caps.nearestDungeon) { recordSkip("Seed invariants skipped (nearestTown/nearestDungeon not available)"); return true; }
+      // Do not hard-skip based on caps; use direct function presence when available
+      var canCheckAnchors = (typeof window.GameAPI?.nearestTown === "function") || (typeof window.GameAPI?.nearestDungeon === "function");
+      if (!canCheckAnchors) {
+        recordSkip("Seed invariants skipped (nearestTown/nearestDungeon not available)");
+        return true;
+      }
 
       // Ensure we're in world to read nearestTown/nearestDungeon after reapply
       try {

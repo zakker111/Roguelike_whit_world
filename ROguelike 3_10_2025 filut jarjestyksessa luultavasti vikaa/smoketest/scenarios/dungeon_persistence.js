@@ -15,9 +15,20 @@
       var CONFIG = ctx.CONFIG || { timeouts: { route: 5000, interact: 250 } };
       var caps = (ctx && ctx.caps) || {};
 
-      // Precondition: dungeon mode required
+      // Ensure dungeon mode; auto-enter if needed
       var inDungeon = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "dungeon");
-      if (!inDungeon) { recordSkip("Dungeon persistence skipped (not in dungeon)"); return true; }
+      if (!inDungeon) {
+        try {
+          if (has(window.GameAPI.gotoNearestDungeon)) {
+            await window.GameAPI.gotoNearestDungeon();
+          }
+          key("Enter"); await sleep(280);
+          if (has(window.GameAPI.enterDungeonIfOnEntrance)) window.GameAPI.enterDungeonIfOnEntrance();
+          await sleep(260);
+        } catch (_) {}
+        inDungeon = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "dungeon");
+        if (!inDungeon) { recordSkip("Dungeon persistence skipped (not in dungeon)"); return true; }
+      }
 
       // Chest loot: find 'chest' corpse, route to it, press G
       try {
