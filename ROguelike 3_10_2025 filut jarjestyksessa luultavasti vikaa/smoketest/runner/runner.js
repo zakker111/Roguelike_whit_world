@@ -315,9 +315,11 @@
       all.push(res);
       if (res && res.ok) pass++; else fail++;
 
-      // Progress panel
+      // Progress (append, do not replace main report)
       try {
-        panelReport(`<div><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>`);
+        var Bprog = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>`;
+        if (Bprog && typeof Bprog.appendToPanel === "function") Bprog.appendToPanel(progHtml);
       } catch (_) {}
 
       // Perf snapshot aggregation
@@ -335,7 +337,7 @@
     const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)) : 0;
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
 
-    // Summary via reporting module (concise)
+    // Summary via reporting module and full last-run report
     try {
       const last = all.length ? all[all.length - 1] : null;
       const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
@@ -353,14 +355,40 @@
       } catch (_) {}
 
       const summary = [
-        `<div><strong>Smoke Test Summary:</strong></div>`,
+        `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
         `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
-        keyChecklistFromLast,
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
-        `<div class="help" style="color:#8aa0bf; margin-top:4px;">Runner v${RUNNER_VERSION}</div>`,
-        fail ? `<div style="margin-top:6px; color:#ef4444;"><strong>Some runs failed.</strong> See per-run details above.</div>` : ``
       ].join("");
-      panelReport(summary);
+
+      // Append summary (do not replace the report)
+      try {
+        var Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bsum && typeof Bsum.appendToPanel === "function") Bsum.appendToPanel(summary);
+      } catch (_) {}
+
+      // Render full last-run report (colorful details)
+      try {
+        if (last && R) {
+          const passed = last.steps.filter(s => s.ok && !s.skipped);
+          const skipped = last.steps.filter(s => s.skipped);
+          const failed = last.steps.filter(s => !s.ok && !s.skipped);
+          const issuesHtml = failed.length ? (`<div style="margin-top:10px;"><strong>Issues</strong></div>` + R.renderStepsPretty(failed)) : "";
+          const passedHtml = passed.length ? (`<div style="margin-top:10px;"><strong>Passed</strong></div>` + R.renderStepsPretty(passed)) : "";
+          const skippedHtml = skipped.length ? (`<div style="margin-top:10px;"><strong>Skipped</strong></div>` + R.renderStepsPretty(skipped)) : "";
+          const detailsHtml = R.renderStepsPretty(last.steps);
+          const headerHtml = R.renderHeader({ ok: last.ok, stepCount: last.steps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(last.caps || {}).filter(k => last.caps[k]) });
+          const main = R.renderMainReport({
+            headerHtml,
+            keyChecklistHtml: keyChecklistFromLast,
+            issuesHtml,
+            passedHtml,
+            skippedHtml,
+            detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
+            detailsHtml
+          });
+          panelReport(main);
+        }
+      } catch (_) {}
 
       // Export buttons aggregation
       try {
