@@ -926,6 +926,15 @@
 
           // 9b: equip best items from inventory (if any) and test manual equip/unequip
           {
+            // Prefer scenario module; fallback to inline
+            let handledInv = false;
+            try {
+              var SI = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Inventory;
+              if (SI && typeof SI.run === "function") {
+                handledInv = await SI.run({ key, sleep, makeBudget, record, recordSkip, CONFIG });
+              }
+            } catch (_) {}
+            if (!handledInv) {
             const inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
             const statsBeforeBest = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
             const beforeEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
@@ -1034,18 +1043,29 @@
                 recordSkip("Skipped hand chooser test (no 1-hand item available)");
               }
             }
+            }
           }
 
           // 9c: force enemy spawn in dungeon and verify presence/types
-          try {
-            if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() !== "dungeon") {
-              // Ensure we are in dungeon; route/enter if needed
-              await window.GameAPI.gotoNearestDungeon?.();
-              key("Enter"); await sleep(280);
-              if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-              await sleep(260);
-            }
-          } catch (_) {}
+          {
+            // Prefer scenario module; fallback to inline
+            let handledCombat = false;
+            try {
+              var SC = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Combat;
+              if (SC && typeof SC.run === "function") {
+                handledCombat = await SC.run({ key, sleep, makeBudget, record, recordSkip, CONFIG });
+              }
+            } catch (_) {}
+            if (!handledCombat) {
+            try {
+              if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() !== "dungeon") {
+                // Ensure we are in dungeon; route/enter if needed
+                await window.GameAPI.gotoNearestDungeon?.();
+                key("Enter"); await sleep(280);
+                if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+                await sleep(260);
+              }
+            } catch (_) {}
           const beforeEnemiesCount = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : 0;
           if (safeClick("god-open-btn")) {
             await sleep(200);
@@ -1083,6 +1103,8 @@
           await sleep(200);
           key("Escape");
           await sleep(120);
+          }
+          }
 
           const enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
           const corpsesBeforeCombat = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses().length : 0;
