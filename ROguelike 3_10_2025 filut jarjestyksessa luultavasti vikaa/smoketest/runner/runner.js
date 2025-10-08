@@ -154,6 +154,10 @@
 
   async function run(ctx) {
     try {
+      const runIndex = (ctx && ctx.index) ? (ctx.index | 0) : null;
+      const runTotal = (ctx && ctx.total) ? (ctx.total | 0) : null;
+      const stacking = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.STACK_LOGS);
+
       await waitUntilGameReady(6000);
       const caps = detectCaps();
       const params = parseParams();
@@ -239,7 +243,7 @@
 
       // Build report via reporting renderer
       const ok = steps.every(s => !!s.ok);
-      let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = "";
+      let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = ""; let main = "";
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
         const passed = steps.filter(s => s.ok && !s.skipped);
@@ -251,7 +255,7 @@
         detailsHtml = R.renderStepsPretty(steps);
         const headerHtml = R.renderHeader({ ok, stepCount: steps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(caps).filter(k => caps[k]) });
         const keyChecklistHtml = R.buildKeyChecklistHtmlFromSteps(steps);
-        const main = R.renderMainReport({
+        main = R.renderMainReport({
           headerHtml,
           keyChecklistHtml,
           issuesHtml,
@@ -260,14 +264,31 @@
           detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
           detailsHtml
         });
-        panelReport(main);
-        // Export buttons
+        // When stacking, append per-run section; otherwise replace
         try {
-          var E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
-          if (E && typeof E.attachButtons === "function") {
-            const summaryText = steps.map(s => (s.skipped ? "[SKIP] " : (s.ok ? "[OK] " : "[FAIL] ")) + (s.msg || "")).join("\n");
-            const checklistText = (R.buildKeyChecklistHtmlFromSteps(steps) || "").replace(/<[^>]+>/g, "");
-            E.attachButtons({ ok, steps, caps, version: RUNNER_VERSION }, summaryText, checklistText);
+          var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+          if (B) {
+            if (stacking && typeof B.appendToPanel === "function") {
+              const title = (runIndex && runTotal) ? `<div style="margin-top:10px;"><strong>Run ${runIndex} / ${runTotal}</strong></div>` : `<div style="margin-top:10px;"><strong>Run</strong></div>`;
+              B.appendToPanel(title + main);
+            } else if (typeof B.panelReport === "function") {
+              B.panelReport(main);
+            } else {
+              panelReport(main);
+            }
+          } else {
+            panelReport(main);
+          }
+        } catch (_) {}
+        // Export buttons only for non-stacking (avoid duplicates)
+        try {
+          if (!stacking) {
+            var E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
+            if (E && typeof E.attachButtons === "function") {
+              const summaryText = steps.map(s => (s.skipped ? "[SKIP] " : (s.ok ? "[OK] " : "[FAIL] ")) + (s.msg || "")).join("\n");
+              const checklistText = (R.buildKeyChecklistHtmlFromSteps(steps) || "").replace(/<[^>]+>/g, "");
+              E.attachButtons({ ok, steps, caps, version: RUNNER_VERSION }, summaryText, checklistText);
+            }
           }
         } catch (_) {}
       } catch (_) {}
@@ -306,14 +327,33 @@
     const all = [];
     let pass = 0, fail = 0;
     let perfSumTurn = 0, perfSumDraw = 0;
+    const stacking = n > 1;
+    try { window.SmokeTest = window.SmokeTest || {}; window.SmokeTest.Runner = window.SmokeTest.Runner || {}; window.SmokeTest.Runner.STACK_LOGS = stacking; } catch (_) {}
 
     // Ensure GOD panel visible for live progress
     try { openGodPanel(); } catch (_) {}
 
+    // Aggregation of steps across runs (union of success)
+    const agg = new Map();
+
     for (let i = 0; i < n; i++) {
-      const res = await run({});
+      const res = await run({ index: i + 1, total: n });
       all.push(res);
       if (res && res.ok) pass++; else fail++;
+
+      // Accumulate step results by message
+      try {
+        if (res && Array.isArray(res.steps)) {
+          for (const s of res.steps) {
+            const key = String(s.msg || "");
+            const cur = agg.get(key) || { msg: key, ok: false, skippedAny: false, failCount: 0 };
+            if (s.skipped) cur.skippedAny = true;
+            if (s.ok && !s.skipped) cur.ok = true;
+            if (!s.ok && !s.skipped) cur.failCount += 1;
+            agg.set(key, cur);
+          }
+        }
+      } catch (_) {}
 
       // Progress (append, do not replace main report)
       try {
@@ -337,16 +377,42 @@
     const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)) : 0;
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
 
-    // Summary via reporting module and full last-run report
+    // Summary via reporting module and full aggregated report
     try {
-      const last = all.length ? all[all.length - 1] : null;
       const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
-      let keyChecklistFromLast = "";
-      try {
-        if (R && typeof R.buildKeyChecklistHtmlFromSteps === "function" && last && Array.isArray(last.steps)) {
-          keyChecklistFromLast = R.buildKeyChecklistHtmlFromSteps(last.steps);
-        }
-      } catch (_) {}
+
+      // Build aggregated steps: if any run had OK, mark OK; else if only skipped, mark skipped; else fail.
+      const aggregatedSteps = Array.from(agg.values()).map(v => {
+        return { ok: !!v.ok, msg: v.msg, skipped: (!v.ok && !!v.skippedAny) };
+      });
+      const failedAgg = aggregatedSteps.filter(s => !s.ok && !s.skipped);
+      const passedAgg = aggregatedSteps.filter(s => s.ok && !s.skipped);
+      const skippedAgg = aggregatedSteps.filter(s => s.skipped);
+      const okAll = aggregatedSteps.filter(s => !s.skipped).every(s => !!s.ok);
+
+      const headerHtmlAgg = R && typeof R.renderHeader === "function"
+        ? R.renderHeader({ ok: okAll, stepCount: aggregatedSteps.length, totalIssues: failedAgg.length, runnerVersion: RUNNER_VERSION, caps: [] })
+        : "";
+      const keyChecklistAgg = R && typeof R.buildKeyChecklistHtmlFromSteps === "function"
+        ? R.buildKeyChecklistHtmlFromSteps(aggregatedSteps)
+        : "";
+
+      const issuesHtmlAgg = failedAgg.length ? (`<div style="margin-top:10px;"><strong>Aggregated Issues</strong></div>` + (R ? R.renderStepsPretty(failedAgg) : "")) : "";
+      const passedHtmlAgg = passedAgg.length ? (`<div style="margin-top:10px;"><strong>Aggregated Passed</strong></div>` + (R ? R.renderStepsPretty(passedAgg) : "")) : "";
+      const skippedHtmlAgg = skippedAgg.length ? (`<div style="margin-top:10px;"><strong>Aggregated Skipped</strong></div>` + (R ? R.renderStepsPretty(skippedAgg) : "")) : "";
+      const detailsHtmlAgg = R ? R.renderStepsPretty(aggregatedSteps) : "";
+
+      const mainAgg = R && typeof R.renderMainReport === "function"
+        ? R.renderMainReport({
+            headerHtml: headerHtmlAgg,
+            keyChecklistHtml: keyChecklistAgg,
+            issuesHtml: issuesHtmlAgg,
+            passedHtml: passedHtmlAgg,
+            skippedHtml: skippedHtmlAgg,
+            detailsTitle: `<div style="margin-top:10px;"><strong>Aggregated Step Details</strong></div>`,
+            detailsHtml: detailsHtmlAgg
+          })
+        : [headerHtmlAgg, keyChecklistAgg, issuesHtmlAgg, passedHtmlAgg, skippedHtmlAgg, detailsHtmlAgg].join("");
 
       const perfWarnings = [];
       try {
@@ -360,37 +426,18 @@
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
 
-      // Append summary (do not replace the report)
+      // Append summary and aggregated report
       try {
         var Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-        if (Bsum && typeof Bsum.appendToPanel === "function") Bsum.appendToPanel(summary);
-      } catch (_) {}
-
-      // Render full last-run report (colorful details)
-      try {
-        if (last && R) {
-          const passed = last.steps.filter(s => s.ok && !s.skipped);
-          const skipped = last.steps.filter(s => s.skipped);
-          const failed = last.steps.filter(s => !s.ok && !s.skipped);
-          const issuesHtml = failed.length ? (`<div style="margin-top:10px;"><strong>Issues</strong></div>` + R.renderStepsPretty(failed)) : "";
-          const passedHtml = passed.length ? (`<div style="margin-top:10px;"><strong>Passed</strong></div>` + R.renderStepsPretty(passed)) : "";
-          const skippedHtml = skipped.length ? (`<div style="margin-top:10px;"><strong>Skipped</strong></div>` + R.renderStepsPretty(skipped)) : "";
-          const detailsHtml = R.renderStepsPretty(last.steps);
-          const headerHtml = R.renderHeader({ ok: last.ok, stepCount: last.steps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(last.caps || {}).filter(k => last.caps[k]) });
-          const main = R.renderMainReport({
-            headerHtml,
-            keyChecklistHtml: keyChecklistFromLast,
-            issuesHtml,
-            passedHtml,
-            skippedHtml,
-            detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
-            detailsHtml
-          });
-          panelReport(main);
+        if (Bsum && typeof Bsum.appendToPanel === "function") {
+          Bsum.appendToPanel(summary);
+          Bsum.appendToPanel(`<div style="margin-top:10px;"><strong>Aggregated Report (Union of Success Across Runs)</strong></div>` + mainAgg);
+        } else {
+          panelReport(summary + mainAgg);
         }
       } catch (_) {}
 
-      // Export buttons aggregation
+      // Export buttons aggregation (final only)
       try {
         const E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
         if (E && typeof E.attachButtons === "function") {
@@ -400,14 +447,15 @@
             pass, fail,
             avgTurnMs: Number(avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn),
             avgDrawMs: Number(avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw),
-            results: all
+            results: all,
+            aggregatedSteps
           };
           const summaryText = [
             `Roguelike Smoke Test Summary (Runner v${rep.runnerVersion})`,
             `Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`,
             `Avg PERF: turn ${rep.avgTurnMs} ms, draw ${rep.avgDrawMs} ms`
           ].join("\n");
-          const checklistText = (keyChecklistFromLast || "").replace(/<[^>]+>/g, "");
+          const checklistText = (R && typeof R.buildKeyChecklistHtmlFromSteps === "function" ? R.buildKeyChecklistHtmlFromSteps(aggregatedSteps) : "").replace(/<[^>]+>/g, "");
           E.attachButtons(rep, summaryText, checklistText);
         }
       } catch (_) {}
