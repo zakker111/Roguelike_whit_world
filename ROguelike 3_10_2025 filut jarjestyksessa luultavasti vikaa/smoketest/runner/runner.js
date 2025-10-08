@@ -71,6 +71,21 @@
     } catch (_) {}
   }
 
+  // Ensure the GOD panel is visible so logs render into its output area
+  function openGodPanel() {
+    try {
+      if (window.UI && typeof window.UI.showGod === "function") {
+        window.UI.showGod();
+        return true;
+      }
+    } catch (_) {}
+    try {
+      const btn = document.getElementById("god-open-btn");
+      if (btn) { btn.click(); return true; }
+    } catch (_) {}
+    return false;
+  }
+
   function detectCaps() {
     try {
       if (window.SmokeTest && window.SmokeTest.Capabilities && typeof window.SmokeTest.Capabilities.detect === "function") {
@@ -147,6 +162,13 @@
       function record(ok, msg) { steps.push({ ok: !!ok, msg: String(msg || "") }); }
       function recordSkip(msg) { steps.push({ ok: true, msg: String(msg || ""), skipped: true }); }
 
+      // Open GOD panel to make logs visible
+      try { openGodPanel(); } catch (_) {}
+      try {
+        var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (B && typeof B.log === "function") B.log("Starting smoke test…", "notice");
+      } catch (_) {}
+
       const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip };
 
       // Dev-only RNG audit (if module present)
@@ -172,11 +194,22 @@
         { name: "determinism", fn: S.Determinism && S.Determinism.run },
       ];
 
+      // Stream progress into GOD panel/status
+      let Banner = null;
+      try { Banner = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner; } catch (_) {}
+
       for (let i = 0; i < pipeline.length; i++) {
         const step = pipeline[i];
         if (sel.length && !sel.includes(step.name)) continue;
         if (typeof step.fn !== "function") { recordSkip("Scenario '" + step.name + "' not available"); continue; }
-        try { await step.fn(baseCtx); } catch (e) { record(false, step.name + " failed: " + (e && e.message ? e.message : String(e))); }
+        try {
+          if (Banner && typeof Banner.log === "function") Banner.log("Running scenario: " + step.name, "info");
+          await step.fn(baseCtx);
+          if (Banner && typeof Banner.log === "function") Banner.log("Scenario completed: " + step.name, "good");
+        } catch (e) {
+          if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
+          record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
+        }
       }
 
       // Build report via reporting renderer
@@ -248,6 +281,9 @@
     const all = [];
     let pass = 0, fail = 0;
     let perfSumTurn = 0, perfSumDraw = 0;
+
+    // Ensure GOD panel visible for live progress
+    try { openGodPanel(); } catch (_) {}
 
     for (let i = 0; i < n; i++) {
       const res = await run({});
