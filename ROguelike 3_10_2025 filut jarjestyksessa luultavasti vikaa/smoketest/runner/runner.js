@@ -384,8 +384,30 @@
     async function applyFreshSeedForRun(runIndex) {
       try {
         const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+
+        // 1) Ensure we are in WORLD mode before seeding, so scenarios that rely on world pathing succeed.
+        try {
+          const mode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+          if (mode !== "world") {
+            try { openGodPanel(); } catch (_) {}
+            await sleep(120);
+            try {
+              // Click the "Start New Game" button in GOD panel
+              const btn = document.getElementById("god-newgame-btn");
+              if (btn) btn.click();
+            } catch (_) {}
+            // Wait for world mode (with a modest timeout)
+            try {
+              await waitUntilTrue(() => {
+                try { return window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world"; } catch (_) { return false; }
+              }, 1800, 80);
+            } catch (_) {}
+            await sleep(120);
+          }
+        } catch (_) {}
+
+        // 2) Apply a fresh seed via the GOD panel controls
         const s = randomUint32(runIndex);
-        // Open GOD, set seed input, click apply
         try { openGodPanel(); } catch (_) {}
         await sleep(120);
         try {
@@ -407,6 +429,7 @@
             if (ab) ab.click();
           }
         } catch (_) {}
+        // Give time for regeneration
         await sleep(420);
         try { if (B && typeof B.log === "function") B.log(`Applied fresh seed for run ${runIndex + 1}: ${s}`, "notice"); } catch (_) {}
       } catch (_) {}
