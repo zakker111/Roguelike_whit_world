@@ -68,6 +68,20 @@
       inventory: clone(defaults.inventory) || [],
       equipment: clone(defaults.equipment) || { ...DEFAULT_EQUIPMENT },
     });
+
+    // Ensure the player starts with a basic stick in inventory.
+    // Prefer registry-driven item if available; otherwise fall back to a named hand item.
+    try {
+      let stick = null;
+      if (window.Items && typeof Items.createByKey === "function") {
+        stick = Items.createByKey("stick", 1);
+      }
+      if (!stick && window.Items && typeof Items.createNamed === "function") {
+        stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
+      }
+      if (stick) p.inventory.push(stick);
+    } catch (_) {}
+
     return p;
   }
 
