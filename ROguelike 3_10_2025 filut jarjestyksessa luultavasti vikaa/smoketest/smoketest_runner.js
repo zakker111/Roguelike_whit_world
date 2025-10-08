@@ -237,8 +237,12 @@
     } catch (_) {}
   }
 
-  // Capability detection for future-proofing
+  // Capability detection (delegate to module if present; fallback inline)
   function detectCaps() {
+    try {
+      var C = window.SmokeTest && window.SmokeTest.Capabilities;
+      if (C && typeof C.detect === "function") return C.detect();
+    } catch (_) {}
     const caps = {};
     try {
       caps.GameAPI = !!window.GameAPI;
@@ -259,6 +263,13 @@
       caps.advanceMinutes = typeof api.advanceMinutes === "function";
       caps.getClock = typeof api.getClock === "function";
       caps.equipItemAtIndexHand = typeof api.equipItemAtIndexHand === "function";
+      caps.enterDungeonIfOnEntrance = typeof api.enterDungeonIfOnEntrance === "function";
+      caps.enterTownIfOnTile = typeof api.enterTownIfOnTile === "function";
+      caps.routeTo = typeof api.routeTo === "function";
+      caps.getWorld = typeof api.getWorld === "function";
+      caps.getPlayer = typeof api.getPlayer === "function";
+      caps.spawnEnemyNearby = typeof api.spawnEnemyNearby === "function";
+      caps.getPerf = typeof api.getPerf === "function";
     } catch (_) {}
     return caps;
   }
