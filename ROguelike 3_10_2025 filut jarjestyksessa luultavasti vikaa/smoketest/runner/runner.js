@@ -349,13 +349,14 @@
     const all = [];
     let pass = 0, fail = 0;
     let perfSumTurn = 0, perfSumDraw = 0;
-    const collectOnly = n > 1;
+    const stacking = n > 1;
+
     try {
       window.SmokeTest = window.SmokeTest || {};
       window.SmokeTest.Runner = window.SmokeTest.Runner || {};
-      // For multi-run aggregation, do not stack per-run reports; we will render one final mashup.
-      window.SmokeTest.Runner.STACK_LOGS = false;
-      window.SmokeTest.Runner.COLLECT_ONLY = collectOnly;
+      // For multi-run, enable stacking (append each run's report) and do not suppress per-run rendering
+      window.SmokeTest.Runner.STACK_LOGS = stacking;
+      window.SmokeTest.Runner.COLLECT_ONLY = false;
     } catch (_) {}
 
     // Ensure GOD panel visible for live progress
@@ -364,8 +365,44 @@
     // Aggregation of steps across runs (union of success)
     const agg = new Map();
 
+    // Live "matchup" scoreboard in the panel (updates after each run)
+    function ensureMatchupEl() {
+      try {
+        const host = document.getElementById("god-check-output");
+        if (!host) return null;
+        let el = document.getElementById("smoke-matchup");
+        if (!el) {
+          el = document.createElement("div");
+          el.id = "smoke-matchup";
+          el.style.marginTop = "8px";
+          el.style.border = "1px solid rgba(122,162,247,0.25)";
+          el.style.borderRadius = "6px";
+          el.style.padding = "6px 8px";
+          el.style.background = "rgba(21,22,27,0.35)";
+          // Keep the scoreboard visible at the top
+          host.prepend(el);
+        }
+        return el;
+      } catch (_) { return null; }
+    }
+    function updateMatchup() {
+      try {
+        const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+        const list = Array.from(agg.values()).map(v => ({ ok: !!v.ok, skipped: (!v.ok && !!v.skippedAny), msg: v.msg }));
+        const failed = list.filter(s => !s.ok && !s.skipped);
+        const passed = list.filter(s => s.ok && !s.skipped);
+        const skipped = list.filter(s => s.skipped);
+        const el = ensureMatchupEl();
+        if (!el) return;
+        const counts = `<div><strong>Matchup so far:</strong> OK ${passed.length} • FAIL <span style="${failed.length ? "color:#ef4444" : "color:#86efac"};">${failed.length}</span> • SKIP ${skipped.length}</div>`;
+        // Show a trimmed set of details to avoid flooding the panel during long runs
+        const details = R ? R.renderStepsPretty(list.slice(0, Math.min(list.length, 12))) : "";
+        el.innerHTML = counts + (details ? `<div style="margin-top:6px;">${details}</div>` : "");
+      } catch (_) {}
+    }
+
     for (let i = 0; i < n; i++) {
-      const res = await run({ index: i + 1, total: n, suppressReport: collectOnly });
+      const res = await run({ index: i + 1, total: n, suppressReport: false });
       all.push(res);
       if (res && res.ok) pass++; else fail++;
 
@@ -383,14 +420,15 @@
         }
       } catch (_) {}
 
-      // Optional progress output: suppress when collecting-only to keep final panel clean
+      // Progress snippet
       try {
-        if (!collectOnly) {
-          var Bprog = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-          const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>`;
-          if (Bprog && typeof Bprog.appendToPanel === "function") Bprog.appendToPanel(progHtml);
-        }
+        const Bprog = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>`;
+        if (Bprog && typeof Bprog.appendToPanel === "function") Bprog.appendToPanel(progHtml);
       } catch (_) {}
+
+      // Update live matchup scoreboard
+      updateMatchup();
 
       // Perf snapshot aggregation
       try {
@@ -407,7 +445,7 @@
     const avgTurn = (pass + fail) ? (perfSumTurn / (pass + fail)) : 0;
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
 
-    // Summary via reporting module and full aggregated report (single final mashup)
+    // Summary via reporting module and full aggregated report
     try {
       const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
 
@@ -456,14 +494,14 @@
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
 
-      // Render a single final mashup report (replace existing panel content)
+      // Append final aggregated report (keep per-run sections visible)
       try {
-        var Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-        const finalHtml = summary + `<div style="margin-top:10px;"><strong>Aggregated Report (Union of Success Across Runs)</strong></div>` + mainAgg;
-        if (Bsum && typeof Bsum.panelReport === "function") {
-          Bsum.panelReport(finalHtml);
+        const Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bsum && typeof Bsum.appendToPanel === "function") {
+          Bsum.appendToPanel(summary);
+          Bsum.appendToPanel(`<div style="margin-top:10px;"><strong>Aggregated Report (Union of Success Across Runs)</strong></div>` + mainAgg);
         } else {
-          panelReport(finalHtml);
+          panelReport(summary + mainAgg);
         }
       } catch (_) {}
 
