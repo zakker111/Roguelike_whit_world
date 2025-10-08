@@ -52,6 +52,15 @@
       try {
         var corpses = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
         var chest = corpses.find(c => c && c.kind === "chest");
+
+        // Fallback: if no chest exists, try spawning one nearby (test-only helper)
+        if (!chest && has(window.GameAPI.spawnChestNearby)) {
+          try { window.GameAPI.spawnChestNearby(1); } catch (_) {}
+          await sleep(200);
+          corpses = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
+          chest = corpses.find(c => c && c.kind === "chest");
+        }
+
         if (chest) {
           var pathC = has(window.GameAPI.routeToDungeon) ? (window.GameAPI.routeToDungeon(chest.x, chest.y) || []) : [];
           var budgetC = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 5000);
