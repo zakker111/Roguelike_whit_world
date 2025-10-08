@@ -114,15 +114,13 @@
   };
   ConsoleCapture.install();
 
-  // Create a floating banner for smoke test progress (delegates to helper)
+  // Logging/Banner helpers (delegate to helper if present; otherwise fallback)
   function ensureBanner() {
     try {
-      if (window.SmokeTest?.Helpers?.Logging?.ensureBanner) {
-        return window.SmokeTest.Helpers.Logging.ensureBanner();
-      }
+      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (h && typeof h.ensureBanner === "function") return h.ensureBanner();
     } catch (_) {}
-    // Fallback inline
-    let el = document.getElementById("smoke-banner");
+    var el = document.getElementById("smoke-banner");
     if (el) return el;
     el = document.createElement("div");
     el.id = "smoke-banner";
@@ -145,14 +143,13 @@
 
   function ensureStatusEl() {
     try {
-      if (window.SmokeTest?.Helpers?.Logging?.ensureStatusEl) {
-        return window.SmokeTest.Helpers.Logging.ensureStatusEl();
-      }
+      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (h && typeof h.ensureStatusEl === "function") return h.ensureStatusEl();
     } catch (_) {}
     try {
-      let host = document.getElementById("god-check-output");
+      var host = document.getElementById("god-check-output");
       if (!host) return null;
-      let el = document.getElementById("smoke-status");
+      var el = document.getElementById("smoke-status");
       if (!el) {
         el = document.createElement("div");
         el.id = "smoke-status";
@@ -166,9 +163,8 @@
 
   function currentMode() {
     try {
-      if (window.SmokeTest?.Helpers?.Logging?.currentMode) {
-        return window.SmokeTest.Helpers.Logging.currentMode();
-      }
+      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (h && typeof h.currentMode === "function") return h.currentMode();
     } catch (_) {}
     try {
       if (window.GameAPI && typeof window.GameAPI.getMode === "function") {
@@ -180,44 +176,37 @@
 
   function setStatus(msg) {
     try {
-      if (window.SmokeTest?.Helpers?.Logging?.setStatus) {
-        return window.SmokeTest.Helpers.Logging.setStatus(msg);
-      }
+      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (h && typeof h.setStatus === "function") return h.setStatus(msg);
     } catch (_) {}
-    const m = currentMode();
-    const el = ensureStatusEl();
-    if (el) {
-      el.textContent = `[${m || "unknown"}] ${msg}`;
-    }
+    var m = currentMode();
+    var el = ensureStatusEl();
+    if (el) el.textContent = "[" + (m || "unknown") + "] " + msg;
   }
 
   function log(msg, type) {
     try {
-      if (window.SmokeTest?.Helpers?.Logging?.log) {
-        return window.SmokeTest.Helpers.Logging.log(msg, type);
-      }
+      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (h && typeof h.log === "function") return h.log(msg, type);
     } catch (_) {}
-    const banner = ensureBanner();
-    const m = currentMode();
-    const line = "[SMOKE]" + (m ? ` [${m}]` : "") + " " + msg;
+    var banner = ensureBanner();
+    var m = currentMode();
+    var line = "[SMOKE]" + (m ? " [" + m + "]" : "") + " " + msg;
     banner.textContent = line;
     setStatus(msg);
     try {
-      if (window.Logger && typeof Logger.log === "function") {
-        Logger.log(line, type || "info");
-      }
+      if (window.Logger && typeof Logger.log === "function") Logger.log(line, type || "info");
     } catch (_) {}
     try { console.log(line); } catch (_) {}
   }
 
   function panelReport(html) {
     try {
-      if (window.SmokeTest?.Helpers?.Logging?.panelReport) {
-        return window.SmokeTest.Helpers.Logging.panelReport(html);
-      }
+      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (h && typeof h.panelReport === "function") return h.panelReport(html);
     } catch (_) {}
     try {
-      const el = document.getElementById("god-check-output");
+      var el = document.getElementById("god-check-output");
       if (el) el.innerHTML = html;
       ensureStatusEl();
     } catch (_) {}
@@ -226,28 +215,27 @@
   // Budget helpers
   function makeBudget(ms) {
     try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Budget && typeof window.SmokeTest.Helpers.Budget.makeBudget === "function") {
-        return window.SmokeTest.Helpers.Budget.makeBudget(ms);
-      }
+      var hb = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Budget;
+      if (hb && typeof hb.makeBudget === "function") return hb.makeBudget(ms);
     } catch (_) {}
-    const start = Date.now();
-    const deadline = start + Math.max(0, ms | 0);
+    var start = Date.now();
+    var deadline = start + Math.max(0, ms | 0);
     return {
-      exceeded: () => Date.now() > deadline,
-      remain: () => Math.max(0, deadline - Date.now())
+      exceeded: function () { return Date.now() > deadline; },
+      remain: function () { return Math.max(0, deadline - Date.now()); }
     };
   }
 
   function appendToPanel(html) {
     try {
-      if (window.SmokeTest?.Helpers?.Logging?.appendToPanel) {
-        return window.SmokeTest.Helpers.Logging.appendToPanel(html);
-      }
+      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (h && typeof h.appendToPanel === "function") return h.appendToPanel(html);
     } catch (_) {}
     try {
-      const el = document.getElementById("god-check-output");
+      var el = document.getElementById("god-check-output");
       if (el) el.innerHTML += html;
-    } catch (_) {}_code
+    } catch (_) {}
+  }_code
  new </}
 }
 
