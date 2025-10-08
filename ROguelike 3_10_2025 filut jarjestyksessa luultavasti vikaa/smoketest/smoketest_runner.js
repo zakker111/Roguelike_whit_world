@@ -1797,40 +1797,38 @@
           }
 
           // Decoration/props check: find nearby prop and press G
-          try {
+          {
             const modeNow3 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
             if (modeNow3 !== "town") {
               recordSkip("Town prop interaction skipped (not in town)");
             } else {
               const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
               if (props && props.length) {
-                const pl = window.GameAPI.getPlayer();
+                const pl = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
                 // nearest prop
                 let best = props[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
                 for (const p of props) {
                   const d = Math.abs(p.x - pl.x) + Math.abs(p.y - pl.y);
                   if (d < bestD) { best = p; bestD = d; }
                 }
-                const path = window.GameAPI.routeToDungeon(best.x, best.y);
-              const budget = makeBudget(CONFIG.timeouts.route);
-              for (const step of path) {
-                if (budget.exceeded()) { recordSkip("Routing to town prop timed out"); break; }
-                const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(110);
-              }
-              // press G to interact with decoration
-              const ib = makeBudget(CONFIG.timeouts.interact);
-              key("KeyG");
-              await sleep(Math.min(ib.remain(), 220));
-              record(true, "Interacted with nearby decoration/prop (G)");
+                const path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
+                const budget = makeBudget(CONFIG.timeouts.route);
+                for (const step of path) {
+                  if (budget.exceeded()) { recordSkip("Routing to town prop timed out"); break; }
+                  const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                  const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(110);
+                }
+                // press G to interact with decoration
+                const ib = makeBudget(CONFIG.timeouts.interact);
+                key("KeyG");
+                await sleep(Math.min(ib.remain(), 220));
+                record(true, "Interacted with nearby decoration/prop (G)");
               } else {
                 recordSkip("No town decorations/props reported");
               }
             }
-          } catch (e) {
-            record(false, "Decoration/prop interaction failed: " + (e && e.message ? e.message : String(e)));
           }
 
           // Wait in town for a few turns (advance time) and run Home Routes check
