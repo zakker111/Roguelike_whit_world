@@ -925,7 +925,7 @@
           }
 
           // 9b: equip best items from inventory (if any) and test manual equip/unequip
-          try {
+          {
             const inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
             const statsBeforeBest = (typeof window.GameAPI.getStats === "function") ? window.GameAPI.getStats() : { atk: 0, def: 0 };
             const beforeEq = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
@@ -1034,8 +1034,6 @@
                 recordSkip("Skipped hand chooser test (no 1-hand item available)");
               }
             }
-          } catch (e) {
-            record(false, "Equip/unequip sequence failed: " + (e && e.message ? e.message : String(e)));
           }
 
           // 9c: force enemy spawn in dungeon and verify presence/types
