@@ -492,37 +492,11 @@
         const pushSome = (arr) => { for (let i = 0; i < arr.length && detailsList.length < CAP; i++) detailsList.push(arr[i]); };
         pushSome(failed); pushSome(skipped); pushSome(passed);
         const details = (R && typeof R.renderStepsPretty === "function") ? R.renderStepsPretty(detailsList) : "";
-        el.innerHTML = counts + (details ? `<div style="margin-top:6px;">${details}</div>` : "");
-      } catch (_) {}
-    }</span>`,
-          `<span style="background:${failed.length ? '#3b0a0a' : '#0e1726'}; color:${failed.length ? '#fecaca' : '#c7d2fe'}; padding:2px 8px; border-radius:9999px;">FAIL ${failed.length}</span>`,
-          `<span style="background:#111827; color:#e5e7eb; padding:2px 8px; border-radius:9999px;">SKIP ${skipped.length}</span>`,
-          `</div>`,
-          `<a href="#" data-act="toggle" style="font-size:12px; color:#93c5fd; text-decoration:underline; white-space:nowrap;">${expanded ? "Collapse" : "Expand"}</a>`,
-          `</div>`
-        ].join("");
-
-        // Render a trimmed set of details, emphasizing fails first
-        let detailsHtml = "";
-        if (R && typeof R.renderStepsPretty === "function" && showing.length) {
-          detailsHtml = R.renderStepsPretty(showing);
-        } else if (showing.length) {
-          detailsHtml = `<ul style="margin:6px 0 0 16px; padding:0; list-style:disc;">` +
-            showing.map(s => `<li>${s.skipped ? "[SKIP] " : (s.ok ? "[OK] " : "[FAIL] ")}${s.msg}</li>`).join("") +
-            `</ul>`;
-        }
-        const meta = (!expanded && ordered.length > cap)
-          ? `<div style="margin-top:4px; font-size:12px; color:#9ca3af;">Showing ${cap} of ${ordered.length} steps (fails first)</div>`
-          : "";
-
-        el.innerHTML = counts + (detailsHtml ? `<div style="margin-top:6px;">${detailsHtml}${meta}</div>` : "");
-      } catch (_) {}
-    }</div>` : "");
+        el.innerHTML = counts + (details  `<<div style="margin-top:6px;">${detai}</</div>` : "");
       } catch (_) {}
     }
 
-    for (let i = 0; i < n; i++) {
-      // Apply a fresh seed before each run
+    for (let i =      // Apply a fresh seed before each run
       await applyFreshSeedForRun(i);
 
       const res = await run({ index: i + 1, total: n, suppressReport: false });
