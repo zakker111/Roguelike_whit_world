@@ -1673,27 +1673,36 @@
 
           // Seed determinism invariants (same-seed regeneration without reload)
           {
-            // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
-            key("Escape"); await sleep(160);
-            if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
-            await sleep(240);
-            const seedRaw = (localStorage.getItem("SEED") || "");
-            const s = seedRaw ? (Number(seedRaw) >>> 0) : null;
-            if (s != null) {
-              // Open GOD, set seed (same) and regenerate overworld
-              safeClick("god-open-btn"); await sleep(120);
-              safeSetInput("god-seed-input", s);
-              safeClick("god-apply-seed-btn"); await sleep(400);
+            let handledDet = false;
+            try {
+              var SDT = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Determinism;
+              if (SDT && typeof SDT.run === "function") {
+                handledDet = await SDT.run({ key, sleep, record, recordSkip, CONFIG, anchorTown: (runMeta.determinism && runMeta.determinism.anchorTown) || null, anchorDungeon: (runMeta.determinism && runMeta.determinism.anchorDungeon) || null });
+              }
+            } catch (_) {}
+            if (!handledDet) {
+              // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
               key("Escape"); await sleep(160);
-              const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-              const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-              const anchorTown = runMeta.determinism.anchorTown || null;
-              const anchorDung = runMeta.determinism.anchorDungeon || null;
-              const townSame = (!!anchorTown && !!nearestTownAfter) ? (anchorTown.x === nearestTownAfter.x && anchorTown.y === nearestTownAfter.y) : true;
-              const dungSame = (!!anchorDung && !!nearestDungeonAfter) ? (anchorDung.x === nearestDungeonAfter.x && anchorDung.y === nearestDungeonAfter.y) : true;
-              record(townSame && dungSame, `Seed invariants: nearestTown=${townSame ? "OK" : "MISMATCH"} nearestDungeon=${dungSame ? "OK" : "MISMATCH"}`);
-            } else {
-              recordSkip("Seed invariants skipped (no SEED persisted)");
+              if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
+              await sleep(240);
+              const seedRaw = (localStorage.getItem("SEED") || "");
+              const s = seedRaw ? (Number(seedRaw) >>> 0) : null;
+              if (s != null) {
+                // Open GOD, set seed (same) and regenerate overworld
+                safeClick("god-open-btn"); await sleep(120);
+                safeSetInput("god-seed-input", s);
+                safeClick("god-apply-seed-btn"); await sleep(400);
+                key("Escape"); await sleep(160);
+                const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+                const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+                const anchorTown = runMeta.determinism.anchorTown || null;
+                const anchorDung = runMeta.determinism.anchorDungeon || null;
+                const townSame = (!!anchorTown && !!nearestTownAfter) ? (anchorTown.x === nearestTownAfter.x && anchorTown.y === nearestTownAfter.y) : true;
+                const dungSame = (!!anchorDung && !!nearestDungeonAfter) ? (anchorDung.x === nearestDungeonAfter.x && anchorDung.y === nearestDungeonAfter.y) : true;
+                record(townSame && dungSame, `Seed invariants: nearestTown=${townSame ? "OK" : "MISMATCH"} nearestDungeon=${dungSame ? "OK" : "MISMATCH"}`);
+              } else {
+                recordSkip("Seed invariants skipped (no SEED persisted)");
+              }
             }
           }
 
