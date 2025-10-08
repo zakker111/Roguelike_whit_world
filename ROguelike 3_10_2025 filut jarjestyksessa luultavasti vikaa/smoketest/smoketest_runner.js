@@ -671,148 +671,160 @@
 
       // Step 4: close modals and route to nearest dungeon in overworld
       try {
-        // Ensure no modal blocks movement
-        await ensureAllModalsClosed(8);
-        const inWorld = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world");
-        if (inWorld) {
-          let entered = false;
-
-          // Attempt 1: built-in helper + Enter
-          try {
-            if (typeof window.GameAPI.gotoNearestDungeon === "function") {
-              await window.GameAPI.gotoNearestDungeon();
-            }
-            key("Enter"); await sleep(280);
-            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-            await sleep(260);
-            entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
-          } catch (_) {}
-
-          // Attempt 2: route precisely to nearestDungeon() coords then Enter
-          if (!entered) {
-            try {
-              const nd = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-              if (nd && typeof window.GameAPI.routeTo === "function") {
-                const pathND = window.GameAPI.routeTo(nd.x, nd.y);
-                const budgetND = makeBudget(CONFIG.timeouts.route);
-                for (const step of pathND) {
-                  if (budgetND.exceeded()) break;
-                  const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                  const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
-                  key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-                  await sleep(90);
-                }
-                key("Enter"); await sleep(280);
-                if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-                await sleep(260);
-                entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
-              }
-            } catch (_) {}
+        // Prefer scenario module; fallback to inline
+        let handled = false;
+        try {
+          var SD = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Dungeon;
+          if (SD && typeof SD.run === "function") {
+            handled = await SD.run({
+              key, sleep, makeBudget, record, recordSkip, ensureAllModalsClosed, CONFIG
+            });
           }
+        } catch (_) {}
+        if (!handled) {
+          // Ensure no modal blocks movement
+          await ensureAllModalsClosed(8);
+          const inWorld = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world");
+          if (inWorld) {
+            let entered = false;
 
-          // Attempt 3: scan world map for a visible dungeon tile, route to it, then try multiple entry methods
-          if (!entered) {
+            // Attempt 1: built-in helper + Enter
             try {
-              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
-              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
-              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
-              if (world && player && T && typeof T.DUNGEON === "number" && Array.isArray(world.map)) {
-                // Search increasing radius around the player for a DUNGEON tile
-                const maxR = 20;
-                let target = null;
-                for (let r = 2; r <= maxR && !target; r++) {
-                  for (let dy = -r; dy <= r; dy++) {
-                    for (let dx = -r; dx <= r; dx++) {
-                      const nx = player.x + dx, ny = player.y + dy;
-                      if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
-                        if (world.map[ny][nx] === T.DUNGEON) { target = { x: nx, y: ny }; break; }
-                      }
-                    }
-                    if (target) break;
-                  }
-                }
-                if (target && typeof window.GameAPI.routeTo === "function") {
-                  const path = window.GameAPI.routeTo(target.x, target.y);
-                  const budget = makeBudget(CONFIG.timeouts.route);
-                  for (const step of path) {
-                    if (budget.exceeded()) break;
+              if (typeof window.GameAPI.gotoNearestDungeon === "function") {
+                await window.GameAPI.gotoNearestDungeon();
+              }
+              key("Enter"); await sleep(280);
+              if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+              await sleep(260);
+              entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+            } catch (_) {}
+
+            // Attempt 2: route precisely to nearestDungeon() coords then Enter
+            if (!entered) {
+              try {
+                const nd = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+                if (nd && typeof window.GameAPI.routeTo === "function") {
+                  const pathND = window.GameAPI.routeTo(nd.x, nd.y);
+                  const budgetND = makeBudget(CONFIG.timeouts.route);
+                  for (const step of pathND) {
+                    if (budgetND.exceeded()) break;
                     const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
                     const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
                     key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
                     await sleep(90);
                   }
-                  // Try both Enter and G, plus API
-                  key("Enter"); await sleep(200);
-                  key("KeyG"); await sleep(200);
+                  key("Enter"); await sleep(280);
                   if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
                   await sleep(260);
                   entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
                 }
-              }
-            } catch (_) {}
-          }
+              } catch (_) {}
+            }
 
-          // Attempt 4: a few manual steps and retry Enter/API
-          if (!entered) {
-            const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
-            for (const m of moves) { key(m); await sleep(110); }
-            key("Enter"); await sleep(200);
-            key("KeyG"); await sleep(200);
-            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-            await sleep(240);
-            entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
-          }
-
-          // Final post-verify: watch longer for any transient 'dungeon' mode before declaring failure
-          if (!entered) {
-            try {
-              const start = Date.now();
-              const windowMs = 5000; // extended settle window to catch late mode flips
-              let sawDungeon = false;
-              while ((Date.now() - start) < windowMs && !sawDungeon) {
-                try {
-                  if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
-                    sawDungeon = true;
-                    break;
+            // Attempt 3: scan world map for a visible dungeon tile, route to it, then try multiple entry methods
+            if (!entered) {
+              try {
+                const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
+                const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+                const T = (window.World && window.World.TILES) ? window.World.TILES : null;
+                if (world && player && T && typeof T.DUNGEON === "number" && Array.isArray(world.map)) {
+                  // Search increasing radius around the player for a DUNGEON tile
+                  const maxR = 20;
+                  let target = null;
+                  for (let r = 2; r <= maxR && !target; r++) {
+                    for (let dy = -r; dy <= r; dy++) {
+                      for (let dx = -r; dx <= r; dx++) {
+                        const nx = player.x + dx, ny = player.y + dy;
+                        if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
+                          if (world.map[ny][nx] === T.DUNGEON) { target = { x: nx, y: ny }; break; }
+                        }
+                      }
+                      if (target) break;
+                    }
                   }
-                } catch (_) {}
-                await sleep(100);
-              }
-              if (sawDungeon) entered = true;
-            } catch (_) {}
-          }
-
-          // As a last resort, scan the main log for an entry message indicating dungeon entry
-          if (!entered) {
-            try {
-              const logEl = document.getElementById("log");
-              if (logEl) {
-                const txt = (logEl.innerText || logEl.textContent || "").toLowerCase();
-                if (txt.includes("enter the dungeon") || txt.includes("re-enter the dungeon")) {
-                  entered = true;
+                  if (target && typeof window.GameAPI.routeTo === "function") {
+                    const path = window.GameAPI.routeTo(target.x, target.y);
+                    const budget = makeBudget(CONFIG.timeouts.route);
+                    for (const step of path) {
+                      if (budget.exceeded()) break;
+                      const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                      const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                      key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(90);
+                    }
+                    // Try both Enter and G, plus API
+                    key("Enter"); await sleep(200);
+                    key("KeyG"); await sleep(200);
+                    if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+                    await sleep(260);
+                    entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+                  }
                 }
-              }
-            } catch (_) {}
-          }
+              } catch (_) {}
+            }
 
-          const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-          record(entered, entered ? `Entered dungeon (mode=${modeNow})` : `Dungeon entry failed (mode=${modeNow})`);
+            // Attempt 4: a few manual steps and retry Enter/API
+            if (!entered) {
+              const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
+              for (const m of moves) { key(m); await sleep(110); }
+              key("Enter"); await sleep(200);
+              key("KeyG"); await sleep(200);
+              if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+              await sleep(240);
+              entered = (window.GameAPI.getMode && window.GameAPI.getMode() === "dungeon");
+            }
 
-          if (entered) {
-            // Determinism sample: first enemy type and chest loot names before any runner mutations
-            try {
-              // Small delay to let dungeon init complete
-              await sleep(180);
-              const enemies0 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
-              const firstEnemyType = enemies0 && enemies0.length ? (enemies0[0].type || "") : "";
-              const chests = (typeof window.GameAPI.getChestsDetailed === "function") ? window.GameAPI.getChestsDetailed() : [];
-              const chestItems = chests && chests.length ? (chests[0].items || []) : [];
-              runMeta.determinism.firstEnemyType = firstEnemyType;
-              runMeta.determinism.chestItems = chestItems.slice(0);
-            } catch (_) {}
+            // Final post-verify: watch longer for any transient 'dungeon' mode before declaring failure
+            if (!entered) {
+              try {
+                const start = Date.now();
+                const windowMs = 5000; // extended settle window to catch late mode flips
+                let sawDungeon = false;
+                while ((Date.now() - start) < windowMs && !sawDungeon) {
+                  try {
+                    if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
+                      sawDungeon = true;
+                      break;
+                    }
+                  } catch (_) {}
+                  await sleep(100);
+                }
+                if (sawDungeon) entered = true;
+              } catch (_) {}
+            }
+
+            // As a last resort, scan the main log for an entry message indicating dungeon entry
+            if (!entered) {
+              try {
+                const logEl = document.getElementById("log");
+                if (logEl) {
+                  const txt = (logEl.innerText || logEl.textContent || "").toLowerCase();
+                  if (txt.includes("enter the dungeon") || txt.includes("re-enter the dungeon")) {
+                    entered = true;
+                  }
+                }
+              } catch (_) {}
+            }
+
+            const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            record(entered, entered ? `Entered dungeon (mode=${modeNow})` : `Dungeon entry failed (mode=${modeNow})`);
+
+            if (entered) {
+              // Determinism sample: first enemy type and chest loot names before any runner mutations
+              try {
+                // Small delay to let dungeon init complete
+                await sleep(180);
+                const enemies0 = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+                const firstEnemyType = enemies0 && enemies0.length ? (enemies0[0].type || "") : "";
+                const chests = (typeof window.GameAPI.getChestsDetailed === "function") ? window.GameAPI.getChestsDetailed() : [];
+                const chestItems = chests && chests.length ? (chests[0].items || []) : [];
+                runMeta.determinism.firstEnemyType = firstEnemyType;
+                runMeta.determinism.chestItems = chestItems.slice(0);
+              } catch (_) {}
+            }
+          } else {
+            recordSkip("Skipped routing (not in overworld)");
           }
-        } else {
-          recordSkip("Skipped routing (not in overworld)");
         }
       } catch (e) {
         record(false, "Routing error: " + (e && e.message ? e.message : String(e)));
@@ -1517,130 +1529,143 @@
 
       // Step 10: from overworld, visit nearest town and interact
       try {
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
-          // Seed determinism invariants: nearestTown/nearestDungeon before routing
-          let nearestTownBefore = null, nearestDungeonBefore = null;
-          try {
-            nearestTownBefore = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-            nearestDungeonBefore = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-          } catch (_) {}
-
-          // Prefer precise routing to nearestTown coordinate if available
-          let okTown = false;
-          try {
-            const nt = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-            if (nt && typeof window.GameAPI.routeTo === "function") {
-              const pathNT = window.GameAPI.routeTo(nt.x, nt.y);
-              const budgetNT = makeBudget(2500);
-              for (const step of pathNT) {
-                if (budgetNT.exceeded()) break;
-                const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
-                key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(90);
-              }
-              okTown = true;
-            } else if (typeof window.GameAPI.gotoNearestTown === "function") {
-              okTown = await window.GameAPI.gotoNearestTown();
-            }
-          } catch (_) {
-            if (typeof window.GameAPI.gotoNearestTown === "function") {
-              okTown = await window.GameAPI.gotoNearestTown();
-            }
+        let handled = false;
+        try {
+          var ST = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Town;
+          if (ST && typeof ST.run === "function") {
+            handled = await ST.run({ key, sleep, makeBudget, record, recordSkip, CONFIG });
           }
-          // Attempt multiple entry tries: Enter key and direct API
-          const tryEnterTown = async () => {
-            key("Enter"); await sleep(300);
-            try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
-            await sleep(240);
-          };
-          await tryEnterTown();
-          let nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-          if (nowMode !== "town") {
-            await tryEnterTown();
-          }
-          nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-          if (nowMode !== "town") {
-            // Fallback: scan wider radius for a Town tile and route to it, then try enter again
+        } catch (_) {}
+        if (!handled) {
+          if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
+            // Seed determinism invariants: nearestTown/nearestDungeon before routing
+            let nearestTownBefore = null, nearestDungeonBefore = null;
             try {
-              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
-              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
-              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
-              if (world && player && T && typeof T.TOWN === "number" && Array.isArray(world.map)) {
-                // Prioritize immediate adjacency, then expand search radius to 6
-                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                let stepped = false;
-                for (const d of adj) {
-                  const nx = player.x + d.dx, ny = player.y + d.dy;
-                  if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
-                    if (world.map[ny][nx] === T.TOWN && typeof window.GameAPI.moveStep === "function") {
-                      window.GameAPI.moveStep(d.dx, d.dy);
-                      await sleep(140);
-                      stepped = true;
-                      break;
-                    }
-                  }
+              nearestTownBefore = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+              nearestDungeonBefore = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
+            } catch (_) {}
+
+            // Prefer precise routing to nearestTown coordinate if available
+            let okTown = false;
+            try {
+              const nt = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
+              if (nt && typeof window.GameAPI.routeTo === "function") {
+                const pathNT = window.GameAPI.routeTo(nt.x, nt.y);
+                const budgetNT = makeBudget(2500);
+                for (const step of pathNT) {
+                  if (budgetNT.exceeded()) break;
+                  const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                  const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                  key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(90);
                 }
-                if (!stepped) {
-                  const r = 6;
-                  const candidates = [];
-                  for (let dy = -r; dy <= r; dy++) {
-                    for (let dx = -r; dx <= r; dx++) {
-                      const nx = player.x + dx, ny = player.y + dy;
-                      if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
-                        if (world.map[ny][nx] === T.TOWN) candidates.push({ x: nx, y: ny });
+                okTown = true;
+              } else if (typeof window.GameAPI.gotoNearestTown === "function") {
+                okTown = await window.GameAPI.gotoNearestTown();
+              }
+            } catch (_) {
+              if (typeof window.GameAPI.gotoNearestTown === "function") {
+                okTown = await window.GameAPI.gotoNearestTown();
+              }
+            }
+            // Attempt multiple entry tries: Enter key and direct API
+            const tryEnterTown = async () => {
+              key("Enter"); await sleep(300);
+              try { if (window.GameAPI && typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile(); } catch (_) {}
+              await sleep(240);
+            };
+            await tryEnterTown();
+            let nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            if (nowMode !== "town") {
+              await tryEnterTown();
+            }
+            nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            if (nowMode !== "town") {
+              // Fallback: scan wider radius for a Town tile and route to it, then try enter again
+              try {
+                const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
+                const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+                const T = (window.World && window.World.TILES) ? window.World.TILES : null;
+                if (world && player && T && typeof T.TOWN === "number" && Array.isArray(world.map)) {
+                  // Prioritize immediate adjacency, then expand search radius to 6
+                  const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                  let stepped = false;
+                  for (const d of adj) {
+                    const nx = player.x + d.dx, ny = player.y + d.dy;
+                    if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
+                      if (world.map[ny][nx] === T.TOWN && typeof window.GameAPI.moveStep === "function") {
+                        window.GameAPI.moveStep(d.dx, d.dy);
+                        await sleep(140);
+                        stepped = true;
+                        break;
                       }
                     }
                   }
-                  if (candidates.length && typeof window.GameAPI.routeTo === "function") {
-                    const path = window.GameAPI.routeTo(candidates[0].x, candidates[0].y);
-                    const budget = makeBudget(3000);
-                    for (const step of path) {
-                      if (budget.exceeded()) break;
-                      const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                      const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
-                      key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-                      await sleep(90);
+                  if (!stepped) {
+                    const r = 6;
+                    const candidates = [];
+                    for (let dy = -r; dy <= r; dy++) {
+                      for (let dx = -r; dx <= r; dx++) {
+                        const nx = player.x + dx, ny = player.y + dy;
+                        if (ny >= 0 && ny < world.map.length && nx >= 0 && nx < (world.map[0] ? world.map[0].length : 0)) {
+                          if (world.map[ny][nx] === T.TOWN) candidates.push({ x: nx, y: ny });
+                        }
+                      }
+                    }
+                    if (candidates.length && typeof window.GameAPI.routeTo === "function") {
+                      const path = window.GameAPI.routeTo(candidates[0].x, candidates[0].y);
+                      const budget = makeBudget(3000);
+                      for (const step of path) {
+                        if (budget.exceeded()) break;
+                        const ddx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                        const ddy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                        key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                        await sleep(90);
+                      }
                     }
                   }
+                  await tryEnterTown();
+                  await tryEnterTown();
                 }
-                await tryEnterTown();
-                await tryEnterTown();
+              } catch (_) {}
+            }
+            nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
+            if (nowMode === "town") {
+              record(true, "Entered town");
+              // Ensure at least one NPC is present; if not, try to populate via Home Routes or greeters
+              try {
+                let npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+                if (npcCount === 0) {
+                  // Try home routes first (may populate)
+                  if (typeof window.GameAPI.checkHomeRoutes === "function") window.GameAPI.checkHomeRoutes();
+                  await sleep(200);
+                  npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+                }
+                if (npcCount === 0 && typeof window.GameAPI.spawnGateGreeters === "function") {
+                  // Fallback greeter spawn if exposed
+                  try { window.GameAPI.spawnGateGreeters(1); } catch (_) {}
+                  await sleep(200);
+                  npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
+                }
+                record(npcCount > 0, `NPC presence: count ${npcCount}`);
+              } catch (_) {}
+            } else {
+              // Extra diagnostic to help understand why it failed
+              try {
+                const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
+                const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
+                const T = (window.World && window.World.TILES) ? window.World.TILES : null;
+                const tile = (world && player && T && world.map[player.y] && world.map[player.y][player.x] === T.TOWN) ? "TOWN" : "OTHER";
+                recordSkip("Town entry not achieved (mode=" + nowMode + ", standing on tile=" + tile + ")");
+              } catch (_) {
+                recordSkip("Town entry not achieved (still in " + nowMode + ")");
               }
-            } catch (_) {}
-          }
-          nowMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-          if (nowMode === "town") {
-            record(true, "Entered town");
-            // Ensure at least one NPC is present; if not, try to populate via Home Routes or greeters
-            try {
-              let npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
-              if (npcCount === 0) {
-                // Try home routes first (may populate)
-                if (typeof window.GameAPI.checkHomeRoutes === "function") window.GameAPI.checkHomeRoutes();
-                await sleep(200);
-                npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
-              }
-              if (npcCount === 0 && typeof window.GameAPI.spawnGateGreeters === "function") {
-                // Fallback greeter spawn if exposed
-                try { window.GameAPI.spawnGateGreeters(1); } catch (_) {}
-                await sleep(200);
-                npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0;
-              }
-              record(npcCount > 0, `NPC presence: count ${npcCount}`);
-            } catch (_) {}
-          } else {
-            // Extra diagnostic to help understand why it failed
-            try {
-              const world = (typeof window.GameAPI.getWorld === "function") ? window.GameAPI.getWorld() : null;
-              const player = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
-              const T = (window.World && window.World.TILES) ? window.World.TILES : null;
-              const tile = (world && player && T && world.map[player.y] && world.map[player.y][player.x] === T.TOWN) ? "TOWN" : "OTHER";
-              recordSkip("Town entry not achieved (mode=" + nowMode + ", standing on tile=" + tile + ")");
-            } catch (_) {
-              recordSkip("Town entry not achieved (still in " + nowMode + ")");
             }
           }
+        }
+      } catch (e) {
+        record(false, "Town visit error: " + (e && e.message ? e.message : String(e)));
+      }
 
           // Seed determinism invariants (same-seed regeneration without reload)
           try {
