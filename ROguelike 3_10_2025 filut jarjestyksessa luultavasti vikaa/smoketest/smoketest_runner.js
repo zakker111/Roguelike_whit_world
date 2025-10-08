@@ -960,7 +960,7 @@
             }
 
             // 9b.1: attempt to drink a potion via GameAPI if any are present
-            try {
+            {
               const pots = (typeof window.GameAPI.getPotions === "function") ? window.GameAPI.getPotions() : [];
               if (pots && pots.length && typeof window.GameAPI.drinkPotionAtIndex === "function") {
                 const pi = pots[0].i;
@@ -973,8 +973,6 @@
               } else {
                 recordSkip("No potions available to drink");
               }
-            } catch (e2) {
-              record(false, "Drink potion failed: " + (e2 && e2.message ? e2.message : String(e2)));
             }
 
             // 9b.2: two-handed equip/unequip behavior if available + hand chooser branch coverage
