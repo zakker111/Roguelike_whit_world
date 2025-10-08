@@ -1832,7 +1832,7 @@
           }
 
           // Wait in town for a few turns (advance time) and run Home Routes check
-          try {
+          {
             // Ensure we truly are in town and have some NPCs; otherwise try to spawn greeters
             let modeTown = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() === "town" : false;
             let npcCount = 0;
@@ -1874,8 +1874,6 @@
               const lateOk = unreachable === 0;
               record(lateOk, `Late-night home routes: unreachable ${unreachable} (expected 0)`);
             }
-          } catch (eHR) {
-            record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
           }
         } else {
           recordSkip("Skipped town visit (not in overworld)");
