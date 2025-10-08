@@ -621,7 +621,7 @@
           var SD = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Dungeon;
           if (SD && typeof SD.run === "function") {
             handled = await SD.run({
-              key, sleep, makeBudget, record, recordSkip, ensureAllModalsClosed, CONFIG
+              key, sleep, makeBudget, record, recordSkip, ensureAllModalsClosed, CONFIG, caps: runMeta.caps
             });
           }
         } catch (_) {}
@@ -875,7 +875,7 @@
             try {
               var SI = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Inventory;
               if (SI && typeof SI.run === "function") {
-                handledInv = await SI.run({ key, sleep, makeBudget, record, recordSkip, CONFIG });
+                handledInv = await SI.run({ key, sleep, makeBudget, record, recordSkip, CONFIG, caps: runMeta.caps });
               }
             } catch (_) {}
             if (!handledInv) {
@@ -997,7 +997,7 @@
             try {
               var SC = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Combat;
               if (SC && typeof SC.run === "function") {
-                handledCombat = await SC.run({ key, sleep, makeBudget, record, recordSkip, CONFIG });
+                handledCombat = await SC.run({ key, sleep, makeBudget, record, recordSkip, CONFIG, caps: runMeta.caps });
               }
             } catch (_) {}
             if (!handledCombat) {
@@ -1621,7 +1621,7 @@
             try {
               var SDT = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Determinism;
               if (SDT && typeof SDT.run === "function") {
-                handledDet = await SDT.run({ key, sleep, record, recordSkip, CONFIG, anchorTown: (runMeta.determinism && runMeta.determinism.anchorTown) || null, anchorDungeon: (runMeta.determinism && runMeta.determinism.anchorDungeon) || null });
+                handledDet = await SDT.run({ key, sleep, record, recordSkip, CONFIG, anchorTown: (runMeta.determinism && runMeta.determinism.anchorTown) || null, anchorDungeon: (runMeta.determinism && runMeta.determinism.anchorDungeon) || null, caps: runMeta.caps });
               }
             } catch (_) {}
             if (!handledDet) {
@@ -2038,7 +2038,9 @@
             try {
               var SO = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Overlays;
               if (SO && typeof SO.run === "function") {
-                handledOverlays = await SO.run({ key, sleep, makeBudget, record, recordSkip, CONFIG });
+                handledOverlays = await SO.run({
+              key, sleep, makeBudget, record, recordSkip, CONFIG, caps: runMeta.caps
+            });
               }
             } catch (_) {}
             if (!handledOverlays) {

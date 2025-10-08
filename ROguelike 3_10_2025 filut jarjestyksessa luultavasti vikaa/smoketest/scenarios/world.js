@@ -7,6 +7,8 @@
       var record = ctx.record || function(){};
       var recordSkip = ctx.recordSkip || function(){};
       var sleep = ctx.sleep || (ms => new Promise(r => setTimeout(r, ms|0)));
+      var caps = (ctx && ctx.caps) || {};
+      if (!caps.GameAPI || !caps.getMode) { recordSkip("World scenario skipped (GameAPI/getMode not available)"); return true; }
 
       var mode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
       if (mode !== "world") {

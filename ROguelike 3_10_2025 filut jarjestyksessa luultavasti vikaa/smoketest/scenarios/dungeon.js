@@ -6,8 +6,10 @@
   function has(fn) { try { return typeof fn === "function"; } catch (_) { return false; } }
 
   async function run(ctx) {
-    // ctx: { key, sleep, makeBudget, record, recordSkip, ensureAllModalsClosed, CONFIG }
+    // ctx: { key, sleep, makeBudget, record, recordSkip, ensureAllModalsClosed, CONFIG, caps }
     try {
+      var caps = (ctx && ctx.caps) || {};
+      if (!caps.GameAPI || !caps.getMode) { ctx.recordSkip && ctx.recordSkip("Dungeon scenario skipped (GameAPI/getMode not available)"); return true; }
       if (!window.GameAPI || !has(window.GameAPI.getMode)) return false;
       // Precondition: overworld only
       const inWorld = window.GameAPI.getMode() === "world";

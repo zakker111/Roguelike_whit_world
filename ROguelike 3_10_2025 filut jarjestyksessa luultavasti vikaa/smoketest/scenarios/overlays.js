@@ -8,6 +8,8 @@
       var recordSkip = ctx.recordSkip || function(){};
       var sleep = ctx.sleep || (ms => new Promise(r => setTimeout(r, ms|0)));
       var CONFIG = ctx.CONFIG || { perfBudget: { drawMs: 16.7 } };
+      var caps = (ctx && ctx.caps) || {};
+      if (!caps.GameAPI || !caps.getMode || !caps.getPerf) { recordSkip("Overlays scenario skipped (GameAPI/getMode/getPerf not available)"); return true; }
 
       // Town-only overlays (route/home paths)
       var inTown = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town");

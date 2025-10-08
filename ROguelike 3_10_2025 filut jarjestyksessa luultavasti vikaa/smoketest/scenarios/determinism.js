@@ -4,7 +4,7 @@
   window.SmokeTest.Scenarios = window.SmokeTest.Scenarios || {};
 
   async function run(ctx) {
-    // ctx: { key, sleep, record, recordSkip, CONFIG, anchorTown, anchorDungeon }
+    // ctx: { key, sleep, record, recordSkip, CONFIG, anchorTown, anchorDungeon, caps }
     try {
       var record = ctx.record || function(){};
       var recordSkip = ctx.recordSkip || function(){};
@@ -12,6 +12,8 @@
       var key = ctx.key || function(){};
       var anchorTown = ctx.anchorTown || null;
       var anchorDung = ctx.anchorDungeon || null;
+      var caps = (ctx && ctx.caps) || {};
+      if (!caps.nearestTown && !caps.nearestDungeon) { recordSkip("Seed invariants skipped (nearestTown/nearestDungeon not available)"); return true; }
 
       // Ensure we're in world to read nearestTown/nearestDungeon after reapply
       try {

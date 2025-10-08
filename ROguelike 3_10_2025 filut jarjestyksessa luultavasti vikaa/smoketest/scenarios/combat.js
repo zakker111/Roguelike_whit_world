@@ -13,6 +13,11 @@
         return { exceeded: function(){return Date.now() > dl;}, remain: function(){return Math.max(0, dl - Date.now());} };
       });
       var CONFIG = ctx.CONFIG || { timeouts: { route: 5000, battle: 5000 } };
+      var caps = (ctx && ctx.caps) || {};
+      if (!caps.GameAPI || !caps.getMode || !caps.getEnemies) {
+        recordSkip("Combat scenario skipped (GameAPI/getMode/getEnemies not available)");
+        return true;
+      }
 
       // Ensure in dungeon; if not, attempt to enter quickly
       try {
