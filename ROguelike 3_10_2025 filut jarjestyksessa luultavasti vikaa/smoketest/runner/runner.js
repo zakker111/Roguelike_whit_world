@@ -426,7 +426,7 @@
   // Auto-run orchestrator when ?smoketest=1
   try {
     const params = parseParams();
-    const shouldAuto = params.smoketest;
+    const shouldAuto = params.smoketest && !params.legacy;
     const count = params.smokecount || 1;
     if (shouldAuto) {
       const start = async () => { await waitUntilGameReady(6000); await runSeries(count); };

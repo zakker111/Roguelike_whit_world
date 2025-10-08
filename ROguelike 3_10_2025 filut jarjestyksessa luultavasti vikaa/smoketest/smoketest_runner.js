@@ -25,50 +25,14 @@
     }
   }
 
-  // Open GOD panel to ensure logs and report render into the output area
-  function openGodPanel() {
-    try {
-      if (window.UI && typeof window.UI.showGod === "function") {
-        window.UI.showGod();
-        return true;
-      }
-    } catch (_) {}
-    try {
-      const btn = document.getElementById("god-open-btn");
-      if (btn) { btn.click(); return true; }
-    } catch (_) {}
-    return false;
-  }
+  
 
-  // Apply seed via GOD controls (optional)
-  async function applySeedIfRequested(seed) {
-    try {
-      if (!seed) return false;
-      openGodPanel();
-      const Dom = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
-      if (Dom && typeof Dom.safeSetInput === "function") {
-        Dom.safeSetInput("god-seed-input", Number(seed) >>> 0);
-      } else {
-        const inp = document.getElementById("god-seed-input");
-        if (inp) {
-          inp.value = String(Number(seed) >>> 0);
-          try { inp.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
-          try { inp.dispatchEvent(new Event("change", { bubbles: true })); } catch (_) {}
-        }
-      }
-      const applyBtn = document.getElementById("god-apply-seed-btn");
-      applyBtn && applyBtn.click();
-      await new Promise(r => setTimeout(r, 300));
-      return true;
-    } catch (_) { return false; }
-  }
+  
 
   // Thin legacy run: open GOD and delegate to orchestrator's run()
   async function run() {
     try {
       const params = parseParams();
-      openGodPanel();
-      if (params.seed) await applySeedIfRequested(params.seed);
 
       // Respect scenario filter by setting window.SmokeTest.Config if available
       try {
@@ -100,8 +64,6 @@
   async function runSeries(count) {
     const params = parseParams();
     const n = Math.max(1, (count | 0) || params.smokecount || 1);
-    openGodPanel();
-    if (params.seed) await applySeedIfRequested(params.seed);
     const OR = window.SmokeTest && window.SmokeTest.Run;
     if (OR && typeof OR.runSeries === "function") {
       return await OR.runSeries(n);
