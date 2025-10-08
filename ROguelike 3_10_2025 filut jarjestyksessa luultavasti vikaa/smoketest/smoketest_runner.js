@@ -184,7 +184,12 @@
         return window.SmokeTest.Helpers.Logging.setStatus(msg);
       }
     } catch (_) {}
-    const m = currentMode
+    const m = currentMode();
+    const el = ensureStatusEl();
+    if (el) {
+      el.textContent = `[${m || "unknown"}] ${msg}`;
+    }
+  }
 
   function log(msg, type) {
     try {
