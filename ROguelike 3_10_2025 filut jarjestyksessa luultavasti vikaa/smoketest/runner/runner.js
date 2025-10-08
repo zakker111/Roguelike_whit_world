@@ -588,9 +588,10 @@
         if (avgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
       } catch (_) {}
 
+      const failColorSum = fail ? '#ef4444' : '#86efac';
       const summary = [
         `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
-        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="${fail ? "color:#ef4444" : "color:#86efac"};">${fail}</span></div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span></div>`,
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
 
