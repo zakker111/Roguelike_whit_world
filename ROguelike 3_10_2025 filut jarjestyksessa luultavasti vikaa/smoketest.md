@@ -121,3 +121,14 @@ Quick regression checklist
 - [ ] Seed determinism: repeatable outcomes
 - [ ] Overlays: toggles work; default OFF for heavy overlays
 - [ ] Tileset fallback: renders even if atlas missing
+
+Recent updates
+- Live Matchup scoreboard (GOD panel):
+  - Sticky/pinned header at the top of the output.
+  - FAIL items listed first, then SKIPs, then OKs; up to 20 items by default; Expand to show everything.
+- Aggregation across runs (union of success):
+  - Final aggregated report appended at the end; steps marked OK if any run passed, SKIP if only skipped, FAIL otherwise.
+- Seed per run + world-mode guard:
+  - Runner ensures “world” mode before seeding and applies a fresh 32-bit seed for each run in a series.
+- Entry hardening:
+  - Town/Dungeon scenarios close modals, route to target or adjacent tile with larger budgets, then nudge and enter via API.

@@ -1,6 +1,6 @@
 # Smoke Test Runner Checklist
 
-Version: Runner v1.3.0
+Version: Runner v1.8.0
 
 This document lists what the automated Smoke Test runner attempts on each run and what is reported.
 
@@ -56,6 +56,10 @@ This document lists what the automated Smoke Test runner attempts on each run an
   - Opens diagnostics and reports success.
 - Console/browser error capture
   - Captures console.error, console.warn, window.onerror, and unhandledrejection; summarized in Issues.
+- Live Matchup scoreboard (GOD panel)
+  - Sticky/pinned panel at the top of the GOD output.
+  - Shows OK/FAIL/SKIP counts; FAIL highlighted.
+  - Details prioritize FAIL first, then SKIP, then OK; shows up to 20 by default; Expand to show all aggregated steps.
 - Per-run report (GOD panel)
   - Issues: failures + captured console/browser errors
   - Passed: all successful checks
@@ -65,6 +69,7 @@ This document lists what the automated Smoke Test runner attempts on each run an
   - Runs pass/fail; total checks passed/failed/skipped
   - Performance averages (turn/draw) + soft budget warnings
   - Runner version and capability list
+  - Aggregated report (union of success across runs)
 - Export
   - JSON: complete machine-readable report
   - TXT: single-file summary (GOOD/PROBLEMS/SKIPPED + top console/browser issues)

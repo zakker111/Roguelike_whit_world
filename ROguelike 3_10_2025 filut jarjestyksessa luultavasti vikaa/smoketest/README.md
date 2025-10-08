@@ -91,3 +91,15 @@ Bug/issues/things to do
 - if smoke test is runned many times game should log all passes and make one mashup log what went wrong what skipped and what went right ewen if one thing went right it should log that it went right 
 - there is some broblem starting runner but it works almost ewery time
 - there is known bugs in dungeon entering and fightning etc almost all dungeon related is bugged in dungeons
+
+Updates (Oct 2025)
+- Live Matchup scoreboard:
+  - Sticky panel pinned at the top of the GOD output with higher contrast.
+  - Shows OK/FAIL/SKIP counts, prioritizes FAIL items first in details, then SKIPs, then OKs.
+  - Displays up to 20 entries by default; click “Expand” to show all aggregated steps across runs.
+- Aggregated results (union of success):
+  - After multi-run, a single aggregated report is appended. A step is OK if any run passed it; SKIP if no passes but at least one skip; FAIL otherwise.
+- Seed per run + world-mode guard:
+  - Before each run, the runner ensures mode is “world” (clicks “Start New Game” in GOD if necessary) and applies a fresh 32-bit seed via the GOD panel.
+- Entry hardening:
+  - Town and Dungeon scenarios close modals before routing, use Movement.routeAdjTo when needed, and do a final bumpToward before Enter + API entry.
