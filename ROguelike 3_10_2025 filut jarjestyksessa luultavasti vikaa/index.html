@@ -270,9 +270,7 @@
             // Runner helpers
             "smoketest/runner/init.js",
             "smoketest/runner/banner.js",
-            // Orchestrator (default) - before scenarios
-            "smoketest/runner/runner.js",
-            // Scenarios
+            // Scenarios (load all before orchestrator to ensure availability)
             "smoketest/scenarios/dungeon.js",
             "smoketest/scenarios/town.js",
             "smoketest/scenarios/inventory.js",
@@ -282,7 +280,9 @@
             "smoketest/scenarios/determinism.js",
             "smoketest/scenarios/town_flows.js",
             "smoketest/scenarios/dungeon_persistence.js",
-            "smoketest/scenarios/town_diagnostics.js"
+            "smoketest/scenarios/town_diagnostics.js",
+            // Orchestrator (default) - load last so scenarios are ready
+            "smoketest/runner/runner.js"
             // Legacy thin shim appended below
           ];
           if (legacy) {

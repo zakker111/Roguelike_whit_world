@@ -29,6 +29,17 @@
         caps.routeTo = typeof api.routeTo === "function";
         caps.getWorld = typeof api.getWorld === "function";
         caps.getPlayer = typeof api.getPlayer === "function";
+        // Inventory and equipment capabilities
+        caps.getInventory = typeof api.getInventory === "function";
+        caps.getStats = typeof api.getStats === "function";
+        caps.getEquipment = typeof api.getEquipment === "function";
+        caps.equipItemAtIndex = typeof api.equipItemAtIndex === "function";
+        caps.getPotions = typeof api.getPotions === "function";
+        caps.drinkPotionAtIndex = typeof api.drinkPotionAtIndex === "function";
+        // Determinism/world anchors
+        caps.nearestTown = typeof api.nearestTown === "function";
+        caps.nearestDungeon = typeof api.nearestDungeon === "function";
+        // Spawns and perf
         caps.spawnEnemyNearby = typeof api.spawnEnemyNearby === "function";
         caps.spawnItems = typeof api.spawnItems === "function";
         caps.addPotionToInventory = typeof api.addPotionToInventory === "function";
