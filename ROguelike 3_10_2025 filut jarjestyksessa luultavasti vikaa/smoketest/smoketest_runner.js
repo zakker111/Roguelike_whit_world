@@ -1867,10 +1867,7 @@
               record(lateOk, `Late-night home routes: unreachable ${unreachable} (expected 0)`);
             }
           }
-        } else {
-          recordSkip("Skipped town visit (not in overworld)");
         }
-      }
 
       // Diagnostics + shop schedule/time check
       try {
