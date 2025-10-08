@@ -8,7 +8,7 @@ How to run
 
 Runner options (URL params)
 - Run smoketest (orchestrator default): `?smoketest=1`
-- Legacy monolithic runner: `&legacy=1` (use only for comparison/fallback)
+- Legacy thin shim: `&legacy=1` (orchestrator skips auto‑run; shim delegates to orchestrator)
 - Scenario filter: `&scenarios=world,dungeon,inventory,combat,town,overlays,determinism` (legacy style `&smoke=` also supported)
 - Enable DEV logs and diagnostics: `&dev=1`
 - Inject malformed JSON for validator checks (DEV only): `&validatebad=1` (or `&badjson=1`)

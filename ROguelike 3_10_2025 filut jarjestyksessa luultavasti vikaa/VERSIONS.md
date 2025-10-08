@@ -10,6 +10,13 @@ Conventions
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
 
+v1.22.1 — Legacy runner thin shim, orchestrator gating, docs alignment
+- Changed: Legacy runner refactored into a thin shim that delegates to the orchestrator; removed inline scenario/reporting/helpers.
+- Changed: Orchestrator skips auto-run when `&legacy=1` is present; legacy shim invokes orchestrator `runSeries` to avoid double execution.
+- Changed: index.html loader comment updated to “Legacy thin shim appended below”; shim only injected when `&legacy=1`.
+- Fixed: legacy recursion/double-run risk; stabilized series runs and report display.
+- Docs: Updated smoketest.md, smoketest/README.md, runner/README.md, and README.md to reflect thin shim, scenario filters, and CI tokens.
+
 v1.22 — Smoketest Orchestrator default, modularization, RNG audit, CI tokens, and docs alignment
 - Added: Orchestrator runner (smoketest/runner/runner.js) now the default when `?smoketest=1`; legacy monolithic runner only loads with `&legacy=1`.
 - Added: Modular smoketest structure
