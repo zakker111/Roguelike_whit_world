@@ -485,7 +485,8 @@
         if (!el) return;
         // Dynamic border color based on failures present
         el.style.border = failed.length ? "1px solid rgba(239,68,68,0.6)" : "1px solid rgba(122,162,247,0.4)";
-        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="${failed.length ? "color:#ef4444" : "color:#86efac"};">${failed.length}</span> • SKIP ${skipped.length}</div>`;
+        const failColor = failed.length ? "#ef4444" : "#86efac";
+        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="color:${failColor};">${failed.length}</span> • SKIP ${skipped.length}</div>`;
         // Prioritize fails, then skips, then oks; show more entries for better visibility
         const CAP = 20;
         const detailsList = [];
