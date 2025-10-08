@@ -1675,199 +1675,199 @@
             }
           }
 
-          // NPC check: route to nearest NPC and bump into them
-          let lastNPC = null;
+          // Town flows: NPC interactions, home, props, and late-night home routes (only when already in town)
           {
-            const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-            if (modeNow !== "town") {
-              recordSkip("NPC checks skipped (not in town)");
+            let lastNPC = null;
+            const inTown = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? (window.GameAPI.getMode() === "town") : false;
+            if (!inTown) {
+              recordSkip("Town flows skipped (not in town)");
             } else {
-              const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
-              if (npcs && npcs.length) {
-                // nearest by manhattan
-                const pl = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
-                let best = npcs[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
-                for (const n of npcs) {
-                  const d = Math.abs(n.x - pl.x) + Math.abs(n.y - pl.y);
-                  if (d < bestD) { best = n; bestD = d; }
-                }
-                // route to adjacent tile, then bump into NPC tile to trigger dialogue
-                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
-                  .map(v => ({ x: best.x + v.dx, y: best.y + v.dy }));
-                let path = [];
-                for (const a of adj) {
-                  const p = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(a.x, a.y) : [];
-                  if (p && p.length) { path = p; break; }
-                }
-                for (const step of path) {
-                  const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                  const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
-                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                  await sleep(110);
-                }
-                // bump into NPC tile
-                const dx = Math.sign(best.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : best.x));
-                const dy = Math.sign(best.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : best.y));
-                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                await sleep(160);
-                record(true, "Bumped into at least one NPC");
-                lastNPC = best;
-              } else {
-                recordSkip("No NPCs reported (town may be empty?)");
-              }
-            }
-          }
-
-          // NPC home + decorations check: go to NPC's house and verify decorations/props exist
-          {
-            const modeNow2 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-            if (modeNow2 !== "town") {
-              recordSkip("NPC home check skipped (not in town)");
-            } else if (lastNPC && typeof lastNPC.i === "number" && typeof window.GameAPI.getNPCHomeByIndex === "function") {
-              const home = window.GameAPI.getNPCHomeByIndex(lastNPC.i);
-              if (home && home.building) {
-                const b = home.building;
-                const hasProps = Array.isArray(home.props) && home.props.length > 0;
-                record(hasProps, `NPC home has ${home.props ? home.props.length : 0} decoration(s)/prop(s)`);
-                // Route to door, then to a prop (or interior) and press G
-                const door = b.door || { x: b.x + Math.floor(b.w / 2), y: b.y };
-                const pathDoor = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(door.x, door.y) : [];
-                {
-                  const budget = makeBudget(CONFIG.timeouts.route);
-                  for (const step of pathDoor) {
-                    if (budget.exceeded()) { recordSkip("Routing to NPC home door timed out"); break; }
-                    const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                    const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
-                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                    await sleep(100);
+              // NPC check: route to nearest NPC and bump into them
+              try {
+                const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
+                if (npcs && npcs.length) {
+                  const pl = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+                  // nearest by manhattan
+                  let best = npcs[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
+                  for (const n of npcs) {
+                    const d = Math.abs(n.x - pl.x) + Math.abs(n.y - pl.y);
+                    if (d < bestD) { best = n; bestD = d; }
                   }
-                }
-                // Pick a target inside: either a prop tile or adjacent to it
-                let target = null;
-                if (hasProps) {
-                  const p = home.props[0];
-                  // try adjacent to prop
-                  const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}].map(d => ({ x: p.x + d.dx, y: p.y + d.dy }));
+                  // route to adjacent tile, then bump into NPC tile to trigger dialogue
+                  const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
+                    .map(v => ({ x: best.x + v.dx, y: best.y + v.dy }));
+                  let path = [];
                   for (const a of adj) {
-                    const route = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(a.x, a.y) : [];
-                    if (route && route.length) { target = { path: route, interact: { x: p.x, y: p.y } }; break; }
+                    const p = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(a.x, a.y) : [];
+                    if (p && p.length) { path = p; break; }
                   }
-                }
-                if (!target) {
-                  // fallback: a tile just inside the building rectangle
-                  const inside = { x: Math.min(b.x + b.w - 2, Math.max(b.x + 1, door.x)), y: b.y + 1 };
-                  const route = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(inside.x, inside.y) : [];
-                  target = { path: route, interact: null };
-                }
-                if (target && target.path) {
-                  const budget = makeBudget(CONFIG.timeouts.route);
-                  for (const step of target.path) {
-                    if (budget.exceeded()) { recordSkip("Routing inside NPC home timed out"); break; }
+                  for (const step of path) {
                     const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
                     const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                    await sleep(100);
+                    await sleep(110);
                   }
-                  if (target.interact) {
-                    // Press G to attempt interaction with the decoration/prop
-                    const ib = makeBudget(CONFIG.timeouts.interact);
-                    key("KeyG");
-                    await sleep(Math.min(ib.remain(), 160));
-                    record(true, "Interacted inside NPC home (prop/decoration)");
+                  // bump into NPC tile
+                  const dx = Math.sign(best.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : best.x));
+                  const dy = Math.sign(best.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : best.y));
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(160);
+                  record(true, "Bumped into at least one NPC");
+                  lastNPC = best;
+                } else {
+                  recordSkip("No NPCs reported (town may be empty?)");
+                }
+              } catch (e) {
+                record(false, "NPC interaction failed: " + (e && e.message ? e.message : String(e)));
+              }
+
+              // NPC home + decorations check: go to NPC's house and verify decorations/props exist
+              try {
+                if (lastNPC && typeof lastNPC.i === "number" && typeof window.GameAPI.getNPCHomeByIndex === "function") {
+                  const home = window.GameAPI.getNPCHomeByIndex(lastNPC.i);
+                  if (home && home.building) {
+                    const b = home.building;
+                    const hasProps = Array.isArray(home.props) && home.props.length > 0;
+                    record(hasProps, `NPC home has ${home.props ? home.props.length : 0} decoration(s)/prop(s)`);
+                    // Route to door, then to a prop (or interior) and press G
+                    const door = b.door || { x: b.x + Math.floor(b.w / 2), y: b.y };
+                    const pathDoor = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(door.x, door.y) : [];
+                    {
+                      const budget = makeBudget(CONFIG.timeouts.route);
+                      for (const step of pathDoor) {
+                        if (budget.exceeded()) { recordSkip("Routing to NPC home door timed out"); break; }
+                        const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                        const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                        key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                        await sleep(100);
+                      }
+                    }
+                    // Pick a target inside: either a prop tile or adjacent to it
+                    let target = null;
+                    if (hasProps) {
+                      const p = home.props[0];
+                      // try adjacent to prop
+                      const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}].map(d => ({ x: p.x + d.dx, y: p.y + d.dy }));
+                      for (const a of adj) {
+                        const route = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(a.x, a.y) : [];
+                        if (route && route.length) { target = { path: route, interact: { x: p.x, y: p.y } }; break; }
+                      }
+                    }
+                    if (!target) {
+                      // fallback: a tile just inside the building rectangle
+                      const inside = { x: Math.min(b.x + b.w - 2, Math.max(b.x + 1, door.x)), y: b.y + 1 };
+                      const route = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(inside.x, inside.y) : [];
+                      target = { path: route, interact: null };
+                    }
+                    if (target && target.path) {
+                      const budget = makeBudget(CONFIG.timeouts.route);
+                      for (const step of target.path) {
+                        if (budget.exceeded()) { recordSkip("Routing inside NPC home timed out"); break; }
+                        const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                        const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                        key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                        await sleep(100);
+                      }
+                      if (target.interact) {
+                        // Press G to attempt interaction with the decoration/prop
+                        const ib = makeBudget(CONFIG.timeouts.interact);
+                        key("KeyG");
+                        await sleep(Math.min(ib.remain(), 160));
+                        record(true, "Interacted inside NPC home (prop/decoration)");
+                      } else {
+                        record(true, "Reached inside NPC home");
+                      }
+                    } else {
+                      record(false, "Failed to route to NPC home interior");
+                    }
                   } else {
-                    record(true, "Reached inside NPC home");
+                    recordSkip("NPC had no home building info");
                   }
                 } else {
-                  record(false, "Failed to route to NPC home interior");
+                  recordSkip("Skipped NPC home check (no NPC found or API not available)");
                 }
-              } else {
-                recordSkip("NPC had no home building info");
+              } catch (e) {
+                record(false, "NPC home/decoration verification failed: " + (e && e.message ? e.message : String(e)));
               }
-            } else {
-              recordSkip("Skipped NPC home check (no NPC found or API not available)");
+
+              // Decoration/props check: find nearby prop and press G
+              try {
+                const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
+                if (props && props.length) {
+                  const pl = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+                  // nearest prop
+                  let best = props[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
+                  for (const p of props) {
+                    const d = Math.abs(p.x - pl.x) + Math.abs(p.y - pl.y);
+                    if (d < bestD) { best = p; bestD = d; }
+                  }
+                  const path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
+                  const budget = makeBudget(CONFIG.timeouts.route);
+                  for (const step of path) {
+                    if (budget.exceeded()) { recordSkip("Routing to town prop timed out"); break; }
+                    const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                    const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(110);
+                  }
+                  // press G to interact with decoration
+                  const ib = makeBudget(CONFIG.timeouts.interact);
+                  key("KeyG");
+                  await sleep(Math.min(ib.remain(), 220));
+                  record(true, "Interacted with nearby decoration/prop (G)");
+                } else {
+                  recordSkip("No town decorations/props reported");
+                }
+              } catch (e) {
+                record(false, "Decoration/prop interaction failed: " + (e && e.message ? e.message : String(e)));
+              }
+
+              // Wait in town for a few turns (advance time) and run Home Routes check
+              try {
+                // Ensure we truly are in town and have some NPCs; otherwise try to spawn greeters
+                let npcCount = 0;
+                try { npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0; } catch (_) {}
+                if (npcCount === 0) {
+                  // Open GOD briefly then close (may populate diagnostics/greeters via Town APIs)
+                  safeClick("god-open-btn"); await sleep(120);
+                  key("Escape"); await sleep(100);
+                  // Recount
+                  try { npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0; } catch (_) {}
+                }
+
+                // Advance a few turns to let TownAI act
+                for (let t = 0; t < 8; t++) { key("Numpad5"); await sleep(60); }
+                // If minute-level advance is available, push into late night (02:00) for stricter routing
+                try {
+                  if (typeof window.GameAPI.getClock === "function" && typeof window.GameAPI.advanceMinutes === "function") {
+                    const clk = window.GameAPI.getClock();
+                    const curMin = clk.hours * 60 + clk.minutes;
+                    const to2am = ((2 * 60) - curMin + 24 * 60) % (24 * 60);
+                    window.GameAPI.advanceMinutes(to2am);
+                    await sleep(120);
+                  }
+                } catch (_) {}
+                const res = (typeof window.GameAPI.checkHomeRoutes === "function") ? window.GameAPI.checkHomeRoutes() : null;
+                // Harden result reading
+                const residentsTotal = (res && res.residents && typeof res.residents.total === "number") ? res.residents.total : 0;
+                const unreachable = (res && typeof res.unreachable === "number") ? res.unreachable : null;
+                const reachable = (res && typeof res.reachable === "number") ? res.reachable : null;
+                const hasResidents = residentsTotal > 0;
+                record(hasResidents, `Home routes after waits: residents ${residentsTotal}${unreachable != null ? `, unreachable ${unreachable}` : ""}${reachable != null ? `, reachable ${reachable}` : ""}`);
+                if (!hasResidents) {
+                  // Log raw object for diagnostics
+                  try { console.warn("[SMOKE] HomeRoutes raw:", res); } catch (_) {}
+                }
+                // Stricter late-night behavior: prefer unreachable == 0 when residents exist
+                if (hasResidents && unreachable != null) {
+                  const lateOk = unreachable === 0;
+                  record(lateOk, `Late-night home routes: unreachable ${unreachable} (expected 0)`);
+                }
+              } catch (eHR) {
+                record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
+              }
             }
           }
-
-          // Decoration/props check: find nearby prop and press G
-          {
-            const modeNow3 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
-            if (modeNow3 !== "town") {
-              recordSkip("Town prop interaction skipped (not in town)");
-            } else {
-              const props = (typeof window.GameAPI.getTownProps === "function") ? window.GameAPI.getTownProps() : [];
-              if (props && props.length) {
-                const pl = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
-                // nearest prop
-                let best = props[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
-                for (const p of props) {
-                  const d = Math.abs(p.x - pl.x) + Math.abs(p.y - pl.y);
-                  if (d < bestD) { best = p; bestD = d; }
-                }
-                const path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
-                const budget = makeBudget(CONFIG.timeouts.route);
-                for (const step of path) {
-                  if (budget.exceeded()) { recordSkip("Routing to town prop timed out"); break; }
-                  const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
-                  const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
-                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                  await sleep(110);
-                }
-                // press G to interact with decoration
-                const ib = makeBudget(CONFIG.timeouts.interact);
-                key("KeyG");
-                await sleep(Math.min(ib.remain(), 220));
-                record(true, "Interacted with nearby decoration/prop (G)");
-              } else {
-                recordSkip("No town decorations/props reported");
-              }
-            }
-          }
-
-          // Wait in town for a few turns (advance time) and run Home Routes check
-          {
-            // Ensure we truly are in town and have some NPCs; otherwise try to spawn greeters
-            let modeTown = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() === "town" : false;
-            let npcCount = 0;
-            try { npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0; } catch (_) {}
-            if (modeTown && npcCount === 0) {
-              // Open GOD, run Check Home Routes which may populate diagnostics; if Town exposes greeter spawn, rely on it
-              safeClick("god-open-btn"); await sleep(120);
-              // If Town.spawnGateGreeters is not exposed via GameAPI, this is a no-op; continue
-              key("Escape"); await sleep(100);
-              // Recount
-              try { npcCount = (typeof window.GameAPI.getNPCs === "function") ? (window.GameAPI.getNPCs().length || 0) : 0; } catch (_) {}
-            }
-
-            // Advance a few turns to let TownAI act
-            for (let t = 0; t < 8; t++) { key("Numpad5"); await sleep(60); }
-            // If minute-level advance is available, push into late night (02:00) for stricter routing
-            try {
-              if (typeof window.GameAPI.getClock === "function" && typeof window.GameAPI.advanceMinutes === "function") {
-                const clk = window.GameAPI.getClock();
-                const curMin = clk.hours * 60 + clk.minutes;
-                const to2am = ((2 * 60) - curMin + 24 * 60) % (24 * 60);
-                window.GameAPI.advanceMinutes(to2am);
-                await sleep(120);
-              }
-            } catch (_) {}
-            const res = (typeof window.GameAPI.checkHomeRoutes === "function") ? window.GameAPI.checkHomeRoutes() : null;
-            // Harden result reading
-            const residentsTotal = (res && res.residents && typeof res.residents.total === "number") ? res.residents.total : 0;
-            const unreachable = (res && typeof res.unreachable === "number") ? res.unreachable : null;
-            const reachable = (res && typeof res.reachable === "number") ? res.reachable : null;
-            const hasResidents = residentsTotal > 0;
-            record(hasResidents, `Home routes after waits: residents ${residentsTotal}${unreachable != null ? `, unreachable ${unreachable}` : ""}${reachable != null ? `, reachable ${reachable}` : ""}`);
-            if (!hasResidents) {
-              // Log raw object for diagnostics
-              try { console.warn("[SMOKE] HomeRoutes raw:", res); } catch (_) {}
-            }
-            // Stricter late-night behavior: prefer unreachable == 0 when residents exist
-            if (hasResidents && unreachable != null) {
-              const lateOk = unreachable === 0;
-              record(lateOk, `Late-night home routes: unreachable ${unreachable} (expected 0)`);
-            }
-          }
-        }
 
       // Diagnostics + shop schedule/time check
       {
