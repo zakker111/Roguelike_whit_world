@@ -79,7 +79,10 @@
       if (!stick && window.Items && typeof Items.createNamed === "function") {
         stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
       }
-      if (stick) p.inventory.push(stick);
+      if (stick) {
+        try { stick.decay = 99; } catch (_) {}
+        p.inventory.push(stick);
+      }
     } catch (_) {}
 
     return p;
