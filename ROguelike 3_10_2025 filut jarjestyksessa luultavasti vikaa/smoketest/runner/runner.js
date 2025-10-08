@@ -204,4 +204,18 @@
   }
 
   window.SmokeTest.Run = { run, runSeries, CONFIG, RUNNER_VERSION, parseParams };
+
+  // Auto-run orchestrator when ?smoketest=1 and not forcing legacy
+  try {
+    const params = parseParams();
+    const shouldAuto = params.smoketest;
+    const count = params.smokecount || 1;
+    if (shouldAuto && !params.legacy) {
+      if (document.readyState !== "loading") {
+        setTimeout(() => { runSeries(count); }, 400);
+      } else {
+        window.addEventListener("load", () => { setTimeout(() => { runSeries(count); }, 800); });
+      }
+    }
+  } catch (_) {}
 })();

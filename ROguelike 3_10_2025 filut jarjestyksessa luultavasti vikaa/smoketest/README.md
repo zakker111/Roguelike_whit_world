@@ -41,7 +41,7 @@ What gets injected (in order) when `?smoketest=1`
   - `smoketest/scenarios/overlays.js`
   - `smoketest/scenarios/determinism.js`
 - Legacy runner:
-  - `smoketest/smoketest_runner.js` — monolithic runner (still loaded for compatibility; use `&legacy=1` to force it)
+  - `smoketest/smoketest_runner.js` — monolithic runner (injected only when `&legacy=1` is present)
 
 Key assets expected by the page
 - Core/runtime and utilities:

@@ -233,6 +233,7 @@
         var params = new URLSearchParams(location.search);
         if (params.get("smoketest") === "1") {
           console.log("[SMOKE] loader: detected ?smoketest=1, injecting runner");
+          var legacy = params.get("legacy") === "1";
           var injectList = [
             // Helpers
             "smoketest/helpers/dom.js",
@@ -247,7 +248,7 @@
             // Runner helpers
             "smoketest/runner/init.js",
             "smoketest/runner/banner.js",
-            // Orchestrator (shim) - before scenarios and main runner
+            // Orchestrator (default) - before scenarios
             "smoketest/runner/runner.js",
             // Scenarios
             "smoketest/scenarios/dungeon.js",
@@ -259,10 +260,12 @@
             "smoketest/scenarios/determinism.js",
             "smoketest/scenarios/town_flows.js",
             "smoketest/scenarios/dungeon_persistence.js",
-            "smoketest/scenarios/town_diagnostics.js",
-            // Main runner (last)
-            "smoketest/smoketest_runner.js"
+            "smoketest/scenarios/town_diagnostics.js"
+            // Legacy main runner optionally appended below
           ];
+          if (legacy) {
+            injectList.push("smoketest/smoketest_runner.js");
+          }
           var injectSeq = function (list) {
             var i = 0;
             function next() {
