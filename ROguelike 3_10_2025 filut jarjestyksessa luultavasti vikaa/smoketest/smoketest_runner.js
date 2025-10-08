@@ -1,787 +1,146 @@
-// Tiny Roguelike Smoke Test Runner
-// Loads when index.html?smoketest=1; runs a minimal scenario and reports pass/fail to Logger, console, and an on-screen banner.
-// Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
+// Tiny Roguelike Legacy Smoke Test Runner (thin shim)
+// Purpose: minimal legacy wrapper that opens GOD, applies seed (optional), then delegates execution and reporting to the modular orchestrator.
+// This file now avoids inline scenario logic, duplicate renderers, and heavy fallbacks.
 
 (function () {
   const RUNNER_VERSION = "1.8.0";
-  const CONFIG = (function () {
+
+  // Parse relevant params (support legacy &smoke= and new &scenarios=)
+  function parseParams() {
     try {
-      if (window.SmokeTest && window.SmokeTest.Config) return window.SmokeTest.Config;
-    } catch (_) {}
-    // Fallback defaults if helpers are not loaded
-    return {
-      timeouts: {
-        route: 5000,
-        interact: 2500,
-        battle: 5000,
-      },
-      perfBudget: {
-        turnMs: 6.0,
-        drawMs: 12.0
-      }
-    };
-  })();
+      const u = new URL(window.location.href);
+      const p = (name, def) => u.searchParams.get(name) || def;
+      const legacySel = (p("smoke", "") || "").trim();
+      const sel = legacySel ? legacySel : p("scenarios", "");
+      return {
+        smoketest: p("smoketest", "0") === "1",
+        dev: p("dev", "0") === "1",
+        legacy: p("legacy", "0") === "1",
+        smokecount: Number(p("smokecount", "1")) || 1,
+        scenarios: sel.split(",").map(s => s.trim()).filter(Boolean),
+        seed: (p("seed", "") || "").trim()
+      };
+    } catch (_) {
+      return { smoketest: false, dev: false, legacy: false, smokecount: 1, scenarios: [], seed: "" };
+    }
+  }
 
-  // URL params
-  let URL_PARAMS = {};
-  try {
-    URL_PARAMS = Object.fromEntries(new URLSearchParams(location.search).entries());
-  } catch (_) {}
-
-  // Scenario selection (comma-separated): world,dungeon,town,combat,inventory,perf,overlays
-  const SCENARIOS = (() => {
-    const s = String(URL_PARAMS.smoke || "").trim();
-    if (!s) return new Set(["world","dungeon","town","combat","inventory","perf","overlays"]);
-    return new Set(s.split(",").map(x => x.trim().toLowerCase()).filter(Boolean));
-  })();
-
-  // Console/error capture: delegate to SmokeTest.Runner.Init if present, otherwise fallback
-  const ConsoleCapture = (function () {
+  // Open GOD panel to ensure logs and report render into the output area
+  function openGodPanel() {
     try {
-      var R = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Init;
-      if (R && typeof R.install === "function" && typeof R.reset === "function" && typeof R.snapshot === "function") {
-        R.install();
-        return R;
+      if (window.UI && typeof window.UI.showGod === "function") {
+        window.UI.showGod();
+        return true;
       }
     } catch (_) {}
-    const self = {
-      errors: [],
-      warns: [],
-      onerrors: [],
-      installed: false,
-      isNoise(msg) {
-        try {
-          const s = String(msg || "").toLowerCase();
-          if (!s) return false;
-          if (s.includes("klaviyo.com") || s.includes("static-tracking.klaviyo.com")) return true;
-          if (s.includes("failed to load resource") && s.includes("err_blocked_by_client")) return true;
-          if (s.includes("api.cosine.sh") || s.includes("wss://api.cosine.sh/editor")) return true;
-          if (s.includes("err_internet_disconnected")) return true;
-          if (s.includes("usecreatewebsocketcontext")) return true;
-          if (s.includes("codeeditorwidget") && s.includes("cannot read properties of null")) return true;
-          return false;
-        } catch (_) { return false; }
-      },
-      install() {
-        if (this.installed) return;
-        this.installed = true;
-        const me = this;
-        try {
-          const cerr = console.error.bind(console);
-          const cwarn = console.warn.bind(console);
-          console.error = function (...args) {
-            try {
-              const msg = args.map(String).join(" ");
-              if (!me.isNoise(msg)) me.errors.push(msg);
-            } catch (_) {}
-            return cerr(...args);
-          };
-          console.warn = function (...args) {
-            try {
-              const msg = args.map(String).join(" ");
-              if (!me.isNoise(msg)) me.warns.push(msg);
-            } catch (_) {}
-            return cwarn(...args);
-          };
-        } catch (_) {}
-        try {
-          window.addEventListener("error", (ev) => {
-            try {
-              const msg = ev && ev.message ? ev.message : String(ev);
-              if (!me.isNoise(msg)) me.onerrors.push(msg);
-            } catch (_) {}
-          });
-          window.addEventListener("unhandledrejection", (ev) => {
-            try {
-              const msg = ev && ev.reason ? (ev.reason.message || String(ev.reason)) : String(ev);
-              const line = "unhandledrejection: " + msg;
-              if (!me.isNoise(line)) me.onerrors.push(line);
-            } catch (_) {}
-          });
-        } catch (_) {}
-      },
-      reset() {
-        this.errors = [];
-        this.warns = [];
-        this.onerrors = [];
-      },
-      snapshot() {
-        const filter = (arr) => arr.filter(m => !this.isNoise(m));
-        return {
-          consoleErrors: filter(this.errors.slice(0)),
-          consoleWarns: filter(this.warns.slice(0)),
-          windowErrors: filter(this.onerrors.slice(0)),
-        };
+    try {
+      const btn = document.getElementById("god-open-btn");
+      if (btn) { btn.click(); return true; }
+    } catch (_) {}
+    return false;
+  }
+
+  // Apply seed via GOD controls (optional)
+  async function applySeedIfRequested(seed) {
+    try {
+      if (!seed) return false;
+      openGodPanel();
+      const Dom = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
+      if (Dom && typeof Dom.safeSetInput === "function") {
+        Dom.safeSetInput("god-seed-input", Number(seed) >>> 0);
+      } else {
+        const inp = document.getElementById("god-seed-input");
+        if (inp) {
+          inp.value = String(Number(seed) >>> 0);
+          try { inp.dispatchEvent(new Event("input", { bubbles: true })); } catch (_) {}
+          try { inp.dispatchEvent(new Event("change", { bubbles: true })); } catch (_) {}
+        }
       }
-    };
-    self.install();
-    return self;
-  })();
-
-  // Logging/Banner helpers (use Runner.Banner or Helpers.Logging; no inline fallbacks)
-  function ensureBanner() {
-    try {
-      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-      if (RB && typeof RB.ensureBanner === "function") return RB.ensureBanner();
-    } catch (_) {}
-    try {
-      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (H && typeof H.ensureBanner === "function") return H.ensureBanner();
-    } catch (_) {}
-    return null;
-  }
-
-  function ensureStatusEl() {
-    try {
-      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-      if (RB && typeof RB.ensureStatusEl === "function") return RB.ensureStatusEl();
-    } catch (_) {}
-    try {
-      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (H && typeof H.ensureStatusEl === "function") return H.ensureStatusEl();
-    } catch (_) {}
-    return null;
-  }
-
-  function currentMode() {
-    try {
-      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-      if (RB && typeof RB.currentMode === "function") return RB.currentMode();
-    } catch (_) {}
-    try {
-      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (H && typeof H.currentMode === "function") return H.currentMode();
-    } catch (_) {}
-    return "";
-  }
-
-  function setStatus(msg) {
-    try {
-      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-      if (RB && typeof RB.setStatus === "function") return RB.setStatus(msg);
-    } catch (_) {}
-    try {
-      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (H && typeof H.setStatus === "function") return H.setStatus(msg);
-    } catch (_) {}
-  }
-
-  function log(msg, type) {
-    try {
-      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-      if (RB && typeof RB.log === "function") return RB.log(msg, type);
-    } catch (_) {}
-    try {
-      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (H && typeof H.log === "function") return H.log(msg, type);
-    } catch (_) {}
-  }
-
-  function panelReport(html) {
-    try {
-      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-      if (RB && typeof RB.panelReport === "function") return RB.panelReport(html);
-    } catch (_) {}
-    try {
-      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (H && typeof H.panelReport === "function") return H.panelReport(html);
-    } catch (_) {}
-  }
-
-  // Budget helpers
-  function makeBudget(ms) {
-    try {
-      var hb = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Budget;
-      if (hb && typeof hb.makeBudget === "function") return hb.makeBudget(ms);
-    } catch (_) {}
-    var start = Date.now();
-    var deadline = start + Math.max(0, ms | 0);
-    return {
-      exceeded: function () { return Date.now() > deadline; },
-      remain: function () { return Math.max(0, deadline - Date.now()); }
-    };
-  }
-
-  function appendToPanel(html) {
-    try {
-      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-      if (RB && typeof RB.appendToPanel === "function") return RB.appendToPanel(html);
-    } catch (_) {}
-    try {
-      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (H && typeof H.appendToPanel === "function") return H.appendToPanel(html);
-    } catch (_) {}
-  }
-
-  // Capability detection (delegate to module if present; fallback inline)
-  function detectCaps() {
-    try {
-      var C = window.SmokeTest && window.SmokeTest.Capabilities;
-      if (C && typeof C.detect === "function") return C.detect();
-    } catch (_) {}
-    const caps = {};
-    try {
-      caps.GameAPI = !!window.GameAPI;
-      const api = window.GameAPI || {};
-      caps.getMode = typeof api.getMode === "function";
-      caps.getEnemies = typeof api.getEnemies === "function";
-      caps.getTownProps = typeof api.getTownProps === "function";
-      caps.getNPCs = typeof api.getNPCs === "function";
-      caps.routeToDungeon = typeof api.routeToDungeon === "function";
-      caps.gotoNearestDungeon = typeof api.gotoNearestDungeon === "function";
-      caps.gotoNearestTown = typeof api.gotoNearestTown === "function";
-      caps.getChestsDetailed = typeof api.getChestsDetailed === "function";
-      caps.getDungeonExit = typeof api.getDungeonExit === "function";
-      caps.checkHomeRoutes = typeof api.checkHomeRoutes === "function";
-      caps.getShops = typeof api.getShops === "function";
-      caps.isShopOpenNowFor = typeof api.isShopOpenNowFor === "function";
-      caps.getShopSchedule = typeof api.getShopSchedule === "function";
-      caps.advanceMinutes = typeof api.advanceMinutes === "function";
-      caps.getClock = typeof api.getClock === "function";
-      caps.equipItemAtIndexHand = typeof api.equipItemAtIndexHand === "function";
-      caps.enterDungeonIfOnEntrance = typeof api.enterDungeonIfOnEntrance === "function";
-      caps.enterTownIfOnTile = typeof api.enterTownIfOnTile === "function";
-      caps.routeTo = typeof api.routeTo === "function";
-      caps.getWorld = typeof api.getWorld === "function";
-      caps.getPlayer = typeof api.getPlayer === "function";
-      caps.spawnEnemyNearby = typeof api.spawnEnemyNearby === "function";
-      caps.getPerf = typeof api.getPerf === "function";
-    } catch (_) {}
-    return caps;
-  }
-
-  // DEV RNG audit removed from legacy runner (delegated to capabilities module if present)
-  function devRandomAudit() {
-    return { scanned: 0, hits: [] };
-  }
-
-  // Safe element access
-  function hasEl(id) {
-    try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
-        return window.SmokeTest.Helpers.Dom.hasEl(id);
-      }
-    } catch (_) {}
-    return !!document.getElementById(id);
-  }
-  function safeClick(id) {
-    try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
-        return window.SmokeTest.Helpers.Dom.safeClick(id);
-      }
-    } catch (_) {}
-    const el = document.getElementById(id);
-    if (!el) return false;
-    try { el.click(); return true; } catch (_) { return false; }
-  }
-
-  function safeSetInput(id, v) {
-    try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
-        return window.SmokeTest.Helpers.Dom.safeSetInput(id, v);
-      }
-    } catch (_) {}
-    const el = document.getElementById(id);
-    if (!el) return false;
-    try {
-      el.value = String(v);
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-      el.dispatchEvent(new Event("change", { bubbles: true }));
+      const applyBtn = document.getElementById("god-apply-seed-btn");
+      applyBtn && applyBtn.click();
+      await new Promise(r => setTimeout(r, 300));
       return true;
     } catch (_) { return false; }
   }
 
-  // Lightweight polling helpers (bounded) to avoid flaky state reads
-  async function waitUntilTrue(fn, timeoutMs = 400, intervalMs = 40) {
+  // Thin legacy run: open GOD and delegate to orchestrator's run()
+  async function run() {
     try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
-        return await window.SmokeTest.Helpers.Dom.waitUntilTrue(fn, timeoutMs, intervalMs);
-      }
-    } catch (_) {}
-    const deadline = Date.now() + Math.max(0, timeoutMs | 0);
-    while (Date.now() < deadline) {
-      try { if (fn()) return true; } catch (_) {}
-      await sleep(intervalMs);
-    }
-    return fn();
-  }
+      const params = parseParams();
+      openGodPanel();
+      if (params.seed) await applySeedIfRequested(params.seed);
 
-  function isInvOpen() {
-    try {
-      if (window.UI && typeof window.UI.isInventoryOpen === "function") return !!window.UI.isInventoryOpen();
-      const el = document.getElementById("inv-panel");
-      return !!(el && el.hidden === false);
-    } catch (_) { return false; }
-  }
-  function isGodOpen() {
-    try {
-      if (window.UI && typeof window.UI.isGodOpen === "function") return !!window.UI.isGodOpen();
-      const el = document.getElementById("god-panel");
-      return !!(el && el.hidden === false);
-    } catch (_) { return false; }
-  }
-
-  function sleep(ms) {
-    try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
-        return window.SmokeTest.Helpers.Dom.sleep(ms);
-      }
-    } catch (_) {}
-    return new Promise(resolve => setTimeout(resolve, Math.max(0, ms | 0)));
-  }
-
-  // Ensure all UI modals are closed so routing/movement works
-  async function ensureAllModalsClosed(maxTries = 6) {
-    const isOpenById = (id) => {
+      // Respect scenario filter by setting window.SmokeTest.Config if available
       try {
-        const el = document.getElementById(id);
-        return !!(el && el.hidden === false);
-      } catch (_) { return false; }
-    };
-    const anyOpen = () => {
-      return isOpenById("god-panel") || isOpenById("inv-panel") || isOpenById("shop-panel") || isOpenById("loot-panel");
-    };
-    // Try explicit UI API if available
-    try {
-      if (window.UI) {
-        try { typeof UI.hideGod === "function" && UI.hideGod(); } catch (_) {}
-        try { typeof UI.hideInventory === "function" && UI.hideInventory(); } catch (_) {}
-        try { typeof UI.hideShop === "function" && UI.hideShop(); } catch (_) {}
-        try { typeof UI.hideLoot === "function" && UI.hideLoot(); } catch (_) {}
-      }
-    } catch (_) {}
-    // Fallback: ESC multiple times with waits
-    let tries = 0;
-    while (anyOpen() && tries++ < maxTries) {
-      try { document.activeElement && typeof document.activeElement.blur === "function" && document.activeElement.blur(); } catch (_) {}
-      key("Escape");
-      await sleep(160);
-      // Try second ESC in quick succession to unwind modal stack
-      if (anyOpen()) { key("Escape"); await sleep(140); }
-      // Also attempt clicking GOD close if present
-      try {
-        const btn = document.getElementById("god-close-btn");
-        if (btn) { btn.click(); await sleep(120); }
-      } catch (_) {}
-    }
-    return !anyOpen();
-  }
-
-  function key(code) {
-    try {
-      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom) {
-        return window.SmokeTest.Helpers.Dom.key(code);
-      }
-    } catch (_) {}
-    try {
-      const ev = new KeyboardEvent("keydown", { key: code, code, bubbles: true });
-      window.dispatchEvent(ev);
-      document.dispatchEvent(ev);
-    } catch (_) {}
-  }
-
-  function clickById(id) {
-    const el = document.getElementById(id);
-    if (!el) throw new Error("Missing element #" + id);
-    el.click();
-  }
-
-  function setInputValue(id, v) {
-    const el = document.getElementById(id);
-    if (!el) throw new Error("Missing input #" + id);
-    el.value = String(v);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-  }
-
-  // One run with step-by-step result tracking
-  async function runOnce(seedOverride) {
-    const steps = [];
-    const errors = [];
-    const skipped = [];
-    const runMeta = { console: null, determinism: {}, seed: null, caps: detectCaps(), runnerVersion: RUNNER_VERSION };
-    const record = (ok, msg) => {
-      steps.push({ ok, msg });
-      if (!ok) errors.push(msg);
-      log((ok ? "OK: " : "ERR: ") + msg, ok ? "good" : "bad");
-    };
-    const recordSkip = (msg) => {
-      skipped.push(msg);
-      steps.push({ ok: true, skipped: true, msg });
-      log("SKIP: " + msg, "info");
-    };
-    const ctxBase = { key, sleep, makeBudget, record, recordSkip, ensureAllModalsClosed, CONFIG, caps: runMeta.caps };
-
-    // Phase-2 seed reload determinism check (boot-level)
-    try {
-      if (String(URL_PARAMS.phase || "") === "2") {
-        const raw = localStorage.getItem("SMOKE_ANCHOR");
-        if (raw) {
-          const anchor = JSON.parse(raw);
-          // Compute anchors now (after boot) without any movement
-          const townNow = (window.GameAPI && typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-          const dungNow = (window.GameAPI && typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-          const townOk = (!!anchor && !!anchor.anchorTown && !!townNow) ? (anchor.anchorTown.x === townNow.x && anchor.anchorTown.y === townNow.y) : true;
-          const dungOk = (!!anchor && !!anchor.anchorDungeon && !!dungNow) ? (anchor.anchorDungeon.x === dungNow.x && anchor.anchorDungeon.y === dungNow.y) : true;
-          record(townOk && dungOk, `Reload-phase seed invariants: nearestTown=${townOk ? "OK" : "MISMATCH"} nearestDungeon=${dungOk ? "OK" : "MISMATCH"}`);
-          // Clear anchor to avoid affecting subsequent runs
-          try { localStorage.removeItem("SMOKE_ANCHOR"); localStorage.removeItem("SMOKE_RELOAD_DONE"); } catch (_) {}
-        } else {
-          recordSkip("Reload-phase: no anchor found");
+        if (params.scenarios.length) {
+          window.SmokeTest = window.SmokeTest || {};
+          window.SmokeTest.__legacySelectedScenarios = params.scenarios.slice();
         }
+      } catch (_) {}
+
+      // Delegate to orchestrator
+      const OR = window.SmokeTest && window.SmokeTest.Run;
+      if (OR && typeof OR.run === "function") {
+        return await OR.run({});
       }
+
+      // Fallback: minimal no-op report when orchestrator missing
+      try {
+        const Banner = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        Banner && Banner.panelReport && Banner.panelReport(`<div><strong>Legacy runner:</strong> orchestrator not available.</div>`);
+      } catch (_) {}
+      return { ok: false, steps: [{ ok: false, msg: "Orchestrator missing" }], caps: {}, version: RUNNER_VERSION };
     } catch (e) {
-      record(false, "Reload-phase check failed: " + (e && e.message ? e.message : String(e)));
+      try { console.error("[SMOKE] Legacy run failed", e); } catch (_) {}
+      return null;
     }
+  }
 
+  // Thin legacy series: open GOD and delegate to orchestrator's runSeries()
+  async function runSeries(count) {
+    const params = parseParams();
+    const n = Math.max(1, (count | 0) || params.smokecount || 1);
+    openGodPanel();
+    if (params.seed) await applySeedIfRequested(params.seed);
+    const OR = window.SmokeTest && window.SmokeTest.Run;
+    if (OR && typeof OR.runSeries === "function") {
+      return await OR.runSeries(n);
+    }
+    // Fallback single run
+    return await run();
+  }
+
+  // Register under Legacy namespace and avoid overriding orchestrator aliases
+  window.SmokeTest = window.SmokeTest || {};
+  try {
+    window.SmokeTest.Legacy = window.SmokeTest.Legacy || {};
+    window.SmokeTest.Legacy.run = run;
+    window.SmokeTest.Legacy.runSeries = runSeries;
+    window.SmokeTest.Legacy.RUNNER_VERSION = RUNNER_VERSION;
+  } catch (_) {}
+
+  // Auto-run only in explicit legacy mode to avoid double execution
+  function __smokeTriggerRunSeries(n) {
     try {
-      ConsoleCapture.reset();
-      log("Starting smoke test…", "notice");
+      var RR = window.SmokeTest && window.SmokeTest.Run && window.SmokeTest.Run.runSeries;
+      if (typeof RR === "function") { RR(n); return; }
+    } catch (_) {}
+    try { runSeries(n); } catch (_) {}
+  }
 
-      // Step 1: open GOD panel
-      try {
-        await sleep(250);
-        if (safeClick("god-open-btn")) {
-          record(true, "Opened GOD panel");
-        } else {
-          recordSkip("GOD open button not present");
-        }
-      } catch (e) {
-        record(false, "Open GOD panel: " + (e && e.message ? e.message : String(e)));
-      }
-      await sleep(250);
-
-      // Step 2: set seed (vary per run if provided)
-      try {
-        const seed = (typeof seedOverride === "number" && isFinite(seedOverride)) ? (seedOverride >>> 0) : ((Date.now() % 0xffffffff) >>> 0);
-        runMeta.seed = seed;
-        const okIn = safeSetInput("god-seed-input", seed);
-        const okBtn = safeClick("god-apply-seed-btn");
-        if (okIn && okBtn) {
-          record(true, `Applied seed ${seed}`);
-        } else {
-          recordSkip("Seed controls not present; skipping seed apply");
-        }
-      } catch (e) {
-        record(false, "Apply seed failed: " + (e && e.message ? e.message : String(e)));
-      }
-      await sleep(600);
-
-      // Capture anchor invariants immediately after seed application (before any movement)
-      try {
-        if (window.GameAPI) {
-          const anchorPos = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : null;
-          const anchorTown = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-          const anchorDung = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-          runMeta.determinism.anchorPos = anchorPos;
-          runMeta.determinism.anchorTown = anchorTown;
-          runMeta.determinism.anchorDungeon = anchorDung;
-          record(true, "Captured seed anchor invariants (start nearestTown/dungeon)");
-        }
-      } catch (_) {}
-
-      // Optional reload-phase determinism: only when not already done and not in multi-run series
-      try {
-        if (String(URL_PARAMS.phase || "") !== "2" && localStorage.getItem("SMOKE_RELOAD_DONE") !== "1" && (!URL_PARAMS.smokecount || URL_PARAMS.smokecount === "1")) {
-          const anchorData = {
-            seed: runMeta.seed,
-            anchorTown: runMeta.determinism.anchorTown || null,
-            anchorDungeon: runMeta.determinism.anchorDungeon || null
-          };
-          localStorage.setItem("SMOKE_ANCHOR", JSON.stringify(anchorData));
-          localStorage.setItem("SMOKE_RELOAD_DONE", "1");
-          // Reload with phase=2 to assert boot-level determinism anchors
-          const url = new URL(window.location.href);
-          url.searchParams.set("smoketest", "1");
-          url.searchParams.set("phase", "2");
-          if (window.DEV || localStorage.getItem("DEV") === "1") url.searchParams.set("dev", "1");
-          log("Reloading for phase-2 seed determinism check…", "notice");
-          window.location.assign(url.toString());
-          return { ok: true, steps, errors, passedSteps: [], failedSteps: [], skipped, console: ConsoleCapture.snapshot(), determinism: runMeta.determinism, seed: runMeta.seed, caps: runMeta.caps, runnerVersion: RUNNER_VERSION };
-        }
-      } catch (_) {}
-
-      // Step 3: adjust FOV to 10 via slider (if present)
-      try {
-        const fov = document.getElementById("god-fov");
-        if (fov) { fov.value = "10"; fov.dispatchEvent(new Event("input", { bubbles: true })); }
-        record(true, "Adjusted FOV to 10");
-      } catch (e) {
-        record(false, "Adjust FOV failed: " + (e && e.message ? e.message : String(e)));
-      }
-      await sleep(250);
-
-      // Step 3.0: JSON registries delegated
-      try {
-        recordSkip("Registry readiness delegated to scenarios/capabilities");
-      } catch (e) {
-        record(false, "Data registries check failed: " + (e && e.message ? e.message : String(e)));
-      }
-      await sleep(150);
-
-      // Step 3.1: Modal priority delegated
-      try {
-        recordSkip("Modal stack priority delegated to UI/scenario modules");
-      } catch (e) {
-        record(false, "Modal priority check failed: " + (e && e.message ? e.message : String(e)));
-      }
-      await sleep(200);
-
-      // Step 4: close modals and route to nearest dungeon in overworld
-      try {
-        // Prefer scenario module; fallback to inline
-        let handled = false;
-        try {
-          var SD = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Dungeon;
-          if (SD && typeof SD.run === "function") {
-            handled = await SD.run(ctxBase);
-          }
-        } catch (_) {}
-        if (!handled) {
-          recordSkip("Dungeon scenario module not available; skipping inline fallback");
-        }
-      } catch (e) {
-        record(false, "Routing error: " + (e && e.message ? e.message : String(e)));
-      }
-
-      // Step 5: ensure GOD closed
-      try {
-        key("Escape");
-        record(true, "Closed GOD panel");
-      } catch (e) {
-        record(false, "Close GOD panel failed: " + (e && e.message ? e.message : String(e)));
-      }
-      await sleep(250);
-
-      // Step 6: combat delegated
-      try {
-        let handledCombat = false;
-        try {
-          var SC = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Combat;
-          if (SC && typeof SC.run === "function") handledCombat = await SC.run(ctxBase);
-        } catch (_) {}
-        if (!handledCombat) recordSkip("Combat scenario module not available or returned false");
-      } catch (e) {
-        record(false, "Combat scenario error: " + (e && e.message ? e.message : String(e)));
-      }
-
-      // Step 7: inventory delegated
-      try {
-        let handledInv = false;
-        try {
-          var SI = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Inventory;
-          if (SI && typeof SI.run === "function") handledInv = await SI.run(ctxBase);
-        } catch (_) {}
-        if (!handledInv) recordSkip("Inventory scenario module not available or returned false");
-      } catch (e) {
-        record(false, "Inventory scenario error: " + (e && e.message ? e.message : String(e)));
-      }
-      await sleep(250);
-
-      // Step 8: loot delegated to scenarios
-      try {
-        recordSkip("Loot underfoot delegated to Dungeon/Inventory scenarios");
-      } catch (e) {
-        record(false, "Loot step failed: " + (e && e.message ? e.message : String " + (e && e.message ? e.message : String(e)));
-      }
-
-      // Step 9: if in dungeon, delegate to modules only
-      try {
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
-          let handledDungeon = false;
-          try {
-            var SD = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Dungeon;
-            if (SD && typeof SD.run === "function") {
-              handledDungeon = await SD.run({ key, sleep, makeBudget, record, recordSkip, ensureAllModalsClosed, CONFIG, caps: runMeta.caps });
-            }
-          } catch (_) {}
-          if (!handledDungeon) {
-            recordSkip("Dungeon scenario module not available or returned false");
-          }
-        } else {
-          recordSkip("Not in dungeon; skipping dungeon scenario");
-        }
-      } catch (e) {
-        record(false, "Dungeon test error: " + (e && e.message ? e.message : String(e)));
-      }
-
-      // Step 10: from overworld, visit nearest town and interact
-      {
-        let handled = false;
-        try {
-          var ST = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Town;
-          if (ST && typeof ST.run === "function") {
-            handled = await ST.run({ key, sleep, makeBudget, record, recordSkip, CONFIG });
-          }
-        } catch (_) {}
-        if (!handled) {
-          recordSkip("Town scenario module not available or returned false");
-        }
-      }
-
-          // Seed determinism invariants (same-seed regeneration without reload)
-          {
-            let handledDet = false;
-            try {
-              var SDT = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Determinism;
-              if (SDT && typeof SDT.run === "function") {
-                handledDet = await SDT.run({ key, sleep, record, recordSkip, CONFIG, anchorTown: (runMeta.determinism && runMeta.determinism.anchorTown) || null, anchorDungeon: (runMeta.determinism && runMeta.determinism.anchorDungeon) || null, caps: runMeta.caps });
-              }
-            } catch (_) {}
-            if (!handledDet) {
-              // Return to world and re-apply the same seed, then regenerate and compare nearestTown/nearestDungeon
-              key("Escape"); await sleep(160);
-              if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit();
-              await sleep(240);
-              const seedRaw = (localStorage.getItem("SEED") || "");
-              const s = seedRaw ? (Number(seedRaw) >>> 0) : null;
-              if (s != null) {
-                // Open GOD, set seed (same) and regenerate overworld
-                safeClick("god-open-btn"); await sleep(120);
-                safeSetInput("god-seed-input", s);
-                safeClick("god-apply-seed-btn"); await sleep(400);
-                key("Escape"); await sleep(160);
-                const nearestTownAfter = (typeof window.GameAPI.nearestTown === "function") ? window.GameAPI.nearestTown() : null;
-                const nearestDungeonAfter = (typeof window.GameAPI.nearestDungeon === "function") ? window.GameAPI.nearestDungeon() : null;
-                const anchorTown = runMeta.determinism.anchorTown || null;
-                const anchorDung = runMeta.determinism.anchorDungeon || null;
-                const townSame = (!!anchorTown && !!nearestTownAfter) ? (anchorTown.x === nearestTownAfter.x && anchorTown.y === nearestTownAfter.y) : true;
-                const dungSame = (!!anchorDung && !!nearestDungeonAfter) ? (anchorDung.x === nearestDungeonAfter.x && anchorDung.y === nearestDungeonAfter.y) : true;
-                record(townSame && dungSame, `Seed invariants: nearestTown=${townSame ? "OK" : "MISMATCH"} nearestDungeon=${dungSame ? "OK" : "MISMATCH"}`);
-              } else {
-                recordSkip("Seed invariants skipped (no SEED persisted)");
-              }
-            }
-          }
-
-          // Town flows: NPC interactions, home, props, and late-night home routes (only when already in town)
-          {
-            let handledTownFlow = false;
-            try {
-              var STF = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Town && window.SmokeTest.Scenarios.Town.Flows;
-              if (STF && typeof STF.run === "function") {
-                handledTownFlow = await STF.run({ key, sleep, makeBudget, record, recordSkip, CONFIG, caps: runMeta.caps });
-              }
-            } catch (_) {}
-            if (!handledTownFlow && false) {
-              recordSkip("Town flows scenario module not available; skipping inline fallback");
-            }
-          }
-
-      // Diagnostics + shop schedule/time check
-      {
-        let handledTownDiag = false;
-        try {
-          var STD = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Town && window.SmokeTest.Scenarios.Town.Diagnostics;
-          if (STD && typeof STD.run === "function") {
-            handledTownDiag = await STD.run({ key, sleep, makeBudget, record, recordSkip, CONFIG, caps: runMeta.caps });
-          }
-        } catch (_) {}
-        if (!handledTownDiag && false) {
-          recordSkip("Town diagnostics scenario module not available; skipping inline fallback");
-        }
-      }
-
-        // Global overlays (grid) delegated
-        try {
-          let handledOverlays = false;
-          try {
-            var SO = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Overlays;
-            if (SO && typeof SO.run === "function") handledOverlays = await SO.run(ctxBase);
-          } catch (_) {}
-          if (!handledOverlays) recordSkip("Overlays scenariostDrawMs || 0) <= (CONFIG.perfBudget.drawMs * 2.0);
-          record(okGridPerf, `Grid perf: draw ${perfB.lastDrawMs?.toFixed ? perfB.lastDrawMs.toFixed(2) : perfB.lastDrawMs}ms`);
-        } catch (e) {
-          record(false, "Grid perf snapshot failed: " + (e && e.message ? e.message : String(e)));
-        }
-
-        // Restart delegated to modules
-        try {
-          recordSkip("Restart action delegated to scenario modules");
-        } catch (e) {
-          record(false, "Restart step failed: " + (e && e.message ? e.message : String(e)));
-        }
-
-        record(true, "Ran Diagnostics");
-        await sleep(300);
-        key("Escape");
-      
-      const ok = errors.length === 0;
-      log(ok ? "Smoke test completed." : "Smoke test completed with errors.", ok ? "good" : "warn");
-
-      // Capture console/browser errors for this run
-      runMeta.console = ConsoleCapture.snapshot();
-
-      // Derive passed/failed lists
-      const passedSteps = steps.filter(s => s.ok).map(s => s.msg);
-      const failedSteps = steps.filter(s => !s.ok).map(s => s.msg);
-
-      // Report into GOD panel
-      // Pretty step list renderer (delegate to reporting module; no inline fallback for legacy)
-      function renderStepsPretty(list) {
-        try {
-          var R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
-          if (R && typeof R.renderStepsPretty === "function") return R.renderStepsPretty(list);
-        } catch (_) {}
-        return "";
-      }
-
-      const detailsHtml = renderStepsPretty(steps);
-      const passedHtml = passedSteps.length
-        ? (`<div style="margin-top:8px;"><strong>Passed (${passedSteps.length}):</strong></div>` + passedSteps.map(m => `<div style="color:#86efac;">• ${m}</div>`).join(""))
-        : "";
-      const skippedHtml = skipped.length
-        ? (`<div style="margin-top:8px;"><strong>Skipped (${skipped.length}):</strong></div>` + skipped.map(m => `<div style="color:#fde68a;">• ${m}</div>`).join(""))
-        : "";
-      const extraErrors = []
-        .concat((runMeta.console.consoleErrors || []).map(m => `console.error: ${m}`))
-        .concat((runMeta.console.windowErrors || []).map(m => `window: ${m}`))
-        .concat((runMeta.console.consoleWarns || []).map(m => `console.warn: ${m}`));
-      const totalIssues = errors.length + extraErrors.length;
-      const issuesHtml = totalIssues
-        ? `<div style="margin-top:10px; color:#ef4444;"><strong>Issues (${totalIssues}):</strong></div>` +
-          errors.map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") +
-          (extraErrors.length ? `<div style="color:#f87171; margin-top:6px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 8).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
-        : "";
-      const caps = runMeta.caps || {};
-      const capsList = Object.keys(caps).filter(k => caps[k]);
-
-      // Key Checklist: concise required behaviors
-      function hasStep(sub, okOnly = true) {
-        for (const s of steps) {
-          if (okOnly && !s.ok) continue;
-          if (String(s.msg || "").toLowerCase().includes(String(sub).toLowerCase())) return true;
-        }
-        return false;
-      }
-      const keyChecks = [
-        { label: "Entered dungeon", pass: hasStep("Entered dungeon") },
-        { label: "Looted chest", pass: hasStep("Looted chest at (") },
-        { label: "Chest invariant persists (empty on re-enter)", pass: hasStep("Chest invariant:") },
-        { label: "Spawned enemy from GOD", pass: hasStep("Dungeon spawn: enemies") },
-        { label: "Enemy types present", pass: hasStep("Enemy types present:") },
-        { label: "Enemy glyphs not '?'", pass: hasStep("Enemy glyphs:") && !hasStep('All enemy glyphs are "?"', false) },
-        { label: "Attacked enemy (moved/attempted attacks)", pass: hasStep("Moved and attempted attacks") },
-        { label: "Killed enemy (corpse increased)", pass: hasStep("Killed enemy: YES") },
-        { label: "Decay increased on equipped hand(s)", pass: hasStep("Decay check:") && !hasStep("Decay did not increase", false) },
-        { label: "Stair guard (G on non-stair doesn’t exit)", pass: hasStep("Stair guard: G on non-stair does not exit dungeon") },
-        { label: "Returned to overworld from dungeon", pass: hasStep("Returned to overworld from dungeon") },
-        { label: "Dungeon corpses persisted", pass: hasStep("Persistence corpses:") },
-        { label: "Dungeon decals persisted", pass: hasStep("Persistence decals:") },
-        { label: "Town entered", pass: hasStep("Entered town") },
-        { label: "NPCs present in town", pass: hasStep("NPC presence: count") },
-        { label: "Bumped into NPC", pass: hasStep("Bumped into at least one NPC") },
-        { label: "NPC home has decorations/props", pass: hasStep("NPC home has") },
-        { label: "Shop UI closes with Esc", pass: hasStep("Shop UI closes with Esc") },
-      ];
-      const keyChecklistHtml = (() => {
-        const rows = keyChecks.map(c => {
-          const mark = c.pass ? "[x]" : "[ ]";
-          const color = c.pass ? "#86efac" : "#fca5a5";
-          return `<div style="color:${color};">${mark} ${c.label}</div>`;
-        }).join("");
-        return `<div style="margin-top:10px;"><strong>Key Checklist</strong></div>${rows}`;
-      })();
+  try {
+    const params = parseParams();
+    const shouldAuto = params.smoketest && params.legacy;
+    const autoCount = params.smokecount || 1;
+    if (document.readyState !== "loading") {
+      if (shouldAuto) { setTimeout(() => { __smokeTriggerRunSeries(autoCount); }, 400); }
+    } else {
+      window.addEventListener("load", () => {
+        if (shouldAuto) { setTimeout(() => { __smokeTriggerRunSeries(autoCount); }, 800); }
+      });
+    }
+  } catch (_) {}
+})();
 
       // Header via reporting renderer with fallback
       let headerHtmlOut = "";
