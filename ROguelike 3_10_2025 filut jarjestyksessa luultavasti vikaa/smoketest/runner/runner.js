@@ -476,34 +476,25 @@
     function updateMatchup() {
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
-        // Build sorted list: FAIL first (by fail count desc), then SKIP, then OK
-        const values = Array.from(agg.values());
-        const list = values.map(v => ({
-          ok: !!v.ok,
-          skipped: (!v.ok && !!v.skippedAny),
-          msg: v.msg,
-          failCount: v.failCount || 0
-        }));
-        const fails = list.filter(s => !s.ok && !s.skipped).sort((a,b) => (b.failCount - a.failCount) || (a.msg > b.msg ? 1 : -1));
-        const skips = list.filter(s => s.skipped).sort((a,b) => a.msg > b.msg ? 1 : -1);
-        const oks = list.filter(s => s.ok && !s.skipped).sort((a,b) => a.msg > b.msg ? 1 : -1);
-        const ordered = fails.concat(skips, oks);
-
+        // Include lastSeen for better sorting (most recent first)
+        const all = Array.from(agg.values()).map(v => ({ ok: !!v.ok, skipped: (!v.ok && !!v.skippedAny), msg: v.msg, lastSeen: v.lastSeen || 0 }));
+        const failed = all.filter(s => !s.ok && !s.skipped).sort((a,b) => (b.lastSeen - a.lastSeen));
+        const skipped = all.filter(s => s.skipped).sort((a,b) => (b.lastSeen - a.lastSeen));
+        const passed = all.filter(s => s.ok && !s.skipped).sort((a,b) => (b.lastSeen - a.lastSeen));
         const el = ensureMatchupEl();
         if (!el) return;
-        const expanded = el.getAttribute("data-expanded") === "1";
-        const cap = expanded ? ordered.length : Math.min(ordered.length, 20);
-        const showing = ordered.slice(0, cap);
-
-        const failed = fails;
-        const passed = oks;
-        const skipped = skips;
-
-        const counts = [
-          `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">`,
-          `<div style="font-weight:700; letter-spacing:.2px; color:#c7d2fe;">Matchup</div>`,
-          `<div style="display:flex; gap:8px; font-size:12px;">`,
-          `<span style="background:#0a3d2a; color:#d1fae5; padding:2px 8px; border-radius:9999px;">OK ${passed.length}</span>`,
+        // Dynamic border color based on failures present
+        el.style.border = failed.length ? "1px solid rgba(239,68,68,0.6)" : "1px solid rgba(122,162,247,0.4)";
+        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="${failed.length ? "color:#ef4444" : "color:#86efac"};">${failed.length}</span> • SKIP ${skipped.length}</div>`;
+        // Prioritize fails, then skips, then oks; show more entries for better visibility
+        const CAP = 20;
+        const detailsList = [];
+        const pushSome = (arr) => { for (let i = 0; i < arr.length && detailsList.length < CAP; i++) detailsList.push(arr[i]); };
+        pushSome(failed); pushSome(skipped); pushSome(passed);
+        const details = (R && typeof R.renderStepsPretty === "function") ? R.renderStepsPretty(detailsList) : "";
+        el.innerHTML = counts + (details ? `<div style="margin-top:6px;">${details}</div>` : "");
+      } catch (_) {}
+    }</span>`,
           `<span style="background:${failed.length ? '#3b0a0a' : '#0e1726'}; color:${failed.length ? '#fecaca' : '#c7d2fe'}; padding:2px 8px; border-radius:9999px;">FAIL ${failed.length}</span>`,
           `<span style="background:#111827; color:#e5e7eb; padding:2px 8px; border-radius:9999px;">SKIP ${skipped.length}</span>`,
           `</div>`,
@@ -543,10 +534,12 @@
         if (res && Array.isArray(res.steps)) {
           for (const s of res.steps) {
             const key = String(s.msg || "");
-            const cur = agg.get(key) || { msg: key, ok: false, skippedAny: false, failCount: 0 };
+            const cur = agg.get(key) || { msg: key, ok: false, skippedAny: false, failCount: 0, lastSeen: 0 };
             if (s.skipped) cur.skippedAny = true;
             if (s.ok && !s.skipped) cur.ok = true;
             if (!s.ok && !s.skipped) cur.failCount += 1;
+            // Track last time this step was observed for recency sorting
+            cur.lastSeen = Date.now();
             agg.set(key, cur);
           }
         }
