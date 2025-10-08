@@ -213,7 +213,11 @@
 
   function appendToPanel(html) {
     try {
-      const el = document.getElementBy
+      const el = document.getElementById("god-check-output");
+      if (el) el.innerHTML += html;
+    } catch (_) {}
+  }
+
   // Capability detection for future-proofing
   function detectCaps() {
     const caps = {};
