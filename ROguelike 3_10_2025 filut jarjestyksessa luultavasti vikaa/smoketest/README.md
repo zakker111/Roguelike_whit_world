@@ -9,7 +9,7 @@ How to run
 - Useful URL params:
   - `&smokecount=N` — run the suite N times (orchestrator honors this)
   - `&scenarios=world,dungeon,inventory,combat,town,overlays,determinism` — filter scenario pipeline (legacy style `&smoke=` also supported)
-  - `&legacy=1` — use the legacy monolithic runner instead of the orchestrator
+  - `&legacy=1` — legacy thin shim mode; orchestrator skips auto‑run and the shim delegates to the orchestrator
   - `&phase=2` — used by reload‑phase determinism check
   - `&validatebad=1` (or `&badjson=1`) with `&dev=1` — inject malformed JSON for validator checks
 
@@ -41,7 +41,7 @@ What gets injected (in order) when `?smoketest=1`
   - `smoketest/scenarios/overlays.js`
   - `smoketest/scenarios/determinism.js`
 - Legacy runner:
-  - `smoketest/smoketest_runner.js` — monolithic runner (injected only when `&legacy=1` is present)
+  - `smoketest/smoketest_runner.js` — thin shim; injected only when `&legacy=1` is present (delegates to orchestrator)
 
 Key assets expected by the page
 - Core/runtime and utilities:
@@ -80,8 +80,9 @@ Index
 - Legacy: `smoketest/smoketest_runner.js` (only injected with `&legacy=1`)
 
 Notes
-- Orchestrator is the default. Use `&legacy=1` only if you need to compare with the monolithic runner.
+- Orchestrator is the default. Use `&legacy=1` only if you need the thin shim for specific legacy comparisons.
 - Scenario filtering via `&scenarios=` (or legacy `&smoke=`) lets you run a subset in CI or local checks.
+- The orchestrator skips auto‑run when `&legacy=1` is present; the legacy shim delegates to the orchestrator.
 
 Known
 - If you still see only one run with `&smokecount=N`, ensure you are on the orchestrator (no `&legacy=1`) and that `?smoketest=1` is present on the URL. The orchestrator’s `runSeries()` honors `smokecount`.
@@ -89,4 +90,4 @@ Known
 Bug/issues/things to do
 - if smoke test is runned many times game should log all passes and make one mashup log what went wrong what skipped and what went right ewen if one thing went right it should log that it went right 
 - there is some broblem starting runner but it works almost ewery time
--there is known bugs in dungeon entering and fightning etc almost all dungeon related is bugged in dungeons
+- there is known bugs in dungeon entering and fightning etc almost all dungeon related is bugged in dungeons
