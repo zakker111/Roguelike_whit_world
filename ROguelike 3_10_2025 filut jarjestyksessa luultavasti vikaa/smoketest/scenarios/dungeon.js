@@ -42,8 +42,9 @@
                 usedHelper = await MV.routeTo(nd.x, nd.y, { timeoutMs: (ctx.CONFIG && ctx.CONFIG.timeouts && ctx.CONFIG.timeouts.route) || 2500 });
               }
             } catch (_) {}
+            let pathND = null;
             if (!usedHelper && has(window.GameAPI.routeTo)) {
-              const pathND = window.GameAPI.routeTo(nd.x, nd.y);
+              pathND = window.GameAPI.routeTo(nd.x, nd.y);
               const budgetND = ctx.makeBudget(ctx.CONFIG.timeouts.route);
               for (const step of pathND) {
                 if (budgetND.exceeded()) break;
@@ -54,9 +55,29 @@
                 await ctx.sleep(90);
               }
             }
-            ctx.key("Enter"); await ctx.sleep(280);
+            // Fallback: route to an adjacent walkable tile next to the dungeon entrance
+            if (!entered && (!pathND || !pathND.length) && has(window.GameAPI.routeTo)) {
+              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+              outer: for (const d of adj) {
+                const ax = nd.x + d.dx, ay = nd.y + d.dy;
+                try {
+                  const p2 = window.GameAPI.routeTo(ax, ay) || [];
+                  const budget2 = ctx.makeBudget((ctx.CONFIG && ctx.CONFIG.timeouts && ctx.CONFIG.timeouts.route) || 2500);
+                  for (const st of p2) {
+                    if (budget2.exceeded()) break outer;
+                    const pl2 = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : st;
+                    const dx2 = Math.sign(st.x - pl2.x);
+                    const dy2 = Math.sign(st.y - pl2.y);
+                    ctx.key(dx2 === -1 ? "ArrowLeft" : dx2 === 1 ? "ArrowRight" : (dy2 === -1 ? "ArrowUp" : "ArrowDown"));
+                    await ctx.sleep(90);
+                  }
+                  break; // attempted one adjacency
+                } catch (_) {}
+              }
+            }
+            ctx.key("Enter"); await ctx.sleep(320);
             if (has(window.GameAPI.enterDungeonIfOnEntrance)) window.GameAPI.enterDungeonIfOnEntrance();
-            await ctx.sleep(260);
+            await ctx.sleep(300);
             entered = (window.GameAPI.getMode() === "dungeon");
           }
         } catch (_) {}
