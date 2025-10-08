@@ -204,15 +204,16 @@
       }
     } catch (_) {}
     const start = Date.now();
-    const deadline = start + Math.max(}
+    const deadline = start + Math.max(0, ms | 0);
+    return {
+      exceeded: () => Date.now() > deadline,
+      remain: () => Math.max(0, deadline - Date.now())
+    };
+  }
 
   function appendToPanel(html) {
     try {
-      const el = document.getElementById("god-check-output");
-      if (el) el.innerHTML += html;
-    } catch (_) {}
-  }
-
+      const el = document.getElementBy
   // Capability detection for future-proofing
   function detectCaps() {
     const caps = {};
