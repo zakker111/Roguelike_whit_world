@@ -233,20 +233,62 @@
         var params = new URLSearchParams(location.search);
         if (params.get("smoketest") === "1") {
           console.log("[SMOKE] loader: detected ?smoketest=1, injecting runner");
-          var inject = function () {
-            try {
-              var s = document.createElement("script");
-              s.src = "smoketest/smoketest_runner.js";
-              s.defer = true;
-              document.body.appendChild(s);
-            } catch (e) {
-              console.error("[SMOKE] loader: failed to inject runner", e);
+          var legacy = params.get("legacy") === "1";
+          var injectList = [
+            // Helpers
+            "smoketest/helpers/dom.js",
+            "smoketest/helpers/budget.js",
+            "smoketest/helpers/logging.js",
+            "smoketest/helpers/movement.js",
+            // Capabilities
+            "smoketest/capabilities/detect.js",
+            "smoketest/capabilities/rng_audit.js",
+            // Reporting
+            "smoketest/reporting/render.js",
+            "smoketest/reporting/export.js",
+            // Runner helpers
+            "smoketest/runner/init.js",
+            "smoketest/runner/banner.js",
+            // Orchestrator (default) - before scenarios
+            "smoketest/runner/runner.js",
+            // Scenarios
+            "smoketest/scenarios/dungeon.js",
+            "smoketest/scenarios/town.js",
+            "smoketest/scenarios/inventory.js",
+            "smoketest/scenarios/combat.js",
+            "smoketest/scenarios/overlays.js",
+            "smoketest/scenarios/world.js",
+            "smoketest/scenarios/determinism.js",
+            "smoketest/scenarios/town_flows.js",
+            "smoketest/scenarios/dungeon_persistence.js",
+            "smoketest/scenarios/town_diagnostics.js"
+            // Legacy main runner optionally appended below
+          ];
+          if (legacy) {
+            injectList.push("smoketest/smoketest_runner.js");
+          }
+          var injectSeq = function (list) {
+            var i = 0;
+            function next() {
+              if (i >= list.length) return;
+              try {
+                var s = document.createElement("script");
+                s.src = list[i++];
+                s.onload = next;
+                s.onerror = function (e) { console.error("[SMOKE] loader: failed to load", s.src, e); next(); };
+                // Use async=false by not setting async; dynamic scripts execute on load
+                document.body.appendChild(s);
+              } catch (e) {
+                console.error("[SMOKE] loader: injection error", e);
+                next();
+              }
             }
+            next();
           };
           if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", inject);
+            document.addEventListener("DOMContentLoaded", function () { injectSeq(injectList); });
           } else {
-            inject();
+            injectSeq(injectList);
           }
           window.SMOKETEST_REQUESTED = true;
         } else {

@@ -7,7 +7,9 @@ How to run
 - Deployed site: append query parameters as needed.
 
 Runner options (URL params)
-- Run smoketest automatically: `?smoketest=1`
+- Run smoketest (orchestrator default): `?smoketest=1`
+- Legacy monolithic runner: `&legacy=1` (use only for comparison/fallback)
+- Scenario filter: `&scenarios=world,dungeon,inventory,combat,town,overlays,determinism` (legacy style `&smoke=` also supported)
 - Enable DEV logs and diagnostics: `&dev=1`
 - Inject malformed JSON for validator checks (DEV only): `&validatebad=1` (or `&badjson=1`)
 - Multiple runs: `&smokecount=N` (e.g., `&smokecount=3`)
@@ -19,6 +21,10 @@ Report and checklist
   - Key Checklist: per‑run high‑level outcomes (entered dungeon, chest/persistence, enemy spawn/types/glyphs, town/NPC/shop checks).
   - Full JSON report embedded (collapsible).
   - Download buttons: JSON (full report), Summary (TXT), Checklist (TXT).
+
+Automation tokens
+- DOM: hidden `#smoke-pass-token` (PASS/FAIL), `#smoke-json-token` (compact JSON)
+- Storage: `localStorage["smoke-pass-token"]`, `localStorage["smoke-json-token"]`
 
 Seed and determinism
 - DEV mode: `?dev=1` shows perf logs and extra notices.

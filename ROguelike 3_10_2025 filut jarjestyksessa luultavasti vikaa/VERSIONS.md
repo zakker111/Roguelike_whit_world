@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-07 00:35 UTC
+Last updated: 2025-10-08 00:00 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,22 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.22 — Smoketest Orchestrator default, modularization, RNG audit, CI tokens, and docs alignment
+- Added: Orchestrator runner (smoketest/runner/runner.js) now the default when `?smoketest=1`; legacy monolithic runner only loads with `&legacy=1`.
+- Added: Modular smoketest structure
+  - helpers/: dom.js, budget.js, logging.js, movement.js
+  - capabilities/: detect.js (caps map), rng_audit.js (DEV-only RNG audit)
+  - reporting/: render.js (pure HTML), export.js (download buttons)
+  - runner/: init.js (console/error capture), banner.js (status/log/panel), runner.js (pipeline/runSeries/params/budgets)
+  - scenarios/: world.js, dungeon.js, inventory.js, combat.js, dungeon_persistence.js, town.js, town_flows.js, town_diagnostics.js, overlays.js, determinism.js
+- Changed: index.html injection order to load helpers → capabilities → reporting → runner helpers → orchestrator → scenarios (legacy runner appended only with `&legacy=1`).
+- Added: Orchestrator readiness guard — waits for `GameAPI.getMode()` or `getPlayer()` before running to avoid “instant report” with all SKIPs.
+- Added: DEV-only RNG audit — surfaces RNG source snapshot and heuristic Math.random mentions (non-blocking).
+- Added: CI tokens — hidden DOM tokens `#smoke-pass-token` and `#smoke-json-token` plus localStorage tokens, matching legacy runner behavior.
+- Changed: GOD panel “Run Smoke Test” button triggers orchestrator in-page when available, otherwise reloads with `?smoketest=1`.
+- Fixed: Syntax error in runner.js (dangling `catch`), plus minor stabilizations around auto-run and game-ready waits.
+- Docs: Updated smoketest/README.md, smoketest.md, and top-level README.md to reflect orchestrator default, scenario filtering (`&scenarios=`), legacy fallback, and token outputs.
 
 v1.21 — Enemy glyph fallback, town greeter, and smoketest runner hardening
 - Fixed: “?” glyphs for spawned enemies
