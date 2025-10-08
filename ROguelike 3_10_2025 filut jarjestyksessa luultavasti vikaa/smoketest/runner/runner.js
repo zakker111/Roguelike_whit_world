@@ -464,9 +464,17 @@
         const skipped = list.filter(s => s.skipped);
         const el = ensureMatchupEl();
         if (!el) return;
+
         const counts = `<div><strong>Matchup so far:</strong> OK ${passed.length} • FAIL <span style="${failed.length ? "color:#ef4444" : "color:#86efac"};">${failed.length}</span> • SKIP ${skipped.length}</div>`;
-        // Show a trimmed set of details to avoid flooding the panel during long runs
-        const details = R ? R.renderStepsPretty(list.slice(0, Math.min(list.length, 12))) : "";
+
+        // Show failures first, then SKIPs, then OKs, up to a larger cap.
+        const CAP = 20;
+        const display = [];
+        for (let i = 0; i < failed.length && display.length < CAP; i++) display.push(failed[i]);
+        for (let i = 0; i < skipped.length && display.length < CAP; i++) display.push(skipped[i]);
+        for (let i = 0; i < passed.length && display.length < CAP; i++) display.push(passed[i]);
+
+        const details = R ? R.renderStepsPretty(display) : "";
         el.innerHTML = counts + (details ? `<div style="margin-top:6px;">${details}</div>` : "");
       } catch (_) {}
     }
