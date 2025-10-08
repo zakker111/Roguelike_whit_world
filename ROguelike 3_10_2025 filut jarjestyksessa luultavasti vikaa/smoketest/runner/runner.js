@@ -250,10 +250,12 @@
         const delayMs = 50;
         const maxWait = 3000;
         const deadline = Date.now() + maxWait;
-        while (!(window.SmokeTest && typeof window.SmokeTest.runSeries === "function") && Date.now() < deadline) {
+        // Wait until a legacy runner overrides window.SmokeTest.runSeries (avoid calling ourselves)
+        while ((!(window.SmokeTest && typeof window.SmokeTest.runSeries === "function")) || window.SmokeTest.runSeries === runSeries) {
           await new Promise(r => setTimeout(r, delayMs));
+          if (Date.now() >= deadline) break;
         }
-        if (window.SmokeTest && typeof window.SmokeTest.runSeries === "function") {
+        if (window.SmokeTest && typeof window.SmokeTest.runSeries === "function" && window.SmokeTest.runSeries !== runSeries) {
           return window.SmokeTest.runSeries(count);
         }
       } catch (_) {}
@@ -271,10 +273,13 @@
   }
 
   window.SmokeTest.Run = { run, runSeries, CONFIG, RUNNER_VERSION, parseParams };
-  // Back-compat aliases for UI/GOD button and legacy code paths
+  // Back-compat aliases for UI/GOD button and legacy code paths (only when not legacy)
   try {
-    window.SmokeTest.runSeries = runSeries;
-    window.SmokeTest.run = run;
+    const __paramsAlias = parseParams();
+    if (!__paramsAlias.legacy) {
+      window.SmokeTest.runSeries = runSeries;
+      window.SmokeTest.run = run;
+    }
   } catch (_) {}
 
   // Auto-run orchestrator when ?smoketest=1 and not forcing legacy

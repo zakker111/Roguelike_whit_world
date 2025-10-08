@@ -1109,7 +1109,6 @@
           } catch (e) {
             record(false, "Return to overworld failed: " + (e && e.message ? e.message : String(e)));
           }
-          }
         } else {
           record(true, "Skipped dungeon chest/decay steps (not in dungeon)");
         }
@@ -1302,7 +1301,6 @@
             if (!handledTownFlow && false) {
               recordSkip("Town flows scenario module not available; skipping inline fallback");
             }
-          }
           }
 
       // Diagnostics + shop schedule/time check
