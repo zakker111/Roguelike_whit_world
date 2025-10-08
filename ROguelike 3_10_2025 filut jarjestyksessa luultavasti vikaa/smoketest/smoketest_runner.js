@@ -279,13 +279,16 @@
         } catch (e) { record(false, "Modal priority check failed: " + (e && e.message ? e.message : String(e))); }
         await sleep(200);
 
-        // World -> dungeon routing, dungeon flows, town flows, diagnostics, etc.
+      >
+// World -> dungeon routing, dungeon flows, town flows, diagnostics, etc.
 // NOTE: For this modularization step we keep helpers external and skip the long scenario flows
 // to restore a syntactically valid runner. We will re-introduce the full flows in dedicated files next.
-        recordSkip("Skipped extended world/dungeon/town/diagnostics flows (temporary during refactor)");
-      } catch (e) {
-        record(false, "Runner orchestration failed: " + (e && e.message ? e.message : String(e)));
-      }
+        try {
+          recordSkip("Skipped extended world/dungeon/town/diagnostics flows (temporary during refactor)");
+        } catch (e) {
+          record(false, "Runner orchestration failed: " + (e && e.message ? e.message : String(e)));
+     _code  new </}
+}
 
       const ok = errors.length === 0;
       log(ok ? "Smoke test completed." : "Smoke test completed with errors.", ok ? "good" : "warn");
