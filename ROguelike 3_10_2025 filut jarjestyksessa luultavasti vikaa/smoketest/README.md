@@ -39,3 +39,7 @@ Key assets expected by the page
 Notes
 - The runner writes a detailed report to the GOD panel and exposes compact PASS/FAIL tokens in the DOM for CI.
 - The legacy Node description (“node smoketest/smoke.js”) is not used here; the smoketest is browser-driven.
+
+
+Bugs 
+- run counter doesnt run counted runs it runs only once even if runs are ste to more
