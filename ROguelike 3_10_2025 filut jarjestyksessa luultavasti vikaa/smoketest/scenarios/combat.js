@@ -47,6 +47,16 @@
 
       // Route to nearest enemy and bump-attack
       var enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+      if (!enemies || !enemies.length) {
+        // Fallback: spawn enemies via GameAPI if available
+        try {
+          if (typeof window.GameAPI.spawnEnemyNearby === "function") {
+            window.GameAPI.spawnEnemyNearby(2);
+            await sleep(160);
+            enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
+          }
+        } catch (_) {}
+      }
       if (enemies && enemies.length) {
         var best = enemies[0];
         var bestD = Math.abs(best.x - window.GameAPI.getPlayer().x) + Math.abs(best.y - window.GameAPI.getPlayer().y);

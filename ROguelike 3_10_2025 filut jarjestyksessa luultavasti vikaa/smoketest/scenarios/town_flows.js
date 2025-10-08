@@ -18,7 +18,33 @@
 
       // Precondition: town mode required
       var inTown = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "town");
-      if (!inTown) { recordSkip("Town flows skipped (not in town)"); return true; }
+      if (!inTown) {
+        // Try to enter town from overworld quickly
+        try {
+          if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
+            if (has(window.GameAPI.gotoNearestTown)) {
+              await window.GameAPI.gotoNearestTown();
+            } else if (has(window.GameAPI.nearestTown) && has(window.GameAPI.routeTo)) {
+              var nt = window.GameAPI.nearestTown();
+              var pathNT = window.GameAPI.routeTo(nt.x, nt.y);
+              var budgetNT = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 2500);
+              for (var i = 0; i < pathNT.length; i++) {
+                if (budgetNT.exceeded()) break;
+                var step = pathNT[i];
+                var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(100);
+              }
+            }
+            key("Enter"); await sleep(260);
+            if (has(window.GameAPI.enterTownIfOnTile)) window.GameAPI.enterTownIfOnTile();
+            await sleep(240);
+          }
+        } catch (_) {}
+        inTown = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "town");
+        if (!inTown) { recordSkip("Town flows skipped (not in town)"); return true; }
+      }
 
       // 1) NPC bump interaction
       let lastNPC = null;

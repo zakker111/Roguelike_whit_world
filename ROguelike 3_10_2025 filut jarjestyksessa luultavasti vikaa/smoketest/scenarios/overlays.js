@@ -13,6 +13,30 @@
 
       // Town-only overlays (route/home paths)
       var inTown = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town");
+      if (!inTown) {
+        // Attempt to enter town from overworld
+        try {
+          if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
+            if (typeof window.GameAPI.gotoNearestTown === "function") {
+              await window.GameAPI.gotoNearestTown();
+            } else if (typeof window.GameAPI.nearestTown === "function" && typeof window.GameAPI.routeTo === "function") {
+              var nt = window.GameAPI.nearestTown();
+              var pathNT = window.GameAPI.routeTo(nt.x, nt.y);
+              for (var i = 0; i < pathNT.length; i++) {
+                var step = pathNT[i];
+                var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                ctx.key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(90);
+              }
+            }
+            ctx.key("Enter"); await sleep(240);
+            if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile();
+            await sleep(240);
+          }
+        } catch (_) {}
+        inTown = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town");
+      }
       if (inTown) {
         try {
           var perfBefore = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };

@@ -30,6 +30,8 @@
         caps.getWorld = typeof api.getWorld === "function";
         caps.getPlayer = typeof api.getPlayer === "function";
         caps.spawnEnemyNearby = typeof api.spawnEnemyNearby === "function";
+        caps.spawnItems = typeof api.spawnItems === "function";
+        caps.addPotionToInventory = typeof api.addPotionToInventory === "function";
         caps.getPerf = typeof api.getPerf === "function";
       } catch (_) {}
       return caps;

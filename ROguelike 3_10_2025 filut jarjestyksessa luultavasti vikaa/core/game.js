@@ -3098,6 +3098,16 @@
         } catch(_) {}
         return false;
       },
+      // GOD helpers for smoketest fallbacks
+      spawnEnemyNearby: (count = 1) => {
+        try { godSpawnEnemyNearby((Number(count) || 0) | 0 || 1); return true; } catch(_) { return false; }
+      },
+      spawnItems: (count = 3) => {
+        try { godSpawnItems((Number(count) || 0) | 0 || 3); return true; } catch(_) { return false; }
+      },
+      addPotionToInventory: (heal, name) => {
+        try { addPotionToInventory((Number(heal) || 0) || 3, String(name || "")); return true; } catch(_) { return false; }
+      },
       routeToDungeon: (tx, ty) => {
         // BFS on current map (works for both town and dungeon as it uses isWalkable)
         const w = map[0] ? map[0].length : 0;

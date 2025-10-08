@@ -11,7 +11,19 @@
       }
       // Expect runner to call this only in dungeon mode; guard regardless
       var inDungeon = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon");
-      if (!inDungeon) { (ctx.recordSkip || function(){})("Inventory scenario skipped (not in dungeon)"); return true; }
+      if (!inDungeon) {
+        // Attempt to enter a dungeon automatically
+        try {
+          if (typeof window.GameAPI.gotoNearestDungeon === "function") {
+            await window.GameAPI.gotoNearestDungeon();
+          }
+          ctx.key("Enter"); await ctx.sleep(280);
+          if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+          await ctx.sleep(260);
+        } catch (_) {}
+        inDungeon = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon");
+        if (!inDungeon) { (ctx.recordSkip || function(){})( "Inventory scenario skipped (not in dungeon)"); return true; }
+      }
 
       var record = ctx.record || function(){};
       var recordSkip = ctx.recordSkip || function(){};
@@ -20,6 +32,34 @@
         var start = Date.now(); var dl = start + (ms|0);
         return { exceeded: function(){return Date.now() > dl;}, remain: function(){return Math.max(0, dl - Date.now());} };
       });
+
+      // Ensure baseline items/potions for tests
+      try {
+        var invEnsure = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+        var hasEquip = invEnsure.some(function (it) { return it && it.kind === "equip"; });
+        if (!hasEquip) {
+          if (typeof window.GameAPI.spawnItems === "function") { window.GameAPI.spawnItems(3); }
+          else {
+            // Fallback: click GOD spawn button to add random items
+            try {
+              var opened = false;
+              var btnOpen = document.getElementById("god-open-btn");
+              if (btnOpen) { btnOpen.click(); opened = true; }
+              if (opened) await sleep(160);
+              var btnSpawn = document.getElementById("god-spawn-btn");
+              if (btnSpawn) { btnSpawn.click(); await sleep(160); }
+            } catch (_) {}
+          }
+          await sleep(200);
+        }
+        var potsEnsure = (typeof window.GameAPI.getPotions === "function") ? window.GameAPI.getPotions() : [];
+        if (!potsEnsure || !potsEnsure.length) {
+          if (typeof window.GameAPI.addPotionToInventory === "function") {
+            window.GameAPI.addPotionToInventory(6, "average potion (+6 HP)");
+            await sleep(140);
+          }
+        }
+      } catch (_) {}
 
       // Equip best from inventory, report deltas
       var inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
