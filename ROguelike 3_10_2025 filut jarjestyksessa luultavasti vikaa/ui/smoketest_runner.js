@@ -3,8 +3,8 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
-  const RUNNER_VERSION = "1.6.0";
-  const CONFIG = {
+  const RUNNER_VERSION = (window.SmokeCore && SmokeCore.Config && SmokeCore.Config.RUNNER_VERSION) || "1.6.0";
+  const CONFIG = (window.SmokeCore && SmokeCore.Config && SmokeCore.Config.CONFIG) || {
     timeouts: {
       route: 5000,       // ms budget for any routing/path-following sequence
       interact: 2500,    // ms budget for local interactions (loot/G/use)
