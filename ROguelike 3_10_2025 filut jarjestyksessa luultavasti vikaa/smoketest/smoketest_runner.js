@@ -3,7 +3,7 @@
 // Also exposes a global SmokeTest.run() so it can be triggered via GOD panel.
 
 (function () {
-  const RUNNER_VERSION = "1.6.0";
+  const RUNNER_VERSION = "1.8.0";
   const CONFIG = (function () {
     try {
       if (window.SmokeTest && window.SmokeTest.Config) return window.SmokeTest.Config;
@@ -2128,29 +2128,13 @@
       const failedSteps = steps.filter(s => !s.ok).map(s => s.msg);
 
       // Report into GOD panel
-      // Pretty step list renderer (delegate to reporting module if present; fallback inline)
+      // Pretty step list renderer (delegate to reporting module; no inline fallback for legacy)
       function renderStepsPretty(list) {
         try {
           var R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
           if (R && typeof R.renderStepsPretty === "function") return R.renderStepsPretty(list);
         } catch (_) {}
-        return Array.isArray(list) ? list.map(function (s) {
-          var isSkip = !!s.skipped;
-          var isOk = !!s.ok && !isSkip;
-          var bg = isSkip ? "rgba(234,179,8,0.10)" : (isOk ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)");
-          var border = isSkip ? "#fde68a" : (isOk ? "#86efac" : "#fca5a5");
-          var color = border;
-          var mark = isSkip ? "⏭" : (isOk ? "✔" : "✖");
-          var badge = isSkip
-            ? "<span style=\"font-size:10px;color:#1f2937;background:#fde68a;border:1px solid #f59e0b;padding:1px 4px;border-radius:4px;margin-left:6px;\">SKIP</span>"
-            : (isOk
-              ? "<span style=\"font-size:10px;color:#1f2937;background:#86efac;border:1px solid #22c55e;padding:1px 4px;border-radius:4px;margin-left:6px;\">OK</span>"
-              : "<span style=\"font-size:10px;color:#1f2937;background:#fca5a5;border:1px solid #ef4444;padding:1px 4px;border-radius:4px;margin-left:6px;\">FAIL</span>");
-          return "<div style=\"display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid " + border + ";border-radius:6px;background:" + bg + ";margin:4px 0;\">" +
-                 "<div style=\"min-width:16px;color:" + color + ";font-weight:bold;\">" + mark + "</div>" +
-                 "<div style=\"color:" + color + "\">" + (s.msg || "") + badge + "</div>" +
-                 "</div>";
-        }).join("") : "";
+        return "";
       }
 
       const detailsHtml = renderStepsPretty(steps);
@@ -2259,7 +2243,7 @@
       }
 
       panelReport(mainHtmlOut);
-      // Expose a simple PASS/FAIL token for CI
+      // Expose tokens for CI: DOM + localStorage
       try {
         let token = document.getElementById("smoke-pass-token");
         if (!token) {
@@ -2269,6 +2253,7 @@
           document.body.appendChild(token);
         }
         token.textContent = ok ? "PASS" : "FAIL";
+        try { localStorage.setItem("smoke-pass-token", ok ? "PASS" : "FAIL"); } catch (_) {}
         // Also expose compact JSON summary
         let jsonToken = document.getElementById("smoke-json-token");
         if (!jsonToken) {
@@ -2286,7 +2271,9 @@
           caps: Object.keys(runMeta.caps || {}).filter(k => runMeta.caps[k]),
           determinism: runMeta.determinism || {}
         };
-        jsonToken.textContent = JSON.stringify(compact);
+        const compactStr = JSON.stringify(compact);
+        jsonToken.textContent = compactStr;
+        try { localStorage.setItem("smoke-json-token", compactStr); } catch (_) {}
       } catch (_) {}
 
       return { ok, steps, errors, passedSteps, failedSteps, skipped, console: runMeta.console, determinism: runMeta.determinism, seed: runMeta.seed, caps: runMeta.caps, runnerVersion: RUNNER_VERSION };
@@ -2304,6 +2291,7 @@
           document.body.appendChild(token);
         }
         token.textContent = "FAIL";
+        try { localStorage.setItem("smoke-pass-token", "FAIL"); } catch (_) {}
         let jsonToken = document.getElementById("smoke-json-token");
         if (!jsonToken) {
           jsonToken = document.createElement("div");
@@ -2312,7 +2300,9 @@
           document.body.appendChild(jsonToken);
         }
         const compact = { ok: false, passCount: 0, failCount: 1, skipCount: 0, seed: null, caps: [], determinism: {} };
-        jsonToken.textContent = JSON.stringify(compact);
+        const compactStr = JSON.stringify(compact);
+        jsonToken.textContent = compactStr;
+        try { localStorage.setItem("smoke-json-token", compactStr); } catch (_) {}
       } catch (_) {}
       return { ok: false, steps: [], errors: [String(err)], passedSteps: [], failedSteps: [], console: ConsoleCapture.snapshot(), determinism: {} };
     }
@@ -2410,41 +2400,7 @@
             var R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
             if (R && typeof R.buildKeyChecklistHtmlFromSteps === "function") return R.buildKeyChecklistHtmlFromSteps(steps);
           } catch (_) {}
-          if (!Array.isArray(steps)) return "";
-          function hasStep(sub, okOnly = true) {
-            for (var i = 0; i < steps.length; i++) {
-              var s = steps[i];
-              if (okOnly && !s.ok) continue;
-              if (String(s.msg || "").toLowerCase().includes(String(sub).toLowerCase())) return true;
-            }
-            return false;
-          }
-          var keyChecks = [
-            { label: "Entered dungeon", pass: hasStep("Entered dungeon") },
-            { label: "Looted chest", pass: hasStep("Looted chest at (") },
-            { label: "Chest invariant persists (empty on re-enter)", pass: hasStep("Chest invariant:") },
-            { label: "Spawned enemy from GOD", pass: hasStep("Dungeon spawn: enemies") },
-            { label: "Enemy types present", pass: hasStep("Enemy types present:") },
-            { label: "Enemy glyphs not '?'", pass: hasStep("Enemy glyphs:") && !hasStep('All enemy glyphs are "?"', false) },
-            { label: "Attacked enemy (moved/attempted attacks)", pass: hasStep("Moved and attempted attacks") },
-            { label: "Killed enemy (corpse increased)", pass: hasStep("Killed enemy: YES") },
-            { label: "Decay increased on equipped hand(s)", pass: hasStep("Decay check:") && !hasStep("Decay did not increase", false) },
-            { label: "Stair guard (G on non-stair doesn’t exit)", pass: hasStep("Stair guard: G on non-stair does not exit dungeon") },
-            { label: "Returned to overworld from dungeon", pass: hasStep("Returned to overworld from dungeon") },
-            { label: "Dungeon corpses persisted", pass: hasStep("Persistence corpses:") },
-            { label: "Dungeon decals persisted", pass: hasStep("Persistence decals:") },
-            { label: "Town entered", pass: hasStep("Entered town") },
-            { label: "NPCs present in town", pass: hasStep("NPC presence: count") },
-            { label: "Bumped into NPC", pass: hasStep("Bumped into at least one NPC") },
-            { label: "NPC home has decorations/props", pass: hasStep("NPC home has") },
-            { label: "Shop UI closes with Esc", pass: hasStep("Shop UI closes with Esc") },
-          ];
-          var rows = keyChecks.map(function (c) {
-            var mark = c.pass ? "[x]" : "[ ]";
-            var color = c.pass ? "#86efac" : "#fca5a5";
-            return "<div style=\"color:" + color + ";\">" + mark + " " + c.label + "</div>";
-          }).join("");
-          return "<div style=\"margin-top:10px;\"><strong>Key Checklist (last run)</strong></div>" + rows;
+          return "";
         }
       const last = all.length ? all[all.length - 1] : null;
       const keyChecklistFromLast = last ? buildKeyChecklistHtmlFromSteps(last.steps) : "";
@@ -2560,43 +2516,13 @@
         window.SmokeTest.lastSummaryText = summaryText;
         window.SmokeTest.lastChecklistText = checklistText;
 
-        // Render concise checklist into GOD panel as well
-        // Helper to build key checklist from a set of steps
+        // Render concise checklist via reporting module
         function buildKeyChecklistHtmlFromSteps(steps) {
-          if (!Array.isArray(steps)) return "";
-          function hasStep(sub, okOnly = true) {
-            for (const s of steps) {
-              if (okOnly && !s.ok) continue;
-              if (String(s.msg || "").toLowerCase().includes(String(sub).toLowerCase())) return true;
-            }
-            return false;
-          }
-          const keyChecks = [
-            { label: "Entered dungeon", pass: hasStep("Entered dungeon") },
-            { label: "Looted chest", pass: hasStep("Looted chest at (") },
-            { label: "Chest invariant persists (empty on re-enter)", pass: hasStep("Chest invariant:") },
-            { label: "Spawned enemy from GOD", pass: hasStep("Dungeon spawn: enemies") },
-            { label: "Enemy types present", pass: hasStep("Enemy types present:") },
-            { label: "Enemy glyphs not '?'", pass: hasStep("Enemy glyphs:") && !hasStep('All enemy glyphs are "?"', false) },
-            { label: "Attacked enemy (moved/attempted attacks)", pass: hasStep("Moved and attempted attacks") },
-            { label: "Killed enemy (corpse increased)", pass: hasStep("Killed enemy: YES") },
-            { label: "Decay increased on equipped hand(s)", pass: hasStep("Decay check:") && !hasStep("Decay did not increase", false) },
-            { label: "Stair guard (G on non-stair doesn’t exit)", pass: hasStep("Stair guard: G on non-stair does not exit dungeon") },
-            { label: "Returned to overworld from dungeon", pass: hasStep("Returned to overworld from dungeon") },
-            { label: "Dungeon corpses persisted", pass: hasStep("Persistence corpses:") },
-            { label: "Dungeon decals persisted", pass: hasStep("Persistence decals:") },
-            { label: "Town entered", pass: hasStep("Entered town") },
-            { label: "NPCs present in town", pass: hasStep("NPC presence: count") },
-            { label: "Bumped into NPC", pass: hasStep("Bumped into at least one NPC") },
-            { label: "NPC home has decorations/props", pass: hasStep("NPC home has") },
-            { label: "Shop UI closes with Esc", pass: hasStep("Shop UI closes with Esc") },
-          ];
-          const rows = keyChecks.map(c => {
-            const mark = c.pass ? "[x]" : "[ ]";
-            const color = c.pass ? "#86efac" : "#fca5a5";
-            return `<div style="color:${color};">${mark} ${c.label}</div>`;
-          }).join("");
-          return `<div style="margin-top:4px;"><em>Key Checklist</em></div>${rows}`;
+          try {
+            var R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+            if (R && typeof R.buildKeyChecklistHtmlFromSteps === "function") return R.buildKeyChecklistHtmlFromSteps(steps);
+          } catch (_) {}
+          return "";
         }
 
         const checklistHtml = (() => {
