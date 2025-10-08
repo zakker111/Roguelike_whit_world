@@ -221,6 +221,21 @@
         var token = document.getElementById("smoke-pass-token");
         if (!token) {
           token = document.createElement("div");
+          token.id = "smoke-pass-token";
+          token.style.display = "none";
+          document.body.appendChild(token);
+        }
+        token.textContent = ok ? "PASS" : "FAIL";
+        var jsonToken = document.getElementById("smoke-json-token");
+        if (!jsonToken) {
+          jsonToken = document.createElement("div");
+          jsonToken.id = "smoke-json-token";
+          jsonToken.style.display = "none";
+          document.body.appendChild(jsonToken);
+        }
+        jsonToken.textContent = JSON.stringify({ ok, steps, caps });
+      } catch (_) {}
+      return { ok, steps, caps };
     } catch (e) {
       try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
       return null;
