@@ -1870,7 +1870,7 @@
         }
 
       // Diagnostics + shop schedule/time check
-      try {
+      {
         if (safeClick("god-open-btn")) {
           await sleep(250);
           if (safeClick("god-diagnostics-btn")) {
@@ -2070,6 +2070,7 @@
             record(false, "Overlay/perf snapshot failed: " + (e && e.message ? e.message : String(e)));
           }
         }
+      }
 
         // Global overlays (grid) perf snapshot
         try {
