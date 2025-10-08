@@ -2099,10 +2099,7 @@
         record(true, "Ran Diagnostics");
         await sleep(300);
         key("Escape");
-      } catch (e) {
-        record(false, "Diagnostics/schedule failed: " + (e && e.message ? e.message : String(e)));
-      }
-
+      
       const ok = errors.length === 0;
       log(ok ? "Smoke test completed." : "Smoke test completed with errors.", ok ? "good" : "warn");
 
