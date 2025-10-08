@@ -94,7 +94,7 @@
       <button id="god-diagnostics-btn" class="btn" title="Show system diagnostics (determinism source, seed, module handles) in log">Diagnostics</button>
       <button id="god-newgame-btn" class="btn" title="Start a new game immediately">Start New Game</button>
       <div style="display:flex; gap:6px; align-items:center;">
-        <button id="god-run-smoke-btn" class="btn" title="Run automated smoke test (opens GOD, applies seed, spawns enemy, moves, and runs Diagnostics)">Run Smoke Test</button>
+        <button id="god-run-smoke-btn" class="btn" title="Configure and run automated smoke tests">Run Smoke Test</button>
         <label for="god-smoke-count" class="help" style="font-size:12px; color:#8a98b0;">Runs:</label>
         <input id="god-smoke-count" type="number" min="1" max="20" step="1" value="1" style="width:64px; padding:4px 6px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;" />
       </div>
@@ -106,6 +106,27 @@
       <button id="god-apply-seed-btn" class="btn">Apply Seed</button>
       <button id="god-reroll-seed-btn" class="btn">Reroll</button>
       <span id="god-seed-help" class="help" style="font-size:12px; color:#8a98b0;"></span>
+    </div>
+    <div class="loot-hint">Press Esc to close</div>
+  </div>
+
+  <!-- Smoke Test Configuration Panel -->
+  <div id="smoke-panel" class="inv-panel" hidden>
+    <div class="inv-title">Smoke Test Configuration</div>
+    <div class="help" style="font-size:12px; color:#8a98b0; margin-bottom:8px;">
+      Select scenarios to run and the number of iterations. Press Run to start.
+    </div>
+    <div class="inv-subtitle">Scenarios</div>
+    <div id="smoke-scenarios" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:6px; margin-bottom:12px;">
+      <!-- checkboxes inserted by UI.renderSmokeOptions() -->
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+      <label for="smoke-count" class="help" style="font-size:12px; color:#8a98b0;">Runs:</label>
+      <input id="smoke-count" type="number" min="1" max="20" step="1" value="1" style="width:80px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;" />
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+      <button id="smoke-run-btn" class="btn">Run</button>
+      <button id="smoke-cancel-btn" class="btn">Cancel</button>
     </div>
     <div class="loot-hint">Press Esc to close</div>
   </div>
@@ -249,9 +270,7 @@
             // Runner helpers
             "smoketest/runner/init.js",
             "smoketest/runner/banner.js",
-            // Orchestrator (default) - before scenarios
-            "smoketest/runner/runner.js",
-            // Scenarios
+            // Scenarios (load all before orchestrator to ensure availability)
             "smoketest/scenarios/dungeon.js",
             "smoketest/scenarios/town.js",
             "smoketest/scenarios/inventory.js",
@@ -261,7 +280,9 @@
             "smoketest/scenarios/determinism.js",
             "smoketest/scenarios/town_flows.js",
             "smoketest/scenarios/dungeon_persistence.js",
-            "smoketest/scenarios/town_diagnostics.js"
+            "smoketest/scenarios/town_diagnostics.js",
+            // Orchestrator (default) - load last so scenarios are ready
+            "smoketest/runner/runner.js"
             // Legacy thin shim appended below
           ];
           if (legacy) {

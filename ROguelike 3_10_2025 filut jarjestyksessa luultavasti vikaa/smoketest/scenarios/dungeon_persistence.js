@@ -15,14 +15,52 @@
       var CONFIG = ctx.CONFIG || { timeouts: { route: 5000, interact: 250 } };
       var caps = (ctx && ctx.caps) || {};
 
-      // Precondition: dungeon mode required
+      // Ensure dungeon mode; auto-enter if needed. Handle town/dungeon/world transitions robustly.
+      var mode0 = (window.GameAPI && has(window.GameAPI.getMode)) ? window.GameAPI.getMode() : null;
+      if (mode0 === "town") {
+        try {
+          if (has(window.GameAPI.returnToWorldIfAtExit)) window.GameAPI.returnToWorldIfAtExit();
+        } catch (_) {}
+        await sleep(240);
+        mode0 = window.GameAPI.getMode();
+        if (mode0 !== "world") {
+          try { var btnNG = document.getElementById("god-newgame-btn"); if (btnNG) btnNG.click(); } catch (_) {}
+          await sleep(400);
+        }
+      }
+
       var inDungeon = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "dungeon");
-      if (!inDungeon) { recordSkip("Dungeon persistence skipped (not in dungeon)"); return true; }
+      if (!inDungeon) {
+        try {
+          if (has(window.GameAPI.getMode) && window.GameAPI.getMode() !== "world") {
+            // If still not world, attempt minimal fallback
+            try { var btnNG2 = document.getElementById("god-newgame-btn"); if (btnNG2) btnNG2.click(); } catch (_) {}
+            await sleep(380);
+          }
+          if (has(window.GameAPI.gotoNearestDungeon)) {
+            await window.GameAPI.gotoNearestDungeon();
+          }
+          key("Enter"); await sleep(280);
+          if (has(window.GameAPI.enterDungeonIfOnEntrance)) window.GameAPI.enterDungeonIfOnEntrance();
+          await sleep(260);
+        } catch (_) {}
+        inDungeon = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "dungeon");
+        if (!inDungeon) { recordSkip("Dungeon persistence skipped (not in dungeon)"); return true; }
+      }
 
       // Chest loot: find 'chest' corpse, route to it, press G
       try {
         var corpses = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
         var chest = corpses.find(c => c && c.kind === "chest");
+
+        // Fallback: if no chest exists, try spawning one nearby (test-only helper)
+        if (!chest && has(window.GameAPI.spawnChestNearby)) {
+          try { window.GameAPI.spawnChestNearby(1); } catch (_) {}
+          await sleep(200);
+          corpses = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
+          chest = corpses.find(c => c && c.kind === "chest");
+        }
+
         if (chest) {
           var pathC = has(window.GameAPI.routeToDungeon) ? (window.GameAPI.routeToDungeon(chest.x, chest.y) || []) : [];
           var budgetC = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 5000);

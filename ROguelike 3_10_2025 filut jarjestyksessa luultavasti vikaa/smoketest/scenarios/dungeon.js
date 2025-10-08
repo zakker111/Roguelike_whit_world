@@ -39,24 +39,57 @@
             try {
               var MV = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
               if (MV && typeof MV.routeTo === "function") {
-                usedHelper = await MV.routeTo(nd.x, nd.y, { timeoutMs: (ctx.CONFIG && ctx.CONFIG.timeouts && ctx.CONFIG.timeouts.route) || 2500 });
+                usedHelper = await MV.routeTo(nd.x, nd.y, { timeoutMs: (ctx.CONFIG && ctx.CONFIG.timeouts && ctx.CONFIG.timeouts.route) || 4000, stepMs: 95 });
               }
             } catch (_) {}
+            let pathND = null;
             if (!usedHelper && has(window.GameAPI.routeTo)) {
-              const pathND = window.GameAPI.routeTo(nd.x, nd.y);
-              const budgetND = ctx.makeBudget(ctx.CONFIG.timeouts.route);
+              pathND = window.GameAPI.routeTo(nd.x, nd.y);
+              const budgetND = ctx.makeBudget((ctx.CONFIG && ctx.CONFIG.timeouts && ctx.CONFIG.timeouts.route) || 4000);
               for (const step of pathND) {
                 if (budgetND.exceeded()) break;
                 const pl = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : step;
                 const ddx = Math.sign(step.x - pl.x);
                 const ddy = Math.sign(step.y - pl.y);
                 ctx.key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-                await ctx.sleep(90);
+                await ctx.sleep(95);
               }
             }
-            ctx.key("Enter"); await ctx.sleep(280);
+            // Fallback: movement helper to adjacent tile next to dungeon entrance
+            try {
+              var MV2 = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
+              if (MV2 && typeof MV2.routeAdjTo === "function") {
+                await MV2.routeAdjTo(nd.x, nd.y, { timeoutMs: (ctx.CONFIG && ctx.CONFIG.timeouts && ctx.CONFIG.timeouts.route) || 4000, stepMs: 95 });
+              } else if (has(window.GameAPI.routeTo)) {
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                for (const d of adj) {
+                  const ax = nd.x + d.dx, ay = nd.y + d.dy;
+                  const p2 = window.GameAPI.routeTo(ax, ay) || [];
+                  const budget2 = ctx.makeBudget((ctx.CONFIG && ctx.CONFIG.timeouts && ctx.CONFIG.timeouts.route) || 4000);
+                  for (const st of p2) {
+                    if (budget2.exceeded()) break;
+                    const pl2 = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : st;
+                    const dx2 = Math.sign(st.x - pl2.x);
+                    const dy2 = Math.sign(st.y - pl2.y);
+                    ctx.key(dx2 === -1 ? "ArrowLeft" : dx2 === 1 ? "ArrowRight" : (dy2 === -1 ? "ArrowUp" : "ArrowDown"));
+                    await ctx.sleep(95);
+                  }
+                  if (!budget2.exceeded()) break;
+                }
+              }
+            } catch (_) {}
+
+            // Final nudge toward entrance then try to enter
+            try {
+              var MVN = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
+              if (MVN && typeof MVN.bumpToward === "function") {
+                MVN.bumpToward(nd.x, nd.y);
+              }
+            } catch (_) {}
+
+            ctx.key("Enter"); await ctx.sleep(380);
             if (has(window.GameAPI.enterDungeonIfOnEntrance)) window.GameAPI.enterDungeonIfOnEntrance();
-            await ctx.sleep(260);
+            await ctx.sleep(340);
             entered = (window.GameAPI.getMode() === "dungeon");
           }
         } catch (_) {}

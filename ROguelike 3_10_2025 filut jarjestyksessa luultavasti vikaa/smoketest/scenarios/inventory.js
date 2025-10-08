@@ -5,14 +5,12 @@
   async function run(ctx) {
     try {
       var caps = (ctx && ctx.caps) || {};
-      if (!caps.GameAPI || !caps.getMode || !caps.getInventory || !caps.getStats || !caps.getEquipment) {
-        (ctx.recordSkip || function(){})("Inventory scenario skipped (required GameAPI capabilities missing)");
+      if (!caps.GameAPI || !caps.getMode) {
+        (ctx.recordSkip || function(){} )("Inventory scenario skipped (GameAPI/getMode not available)");
         return true;
       }
-      // Expect runner to call this only in dungeon mode; guard regardless
-      var inDungeon = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon");
-      if (!inDungeon) { (ctx.recordSkip || function(){})("Inventory scenario skipped (not in dungeon)"); return true; }
 
+      // Helpers
       var record = ctx.record || function(){};
       var recordSkip = ctx.recordSkip || function(){};
       var sleep = ctx.sleep || (ms => new Promise(r => setTimeout(r, ms|0)));
@@ -20,6 +18,78 @@
         var start = Date.now(); var dl = start + (ms|0);
         return { exceeded: function(){return Date.now() > dl;}, remain: function(){return Math.max(0, dl - Date.now());} };
       });
+
+      // Try to ensure dungeon mode; if we can't, continue without skipping and run inventory tests anyway.
+      try {
+        var mode0 = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+        record(true, "Inventory prep: starting mode = " + (mode0 || "(unknown)"));
+
+        if (mode0 === "town") {
+          try { if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit(); } catch (_) {}
+          await sleep(240);
+          mode0 = window.GameAPI.getMode();
+          if (mode0 !== "world") {
+            try { var btnNG = document.getElementById("god-newgame-btn"); if (btnNG) btnNG.click(); } catch (_) {}
+            await sleep(380);
+            mode0 = window.GameAPI.getMode();
+          }
+        }
+
+        if (mode0 !== "dungeon") {
+          // Attempt world -> dungeon entry flow
+          try {
+            if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() !== "world") {
+              // Fallback to world
+              try { var btnNG2 = document.getElementById("god-newgame-btn"); if (btnNG2) btnNG2.click(); } catch (_) {}
+              await sleep(380);
+            }
+            if (typeof window.GameAPI.gotoNearestDungeon === "function") {
+              await window.GameAPI.gotoNearestDungeon();
+            }
+            ctx.key("Enter"); await sleep(280);
+            if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
+            await sleep(260);
+          } catch (_) {}
+        }
+
+        var modeAfter = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+        if (modeAfter === "dungeon") {
+          record(true, "Inventory prep: entered dungeon");
+        } else {
+          record(true, "Inventory prep: not in dungeon; continuing in mode " + (modeAfter || "(unknown)"));
+        }
+      } catch (_) {
+        // Proceed anyway; inventory tests work outside dungeon too.
+        record(true, "Inventory prep: encountered error; continuing outside dungeon");
+      }
+
+      // Ensure baseline items/potions for tests
+      try {
+        var invEnsure = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+        var hasEquip = invEnsure.some(function (it) { return it && it.kind === "equip"; });
+        if (!hasEquip) {
+          if (typeof window.GameAPI.spawnItems === "function") { window.GameAPI.spawnItems(3); }
+          else {
+            // Fallback: click GOD spawn button to add random items
+            try {
+              var opened = false;
+              var btnOpen = document.getElementById("god-open-btn");
+              if (btnOpen) { btnOpen.click(); opened = true; }
+              if (opened) await sleep(160);
+              var btnSpawn = document.getElementById("god-spawn-btn");
+              if (btnSpawn) { btnSpawn.click(); await sleep(160); }
+            } catch (_) {}
+          }
+          await sleep(200);
+        }
+        var potsEnsure = (typeof window.GameAPI.getPotions === "function") ? window.GameAPI.getPotions() : [];
+        if (!potsEnsure || !potsEnsure.length) {
+          if (typeof window.GameAPI.addPotionToInventory === "function") {
+            window.GameAPI.addPotionToInventory(6, "average potion (+6 HP)");
+            await sleep(140);
+          }
+        }
+      } catch (_) {}
 
       // Equip best from inventory, report deltas
       var inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
@@ -31,7 +101,7 @@
       var atkDelta = (statsAfterBest.atk || 0) - (statsBeforeBest.atk || 0);
       var defDelta = (statsAfterBest.def || 0) - (statsBeforeBest.def || 0);
       var improved = (atkDelta > 0) || (defDelta > 0);
-      record(true, "Equipped from chest loot: " + (equippedNames.length ? equippedNames.join(", ") : "no changes") +
+      record(true, "Equip best from inventory: " + (equippedNames.length ? equippedNames.join(", ") : "no changes") +
                     " (Δ atk " + (atkDelta.toFixed ? atkDelta.toFixed(1) : atkDelta) +
                     ", def " + (defDelta.toFixed ? defDelta.toFixed(1) : defDelta) + ")" +
                     (equippedNames.length ? (improved ? "" : " [no stat increase]") : ""));

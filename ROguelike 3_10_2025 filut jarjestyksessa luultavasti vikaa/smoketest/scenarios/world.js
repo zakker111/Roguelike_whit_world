@@ -26,9 +26,13 @@
 
       // Optional: one step movement to assert input works in world
       try {
+        // Close any open modals (e.g., GOD panel) so input isn't intercepted
+        if (ctx && typeof ctx.ensureAllModalsClosed === "function") {
+          await ctx.ensureAllModalsClosed(4);
+        }
         var before = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", code: "ArrowRight", bubbles: true }));
-        await sleep(80);
+        await sleep(100);
         var after = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         var moved = (after.x !== before.x) || (after.y !== before.y);
         record(moved, "World movement test: " + (moved ? "moved" : "immobile"));

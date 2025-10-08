@@ -3098,6 +3098,59 @@
         } catch(_) {}
         return false;
       },
+      // GOD helpers for smoketest fallbacks
+      spawnEnemyNearby: (count = 1) => {
+        try { godSpawnEnemyNearby((Number(count) || 0) | 0 || 1); return true; } catch(_) { return false; }
+      },
+      spawnItems: (count = 3) => {
+        try { godSpawnItems((Number(count) || 0) | 0 || 3); return true; } catch(_) { return false; }
+      },
+      addPotionToInventory: (heal, name) => {
+        try { addPotionToInventory((Number(heal) || 0) || 3, String(name || "")); return true; } catch(_) { return false; }
+      },
+      // Test helper: spawn a chest near the player in dungeon mode (best-effort).
+      // Returns true if at least one chest was placed.
+      spawnChestNearby: (count = 1) => {
+        try {
+          const n = Math.max(1, (Number(count) || 0) | 0);
+          if (mode !== "dungeon") return false;
+          const isFreeFloor = (x, y) => {
+            if (!inBounds(x, y)) return false;
+            if (map[y][x] !== TILES.FLOOR) return false;
+            if (player.x === x && player.y === y) return false;
+            if (enemies.some(e => e.x === x && e.y === y)) return false;
+            return true;
+          };
+          const pickNearby = () => {
+            // Try a local radius first
+            for (let i = 0; i < 60; i++) {
+              const dx = randInt(-4, 4);
+              const dy = randInt(-4, 4);
+              const x = player.x + dx, y = player.y + dy;
+              if (isFreeFloor(x, y)) return { x, y };
+            }
+            // Fallback: any free floor
+            for (let y = 0; y < map.length; y++) {
+              for (let x = 0; x < (map[0] ? map[0].length : 0); x++) {
+                if (isFreeFloor(x, y)) return { x, y };
+              }
+            }
+            return null;
+          };
+          let made = 0;
+          for (let i = 0; i < n; i++) {
+            const spot = pickNearby();
+            if (!spot) break;
+            const loot = generateLoot("chest") || [];
+            corpses.push({ x: spot.x, y: spot.y, kind: "chest", looted: loot.length === 0, loot });
+            made++;
+            try { log(`GOD: Spawned chest at (${spot.x},${spot.y}).`, "notice"); } catch (_) {}
+          }
+          if (made > 0) { requestDraw(); return true; }
+          return false;
+        } catch (_) { return false; }
+      },
+
       routeToDungeon: (tx, ty) => {
         // BFS on current map (works for both town and dungeon as it uses isWalkable)
         const w = map[0] ? map[0].length : 0;

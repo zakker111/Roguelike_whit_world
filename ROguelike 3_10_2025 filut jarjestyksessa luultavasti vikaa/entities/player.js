@@ -28,7 +28,10 @@
     level: 1,
     xp: 0,
     xpNext: 20,
-    inventory: [{ kind: "gold", amount: 50, name: "gold" }],
+    inventory: [
+      { kind: "gold", amount: 50, name: "gold" },
+      { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" }
+    ],
     equipment: { ...DEFAULT_EQUIPMENT },
   };
 
@@ -65,6 +68,23 @@
       inventory: clone(defaults.inventory) || [],
       equipment: clone(defaults.equipment) || { ...DEFAULT_EQUIPMENT },
     });
+
+    // Ensure the player starts with a basic stick in inventory.
+    // Prefer registry-driven item if available; otherwise fall back to a named hand item.
+    try {
+      let stick = null;
+      if (window.Items && typeof Items.createByKey === "function") {
+        stick = Items.createByKey("stick", 1);
+      }
+      if (!stick && window.Items && typeof Items.createNamed === "function") {
+        stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
+      }
+      if (stick) {
+        try { stick.decay = 99; } catch (_) {}
+        p.inventory.push(stick);
+      }
+    } catch (_) {}
+
     return p;
   }
 

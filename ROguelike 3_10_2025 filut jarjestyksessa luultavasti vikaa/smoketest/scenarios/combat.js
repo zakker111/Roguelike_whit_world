@@ -19,9 +19,25 @@
         return true;
       }
 
-      // Ensure in dungeon; if not, attempt to enter quickly
+      // Ensure no modal (GOD/Inventory/Shop/Smoke) is intercepting keys
+      try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(8); } catch (_) {}
+
+      // Ensure in dungeon; robustly handle starting from town by returning to world first
       try {
-        if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() !== "dungeon") {
+        var mode0 = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+        if (mode0 === "town") {
+          try { if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit(); } catch (_) {}
+          await sleep(240);
+          mode0 = window.GameAPI.getMode();
+          if (mode0 !== "world") {
+            // Fallback: restart to world via GOD panel
+            try {
+              var btnNG = document.getElementById("god-newgame-btn");
+              if (btnNG) { btnNG.click(); await sleep(400); }
+            } catch (_) {}
+          }
+        }
+        if ((window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() !== "dungeon")) {
           if (typeof window.GameAPI.gotoNearestDungeon === "function") await window.GameAPI.gotoNearestDungeon();
           key("Enter"); await sleep(280);
           if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
@@ -29,21 +45,79 @@
         }
       } catch (_) {}
 
+      // Ensure baseline hand equipment so decay snapshot has signal
+      try {
+        var ensureTries = 0;
+        var hasHands = function () {
+          var eqInfo = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+          return !!(eqInfo && (eqInfo.left || eqInfo.right));
+        };
+        var findHandIdx = function () {
+          var inv = (typeof window.GameAPI.getInventory === "function") ? window.GameAPI.getInventory() : [];
+          return inv.findIndex(function (it) { return it && it.kind === "equip" && it.slot === "hand"; });
+        };
+        while (!hasHands() && ensureTries < 3) {
+          if (typeof window.GameAPI.spawnItems === "function") { window.GameAPI.spawnItems(3); }
+          await sleep(160);
+          // Try explicit hand equip first
+          var hi = findHandIdx();
+          if (hi !== -1) {
+            if (typeof window.GameAPI.equipItemAtIndexHand === "function") {
+              // Prefer left if empty, else right
+              var eq0 = (typeof window.GameAPI.getEquipment === "function") ? window.GameAPI.getEquipment() : {};
+              var hand = (!eq0.left ? "left" : (!eq0.right ? "right" : "left"));
+              window.GameAPI.equipItemAtIndexHand(hi, hand);
+            } else if (typeof window.GameAPI.equipItemAtIndex === "function") {
+              window.GameAPI.equipItemAtIndex(hi);
+            }
+            await sleep(140);
+          } else if (typeof window.GameAPI.equipBestFromInventory === "function") {
+            window.GameAPI.equipBestFromInventory();
+            await sleep(140);
+          }
+          ensureTries++;
+        }
+      } catch (_) {}
+
       var enemiesBefore = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : 0;
-      // Spawn two enemies from GOD panel if available
-      if (typeof document !== "undefined") {
+
+      // Spawn enemies via GOD panel and GameAPI (multiple attempts)
+      try {
+        var spawnedOk = false;
+        // DOM clicks (GOD button) only make sense in dungeon; otherwise skip this sub-step
         try {
-          var opened = false;
-          if (document.getElementById("god-open-btn")) { document.getElementById("god-open-btn").click(); opened = true; }
-          if (opened) { await sleep(200); }
-          var clicks = 0;
-          if (document.getElementById("god-spawn-enemy-btn")) { document.getElementById("god-spawn-enemy-btn").click(); clicks++; await sleep(140); }
-          if (document.getElementById("god-spawn-enemy-btn")) { document.getElementById("god-spawn-enemy-btn").click(); clicks++; await sleep(140); }
-          var enemiesAfter = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
-          var spawnedOk = enemiesAfter > enemiesBefore;
-          record(spawnedOk, "Dungeon spawn: enemies " + enemiesBefore + " -> " + enemiesAfter + " (clicked " + clicks + "x)");
+          var modeForSpawn = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+          if (modeForSpawn === "dungeon") {
+            var opened = false;
+            var gob = document.getElementById("god-open-btn");
+            if (gob) { gob.click(); opened = true; }
+            if (opened) { await sleep(200); }
+            for (var c = 0; c < 2; c++) {
+              var btn = document.getElementById("god-spawn-enemy-btn");
+              if (btn) { btn.click(); await sleep(160); }
+            }
+            var enemiesAfterDom = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
+            spawnedOk = enemiesAfterDom > enemiesBefore;
+            record(spawnedOk, "Dungeon spawn (GOD): enemies " + enemiesBefore + " -> " + enemiesAfterDom);
+          } else {
+            recordSkip("Dungeon spawn (GOD) skipped (not in dungeon)");
+          }
         } catch (_) {}
-      }
+        // GameAPI fallback with retries (works in dungeon; may also work in world depending on implementation)
+        var attempts = 0;
+        while (!spawnedOk && attempts < 3) {
+          if (typeof window.GameAPI.spawnEnemyNearby === "function") {
+            window.GameAPI.spawnEnemyNearby(2);
+            await sleep(200);
+          }
+          var enemiesNow = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
+          spawnedOk = enemiesNow > enemiesBefore;
+          attempts++;
+        }
+        if (!spawnedOk) {
+          recordSkip("No enemies available for combat pathing");
+        }
+      } catch (_) {}
 
       // Route to nearest enemy and bump-attack
       var enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
@@ -84,8 +158,6 @@
           await sleep(140);
         }
         record(true, "Moved and attempted attacks");
-      } else {
-        recordSkip("No enemies available for combat pathing");
       }
 
       // Basic decay snapshot after combat attempt

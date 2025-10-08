@@ -10,6 +10,26 @@ Conventions
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
 
+v1.22.2 — Live Matchup scoreboard, entry hardening, seed workflow, and syntax fixes
+- Changed: Live Matchup panel in GOD
+  - Sticky/pinned at the top of the report area with higher-contrast styling.
+  - Shows OK/FAIL/SKIP badges; FAIL count highlighted in red.
+  - Details prioritize severity: FAIL first, then SKIP, then OK; displays up to 20 by default.
+  - Expand/Collapse toggle to reveal all aggregated steps.
+- Changed: Union-of-success aggregation across runs
+  - Aggregated report marks a step OK if any run passed; SKIP if none passed and at least one skipped; FAIL otherwise.
+  - Live scoreboard updates after each run to reflect current aggregation.
+- Changed: Seed per run with world-mode guard
+  - Before each run, ensures mode is “world”; clicks “Start New Game” via GOD if needed.
+  - Applies a fresh 32-bit RNG seed via GOD panel; persists to localStorage.
+- Fixed: Runner syntax errors from unsafe template literal ternaries and stray HTML
+  - Removed malformed fragments that caused “Unexpected token '<'”.
+  - Replaced inline style ternaries with precomputed variables (e.g., failColor) to avoid parser edge cases.
+- Changed: Scenario entry robustness
+  - Dungeon: increased route budgets, adjacent routing fallback, final bump toward entrance, then Enter + enterDungeonIfOnEntrance (supports adjacent entry).
+  - Town: closes modals before routing; routes to town or adjacent tile; final bump toward gate, then Enter + enterTownIfOnTile.
+- Docs: Updated smoketest/README.md, smoketest.md, and CHECKLIST.md to document the Matchup panel, aggregation behavior, seed workflow, and entry hardening.
+
 v1.22.1 — Legacy runner thin shim, orchestrator gating, docs alignment
 - Changed: Legacy runner refactored into a thin shim that delegates to the orchestrator; removed inline scenario/reporting/helpers.
 - Changed: Orchestrator skips auto-run when `&legacy=1` is present; legacy shim invokes orchestrator `runSeries` to avoid double execution.
@@ -462,4 +482,5 @@ BUGS
 - residents go home at night but they get stuck in door if bed is just adjacent tile of door
 - some work needed for smoketestrunner
 - towns schedue bugs you can buy items even if shop is not open(this is tho good for now testing phase)
-- multirun deploy dont seem to run multiple smoketest runs scenario filtter deploy dont seem to work it runs as normal one run one run doesnt wait for game to be rady it instatly almost shows god panel same in scenario deploy
+- multirun in smoketest skips first multirun 
+

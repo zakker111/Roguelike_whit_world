@@ -11,8 +11,56 @@
       var caps = (ctx && ctx.caps) || {};
       if (!caps.GameAPI || !caps.getMode || !caps.getPerf) { recordSkip("Overlays scenario skipped (GameAPI/getMode/getPerf not available)"); return true; }
 
-      // Town-only overlays (route/home paths)
+      // Town-only overlays (route/home paths). Handle dungeon -> world fallback, then enter town.
+      var mode0 = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+      if (mode0 === "dungeon") {
+        try {
+          var exit = (typeof window.GameAPI.getDungeonExit === "function") ? window.GameAPI.getDungeonExit() : null;
+          if (exit && typeof window.GameAPI.routeToDungeon === "function") {
+            var pathE = window.GameAPI.routeToDungeon(exit.x, exit.y) || [];
+            for (var k = 0; k < pathE.length; k++) {
+              var st = pathE[k];
+              var dx = Math.sign(st.x - window.GameAPI.getPlayer().x);
+              var dy = Math.sign(st.y - window.GameAPI.getPlayer().y);
+              ctx.key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(90);
+            }
+            ctx.key("KeyG"); await sleep(280);
+          }
+        } catch (_) {}
+        mode0 = window.GameAPI.getMode();
+        if (mode0 !== "world") {
+          try { var btnNG = document.getElementById("god-newgame-btn"); if (btnNG) btnNG.click(); } catch (_) {}
+          await sleep(400);
+        }
+      }
+
       var inTown = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town");
+      if (!inTown) {
+        // Attempt to enter town from overworld
+        try {
+          if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world") {
+            if (typeof window.GameAPI.gotoNearestTown === "function") {
+              await window.GameAPI.gotoNearestTown();
+            } else if (typeof window.GameAPI.nearestTown === "function" && typeof window.GameAPI.routeTo === "function") {
+              var nt = window.GameAPI.nearestTown();
+              var pathNT = window.GameAPI.routeTo(nt.x, nt.y);
+              for (var i = 0; i < pathNT.length; i++) {
+                var step = pathNT[i];
+                var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+                var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                ctx.key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(90);
+              }
+            }
+            ctx.key("Enter"); await sleep(240);
+            if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile();
+            await sleep(240);
+          }
+        } catch (_) {}
+        inTown = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "town");
+      }
+
       if (inTown) {
         try {
           var perfBefore = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
