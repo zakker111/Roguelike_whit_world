@@ -29,241 +29,82 @@
     return new Set(s.split(",").map(x => x.trim().toLowerCase()).filter(Boolean));
   })();
 
-  // Global collection of console/browser errors during smoke test runs
-  const ConsoleCapture = {
-    errors: [],
-    warns: [],
-    onerrors: [],
-    installed: false,
-    // Filter out known non-game noise (ad/tracker blocks, editor websocket, etc.)
-    isNoise(msg) {
-      try {
-        const s = String(msg || "").toLowerCase();
-        if (!s) return false;
-        // Ad/tracker blocks commonly seen in browsers/adblockers
-        if (s.includes("klaviyo.com") || s.includes("static-tracking.klaviyo.com")) return true;
-        if (s.includes("failed to load resource") && s.includes("err_blocked_by_client")) return true;
-        // Host/editor environment connectivity noise
-        if (s.includes("api.cosine.sh") || s.includes("wss://api.cosine.sh/editor")) return true;
-        if (s.includes("err_internet_disconnected")) return true;
-        if (s.includes("usecreatewebsocketcontext")) return true;
-        // IDE/editor widget noise not from the game
-        if (s.includes("codeeditorwidget") && s.includes("cannot read properties of null")) return true;
-        return false;
-      } catch (_) { return false; }
-    },
-    install() {
-      if (this.installed) return;
-      this.installed = true;
-      const self = this;
-      // Wrap console.error/warn
-      try {
-        const cerr = console.error.bind(console);
-        const cwarn = console.warn.bind(console);
-        console.error = function (...args) {
-          try {
-            const msg = args.map(String).join(" ");
-            if (!self.isNoise(msg)) self.errors.push(msg);
-          } catch (_) {}
-          return cerr(...args);
-        };
-        console.warn = function (...args) {
-          try {
-            const msg = args.map(String).join(" ");
-            if (!self.isNoise(msg)) self.warns.push(msg);
-          } catch (_) {}
-          return cwarn(...args);
-        };
-      } catch (_) {}
-      // window.onerror
-      try {
-        window.addEventListener("error", (ev) => {
-          try {
-            const msg = ev && ev.message ? ev.message : String(ev);
-            if (!self.isNoise(msg)) self.onerrors.push(msg);
-          } catch (_) {}
-        });
-        window.addEventListener("unhandledrejection", (ev) => {
-          try {
-            const msg = ev && ev.reason ? (ev.reason.message || String(ev.reason)) : String(ev);
-            const line = "unhandledrejection: " + msg;
-            if (!self.isNoise(line)) self.onerrors.push(line);
-          } catch (_) {}
-        });
-      } catch (_) {}
-    },
-    reset() {
-      this.errors = [];
-      this.warns = [];
-      this.onerrors = [];
-    },
-    snapshot() {
-      const filter = (arr) => arr.filter(m => !this.isNoise(m));
-      return {
-        consoleErrors: filter(this.errors.slice(0)),
-        consoleWarns: filter(this.warns.slice(0)),
-        windowErrors: filter(this.onerrors.slice(0)),
-      };
-    }
-  };
-  ConsoleCapture.install();
+  // Global console/browser error capture (externalized)
+  const ConsoleCapture = (window.SmokeTest && window.SmokeTest.ConsoleCapture) ? window.SmokeTest.ConsoleCapture : null;
+  if (ConsoleCapture && typeof ConsoleCapture.install === "function") {
+    ConsoleCapture.install();
+  }
 
-  // Create a floating banner for smoke test progress
+  // Externalized banner helper
   function ensureBanner() {
-    let el = document.getElementById("smoke-banner");
-    if (el) return el;
-    el = document.createElement("div");
-    el.id = "smoke-banner";
-    el.style.position = "fixed";
-    el.style.right = "12px";
-    el.style.bottom = "12px";
-    el.style.zIndex = "9999";
-    el.style.padding = "8px 10px";
-    el.style.fontFamily = "JetBrains Mono, monospace";
-    el.style.fontSize = "12px";
-    el.style.background = "rgba(21,22,27,0.9)";
-    el.style.color = "#d6deeb";
-    el.style.border = "1px solid rgba(122,162,247,0.35)";
-    el.style.borderRadius = "8px";
-    el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.5)";
-    el.textContent = "[SMOKE] Runner ready…";
-    document.body.appendChild(el);
-    return el;
+    return (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.ensureBanner)
+      ? window.SmokeTest.Helpers.ensureBanner()
+      : (function () { try { console.warn("[SMOKE] Helpers.ensureBanner missing"); } catch(_){} return document.getElementById("smoke-banner") || document.body; })();
   }
 
   function ensureStatusEl() {
-    try {
-      let host = document.getElementById("god-check-output");
-      if (!host) return null;
-      let el = document.getElementById("smoke-status");
-      if (!el) {
-        el = document.createElement("div");
-        el.id = "smoke-status";
-        el.style.margin = "6px 0";
-        el.style.color = "#93c5fd";
-        // Prepend status at the top of GOD panel output
-        host.prepend(el);
-      }
-      return el;
-    } catch (_) { return null; }
+    return (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.ensureStatusEl)
+      ? window.SmokeTest.Helpers.ensureStatusEl()
+      : null;
   }
 
   function currentMode() {
-    try {
-      if (window.GameAPI && typeof window.GameAPI.getMode === "function") {
-        return String(window.GameAPI.getMode() || "").toLowerCase();
-      }
-    } catch (_) {}
-    return "";
+    return (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.currentMode)
+      ? window.SmokeTest.Helpers.currentMode()
+      : "";
   }
 
   function setStatus(msg) {
-    const m = currentMode();
-    const el = ensureStatusEl();
-    if (el) {
-      el.textContent = `[${m || "unknown"}] ${msg}`;
+    if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.setStatus) {
+      window.SmokeTest.Helpers.setStatus(msg);
     }
   }
 
   function log(msg, type) {
-    const banner = ensureBanner();
-    const m = currentMode();
-    const line = "[SMOKE]" + (m ? ` [${m}]` : "") + " " + msg;
-    banner.textContent = line;
-    setStatus(msg);
-    try {
-      if (window.Logger && typeof Logger.log === "function") {
-        Logger.log(line, type || "info");
-      }
-    } catch (_) {}
-    try {
-      console.log(line);
-    } catch (_) {}
+    if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.log) {
+      window.SmokeTest.Helpers.log(msg, type);
+    } else {
+      try { console.log("[SMOKE] " + msg); } catch (_) {}
+    }
   }
 
   function panelReport(html) {
-    try {
-      const el = document.getElementById("god-check-output");
-      if (el) el.innerHTML = html;
-      // re-ensure status element stays visible at top after overwrite
-      ensureStatusEl();
-    } catch (_) {}
+    if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.panelReport) {
+      window.SmokeTest.Helpers.panelReport(html);
+    }
   }
 
-  // Budget helpers
+  // Budget helpers (externalized)
   function makeBudget(ms) {
-    const start = Date.now();
-    const deadline = start + Math.max(0, ms | 0);
-    return {
-      exceeded: () => Date.now() > deadline,
-      remain: () => Math.max(0, deadline - Date.now())
-    };
-  }
+    return (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.makeBudget)
+      ? window.SmokeTest.Helpers.makeBudget(ms)
+      : {
+          exceeded: () => false,
+          remain: () => Math.max(0, ms | 0),
+        };_code
+ new </}
+
 
   function appendToPanel(html) {
-    try {
-      const el = document.getElementById("god-check-output");
-      if (el) el.innerHTML += html;
-    } catch (_) {}
+    if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.appendToPanel) {
+      window.SmokeTest.Helpers.appendToPanel(html);
+    }
   }
 
   // Capability detection for future-proofing
   function detectCaps() {
-    const caps = {};
-    try {
-      caps.GameAPI = !!window.GameAPI;
-      const api = window.GameAPI || {};
-      caps.getMode = typeof api.getMode === "function";
-      caps.getEnemies = typeof api.getEnemies === "function";
-      caps.getTownProps = typeof api.getTownProps === "function";
-      caps.getNPCs = typeof api.getNPCs === "function";
-      caps.routeToDungeon = typeof api.routeToDungeon === "function";
-      caps.gotoNearestDungeon = typeof api.gotoNearestDungeon === "function";
-      caps.gotoNearestTown = typeof api.gotoNearestTown === "function";
-      caps.getChestsDetailed = typeof api.getChestsDetailed === "function";
-      caps.getDungeonExit = typeof api.getDungeonExit === "function";
-      caps.checkHomeRoutes = typeof api.checkHomeRoutes === "function";
-      caps.getShops = typeof api.getShops === "function";
-      caps.isShopOpenNowFor = typeof api.isShopOpenNowFor === "function";
-      caps.getShopSchedule = typeof api.getShopSchedule === "function";
-      caps.advanceMinutes = typeof api.advanceMinutes === "function";
-      caps.getClock = typeof api.getClock === "function";
-      caps.equipItemAtIndexHand = typeof api.equipItemAtIndexHand === "function";
-    } catch (_) {}
-    return caps;
+    if (window.SmokeTest && typeof window.SmokeTest.detectCaps === "function") {
+      return window.SmokeTest.detectCaps();
+    }
+    return {};
   }
 
   // DEV: simple Math.random audit to discourage nondeterministic generators
   function devRandomAudit() {
-    try {
-      if (!(window.DEV || localStorage.getItem("DEV") === "1")) return { scanned: 0, hits: [] };
-      const scripts = Array.from(document.scripts || []);
-      const hits = [];
-      for (const s of scripts) {
-        const src = s.src || "";
-        if (!src) continue;
-        // Heuristic: fetch content only for same-origin/local scripts if possible (skip cross-origin)
-        if (src.startsWith(location.origin)) {
-          // note: we can't fetch here; just record the url and rely on a server-side audit if needed
-          // As a compromise, record the src and mark "UNKNOWN" since inline content isn't accessible here.
-          // Developers can run a separate audit tool. We still scan script text for inline scripts.
-        }
-        // For inline scripts, check text content
-        if (!src && s.text && s.text.includes("Math.random")) {
-          hits.push({ type: "inline", snippet: (s.text || "").slice(0, 120) });
-        }
-      }
-      // Quick DOM scan for Math.random mentions
-      try {
-        const html = document.documentElement.outerHTML || "";
-        if ((html.match(/Math\.random/g) || []).length > 0) {
-          hits.push({ type: "dom", note: "Math.random appears in page HTML (might be harmless)." });
-        }
-      } catch (_) {}
-      return { scanned: scripts.length, hits };
-    } catch (_) {
-      return { scanned: 0, hits: [] };
+    if (window.SmokeTest && typeof window.SmokeTest.devRandomAudit === "function") {
+      return window.SmokeTest.devRandomAudit();
     }
+    return { scanned: 0, hits: [] };
   }
 
   // Safe element access
@@ -271,23 +112,21 @@
     return !!document.getElementById(id);
   }
   function safeClick(id) {
-    const el = document.getElementById(id);
-    if (!el) return false;
-    try { el.click(); return true; } catch (_) { return false; }
+    return (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.safeClick)
+      ? window.SmokeTest.Helpers.safeClick(id)
+      : false;
   }
   function safeSetInput(id, v) {
-    const el = document.getElementById(id);
-    if (!el) return false;
-    try {
-      el.value = String(v);
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-      return true;
-    } catch (_) { return false; }
+    return (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.safeSetInput)
+      ? window.SmokeTest.Helpers.safeSetInput(id, v)
+      : false;
   }
 
   // Lightweight polling helpers (bounded) to avoid flaky state reads
   async function waitUntilTrue(fn, timeoutMs = 400, intervalMs = 40) {
+    if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.waitUntilTrue) {
+      return window.SmokeTest.Helpers.waitUntilTrue(fn, timeoutMs, intervalMs);
+    }
     const deadline = Date.now() + Math.max(0, timeoutMs | 0);
     while (Date.now() < deadline) {
       try { if (fn()) return true; } catch (_) {}
@@ -312,67 +151,35 @@
   }
 
   function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.sleep)
+      ? window.SmokeTest.Helpers.sleep(ms)
+      : new Promise(resolve => setTimeout(resolve, ms));
   }
 
   // Ensure all UI modals are closed so routing/movement works
   async function ensureAllModalsClosed(maxTries = 6) {
-    const isOpenById = (id) => {
-      try {
-        const el = document.getElementById(id);
-        return !!(el && el.hidden === false);
-      } catch (_) { return false; }
-    };
-    const anyOpen = () => {
-      return isOpenById("god-panel") || isOpenById("inv-panel") || isOpenById("shop-panel") || isOpenById("loot-panel");
-    };
-    // Try explicit UI API if available
-    try {
-      if (window.UI) {
-        try { typeof UI.hideGod === "function" && UI.hideGod(); } catch (_) {}
-        try { typeof UI.hideInventory === "function" && UI.hideInventory(); } catch (_) {}
-        try { typeof UI.hideShop === "function" && UI.hideShop(); } catch (_) {}
-        try { typeof UI.hideLoot === "function" && UI.hideLoot(); } catch (_) {}
-      }
-    } catch (_) {}
-    // Fallback: ESC multiple times with waits
-    let tries = 0;
-    while (anyOpen() && tries++ < maxTries) {
-      try { document.activeElement && typeof document.activeElement.blur === "function" && document.activeElement.blur(); } catch (_) {}
-      key("Escape");
-      await sleep(160);
-      // Try second ESC in quick succession to unwind modal stack
-      if (anyOpen()) { key("Escape"); await sleep(140); }
-      // Also attempt clicking GOD close if present
-      try {
-        const btn = document.getElementById("god-close-btn");
-        if (btn) { btn.click(); await sleep(120); }
-      } catch (_) {}
+    if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.ensureAllModalsClosed) {
+      return window.SmokeTest.Helpers.ensureAllModalsClosed(maxTries);
     }
-    return !anyOpen();
+    return true;
   }
 
   function key(code) {
-    try {
-      // Dispatch to document as well for broader listener coverage
-      const ev = new KeyboardEvent("keydown", { key: code, code, bubbles: true });
-      window.dispatchEvent(ev);
-      document.dispatchEvent(ev);
-    } catch (_) {}
+    if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.key) {
+      return window.SmokeTest.Helpers.key(code);
+    }
   }
 
   function clickById(id) {
-    const el = document.getElementById(id);
-    if (!el) throw new Error("Missing element #" + id);
-    el.click();
+    if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.clickById) {
+      return window.SmokeTest.Helpers.clickById(id);
+    }
   }
 
   function setInputValue(id, v) {
-    const el = document.getElementById(id);
-    if (!el) throw new Error("Missing input #" + id);
-    el.value = String(v);
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-    el.dispatchEvent(new Event("change", { bubbles: true }));
+    if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.setInputValue) {
+      return window.SmokeTest.Helpers.setInputValue(id, v);
+    }
   }
 
   // One run with step-by-step result tracking
