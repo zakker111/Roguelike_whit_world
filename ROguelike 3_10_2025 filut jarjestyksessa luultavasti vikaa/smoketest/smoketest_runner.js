@@ -2080,16 +2080,26 @@
           }
 
           // Overlay toggles + perf snapshot (town-only overlays)
-          try {
-            // Toggle routes/home paths to exercise renderer, then capture perf
-            const perfBefore = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
-            safeClick("god-toggle-route-paths-btn"); await sleep(100);
-            safeClick("god-toggle-home-paths-btn"); await sleep(100);
-            const perfAfter = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
-            const perfOk = (perfAfter.lastDrawMs || 0) <= (CONFIG.perfBudget.drawMs * 2.0); // lenient budget
-            record(perfOk, `Overlay perf: draw ${perfAfter.lastDrawMs?.toFixed ? perfAfter.lastDrawMs.toFixed(2) : perfAfter.lastDrawMs}ms`);
-          } catch (e) {
-            record(false, "Overlay/perf snapshot failed: " + (e && e.message ? e.message : String(e)));
+          {
+            let handledOverlays = false;
+            try {
+              var SO = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Overlays;
+              if (SO && typeof SO.run === "function") {
+                handledOverlays = await SO.run({ key, sleep, makeBudget, record, recordSkip, CONFIG });
+              }
+            } catch (_) {}
+            if (!handledOverlays) {
+              try {
+                const perfBefore = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+                safeClick("god-toggle-route-paths-btn"); await sleep(100);
+                safeClick("god-toggle-home-paths-btn"); await sleep(100);
+                const perfAfter = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
+                const perfOk = (perfAfter.lastDrawMs || 0) <= (CONFIG.perfBudget.drawMs * 2.0); // lenient budget
+                record(perfOk, `Overlay perf: draw ${perfAfter.lastDrawMs?.toFixed ? perfAfter.lastDrawMs.toFixed(2) : perfAfter.lastDrawMs}ms`);
+              } catch (e) {
+                record(false, "Overlay/perf snapshot failed: " + (e && e.message ? e.message : String(e)));
+              }
+            }
           }
         }
       }
