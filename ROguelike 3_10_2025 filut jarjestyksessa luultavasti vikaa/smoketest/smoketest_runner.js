@@ -1652,6 +1652,14 @@
 
           // Town flows: NPC interactions, home, props, and late-night home routes (only when already in town)
           {
+            let handledTownFlow = false;
+            try {
+              var STF = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Town && window.SmokeTest.Scenarios.Town.Flows;
+              if (STF && typeof STF.run === "function") {
+                handledTownFlow = await STF.run({ key, sleep, makeBudget, record, recordSkip, CONFIG, caps: runMeta.caps });
+              }
+            } catch (_) {}
+            if (!handledTownFlow) {
             let lastNPC = null;
             const inTown = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? (window.GameAPI.getMode() === "town") : false;
             if (!inTown) {
@@ -1842,6 +1850,7 @@
                 record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
               }
             }
+          }
           }
 
       // Diagnostics + shop schedule/time check
