@@ -71,6 +71,14 @@ Outputs
   - DOM: hidden `#smoke-pass-token` (PASS/FAIL), `#smoke-json-token` (compact JSON)
   - Storage: `localStorage["smoke-pass-token"]`, `localStorage["smoke-json-token"]`
 
+Index
+- Helpers: `smoketest/helpers/` (dom.js, budget.js, logging.js, movement.js)
+- Capabilities: `smoketest/capabilities/` (detect.js, rng_audit.js)
+- Reporting: `smoketest/reporting/` (render.js, export.js)
+- Runner: `smoketest/runner/` (init.js, runner.js, banner.js)
+- Scenarios: `smoketest/scenarios/` (world.js, dungeon.js, dungeon_persistence.js, town.js, town_flows.js, town_diagnostics.js, inventory.js, combat.js, overlays.js, determinism.js)
+- Legacy: `smoketest/smoketest_runner.js` (only injected with `&legacy=1`)
+
 Notes
 - Orchestrator is the default. Use `&legacy=1` only if you need to compare with the monolithic runner.
 - Scenario filtering via `&scenarios=` (or legacy `&smoke=`) lets you run a subset in CI or local checks.
