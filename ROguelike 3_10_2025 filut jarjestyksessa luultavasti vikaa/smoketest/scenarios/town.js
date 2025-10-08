@@ -16,16 +16,25 @@
       // Prefer precise routing to nearestTown coordinate
       try {
         const nt = has(window.GameAPI.nearestTown) ? window.GameAPI.nearestTown() : null;
-        if (nt && has(window.GameAPI.routeTo)) {
-          const pathNT = window.GameAPI.routeTo(nt.x, nt.y);
-          const budgetNT = ctx.makeBudget(ctx.CONFIG.timeouts.route || 2500);
-          for (const step of pathNT) {
-            if (budgetNT.exceeded()) break;
-            const pl = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : step;
-            const ddx = Math.sign(step.x - pl.x);
-            const ddy = Math.sign(step.y - pl.y);
-            ctx.key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-            await ctx.sleep(90);
+        if (nt) {
+          let usedHelper = false;
+          try {
+            var MV = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
+            if (MV && typeof MV.routeTo === "function") {
+              usedHelper = await MV.routeTo(nt.x, nt.y, { timeoutMs: (ctx.CONFIG && ctx.CONFIG.timeouts && ctx.CONFIG.timeouts.route) || 2500, stepMs: 90 });
+            }
+          } catch (_) {}
+          if (!usedHelper && has(window.GameAPI.routeTo)) {
+            const pathNT = window.GameAPI.routeTo(nt.x, nt.y);
+            const budgetNT = ctx.makeBudget(ctx.CONFIG.timeouts.route || 2500);
+            for (const step of pathNT) {
+              if (budgetNT.exceeded()) break;
+              const pl = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : step;
+              const ddx = Math.sign(step.x - pl.x);
+              const ddy = Math.sign(step.y - pl.y);
+              ctx.key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+              await ctx.sleep(90);
+            }
           }
           okTown = true;
         } else if (has(window.GameAPI.gotoNearestTown)) {

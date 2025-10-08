@@ -50,15 +50,24 @@
           var d = Math.abs(e.x - window.GameAPI.getPlayer().x) + Math.abs(e.y - window.GameAPI.getPlayer().y);
           if (d < bestD) { best = e; bestD = d; }
         }
-        var path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
-        var budget = makeBudget(CONFIG.timeouts.route);
-        for (var j = 0; j < path.length; j++) {
-          var step = path[j];
-          if (budget.exceeded()) { recordSkip("Routing to enemy timed out"); break; }
-          var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-          var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-          key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-          await sleep(110);
+        var usedHelper = false;
+        try {
+          var MV = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
+          if (MV && typeof MV.routeTo === "function") {
+            usedHelper = await MV.routeTo(best.x, best.y, { timeoutMs: (CONFIG && CONFIG.timeouts && CONFIG.timeouts.route) || 5000, stepMs: 110 });
+          }
+        } catch (_) {}
+        if (!usedHelper) {
+          var path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
+          var budget = makeBudget(CONFIG.timeouts.route);
+          for (var j = 0; j < path.length; j++) {
+            var step = path[j];
+            if (budget.exceeded()) { recordSkip("Routing to enemy timed out"); break; }
+            var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
+            var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+            key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+            await sleep(110);
+          }
         }
         // battle bumps
         var bb = makeBudget(CONFIG.timeouts.battle);

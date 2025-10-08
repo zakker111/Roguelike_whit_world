@@ -29,19 +29,28 @@
       } catch (_) {}
 
       // Attempt 2: route to nearestDungeon coords
-      if (!entered && has(window.GameAPI.nearestDungeon) && has(window.GameAPI.routeTo)) {
+      if (!entered && has(window.GameAPI.nearestDungeon)) {
         try {
           const nd = window.GameAPI.nearestDungeon();
           if (nd) {
-            const pathND = window.GameAPI.routeTo(nd.x, nd.y);
-            const budgetND = ctx.makeBudget(ctx.CONFIG.timeouts.route);
-            for (const step of pathND) {
-              if (budgetND.exceeded()) break;
-              const pl = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : step;
-              const ddx = Math.sign(step.x - pl.x);
-              const ddy = Math.sign(step.y - pl.y);
-              ctx.key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
-              await ctx.sleep(90);
+            let usedHelper = false;
+            try {
+              var MV = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
+              if (MV && typeof MV.routeTo === "function") {
+                usedHelper = await MV.routeTo(nd.x, nd.y, { timeoutMs: (ctx.CONFIG && ctx.CONFIG.timeouts && ctx.CONFIG.timeouts.route) || 2500 });
+              }
+            } catch (_) {}
+            if (!usedHelper && has(window.GameAPI.routeTo)) {
+              const pathND = window.GameAPI.routeTo(nd.x, nd.y);
+              const budgetND = ctx.makeBudget(ctx.CONFIG.timeouts.route);
+              for (const step of pathND) {
+                if (budgetND.exceeded()) break;
+                const pl = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : step;
+                const ddx = Math.sign(step.x - pl.x);
+                const ddy = Math.sign(step.y - pl.y);
+                ctx.key(ddx === -1 ? "ArrowLeft" : ddx === 1 ? "ArrowRight" : (ddy === -1 ? "ArrowUp" : "ArrowDown"));
+                await ctx.sleep(90);
+              }
             }
             ctx.key("Enter"); await ctx.sleep(280);
             if (has(window.GameAPI.enterDungeonIfOnEntrance)) window.GameAPI.enterDungeonIfOnEntrance();
