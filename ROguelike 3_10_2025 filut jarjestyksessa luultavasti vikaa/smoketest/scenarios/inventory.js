@@ -11,7 +11,7 @@
       }
       // Expect runner to call this only in dungeon mode; guard regardless
       var inDungeon = (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon");
-      if (!inDungeon) return false;
+      if (!inDungeon) { (ctx.recordSkip || function(){})("Inventory scenario skipped (not in dungeon)"); return true; }
 
       var record = ctx.record || function(){};
       var recordSkip = ctx.recordSkip || function(){};

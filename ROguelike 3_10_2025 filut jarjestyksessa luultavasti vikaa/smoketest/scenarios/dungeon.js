@@ -13,7 +13,7 @@
       if (!window.GameAPI || !has(window.GameAPI.getMode)) return false;
       // Precondition: overworld only
       const inWorld = window.GameAPI.getMode() === "world";
-      if (!inWorld) return false;
+      if (!inWorld) { ctx.recordSkip && ctx.recordSkip("Dungeon scenario skipped (not in overworld)"); return true; }
 
       await ctx.ensureAllModalsClosed?.(8);
 
