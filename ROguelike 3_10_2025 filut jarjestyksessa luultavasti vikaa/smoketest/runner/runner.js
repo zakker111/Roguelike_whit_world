@@ -492,11 +492,11 @@
         const pushSome = (arr) => { for (let i = 0; i < arr.length && detailsList.length < CAP; i++) detailsList.push(arr[i]); };
         pushSome(failed); pushSome(skipped); pushSome(passed);
         const details = (R && typeof R.renderStepsPretty === "function") ? R.renderStepsPretty(detailsList) : "";
-        el.innerHTML = counts + (details  `<<div style="margin-top:6px;">${detai}</</div>` : "");
+        el.innerHTML = counts + (details ? `<div style="margin-top:6px;">${details}</div>` : "");
       } catch (_) {}
     }
 
-    for (let i =      // Apply a fresh seed before each run
+    for (let i = 0; i < n; i++) {
       await applyFreshSeedForRun(i);
 
       const res = await run({ index: i + 1, total: n, suppressReport: false });
