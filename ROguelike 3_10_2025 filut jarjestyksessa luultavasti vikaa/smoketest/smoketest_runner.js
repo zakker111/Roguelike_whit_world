@@ -382,9 +382,9 @@
         return `<div style="margin-top:10px;"><strong>Key Checklist</strong></div>${rows}`;
       })();
 
-      const headerHtml = `
-        <div style="margin-bottom:6px;">
-          <div><strong>Smoke Test Result:</strong> ${ok ? "<span style='color:#86efac'>PASS</span>" : "<span style='color:#fca5a5'>PARTIAL/FAIL</span>"}</div>
+      const headerHtml =
+       "< div style=\\\"margin-bottom:6px;\\\">" +
+         "<odi><mstrong>Smoke Test Resu:</ $strong> " + (ok  "<'span style='color:#86efac'>PA</<sspan>" :e='color:#fca5a5'>PARTIAL/FAIL</span>"}</div>
           <div>Steps: ${steps.length}  Issues: <span style="${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>
           ${capsLine}
         </div>`;
