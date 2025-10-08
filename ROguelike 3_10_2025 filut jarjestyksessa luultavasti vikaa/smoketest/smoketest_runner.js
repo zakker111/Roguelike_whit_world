@@ -118,8 +118,12 @@
     return self;
   })();
 
-  // Logging/Banner helpers (delegate to helper if present; otherwise fallback)
+  // Logging/Banner helpers (prefer Runner.Banner, then Helpers.Logging; fallback to inline)
   function ensureBanner() {
+    try {
+      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+      if (RB && typeof RB.ensureBanner === "function") return RB.ensureBanner();
+    } catch (_) {}
     try {
       var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
       if (h && typeof h.ensureBanner === "function") return h.ensureBanner();
@@ -147,6 +151,10 @@
 
   function ensureStatusEl() {
     try {
+      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+      if (RB && typeof RB.ensureStatusEl === "function") return RB.ensureStatusEl();
+    } catch (_) {}
+    try {
       var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
       if (h && typeof h.ensureStatusEl === "function") return h.ensureStatusEl();
     } catch (_) {}
@@ -167,6 +175,10 @@
 
   function currentMode() {
     try {
+      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+      if (RB && typeof RB.currentMode === "function") return RB.currentMode();
+    } catch (_) {}
+    try {
       var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
       if (h && typeof h.currentMode === "function") return h.currentMode();
     } catch (_) {}
@@ -180,6 +192,10 @@
 
   function setStatus(msg) {
     try {
+      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+      if (RB && typeof RB.setStatus === "function") return RB.setStatus(msg);
+    } catch (_) {}
+    try {
       var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
       if (h && typeof h.setStatus === "function") return h.setStatus(msg);
     } catch (_) {}
@@ -189,6 +205,10 @@
   }
 
   function log(msg, type) {
+    try {
+      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+      if (RB && typeof RB.log === "function") return RB.log(msg, type);
+    } catch (_) {}
     try {
       var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
       if (h && typeof h.log === "function") return h.log(msg, type);
@@ -205,6 +225,10 @@
   }
 
   function panelReport(html) {
+    try {
+      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+      if (RB && typeof RB.panelReport === "function") return RB.panelReport(html);
+    } catch (_) {}
     try {
       var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
       if (h && typeof h.panelReport === "function") return h.panelReport(html);
@@ -231,6 +255,10 @@
   }
 
   function appendToPanel(html) {
+    try {
+      var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+      if (RB && typeof RB.appendToPanel === "function") return RB.appendToPanel(html);
+    } catch (_) {}
     try {
       var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
       if (h && typeof h.appendToPanel === "function") return h.appendToPanel(html);
