@@ -1,12 +1,12 @@
 (function () {
-  // Orchestrator runner: compact scenario pipeline with opt-in execution via ?orchestrator=1.
+  // Orchestrator runner: compact scenario pipeline; now default unless ?legacy=1 is present.
   window.SmokeTest = window.SmokeTest || {};
 
   const CONFIG = window.SmokeTest.Config || {
     timeouts: { route: 5000, interact: 2500, battle: 5000 },
     perfBudget: { turnMs: 6.0, drawMs: 12.0 }
   };
-  const RUNNER_VERSION = "1.7.0";
+  const RUNNER_VERSION = "1.8.0";
 
   function parseParams() {
     try {
@@ -19,11 +19,11 @@
         smoketest: p("smoketest", "0") === "1",
         dev: p("dev", "0") === "1",
         smokecount: Number(p("smokecount", "1")) || 1,
-        orchestrator: p("orchestrator", "0") === "1",
+        legacy: p("legacy", "0") === "1",
         scenarios: sel.split(",").map(s => s.trim()).filter(Boolean)
       };
     } catch (_) {
-      return { smoketest: false, dev: false, smokecount: 1, orchestrator: false, scenarios: [] };
+      return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [] };
     }
   }
 
@@ -175,8 +175,8 @@
 
   async function runSeries(count) {
     const params = parseParams();
-    // Opt-in: run orchestrator pipeline when ?orchestrator=1 is present, else delegate to original runner
-    if (!params.orchestrator) {
+    // Legacy escape hatch: delegate to original smoketest_runner.js when ?legacy=1
+    if (params.legacy) {
       try {
         const delayMs = 50;
         const maxWait = 3000;
@@ -188,10 +188,10 @@
           return window.SmokeTest.runSeries(count);
         }
       } catch (_) {}
-      try { console.warn("[SMOKE] Orchestrator: runner.runSeries not available; falling back to single run."); } catch (_) {}
+      try { console.warn("[SMOKE] Legacy runner not available; executing orchestrator once."); } catch (_) {}
       return run({});
     }
-    // Orchestrator mode: run N times (aggregate display shows last run)
+    // Default: orchestrator pipeline runs N times; display last
     const n = Math.max(1, (count | 0) || 1);
     let last = null;
     for (let i = 0; i < n; i++) {
