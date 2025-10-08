@@ -29,8 +29,10 @@ Determinism and seeds
 - With the same seed and context, generation and item rolls are repeatable.
 
 Smoketest (optional)
-- Auto-run: append ?smoketest=1 to the URL; add &dev=1 for diagnostics.
+- Orchestrator default: append ?smoketest=1 to the URL; add &dev=1 for diagnostics.
+- Scenario filter: &scenarios=world,dungeon,inventory,combat,town,overlays,determinism (legacy style &smoke= also supported).
 - Multiple runs: &smokecount=N.
+- Legacy runner (escape hatch): &legacy=1.
 - DEV-only JSON validation injection: &validatebad=1 (or &badjson=1) + &dev=1.
 - The GOD panel shows:
   - Step Details (OK/FAIL/SKIP)
@@ -67,7 +69,8 @@ Project layout (brief)
 - world/: overworld generation and walkability
 - dungeon/: generation, items, state persistence
 - entities/: items and enemies adapters over JSON
-- ui/: logger, renderer, tileset, smoketest runner
+- ui/: logger, renderer, tileset
+- smoketest/: modular test runner (helpers, capabilities, reporting, runner, scenarios) + legacy monolithic runner
 - services/: RNG, time, shop helpers
 - data/: JSON registries and loader
 - worldgen/: town generation utilities
