@@ -117,6 +117,7 @@
         { name: "dungeon", fn: S.Dungeon && S.Dungeon.run },
         { name: "inventory", fn: S.Inventory && S.Inventory.run },
         { name: "combat", fn: S.Combat && S.Combat.run },
+        { name: "dungeon_persistence", fn: S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run },
         { name: "town", fn: S.Town && S.Town.run },
         { name: "overlays", fn: S.Overlays && S.Overlays.run },
         { name: "determinism", fn: S.Determinism && S.Determinism.run },

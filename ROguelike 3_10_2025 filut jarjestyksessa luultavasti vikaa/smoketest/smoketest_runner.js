@@ -815,7 +815,16 @@
       // Step 9: if in dungeon, chest loot + equip + decay check, then enemy loot and return
       try {
         if (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") {
+          // Prefer scenario module for dungeon persistence (chest + invariants)
+          let handledDP = false;
+          try {
+            var SDP = window.SmokeTest && window.SmokeTest.Scenarios && window.SmokeTest.Scenarios.Dungeon && window.SmokeTest.Scenarios.Dungeon.Persistence;
+            if (SDP && typeof SDP.run === "function") {
+              handledDP = await SDP.run({ key, sleep, makeBudget, record, recordSkip, CONFIG, caps: runMeta.caps });
+            }
+          } catch (_) {}
           // 9a: find chest in corpses, route and press G to loot it
+          if (!handledDP) {
           try {
             const corpses = (typeof window.GameAPI.getCorpses === "function") ? window.GameAPI.getCorpses() : [];
             const chest = corpses.find(c => c.kind === "chest");
@@ -866,6 +875,7 @@
             }
           } catch (e) {
             record(false, "Chest loot failed: " + (e && e.message ? e.message : String(e)));
+          }
           }
 
           // 9b: equip best items from inventory (if any) and test manual equip/unequip
@@ -1369,6 +1379,7 @@
           }
 
           // 9d: Attempt to return to overworld via dungeon exit ('>') + persistence pass + stair guard
+          if (!handledDP) {
           try {
             const exit = (typeof window.GameAPI.getDungeonExit === "function") ? window.GameAPI.getDungeonExit() : null;
             if (exit) {
@@ -1469,6 +1480,7 @@
             }
           } catch (e) {
             record(false, "Return to overworld failed: " + (e && e.message ? e.message : String(e)));
+          }
           }
         } else {
           record(true, "Skipped dungeon chest/decay steps (not in dungeon)");
