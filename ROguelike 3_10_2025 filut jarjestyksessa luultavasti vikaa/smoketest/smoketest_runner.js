@@ -4,17 +4,23 @@
 
 (function () {
   const RUNNER_VERSION = "1.6.0";
-  const CONFIG = {
-    timeouts: {
-      route: 5000,       // ms budget for any routing/path-following sequence
-      interact: 2500,    // ms budget for local interactions (loot/G/use)
-      battle: 5000,      // ms budget for short combat burst
-    },
-    perfBudget: {
-      turnMs: 6.0,       // soft target per-turn
-      drawMs: 12.0       // soft target per-draw
-    }
-  };
+  const CONFIG = (function () {
+    try {
+      if (window.SmokeTest && window.SmokeTest.Config) return window.SmokeTest.Config;
+    } catch (_) {}
+    // Fallback defaults if helpers are not loaded
+    return {
+      timeouts: {
+        route: 5000,
+        interact: 2500,
+        battle: 5000,
+      },
+      perfBudget: {
+        turnMs: 6.0,
+        drawMs: 12.0
+      }
+    };
+  })();
 
   // URL params
   let URL_PARAMS = {};
@@ -192,13 +198,13 @@
 
   // Budget helpers
   function makeBudget(ms) {
+    try {
+      if (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Budget && typeof window.SmokeTest.Helpers.Budget.makeBudget === "function") {
+        return window.SmokeTest.Helpers.Budget.makeBudget(ms);
+      }
+    } catch (_) {}
     const start = Date.now();
-    const deadline = start + Math.max(0, ms | 0);
-    return {
-      exceeded: () => Date.now() > deadline,
-      remain: () => Math.max(0, deadline - Date.now())
-    };
-  }
+    const deadline = start + Math.max(}
 
   function appendToPanel(html) {
     try {
