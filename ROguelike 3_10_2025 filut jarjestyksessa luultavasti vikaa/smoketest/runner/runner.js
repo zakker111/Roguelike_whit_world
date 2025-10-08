@@ -159,8 +159,24 @@
       const params = parseParams();
       const sel = params.scenarios;
       const steps = [];
-      function record(ok, msg) { steps.push({ ok: !!ok, msg: String(msg || "") }); }
-      function recordSkip(msg) { steps.push({ ok: true, msg: String(msg || ""), skipped: true }); }
+      function record(ok, msg) {
+        steps.push({ ok: !!ok, msg: String(msg || "") });
+        try {
+          var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+          if (B && typeof B.log === "function") {
+            B.log((ok ? "OK: " : "ERR: ") + String(msg || ""), ok ? "good" : "bad");
+          }
+        } catch (_) {}
+      }
+      function recordSkip(msg) {
+        steps.push({ ok: true, msg: String(msg || ""), skipped: true });
+        try {
+          var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+          if (B && typeof B.log === "function") {
+            B.log("SKIP: " + String(msg || ""), "info");
+          }
+        } catch (_) {}
+      }
 
       // Open GOD panel to make logs visible
       try { openGodPanel(); } catch (_) {}
@@ -197,6 +213,15 @@
       // Stream progress into GOD panel/status
       let Banner = null;
       try { Banner = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner; } catch (_) {}
+
+      // Dev: log selected scenarios and capabilities upfront for more comprehensive context
+      try {
+        if (params.dev && Banner && typeof Banner.log === "function") {
+          const capsList = Object.keys(caps).filter(k => caps[k]);
+          Banner.log("Caps: " + (capsList.length ? capsList.join(", ") : "(none)"), "notice");
+          Banner.log("Selected scenarios: " + (sel && sel.length ? sel.join(", ") : "(none)"), "notice");
+        }
+      } catch (_) {}
 
       for (let i = 0; i < pipeline.length; i++) {
         const step = pipeline[i];
