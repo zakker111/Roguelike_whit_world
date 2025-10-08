@@ -118,35 +118,17 @@
     return self;
   })();
 
-  // Logging/Banner helpers (prefer Runner.Banner, then Helpers.Logging; fallback to inline)
+  // Logging/Banner helpers (use Runner.Banner or Helpers.Logging; no inline fallbacks)
   function ensureBanner() {
     try {
       var RB = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
       if (RB && typeof RB.ensureBanner === "function") return RB.ensureBanner();
     } catch (_) {}
     try {
-      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (h && typeof h.ensureBanner === "function") return h.ensureBanner();
+      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (H && typeof H.ensureBanner === "function") return H.ensureBanner();
     } catch (_) {}
-    var el = document.getElementById("smoke-banner");
-    if (el) return el;
-    el = document.createElement("div");
-    el.id = "smoke-banner";
-    el.style.position = "fixed";
-    el.style.right = "12px";
-    el.style.bottom = "12px";
-    el.style.zIndex = "9999";
-    el.style.padding = "8px 10px";
-    el.style.fontFamily = "JetBrains Mono, monospace";
-    el.style.fontSize = "12px";
-    el.style.background = "rgba(21,22,27,0.9)";
-    el.style.color = "#d6deeb";
-    el.style.border = "1px solid rgba(122,162,247,0.35)";
-    el.style.borderRadius = "8px";
-    el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.5)";
-    el.textContent = "[SMOKE] Runner ready…";
-    document.body.appendChild(el);
-    return el;
+    return null;
   }
 
   function ensureStatusEl() {
@@ -155,22 +137,10 @@
       if (RB && typeof RB.ensureStatusEl === "function") return RB.ensureStatusEl();
     } catch (_) {}
     try {
-      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (h && typeof h.ensureStatusEl === "function") return h.ensureStatusEl();
+      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (H && typeof H.ensureStatusEl === "function") return H.ensureStatusEl();
     } catch (_) {}
-    try {
-      var host = document.getElementById("god-check-output");
-      if (!host) return null;
-      var el = document.getElementById("smoke-status");
-      if (!el) {
-        el = document.createElement("div");
-        el.id = "smoke-status";
-        el.style.margin = "6px 0";
-        el.style.color = "#93c5fd";
-        host.prepend(el);
-      }
-      return el;
-    } catch (_) { return null; }
+    return null;
   }
 
   function currentMode() {
@@ -179,13 +149,8 @@
       if (RB && typeof RB.currentMode === "function") return RB.currentMode();
     } catch (_) {}
     try {
-      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (h && typeof h.currentMode === "function") return h.currentMode();
-    } catch (_) {}
-    try {
-      if (window.GameAPI && typeof window.GameAPI.getMode === "function") {
-        return String(window.GameAPI.getMode() || "").toLowerCase();
-      }
+      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (H && typeof H.currentMode === "function") return H.currentMode();
     } catch (_) {}
     return "";
   }
@@ -196,12 +161,9 @@
       if (RB && typeof RB.setStatus === "function") return RB.setStatus(msg);
     } catch (_) {}
     try {
-      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (h && typeof h.setStatus === "function") return h.setStatus(msg);
+      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (H && typeof H.setStatus === "function") return H.setStatus(msg);
     } catch (_) {}
-    var m = currentMode();
-    var el = ensureStatusEl();
-    if (el) el.textContent = "[" + (m || "unknown") + "] " + msg;
   }
 
   function log(msg, type) {
@@ -210,18 +172,9 @@
       if (RB && typeof RB.log === "function") return RB.log(msg, type);
     } catch (_) {}
     try {
-      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (h && typeof h.log === "function") return h.log(msg, type);
+      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (H && typeof H.log === "function") return H.log(msg, type);
     } catch (_) {}
-    var banner = ensureBanner();
-    var m = currentMode();
-    var line = "[SMOKE]" + (m ? " [" + m + "]" : "") + " " + msg;
-    banner.textContent = line;
-    setStatus(msg);
-    try {
-      if (window.Logger && typeof Logger.log === "function") Logger.log(line, type || "info");
-    } catch (_) {}
-    try { console.log(line); } catch (_) {}
   }
 
   function panelReport(html) {
@@ -230,13 +183,8 @@
       if (RB && typeof RB.panelReport === "function") return RB.panelReport(html);
     } catch (_) {}
     try {
-      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (h && typeof h.panelReport === "function") return h.panelReport(html);
-    } catch (_) {}
-    try {
-      var el = document.getElementById("god-check-output");
-      if (el) el.innerHTML = html;
-      ensureStatusEl();
+      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (H && typeof H.panelReport === "function") return H.panelReport(html);
     } catch (_) {}
   }
 
@@ -260,12 +208,8 @@
       if (RB && typeof RB.appendToPanel === "function") return RB.appendToPanel(html);
     } catch (_) {}
     try {
-      var h = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
-      if (h && typeof h.appendToPanel === "function") return h.appendToPanel(html);
-    } catch (_) {}
-    try {
-      var el = document.getElementById("god-check-output");
-      if (el) el.innerHTML += html;
+      var H = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Logging;
+      if (H && typeof H.appendToPanel === "function") return H.appendToPanel(html);
     } catch (_) {}
   }
 
