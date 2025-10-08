@@ -2653,103 +2653,13 @@
           appendToPanel(fullHtml);
         } catch (_) {}
 
-        // Export buttons: delegate to reporting module if available; fallback inline
-        (function () {
-          try {
-            var E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
-            if (E && typeof E.attachButtons === "function") {
-              E.attachButtons(report, summaryText, checklistText);
-              return;
-            }
-          } catch (_) {}
-          const btnHtml = `
-            <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-              <button id="smoke-export-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Report (JSON)</button>
-              <button id="smoke-export-summary-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Summary (TXT)</button>
-              <button id="smoke-export-checklist-btn" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Download Checklist (TXT)</button>
-            </div>`;
-          appendToPanel(btnHtml);
-
-          // Ensure GOD panel is open so the report is visible, and scroll to it
-          try {
-            if (window.UI && typeof UI.showGod === "function") {
-              UI.showGod();
-            } else {
-              try { var gbtn = document.getElementById("god-open-btn"); gbtn && gbtn.click(); } catch (_) {}
-            }
-            setTimeout(() => {
-              try {
-                const pre = document.getElementById("smoke-full-report");
-                if (pre && typeof pre.scrollIntoView === "function") {
-                  pre.scrollIntoView({ behavior: "smooth", block: "start" });
-                }
-              } catch (_) {}
-            }, 50);
-          } catch (_) {}
-
-          setTimeout(() => {
-            const jsonBtn = document.getElementById("smoke-export-btn");
-            if (jsonBtn) {
-              jsonBtn.onclick = () => {
-                try {
-                  const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "smoketest_report.json";
-                  document.body.appendChild(a);
-                  a.click();
-                  setTimeout(() => {
-                    try { document.body.removeChild(a); } catch (_) {}
-                    try { URL.revokeObjectURL(url); } catch (_) {}
-                  }, 100);
-                } catch (e) {
-                  try { console.error("Export failed", e); } catch (_) {}
-                }
-              };
-            }
-            const txtBtn = document.getElementById("smoke-export-summary-btn");
-            if (txtBtn) {
-              txtBtn.onclick = () => {
-                try {
-                  const blob = new Blob([summaryText], { type: "text/plain" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "smoketest_summary.txt";
-                  document.body.appendChild(a);
-                  a.click();
-                  setTimeout(() => {
-                    try { document.body.removeChild(a); } catch (_) {}
-                    try { URL.revokeObjectURL(url); } catch (_) {}
-                  }, 100);
-                } catch (e) {
-                  try { console.error("Export summary failed", e); } catch (_) {}
-                }
-              };
-            }
-            const clBtn = document.getElementById("smoke-export-checklist-btn");
-            if (clBtn) {
-              clBtn.onclick = () => {
-                try {
-                  const blob = new Blob([checklistText], { type: "text/plain" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "smoketest_checklist.txt";
-                  document.body.appendChild(a);
-                  a.click();
-                  setTimeout(() => {
-                    try { document.body.removeChild(a); } catch (_) {}
-                    try { URL.revokeObjectURL(url); } catch (_) {}
-                  }, 100);
-                } catch (e) {
-                  try { console.error("Export checklist failed", e); } catch (_) {}
-                }
-              };
-            }
-          }, 0);
-        })();
+        // Export buttons: delegate to reporting module only
+        try {
+          var E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
+          if (E && typeof E.attachButtons === "function") {
+            E.attachButtons(report, summaryText, checklistText);
+          }
+        } catch (_) {}
       } catch (_) {}
 
     return { pass, fail, results: all, totalPassedSteps, totalFailedSteps, totalSkippedSteps, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), seeds, determinism: det, runnerVersion: RUNNER_VERSION };
