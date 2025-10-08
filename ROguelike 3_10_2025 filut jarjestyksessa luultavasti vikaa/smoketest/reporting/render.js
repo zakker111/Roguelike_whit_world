@@ -65,6 +65,50 @@
         return "<div style=\"color:" + color + ";\">" + mark + " " + c.label + "</div>";
       }).join("");
       return "<div style=\"margin-top:10px;\"><strong>Key Checklist</strong></div>" + rows;
+    },
+
+    // New: header renderer
+    renderHeader(meta) {
+      try {
+        const ok = !!meta.ok;
+        const stepCount = meta.stepCount | 0;
+        const totalIssues = meta.totalIssues | 0;
+        const rv = String(meta.runnerVersion || "");
+        const caps = Array.isArray(meta.caps) ? meta.caps : [];
+        const capsLine = caps.length
+          ? `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${rv} | Caps: ${caps.join(", ")}</div>`
+          : `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${rv}</div>`;
+        return [
+          `<div style="margin-bottom:6px;">`,
+          `<div><strong>Smoke Test Result:</strong> ${ok ? "<span style='color:#86efac'>PASS</span>" : "<span style='color:#fca5a5'>PARTIAL/FAIL</span>"}</div>`,
+          `<div>Steps: ${stepCount}  Issues: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>`,
+          capsLine,
+          `</div>`
+        ].join("");
+      } catch (_) { return ""; }
+    },
+
+    // New: main report renderer (assembled sections)
+    renderMainReport(parts) {
+      try {
+        const headerHtml = String(parts.headerHtml || "");
+        const keyChecklistHtml = String(parts.keyChecklistHtml || "");
+        const issuesHtml = String(parts.issuesHtml || "");
+        const passedHtml = String(parts.passedHtml || "");
+        const skippedHtml = String(parts.skippedHtml || "");
+        const detailsTitle = String(parts.detailsTitle || `<div style="margin-top:10px;"><strong>Step Details</strong></div>`);
+        const detailsHtml = String(parts.detailsHtml || "");
+
+        return [
+          headerHtml,
+          keyChecklistHtml,
+          issuesHtml,
+          passedHtml,
+          skippedHtml,
+          detailsTitle,
+          detailsHtml
+        ].join("");
+      } catch (_) { return ""; }
     }
   };
 

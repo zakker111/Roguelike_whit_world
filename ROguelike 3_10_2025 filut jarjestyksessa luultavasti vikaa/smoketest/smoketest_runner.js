@@ -2195,9 +2195,7 @@
           (extraErrors.length ? `<div style="color:#f87171; margin-top:6px;"><em>Console/Browser</em></div>` + extraErrors.slice(0, 8).map(e => `<div style="color:#f87171;">• ${e}</div>`).join("") : ``)
         : "";
       const caps = runMeta.caps || {};
-      const capsLine = Object.keys(caps).length
-        ? `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${RUNNER_VERSION} | Caps: ${Object.keys(caps).filter(k => caps[k]).join(", ")}</div>`
-        : `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${RUNNER_VERSION}</div>`;
+      const capsList = Object.keys(caps).filter(k => caps[k]);
 
       // Key Checklist: concise required behaviors
       function hasStep(sub, okOnly = true) {
@@ -2236,23 +2234,55 @@
         return `<div style="margin-top:10px;"><strong>Key Checklist</strong></div>${rows}`;
       })();
 
-      const headerHtml = `
+      // Header via reporting renderer with fallback
+      let headerHtmlOut = "";
+      try {
+        var R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+        if (R && typeof R.renderHeader === "function") {
+          headerHtmlOut = R.renderHeader({ ok, stepCount: steps.length, totalIssues, runnerVersion: RUNNER_VERSION, caps: capsList });
+        }
+      } catch (_) {}
+      if (!headerHtmlOut) {
+        const capsLineLocal = capsList.length
+          ? `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${RUNNER_VERSION} | Caps: ${capsList.join(", ")}</div>`
+          : `<div class="help" style="color:#8aa0bf; margin-top:6px;">Runner v${RUNNER_VERSION}</div>`;
+        headerHtmlOut = `
         <div style="margin-bottom:6px;">
           <div><strong>Smoke Test Result:</strong> ${ok ? "<span style='color:#86efac'>PASS</span>" : "<span style='color:#fca5a5'>PARTIAL/FAIL</span>"}</div>
           <div>Steps: ${steps.length}  Issues: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>
-          ${capsLine}
+          ${capsLineLocal}
         </div>`;
+      }
 
-      const html = [
-        headerHtml,
-        keyChecklistHtml,
-        issuesHtml,
-        passedHtml,
-        skippedHtml,
-        `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
-        detailsHtml,
-      ].join("");
-      panelReport(html);
+      // Main report assembly via renderer with fallback
+      let mainHtmlOut = "";
+      try {
+        var R2 = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+        if (R2 && typeof R2.renderMainReport === "function") {
+          mainHtmlOut = R2.renderMainReport({
+            headerHtml: headerHtmlOut,
+            keyChecklistHtml,
+            issuesHtml,
+            passedHtml,
+            skippedHtml,
+            detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
+            detailsHtml
+          });
+        }
+      } catch (_) {}
+      if (!mainHtmlOut) {
+        mainHtmlOut = [
+          headerHtmlOut,
+          keyChecklistHtml,
+          issuesHtml,
+          passedHtml,
+          skippedHtml,
+          `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
+          detailsHtml,
+        ].join("");
+      }
+
+      panelReport(mainHtmlOut);
       // Expose a simple PASS/FAIL token for CI
       try {
         let token = document.getElementById("smoke-pass-token");
