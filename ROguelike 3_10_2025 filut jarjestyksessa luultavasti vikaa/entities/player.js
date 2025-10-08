@@ -28,7 +28,10 @@
     level: 1,
     xp: 0,
     xpNext: 20,
-    inventory: [{ kind: "gold", amount: 50, name: "gold" }],
+    inventory: [
+      { kind: "gold", amount: 50, name: "gold" },
+      { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" }
+    ],
     equipment: { ...DEFAULT_EQUIPMENT },
   };
 
