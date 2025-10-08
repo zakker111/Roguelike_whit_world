@@ -204,6 +204,11 @@
   }
 
   window.SmokeTest.Run = { run, runSeries, CONFIG, RUNNER_VERSION, parseParams };
+  // Back-compat aliases for UI/GOD button and legacy code paths
+  try {
+    window.SmokeTest.runSeries = runSeries;
+    window.SmokeTest.run = run;
+  } catch (_) {}
 
   // Auto-run orchestrator when ?smoketest=1 and not forcing legacy
   try {
