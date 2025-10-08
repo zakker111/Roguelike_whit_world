@@ -216,7 +216,11 @@
 
       try { window.SMOKE_OK = ok; window.SMOKE_STEPS = steps.slice(); window.SMOKE_JSON = { ok, steps, caps }; } catch (_) {}
       try { localStorage.setItem("smoke-pass-token", ok ? "PASS" : "FAIL"); localStorage.setItem("smoke-json-token", JSON.stringify({ ok, steps, caps })); } catch (_) {}
-      return { ok, steps, caps };
+      // Provide hidden DOM tokens for CI (align with legacy runner)
+      try {
+        var token = document.getElementById("smoke-pass-token");
+        if (!token) {
+          token = document.createElement("div");
     } catch (e) {
       try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
       return null;
