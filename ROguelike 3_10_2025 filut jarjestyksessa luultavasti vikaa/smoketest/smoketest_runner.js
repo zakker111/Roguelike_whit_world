@@ -1177,7 +1177,7 @@
                 const hpH0 = tgtH.hp;
                 const dxh = Math.sign(tgtH.x - window.GameAPI.getPlayer().x);
                 const dyh = Math.sign(tgtH.y - window.GameAPI.getPlayer().y);
-                key(dxh === -1 ? "ArrowLeft" : dxh === 1 ? "ArrowRight" : (dyh === -1 ? "ArrowUp" : "ArrowDown"));
+                key(dxh === -1 ? "ArrowLeft" : dxh === 1 ? "ArrowRight" : (dyl === -1 ? "ArrowUp" : "ArrowDown"));
                 await sleep(140);
                 es = window.GameAPI.getEnemies ? window.GameAPI.getEnemies() : [];
                 let tgtH2 = es.find(e => e.x === tgtH.x && e.y === tgtH.y) || tgtH;
@@ -2102,7 +2102,7 @@
       const headerHtml = `
         <div style="margin-bottom:6px;">
           <div><strong>Smoke Test Result:</strong> ${ok ? "<span style='color:#86efac'>PASS</span>" : "<span style='color:#fca5a5'>PARTIAL/FAIL</span>"}</div>
-          <div>Steps: ${steps.length}  Issues: <span style="color:${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>
+          <div>Steps: ${steps.length}  Issues: <span style="${totalIssues ? "#ef4444" : "#86efac"};">${totalIssues}</span></div>
           ${capsLine}
         </div>`;
 
