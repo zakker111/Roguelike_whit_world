@@ -52,6 +52,30 @@
       }
       await sleep(250);
 
+      // If currently in dungeon, exit to world first to enable town routing.
+      var mode0 = (window.GameAPI && has(window.GameAPI.getMode)) ? window.GameAPI.getMode() : null;
+      if (mode0 === "dungeon") {
+        try {
+          var exit = has(window.GameAPI.getDungeonExit) ? window.GameAPI.getDungeonExit() : null;
+          if (exit && has(window.GameAPI.routeToDungeon)) {
+            var pE = window.GameAPI.routeToDungeon(exit.x, exit.y) || [];
+            for (var ei = 0; ei < pE.length; ei++) {
+              var st = pE[ei];
+              var dx = Math.sign(st.x - window.GameAPI.getPlayer().x);
+              var dy = Math.sign(st.y - window.GameAPI.getPlayer().y);
+              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(90);
+            }
+            key("KeyG"); await sleep(260);
+          }
+        } catch (_) {}
+        mode0 = window.GameAPI.getMode();
+        if (mode0 !== "world") {
+          try { var btnNG = document.getElementById("god-newgame-btn"); if (btnNG) btnNG.click(); } catch (_) {}
+          await sleep(400);
+        }
+      }
+
       var inTown = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "town");
       if (!inTown) {
         // Attempt to enter town from overworld

@@ -15,10 +15,28 @@
       var CONFIG = ctx.CONFIG || { timeouts: { route: 5000, interact: 250 } };
       var caps = (ctx && ctx.caps) || {};
 
-      // Ensure dungeon mode; auto-enter if needed
+      // Ensure dungeon mode; auto-enter if needed. Handle town/dungeon/world transitions robustly.
+      var mode0 = (window.GameAPI && has(window.GameAPI.getMode)) ? window.GameAPI.getMode() : null;
+      if (mode0 === "town") {
+        try {
+          if (has(window.GameAPI.returnToWorldIfAtExit)) window.GameAPI.returnToWorldIfAtExit();
+        } catch (_) {}
+        await sleep(240);
+        mode0 = window.GameAPI.getMode();
+        if (mode0 !== "world") {
+          try { var btnNG = document.getElementById("god-newgame-btn"); if (btnNG) btnNG.click(); } catch (_) {}
+          await sleep(400);
+        }
+      }
+
       var inDungeon = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "dungeon");
       if (!inDungeon) {
         try {
+          if (has(window.GameAPI.getMode) && window.GameAPI.getMode() !== "world") {
+            // If still not world, attempt minimal fallback
+            try { var btnNG2 = document.getElementById("god-newgame-btn"); if (btnNG2) btnNG2.click(); } catch (_) {}
+            await sleep(380);
+          }
           if (has(window.GameAPI.gotoNearestDungeon)) {
             await window.GameAPI.gotoNearestDungeon();
           }
