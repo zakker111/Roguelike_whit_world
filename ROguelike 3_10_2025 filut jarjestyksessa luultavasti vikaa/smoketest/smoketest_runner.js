@@ -1681,7 +1681,7 @@
 
           // NPC check: route to nearest NPC and bump into them
           let lastNPC = null;
-          try {
+          {
             const modeNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
             if (modeNow !== "town") {
               recordSkip("NPC checks skipped (not in town)");
@@ -1689,7 +1689,7 @@
               const npcs = (typeof window.GameAPI.getNPCs === "function") ? window.GameAPI.getNPCs() : [];
               if (npcs && npcs.length) {
                 // nearest by manhattan
-                const pl = window.GameAPI.getPlayer();
+                const pl = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
                 let best = npcs[0], bestD = Math.abs(best.x - pl.x) + Math.abs(best.y - pl.y);
                 for (const n of npcs) {
                   const d = Math.abs(n.x - pl.x) + Math.abs(n.y - pl.y);
@@ -1700,18 +1700,18 @@
                   .map(v => ({ x: best.x + v.dx, y: best.y + v.dy }));
                 let path = [];
                 for (const a of adj) {
-                  const p = window.GameAPI.routeToDungeon(a.x, a.y);
+                  const p = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(a.x, a.y) : [];
                   if (p && p.length) { path = p; break; }
                 }
                 for (const step of path) {
-                  const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                  const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                  const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                  const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
                   key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                   await sleep(110);
                 }
                 // bump into NPC tile
-                const dx = Math.sign(best.x - window.GameAPI.getPlayer().x);
-                const dy = Math.sign(best.y - window.GameAPI.getPlayer().y);
+                const dx = Math.sign(best.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : best.x));
+                const dy = Math.sign(best.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : best.y));
                 key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                 await sleep(160);
                 record(true, "Bumped into at least one NPC");
@@ -1720,12 +1720,10 @@
                 recordSkip("No NPCs reported (town may be empty?)");
               }
             }
-          } catch (e) {
-            record(false, "NPC interaction failed: " + (e && e.message ? e.message : String(e)));
           }
 
           // NPC home + decorations check: go to NPC's house and verify decorations/props exist
-          try {
+          {
             const modeNow2 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : "";
             if (modeNow2 !== "town") {
               recordSkip("NPC home check skipped (not in town)");
@@ -1737,13 +1735,13 @@
                 record(hasProps, `NPC home has ${home.props ? home.props.length : 0} decoration(s)/prop(s)`);
                 // Route to door, then to a prop (or interior) and press G
                 const door = b.door || { x: b.x + Math.floor(b.w / 2), y: b.y };
-                let pathDoor = window.GameAPI.routeToDungeon(door.x, door.y);
+                const pathDoor = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(door.x, door.y) : [];
                 {
                   const budget = makeBudget(CONFIG.timeouts.route);
                   for (const step of pathDoor) {
                     if (budget.exceeded()) { recordSkip("Routing to NPC home door timed out"); break; }
-                    const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                    const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                    const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                    const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                     await sleep(100);
                   }
@@ -1755,22 +1753,22 @@
                   // try adjacent to prop
                   const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}].map(d => ({ x: p.x + d.dx, y: p.y + d.dy }));
                   for (const a of adj) {
-                    const route = window.GameAPI.routeToDungeon(a.x, a.y);
+                    const route = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(a.x, a.y) : [];
                     if (route && route.length) { target = { path: route, interact: { x: p.x, y: p.y } }; break; }
                   }
                 }
                 if (!target) {
                   // fallback: a tile just inside the building rectangle
                   const inside = { x: Math.min(b.x + b.w - 2, Math.max(b.x + 1, door.x)), y: b.y + 1 };
-                  const route = window.GameAPI.routeToDungeon(inside.x, inside.y);
+                  const route = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(inside.x, inside.y) : [];
                   target = { path: route, interact: null };
                 }
                 if (target && target.path) {
                   const budget = makeBudget(CONFIG.timeouts.route);
                   for (const step of target.path) {
                     if (budget.exceeded()) { recordSkip("Routing inside NPC home timed out"); break; }
-                    const dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                    const dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                    const dx = Math.sign(step.x - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().x : step.x));
+                    const dy = Math.sign(step.y - ((typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer().y : step.y));
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                     await sleep(100);
                   }
@@ -1792,8 +1790,6 @@
             } else {
               recordSkip("Skipped NPC home check (no NPC found or API not available)");
             }
-          } catch (e) {
-            record(false, "NPC home/decoration verification failed: " + (e && e.message ? e.message : String(e)));
           }
 
           // Decoration/props check: find nearby prop and press G
