@@ -235,9 +235,7 @@
       var el = document.getElementById("god-check-output");
       if (el) el.innerHTML += html;
     } catch (_) {}
-  }_code
- new </}
-}
+  }
 
   // Capability detection for future-proofing
   function detectCaps() {
