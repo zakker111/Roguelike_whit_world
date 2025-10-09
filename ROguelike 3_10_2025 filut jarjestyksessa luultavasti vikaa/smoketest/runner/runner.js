@@ -578,6 +578,7 @@
     const agg = new Map();
     const okMsgs = new Set();
     // Track seeds used within this series to guarantee uniqueness
+    const usedSeeds = new Set();
    
     // Fresh seed helpers
     function randomUint32(runIndex) {
@@ -802,6 +803,16 @@
         if (Bc && typeof Bc.setStatus === "function") Bc.setStatus(`Run ${i + 1} / ${n}: preparing…`);
       } catch (_) {}
       await applyFreshSeedForRun(i);
+      // Wait for world mode to be active and stable before running scenarios
+      try {
+        const Bc = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bc && typeof Bc.setStatus === "function") Bc.setStatus(`Run ${i + 1} / ${n}: waiting for overworld…`);
+      } catch (_) {}
+      try {
+        await waitUntilTrue(() => {
+          try { return (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world"); } catch (_) { return false; }
+        }, 2000, 80);
+      } catch (_) {}
       try {
         const Bc = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
         if (Bc && typeof Bc.setStatus === "function") Bc.setStatus(`Run ${i + 1} / ${n}: running…`);
