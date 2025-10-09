@@ -288,7 +288,72 @@
         } catch (_) { return false; }
       }
 
-      const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip, ensureDungeonOnce };
+      // Centralized, single-attempt town entry to avoid repeated re-enter across scenarios
+      async function ensureTownOnce() {
+        try {
+          const G = window.GameAPI || {};
+          const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          const modeNow = getMode();
+          // Initialize lock namespace
+          try {
+            window.SmokeTest = window.SmokeTest || {};
+            window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+          } catch (_) {}
+          if (window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.TOWN_LOCK) {
+            return getMode() === "town";
+          }
+          // If already in town, set lock and return
+          if (modeNow === "town") {
+            try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {}
+            return true;
+          }
+          // If in dungeon, try returning to world first
+          if (modeNow === "dungeon") {
+            try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
+            await sleep(260);
+            if (getMode() !== "world") {
+              // Fallback to New Game to guarantee world mode
+              try { openGodPanel(); } catch (_) {}
+              await sleep(120);
+              try { const btn = document.getElementById("god-newgame-btn"); if (btn) btn.click(); } catch (_) {}
+              await sleep(300);
+            }
+          }
+          // Route to town gate (best-effort)
+          try {
+            if (typeof G.gotoNearestTown === "function") {
+              await G.gotoNearestTown();
+            } else if (typeof G.nearestTown === "function" && typeof G.routeTo === "function") {
+              const nt = G.nearestTown();
+              if (nt) {
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                for (const d of adj) {
+                  const ax = nt.x + d.dx, ay = nt.y + d.dy;
+                  const path = G.routeTo(ax, ay) || [];
+                  for (const st of path) {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                    const dx = Math.sign(st.x - pl.x);
+                    const dy = Math.sign(st.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(80);
+                  }
+                  break;
+                }
+              }
+            }
+          } catch (_) {}
+          // Attempt entry once
+          try { key("g"); } catch (_) {}
+          await sleep(300);
+          try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
+          await sleep(300);
+          const ok = (getMode() === "town");
+          if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
+          return ok;
+        } catch (_) { return false; }
+      }
+
+      const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip, ensureDungeonOnce, ensureTownOnce };
       // Collect per-scenario results to inform runSeries skipping strategy
       let scenarioResults = [];
 
