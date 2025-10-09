@@ -87,6 +87,24 @@
         record(true, "No shops available to check");
       }
 
+      // Inn/Tavern availability via GOD button (no resting)
+      try {
+        // Ensure GOD panel is open, then click the inn/tavern check
+        domSafeClick("god-open-btn");
+        await sleep(200);
+        var clickedInn = domSafeClick("god-check-inn-tavern-btn");
+        if (clickedInn) { await sleep(300); }
+        // Count inns from shops list
+        var allShops = has(window.GameAPI.getShops) ? (window.GameAPI.getShops() || []) : [];
+        var inns = allShops.filter(function (s) {
+          var nm = (s && s.name) ? String(s.name).toLowerCase() : "";
+          return nm.includes("inn");
+        });
+        record(true, "Inn/Tavern check: " + inns.length + " inn(s)");
+      } catch (e) {
+        record(false, "Inn/Tavern check failed: " + (e && e.message ? e.message : String(e)));
+      }
+
       // Basic currency ops
       try {
         if (has(window.GameAPI.getGold) && has(window.GameAPI.addGold) && has(window.GameAPI.removeGold)) {
