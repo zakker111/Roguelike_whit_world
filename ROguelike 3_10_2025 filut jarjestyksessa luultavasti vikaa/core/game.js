@@ -880,7 +880,7 @@
     recomputeFOV();
     updateCamera();
     updateUI();
-    log(`You re-enter the dungeon (Difficulty ${floor}${currentDungeon.size ? ", " + currentDungeon.size : ""}).`, "notice");
+    // Re-entry message is logged centrally in DungeonState.applyState to avoid duplicates.
     requestDraw();
     return true;
   }

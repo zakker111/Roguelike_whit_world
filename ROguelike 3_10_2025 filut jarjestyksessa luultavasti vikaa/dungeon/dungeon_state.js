@@ -98,7 +98,7 @@
       const enemiesCount = Array.isArray(snapshot.enemies) ? snapshot.enemies.length : 0;
       const corpsesCount = Array.isArray(snapshot.corpses) ? snapshot.corpses.length : 0;
       const msg = `DungeonState.save: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}`;
-      if (ctx.log) ctx.log(msg, "notice");
+      if (window.DEV && ctx.log) ctx.log(msg, "notice");
       console.log(msg);
     } catch (_) {}
   }
@@ -168,7 +168,7 @@
     // Debug: log a concise position summary for entry
     try {
       console.log("DungeonState.applyState: key " + key(x,y) + ", exit=(" + ctx.dungeonExitAt.x + "," + ctx.dungeonExitAt.y + "), player " + prevPX + "," + prevPY + " -> " + ctx.player.x + "," + ctx.player.y + ", corpses=" + ctx.corpses.length + ", enemies=" + ctx.enemies.length);
-      if (ctx.log) ctx.log("DungeonState.applyState: player at (" + ctx.player.x + "," + ctx.player.y + ").", "info");
+      if (window.DEV && ctx.log) ctx.log("DungeonState.applyState: player at (" + ctx.player.x + "," + ctx.player.y + ").", "info");
     } catch (_) {}
 
     ctx.recomputeFOV();
@@ -200,7 +200,7 @@
       const enemiesCount = Array.isArray(st.enemies) ? st.enemies.length : 0;
       const corpsesCount = Array.isArray(st.corpses) ? st.corpses.length : 0;
       const msg = `DungeonState.load: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}`;
-      if (ctx.log) ctx.log(msg, "notice");
+      if (window.DEV && ctx.log) ctx.log(msg, "notice");
       console.log(msg);
     } catch (_) {}
 

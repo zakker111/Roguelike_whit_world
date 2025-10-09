@@ -146,7 +146,7 @@
       if (ctx.visible[ctx.player.y]) ctx.visible[ctx.player.y][ctx.player.x] = true;
       if (ctx.seen[ctx.player.y]) ctx.seen[ctx.player.y][ctx.player.x] = true;
     }
-    if (ctx.log) ctx.log(`You re-enter the dungeon (Difficulty ${ctx.floor}${ctx.dungeon.size ? ", " + ctx.dungeon.size : ""}).`, "notice");
+    // Re-entry message is logged by DungeonState.applyState to avoid duplicates.
     syncAfterMutation(ctx);
     return true;
   }
