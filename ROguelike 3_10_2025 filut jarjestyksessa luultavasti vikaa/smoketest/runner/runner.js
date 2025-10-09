@@ -284,34 +284,61 @@
             try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
             await sleep(260);
           }
-          // Route to dungeon entrance (best-effort)
+
+          // Route to a tile adjacent to the dungeon entrance
           try {
+            const MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
+            let routedAdj = false;
+            let target = null;
+
+            if (typeof G.nearestDungeon === "function") {
+              target = G.nearestDungeon();
+            }
             if (typeof G.gotoNearestDungeon === "function") {
+              // Some implementations auto-walk and land the player onto/near the entrance
               await G.gotoNearestDungeon();
-            } else if (typeof G.nearestDungeon === "function" && typeof G.routeTo === "function") {
-              const nd = G.nearestDungeon();
-              if (nd) {
-                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                for (const d of adj) {
-                  const ax = nd.x + d.dx, ay = nd.y + d.dy;
-                  const path = G.routeTo(ax, ay) || [];
-                  for (const st of path) {
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
-                    const dx = Math.sign(st.x - pl.x);
-                    const dy = Math.sign(st.y - pl.y);
-                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                    await sleep(80);
-                  }
-                  break;
+              routedAdj = true; // best-effort; we will still bumpToward below
+            } else if (target && MV && typeof MV.routeAdjTo === "function") {
+              routedAdj = await MV.routeAdjTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
+            } else if (target && typeof G.routeTo === "function") {
+              // Fallback: compute an adjacent target and key-walk
+              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+              for (const d of adj) {
+                const ax = target.x + d.dx, ay = target.y + d.dy;
+                const path = G.routeTo(ax, ay) || [];
+                for (const st of path) {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                  const dx = Math.sign(st.x - pl.x);
+                  const dy = Math.sign(st.y - pl.y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(80);
                 }
+                if (path && path.length) break;
               }
+              routedAdj = true;
+            }
+
+            // Final bump to step onto the entrance, then press 'g'
+            if (target) {
+              try {
+                if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
+                else {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                  const dx = Math.sign(target.x - pl.x);
+                  const dy = Math.sign(target.y - pl.y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                }
+              } catch (_) {}
             }
           } catch (_) {}
-          // Attempt entry once
+
+          // Attempt entry once (normalized 'g')
           try { key("g"); } catch (_) {}
           await sleep(300);
           try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
           await sleep(300);
+
+          // Confirm mode transition
           const ok = (getMode() === "dungeon");
           if (ok) { try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {} }
           return ok;
@@ -349,34 +376,60 @@
               await sleep(300);
             }
           }
-          // Route to town gate (best-effort)
+
+          // Route to a tile adjacent to the town gate, then bump and enter
           try {
+            const MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
+            let target = null;
+            if (typeof G.getTownGate === "function") {
+              target = G.getTownGate();
+            }
+            if (!target && typeof G.nearestTown === "function") {
+              target = G.nearestTown();
+            }
+
             if (typeof G.gotoNearestTown === "function") {
               await G.gotoNearestTown();
-            } else if (typeof G.nearestTown === "function" && typeof G.routeTo === "function") {
-              const nt = G.nearestTown();
-              if (nt) {
-                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                for (const d of adj) {
-                  const ax = nt.x + d.dx, ay = nt.y + d.dy;
-                  const path = G.routeTo(ax, ay) || [];
-                  for (const st of path) {
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
-                    const dx = Math.sign(st.x - pl.x);
-                    const dy = Math.sign(st.y - pl.y);
-                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                    await sleep(80);
-                  }
-                  break;
+              // fall through to bumpToward even if auto-walked
+            } else if (target && MV && typeof MV.routeAdjTo === "function") {
+              await MV.routeAdjTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
+            } else if (target && typeof G.routeTo === "function") {
+              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+              for (const d of adj) {
+                const ax = target.x + d.dx, ay = target.y + d.dy;
+                const path = G.routeTo(ax, ay) || [];
+                for (const st of path) {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                  const dx = Math.sign(st.x - pl.x);
+                  const dy = Math.sign(st.y - pl.y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(80);
                 }
+                if (path && path.length) break;
               }
             }
+
+            // Final bump onto the gate tile before interaction
+            if (target) {
+              try {
+                if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
+                else {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                  const dx = Math.sign(target.x - pl.x);
+                  const dy = Math.sign(target.y - pl.y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                }
+              } catch (_) {}
+            }
           } catch (_) {}
-          // Attempt entry once
+
+          // Attempt entry once (normalized 'g')
           try { key("g"); } catch (_) {}
           await sleep(300);
           try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
           await sleep(300);
+
+          // Confirm mode transition
           const ok = (getMode() === "town");
           if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
           return ok;

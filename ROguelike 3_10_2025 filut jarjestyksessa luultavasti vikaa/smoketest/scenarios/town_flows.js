@@ -171,7 +171,7 @@
               }
             }
             var ib2 = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
-            key("KeyG");
+            key("g");
             await sleep(Math.min(ib2.remain(), 220));
             record(true, "Interacted with nearby decoration/prop (G)");
           } else {
