@@ -147,7 +147,8 @@
           record(okLoot, "Chest loot: " + (okLoot ? "OK" : "NO-OP") + " at (" + chest.x + "," + chest.y + ")" + (lootCountReduced ? " (loot--)" : "") + (inventoryChanged ? " (inv++)" : ""));
         } else {
           recordSkip("No chest found in dungeon (skipping chest loot)");
-        } catch (e) {
+        }
+      } catch (e) {
         record(false, "Chest loot failed: " + (e && e.message ? e.message : String(e)));
       }
 
