@@ -211,19 +211,7 @@
         record(false, "Shop interaction failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Resting
-      try {
-        var inn = shops.find(function (s) { return ((s.name || "").toLowerCase().includes("inn")); });
-        if (inn && has(window.GameAPI.restAtInn)) {
-          window.GameAPI.restAtInn();
-          record(true, "Rested at inn (time advanced to morning, HP restored)");
-        } else if (has(window.GameAPI.restUntilMorning)) {
-          window.GameAPI.restUntilMorning();
-          record(true, "Rested until morning");
-        }
-      } catch (e) {
-        record(false, "Resting failed: " + (e && e.message ? e.message : String(e)));
-      }
+      
 
       return true;
     } catch (e) {
