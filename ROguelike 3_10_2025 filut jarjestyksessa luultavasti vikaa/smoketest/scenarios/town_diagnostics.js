@@ -38,6 +38,8 @@
       var CONFIG = ctx.CONFIG || { timeouts: { route: 2500, interact: 250, battle: 2500 } };
       var caps = (ctx && ctx.caps) || {};
       var MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
+      var TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+      var hadTimeout = false;
 
       // Open GOD and diagnostics
       if (domSafeClick("god-open-btn")) {
@@ -156,7 +158,7 @@
               var budget = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 2500);
               for (var k = 0; k < path.length; k++) {
                 var step = path[k];
-                if (budget.exceeded()) { recordSkip("Routing to shopkeeper timed out"); break; }
+                if (budget.exceeded()) { hadTimeout = true; recordSkip("Routing to shopkeeper timed out"); break; }
                 var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
                 var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
                 key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
@@ -198,7 +200,7 @@
             var budgetS = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 2500);
             for (var si = 0; si < pathS.length; si++) {
               var st = pathS[si];
-              if (budgetS.exceeded()) { recordSkip("Routing to shop timed out"); break; }
+              if (budgetS.exceeded()) { hadTimeout = true; recordSkip("Routing to shop timed out"); break; }
               var dx = Math.sign(st.x - window.GameAPI.getPlayer().x);
               var dy = Math.sign(st.y - window.GameAPI.getPlayer().y);
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
@@ -230,6 +232,14 @@
       }
 
       
+
+      // If any routing step timed out, attempt safe exit: teleport to gate and press 'g'
+      try {
+        if (hadTimeout && window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "town" && TP && typeof TP.teleportToGateAndExit === "function") {
+          var exited = await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 300 });
+          record(exited, exited ? "Diagnostics timeout: exited town via teleport" : "Diagnostics timeout: failed to exit town");
+        }
+      } catch (_) {}
 
       return true;
     } catch (e) {

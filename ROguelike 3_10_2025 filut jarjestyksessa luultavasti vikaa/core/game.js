@@ -3194,6 +3194,97 @@
         }
         path.reverse();
         return path;
+      },
+
+      // DEV/test-only: teleport player to a target tile and refresh state (camera/FOV/UI/redraw).
+      // opts: { ensureWalkable: true, fallbackScanRadius: 6 }
+      teleportTo: (tx, ty, opts) => {
+        try {
+          const x = (Number(tx) || 0) | 0;
+          const y = (Number(ty) || 0) | 0;
+          const ensureWalkable = !opts || (opts.ensureWalkable !== false);
+          const fallbackR = (opts && opts.fallbackScanRadius != null) ? (opts.fallbackScanRadius | 0) : 6;
+
+          const curMode = mode;
+          const canWorld = () => {
+            if (!world || !world.map) return false;
+            const t = world.map[y] && world.map[y][x];
+            return (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
+          };
+          const canLocal = () => {
+            if (!inBounds(x, y)) return false;
+            if (!ensureWalkable) return true;
+            if (!isWalkable(x, y)) return false;
+            // avoid enemies/NPCs on the exact tile
+            if (curMode === "dungeon" && enemies.some(e => e.x === x && e.y === y)) return false;
+            if (curMode === "town") {
+              const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(x, y) : (Array.isArray(npcs) && npcs.some(n => n.x === x && n.y === y));
+              if (npcBlocked) return false;
+            }
+            return true;
+          };
+
+          let ok = false;
+          if (curMode === "world") {
+            ok = canWorld();
+          } else {
+            ok = canLocal();
+          }
+
+          // If target is blocked, scan a small radius for a free alternative
+          if (!ok && ensureWalkable) {
+            const r = Math.max(1, fallbackR | 0);
+            let best = null, bestD = Infinity;
+            for (let dy = -r; dy <= r; dy++) {
+              for (let dx = -r; dx <= r; dx++) {
+                const nx = x + dx, ny = y + dy;
+                const md = Math.abs(dx) + Math.abs(dy);
+                if (md > r) continue;
+                if (curMode === "world") {
+                  if (!world || !world.map) continue;
+                  const t = world.map[ny] && world.map[ny][nx];
+                  const walk = (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
+                  if (walk && md < bestD) { best = { x: nx, y: ny }; bestD = md; }
+                } else {
+                  if (!inBounds(nx, ny)) continue;
+                  // block entity-occupied
+                  if (curMode === "dungeon" && enemies.some(e => e.x === nx && e.y === ny)) continue;
+                  if (curMode === "town") {
+                    const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(nx, ny) : (Array.isArray(npcs) && npcs.some(n => n.x === nx && n.y === ny));
+                    if (npcBlocked) continue;
+                  }
+                  if (isWalkable(nx, ny) && md < bestD) { best = { x: nx, y: ny }; bestD = md; }
+                }
+              }
+            }
+            if (best) { player.x = best.x; player.y = best.y; ok = true; }
+          }
+
+          if (!ok) {
+            // If we didn't relax, try setting anyway (for testing blocked tiles)
+            if (!ensureWalkable) { player.x = x; player.y = y; ok = true; }
+          } else {
+            if (curMode !== "world") { player.x = (player.x | 0); player.y = (player.y | 0); } // ensure ints
+            if (curMode === "world") { player.x = x; player.y = y; }
+            if (curMode !== "world" && !(player.x === x && player.y === y)) {
+              // If ok was from fallback, the assignment already occurred above
+            } else {
+              player.x = x; player.y = y;
+            }
+          }
+
+          if (ok) {
+            updateCamera();
+            // Invalidate FOV cache to force recompute
+            _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
+            recomputeFOV();
+            updateUI();
+            requestDraw();
+          }
+          return !!ok;
+        } catch (_) {
+          return false;
+        }
       }
     };
   } catch (_) {}
