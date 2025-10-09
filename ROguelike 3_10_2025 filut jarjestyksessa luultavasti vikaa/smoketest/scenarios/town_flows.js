@@ -37,7 +37,7 @@
                 await sleep(100);
               }
             }
-            key("Enter"); await sleep(260);
+            key("g"); await sleep(260);
             if (has(window.GameAPI.enterTownIfOnTile)) window.GameAPI.enterTownIfOnTile();
             await sleep(240);
           }
@@ -152,7 +152,7 @@
             }
             if (doInteract) {
               var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
-              key("KeyG");
+              key("g");
               await sleep(Math.min(ib.remain(), 160));
               record(true, "Interacted inside NPC home (prop/decoration)");
             } else {

@@ -66,7 +66,7 @@
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(90);
             }
-            key("KeyG"); await sleep(260);
+            key("g"); await sleep(260);
           }
         } catch (_) {}
         mode0 = window.GameAPI.getMode();
@@ -96,7 +96,7 @@
                 await sleep(100);
               }
             }
-            key("Enter"); await sleep(260);
+            key("g"); await sleep(260);
             if (has(window.GameAPI.enterTownIfOnTile)) window.GameAPI.enterTownIfOnTile();
             await sleep(240);
           }
@@ -241,7 +241,7 @@
             }
           }
           var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
-          key("KeyG");
+          key("g");
           await sleep(Math.min(ib.remain(), 220));
           // Esc closes Shop UI fallback panel
           try {

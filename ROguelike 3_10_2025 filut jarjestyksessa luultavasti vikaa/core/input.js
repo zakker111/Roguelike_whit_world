@@ -33,7 +33,7 @@
       window.removeEventListener("keydown", _onKey);
     }
     _onKey = (e) => {
-      
+      // Dead screen: only R restarts (Enter disabled)
       if (_handlers.isDead && _handlers.isDead()) {
         if (e.key && (e.key.toLowerCase() === "r")) {
           e.preventDefault();
@@ -42,7 +42,6 @@
         return;
       }
 
-      
       // Close top-most modals first: GOD, Shop, then Inventory/Loot
       if (_handlers.isGodOpen && _handlers.isGodOpen()) {
         const isEsc = e.key === "Escape" || e.key === "Esc";
@@ -76,61 +75,85 @@
         return;
       }
 
-      if (_handlers.i      if (_handlers.isLootOpen && _handlers.isLootOpen()) {
+      if (_handlers.isLootOpen && _handlers.isLootOpen()) {
         e.preventDefault();
-        _handlers.onHideLoot && _handlers.onHideLoo        
-      if ((e.key && 
+        _handlers.onHideLoot && _handlers.onHideLoot();
+        return;
+      }
+
+      // Inventory toggle
       if ((e.key && e.key.toLowerCase() === "i") || e.code === "KeyI") {
         e.preventDefault();
-        _handlers.onShowInventory && _handlers.onShowInventor        
-      
-      if ((e.k      
+        _handlers.onShowInventory && _handlers.onShowInventory();
+        return;
+      }
+
+      // GOD panel toggle
       if ((e.key && e.key.toLowerCase() === "p") || e.code === "KeyP") {
         e.preventDefault();
-        _handlers.onShowGod && _handlers.onShowGo        
-      
-      if (e.co      
+        _handlers.onShowGod && _handlers.onShowGod();
+        return;
+      }
+
+      // FOV adjust
       if (e.code === "BracketLeft" || e.key === "[" || e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-") {
         e.preventDefault();
-        _handlers.adjustFov && _handlers.adjustFov(              if (e.c      }
+        _handlers.adjustFov && _handlers.adjustFov(-1);
+        return;
+      }
       if (e.code === "BracketRight" || e.key === "]" || e.code === "Equal" || e.code === "NumpadAdd" || e.key === "=") {
         e.preventDefault();
-        _handlers.adjustFov && _handlers.adjustFov        
-      
-      const ke      
+        _handlers.adjustFov && _handlers.adjustFov(1);
+        return;
+      }
+
+      // Movement
       const key = e.code;
       if (KEY_DIRS[key]) {
         e.preventDefault();
         const d = KEY_DIRS[key];
-        _handlers.onMove && _handlers.onMove(d.x, d        
-      
-      if (key       
+        _handlers.onMove && _handlers.onMove(d.x, d.y);
+        return;
+      }
+
+      // Wait
       if (key === "Numpad5") {
         e.preventDefault();
-        _handlers.onWait && _handlers.onWai        
-      
-      if (e.ke      
+        _handlers.onWait && _handlers.onWait();
+        return;
+      }
+
+      // Action / interact (G)
       if (e.key && e.key.toLowerCase() === "g") {
         e.preventDefault();
         _handlers.onHideLoot && _handlers.onHideLoot();
-        _handlers.onLoot && _handlers.onLoo        
-      
-      if ((e.k      
-      if ((e.key && e.key.toLowerCase() === "n")) {
+        _handlers.onLoot && _handlers.onLoot();
+        return;
+      }
+
+      // Descend / context action for stairs (N only; Enter disabled)
+      if (e.key && e.key.toLowerCase() === "n") {
         e.preventDefault();
         _handlers.onHideLoot && _handlers.onHideLoot();
-        _handlers.onDescend && _handlers.onDescen        
-      
-      if (_han      
+        _handlers.onDescend && _handlers.onDescend();
+        return;
+      }
+
+      // If loot panel still open, hide it by default
       if (_handlers.isLootOpen && _handlers.isLootOpen()) {
-        _handlers.onHideLoot && _handlers.o    };
-    window.add    };
-    window.addEventListener("ke
-  function destroy()
-  function destroy()       if (_onKey) {
+        _handlers.onHideLoot && _handlers.onHideLoot();
+      }
+    };
+    window.addEventListener("keydown", _onKey);
+  }
+
+  function destroy() {
+    if (_onKey) {
       window.removeEventListener("keydown", _onKey);
-          _handlers =    }
-    _
-  window.Input = { i
+      _onKey = null;
+    }
+    _handlers = null;
+  }
+
   window.Input = { init, destroy };
 })();

@@ -53,7 +53,7 @@
                 await sleep(90);
               }
             }
-            ctx.key("Enter"); await sleep(240);
+            ctx.key("g"); await sleep(240);
             if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile();
             await sleep(240);
           }
