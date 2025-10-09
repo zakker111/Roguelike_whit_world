@@ -73,9 +73,10 @@
         }
 
         if (chest) {
+          // Route to chest tile
           var pathC = has(window.GameAPI.routeToDungeon) ? (window.GameAPI.routeToDungeon(chest.x, chest.y) || []) : [];
           var budgetC = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 5000);
-          for (var i = 0; i < pathC.length; i++) {
+          for (var i = 0; i &lt; pathC.length; i++) {
             var step = pathC[i];
             if (budgetC.exceeded()) { recordSkip("Routing to chest timed out"); break; }
             var dx = Math.sign(step.x - (has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer().x : step.x));
@@ -83,10 +84,28 @@
             key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
             await sleep(110);
           }
-          var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
-          key("g"); // loot chest
-          await sleep(Math.min(ib.remain(), 250));
-          record(true, "Looted chest at (" + chest.x + "," + chest.y + ")");
+
+          // Snapshot before interaction
+          var corpsesBefore = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
+          var chestBefore = corpsesBefore.find(function (c) { return c && c.kind === "chest" && c.x === chest.x && c.y === chest.y; }) || { looted: false, lootCount: 0 };
+          var invBefore = has(window.GameAPI.getInventory) ? (window.GameAPI.getInventory() || []).length : null;
+
+          // Interact: press 'g'
+          var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 500);
+          key("g");
+          await sleep(Math.min(ib.remain(), 300));
+
+          // Check after
+          var corpsesAfter = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
+          var chestAfter = corpsesAfter.find(function (c) { return c && c.kind === "chest" && c.x === chest.x && c.y === chest.y; }) || null;
+          var invAfter = has(window.GameAPI.getInventory) ? (window.GameAPI.getInventory() || []).length : null;
+
+          var lootedFlag = !!(chestAfter ? chestAfter.looted : true); // if chest record missing, assume looted/consumed
+          var lootCountReduced = !!(chestAfter && typeof chestBefore.lootCount === "number" && typeof chestAfter.lootCount === "number" && chestAfter.lootCount &lt; chestBefore.lootCount);
+          var inventoryChanged = (invBefore != null && invAfter != null) ? (invAfter &gt; invBefore) : false;
+
+          var okLoot = lootedFlag || lootCountReduced || inventoryChanged;
+          record(okLoot, "Chest loot: " + (okLoot ? "OK" : "NO-OP") + " at (" + chest.x + "," + chest.y + ")" + (lootCountReduced ? " (loot--)" : "") + (inventoryChanged ? " (inv++)" : ""));
         } else {
           recordSkip("No chest found in dungeon (skipping chest loot)");
         }

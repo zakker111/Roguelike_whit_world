@@ -134,9 +134,17 @@
             await sleep(110);
           }
         }
-        // battle bumps
+
+        // Snapshot before bump-attacks
+        var enemiesPre = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+        var sumHpPre = enemiesPre.reduce(function(acc, e){ return acc + (typeof e.hp === "number" ? e.hp : 0); }, 0);
+        var bestHpBefore = (typeof best.hp === "number") ? best.hp : null;
+        var corpsesPre = (typeof window.GameAPI.getCorpses === "function") ? (window.GameAPI.getCorpses() || []).length : null;
+        var decalsPre = (typeof window.GameAPI.getDecalsCount === "function") ? (window.GameAPI.getDecalsCount() | 0) : null;
+
+        // battle bumps (attempt to collide/attack)
         var bb = makeBudget(CONFIG.timeouts.battle);
-        for (var t = 0; t < 3; t++) {
+        for (var t = 0; t < 4; t++) {
           if (bb.exceeded()) { recordSkip("Combat burst timed out"); break; }
           var dx2 = Math.sign(best.x - window.GameAPI.getPlayer().x);
           var dy2 = Math.sign(best.y - window.GameAPI.getPlayer().y);
@@ -144,6 +152,33 @@
           await sleep(140);
         }
         record(true, "Moved and attempted attacks");
+
+        // Post-checks: HP decrease, corpse or decals increase
+        try {
+          var enemiesPost = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+          var sumHpPost = enemiesPost.reduce(function(acc, e){ return acc + (typeof e.hp === "number" ? e.hp : 0); }, 0);
+          var corpsesPost = (typeof window.GameAPI.getCorpses === "function") ? (window.GameAPI.getCorpses() || []).length : null;
+          var decalsPost = (typeof window.GameAPI.getDecalsCount === "function") ? (window.GameAPI.getDecalsCount() | 0) : null;
+
+          // Find nearest enemy to original target and compare hp if possible
+          var nearestAfter = null, nd = Infinity;
+          for (var ii = 0; ii < enemiesPost.length; ii++) {
+            var en = enemiesPost[ii];
+            var d2 = Math.abs(en.x - best.x) + Math.abs(en.y - best.y);
+            if (d2 < nd) { nd = d2; nearestAfter = en; }
+          }
+          var hpDroppedForTarget = (nearestAfter && typeof nearestAfter.hp === "number" && typeof bestHpBefore === "number") ? (nearestAfter.hp < bestHpBefore) : false;
+          var sumHpDropped = (typeof sumHpPre === "number" && typeof sumHpPost === "number") ? (sumHpPost < sumHpPre) : false;
+          var corpseInc = (corpsesPre != null && corpsesPost != null) ? (corpsesPost > corpsesPre) : false;
+          var decalsInc = (decalsPre != null && decalsPost != null) ? (decalsPost > decalsPre) : false;
+
+          var fightOk = hpDroppedForTarget || sumHpDropped || corpseInc || decalsInc;
+          record(fightOk, "Combat effects: " +
+            (hpDroppedForTarget ? "target hp↓ " : "") +
+            (sumHpDropped ? "sum hp↓ " : "") +
+            (corpseInc ? "corpse+ " : "") +
+            (decalsInc ? "decals+ " : ""));
+        } catch (_) {}
       }
 
       // Basic decay snapshot after combat attempt
