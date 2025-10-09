@@ -432,7 +432,6 @@
           if (ok) { try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {} }
           return ok;
         } catch (_) { return false; }
-      } catch (_) { return false; }
       }
 
       // Centralized, single-attempt town entry to avoid repeated re-enter across scenarios
@@ -581,7 +580,6 @@
           if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
           return ok;
         } catch (_) { return false; }
-      } catch (_) { return false; }
       }
 
       const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip, ensureDungeonOnce, ensureTownOnce };
