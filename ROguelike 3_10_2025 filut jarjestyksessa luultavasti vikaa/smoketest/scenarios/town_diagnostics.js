@@ -77,34 +77,12 @@
         record(false, "Gate NPC count check failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Shops schedule check
+      // Shops sign check (no boundary/schedule)
       var shops = has(window.GameAPI.getShops) ? (window.GameAPI.getShops() || []) : [];
       if (shops && shops.length) {
         var s0 = shops[0];
         var openNow = has(window.GameAPI.isShopOpenNowFor) ? !!window.GameAPI.isShopOpenNowFor(s0) : false;
-        var sched = has(window.GameAPI.getShopSchedule) ? (window.GameAPI.getShopSchedule(s0) || "") : "";
-        record(true, "Shop check: " + (s0.name || "Shop") + " is " + (openNow ? "OPEN" : "CLOSED") + " (" + sched + ")");
-        // Boundary: move from 07:59 to 08:00 if possible
-        try {
-          if (has(window.GameAPI.getClock) && has(window.GameAPI.advanceMinutes)) {
-            var clk = window.GameAPI.getClock();
-            var curMin = clk.hours * 60 + clk.minutes;
-            var to759 = ((8 * 60 - 1) - curMin + 24 * 60) % (24 * 60);
-            window.GameAPI.advanceMinutes(to759);
-            await sleep(120);
-            var at759 = has(window.GameAPI.isShopOpenNowFor) ? !!window.GameAPI.isShopOpenNowFor(s0) : false;
-            window.GameAPI.advanceMinutes(1);
-            await sleep(120);
-            var at800 = has(window.GameAPI.isShopOpenNowFor) ? !!window.GameAPI.isShopOpenNowFor(s0) : false;
-            record(true, "Shop boundary: 07:59=" + (at759 ? "OPEN" : "CLOSED") + " 08:00=" + (at800 ? "OPEN" : "CLOSED"));
-          } else {
-            var before = openNow;
-            if (has(window.GameAPI.restUntilMorning)) window.GameAPI.restUntilMorning();
-            await sleep(200);
-            var after = has(window.GameAPI.isShopOpenNowFor) ? !!window.GameAPI.isShopOpenNowFor(s0) : before;
-            record(true, "Shop open state after morning: " + (after ? "OPEN" : "CLOSED"));
-          }
-        } catch (_) {}
+        record(true, "Shop sign: " + (openNow ? "OPEN" : "CLOSED") + " (" + (s0.name || "Shop") + ")");
       } else {
         record(true, "No shops available to check");
       }
