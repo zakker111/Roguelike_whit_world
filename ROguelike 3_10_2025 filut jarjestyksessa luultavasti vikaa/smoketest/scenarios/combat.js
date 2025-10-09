@@ -22,83 +22,12 @@
       // Ensure no modal (GOD/Inventory/Shop/Smoke) is intercepting keys
       try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(8); } catch (_) {}
 
-      // Ensure in dungeon; robustly handle starting from town by returning to world first
+      // Ensure in dungeon with a single centralized attempt (avoid repeated toggles across scenarios)
       try {
-        var mode0 = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
-        if (mode0 === "town") {
-          try { if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit(); } catch (_) {}
-          await sleep(240);
-          mode0 = window.GameAPI.getMode();
-          if (mode0 !== "world") {
-            // Fallback: restart to world via GOD panel
-            try {
-              var btnNG = document.getElementById("god-newgame-btn");
-              if (btnNG) { btnNG.click(); await sleep(400); }
-            } catch (_) {}
-          }
-        }
-        if ((window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() !== "dungeon")) {
-          // Try to route and enter dungeon with retries and explicit waits
-          const tryEnterDungeon = async () => {
-            try {
-              if (typeof window.GameAPI.gotoNearestDungeon === "function") await window.GameAPI.gotoNearestDungeon();
-              key("g"); await sleep(280);
-              if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-              await sleep(300);
-            } catch (_) {}
-          };
-          const waitUntilDungeon = async (timeoutMs) => {
-            const deadline = Date.now() + (timeoutMs | 0);
-            while (Date.now() < deadline) {
-              try {
-                if (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon") return true;
-              } catch (_) {}
-              await sleep(100);
-            }
-            try { return (typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "dungeon"); } catch (_) { return false; }
-          };
-          // Attempt up to 3 times with waits
-          let entered = false;
-          for (let attempt = 0; attempt < 3 && !entered; attempt++) {
-            await tryEnterDungeon();
-            entered = await waitUntilDungeon(1400);
-            if (!entered) {
-              // Nudge closer to entrance by routing to nearestDungeon coordinates and adjacents
-              try {
-                if (typeof window.GameAPI.nearestDungeon === "function") {
-                  const nd = window.GameAPI.nearestDungeon();
-                  if (nd) {
-                    // Use movement helper if available
-                    try {
-                      var MV = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
-                      if (MV && typeof MV.routeAdjTo === "function") {
-                        await MV.routeAdjTo(nd.x, nd.y, { timeoutMs: (CONFIG && CONFIG.timeouts && CONFIG.timeouts.route) || 5000, stepMs: 100 });
-                      } else if (typeof window.GameAPI.routeTo === "function") {
-                        const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                        for (const d of adj) {
-                          const ax = nd.x + d.dx, ay = nd.y + d.dy;
-                          const path = window.GameAPI.routeTo(ax, ay) || [];
-                          const dl = Date.now() + ((CONFIG && CONFIG.timeouts && CONFIG.timeouts.route) || 5000);
-                          for (const st of path) {
-                            if (Date.now() > dl) break;
-                            const pl = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : st;
-                            const dx = Math.sign(st.x - pl.x);
-                            const dy = Math.sign(st.y - pl.y);
-                            key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                            await sleep(100);
-                          }
-                          if (Date.now() <= dl) break;
-                        }
-                      }
-                    } catch (_) {}
-                    // Final nudge and enter again
-                    tryEnterDungeon();
-                    entered = await waitUntilDungeon(1400);
-                  }
-                }
-              } catch (_) {}
-            }
-          }
+        const mode0 = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+        if (mode0 !== "dungeon") {
+          const ok = (typeof ctx.ensureDungeonOnce === "function") ? await ctx.ensureDungeonOnce() : false;
+          if (!ok) { recordSkip("Combat scenario skipped (not in dungeon)"); return true; }
         }
       } catch (_) {}
 

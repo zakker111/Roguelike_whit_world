@@ -230,7 +230,65 @@
         if (B && typeof B.log === "function") B.log("Starting smoke test…", "notice");
       } catch (_) {}
 
-      const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip };
+      // Centralized, single-attempt dungeon entry to avoid repeated re-enter across scenarios
+      async function ensureDungeonOnce() {
+        try {
+          const G = window.GameAPI || {};
+          const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          const modeNow = getMode();
+          // Initialize lock namespace
+          try {
+            window.SmokeTest = window.SmokeTest || {};
+            window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+          } catch (_) {}
+          if (window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.DUNGEON_LOCK) {
+            return getMode() === "dungeon";
+          }
+          // If already in dungeon, set lock and return
+          if (modeNow === "dungeon") {
+            try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {}
+            return true;
+          }
+          // If in town, try returning to world first
+          if (modeNow === "town") {
+            try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
+            await sleep(260);
+          }
+          // Route to dungeon entrance (best-effort)
+          try {
+            if (typeof G.gotoNearestDungeon === "function") {
+              await G.gotoNearestDungeon();
+            } else if (typeof G.nearestDungeon === "function" && typeof G.routeTo === "function") {
+              const nd = G.nearestDungeon();
+              if (nd) {
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                for (const d of adj) {
+                  const ax = nd.x + d.dx, ay = nd.y + d.dy;
+                  const path = G.routeTo(ax, ay) || [];
+                  for (const st of path) {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                    const dx = Math.sign(st.x - pl.x);
+                    const dy = Math.sign(st.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(80);
+                  }
+                  break;
+                }
+              }
+            }
+          } catch (_) {}
+          // Attempt entry once
+          try { key("g"); } catch (_) {}
+          await sleep(300);
+          try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
+          await sleep(300);
+          const ok = (getMode() === "dungeon");
+          if (ok) { try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {} }
+          return ok;
+        } catch (_) { return false; }
+      }
+
+      const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip, ensureDungeonOnce };
       // Collect per-scenario results to inform runSeries skipping strategy
       let scenarioResults = [];
 
