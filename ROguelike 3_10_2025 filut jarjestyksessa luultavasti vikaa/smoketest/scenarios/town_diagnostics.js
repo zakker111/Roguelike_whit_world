@@ -59,6 +59,24 @@
         return true;
       }
 
+      // Gate greeter count: ensure only one NPC near the town gate
+      try {
+        var gate = has(window.GameAPI.getTownGate) ? window.GameAPI.getTownGate() : null;
+        var npcsAll = has(window.GameAPI.getNPCs) ? (window.GameAPI.getNPCs() || []) : [];
+        if (gate && npcsAll && npcsAll.length) {
+          var radius = 2; // manhattan radius around gate
+          var nearGate = npcsAll.filter(function (n) {
+            return (Math.abs(n.x - gate.x) + Math.abs(n.y - gate.y)) <= radius;
+          });
+          record(true, "Gate NPCs within r<=2: " + nearGate.length);
+          record(nearGate.length === 1, "Gate greeter count is " + nearGate.length + " (expected 1)");
+        } else {
+          record(true, "Gate NPC count check skipped (no gate or no NPCs)");
+        }
+      } catch (e) {
+        record(false, "Gate NPC count check failed: " + (e && e.message ? e.message : String(e)));
+      }
+
       // Shops schedule check
       var shops = has(window.GameAPI.getShops) ? (window.GameAPI.getShops() || []) : [];
       if (shops && shops.length) {
