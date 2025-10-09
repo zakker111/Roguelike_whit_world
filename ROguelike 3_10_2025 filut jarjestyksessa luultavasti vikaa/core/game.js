@@ -2919,6 +2919,7 @@
       getNPCs: () => (Array.isArray(npcs) ? npcs.map((n, i) => ({ i, x: n.x, y: n.y, name: n.name })) : []),
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
       getDungeonExit: () => (dungeonExitAt ? { x: dungeonExitAt.x, y: dungeonExitAt.y } : null),
+      getTownGate: () => (townExitAt ? { x: townExitAt.x, y: townExitAt.y } : null),
       getCorpses: () => (Array.isArray(corpses) ? corpses.map(c => ({ kind: c.kind || "corpse", x: c.x, y: c.y, looted: !!c.looted, lootCount: Array.isArray(c.loot) ? c.loot.length : 0 })) : []),
       getChestsDetailed: () => {
         if (!Array.isArray(corpses)) return [];

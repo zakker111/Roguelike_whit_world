@@ -425,24 +425,77 @@
       try {
         const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
 
-        // 1) Ensure we are in WORLD mode before seeding, so scenarios that rely on world pathing succeed.
+        // 1) Ensure we are in WORLD mode before seeding.
         try {
-          const mode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+          const G = window.GameAPI || {};
+          const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          const mode = getMode();
           if (mode !== "world") {
-            try { openGodPanel(); } catch (_) {}
-            await sleep(120);
+            // If in town/dungeon, route to gate/exit and press G to leave
             try {
-              // Click the "Start New Game" button in GOD panel
-              const btn = document.getElementById("god-newgame-btn");
-              if (btn) btn.click();
+              const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+              const routeAndExit = async (tx, ty, label) => {
+                if (typeof G.routeToDungeon === "function" && Array.isArray(G.routeToDungeon(tx, ty))) {
+                  const path = G.routeToDungeon(tx, ty);
+                  if (path && path.length) {
+                    if (B && typeof B.log === "function") B.log(`Routing to ${label} at (${tx},${ty})…`, "info");
+                    for (const step of path) {
+                      const dx = Math.sign(step.x - (G.getPlayer && G.getPlayer().x));
+                      const dy = Math.sign(step.y - (G.getPlayer && G.getPlayer().y));
+                      try { if (typeof G.moveStep === "function") G.moveStep(dx, dy); } catch (_) {}
+                      await sleep(60);
+                    }
+                  }
+                }
+                // Press G to perform context action (exit)
+                if (B && typeof B.log === "function") B.log(`Pressing G to exit ${label}…`, "notice");
+                try { key("g"); } catch (_) {}
+                await sleep(200);
+                // Wait until world mode
+                await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
+                await sleep(120);
+              };
+
+              // Close any modals first
+              await ensureAllModalsClosed(2);
+              if (mode === "town" && typeof G.getTownGate === "function") {
+                const gate = G.getTownGate();
+                if (gate && typeof gate.x === "number" && typeof gate.y === "number") {
+                  await routeAndExit(gate.x, gate.y, "town gate");
+                } else {
+                  // Fallback: use Start New Game
+                  if (B && typeof B.log === "function") B.log("Town gate unknown; starting new game.", "warn");
+                  try { openGodPanel(); } catch (_) {}
+                  await sleep(120);
+                  const btn = document.getElementById("god-newgame-btn");
+                  if (btn) btn.click();
+                  await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
+                  await sleep(120);
+                }
+              } else if (mode === "dungeon" && typeof G.getDungeonExit === "function") {
+                const exit = G.getDungeonExit();
+                if (exit && typeof exit.x === "number" && typeof exit.y === "number") {
+                  await routeAndExit(exit.x, exit.y, "dungeon entrance");
+                } else {
+                  // Fallback: Start New Game
+                  if (B && typeof B.log === "function") B.log("Dungeon exit unknown; starting new game.", "warn");
+                  try { openGodPanel(); } catch (_) {}
+                  await sleep(120);
+                  const btn = document.getElementById("god-newgame-btn");
+                  if (btn) btn.click();
+                  await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
+                  await sleep(120);
+                }
+              } else {
+                // Unknown mode; fallback to Start New Game
+                try { openGodPanel(); } catch (_) {}
+                await sleep(120);
+                const btn = document.getElementById("god-newgame-btn");
+                if (btn) btn.click();
+                await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
+                await sleep(120);
+              }
             } catch (_) {}
-            // Wait for world mode (with a modest timeout)
-            try {
-              await waitUntilTrue(() => {
-                try { return window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world"; } catch (_) { return false; }
-              }, 1800, 80);
-            } catch (_) {}
-            await sleep(120);
           }
         } catch (_) {}
 
