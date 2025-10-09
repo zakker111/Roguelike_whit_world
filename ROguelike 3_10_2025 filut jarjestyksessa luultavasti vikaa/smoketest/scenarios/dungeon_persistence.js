@@ -84,13 +84,52 @@
             key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
             await sleep(110);
           }
+          // Ensure we stand exactly on the chest tile before interacting
+          try {
+            var pl0 = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: chest.x, y: chest.y };
+            var onChest = (pl0.x === chest.x && pl0.y === chest.y);
+            if (!onChest) {
+              // Try a direct bump towards the chest
+              var bdx0 = Math.sign(chest.x - pl0.x), bdy0 = Math.sign(chest.y - pl0.y);
+              key(bdx0 === -1 ? "ArrowLeft" : bdx0 === 1 ? "ArrowRight" : (bdy0 === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(120);
+              pl0 = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : pl0;
+              onChest = (pl0.x === chest.x && pl0.y === chest.y);
+            }
+            if (!onChest) {
+              // Precise re-route to the exact chest tile (short budget)
+              var pathExact = has(window.GameAPI.routeToDungeon) ? (window.GameAPI.routeToDungeon(chest.x, chest.y) || []) : [];
+              var budE = makeBudget(1200);
+              for (var ei = 0; ei < pathExact.length; ei++) {
+                var stE = pathExact[ei];
+                if (budE.exceeded()) break;
+                var dxE = Math.sign(stE.x - (has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer().x : stE.x));
+                var dyE = Math.sign(stE.y - (has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer().y : stE.y));
+                key(dxE === -1 ? "ArrowLeft" : dxE === 1 ? "ArrowRight" : (dyE === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(90);
+              }
+              pl0 = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : pl0;
+              onChest = (pl0.x === chest.x && pl0.y === chest.y);
+            }
+            if (!onChest) {
+              // Last nudge: two extra bumps
+              for (var nb = 0; nb < 2 && !onChest; nb++) {
+                var bdx = Math.sign(chest.x - pl0.x), bdy = Math.sign(chest.y - pl0.y);
+                key(bdx === -1 ? "ArrowLeft" : bdx === 1 ? "ArrowRight" : (bdy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(100);
+                pl0 = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : pl0;
+                onChest = (pl0.x === chest.x && pl0.y === chest.y);
+              }
+            }
+          } catch (_) {}
 
           // Snapshot before interaction
           var corpsesBefore = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
           var chestBefore = corpsesBefore.find(function (c) { return c && c.kind === "chest" && c.x === chest.x && c.y === chest.y; }) || { looted: false, lootCount: 0 };
           var invBefore = has(window.GameAPI.getInventory) ? (window.GameAPI.getInventory() || []).length : null;
 
-          // Interact: press 'g'
+          // Interact: ensure modals closed then press 'g'
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_){}
           var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 500);
           key("g");
           await sleep(Math.min(ib.remain(), 300));
@@ -108,8 +147,7 @@
           record(okLoot, "Chest loot: " + (okLoot ? "OK" : "NO-OP") + " at (" + chest.x + "," + chest.y + ")" + (lootCountReduced ? " (loot--)" : "") + (inventoryChanged ? " (inv++)" : ""));
         } else {
           recordSkip("No chest found in dungeon (skipping chest loot)");
-        }
-      } catch (e) {
+        } catch (e) {
         record(false, "Chest loot failed: " + (e && e.message ? e.message : String(e)));
       }
 
