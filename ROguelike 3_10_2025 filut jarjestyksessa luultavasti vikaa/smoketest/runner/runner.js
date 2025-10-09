@@ -249,7 +249,15 @@
       try { openGodPanel(); } catch (_) {}
       try {
         var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-        if (B && typeof B.log === "function") B.log("Starting smoke test…", "notice");
+        const runLabel = (runIndex && runTotal) ? ("Run " + runIndex + " / " + runTotal) : "Run";
+        if (B && typeof B.setStatus === "function") B.setStatus(runLabel + ": starting");
+        if (B && typeof B.log === "function") B.log(runLabel + " — Starting smoke test…", "notice");
+        try {
+          window.SmokeTest = window.SmokeTest || {};
+          window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+          window.SmokeTest.Runner.CUR_RUN = runIndex || 1;
+          window.SmokeTest.Runner.TOT_RUN = runTotal || 1;
+        } catch (_) {}
       } catch (_) {}
 
       // Centralized, single-attempt dungeon entry to avoid repeated re-enter across scenarios
@@ -433,9 +441,11 @@
         if (typeof step.fn !== "function") { recordSkip("Scenario '" + step.name + "' not available"); continue; }
         const beforeCount = steps.length;
         try {
-          if (Banner && typeof Banner.log === "function") Banner.log("Running scenario: " + step.name, "info");
+          const runLabel = (runIndex && runTotal) ? ("Run " + runIndex + " / " + runTotal) : "Run";
+          if (Banner && typeof Banner.setStatus === "function") Banner.setStatus(runLabel + " • " + step.name);
+          if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Running scenario: " + step.name, "info");
           await step.fn(baseCtx);
-          if (Banner && typeof Banner.log === "function") Banner.log("Scenario completed: " + step.name, "good");
+          if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Scenario completed: " + step.name, "good");
         } catch (e) {
           if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
@@ -787,7 +797,15 @@
     }
 
     for (let i = 0; i < n; i++) {
+      try {
+        const Bc = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bc && typeof Bc.setStatus === "function") Bc.setStatus(`Run ${i + 1} / ${n}: preparing…`);
+      } catch (_) {}
       await applyFreshSeedForRun(i);
+      try {
+        const Bc = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bc && typeof Bc.setStatus === "function") Bc.setStatus(`Run ${i + 1} / ${n}: running…`);
+      } catch (_) {}
 
       // Build skip list from scenarios that have already met the stable OK threshold
       let skipList = (skipAfter > 0)
@@ -852,6 +870,11 @@
 
       // Update live matchup scoreboard
       updateMatchup();
+
+      // Update status to reflect completion of this run
+      try {
+        const Bstat = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bstat && typeof Bstat.setStatus ===();
 
       // Perf snapshot aggregation
       try {
