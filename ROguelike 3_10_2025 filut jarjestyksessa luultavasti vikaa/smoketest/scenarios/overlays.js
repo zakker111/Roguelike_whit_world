@@ -25,7 +25,7 @@
               ctx.key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(90);
             }
-            ctx.key("KeyG"); await sleep(280);
+            ctx.key("g"); await sleep(280);
           }
         } catch (_) {}
         mode0 = window.GameAPI.getMode();
@@ -53,7 +53,7 @@
                 await sleep(90);
               }
             }
-            ctx.key("Enter"); await sleep(240);
+            ctx.key("g"); await sleep(240);
             if (typeof window.GameAPI.enterTownIfOnTile === "function") window.GameAPI.enterTownIfOnTile();
             await sleep(240);
           }

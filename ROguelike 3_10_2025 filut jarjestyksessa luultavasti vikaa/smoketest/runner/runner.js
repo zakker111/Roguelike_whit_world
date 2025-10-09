@@ -20,10 +20,18 @@
         dev: p("dev", "0") === "1",
         smokecount: Number(p("smokecount", "1")) || 1,
         legacy: p("legacy", "0") === "1",
-        scenarios: sel.split(",").map(s => s.trim()).filter(Boolean)
+        scenarios: sel.split(",").map(s => s.trim()).filter(Boolean),
+        // New: skip scenarios after they have passed a given number of runs (0 = disabled)
+        skipokafter: Number(p("skipokafter", "0")) || 0,
+        // Control dungeon persistence scenario frequency: "once" (default), "always", or "never"
+        persistence: (p("persistence", "once") || "once").toLowerCase(),
+        // Optional base seed override; if provided, seeds are derived deterministically per run
+        seed: (function(){ const v = p("seed", ""); if (!v) return null; const n = Number(v); return Number.isFinite(n) ? (n >>> 0) : null; })(),
+        // Abort current run as soon as an immobile condition is detected in any scenario (default: disabled)
+        abortonimmobile: (p("abortonimmobile", "0") === "1")
       };
     } catch (_) {
-      return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [] };
+      return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [], skipokafter: 0 };
     }
   }
 
@@ -176,6 +184,8 @@
       const runTotal = (ctx && ctx.total) ? (ctx.total | 0) : null;
       const stacking = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.STACK_LOGS);
       const suppress = !!(ctx && ctx.suppressReport);
+      // New: scenarios to skip (already stable OK in prior runs)
+      const skipSet = new Set((ctx && ctx.skipScenarios) ? ctx.skipScenarios : []);
 
       await waitUntilGameReady(6000);
       await waitUntilScenariosReady(2000);
@@ -183,12 +193,45 @@
       const params = parseParams();
       const sel = params.scenarios;
       const steps = [];
+      let aborted = false;
+      const skipOk = new Set((ctx && ctx.skipSteps) ? ctx.skipSteps : []);
+      // Abort controls: if a critical condition like "immobile" occurs, abort this run early
+      let __abortRequested = false;
+      let __abortReason = null;
+      function gameLog(m, type) { try { if (window.Logger && typeof Logger.log === "function") Logger.log(String(m || ""), type || "info"); } catch (_) {} }
       function record(ok, msg) {
-        steps.push({ ok: !!ok, msg: String(msg || "") });
+        const text = String(msg || "");
+        if (!!ok && skipOk.has(text)) {
+          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "prior_ok" });
+          try {
+            var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+            if (B && typeof B.log === "function") {
+              B.log("SKIP (prior OK): " + text, "info");
+            }
+          } catch (_) {}
+          // Also write into the main game log for visibility
+          gameLog("[SMOKE] OK in prior run; skipped: " + text, "info");
+          return;
+        }
+        steps.push({ ok: !!ok, msg: text });
         try {
           var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
           if (B && typeof B.log === "function") {
-            B.log((ok ? "OK: " : "ERR: ") + String(msg || ""), ok ? "good" : "bad");
+            B.log((ok ? "OK: " : "ERR: ") + text, ok ? "good" : "bad");
+          }
+        } catch (_) {}
+        // Abort this run immediately on immobile detection (e.g., world movement immobile)
+        try {
+          const isImmobile = (!ok && text.toLowerCase().includes("immobile"));
+          if (isImmobile && params && params.abortonimmobile && !aborted) {
+            aborted = true;
+            try {
+              var B2 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+              if (B2 && typeof B2.log === "function") {
+                B2.log("ABORT: immobile detected; aborting remaining scenarios in this run.", "bad");
+              }
+            } catch (_) {}
+            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "immobile"; } catch (_) {}
           }
         } catch (_) {}
       }
@@ -206,10 +249,143 @@
       try { openGodPanel(); } catch (_) {}
       try {
         var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-        if (B && typeof B.log === "function") B.log("Starting smoke test…", "notice");
+        const runLabel = (runIndex && runTotal) ? ("Run " + runIndex + " / " + runTotal) : "Run";
+        if (B && typeof B.setStatus === "function") B.setStatus(runLabel + ": starting");
+        if (B && typeof B.log === "function") B.log(runLabel + " — Starting smoke test…", "notice");
+        try {
+          window.SmokeTest = window.SmokeTest || {};
+          window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+          window.SmokeTest.Runner.CUR_RUN = runIndex || 1;
+          window.SmokeTest.Runner.TOT_RUN = runTotal || 1;
+        } catch (_) {}
       } catch (_) {}
 
-      const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip };
+      // Centralized, single-attempt dungeon entry to avoid repeated re-enter across scenarios
+      async function ensureDungeonOnce() {
+        try {
+          const G = window.GameAPI || {};
+          const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          const modeNow = getMode();
+          // Initialize lock namespace
+          try {
+            window.SmokeTest = window.SmokeTest || {};
+            window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+          } catch (_) {}
+          if (window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.DUNGEON_LOCK) {
+            return getMode() === "dungeon";
+          }
+          // If already in dungeon, set lock and return
+          if (modeNow === "dungeon") {
+            try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {}
+            return true;
+          }
+          // If in town, try returning to world first
+          if (modeNow === "town") {
+            try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
+            await sleep(260);
+          }
+          // Route to dungeon entrance (best-effort)
+          try {
+            if (typeof G.gotoNearestDungeon === "function") {
+              await G.gotoNearestDungeon();
+            } else if (typeof G.nearestDungeon === "function" && typeof G.routeTo === "function") {
+              const nd = G.nearestDungeon();
+              if (nd) {
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                for (const d of adj) {
+                  const ax = nd.x + d.dx, ay = nd.y + d.dy;
+                  const path = G.routeTo(ax, ay) || [];
+                  for (const st of path) {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                    const dx = Math.sign(st.x - pl.x);
+                    const dy = Math.sign(st.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(80);
+                  }
+                  break;
+                }
+              }
+            }
+          } catch (_) {}
+          // Attempt entry once
+          try { key("g"); } catch (_) {}
+          await sleep(300);
+          try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
+          await sleep(300);
+          const ok = (getMode() === "dungeon");
+          if (ok) { try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {} }
+          return ok;
+        } catch (_) { return false; }
+      }
+
+      // Centralized, single-attempt town entry to avoid repeated re-enter across scenarios
+      async function ensureTownOnce() {
+        try {
+          const G = window.GameAPI || {};
+          const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          const modeNow = getMode();
+          // Initialize lock namespace
+          try {
+            window.SmokeTest = window.SmokeTest || {};
+            window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+          } catch (_) {}
+          if (window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.TOWN_LOCK) {
+            return getMode() === "town";
+          }
+          // If already in town, set lock and return
+          if (modeNow === "town") {
+            try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {}
+            return true;
+          }
+          // If in dungeon, try returning to world first
+          if (modeNow === "dungeon") {
+            try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
+            await sleep(260);
+            if (getMode() !== "world") {
+              // Fallback to New Game to guarantee world mode
+              try { openGodPanel(); } catch (_) {}
+              await sleep(120);
+              try { const btn = document.getElementById("god-newgame-btn"); if (btn) btn.click(); } catch (_) {}
+              await sleep(300);
+            }
+          }
+          // Route to town gate (best-effort)
+          try {
+            if (typeof G.gotoNearestTown === "function") {
+              await G.gotoNearestTown();
+            } else if (typeof G.nearestTown === "function" && typeof G.routeTo === "function") {
+              const nt = G.nearestTown();
+              if (nt) {
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                for (const d of adj) {
+                  const ax = nt.x + d.dx, ay = nt.y + d.dy;
+                  const path = G.routeTo(ax, ay) || [];
+                  for (const st of path) {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                    const dx = Math.sign(st.x - pl.x);
+                    const dy = Math.sign(st.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(80);
+                  }
+                  break;
+                }
+              }
+            }
+          } catch (_) {}
+          // Attempt entry once
+          try { key("g"); } catch (_) {}
+          await sleep(300);
+          try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
+          await sleep(300);
+          const ok = (getMode() === "town");
+          if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
+          return ok;
+        } catch (_) { return false; }
+      }
+
+      const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip, ensureDungeonOnce, ensureTownOnce };
+      // Collect per-scenario results to inform runSeries skipping strategy
+      let scenarioResults = [];
 
       // Dev-only RNG audit (if module present)
       try {
@@ -248,17 +424,38 @@
       } catch (_) {}
 
       for (let i = 0; i < pipeline.length; i++) {
+        if (aborted) {
+          try { if (Banner && typeof Banner.log === "function") Banner.log("Run aborted; remaining scenarios skipped.", "bad"); } catch (_) {}
+          break;
+        }
         const step = pipeline[i];
+        // Selection filter
         if (sel.length && !sel.includes(step.name)) continue;
+        // Skip scenarios that have reached the stable OK threshold in prior runs
+        if (skipSet && skipSet.has(step.name)) {
+          recordSkip("Scenario '" + step.name + "' skipped (stable OK threshold reached)");
+          scenarioResults.push({ name: step.name, passed: true, skippedStable: true });
+          continue;
+        }
+        // Availability check
         if (typeof step.fn !== "function") { recordSkip("Scenario '" + step.name + "' not available"); continue; }
+        const beforeCount = steps.length;
         try {
-          if (Banner && typeof Banner.log === "function") Banner.log("Running scenario: " + step.name, "info");
+          const runLabel = (runIndex && runTotal) ? ("Run " + runIndex + " / " + runTotal) : "Run";
+          if (Banner && typeof Banner.setStatus === "function") Banner.setStatus(runLabel + " • " + step.name);
+          if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Running scenario: " + step.name, "info");
           await step.fn(baseCtx);
-          if (Banner && typeof Banner.log === "function") Banner.log("Scenario completed: " + step.name, "good");
+          if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Scenario completed: " + step.name, "good");
         } catch (e) {
           if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
+        // Per-scenario pass determination: pass if no failures recorded during this scenario block
+        try {
+          const during = steps.slice(beforeCount);
+          const hasFail = during.some(s => !s.ok && !s.skipped);
+          scenarioResults.push({ name: step.name, passed: !hasFail });
+        } catch (_) {}
       }
 
       // Build report via reporting renderer
@@ -336,7 +533,7 @@
         }
         jsonToken.textContent = JSON.stringify({ ok, steps, caps });
       } catch (_) {}
-      return { ok, steps, caps };
+      return { ok, steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason };
     } catch (e) {
       try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
       return null;
@@ -350,6 +547,21 @@
     let pass = 0, fail = 0;
     let perfSumTurn = 0, perfSumDraw = 0;
     const stacking = n > 1;
+    // New: skip scenarios after they have passed this many runs (0 = disabled)
+    const skipAfter = (Number(params.skipokafter || 0) | 0);
+    const scenarioPassCounts = new Map();
+
+    // Guard: ensure only one runSeries executes at a time
+    try {
+      window.SmokeTest = window.SmokeTest || {};
+      window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+      if (window.SmokeTest.Runner.RUN_LOCK) {
+        const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (B && typeof B.log === "function") B.log("SmokeTest already running; skipping duplicate start.", "warn");
+        return { pass: 0, fail: 0, results: [], avgTurnMs: 0, avgDrawMs: 0, runnerVersion: RUNNER_VERSION };
+      }
+      window.SmokeTest.Runner.RUN_LOCK = true;
+    } catch (_) {}
 
     try {
       window.SmokeTest = window.SmokeTest || {};
@@ -364,50 +576,138 @@
 
     // Aggregation of steps across runs (union of success)
     const agg = new Map();
-
+    const okMsgs = new Set();
+    // Track seeds used within this series to guarantee uniqueness
+    const usedSeeds = new Set();
+   
     // Fresh seed helpers
     function randomUint32(runIndex) {
+      let r = 0;
       try {
         if (window.crypto && typeof window.crypto.getRandomValues === "function") {
           const buf = new Uint32Array(1);
           window.crypto.getRandomValues(buf);
-          return (buf[0] >>> 0);
+          r = (buf[0] >>> 0);
+        } else {
+          // Fallback base entropy
+          r = (Date.now() >>> 0);
         }
-      } catch (_) {}
-      // Fallback: mix Date.now and index via xorshift-like scrambler
-      let t = (Date.now() + ((runIndex | 0) * 0x9e3779b1)) >>> 0;
+      } catch (_) {
+        r = (Date.now() >>> 0);
+      }
+      // Mix in run index to guarantee different values per run
+      let t = (r ^ (((runIndex + 1) * 0x9e3779b1) >>> 0)) >>> 0;
+      // xorshift-like scrambler
       t ^= t << 13; t >>>= 0;
       t ^= t >> 17; t >>>= 0;
       t ^= t << 5;  t >>>= 0;
       return t >>> 0;
     }
+    // Deterministically derive a per-run seed from optional base param; guarantee uniqueness in-series
+    function deriveSeed(runIndex) {
+      const base = (params && typeof params.seed !== "undefined") ? params.seed : null;
+      let s;
+      if (base != null) {
+        // Mix base with golden-ratio constant and run index, then scramble
+        s = (base ^ (((runIndex + 1) * 0x9e3779b1) >>> 0)) >>> 0;
+        s ^= s << 13; s >>>= 0;
+        s ^= s >> 17; s >>>= 0;
+        s ^= s << 5;  s >>>= 0;
+        s >>>= 0;
+      } else {
+        s = randomUint32(runIndex);
+      }
+      // Ensure uniqueness within this runSeries
+      if (usedSeeds.has(s)) {
+        s = (s ^ ((Date.now() & 0xffffffff) >>> 0) ^ 0x85ebca6b) >>> 0;
+        s ^= s << 13; s >>>= 0;
+        s ^= s >> 17; s >>>= 0;
+        s ^= s << 5;  s >>>= 0;
+        s >>>= 0;
+      }
+      usedSeeds.add(s);
+      return s >>> 0;
+    }
     async function applyFreshSeedForRun(runIndex) {
       try {
         const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
 
-        // 1) Ensure we are in WORLD mode before seeding, so scenarios that rely on world pathing succeed.
+        // 1) Ensure we are in WORLD mode before seeding.
         try {
-          const mode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+          const G = window.GameAPI || {};
+          const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          const mode = getMode();
           if (mode !== "world") {
-            try { openGodPanel(); } catch (_) {}
-            await sleep(120);
+            // If in town/dungeon, route to gate/exit and press G to leave
             try {
-              // Click the "Start New Game" button in GOD panel
-              const btn = document.getElementById("god-newgame-btn");
-              if (btn) btn.click();
+              const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+              const routeAndExit = async (tx, ty, label) => {
+                if (typeof G.routeToDungeon === "function" && Array.isArray(G.routeToDungeon(tx, ty))) {
+                  const path = G.routeToDungeon(tx, ty);
+                  if (path && path.length) {
+                    if (B && typeof B.log === "function") B.log(`Routing to ${label} at (${tx},${ty})…`, "info");
+                    for (const step of path) {
+                      const dx = Math.sign(step.x - (G.getPlayer && G.getPlayer().x));
+                      const dy = Math.sign(step.y - (G.getPlayer && G.getPlayer().y));
+                      try { if (typeof G.moveStep === "function") G.moveStep(dx, dy); } catch (_) {}
+                      await sleep(60);
+                    }
+                  }
+                }
+                // Press G to perform context action (exit)
+                if (B && typeof B.log === "function") B.log(`Pressing G to exit ${label}…`, "notice");
+                try { key("g"); } catch (_) {}
+                await sleep(200);
+                // Wait until world mode
+                await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
+                await sleep(120);
+              };
+
+              // Close any modals first
+              await ensureAllModalsClosed(2);
+              if (mode === "town" && typeof G.getTownGate === "function") {
+                const gate = G.getTownGate();
+                if (gate && typeof gate.x === "number" && typeof gate.y === "number") {
+                  await routeAndExit(gate.x, gate.y, "town gate");
+                } else {
+                  // Fallback: use Start New Game
+                  if (B && typeof B.log === "function") B.log("Town gate unknown; starting new game.", "warn");
+                  try { openGodPanel(); } catch (_) {}
+                  await sleep(120);
+                  const btn = document.getElementById("god-newgame-btn");
+                  if (btn) btn.click();
+                  await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
+                  await sleep(120);
+                }
+              } else if (mode === "dungeon" && typeof G.getDungeonExit === "function") {
+                const exit = G.getDungeonExit();
+                if (exit && typeof exit.x === "number" && typeof exit.y === "number") {
+                  await routeAndExit(exit.x, exit.y, "dungeon entrance");
+                } else {
+                  // Fallback: Start New Game
+                  if (B && typeof B.log === "function") B.log("Dungeon exit unknown; starting new game.", "warn");
+                  try { openGodPanel(); } catch (_) {}
+                  await sleep(120);
+                  const btn = document.getElementById("god-newgame-btn");
+                  if (btn) btn.click();
+                  await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
+                  await sleep(120);
+                }
+              } else {
+                // Unknown mode; fallback to Start New Game
+                try { openGodPanel(); } catch (_) {}
+                await sleep(120);
+                const btn = document.getElementById("god-newgame-btn");
+                if (btn) btn.click();
+                await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
+                await sleep(120);
+              }
             } catch (_) {}
-            // Wait for world mode (with a modest timeout)
-            try {
-              await waitUntilTrue(() => {
-                try { return window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world"; } catch (_) { return false; }
-              }, 1800, 80);
-            } catch (_) {}
-            await sleep(120);
           }
         } catch (_) {}
 
         // 2) Apply a fresh seed via the GOD panel controls
-        const s = randomUint32(runIndex);
+        const s = deriveSeed(runIndex);
         try { openGodPanel(); } catch (_) {}
         await sleep(120);
         try {
@@ -486,7 +786,10 @@
         // Dynamic border color based on failures present
         el.style.border = failed.length ? "1px solid rgba(239,68,68,0.6)" : "1px solid rgba(122,162,247,0.4)";
         const failColor = failed.length ? "#ef4444" : "#86efac";
-        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="color:${failColor};">${failed.length}</span> • SKIP ${skipped.length}</div>`;
+        // Immobile counter (failed steps whose message mentions "immobile")
+        const immobileCount = failed.filter(s => /immobile/i.test(String(s.msg || ""))).length;
+        const immColor = immobileCount ? "#f59e0b" : "#93c5fd";
+        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="color:${failColor};">${failed.length}</span> • SKIP ${skipped.length} • IMMOBILE <span style="color:${immColor};">${immobileCount}</span></div>`;
         // Prioritize fails, then skips, then oks; show more entries for better visibility
         const CAP = 20;
         const detailsList = [];
@@ -498,20 +801,70 @@
     }
 
     for (let i = 0; i < n; i++) {
+      try {
+        const Bc = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bc && typeof Bc.setStatus === "function") Bc.setStatus(`Run ${i + 1} / ${n}: preparing…`);
+      } catch (_) {}
       await applyFreshSeedForRun(i);
+      // Wait for world mode to be active and stable before running scenarios
+      try {
+        const Bc = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bc && typeof Bc.setStatus === "function") Bc.setStatus(`Run ${i + 1} / ${n}: waiting for overworld…`);
+      } catch (_) {}
+      try {
+        await waitUntilTrue(() => {
+          try { return (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world"); } catch (_) { return false; }
+        }, 2000, 80);
+      } catch (_) {}
+      try {
+        const Bc = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bc && typeof Bc.setStatus === "function") Bc.setStatus(`Run ${i + 1} / ${n}: running…`);
+      } catch (_) {}
 
-      const res = await run({ index: i + 1, total: n, suppressReport: false });
+      // Build skip list from scenarios that have already met the stable OK threshold
+      let skipList = (skipAfter > 0)
+        ? Array.from(scenarioPassCounts.entries()).filter(([name, cnt]) => (cnt | 0) >= skipAfter).map(([name]) => name)
+        : [];
+      // Force dungeon_persistence to run only once by default:
+      // - "once" (default): run only in first run, skip thereafter
+      // - "always": run in all runs
+      // - "never": skip in all runs
+      try {
+        const pers = (params && params.persistence) ? params.persistence : "once";
+        if (pers !== "always") {
+          if (pers === "never" || i > 0) {
+            if (!skipList.includes("dungeon_persistence")) skipList.push("dungeon_persistence");
+          }
+        }
+      } catch (_) {}
+
+      const res = await run({ index: i + 1, total: n, suppressReport: false, skipScenarios: skipList, skipSteps: Array.from(okMsgs) });
       all.push(res);
       if (res && res.ok) pass++; else fail++;
 
-      // Accumulate step results by message
+      // Update scenario pass counts
+      try {
+        if (res && Array.isArray(res.scenarioResults)) {
+          for (const sr of res.scenarioResults) {
+            if (!sr || !sr.name) continue;
+            if (sr.passed && !sr.skippedStable) {
+              scenarioPassCounts.set(sr.name, (scenarioPassCounts.get(sr.name) || 0) + 1);
+            }
+          }
+        }
+      } catch (_) {}
+
+      // Accumulate step results by message (and build set of messages that have passed before)
       try {
         if (res && Array.isArray(res.steps)) {
           for (const s of res.steps) {
             const key = String(s.msg || "");
             const cur = agg.get(key) || { msg: key, ok: false, skippedAny: false, failCount: 0, lastSeen: 0 };
             if (s.skipped) cur.skippedAny = true;
-            if (s.ok && !s.skipped) cur.ok = true;
+            if (s.ok && !s.skipped) {
+              cur.ok = true;
+              okMsgs.add(key);
+            }
             if (!s.ok && !s.skipped) cur.failCount += 1;
             // Track last time this step was observed for recency sorting
             cur.lastSeen = Date.now();
@@ -523,12 +876,20 @@
       // Progress snippet
       try {
         const Bprog = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>`;
+        const skippedStable = (skipList && skipList.length) ? `<div style="opacity:0.85;">Skipped (stable OK): ${skipList.join(", ")}</div>` : ``;
+        const abortedInfo = (res && res.aborted) ? `<div style="color:#ef4444;">Run ${i + 1} aborted (${res.abortReason}). Remaining scenarios skipped.</div>` : ``;
+        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>${skippedStable}${abortedInfo}`;
         if (Bprog && typeof Bprog.appendToPanel === "function") Bprog.appendToPanel(progHtml);
       } catch (_) {}
 
       // Update live matchup scoreboard
       updateMatchup();
+
+      // Update status to reflect completion of this run
+      try {
+        const Bstat = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (Bstat && typeof Bstat.setStatus === "function") Bstat.setStatus(`Run ${i + 1} / ${n}: completed`);
+      } catch (_) {}
 
       // Perf snapshot aggregation
       try {
@@ -630,9 +991,11 @@
       } catch (_) {}
     } catch (_) {}
 
+    // Release run lock
+    try { if (window.SmokeTest && window.SmokeTest.Runner) window.SmokeTest.Runner.RUN_LOCK = false; } catch (_) {}
+
     return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
   }
-
   window.SmokeTest.Run = { run, runSeries, CONFIG, RUNNER_VERSION, parseParams };
   // Back-compat aliases for UI/GOD button and legacy code paths (always point to orchestrator)
   try {
@@ -646,7 +1009,20 @@
     const shouldAuto = params.smoketest && !params.legacy;
     const count = params.smokecount || 1;
     if (shouldAuto) {
-      const start = async () => { await waitUntilGameReady(6000); await runSeries(count); };
+      const start = async () => {
+        // Prevent duplicate auto-starts if something triggers twice
+        try {
+          window.SmokeTest = window.SmokeTest || {};
+          window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+          if (window.SmokeTest.Runner.RUN_LOCK) {
+            const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+            if (B && typeof B.log === "function") B.log("SmokeTest already running; auto-start suppressed.", "warn");
+            return;
+          }
+        } catch (_) {}
+        await waitUntilGameReady(6000);
+        await runSeries(count);
+      };
       if (document.readyState !== "loading") {
         setTimeout(() => { start(); }, 400);
       } else {

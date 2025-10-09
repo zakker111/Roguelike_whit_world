@@ -22,26 +22,12 @@
       // Ensure no modal (GOD/Inventory/Shop/Smoke) is intercepting keys
       try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(8); } catch (_) {}
 
-      // Ensure in dungeon; robustly handle starting from town by returning to world first
+      // Ensure in dungeon with a single centralized attempt (avoid repeated toggles across scenarios)
       try {
-        var mode0 = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
-        if (mode0 === "town") {
-          try { if (typeof window.GameAPI.returnToWorldIfAtExit === "function") window.GameAPI.returnToWorldIfAtExit(); } catch (_) {}
-          await sleep(240);
-          mode0 = window.GameAPI.getMode();
-          if (mode0 !== "world") {
-            // Fallback: restart to world via GOD panel
-            try {
-              var btnNG = document.getElementById("god-newgame-btn");
-              if (btnNG) { btnNG.click(); await sleep(400); }
-            } catch (_) {}
-          }
-        }
-        if ((window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() !== "dungeon")) {
-          if (typeof window.GameAPI.gotoNearestDungeon === "function") await window.GameAPI.gotoNearestDungeon();
-          key("Enter"); await sleep(280);
-          if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
-          await sleep(260);
+        const mode0 = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+        if (mode0 !== "dungeon") {
+          const ok = (typeof ctx.ensureDungeonOnce === "function") ? await ctx.ensureDungeonOnce() : false;
+          if (!ok) { recordSkip("Combat scenario skipped (not in dungeon)"); return true; }
         }
       } catch (_) {}
 

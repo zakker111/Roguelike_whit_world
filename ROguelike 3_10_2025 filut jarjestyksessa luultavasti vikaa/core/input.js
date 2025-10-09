@@ -12,7 +12,7 @@
  * - If a modal is open (inventory/loot/GOD/shop), Escape closes it and other keys are ignored.
  * - Movement only when no modal is open.
  * - Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5.
- * - Inventory: I. Loot/Action: G. Descend/Enter: N or Enter.
+ * - Inventory: I. Loot/Action: G. Descend: N.
  * - GOD panel: P to open. FOV adjust: [-] and [+]/[=] (also Numpad +/-).
  */
 (() => {
@@ -33,16 +33,15 @@
       window.removeEventListener("keydown", _onKey);
     }
     _onKey = (e) => {
-      
+      // Dead screen: only R restarts (Enter disabled)
       if (_handlers.isDead && _handlers.isDead()) {
-        if (e.key && (e.key.toLowerCase() === "r" || e.key === "Enter")) {
+        if (e.key && (e.key.toLowerCase() === "r")) {
           e.preventDefault();
           _handlers.onRestart && _handlers.onRestart();
         }
         return;
       }
 
-      
       // Close top-most modals first: GOD, Shop, then Inventory/Loot
       if (_handlers.isGodOpen && _handlers.isGodOpen()) {
         const isEsc = e.key === "Escape" || e.key === "Esc";
@@ -82,20 +81,21 @@
         return;
       }
 
+      // Inventory toggle
       if ((e.key && e.key.toLowerCase() === "i") || e.code === "KeyI") {
         e.preventDefault();
         _handlers.onShowInventory && _handlers.onShowInventory();
         return;
       }
 
-      
+      // GOD panel toggle
       if ((e.key && e.key.toLowerCase() === "p") || e.code === "KeyP") {
         e.preventDefault();
         _handlers.onShowGod && _handlers.onShowGod();
         return;
       }
 
-      
+      // FOV adjust
       if (e.code === "BracketLeft" || e.key === "[" || e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-") {
         e.preventDefault();
         _handlers.adjustFov && _handlers.adjustFov(-1);
@@ -107,7 +107,7 @@
         return;
       }
 
-      
+      // Movement
       const key = e.code;
       if (KEY_DIRS[key]) {
         e.preventDefault();
@@ -116,14 +116,14 @@
         return;
       }
 
-      
+      // Wait
       if (key === "Numpad5") {
         e.preventDefault();
         _handlers.onWait && _handlers.onWait();
         return;
       }
 
-      
+      // Action / interact (G)
       if (e.key && e.key.toLowerCase() === "g") {
         e.preventDefault();
         _handlers.onHideLoot && _handlers.onHideLoot();
@@ -131,15 +131,15 @@
         return;
       }
 
-      
-      if ((e.key && e.key.toLowerCase() === "n") || e.key === "Enter") {
+      // Descend / context action for stairs (N only; Enter disabled)
+      if (e.key && e.key.toLowerCase() === "n") {
         e.preventDefault();
         _handlers.onHideLoot && _handlers.onHideLoot();
         _handlers.onDescend && _handlers.onDescend();
         return;
       }
 
-      
+      // If loot panel still open, hide it by default
       if (_handlers.isLootOpen && _handlers.isLootOpen()) {
         _handlers.onHideLoot && _handlers.onHideLoot();
       }

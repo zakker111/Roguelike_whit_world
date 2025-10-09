@@ -880,7 +880,7 @@
     recomputeFOV();
     updateCamera();
     updateUI();
-    log(`You re-enter the dungeon (Difficulty ${floor}${currentDungeon.size ? ", " + currentDungeon.size : ""}).`, "notice");
+    // Re-entry message is logged centrally in DungeonState.applyState to avoid duplicates.
     requestDraw();
     return true;
   }
@@ -1087,7 +1087,7 @@
     updateCamera();
     recomputeFOV();
     updateUI();
-    log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press Enter on a town/dungeon to enter.", "notice");
+    log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
     const UIH = modHandle("UI");
     if (UIH && typeof UIH.hideTownExitButton === "function") UIH.hideTownExitButton();
     requestDraw();
@@ -1380,7 +1380,8 @@
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
     if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      requestLeaveTown();
+      // Immediate exit on gate when pressing G (disable confirm UI)
+      leaveTownNow();
       return true;
     }
     log("Return to the town gate to exit to the overworld.", "info");
@@ -2918,6 +2919,7 @@
       getNPCs: () => (Array.isArray(npcs) ? npcs.map((n, i) => ({ i, x: n.x, y: n.y, name: n.name })) : []),
       getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
       getDungeonExit: () => (dungeonExitAt ? { x: dungeonExitAt.x, y: dungeonExitAt.y } : null),
+      getTownGate: () => (townExitAt ? { x: townExitAt.x, y: townExitAt.y } : null),
       getCorpses: () => (Array.isArray(corpses) ? corpses.map(c => ({ kind: c.kind || "corpse", x: c.x, y: c.y, looted: !!c.looted, lootCount: Array.isArray(c.loot) ? c.loot.length : 0 })) : []),
       getChestsDetailed: () => {
         if (!Array.isArray(corpses)) return [];

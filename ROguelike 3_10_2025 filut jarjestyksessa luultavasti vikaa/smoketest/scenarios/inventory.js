@@ -46,7 +46,7 @@
             if (typeof window.GameAPI.gotoNearestDungeon === "function") {
               await window.GameAPI.gotoNearestDungeon();
             }
-            ctx.key("Enter"); await sleep(280);
+            ctx.key("g"); await sleep(280);
             if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
             await sleep(260);
           } catch (_) {}

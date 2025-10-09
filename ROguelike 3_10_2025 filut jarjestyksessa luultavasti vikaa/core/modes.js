@@ -77,7 +77,7 @@
         if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 4);
       }
       if (ctx.UI && typeof UI.showTownExitButton === "function") UI.showTownExitButton();
-      if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press Enter on the gate to leave.`, "notice");
+      if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
       syncAfterMutation(ctx);
       return true;
     }
@@ -146,7 +146,7 @@
       if (ctx.visible[ctx.player.y]) ctx.visible[ctx.player.y][ctx.player.x] = true;
       if (ctx.seen[ctx.player.y]) ctx.seen[ctx.player.y][ctx.player.x] = true;
     }
-    if (ctx.log) ctx.log(`You re-enter the dungeon (Difficulty ${ctx.floor}${ctx.dungeon.size ? ", " + ctx.dungeon.size : ""}).`, "notice");
+    // Re-entry message is logged by DungeonState.applyState to avoid duplicates.
     syncAfterMutation(ctx);
     return true;
   }

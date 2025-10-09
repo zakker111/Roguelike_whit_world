@@ -4,12 +4,26 @@
   <meta charset="utf-8">
   <title>Tiny Roguelike</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Anchor all relative URLs to site root to avoid 404s when preview opens /index.html/index.html -->
+  <base href="/" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="ui/style.css">
+  <link rel="stylesheet" href="/ui/style.css">
   <link rel="icon" href="https://fav.farm/%F0%9F%8E%B2">
 </head>
 <body>
+  <script>
+    (function() {
+      try {
+        var p = String(location.pathname || '');
+        if (p.indexOf('/index.html/index.html') !== -1) {
+          var url = new URL(location.href);
+          url.pathname = '/index.html';
+          location.replace(url.toString());
+        }
+      } catch (_) {}
+    })();
+  </script>
   <div class="ui">
     <div class="title">Tiny Roguelike</div>
     <div class="stats">
@@ -19,7 +33,7 @@
       <button id="god-open-btn" class="btn" title="Open GOD panel (keyboard: P)" style="margin-left:6px; padding:4px 8px; font-size:12px;">GOD</button>
     </div>
     <div class="help">
-      Move: Arrows or Numpad (7/8/9/4/6/1/2/3). Wait: Numpad5 or button. Bump to attack. G to interact (loot, talk, enter/exit). I to inventory. Enter on T/D to enter; in dungeons press G on '>' to leave.
+      Move: Arrows or Numpad (7/8/9/4/6/1/2/3). Wait: Numpad5 or button. Bump to attack. G to interact (loot, talk, enter/exit). I to inventory. Press G on town/dungeon tiles to enter; in dungeons press G on '>' to leave.
     </div>
   </div>
 
@@ -49,7 +63,7 @@
     <div class="loot-title">Game Over</div>
     <div id="gameover-summary" class="gameover-summary"></div>
     <button id="restart-btn" class="btn">Restart</button>
-    <div class="loot-hint">Press R or Enter to restart</div>
+    <div class="loot-hint">Press R to restart</div>
   </div>
 
   <div id="inv-panel" class="inv-panel" hidden>
@@ -155,12 +169,12 @@
   </script>
 
   <!-- Core context and deterministic RNG service -->
-  <script src="core/ctx.js" defer></script>
-  <script src="core/rng_service.js" defer></script>
+  <script src="/core/ctx.js" defer></script>
+  <script src="/core/rng_service.js" defer></script>
 
   <!-- Utilities (available early for modules that use shared helpers/RNG fallback) -->
-  <script src="utils/utils.js" defer></script>
-  <script src="utils/rng_fallback.js" defer></script>
+  <script src="/utils/utils.js" defer></script>
+  <script src="/utils/rng_fallback.js" defer></script>
 
   <!-- Boot diagnostics: log RNG source and seed -->
   <script>
@@ -187,32 +201,32 @@
   </script>
 
   <!-- World modules -->
-  <script src="world/world.js" defer></script>
-  <script src="world/los.js" defer></script>
-  <script src="world/fov.js" defer></script>
+  <script src="/world/world.js" defer></script>
+  <script src="/world/los.js" defer></script>
+  <script src="/world/fov.js" defer></script>
 
   <!-- Data (load registries before adapters so they're ready sooner) -->
-  <script src="data/loader.js" defer></script>
-  <script src="data/flavor.js" defer></script>
-  <script src="data/god.js" defer></script>
+  <script src="/data/loader.js" defer></script>
+  <script src="/data/flavor.js" defer></script>
+  <script src="/data/god.js" defer></script>
 
   <!-- Entities and dungeon adapters -->
-  <script src="entities/items.js" defer></script>
-  <script src="entities/enemies.js" defer></script>
-  <script src="dungeon/dungeon_items.js" defer></script>
-  <script src="entities/loot.js" defer></script>
+  <script src="/entities/items.js" defer></script>
+  <script src="/entities/enemies.js" defer></script>
+  <script src="/dungeon/dungeon_items.js" defer></script>
+  <script src="/entities/loot.js" defer></script>
 
   <!-- Dungeon core and helpers -->
-  <script src="dungeon/occupancy_grid.js" defer></script>
-  <script src="dungeon/dungeon_state.js" defer></script>
-  <script src="dungeon/dungeon.js" defer></script>
+  <script src="/dungeon/occupancy_grid.js" defer></script>
+  <script src="/dungeon/dungeon_state.js" defer></script>
+  <script src="/dungeon/dungeon.js" defer></script>
 
   <!-- Services -->
-  <script src="services/time_service.js" defer></script>
-  <script src="services/shop_service.js" defer></script>
+  <script src="/services/time_service.js" defer></script>
+  <script src="/services/shop_service.js" defer></script>
 
   <!-- UI and rendering -->
-  <script src="ui/logger.js" defer></script>
+  <script src="/ui/logger.js" defer></script>
   <script>
     // Initialize Logger once DOM is ready; deferred scripts will have loaded by then
     document.addEventListener('DOMContentLoaded', function () {
@@ -223,29 +237,29 @@
       } catch (e) {}
     });
   </script>
-  <script src="ui/tileset.js" defer></script>
-  <script src="ui/render.js" defer></script>
-  <script src="ui/decals.js" defer></script>
-  <script src="ui/ui.js" defer></script>
+  <script src="/ui/tileset.js" defer></script>
+  <script src="/ui/render.js" defer></script>
+  <script src="/ui/decals.js" defer></script>
+  <script src="/ui/ui.js" defer></script>
 
   <!-- Player and equipment -->
-  <script src="entities/player_utils.js" defer></script>
-  <script src="entities/player_equip.js" defer></script>
-  <script src="entities/player.js" defer></script>
+  <script src="/entities/player_utils.js" defer></script>
+  <script src="/entities/player_equip.js" defer></script>
+  <script src="/entities/player.js" defer></script>
 
   <!-- AI -->
-  <script src="ai/ai.js" defer></script>
-  <script src="ai/town_ai.js" defer></script>
+  <script src="/ai/ai.js" defer></script>
+  <script src="/ai/town_ai.js" defer></script>
 
   <!-- Worldgen -->
-  <script src="worldgen/town_gen.js" defer></script>
+  <script src="/worldgen/town_gen.js" defer></script>
 
   <!-- Core runtime -->
-  <script src="core/actions.js" defer></script>
-  <script src="core/modes.js" defer></script>
-  <script src="core/game_loop.js" defer></script>
-  <script src="core/input.js" defer></script>
-  <script src="core/game.js" defer></script>
+  <script src="/core/actions.js" defer></script>
+  <script src="/core/modes.js" defer></script>
+  <script src="/core/game_loop.js" defer></script>
+  <script src="/core/input.js" defer></script>
+  <script src="/core/game.js" defer></script>
 
   <!-- Optional smoke test runner: load when ?smoketest=1 -->
   <script>
@@ -257,36 +271,36 @@
           var legacy = params.get("legacy") === "1";
           var injectList = [
             // Helpers
-            "smoketest/helpers/dom.js",
-            "smoketest/helpers/budget.js",
-            "smoketest/helpers/logging.js",
-            "smoketest/helpers/movement.js",
+            "/smoketest/helpers/dom.js",
+            "/smoketest/helpers/budget.js",
+            "/smoketest/helpers/logging.js",
+            "/smoketest/helpers/movement.js",
             // Capabilities
-            "smoketest/capabilities/detect.js",
-            "smoketest/capabilities/rng_audit.js",
+            "/smoketest/capabilities/detect.js",
+            "/smoketest/capabilities/rng_audit.js",
             // Reporting
-            "smoketest/reporting/render.js",
-            "smoketest/reporting/export.js",
+            "/smoketest/reporting/render.js",
+            "/smoketest/reporting/export.js",
             // Runner helpers
-            "smoketest/runner/init.js",
-            "smoketest/runner/banner.js",
+            "/smoketest/runner/init.js",
+            "/smoketest/runner/banner.js",
             // Scenarios (load all before orchestrator to ensure availability)
-            "smoketest/scenarios/dungeon.js",
-            "smoketest/scenarios/town.js",
-            "smoketest/scenarios/inventory.js",
-            "smoketest/scenarios/combat.js",
-            "smoketest/scenarios/overlays.js",
-            "smoketest/scenarios/world.js",
-            "smoketest/scenarios/determinism.js",
-            "smoketest/scenarios/town_flows.js",
-            "smoketest/scenarios/dungeon_persistence.js",
-            "smoketest/scenarios/town_diagnostics.js",
+            "/smoketest/scenarios/dungeon.js",
+            "/smoketest/scenarios/town.js",
+            "/smoketest/scenarios/inventory.js",
+            "/smoketest/scenarios/combat.js",
+            "/smoketest/scenarios/overlays.js",
+            "/smoketest/scenarios/world.js",
+            "/smoketest/scenarios/determinism.js",
+            "/smoketest/scenarios/town_flows.js",
+            "/smoketest/scenarios/dungeon_persistence.js",
+            "/smoketest/scenarios/town_diagnostics.js",
             // Orchestrator (default) - load last so scenarios are ready
-            "smoketest/runner/runner.js"
+            "/smoketest/runner/runner.js"
             // Legacy thin shim appended below
           ];
           if (legacy) {
-            injectList.push("smoketest/smoketest_runner.js");
+            injectList.push("/smoketest/smoketest_runner.js");
           }
           var injectSeq = function (list) {
             var i = 0;

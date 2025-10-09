@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-08 12:00 UTC
+Last updated: 2025-10-09 12:00 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,27 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.22.3 — Run indicators, world-mode gating per run, seed uniqueness, single-entry locks, IMMOBILE counter, and safer defaults
+- UI: Runner banner/status now shows the current run and stage
+  - Displays “Run X / Y: preparing…”, “Run X / Y: running…”, and “Run X / Y: completed”.
+  - Scenario status line reflects “Run X / Y • <scenario name>”.
+- Changed: World-mode gating per run
+  - After applying the per-run seed, waits until GameAPI.getMode() returns "world" before starting scenarios to prevent race conditions.
+- Changed: Single-entry locks for dungeon and town
+  - New ensureDungeonOnce and ensureTownOnce helpers in the runner with per-run locks (DUNGEON_LOCK, TOWN_LOCK).
+  - Scenarios updated to use these helpers (dungeon.js, combat.js, town.js, town_diagnostics.js, town_flows.js) to avoid repeated enter/re-enter loops.
+- Changed: Seed uniqueness and deterministic derivation
+  - parseParams supports seed=BASE; deriveSeed(runIndex) guarantees a different seed per run, deterministic when a base is provided.
+  - Tracks used seeds per series to avoid duplicates.
+- Added: IMMOBILE counter in Matchup
+  - Live Matchup scoreboard now shows IMMOBILE <count> alongside OK/FAIL/SKIP, counting failed steps that mention “immobile”.
+- Changed: Abort-on-immobile default disabled
+  - Runs no longer halt on immobile by default; can be enabled via abortonimmobile=1.
+- Fixed: Runner syntax errors
+  - Removed stray try without catch/finally; fixed malformed setStatus call; restored missing usedSeeds tracking; completed parseParams persistence line.
+- Dev: Status and logging polish
+  - Clear run labeling in banner and status near the GOD panel; improved readability of per-run progress and final aggregation.
 
 v1.22.2 — Live Matchup scoreboard, entry hardening, seed workflow, and syntax fixes
 - Changed: Live Matchup panel in GOD
