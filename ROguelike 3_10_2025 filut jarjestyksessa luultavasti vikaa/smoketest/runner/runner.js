@@ -318,15 +318,54 @@
               routedAdj = true;
             }
 
-            // Final bump to step onto the entrance, then press 'g'
+            // Final bump to step onto the entrance tile; verify we're actually standing on it
             if (target) {
               try {
-                if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
-                else {
-                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
-                  const dx = Math.sign(target.x - pl.x);
-                  const dy = Math.sign(target.y - pl.y);
-                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                const isOnTarget = () => {
+                  try {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
+                    return !!(pl && pl.x === target.x && pl.y === target.y);
+                  } catch (_) { return false; }
+                };
+
+                // First bump toward target
+                if (!isOnTarget()) {
+                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
+                  else {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                    const dx = Math.sign(target.x - pl.x);
+                    const dy = Math.sign(target.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  }
+                  await sleep(120);
+                }
+
+                // If still not exactly on target, try a short precise route to the exact tile
+                if (!isOnTarget()) {
+                  if (MV && typeof MV.routeTo === "function") {
+                    await MV.routeTo(target.x, target.y, { timeoutMs: 1200, stepMs: 80 });
+                  } else if (typeof G.routeTo === "function") {
+                    const pathExact = G.routeTo(target.x, target.y) || [];
+                    for (const st of pathExact) {
+                      const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                      const dx = Math.sign(st.x - pl.x);
+                      const dy = Math.sign(st.y - pl.y);
+                      key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(80);
+                    }
+                  }
+                }
+
+                // Last resort: a couple more bumps toward the exact entrance
+                for (let t = 0; t < 2 && !isOnTarget(); t++) {
+                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
+                  else {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                    const dx = Math.sign(target.x - pl.x);
+                    const dy = Math.sign(target.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  }
+                  await sleep(100);
                 }
               } catch (_) {}
             }
@@ -409,15 +448,53 @@
               }
             }
 
-            // Final bump onto the gate tile before interaction
+            // Final bump onto the gate tile; verify we're actually standing on the town tile
             if (target) {
               try {
-                if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
-                else {
-                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
-                  const dx = Math.sign(target.x - pl.x);
-                  const dy = Math.sign(target.y - pl.y);
-                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                const isOnTarget = () => {
+                  try {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
+                    return !!(pl && pl.x === target.x && pl.y === target.y);
+                  } catch (_) { return false; }
+                };
+
+                if (!isOnTarget()) {
+                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
+                  else {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                    const dx = Math.sign(target.x - pl.x);
+                    const dy = Math.sign(target.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  }
+                  await sleep(120);
+                }
+
+                // If still not exactly on target, try a short precise route to the exact tile
+                if (!isOnTarget()) {
+                  if (MV && typeof MV.routeTo === "function") {
+                    await MV.routeTo(target.x, target.y, { timeoutMs: 1200, stepMs: 80 });
+                  } else if (typeof G.routeTo === "function") {
+                    const pathExact = G.routeTo(target.x, target.y) || [];
+                    for (const st of pathExact) {
+                      const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                      const dx = Math.sign(st.x - pl.x);
+                      const dy = Math.sign(st.y - pl.y);
+                      key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(80);
+                    }
+                  }
+                }
+
+                // Last resort: a couple more bumps toward the exact gate tile
+                for (let t = 0; t < 2 && !isOnTarget(); t++) {
+                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
+                  else {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                    const dx = Math.sign(target.x - pl.x);
+                    const dy = Math.sign(target.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  }
+                  await sleep(100);
                 }
               } catch (_) {}
             }
