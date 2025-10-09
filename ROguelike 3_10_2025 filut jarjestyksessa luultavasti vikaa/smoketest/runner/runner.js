@@ -225,6 +225,8 @@
           const isImmobile = (!ok && text.toLowerCase().includes("immobile"));
           if (isImmobile && params && params.abortonimmobile && !aborted) {
             aborted = true;
+            __abortRequested = true;
+            __abortReason = "immobile";
             try {
               var B2 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
               if (B2 && typeof B2.log === "function") {
@@ -621,11 +623,41 @@
         }
       } catch (_) {}
 
+      // Helper: detect death (Game Over) and abort the run
+      const isDeathDetected = () => {
+        try {
+          if (window.GameAPI && typeof window.GameAPI.getPlayerStatus === "function") {
+            const st = window.GameAPI.getPlayerStatus();
+            if (st && typeof st.hp === "number" && st.hp <= 0) return true;
+          }
+        } catch (_) {}
+        try {
+          const panel = document.getElementById("gameover-panel");
+          if (panel && panel.hidden === false) return true;
+        } catch (_) {}
+        return false;
+      };
+
       for (let i = 0; i < pipeline.length; i++) {
         if (aborted) {
           try { if (Banner && typeof Banner.log === "function") Banner.log("Run aborted; remaining scenarios skipped.", "bad"); } catch (_) {}
           break;
         }
+        // Abort immediately if player is dead before starting next scenario
+        try {
+          if (isDeathDetected() && !aborted) {
+            record(false, "Death detected (run aborted)");
+            aborted = true;
+            __abortRequested = true;
+            __abortReason = "dead";
+            try {
+              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
+            } catch (_) {}
+            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
+            break;
+          }
+        } catch (_) {}
+
         const step = pipeline[i];
         // Selection filter
         if (sel.length && !sel.includes(step.name)) continue;
@@ -648,6 +680,22 @@
           if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
+
+        // If death occurred during/after scenario, abort like immobile
+        try {
+          if (isDeathDetected() && !aborted) {
+            record(false, "Death detected (run aborted)");
+            aborted = true;
+            __abortRequested = true;
+            __abortReason = "dead";
+            try {
+              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
+            } catch (_) {}
+            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
+            break;
+          }
+        } catch (_) {}
+
         // Per-scenario pass determination: pass if no failures recorded during this scenario block
         try {
           const during = steps.slice(beforeCount);
@@ -830,6 +878,32 @@
       try {
         const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
 
+        // 0) If player is dead (game over), start a new game immediately to avoid blocked movement.
+        try {
+          const isDead = (() => {
+            try {
+              if (window.GameAPI && typeof window.GameAPI.getPlayerStatus === "function") {
+                const st = window.GameAPI.getPlayerStatus();
+                if (st && typeof st.hp === "number" && st.hp <= 0) return true;
+              }
+            } catch (_) {}
+            try {
+              const panel = document.getElementById("gameover-panel");
+              if (panel && panel.hidden === false) return true;
+            } catch (_) {}
+            return false;
+          })();
+          if (isDead) {
+            if (B && typeof B.log === "function") B.log("Detected Game Over before run; starting new game.", "warn");
+            try { openGodPanel(); } catch (_) {}
+            await sleep(120);
+            const btn = document.getElementById("god-newgame-btn");
+            if (btn) btn.click();
+            await waitUntilTrue(() => { try { return (window.GameAPI && window.GameAPI.getMode && window.GameAPI.getMode() === "world"); } catch(_) { return false; } }, 2000, 80);
+            await sleep(120);
+          }
+        } catch (_) {}
+
         // 1) Ensure we are in WORLD mode before seeding.
         try {
           const G = window.GameAPI || {};
@@ -987,7 +1061,10 @@
         // Immobile counter (failed steps whose message mentions "immobile")
         const immobileCount = failed.filter(s => /immobile/i.test(String(s.msg || ""))).length;
         const immColor = immobileCount ? "#f59e0b" : "#93c5fd";
-        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="color:${failColor};">${failed.length}</span> • SKIP ${skipped.length} • IMMOBILE <span style="color:${immColor};">${immobileCount}</span></div>`;
+        // Death counter (failed steps whose message mentions "death" or "dead" or "game over")
+        const deadCount = failed.filter(s => /(death|dead|game over)/i.test(String(s.msg || ""))).length;
+        const deadColor = deadCount ? "#ef4444" : "#93c5fd";
+        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="color:${failColor};">${failed.length}</span> • SKIP ${skipped.length} • IMMOBILE <span style="color:${immColor};">${immobileCount}</span> • DEAD <span style="color:${deadColor};">${deadCount}</span></div>`;
         // Prioritize fails, then skips, then oks; show more entries for better visibility
         const CAP = 20;
         const detailsList = [];
