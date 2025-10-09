@@ -759,7 +759,7 @@
     // Release run lock
     try { if (window.SmokeTest && window.SmokeTest.Runner) window.SmokeTest.Runner.RUN_LOCK = false; } catch (_) {}
 
-    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion:
+    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
   window.SmokeTest.Run = { run, runSeries, CONFIG, RUNNER_VERSION, parseParams };
   // Back-compat aliases for UI/GOD button and legacy code paths (always point to orchestrator)
   try {
