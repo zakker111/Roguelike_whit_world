@@ -1512,6 +1512,12 @@
         isGodOpen: () => !!(window.UI && UI.isGodOpen && UI.isGodOpen()),
         // Ensure shop modal is part of the modal stack priority
         isShopOpen: () => {
+          // Step 2: Prefer ShopUI state when available; fallback to DOM check
+          try {
+            if (window.ShopUI && typeof ShopUI.isOpen === "function") {
+              return !!ShopUI.isOpen();
+            }
+          } catch (_) {}
           try {
             const el = document.getElementById("shop-panel");
             return !!(el && el.hidden === false);
@@ -2515,6 +2521,12 @@
           onTownExit: () => requestLeaveTown(),
           // Panels for ESC-close default behavior
           isShopOpen: () => {
+            // Step 2: Prefer ShopUI.isOpen if available; fallback to DOM
+            try {
+              if (window.ShopUI && typeof ShopUI.isOpen === "function") {
+                return !!ShopUI.isOpen();
+              }
+            } catch (_) {}
             try {
               const el = document.getElementById("shop-panel");
               return !!(el && el.hidden === false);

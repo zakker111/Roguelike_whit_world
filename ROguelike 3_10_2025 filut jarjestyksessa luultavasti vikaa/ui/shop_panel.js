@@ -53,6 +53,12 @@
 
   window.ShopUI = {
     ensurePanel: ensurePanel,
-    hide: hide
+    hide: hide,
+    isOpen: function () {
+      try {
+        var el = document.getElementById("shop-panel");
+        return !!(el && el.hidden === false);
+      } catch (_) { return false; }
+    }
   };
 })();
