@@ -27,8 +27,8 @@
         persistence: (p("persistence", "once") || "once").toLowerCase(),
         // Optional base seed override; if provided, seeds are derived deterministically per run
         seed: (function(){ const v = p("seed", ""); if (!v) return null; const n = Number(v); return Number.isFinite(n) ? (n >>> 0) : null; })(),
-        // Abort current run as soon as an immobile condition is detected in any scenario (default: enabled)
-        abortonimmobile: (p("abortonimmobile", "1") === "1")
+        // Abort current run as soon as an immobile condition is detected in any scenario (default: disabled)
+        abortonimmobile: (p("abortonimmobile", "0") === "1")
       };
     } catch (_) {
       return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [], skipokafter: 0 };
