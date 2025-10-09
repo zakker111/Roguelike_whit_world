@@ -12,7 +12,7 @@
  * - If a modal is open (inventory/loot/GOD/shop), Escape closes it and other keys are ignored.
  * - Movement only when no modal is open.
  * - Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5.
- * - Inventory: I. Loot/Action: G. Descend/Enter: N or Enter.
+ * - Inventory: I. Loot/Action: G. Descend: N.
  * - GOD panel: P to open. FOV adjust: [-] and [+]/[=] (also Numpad +/-).
  */
 (() => {
@@ -35,7 +35,7 @@
     _onKey = (e) => {
       
       if (_handlers.isDead && _handlers.isDead()) {
-        if (e.key && (e.key.toLowerCase() === "r" || e.key === "Enter")) {
+        if (e.key && (e.key.toLowerCase() === "r")) {
           e.preventDefault();
           _handlers.onRestart && _handlers.onRestart();
         }
@@ -76,84 +76,61 @@
         return;
       }
 
-      if (_handlers.isLootOpen && _handlers.isLootOpen()) {
+      if (_handlers.i      if (_handlers.isLootOpen && _handlers.isLootOpen()) {
         e.preventDefault();
-        _handlers.onHideLoot && _handlers.onHideLoot();
-        return;
-      }
-
+        _handlers.onHideLoot && _handlers.onHideLoo        
+      if ((e.key && 
       if ((e.key && e.key.toLowerCase() === "i") || e.code === "KeyI") {
         e.preventDefault();
-        _handlers.onShowInventory && _handlers.onShowInventory();
-        return;
-      }
-
+        _handlers.onShowInventory && _handlers.onShowInventor        
       
+      if ((e.k      
       if ((e.key && e.key.toLowerCase() === "p") || e.code === "KeyP") {
         e.preventDefault();
-        _handlers.onShowGod && _handlers.onShowGod();
-        return;
-      }
-
+        _handlers.onShowGod && _handlers.onShowGo        
       
+      if (e.co      
       if (e.code === "BracketLeft" || e.key === "[" || e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-") {
         e.preventDefault();
-        _handlers.adjustFov && _handlers.adjustFov(-1);
-        return;
-      }
+        _handlers.adjustFov && _handlers.adjustFov(              if (e.c      }
       if (e.code === "BracketRight" || e.key === "]" || e.code === "Equal" || e.code === "NumpadAdd" || e.key === "=") {
         e.preventDefault();
-        _handlers.adjustFov && _handlers.adjustFov(1);
-        return;
-      }
-
+        _handlers.adjustFov && _handlers.adjustFov        
       
+      const ke      
       const key = e.code;
       if (KEY_DIRS[key]) {
         e.preventDefault();
         const d = KEY_DIRS[key];
-        _handlers.onMove && _handlers.onMove(d.x, d.y);
-        return;
-      }
-
+        _handlers.onMove && _handlers.onMove(d.x, d        
       
+      if (key       
       if (key === "Numpad5") {
         e.preventDefault();
-        _handlers.onWait && _handlers.onWait();
-        return;
-      }
-
+        _handlers.onWait && _handlers.onWai        
       
+      if (e.ke      
       if (e.key && e.key.toLowerCase() === "g") {
         e.preventDefault();
         _handlers.onHideLoot && _handlers.onHideLoot();
-        _handlers.onLoot && _handlers.onLoot();
-        return;
-      }
-
+        _handlers.onLoot && _handlers.onLoo        
       
-      if ((e.key && e.key.toLowerCase() === "n") || e.key === "Enter") {
+      if ((e.k      
+      if ((e.key && e.key.toLowerCase() === "n")) {
         e.preventDefault();
         _handlers.onHideLoot && _handlers.onHideLoot();
-        _handlers.onDescend && _handlers.onDescend();
-        return;
-      }
-
+        _handlers.onDescend && _handlers.onDescen        
       
+      if (_han      
       if (_handlers.isLootOpen && _handlers.isLootOpen()) {
-        _handlers.onHideLoot && _handlers.onHideLoot();
-      }
-    };
-    window.addEventListener("keydown", _onKey);
-  }
-
-  function destroy() {
-    if (_onKey) {
+        _handlers.onHideLoot && _handlers.o    };
+    window.add    };
+    window.addEventListener("ke
+  function destroy()
+  function destroy()       if (_onKey) {
       window.removeEventListener("keydown", _onKey);
-      _onKey = null;
-    }
-    _handlers = null;
-  }
-
+          _handlers =    }
+    _
+  window.Input = { i
   window.Input = { init, destroy };
 })();

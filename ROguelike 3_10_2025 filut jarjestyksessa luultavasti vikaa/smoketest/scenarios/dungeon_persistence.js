@@ -40,7 +40,7 @@
           if (has(window.GameAPI.gotoNearestDungeon)) {
             await window.GameAPI.gotoNearestDungeon();
           }
-          key("Enter"); await sleep(280);
+          key("g"); await sleep(280);
           if (has(window.GameAPI.enterDungeonIfOnEntrance)) window.GameAPI.enterDungeonIfOnEntrance();
           await sleep(260);
         } catch (_) {}
@@ -73,7 +73,7 @@
             await sleep(110);
           }
           var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
-          key("KeyG"); // loot chest
+          key("g"); // loot chest
           await sleep(Math.min(ib.remain(), 250));
           record(true, "Looted chest at (" + chest.x + "," + chest.y + ")");
         } else {
@@ -101,7 +101,7 @@
             break;
           }
         }
-        key("KeyG"); await sleep(160);
+        key("g"); await sleep(160);
         var modeGuard = has(window.GameAPI.getMode) ? window.GameAPI.getMode() : "";
         record(modeGuard === "dungeon", "Stair guard: G on non-stair does not exit dungeon");
       } catch (eGuard) {
@@ -125,7 +125,7 @@
             key(dx2 === -1 ? "ArrowLeft" : dx2 === 1 ? "ArrowRight" : (dy2 === -1 ? "ArrowUp" : "ArrowDown"));
             await sleep(110);
           }
-          key("KeyG"); await sleep(300); // exit on '>'
+          key("g"); await sleep(300); // exit on '>'
 
           var m1 = has(window.GameAPI.getMode) ? window.GameAPI.getMode() : "";
           record(m1 === "world", (m1 === "world") ? "Returned to overworld from dungeon" : ("Attempted return to overworld (mode=" + m1 + ")"));
@@ -154,7 +154,7 @@
               if (has(window.GameAPI.returnToWorldIfAtExit)) {
                 var okRet = window.GameAPI.returnToWorldIfAtExit();
                 await sleep(240);
-                if (!okRet) { key("KeyG"); await sleep(240); }
+                if (!okRet) { key("g"); await sleep(240); }
               }
             } else {
               recordSkip("Persistence check skipped: failed to re-enter dungeon");

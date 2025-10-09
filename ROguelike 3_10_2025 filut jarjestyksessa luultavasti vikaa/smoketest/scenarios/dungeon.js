@@ -80,8 +80,8 @@
             const nd = has(window.GameAPI.nearestDungeon) ? window.GameAPI.nearestDungeon() : null;
             if (nd) await routeAdjToDungeonEntrance(nd);
           }
-          // Attempt entry via Enter key and API
-          ctx.key("Enter"); await ctx.sleep(360);
+          // Attempt entry via G key and API
+          ctx.key("g"); await ctx.sleep(360);
           if (has(window.GameAPI.enterDungeonIfOnEntrance)) window.GameAPI.enterDungeonIfOnEntrance();
           await ctx.sleep(420);
         } catch (_) {}
@@ -112,7 +112,7 @@
       if (!entered) {
         const moves = ["ArrowRight","ArrowDown","ArrowLeft","ArrowUp","ArrowRight","ArrowRight","ArrowDown","ArrowDown","ArrowRight"];
         for (const m of moves) { ctx.key(m); await ctx.sleep(110); }
-        ctx.key("Enter"); await ctx.sleep(320);
+        ctx.key("g"); await ctx.sleep(320);
         if (has(window.GameAPI.enterDungeonIfOnEntrance)) window.GameAPI.enterDungeonIfOnEntrance();
         await ctx.sleep(320);
         entered = (window.GameAPI.getMode() === "dungeon");

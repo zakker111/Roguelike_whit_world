@@ -42,7 +42,7 @@
           const tryEnterDungeon = async () => {
             try {
               if (typeof window.GameAPI.gotoNearestDungeon === "function") await window.GameAPI.gotoNearestDungeon();
-              key("Enter"); await sleep(280);
+              key("g"); await sleep(280);
               if (typeof window.GameAPI.enterDungeonIfOnEntrance === "function") window.GameAPI.enterDungeonIfOnEntrance();
               await sleep(300);
             } catch (_) {}

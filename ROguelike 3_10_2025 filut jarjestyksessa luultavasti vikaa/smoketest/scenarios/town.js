@@ -82,9 +82,9 @@
         }
       } catch (_) {}
 
-      // Attempt multiple entry tries: Enter + API with retries and waits
+      // Attempt multiple entry tries: G + API with retries and waits
       const tryEnterTown = async () => {
-        ctx.key("Enter"); await ctx.sleep(420);
+        ctx.key("g"); await ctx.sleep(420);
         try { if (has(window.GameAPI.enterTownIfOnTile)) window.GameAPI.enterTownIfOnTile(); } catch (_) {}
         await ctx.sleep(420);
       };

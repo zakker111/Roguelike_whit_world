@@ -1087,7 +1087,7 @@
     updateCamera();
     recomputeFOV();
     updateUI();
-    log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press Enter on a town/dungeon to enter.", "notice");
+    log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
     const UIH = modHandle("UI");
     if (UIH && typeof UIH.hideTownExitButton === "function") UIH.hideTownExitButton();
     requestDraw();

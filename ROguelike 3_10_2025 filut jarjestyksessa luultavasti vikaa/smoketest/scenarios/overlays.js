@@ -25,7 +25,7 @@
               ctx.key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(90);
             }
-            ctx.key("KeyG"); await sleep(280);
+            ctx.key("g"); await sleep(280);
           }
         } catch (_) {}
         mode0 = window.GameAPI.getMode();
