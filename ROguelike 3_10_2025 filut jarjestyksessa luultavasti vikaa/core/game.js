@@ -1885,12 +1885,15 @@
     requestDraw();
   }
   function openShopFor(npc) {
-    // Generate a small stock list
+    // Step 3: Delegate full open/render to ShopUI when available
+    if (window.ShopUI && typeof ShopUI.openForNPC === "function") {
+      try { ShopUI.openForNPC(getCtx(), npc); } catch (_) {}
+      return;
+    }
+    // Fallback: inline stock generation and render
     const stock = [];
-    // A couple of potions
     stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
     stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
-    // Some equipment via Items if available
     try {
       if (window.Items && typeof Items.createEquipment === "function") {
         const t1 = Items.createEquipment(1, rng);
@@ -1898,7 +1901,6 @@
         if (t1) stock.push({ item: t1, price: priceFor(t1) });
         if (t2) stock.push({ item: t2, price: priceFor(t2) });
       } else {
-        // fallback simple gear
         const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: initialDecay(1) };
         const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: initialDecay(1) };
         stock.push({ item: s, price: priceFor(s) });
@@ -1909,6 +1911,12 @@
     renderShopPanel();
   }
   function shopBuyIndex(idx) {
+    // Step 3: Delegate to ShopUI when available
+    if (window.ShopUI && typeof ShopUI.buyIndex === "function") {
+      try { ShopUI.buyIndex(getCtx(), idx); } catch (_) {}
+      return;
+    }
+    // Fallback: inline purchase logic
     if (!Array.isArray(currentShopStock) || idx < 0 || idx >= currentShopStock.length) return;
     const row = currentShopStock[idx];
     const cost = row.price | 0;
@@ -1920,11 +1928,9 @@
       return;
     }
     const copy = cloneItem(row.item);
-    // Deduct gold and add item
     if (!goldObj) { goldObj = { kind: "gold", amount: 0, name: "gold" }; player.inventory.push(goldObj); }
     goldObj.amount = (goldObj.amount | 0) - cost;
     if (copy.kind === "potion") {
-      // Merge same potions
       const same = player.inventory.find(i => i && i.kind === "potion" && (i.heal ?? 0) === (copy.heal ?? 0));
       if (same) same.count = (same.count || 1) + (copy.count || 1);
       else player.inventory.push(copy);
