@@ -105,10 +105,10 @@
         }
       } catch (_) {}
 
-      // Optional settle: wait 3 turns so spawned enemies/NPCs can act before we engage
+      // Optional settle: wait 5 turns so spawned enemies/NPCs can act before we engage
       try {
-        for (var wt = 0; wt < 3; wt++) { key("Numpad5"); await sleep(80); }
-        record(true, "Waited 3 turns before engaging");
+        for (var wt = 0; wt < 5; wt++) { key("Numpad5"); await sleep(80); }
+        record(true, "Waited 5 turns before engaging");
       } catch (_) {}
 
       // Route to nearest enemy and bump-attack
