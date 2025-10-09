@@ -468,103 +468,79 @@
             }
           }
 
-          // Route to a tile adjacent to the town gate, then bump and enter
+          // Route to the exact town gate/town tile, then enter (ensure tile underfoot before 'g')
+          let target = null;
           try {
             const MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
-            let target = null;
-            if (typeof G.getTownGate === "function") {
+            const modeEnter = getMode();
+            // In world, use nearestTown (gate tile on overworld). In other modes, use getTownGate if available.
+            if (modeEnter === "world" && typeof G.nearestTown === "function") {
+              target = G.nearestTown();
+            } else if (typeof G.getTownGate === "function") {
               target = G.getTownGate();
             }
             if (!target && typeof G.nearestTown === "function") {
               target = G.nearestTown();
             }
 
-            if (typeof G.gotoNearestTown === "function") {
-              await G.gotoNearestTown();
-              // fall through to bumpToward even if auto-walked
-            } else if (target && MV && typeof MV.routeAdjTo === "function") {
-              await MV.routeAdjTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
-            } else if (target && typeof G.routeTo === "function") {
-              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-              for (const d of adj) {
-                const ax = target.x + d.dx, ay = target.y + d.dy;
-                const path = G.routeTo(ax, ay) || [];
-                for (const st of path) {
-                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
-                  const dx = Math.sign(st.x - pl.x);
-                  const dy = Math.sign(st.y - pl.y);
-                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                  await sleep(80);
-                }
-                if (path && path.length) break;
-              }
-            }
-
-            // Final bump onto the gate tile before interaction; verify tile underfoot/adjacent
             if (target) {
+              // Prefer precise pathing to the exact tile (no bump travel)
+              let routedExact = false;
               try {
-                const tiles = (window.World && window.World.TILES) ? window.World.TILES : null;
-                const worldObj = (typeof G.getWorld === "function") ? G.getWorld() : null;
-                const isOnTarget = () => {
-                  try {
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
-                    return !!(pl && pl.x === target.x && pl.y === target.y);
-                  } catch (_) { return false; }
-                };
-                const onTownTileOrAdj = () => {
-                  try {
-                    if (!worldObj || !tiles) return false;
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
-                    if (!pl) return false;
-                    const tileHere = (worldObj.map && worldObj.map[pl.y]) ? worldObj.map[pl.y][pl.x] : null;
-                    if (tileHere === tiles.TOWN) return true;
-                    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                    for (const d of dirs) {
-                      const nx = pl.x + d.dx, ny = pl.y + d.dy;
-                      const t = (worldObj.map && worldObj.map[ny]) ? worldObj.map[ny][nx] : null;
-                      if (t === tiles.TOWN) return true;
-                    }
-                    return false;
-                  } catch (_) { return false; }
-                };
-
-                if (!isOnTarget()) {
-                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
-                  else {
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
-                    const dx = Math.sign(target.x - pl.x);
-                    const dy = Math.sign(target.y - pl.y);
-                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                  }
-                  await sleep(120);
-                }
-
-                if (!isOnTarget() && !onTownTileOrAdj()) {
-                  if (MV && typeof MV.routeTo === "function") {
-                    await MV.routeTo(target.x, target.y, { timeoutMs: 1600, stepMs: 80 });
-                  } else if (typeof G.routeTo === "function") {
-                    const pathExact = G.routeTo(target.x, target.y) || [];
-                    for (const st of pathExact) {
-                      const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
-                      const dx = Math.sign(st.x - pl.x);
-                      const dy = Math.sign(st.y - pl.y);
-                      key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                      await sleep(80);
-                    }
-                  }
-                }
-
-                for (let t = 0; t < 2 && !isOnTarget() && !onTownTileOrAdj(); t++) {
-                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
-                  else {
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
-                    const dx = Math.sign(target.x - pl.x);
-                    const dy = Math.sign(target.y - pl.y);
-                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                  }
-                  await sleep(100);
+                if (MV && typeof MV.routeTo === "function") {
+                  routedExact = await MV.routeTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
                 }
               } catch (_) {}
+              if (!routedExact) {
+                if (modeEnter === "world" && typeof G.routeTo === "function") {
+                  const path = G.routeTo(target.x, target.y) || [];
+                  for (const st of path) {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                    const dx = Math.sign(st.x - pl.x);
+                    const dy = Math.sign(st.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(80);
+                  }
+                } else if (modeEnter !== "world" && typeof G.routeToDungeon === "function") {
+                  const path = G.routeToDungeon(target.x, target.y) || [];
+                  for (const st of path) {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                    const dx = Math.sign(st.x - pl.x);
+                    const dy = Math.sign(st.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(80);
+                  }
+                }
+              }
+
+              // Verify we are exactly on the target; allow a single final nudge if adjacent
+              const isOnTarget = () => {
+                try {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
+                  return !!(pl && pl.x === target.x && pl.y === target.y);
+                } catch (_) { return false; }
+              };
+              try {
+                if (!isOnTarget()) {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                  if (Math.abs(pl.x - target.x) + Math.abs(pl.y - target.y) === 1) {
+                    const dx = Math.sign(target.x - pl.x);
+                    const dy = Math.sign(target.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(120);
+                  }
+                }
+              } catch (_) {}
+
+              // Only press 'g' if precisely on the target tile (gate/town tile underfoot)
+              try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
+              if (isOnTarget()) {
+                try { key("g"); } catch (_) {}
+                await sleep(300);
+              }
+              // Always attempt API fallback (safe no-op if not on gate)
+              try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
+              await sleep(300);
             }
           } catch (_) {}
 
