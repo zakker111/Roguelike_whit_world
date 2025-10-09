@@ -26,7 +26,9 @@
         // Control dungeon persistence scenario frequency: "once" (default), "always", or "never"
         persistence: (p("persistence", "once") || "once").toLowerCase(),
         // Optional base seed override; if provided, seeds are derived deterministically per run
-        seed: (function(){ const v = p("seed", ""); if (!v) return null; const n = Number(v); return Number.isFinite(n) ? (n >>> 0) : null; })()
+        seed: (function(){ const v = p("seed", ""); if (!v) return null; const n = Number(v); return Number.isFinite(n) ? (n >>> 0) : null; })(),
+        // Abort current run as soon as an immobile condition is detected in any scenario (default: enabled)
+        abortonimmobile: (p("abortonimmobile", "1") === "1")
       };
     } catch (_) {
       return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [], skipokafter: 0 };
@@ -191,7 +193,11 @@
       const params = parseParams();
       const sel = params.scenarios;
       const steps = [];
+      let aborted = false;
       const skipOk = new Set((ctx && ctx.skipSteps) ? ctx.skipSteps : []);
+      // Abort controls: if a critical condition like "immobile" occurs, abort this run early
+      let __abortRequested = false;
+      let __abortReason = null;
       function gameLog(m, type) { try { if (window.Logger && typeof Logger.log === "function") Logger.log(String(m || ""), type || "info"); } catch (_) {} }
       function record(ok, msg) {
         const text = String(msg || "");
@@ -212,6 +218,33 @@
           var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
           if (B && typeof B.log === "function") {
             B.log((ok ? "OK: " : "ERR: ") + text, ok ? "good" : "bad");
+          }
+        } catch (_) {}
+        // Abort this run immediately on immobile detection (e.g., world movement immobile)
+        try {
+          const isImmobile = (!ok && text.toLowerCase().includes("immobile"));
+          if (isImmobile && params && params.abortonimmobile && !aborted) {
+            aborted = true;
+            try {
+              var B2 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+              if (B2 && typeof B2.log === "function") {
+                B2.log("ABORT: immobile detected; aborting remaining scenarios in this run.", "bad");
+              }
+            } catch (_) {}
+            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "immobile"; } catch (_) {}
+          }
+        } catch (_) {}
+      }
+        // Abort rule: if movement test reports immobile, abort the rest of this run
+        try {
+          if (!ok && /immobile/i.test(text)) {
+            __abortRequested = true;
+            __abortReason = "immobile";
+            var B2 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+            if (B2 && typeof B2.log === "function") {
+              B2.log("Aborting current run due to immobile state; remaining scenarios will be skipped.", "warn");
+            }
+            gameLog("[SMOKE] Run aborted due to immobile", "warn");
           }
         } catch (_) {}
       }
@@ -396,6 +429,10 @@
       } catch (_) {}
 
       for (let i = 0; i < pipeline.length; i++) {
+        if (aborted) {
+          try { if (Banner && typeof Banner.log === "function") Banner.log("Run aborted; remaining scenarios skipped.", "bad"); } catch (_) {}
+          break;
+        }
         const step = pipeline[i];
         // Selection filter
         if (sel.length && !sel.includes(step.name)) continue;
@@ -499,7 +536,7 @@
         }
         jsonToken.textContent = JSON.stringify({ ok, steps, caps });
       } catch (_) {}
-      return { ok, steps, caps, scenarioResults };
+      return { ok, steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason };
     } catch (e) {
       try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
       return null;
@@ -821,7 +858,8 @@
       try {
         const Bprog = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
         const skippedStable = (skipList && skipList.length) ? `<div style="opacity:0.85;">Skipped (stable OK): ${skipList.join(", ")}</div>` : ``;
-        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>${skippedStable}`;
+        const abortedInfo = (res && res.aborted) ? `<div style="color:#ef4444;">Run ${i + 1} aborted (${res.abortReason}). Remaining scenarios skipped.</div>` : ``;
+        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>${skippedStable}${abortedInfo}`;
         if (Bprog && typeof Bprog.appendToPanel === "function") Bprog.appendToPanel(progHtml);
       } catch (_) {}
 
