@@ -1797,49 +1797,6 @@
   }
 
   // Shop UI delegated to ui/shop_panel.js
-  function priceFor(item) {
-    if (!item) return 10;
-    if (item.kind === "potion") {
-      const h = item.heal != null ? item.heal : 5;
-      return Math.max(5, Math.min(50, Math.round(h * 2)));
-    }
-    const base = (item.atk || 0) * 10 + (item.def || 0) * 10;
-    const tier = (item.tier || 1);
-    return Math.max(15, Math.round(base + tier * 15));
-  }
-  function cloneItem(it) {
-    try { return JSON.parse(JSON.stringify(it)); } catch (_) {}
-    return Object.assign({}, it);
-  }
-  
-  function renderShopPanel() {
-    const el = ensureShopPanel();
-    el.hidden = false;
-    const goldDiv = el.querySelector("#shop-gold");
-    const listDiv = el.querySelector("#shop-list");
-    const gold = (player.inventory.find(i => i && i.kind === "gold")?.amount) || 0;
-    if (goldDiv) goldDiv.textContent = `Gold: ${gold}`;
-    if (!listDiv) return;
-    if (!Array.isArray(currentShopStock) || currentShopStock.length === 0) {
-      listDiv.innerHTML = `<div style="color:#94a3b8;">No items for sale.</div>`;
-      return;
-    }
-    listDiv.innerHTML = currentShopStock.map((row, idx) => {
-      const name = describeItem(row.item) || "item";
-      const p = row.price | 0;
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">
-        <div>${name} — <span style="color:#93c5fd;">${p}g</span></div>
-        <button data-idx="${idx}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Buy</button>
-      </div>`;
-    }).join("");
-    // Attach handlers
-    Array.from(listDiv.querySelectorAll("button[data-idx]")).forEach(btn => {
-      btn.onclick = () => {
-        const i = Number(btn.getAttribute("data-idx") || -1);
-        shopBuyIndex(i);
-      };
-    });
-  }
   function hideShopPanel() {
     // Step 1 refactor: delegate to ShopUI if available, keep fallback
     if (window.ShopUI && typeof ShopUI.hide === "function") {
@@ -1854,28 +1811,10 @@
   function openShopFor(npc) {
     // Step 4: fully delegate to ShopUI
     if (window.ShopUI && typeof ShopUI.openForNPC === "function") {
-      try { ShopUI.openForNPC   try { ShopUI.openForNPC(getCtx(), npc); } catch (_) {}
+      try { ShopUI.openForNPC(getCtx(), npc); } catch (_) {}
       return;
     }
-    // Fallback: inline stock generation and render
-    const stock = [];
-    stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
-    stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
-    try {
-      if (window.Items && typeof Items.createEquipment === "function") {
-        const t1 = Items.createEquipment(1, rng);
-        const t2 = Items.createEquipment(2, rng);
-        if (t1) stock.push({ item: t1, price: priceFor(t1) });
-        if (t2) stock.push({ item: t2, price: priceFor(t2) });
-      } else {
-        const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: initialDecay(1) };
-        const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: initialDecay(1) };
-        stock.push({ item: s, price: priceFor(s) });
-        stock.push({ item: a, price: priceFor(a) });
-      }
-    } catch (_) {}
-    currentShopStock = stock;
-    renderShopPanel();
+    try { log("Shop UI not available.", "warn"); } catch (_) {}
   }
   function shopBuyIndex(idx) {
     // Step 4: fully delegate to ShopUI
