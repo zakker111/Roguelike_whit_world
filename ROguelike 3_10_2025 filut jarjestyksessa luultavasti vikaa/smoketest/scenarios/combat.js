@@ -107,6 +107,19 @@
 
       // Confirm enemy is near, then wait for first enemy hit (up to a short cap)
       try {
+        // Spawn an extra enemy via GOD UI right before proximity check
+        try {
+          var modeForSpawn2 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+          if (modeForSpawn2 === "dungeon") {
+            var gob2 = document.getElementById("god-open-btn");
+            if (gob2) { gob2.click(); await sleep(150); }
+            var btn2 = document.getElementById("god-spawn-enemy-btn");
+            if (btn2) { btn2.click(); await sleep(160); }
+          }
+        } catch (_) {}
+        // Close modals so wait/keys are not swallowed
+        try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(2); } catch (_) {}
+
         var playerPos = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
         var listNow = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
         var nearest = null, bestD2 = Infinity;
