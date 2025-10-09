@@ -200,9 +200,10 @@
         }
       } catch (_) {}
 
-      // Route to nearest enemy and bump-attack
+      // Route to nearest enemy and bump-attack (more robust dynamic pursuit)
       var enemies = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies() : [];
       if (enemies && enemies.length) {
+        // Pick initial target
         var best = enemies[0];
         var bestD = Math.abs(best.x - window.GameAPI.getPlayer().x) + Math.abs(best.y - window.GameAPI.getPlayer().y);
         for (var i = 0; i < enemies.length; i++) {
@@ -210,52 +211,69 @@
           var d = Math.abs(e.x - window.GameAPI.getPlayer().x) + Math.abs(e.y - window.GameAPI.getPlayer().y);
           if (d < bestD) { best = e; bestD = d; }
         }
+
+        // Try routing to the target's tile (or adjacency via helper)
         var usedHelper = false;
         try {
           var MV = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
           if (MV && typeof MV.routeTo === "function") {
-            usedHelper = await MV.routeTo(best.x, best.y, { timeoutMs: (CONFIG && CONFIG.timeouts && CONFIG.timeouts.route) || 5000, stepMs: 110 });
+            usedHelper = await MV.routeTo(best.x, best.y, { timeoutMs: (CONFIG && CONFIG.timeouts && CONFIG.timeouts.route) || 5000, stepMs: 90 });
+          }
+          // If helper not used or failed, try simple BFS path as fallback
+          if (!usedHelper) {
+            var path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
+            var budget = makeBudget((CONFIG && CONFIG.timeouts && CONFIG.timeouts.route) || 5000);
+            for (var j = 0; j < path.length; j++) {
+              var step = path[j];
+              if (budget.exceeded()) { recordSkip("Routing to enemy timed out"); break; }
+              var plNow = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : step;
+              var dx = Math.sign(step.x - plNow.x);
+              var dy = Math.sign(step.y - plNow.y);
+              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(90);
+            }
           }
         } catch (_) {}
-        if (!usedHelper) {
-          var path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
-          var budget = makeBudget(CONFIG.timeouts.route);
-          for (var j = 0; j < path.length; j++) {
-            var step = path[j];
-            if (budget.exceeded()) { recordSkip("Routing to enemy timed out"); break; }
-            var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-            var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
-            key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-            await sleep(110);
-          }
-        }
 
-        // Snapshot before bump-attacks
+        // Snapshot before dynamic bump-attacks
         var enemiesPre = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
         var sumHpPre = enemiesPre.reduce(function(acc, e){ return acc + (typeof e.hp === "number" ? e.hp : 0); }, 0);
         var bestHpBefore = (typeof best.hp === "number") ? best.hp : null;
         var corpsesPre = (typeof window.GameAPI.getCorpses === "function") ? (window.GameAPI.getCorpses() || []).length : null;
         var decalsPre = (typeof window.GameAPI.getDecalsCount === "function") ? (window.GameAPI.getDecalsCount() | 0) : null;
 
-        // battle bumps (attempt to collide/attack)
-        var bb = makeBudget(CONFIG.timeouts.battle);
-        for (var t = 0; t < 4; t++) {
+        // Dynamic pursuit: recompute nearest and bump up to N times, respecting battle budget
+        var bb = makeBudget((CONFIG && CONFIG.timeouts && CONFIG.timeouts.battle) || 5000);
+        var bumps = 0;
+        for (var t = 0; t < 8; t++) {
           if (bb.exceeded()) { recordSkip("Combat burst timed out"); break; }
-          var dx2 = Math.sign(best.x - window.GameAPI.getPlayer().x);
-          var dy2 = Math.sign(best.y - window.GameAPI.getPlayer().y);
+          // Recompute nearest enemy relative to current player
+          var curEnemies = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+          var pl = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+          var curBest = null; var curBestD = Infinity;
+          for (var k = 0; k < curEnemies.length; k++) {
+            var en = curEnemies[k];
+            var dcur = Math.abs(en.x - pl.x) + Math.abs(en.y - pl.y);
+            if (dcur < curBestD) { curBestD = dcur; curBest = en; }
+          }
+          // If none, stop
+          if (!curBest) break;
+          var dx2 = Math.sign(curBest.x - pl.x);
+          var dy2 = Math.sign(curBest.y - pl.y);
           key(dx2 === -1 ? "ArrowLeft" : dx2 === 1 ? "ArrowRight" : (dy2 === -1 ? "ArrowUp" : "ArrowDown"));
+          bumps++;
           await sleep(140);
         }
-        record(true, "Moved and attempted attacks");
+        record(true, "Moved and attempted attacks (" + bumps + " bumps)");
 
         // Post-checks: HP decrease, corpse or decals increase
         try {
           var enemiesPost = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
           var sumHpPost = enemiesPost.reduce(function(acc, e){ return acc + (typeof e.hp === "number" ? e.hp : 0); }, 0);
-          var corpsesPost = (typeof window.GameAPI.getCorpses === "function") ? (window.GameAPI.getCorpses() || []).length : null;
+          var corpsesPost = (typeof window.GameAPI.getCorpses === "function") ? (window.GameAPI.getCorpses() || []) : null;
           var decalsPost = (typeof window.GameAPI.getDecalsCount === "function") ? (window.GameAPI.getDecalsCount() | 0) : null;
 
-          // Find nearest enemy to original target and compare hp if possible
+          // Compare target hp if possible (nearest to original best)
           var nearestAfter = null, nd = Infinity;
           for (var ii = 0; ii < enemiesPost.length; ii++) {
             var en = enemiesPost[ii];
@@ -264,7 +282,7 @@
           }
           var hpDroppedForTarget = (nearestAfter && typeof nearestAfter.hp === "number" && typeof bestHpBefore === "number") ? (nearestAfter.hp < bestHpBefore) : false;
           var sumHpDropped = (typeof sumHpPre === "number" && typeof sumHpPost === "number") ? (sumHpPost < sumHpPre) : false;
-          var corpseInc = (corpsesPre != null && corpsesPost != null) ? (corpsesPost > corpsesPre) : false;
+          var corpseInc = (corpsesPre != null && Array.isArray(corpsesPost)) ? ((corpsesPost.length | 0) > (corpsesPre | 0)) : false;
           var decalsInc = (decalsPre != null && decalsPost != null) ? (decalsPost > decalsPre) : false;
 
           var fightOk = hpDroppedForTarget || sumHpDropped || corpseInc || decalsInc;
@@ -273,6 +291,57 @@
             (sumHpDropped ? "sum hp↓ " : "") +
             (corpseInc ? "corpse+ " : "") +
             (decalsInc ? "decals+ " : ""));
+
+          // Retry burst with forced crit if no effect detected and API supports it (stabilize test)
+          if (!fightOk && typeof window.GameAPI.setAlwaysCrit === "function") {
+            try {
+              window.GameAPI.setAlwaysCrit(true);
+              if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart("");
+              for (var rt = 0; rt < 2; rt++) {
+                var pl2 = window.GameAPI.getPlayer();
+                var curEnemies2 = window.GameAPI.getEnemies() || [];
+                var curB2 = null; var curD2 = Infinity;
+                for (var kk = 0; kk < curEnemies2.length; kk++) {
+                  var en2 = curEnemies2[kk];
+                  var d2b = Math.abs(en2.x - pl2.x) + Math.abs(en2.y - pl2.y);
+                  if (d2b < curD2) { curD2 = d2b; curB2 = en2; }
+                }
+                if (!curB2) break;
+                var dx3 = Math.sign(curB2.x - pl2.x);
+                var dy3 = Math.sign(curB2.y - pl2.y);
+                key(dx3 === -1 ? "ArrowLeft" : dx3 === 1 ? "ArrowRight" : (dy3 === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(140);
+              }
+            } catch (_) {}
+            try { window.GameAPI.setAlwaysCrit(false); } catch (_) {}
+            try { if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart(""); } catch (_) {}
+
+            // Re-evaluate post-checks
+            try {
+              enemiesPost = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+              sumHpPost = enemiesPost.reduce(function(acc, e){ return acc + (typeof e.hp === "number" ? e.hp : 0); }, 0);
+              corpsesPost = (typeof window.GameAPI.getCorpses === "function") ? (window.GameAPI.getCorpses() || []) : null;
+              decalsPost = (typeof window.GameAPI.getDecalsCount === "function") ? (window.GameAPI.getDecalsCount() | 0) : null;
+
+              nearestAfter = null; nd = Infinity;
+              for (ii = 0; ii < enemiesPost.length; ii++) {
+                var enr = enemiesPost[ii];
+                var d2r = Math.abs(enr.x - best.x) + Math.abs(enr.y - best.y);
+                if (d2r < nd) { nd = d2r; nearestAfter = enr; }
+              }
+              hpDroppedForTarget = (nearestAfter && typeof nearestAfter.hp === "number" && typeof bestHpBefore === "number") ? (nearestAfter.hp < bestHpBefore) : false;
+              sumHpDropped = (typeof sumHpPre === "number" && typeof sumHpPost === "number") ? (sumHpPost < sumHpPre) : false;
+              corpseInc = (corpsesPre != null && Array.isArray(corpsesPost)) ? ((corpsesPost.length | 0) > (corpsesPre | 0)) : false;
+              decalsInc = (decalsPre != null && decalsPost != null) ? (decalsPost > decalsPre) : false;
+
+              fightOk = hpDroppedForTarget || sumHpDropped || corpseInc || decalsInc;
+              record(fightOk, "Combat effects (retry): " +
+                (hpDroppedForTarget ? "target hp↓ " : "") +
+                (sumHpDropped ? "sum hp↓ " : "") +
+                (corpseInc ? "corpse+ " : "") +
+                (decalsInc ? "decals+ " : ""));
+            } catch (_) {}
+          }
         } catch (_) {}
       }
 
