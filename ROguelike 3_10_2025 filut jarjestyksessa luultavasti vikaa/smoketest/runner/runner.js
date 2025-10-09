@@ -22,8 +22,8 @@
         legacy: p("legacy", "0") === "1",
         scenarios: sel.split(",").map(s => s.trim()).filter(Boolean),
         // New: skip scenarios after they have passed a given number of runs (0 = disabled)
-        skipokafter: Number(p("skipokafter", "0")) || 0
-      };
+        skipokafter: Number(p("skipokafter", "0")) || 0,
+        // Control dungeon persistence scenario frequency: "once" (default), "always", or "never
     } catch (_) {
       return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [], skipokafter: 0 };
     }
@@ -606,9 +606,21 @@
       await applyFreshSeedForRun(i);
 
       // Build skip list from scenarios that have already met the stable OK threshold
-      const skipList = (skipAfter > 0)
+      let skipList = (skipAfter > 0)
         ? Array.from(scenarioPassCounts.entries()).filter(([name, cnt]) => (cnt | 0) >= skipAfter).map(([name]) => name)
         : [];
+      // Force dungeon_persistence to run only once by default:
+      // - "once" (default): run only in first run, skip thereafter
+      // - "always": run in all runs
+      // - "never": skip in all runs
+      try {
+        const pers = (params && params.persistence) ? params.persistence : "once";
+        if (pers !== "always") {
+          if (pers === "never" || i > 0) {
+            if (!skipList.includes("dungeon_persistence")) skipList.push("dungeon_persistence");
+          }
+        }
+      } catch (_) {}
 
       const res = await run({ index: i + 1, total: n, suppressReport: false, skipScenarios: skipList, skipSteps: Array.from(okMsgs) });
       all.push(res);
