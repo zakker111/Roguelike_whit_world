@@ -390,6 +390,18 @@
     const skipAfter = (Number(params.skipokafter || 0) | 0);
     const scenarioPassCounts = new Map();
 
+    // Guard: ensure only one runSeries executes at a time
+    try {
+      window.SmokeTest = window.SmokeTest || {};
+      window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+      if (window.SmokeTest.Runner.RUN_LOCK) {
+        const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        if (B && typeof B.log === "function") B.log("SmokeTest already running; skipping duplicate start.", "warn");
+        return { pass: 0, fail: 0, results: [], avgTurnMs: 0, avgDrawMs: 0, runnerVersion: RUNNER_VERSION };
+      }
+      window.SmokeTest.Runner.RUN_LOCK = true;
+    } catch (_) {}
+
     try {
       window.SmokeTest = window.SmokeTest || {};
       window.SmokeTest.Runner = window.SmokeTest.Runner || {};
@@ -744,9 +756,10 @@
       } catch (_) {}
     } catch (_) {}
 
-    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
-  }
+    // Release run lock
+    try { if (window.SmokeTest && window.SmokeTest.Runner) window.SmokeTest.Runner.RUN_LOCK = false; } catch (_) {}
 
+    return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion:
   window.SmokeTest.Run = { run, runSeries, CONFIG, RUNNER_VERSION, parseParams };
   // Back-compat aliases for UI/GOD button and legacy code paths (always point to orchestrator)
   try {
@@ -760,7 +773,20 @@
     const shouldAuto = params.smoketest && !params.legacy;
     const count = params.smokecount || 1;
     if (shouldAuto) {
-      const start = async () => { await waitUntilGameReady(6000); await runSeries(count); };
+      const start = async () => {
+        // Prevent duplicate auto-starts if something triggers twice
+        try {
+          window.SmokeTest = window.SmokeTest || {};
+          window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+          if (window.SmokeTest.Runner.RUN_LOCK) {
+            const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+            if (B && typeof B.log === "function") B.log("SmokeTest already running; auto-start suppressed.", "warn");
+            return;
+          }
+        } catch (_) {}
+        await waitUntilGameReady(6000);
+        await runSeries(count);
+      };
       if (document.readyState !== "loading") {
         setTimeout(() => { start(); }, 400);
       } else {
