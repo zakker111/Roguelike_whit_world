@@ -153,7 +153,7 @@
         record(false, "NPC home/decoration verification failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // 3) Decoration/props: find nearby prop and press G
+      // 3) Decoration/props: route to exact prop tile and press G only if standing on it
       try {
         if (!caps.getTownProps) { recordSkip("No town props API"); }
         else {
@@ -180,10 +180,45 @@
                 await sleep(110);
               }
             }
-            var ib2 = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
-            key("g");
-            await sleep(Math.min(ib2.remain(), 220));
-            record(true, "Interacted with nearby decoration/prop (G)");
+
+            // Ensure we stand exactly on the prop tile (no blind 'g' from adjacent)
+            var onProp = false;
+            try {
+              var plp = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: bestP.x, y: bestP.y };
+              onProp = (plp.x === bestP.x && plp.y === bestP.y);
+              if (!onProp && Math.abs(plp.x - bestP.x) + Math.abs(plp.y - bestP.y) === 1) {
+                var bdxp = Math.sign(bestP.x - plp.x), bdyp = Math.sign(bestP.y - plp.y);
+                key(bdxp === -1 ? "ArrowLeft" : bdxp === 1 ? "ArrowRight" : (bdyp === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(120);
+                plp = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : plp;
+                onProp = (plp.x === bestP.x && plp.y === bestP.y);
+              }
+              if (!onProp) {
+                var pathExactP = has(window.GameAPI.routeToDungeon) ? (window.GameAPI.routeToDungeon(bestP.x, bestP.y) || []) : [];
+                var budP = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 1000);
+                for (var ex = 0; ex < pathExactP.length; ex++) {
+                  if (budP.exceeded()) break;
+                  var stp = pathExactP[ex];
+                  var dxep = Math.sign(stp.x - (has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer().x : stp.x));
+                  var dyep = Math.sign(stp.y - (has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer().y : stp.y));
+                  key(dxep === -1 ? "ArrowLeft" : dxep === 1 ? "ArrowRight" : (dyep === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(90);
+                }
+                plp = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : plp;
+                onProp = (plp.x === bestP.x && plp.y === bestP.y);
+              }
+            } catch (_){}
+
+            // Interact only if standing on prop
+            try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(1); } catch(_){}
+            if (onProp) {
+              var ib2 = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
+              key("g");
+              await sleep(Math.min(ib2.remain(), 220));
+              record(true, "Interacted with decoration/prop (standing on tile)");
+            } else {
+              recordSkip("Decoration/prop: not on prop tile; skipped G");
+            }
           } else {
             recordSkip("No town decorations/props reported");
           }
