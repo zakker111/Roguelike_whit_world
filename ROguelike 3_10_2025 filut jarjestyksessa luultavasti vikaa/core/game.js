@@ -1380,7 +1380,8 @@
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
     if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      requestLeaveTown();
+      // Immediate exit on gate when pressing G (disable confirm UI)
+      leaveTownNow();
       return true;
     }
     log("Return to the town gate to exit to the overworld.", "info");
