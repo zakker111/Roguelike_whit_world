@@ -23,7 +23,9 @@
         scenarios: sel.split(",").map(s => s.trim()).filter(Boolean),
         // New: skip scenarios after they have passed a given number of runs (0 = disabled)
         skipokafter: Number(p("skipokafter", "0")) || 0,
-        // Control dungeon persistence scenario frequency: "once" (default), "always", or "never
+        // Control dungeon persistence scenario frequency: "once" (default), "always", or "never"
+        persistence: (p("persistence", "once") || "once").toLowerCase()
+      };
     } catch (_) {
       return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [], skipokafter: 0 };
     }
