@@ -2907,11 +2907,15 @@
       },
       enterTownIfOnTile: () => {
         try {
-          if (window.Modes && typeof Modes.enterTownIfOnTile === "function") {
-            return !!Modes.enterTownIfOnTile(getCtx());
-          }
-        } catch (_) {}
-        return false;
+          // Use local wrapper to ensure mutated ctx is synced back and UI/redraw updates occur
+          return !!enterTownIfOnTile();
+        } catch (_) { return false; }
+      },
+      enterDungeonIfOnEntrance: () => {
+        try {
+          // Use local wrapper to ensure mutated ctx is synced back and UI/redraw updates occur
+          return !!enterDungeonIfOnEntrance();
+        } catch (_) { return false; }
       },
       // Current map pathing helpers (town/dungeon)
       getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type, immobileTurns: e.immobileTurns || 0, bleedTurns: e.bleedTurns || 0 })),
