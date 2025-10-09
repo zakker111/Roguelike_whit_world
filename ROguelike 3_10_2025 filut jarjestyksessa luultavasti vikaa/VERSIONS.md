@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-09 12:00 UTC
+Last updated: 2025-10-09 13:00 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,42 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.23.0 — Teleport helpers, reliable entry/exit, death aborts, inconclusive steps, enemy HP clamp, diagnostics polish, and pipeline controls
+- Added: Smoketest Teleport helper (smoketest/helpers/teleport.js)
+  - teleportTo(x,y) via GameAPI.teleportTo with walkable/nearest-free fallback.
+  - teleportToGateAndExit() for town timeout exits; closes modals, presses 'g', verifies mode switch.
+  - teleportToDungeonExitAndLeave() fallback when leaving dungeon.
+- Added: GameAPI dev/test helpers (core/game.js)
+  - teleportTo(tx,ty,{ensureWalkable,fallbackScanRadius}) with camera/FOV/UI refresh.
+  - setEnemyHpAt(x,y,hp) for clamping newly spawned enemies for deterministic combat checks.
+- Changed: Town/Dungeon entry and exit robustness
+  - enterTownIfOnTile now syncs mutated ctx back to engine state; added enterDungeonIfOnEntrance export.
+  - Runner’s ensureTownOnce/ensureDungeonOnce route precisely onto target tile, proactively close modals, press 'g', then call API fallback, and poll for mode changes; single-entry locks prevent repeated toggles.
+- Added: Death detection and abort wiring
+  - Runner aborts current run when death/Game Over is detected; shows reason “dead”.
+  - Live Matchup adds DEAD counter; applyFreshSeedForRun auto “New Game” on dead state before seeding.
+- Changed: Reporting renderer styling
+  - Steps mentioning “immobile”, “death”, or “game over” are labeled INCONCLUSIVE with neutral grey styling instead of FAIL.
+- Changed: Combat scenario reliability
+  - Spawns via GOD and GameAPI with retries; clamps newly spawned enemies to low HP for quick effects.
+  - Proximity-based wait for first enemy hit (up to 10 turns) instead of fixed delays.
+  - Records detailed effects: target HP drop, total HP drop, corpse/decals increase.
+- Changed: Dungeon persistence scenario
+  - Ensures standing exactly on chest tile before interaction; checks looted flag, lootCount decrease, or inventory growth.
+  - Exit reliability: closes modals, key 'g', returnToWorldIfAtExit fallback, and teleport-to-exit fallback if needed.
+  - Re-entry invariants: corpses/decals persistence checks and player “non-teleport” guard.
+- Changed: Town diagnostics scenario
+  - Simplified shop sign check (OPEN/CLOSED) without boundary-time logic; removed resting flows.
+  - GOD “Inn/Tavern” presence check; bump-buy near shopkeeper; greeter count near gate (expects 1 within r<=2).
+  - On routing timeout, uses teleportToGateAndExit() to avoid getting stuck.
+- UI: Run Linear All button
+  - New config panel button triggers a fixed scenario order without manual selection; respects Runs value.
+- Runner aggregation and multi-run behavior
+  - Union-of-success aggregation by exact message; live Matchup prioritizes fails, then skips, then passes, sorted by recency.
+  - Special counters IMMOBILE and DEAD included; added per-run progress snippets and final summary.
+- Dev: Minor timing and stability tweaks
+  - Increased waits around teleport exit (500 ms defaults); tightened empty-town fallback waits; modal closing hardened across scenarios.
 
 v1.22.3 — Run indicators, world-mode gating per run, seed uniqueness, single-entry locks, IMMOBILE counter, and safer defaults
 - UI: Runner banner/status now shows the current run and stage
