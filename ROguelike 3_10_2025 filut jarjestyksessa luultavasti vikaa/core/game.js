@@ -2610,97 +2610,25 @@
   initWorld();
   setupInput();
 
-  // Mouse/click support on the canvas: click specific containers (chests/corpses) to loot
-  (function setupMouse() {
-    try {
-      const canvasEl = document.getElementById("game");
-      if (!canvasEl) return;
-
-      function hasContainerAt(x, y) {
-        try {
-          return Array.isArray(corpses) && corpses.find(c => c && c.x === x && c.y === y && (!c.looted || (Array.isArray(c.loot) && c.loot.length > 0)));
-        } catch (_) {
-          return null;
-        }
-      }
-
-      canvasEl.addEventListener("click", (ev) => {
-        try {
-          // If UI modals are open, let them handle clicks
-          if (window.UI) {
-            if (typeof UI.isLootOpen === "function" && UI.isLootOpen()) return;
-            if (typeof UI.isInventoryOpen === "function" && UI.isInventoryOpen()) return;
-            if (typeof UI.isGodOpen === "function" && UI.isGodOpen()) return;
-          }
-          // Only act in dungeon and town; for world we ignore clicks for now
-          if (mode !== "dungeon" && mode !== "town") return;
-
-          const rect = canvasEl.getBoundingClientRect();
-          const px = ev.clientX - rect.left;
-          const py = ev.clientY - rect.top;
-
-          // Map pixel to tile coordinates considering camera
-          const tx = Math.floor((camera.x + Math.max(0, px)) / TILE);
-          const ty = Math.floor((camera.y + Math.max(0, py)) / TILE);
-
-          if (!inBounds(tx, ty)) return;
-
-          if (mode === "dungeon") {
-            const targetContainer = hasContainerAt(tx, ty);
-
-            if (targetContainer) {
-              // If clicked on our own tile and there is a container here, loot it
-              if (tx === player.x && ty === player.y) {
-                lootCorpse();
-                return;
-              }
-              // If adjacent to the clicked container, step onto it and loot
-              const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
-              if (md === 1) {
-                const dx = Math.sign(tx - player.x);
-                const dy = Math.sign(ty - player.y);
-                tryMovePlayer(dx, dy);
-                // If we arrived on the container, auto-loot
-                setTimeout(() => {
-                  try {
-                    if (player.x === tx && player.y === ty) lootCorpse();
-                  } catch (_) {}
-                }, 0);
-                return;
-              }
-              // Not adjacent: inform the player
-              log("Move next to the chest/corpse and click it to loot.", "info");
-              return;
-            }
-
-            // If no container was clicked, allow simple adjacent click-to-move QoL
-            const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
-            if (md === 1) {
-              const dx = Math.sign(tx - player.x);
-              const dy = Math.sign(ty - player.y);
-              tryMovePlayer(dx, dy);
-            }
-            return;
-          }
-
-          if (mode === "town") {
-            // In town, click on player's tile performs the context action (talk/exit/loot if chest underfoot)
-            if (tx === player.x && ty === player.y) {
-              doAction();
-              return;
-            }
-            // Adjacent tile click: small QoL move
-            const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
-            if (md === 1) {
-              const dx = Math.sign(tx - player.x);
-              const dy = Math.sign(ty - player.y);
-              tryMovePlayer(dx, dy);
-            }
-          }
-        } catch (_) {}
+  // Mouse/click support delegated to ui/input_mouse.js
+  try {
+    if (window.InputMouse && typeof InputMouse.init === "function") {
+      InputMouse.init({
+        canvasId: "game",
+        getMode: () => mode,
+        TILE,
+        getCamera: () => camera,
+        getPlayer: () => ({ x: player.x, y: player.y }),
+        inBounds: (x, y) => inBounds(x, y),
+        isWalkable: (x, y) => isWalkable(x, y),
+        getCorpses: () => corpses,
+        getEnemies: () => enemies,
+        tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
+        lootCorpse: () => lootCorpse(),
+        doAction: () => doAction(),
       });
-    } catch (_) {}
-  })();
+    }
+  } catch (_) {}
 
   {
     const GL = modHandle("GameLoop");
