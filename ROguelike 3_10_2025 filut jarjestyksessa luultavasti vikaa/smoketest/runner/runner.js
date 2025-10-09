@@ -187,12 +187,27 @@
       const params = parseParams();
       const sel = params.scenarios;
       const steps = [];
+      const skipOk = new Set((ctx && ctx.skipSteps) ? ctx.skipSteps : []);
+      function gameLog(m, type) { try { if (window.Logger && typeof Logger.log === "function") Logger.log(String(m || ""), type || "info"); } catch (_) {} }
       function record(ok, msg) {
-        steps.push({ ok: !!ok, msg: String(msg || "") });
+        const text = String(msg || "");
+        if (!!ok && skipOk.has(text)) {
+          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "prior_ok" });
+          try {
+            var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+            if (B && typeof B.log === "function") {
+              B.log("SKIP (prior OK): " + text, "info");
+            }
+          } catch (_) {}
+          // Also write into the main game log for visibility
+          gameLog("[SMOKE] OK in prior run; skipped: " + text, "info");
+          return;
+        }
+        steps.push({ ok: !!ok, msg: text });
         try {
           var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
           if (B && typeof B.log === "function") {
-            B.log((ok ? "OK: " : "ERR: ") + String(msg || ""), ok ? "good" : "bad");
+            B.log((ok ? "OK: " : "ERR: ") + text, ok ? "good" : "bad");
           }
         } catch (_) {}
       }
@@ -388,6 +403,7 @@
 
     // Aggregation of steps across runs (union of success)
     const agg = new Map();
+    const okMsgs = new Set();
 
     // Fresh seed helpers
     function randomUint32(runIndex) {
@@ -529,7 +545,7 @@
         ? Array.from(scenarioPassCounts.entries()).filter(([name, cnt]) => (cnt | 0) >= skipAfter).map(([name]) => name)
         : [];
 
-      const res = await run({ index: i + 1, total: n, suppressReport: false, skipScenarios: skipList });
+      const res = await run({ index: i + 1, total: n, suppressReport: false, skipScenarios: skipList, skipSteps: Array.from(okMsgs) });
       all.push(res);
       if (res && res.ok) pass++; else fail++;
 
@@ -545,14 +561,17 @@
         }
       } catch (_) {}
 
-      // Accumulate step results by message
+      // Accumulate step results by message (and build set of messages that have passed before)
       try {
         if (res && Array.isArray(res.steps)) {
           for (const s of res.steps) {
             const key = String(s.msg || "");
             const cur = agg.get(key) || { msg: key, ok: false, skippedAny: false, failCount: 0, lastSeen: 0 };
             if (s.skipped) cur.skippedAny = true;
-            if (s.ok && !s.skipped) cur.ok = true;
+            if (s.ok && !s.skipped) {
+              cur.ok = true;
+              okMsgs.add(key);
+            }
             if (!s.ok && !s.skipped) cur.failCount += 1;
             // Track last time this step was observed for recency sorting
             cur.lastSeen = Date.now();
