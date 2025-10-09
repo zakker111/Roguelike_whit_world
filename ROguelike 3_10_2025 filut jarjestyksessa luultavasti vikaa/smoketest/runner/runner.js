@@ -786,7 +786,10 @@
         // Dynamic border color based on failures present
         el.style.border = failed.length ? "1px solid rgba(239,68,68,0.6)" : "1px solid rgba(122,162,247,0.4)";
         const failColor = failed.length ? "#ef4444" : "#86efac";
-        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="color:${failColor};">${failed.length}</span> • SKIP ${skipped.length}</div>`;
+        // Immobile counter (failed steps whose message mentions "immobile")
+        const immobileCount = failed.filter(s => /immobile/i.test(String(s.msg || ""))).length;
+        const immColor = immobileCount ? "#f59e0b" : "#93c5fd";
+        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="color:${failColor};">${failed.length}</span> • SKIP ${skipped.length} • IMMOBILE <span style="color:${immColor};">${immobileCount}</span></div>`;
         // Prioritize fails, then skips, then oks; show more entries for better visibility
         const CAP = 20;
         const detailsList = [];
