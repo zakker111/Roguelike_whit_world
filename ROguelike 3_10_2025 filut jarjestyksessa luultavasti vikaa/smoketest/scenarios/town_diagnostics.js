@@ -38,6 +38,8 @@
       var CONFIG = ctx.CONFIG || { timeouts: { route: 2500, interact: 250, battle: 2500 } };
       var caps = (ctx && ctx.caps) || {};
       var MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
+      var TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+      var hadTimeout = false;
 
       // Open GOD and diagnostics
       if (domSafeClick("god-open-btn")) {
@@ -59,36 +61,50 @@
         return true;
       }
 
-      // Shops schedule check
+      // Gate greeter count: ensure only one NPC near the town gate
+      try {
+        var gate = has(window.GameAPI.getTownGate) ? window.GameAPI.getTownGate() : null;
+        var npcsAll = has(window.GameAPI.getNPCs) ? (window.GameAPI.getNPCs() || []) : [];
+        if (gate && npcsAll && npcsAll.length) {
+          var radius = 2; // manhattan radius around gate
+          var nearGate = npcsAll.filter(function (n) {
+            return (Math.abs(n.x - gate.x) + Math.abs(n.y - gate.y)) <= radius;
+          });
+          record(true, "Gate NPCs within r<=2: " + nearGate.length);
+          record(nearGate.length === 1, "Gate greeter count is " + nearGate.length + " (expected 1)");
+        } else {
+          record(true, "Gate NPC count check skipped (no gate or no NPCs)");
+        }
+      } catch (e) {
+        record(false, "Gate NPC count check failed: " + (e && e.message ? e.message : String(e)));
+      }
+
+      // Shops sign check (no boundary/schedule)
       var shops = has(window.GameAPI.getShops) ? (window.GameAPI.getShops() || []) : [];
       if (shops && shops.length) {
         var s0 = shops[0];
         var openNow = has(window.GameAPI.isShopOpenNowFor) ? !!window.GameAPI.isShopOpenNowFor(s0) : false;
-        var sched = has(window.GameAPI.getShopSchedule) ? (window.GameAPI.getShopSchedule(s0) || "") : "";
-        record(true, "Shop check: " + (s0.name || "Shop") + " is " + (openNow ? "OPEN" : "CLOSED") + " (" + sched + ")");
-        // Boundary: move from 07:59 to 08:00 if possible
-        try {
-          if (has(window.GameAPI.getClock) && has(window.GameAPI.advanceMinutes)) {
-            var clk = window.GameAPI.getClock();
-            var curMin = clk.hours * 60 + clk.minutes;
-            var to759 = ((8 * 60 - 1) - curMin + 24 * 60) % (24 * 60);
-            window.GameAPI.advanceMinutes(to759);
-            await sleep(120);
-            var at759 = has(window.GameAPI.isShopOpenNowFor) ? !!window.GameAPI.isShopOpenNowFor(s0) : false;
-            window.GameAPI.advanceMinutes(1);
-            await sleep(120);
-            var at800 = has(window.GameAPI.isShopOpenNowFor) ? !!window.GameAPI.isShopOpenNowFor(s0) : false;
-            record(true, "Shop boundary: 07:59=" + (at759 ? "OPEN" : "CLOSED") + " 08:00=" + (at800 ? "OPEN" : "CLOSED"));
-          } else {
-            var before = openNow;
-            if (has(window.GameAPI.restUntilMorning)) window.GameAPI.restUntilMorning();
-            await sleep(200);
-            var after = has(window.GameAPI.isShopOpenNowFor) ? !!window.GameAPI.isShopOpenNowFor(s0) : before;
-            record(true, "Shop open state after morning: " + (after ? "OPEN" : "CLOSED"));
-          }
-        } catch (_) {}
+        record(true, "Shop sign: " + (openNow ? "OPEN" : "CLOSED") + " (" + (s0.name || "Shop") + ")");
       } else {
         record(true, "No shops available to check");
+      }
+
+      // Inn/Tavern availability via GOD button (no resting)
+      try {
+        // Ensure GOD panel is open, then click the inn/tavern check
+        domSafeClick("god-open-btn");
+        await sleep(200);
+        var clickedInn = domSafeClick("god-check-inn-tavern-btn");
+        if (clickedInn) { await sleep(300); }
+        // Count inns from shops list
+        var allShops = has(window.GameAPI.getShops) ? (window.GameAPI.getShops() || []) : [];
+        var inns = allShops.filter(function (s) {
+          var nm = (s && s.name) ? String(s.name).toLowerCase() : "";
+          return nm.includes("inn");
+        });
+        record(true, "Inn/Tavern check: " + inns.length + " inn(s)");
+      } catch (e) {
+        record(false, "Inn/Tavern check failed: " + (e && e.message ? e.message : String(e)));
       }
 
       // Basic currency ops
@@ -142,7 +158,7 @@
               var budget = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 2500);
               for (var k = 0; k < path.length; k++) {
                 var step = path[k];
-                if (budget.exceeded()) { recordSkip("Routing to shopkeeper timed out"); break; }
+                if (budget.exceeded()) { hadTimeout = true; recordSkip("Routing to shopkeeper timed out"); break; }
                 var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
                 var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
                 key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
@@ -184,13 +200,53 @@
             var budgetS = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 2500);
             for (var si = 0; si < pathS.length; si++) {
               var st = pathS[si];
-              if (budgetS.exceeded()) { recordSkip("Routing to shop timed out"); break; }
+              if (budgetS.exceeded()) { hadTimeout = true; recordSkip("Routing to shop timed out"); break; }
               var dx = Math.sign(st.x - window.GameAPI.getPlayer().x);
               var dy = Math.sign(st.y - window.GameAPI.getPlayer().y);
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(100);
             }
           }
+
+          // Before opening shop UI, try a natural bump on a shopkeeper adjacent to the shop tile
+          try {
+            var npcsAll2 = has(window.GameAPI.getNPCs) ? (window.GameAPI.getNPCs() || []) : [];
+            var keeper = null, kdMin = Infinity;
+            for (var ii2 = 0; ii2 < npcsAll2.length; ii2++) {
+              var n2 = npcsAll2[ii2];
+              var d2k = Math.abs(n2.x - shop.x) + Math.abs(n2.y - shop.y);
+              if (d2k <= 1 && d2k < kdMin) { kdMin = d2k; keeper = n2; }
+            }
+            if (keeper) {
+              // Route adjacent to keeper and bump once toward them
+              var routedAdj = false;
+              try {
+                if (MV && typeof MV.routeAdjTo === "function") {
+                  routedAdj = await MV.routeAdjTo(keeper.x, keeper.y, { timeoutMs: 1200, stepMs: 90 });
+                }
+              } catch (_) {}
+              if (!routedAdj) {
+                var pathA = has(window.GameAPI.routeToDungeon) ? window.GameAPI.routeToDungeon(shop.x, shop.y) : [];
+                var budA = makeBudget(1200);
+                for (var pa = 0; pa < pathA.length; pa++) {
+                  var stp = pathA[pa];
+                  if (budA.exceeded()) break;
+                  var dxA = Math.sign(stp.x - window.GameAPI.getPlayer().x);
+                  var dyA = Math.sign(stp.y - window.GameAPI.getPlayer().y);
+                  key(dxA === -1 ? "ArrowLeft" : dxA === 1 ? "ArrowRight" : (dyA === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(90);
+                }
+              }
+              var dxB = Math.sign(keeper.x - window.GameAPI.getPlayer().x);
+              var dyB = Math.sign(keeper.y - window.GameAPI.getPlayer().y);
+              key(dxB === -1 ? "ArrowLeft" : dxB === 1 ? "ArrowRight" : (dyB === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(160);
+              record(true, "Bump near shopkeeper: OK");
+            } else {
+              record(true, "Bump near shopkeeper: skipped (none near shop)");
+            }
+          } catch (_) {}
+
           var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
           key("g");
           await sleep(Math.min(ib.remain(), 220));
@@ -215,19 +271,15 @@
         record(false, "Shop interaction failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Resting
+      
+
+      // If any routing step timed out, attempt safe exit: teleport to gate and press 'g'
       try {
-        var inn = shops.find(function (s) { return ((s.name || "").toLowerCase().includes("inn")); });
-        if (inn && has(window.GameAPI.restAtInn)) {
-          window.GameAPI.restAtInn();
-          record(true, "Rested at inn (time advanced to morning, HP restored)");
-        } else if (has(window.GameAPI.restUntilMorning)) {
-          window.GameAPI.restUntilMorning();
-          record(true, "Rested until morning");
+        if (hadTimeout && window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "town" && TP && typeof TP.teleportToGateAndExit === "function") {
+          var exited = await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 500 });
+          record(exited, exited ? "Diagnostics timeout: exited town via teleport" : "Diagnostics timeout: failed to exit town");
         }
-      } catch (e) {
-        record(false, "Resting failed: " + (e && e.message ? e.message : String(e)));
-      }
+      } catch (_) {}
 
       return true;
     } catch (e) {

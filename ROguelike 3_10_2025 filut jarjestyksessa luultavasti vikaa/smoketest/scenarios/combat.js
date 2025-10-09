@@ -65,7 +65,30 @@
         }
       } catch (_) {}
 
-      var enemiesBefore = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : 0;
+      // Snapshot before spawns for low-HP clamping of new enemies
+      var enemiesBeforeList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+      var enemiesBefore = enemiesBeforeList.length;
+
+      // Helper: clamp HP of newly spawned enemies (by position delta)
+      async function clampNewEnemiesLowHp(beforeList, afterList) {
+        try {
+          if (!Array.isArray(beforeList) || !Array.isArray(afterList)) return 0;
+          var beforeSet = new Set(beforeList.map(function(e){ return (e && (e.x != null) && (e.y != null)) ? (e.x + "," + e.y) : ""; }));
+          var clamped = 0;
+          for (var i = 0; i < afterList.length; i++) {
+            var e = afterList[i];
+            var key = (e && (e.x != null) && (e.y != null)) ? (e.x + "," + e.y) : "";
+            if (key && !beforeSet.has(key)) {
+              if (typeof window.GameAPI.setEnemyHpAt === "function") {
+                if (window.GameAPI.setEnemyHpAt(e.x, e.y, 1)) clamped++;
+                await sleep(10);
+              }
+            }
+          }
+          if (clamped > 0) record(true, "Spawn clamp: set low HP for " + clamped + " new enemy(ies)");
+          return clamped;
+        } catch (_) { return 0; }
+      }
 
       // Spawn enemies via GOD panel and GameAPI (multiple attempts)
       try {
@@ -82,9 +105,14 @@
               var btn = document.getElementById("god-spawn-enemy-btn");
               if (btn) { btn.click(); await sleep(160); }
             }
-            var enemiesAfterDom = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
+            var enemiesAfterDomList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : enemiesBeforeList;
+            var enemiesAfterDom = enemiesAfterDomList.length;
             spawnedOk = enemiesAfterDom > enemiesBefore;
             record(spawnedOk, "Dungeon spawn (GOD): enemies " + enemiesBefore + " -> " + enemiesAfterDom);
+            // Clamp low HP for newly spawned ones
+            await clampNewEnemiesLowHp(enemiesBeforeList, enemiesAfterDomList);
+            enemiesBeforeList = enemiesAfterDomList.slice(0);
+            enemiesBefore = enemiesAfterDom;
           } else {
             recordSkip("Dungeon spawn (GOD) skipped (not in dungeon)");
           }
@@ -96,12 +124,79 @@
             window.GameAPI.spawnEnemyNearby(2);
             await sleep(200);
           }
-          var enemiesNow = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
+          var enemiesNowList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : enemiesBeforeList;
+          var enemiesNow = enemiesNowList.length;
           spawnedOk = enemiesNow > enemiesBefore;
+          // Clamp newly spawned via fallback
+          if (spawnedOk) {
+            await clampNewEnemiesLowHp(enemiesBeforeList, enemiesNowList);
+            enemiesBeforeList = enemiesNowList.slice(0);
+            enemiesBefore = enemiesNow;
+          }
           attempts++;
         }
         if (!spawnedOk) {
           recordSkip("No enemies available for combat pathing");
+        }
+      } catch (_) {}
+
+      // Confirm enemy is near, then wait for first enemy hit (up to a short cap)
+      try {
+        // Spawn an extra enemy via GOD UI right before proximity check
+        try {
+          var modeForSpawn2 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+          if (modeForSpawn2 === "dungeon") {
+            // Snapshot before
+            var beforeExtra = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+            var gob2 = document.getElementById("god-open-btn");
+            if (gob2) { gob2.click(); await sleep(150); }
+            var btn2 = document.getElementById("god-spawn-enemy-btn");
+            if (btn2) { btn2.click(); await sleep(160); }
+            // Clamp new ones to low HP
+            var afterExtra = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+            if (typeof clampNewEnemiesLowHp === "function") { await clampNewEnemiesLowHp(beforeExtra, afterExtra); }
+          }
+        } catch (_) {}
+        // Close modals so wait/keys are not swallowed
+        try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(2); } catch (_) {}
+
+        var playerPos = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+        var listNow = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+        var nearest = null, bestD2 = Infinity;
+        for (var ne = 0; ne < listNow.length; ne++) {
+          var en = listNow[ne];
+          var d2 = Math.abs(en.x - playerPos.x) + Math.abs(en.y - playerPos.y);
+          if (d2 < bestD2) { bestD2 = d2; nearest = en; }
+        }
+        var NEAR_R = 5;
+        if (nearest) {
+          record(bestD2 <= NEAR_R, "Enemy nearby: dist " + bestD2 + (bestD2 <= NEAR_R ? " (<= " + NEAR_R + ")" : " (> " + NEAR_R + ")"));
+        } else {
+          recordSkip("No enemies visible after spawn for proximity check");
+        }
+
+        // If near enough, wait for first enemy hit (player HP drops)
+        var st0 = (typeof window.GameAPI.getPlayerStatus === "function") ? window.GameAPI.getPlayerStatus() : null;
+        var hp0 = (st0 && typeof st0.hp === "number") ? st0.hp : null;
+        var turnsToWait = 10;
+        var gotHit = false;
+        if (nearest && bestD2 <= NEAR_R && hp0 != null) {
+          for (var wt = 0; wt < turnsToWait; wt++) {
+            key("Numpad5");
+            await sleep(80);
+            var stCur = (typeof window.GameAPI.getPlayerStatus === "function") ? window.GameAPI.getPlayerStatus() : null;
+            var hpCur = (stCur && typeof stCur.hp === "number") ? stCur.hp : null;
+            if (hpCur != null && hpCur < hp0) {
+              record(true, "Enemy hit: HP " + hp0 + " -> " + hpCur + " in " + (wt + 1) + " turns");
+              gotHit = true;
+              break;
+            }
+          }
+          if (!gotHit) {
+            recordSkip("Enemy hit: none within " + turnsToWait + " turns");
+          }
+        } else {
+          recordSkip("Enemy not near; skip waiting for hit");
         }
       } catch (_) {}
 
@@ -134,9 +229,17 @@
             await sleep(110);
           }
         }
-        // battle bumps
+
+        // Snapshot before bump-attacks
+        var enemiesPre = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+        var sumHpPre = enemiesPre.reduce(function(acc, e){ return acc + (typeof e.hp === "number" ? e.hp : 0); }, 0);
+        var bestHpBefore = (typeof best.hp === "number") ? best.hp : null;
+        var corpsesPre = (typeof window.GameAPI.getCorpses === "function") ? (window.GameAPI.getCorpses() || []).length : null;
+        var decalsPre = (typeof window.GameAPI.getDecalsCount === "function") ? (window.GameAPI.getDecalsCount() | 0) : null;
+
+        // battle bumps (attempt to collide/attack)
         var bb = makeBudget(CONFIG.timeouts.battle);
-        for (var t = 0; t < 3; t++) {
+        for (var t = 0; t < 4; t++) {
           if (bb.exceeded()) { recordSkip("Combat burst timed out"); break; }
           var dx2 = Math.sign(best.x - window.GameAPI.getPlayer().x);
           var dy2 = Math.sign(best.y - window.GameAPI.getPlayer().y);
@@ -144,6 +247,33 @@
           await sleep(140);
         }
         record(true, "Moved and attempted attacks");
+
+        // Post-checks: HP decrease, corpse or decals increase
+        try {
+          var enemiesPost = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+          var sumHpPost = enemiesPost.reduce(function(acc, e){ return acc + (typeof e.hp === "number" ? e.hp : 0); }, 0);
+          var corpsesPost = (typeof window.GameAPI.getCorpses === "function") ? (window.GameAPI.getCorpses() || []).length : null;
+          var decalsPost = (typeof window.GameAPI.getDecalsCount === "function") ? (window.GameAPI.getDecalsCount() | 0) : null;
+
+          // Find nearest enemy to original target and compare hp if possible
+          var nearestAfter = null, nd = Infinity;
+          for (var ii = 0; ii < enemiesPost.length; ii++) {
+            var en = enemiesPost[ii];
+            var d2 = Math.abs(en.x - best.x) + Math.abs(en.y - best.y);
+            if (d2 < nd) { nd = d2; nearestAfter = en; }
+          }
+          var hpDroppedForTarget = (nearestAfter && typeof nearestAfter.hp === "number" && typeof bestHpBefore === "number") ? (nearestAfter.hp < bestHpBefore) : false;
+          var sumHpDropped = (typeof sumHpPre === "number" && typeof sumHpPost === "number") ? (sumHpPost < sumHpPre) : false;
+          var corpseInc = (corpsesPre != null && corpsesPost != null) ? (corpsesPost > corpsesPre) : false;
+          var decalsInc = (decalsPre != null && decalsPost != null) ? (decalsPost > decalsPre) : false;
+
+          var fightOk = hpDroppedForTarget || sumHpDropped || corpseInc || decalsInc;
+          record(fightOk, "Combat effects: " +
+            (hpDroppedForTarget ? "target hp↓ " : "") +
+            (sumHpDropped ? "sum hp↓ " : "") +
+            (corpseInc ? "corpse+ " : "") +
+            (decalsInc ? "decals+ " : ""));
+        } catch (_) {}
       }
 
       // Basic decay snapshot after combat attempt

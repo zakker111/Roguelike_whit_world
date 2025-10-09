@@ -225,6 +225,8 @@
           const isImmobile = (!ok && text.toLowerCase().includes("immobile"));
           if (isImmobile && params && params.abortonimmobile && !aborted) {
             aborted = true;
+            __abortRequested = true;
+            __abortReason = "immobile";
             try {
               var B2 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
               if (B2 && typeof B2.log === "function") {
@@ -265,6 +267,8 @@
         try {
           const G = window.GameAPI || {};
           const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          // Proactively close any modals so movement/interaction isn't intercepted
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
           const modeNow = getMode();
           // Initialize lock namespace
           try {
@@ -279,39 +283,153 @@
             try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {}
             return true;
           }
-          // If in town, try returning to world first
+          // If in town, try returning to world first (route to gate and exit, else fallback to New Game)
           if (modeNow === "town") {
             try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
             await sleep(260);
-          }
-          // Route to dungeon entrance (best-effort)
-          try {
-            if (typeof G.gotoNearestDungeon === "function") {
-              await G.gotoNearestDungeon();
-            } else if (typeof G.nearestDungeon === "function" && typeof G.routeTo === "function") {
-              const nd = G.nearestDungeon();
-              if (nd) {
-                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                for (const d of adj) {
-                  const ax = nd.x + d.dx, ay = nd.y + d.dy;
-                  const path = G.routeTo(ax, ay) || [];
+            if (getMode() !== "world") {
+              // Attempt to route to town gate and press G to leave
+              try {
+                const gate = (typeof G.getTownGate === "function") ? G.getTownGate() : null;
+                if (gate && typeof G.routeToDungeon === "function") {
+                  const path = G.routeToDungeon(gate.x, gate.y) || [];
                   for (const st of path) {
                     const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
                     const dx = Math.sign(st.x - pl.x);
                     const dy = Math.sign(st.y - pl.y);
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                    await sleep(80);
+                    await sleep(70);
                   }
-                  break;
+                  // Step onto gate if adjacent
+                  try {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: gate.x, y: gate.y };
+                    if (pl.x !== gate.x || pl.y !== gate.y) {
+                      const dx = Math.sign(gate.x - pl.x);
+                      const dy = Math.sign(gate.y - pl.y);
+                      key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(120);
+                    }
+                  } catch (_) {}
+                  try { key("g"); } catch (_) {}
+                  await sleep(220);
                 }
+              } catch (_) {}
+              if (getMode() !== "world") {
+                // Fallback to New Game
+                try { openGodPanel(); } catch (_) {}
+                await sleep(120);
+                try { const btn = document.getElementById("god-newgame-btn"); if (btn) btn.click(); } catch (_) {}
+                await sleep(300);
               }
             }
+          }
+
+          // Route to a tile adjacent to the dungeon entrance
+          try {
+            const MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
+            let target = null;
+
+            if (typeof G.nearestDungeon === "function") {
+              target = G.nearestDungeon();
+            }
+            if (typeof G.gotoNearestDungeon === "function") {
+              // Some implementations auto-walk and land the player onto/near the entrance
+              await G.gotoNearestDungeon();
+            } else if (target && MV && typeof MV.routeAdjTo === "function") {
+              await MV.routeAdjTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
+            } else if (target && typeof G.routeTo === "function") {
+              // Fallback: compute an adjacent target and key-walk
+              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+              for (const d of adj) {
+                const ax = target.x + d.dx, ay = target.y + d.dy;
+                const path = G.routeTo(ax, ay) || [];
+                for (const st of path) {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                  const dx = Math.sign(st.x - pl.x);
+                  const dy = Math.sign(st.y - pl.y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(80);
+                }
+                if (path && path.length) break;
+              }
+            }
+
+            // Final bump to step onto the entrance tile; verify tile underfoot/adjacent
+            if (target) {
+              try {
+                const tiles = (window.World && window.World.TILES) ? window.World.TILES : null;
+                const worldObj = (typeof G.getWorld === "function") ? G.getWorld() : null;
+                const isOnTarget = () => {
+                  try {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
+                    return !!(pl && pl.x === target.x && pl.y === target.y);
+                  } catch (_) { return false; }
+                };
+                const onDungeonTileOrAdj = () => {
+                  try {
+                    if (!worldObj || !tiles) return false;
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
+                    if (!pl) return false;
+                    const tileHere = (worldObj.map && worldObj.map[pl.y]) ? worldObj.map[pl.y][pl.x] : null;
+                    if (tileHere === tiles.DUNGEON) return true;
+                    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                    for (const d of dirs) {
+                      const nx = pl.x + d.dx, ny = pl.y + d.dy;
+                      const t = (worldObj.map && worldObj.map[ny]) ? worldObj.map[ny][nx] : null;
+                      if (t === tiles.DUNGEON) return true;
+                    }
+                    return false;
+                  } catch (_) { return false; }
+                };
+
+                if (!isOnTarget()) {
+                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
+                  else {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                    const dx = Math.sign(target.x - pl.x);
+                    const dy = Math.sign(target.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  }
+                  await sleep(120);
+                }
+
+                if (!isOnTarget() && !onDungeonTileOrAdj()) {
+                  if (MV && typeof MV.routeTo === "function") {
+                    await MV.routeTo(target.x, target.y, { timeoutMs: 1600, stepMs: 80 });
+                  } else if (typeof G.routeTo === "function") {
+                    const pathExact = G.routeTo(target.x, target.y) || [];
+                    for (const st of pathExact) {
+                      const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                      const dx = Math.sign(st.x - pl.x);
+                      const dy = Math.sign(st.y - pl.y);
+                      key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(80);
+                    }
+                  }
+                }
+
+                for (let t = 0; t < 2 && !isOnTarget() && !onDungeonTileOrAdj(); t++) {
+                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
+                  else {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                    const dx = Math.sign(target.x - pl.x);
+                    const dy = Math.sign(target.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  }
+                  await sleep(100);
+                }
+              } catch (_) {}
+            }
           } catch (_) {}
-          // Attempt entry once
+
+          // Ensure no modals are intercepting the action, then attempt entry (normalized 'g')
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
           try { key("g"); } catch (_) {}
           await sleep(300);
           try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
           await sleep(300);
+
+          // Confirm mode transition
           const ok = (getMode() === "dungeon");
           if (ok) { try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {} }
           return ok;
@@ -323,6 +441,8 @@
         try {
           const G = window.GameAPI || {};
           const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          // Proactively close any modals so movement/interaction isn't intercepted
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
           const modeNow = getMode();
           // Initialize lock namespace
           try {
@@ -349,17 +469,33 @@
               await sleep(300);
             }
           }
-          // Route to town gate (best-effort)
+
+          // Route to the exact town gate/town tile, then enter (ensure tile underfoot before 'g')
+          let target = null;
           try {
-            if (typeof G.gotoNearestTown === "function") {
-              await G.gotoNearestTown();
-            } else if (typeof G.nearestTown === "function" && typeof G.routeTo === "function") {
-              const nt = G.nearestTown();
-              if (nt) {
-                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                for (const d of adj) {
-                  const ax = nt.x + d.dx, ay = nt.y + d.dy;
-                  const path = G.routeTo(ax, ay) || [];
+            const MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
+            const modeEnter = getMode();
+            // In world, use nearestTown (gate tile on overworld). In other modes, use getTownGate if available.
+            if (modeEnter === "world" && typeof G.nearestTown === "function") {
+              target = G.nearestTown();
+            } else if (typeof G.getTownGate === "function") {
+              target = G.getTownGate();
+            }
+            if (!target && typeof G.nearestTown === "function") {
+              target = G.nearestTown();
+            }
+
+            if (target) {
+              // Prefer precise pathing to the exact tile (no bump travel)
+              let routedExact = false;
+              try {
+                if (MV && typeof MV.routeTo === "function") {
+                  routedExact = await MV.routeTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
+                }
+              } catch (_) {}
+              if (!routedExact) {
+                if (modeEnter === "world" && typeof G.routeTo === "function") {
+                  const path = G.routeTo(target.x, target.y) || [];
                   for (const st of path) {
                     const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
                     const dx = Math.sign(st.x - pl.x);
@@ -367,16 +503,57 @@
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                     await sleep(80);
                   }
-                  break;
+                } else if (modeEnter !== "world" && typeof G.routeToDungeon === "function") {
+                  const path = G.routeToDungeon(target.x, target.y) || [];
+                  for (const st of path) {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                    const dx = Math.sign(st.x - pl.x);
+                    const dy = Math.sign(st.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(80);
+                  }
                 }
               }
+
+              // Verify we are exactly on the target; allow a single final nudge if adjacent
+              const isOnTarget = () => {
+                try {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
+                  return !!(pl && pl.x === target.x && pl.y === target.y);
+                } catch (_) { return false; }
+              };
+              try {
+                if (!isOnTarget()) {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                  if (Math.abs(pl.x - target.x) + Math.abs(pl.y - target.y) === 1) {
+                    const dx = Math.sign(target.x - pl.x);
+                    const dy = Math.sign(target.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(120);
+                  }
+                }
+              } catch (_) {}
+
+              // Only press 'g' if precisely on the target tile (gate/town tile underfoot)
+              try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
+              if (isOnTarget()) {
+                try { key("g"); } catch (_) {}
+                await sleep(300);
+              }
+              // Always attempt API fallback (safe no-op if not on gate)
+              try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
+              await sleep(300);
             }
           } catch (_) {}
-          // Attempt entry once
+
+          // Ensure no modals are intercepting the action, then attempt entry (normalized 'g')
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
           try { key("g"); } catch (_) {}
           await sleep(300);
           try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
           await sleep(300);
+
+          // Confirm mode transition
           const ok = (getMode() === "town");
           if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
           return ok;
@@ -398,17 +575,40 @@
       } catch (_) {}
 
       const S = window.SmokeTest && window.SmokeTest.Scenarios ? window.SmokeTest.Scenarios : {};
-      const pipeline = [
-        { name: "world", fn: S.World && S.World.run },
-        { name: "dungeon", fn: S.Dungeon && S.Dungeon.run },
-        { name: "inventory", fn: S.Inventory && S.Inventory.run },
-        { name: "combat", fn: S.Combat && S.Combat.run },
-        { name: "dungeon_persistence", fn: S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run },
-        { name: "town", fn: S.Town && S.Town.run },
-        { name: "town_diagnostics", fn: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run },
-        { name: "overlays", fn: S.Overlays && S.Overlays.run },
-        { name: "determinism", fn: S.Determinism && S.Determinism.run },
-      ];
+      // Build pipeline; if scenarios were provided in URL, respect that order; else use default
+      const avail = {
+        world: S.World && S.World.run,
+        dungeon: S.Dungeon && S.Dungeon.run,
+        inventory: S.Inventory && S.Inventory.run,
+        combat: S.Combat && S.Combat.run,
+        dungeon_persistence: S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run,
+        town: S.Town && S.Town.run,
+        town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
+        overlays: S.Overlays && S.Overlays.run,
+        determinism: S.Determinism && S.Determinism.run,
+      };
+      let pipeline = [];
+      try {
+        if (sel && sel.length) {
+          for (const name of sel) {
+            const fn = avail[name];
+            if (typeof fn === "function") pipeline.push({ name, fn });
+          }
+        }
+      } catch (_) {}
+      if (!pipeline.length) {
+        pipeline = [
+          { name: "world", fn: avail.world },
+          { name: "dungeon", fn: avail.dungeon },
+          { name: "inventory", fn: avail.inventory },
+          { name: "combat", fn: avail.combat },
+          { name: "dungeon_persistence", fn: avail.dungeon_persistence },
+          { name: "town", fn: avail.town },
+          { name: "town_diagnostics", fn: avail.town_diagnostics },
+          { name: "overlays", fn: avail.overlays },
+          { name: "determinism", fn: avail.determinism },
+        ];
+      }
 
       // Stream progress into GOD panel/status
       let Banner = null;
@@ -423,11 +623,41 @@
         }
       } catch (_) {}
 
+      // Helper: detect death (Game Over) and abort the run
+      const isDeathDetected = () => {
+        try {
+          if (window.GameAPI && typeof window.GameAPI.getPlayerStatus === "function") {
+            const st = window.GameAPI.getPlayerStatus();
+            if (st && typeof st.hp === "number" && st.hp <= 0) return true;
+          }
+        } catch (_) {}
+        try {
+          const panel = document.getElementById("gameover-panel");
+          if (panel && panel.hidden === false) return true;
+        } catch (_) {}
+        return false;
+      };
+
       for (let i = 0; i < pipeline.length; i++) {
         if (aborted) {
           try { if (Banner && typeof Banner.log === "function") Banner.log("Run aborted; remaining scenarios skipped.", "bad"); } catch (_) {}
           break;
         }
+        // Abort immediately if player is dead before starting next scenario
+        try {
+          if (isDeathDetected() && !aborted) {
+            record(false, "Death detected (run aborted)");
+            aborted = true;
+            __abortRequested = true;
+            __abortReason = "dead";
+            try {
+              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
+            } catch (_) {}
+            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
+            break;
+          }
+        } catch (_) {}
+
         const step = pipeline[i];
         // Selection filter
         if (sel.length && !sel.includes(step.name)) continue;
@@ -450,6 +680,22 @@
           if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
+
+        // If death occurred during/after scenario, abort like immobile
+        try {
+          if (isDeathDetected() && !aborted) {
+            record(false, "Death detected (run aborted)");
+            aborted = true;
+            __abortRequested = true;
+            __abortReason = "dead";
+            try {
+              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
+            } catch (_) {}
+            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
+            break;
+          }
+        } catch (_) {}
+
         // Per-scenario pass determination: pass if no failures recorded during this scenario block
         try {
           const during = steps.slice(beforeCount);
@@ -632,6 +878,32 @@
       try {
         const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
 
+        // 0) If player is dead (game over), start a new game immediately to avoid blocked movement.
+        try {
+          const isDead = (() => {
+            try {
+              if (window.GameAPI && typeof window.GameAPI.getPlayerStatus === "function") {
+                const st = window.GameAPI.getPlayerStatus();
+                if (st && typeof st.hp === "number" && st.hp <= 0) return true;
+              }
+            } catch (_) {}
+            try {
+              const panel = document.getElementById("gameover-panel");
+              if (panel && panel.hidden === false) return true;
+            } catch (_) {}
+            return false;
+          })();
+          if (isDead) {
+            if (B && typeof B.log === "function") B.log("Detected Game Over before run; starting new game.", "warn");
+            try { openGodPanel(); } catch (_) {}
+            await sleep(120);
+            const btn = document.getElementById("god-newgame-btn");
+            if (btn) btn.click();
+            await waitUntilTrue(() => { try { return (window.GameAPI && window.GameAPI.getMode && window.GameAPI.getMode() === "world"); } catch(_) { return false; } }, 2000, 80);
+            await sleep(120);
+          }
+        } catch (_) {}
+
         // 1) Ensure we are in WORLD mode before seeding.
         try {
           const G = window.GameAPI || {};
@@ -789,7 +1061,10 @@
         // Immobile counter (failed steps whose message mentions "immobile")
         const immobileCount = failed.filter(s => /immobile/i.test(String(s.msg || ""))).length;
         const immColor = immobileCount ? "#f59e0b" : "#93c5fd";
-        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="color:${failColor};">${failed.length}</span> • SKIP ${skipped.length} • IMMOBILE <span style="color:${immColor};">${immobileCount}</span></div>`;
+        // Death counter (failed steps whose message mentions "death" or "dead" or "game over")
+        const deadCount = failed.filter(s => /(death|dead|game over)/i.test(String(s.msg || ""))).length;
+        const deadColor = deadCount ? "#ef4444" : "#93c5fd";
+        const counts = `<div style="font-weight:600;"><span style="opacity:0.9;">Matchup so far:</span> OK ${passed.length} • FAIL <span style="color:${failColor};">${failed.length}</span> • SKIP ${skipped.length} • IMMOBILE <span style="color:${immColor};">${immobileCount}</span> • DEAD <span style="color:${deadColor};">${deadCount}</span></div>`;
         // Prioritize fails, then skips, then oks; show more entries for better visibility
         const CAP = 20;
         const detailsList = [];

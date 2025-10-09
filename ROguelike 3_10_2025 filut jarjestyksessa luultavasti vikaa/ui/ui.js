@@ -342,6 +342,31 @@
           }
         });
       }
+      // Run Linear All: fixed linear order, respects count input
+      const runLinearBtn = document.getElementById("smoke-run-linear-btn");
+      if (runLinearBtn) {
+        runLinearBtn.addEventListener("click", () => {
+          // Fixed linear order
+          const scenarios = ["world","inventory","dungeon","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
+          const countRaw = (this.els.smokeCount && this.els.smokeCount.value) ? this.els.smokeCount.value.trim() : "1";
+          const count = Math.max(1, Math.min(20, parseInt(countRaw, 10) || 1));
+          try { this.hideSmoke(); } catch (_) {}
+          try {
+            const url = new URL(window.location.href);
+            url.searchParams.set("smoketest", "1");
+            url.searchParams.set("smokecount", String(count));
+            url.searchParams.set("scenarios", scenarios.join(","));
+            if (window.DEV || localStorage.getItem("DEV") === "1") {
+              url.searchParams.set("dev", "1");
+            }
+            window.location.assign(url.toString());
+          } catch (e) {
+            const base = window.location.pathname || "";
+            const qs = `?smoketest=1&smokecount=${encodeURIComponent(String(count))}&scenarios=${encodeURIComponent(scenarios.join(","))}${(window.DEV || localStorage.getItem("DEV") === "1") ? "&dev=1" : ""}`;
+            try { window.location.href = base + qs; } catch (_) { window.location.search = qs; }
+          }
+        });
+      }
       if (this.els.smokeCancelBtn) {
         this.els.smokeCancelBtn.addEventListener("click", () => {
           try { this.hideSmoke(); } catch (_) {}

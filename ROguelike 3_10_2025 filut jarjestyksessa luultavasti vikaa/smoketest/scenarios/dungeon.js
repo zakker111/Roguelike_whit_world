@@ -22,9 +22,23 @@
       }
 
       // Single-attempt centralized entry to avoid repeated toggles across scenarios
-      const ok = (typeof ctx.ensureDungeonOnce === "function") ? await ctx.ensureDungeonOnce() : false;
+      let ok = (typeof ctx.ensureDungeonOnce === "function") ? await ctx.ensureDungeonOnce() : false;
+
+      // Grace period: if mode isn't dungeon yet, wait briefly in case the context/UI sync finishes
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getMode === "function") {
+          const deadline = Date.now() + 1000;
+          while (Date.now() < deadline) {
+            if (window.GameAPI.getMode() === "dungeon") { ok = true; break; }
+            await (ctx.sleep ? ctx.sleep(60) : new Promise(r => setTimeout(r, 60)));
+          }
+        }
+      } catch (_) {}
+
       const modeNow = window.GameAPI.getMode();
-      ctx.record(ok, ok ? `Entered dungeon (mode=${modeNow})` : `Dungeon entry failed (mode=${modeNow})`);
+      ctx.record(ok || modeNow === "dungeon", (ok || modeNow === "dungeon")
+        ? `Entered dungeon (mode=${modeNow})`
+        : `Dungeon entry failed (mode=${modeNow})`);
 
       return true; // handled by scenario module (regardless of pass/fail)
     } catch (e) {

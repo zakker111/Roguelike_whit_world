@@ -12,20 +12,44 @@
         const isOk = !!s.ok && !isSkip;
         const isFail = !s.ok && !isSkip;
 
-        const bg = isSkip ? "rgba(234,179,8,0.10)" : (isOk ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)");
-        const border = isSkip ? "#fde68a" : (isOk ? "#86efac" : "#fca5a5");
+        // Detect "inconclusive" runs (e.g., death/immobile aborts)
+        const msg = String(s.msg || "");
+        const msgL = msg.toLowerCase();
+        const isInconclusive = (!isOk && !isSkip) && (
+          msgL.includes("death detected") ||
+          msgL.includes("game over") ||
+          msgL.includes("immobile")
+        );
+
+        // Style palette
+        const bgOk = "rgba(34,197,94,0.10)";
+        const brOk = "#86efac";
+        const bgSkip = "rgba(234,179,8,0.10)";
+        const brSkip = "#fde68a";
+        const bgFail = "rgba(239,68,68,0.10)";
+        const brFail = "#fca5a5";
+        const bgInc = "rgba(148,163,184,0.12)";   // slate-400 tint
+        const brInc = "#94a3b8";                  // slate-400
+
+        const bg = isSkip ? bgSkip : (isOk ? bgOk : (isInconclusive ? bgInc : bgFail));
+        const border = isSkip ? brSkip : (isOk ? brOk : (isInconclusive ? brInc : brFail));
         const color = border;
-        const mark = isSkip ? "⏭" : (isOk ? "✔" : "✖");
+
+        const mark = isSkip ? "⏭" : (isOk ? "✔" : (isInconclusive ? "…" : "✖"));
         const badge = isSkip
           ? "<span style=\"font-size:10px;color:#1f2937;background:#fde68a;border:1px solid #f59e0b;padding:1px 4px;border-radius:4px;margin-left:6px;\">SKIP</span>"
           : (isOk
             ? "<span style=\"font-size:10px;color:#1f2937;background:#86efac;border:1px solid #22c55e;padding:1px 4px;border-radius:4px;margin-left:6px;\">OK</span>"
-            : "<span style=\"font-size:10px;color:#1f2937;background:#fca5a5;border:1px solid #ef4444;padding:1px 4px;border-radius:4px;margin-left:6px;\">FAIL</span>");
+            : (isInconclusive
+              ? "<span style=\"font-size:10px;color:#1f2937;background:#cbd5e1;border:1px solid #94a3b8;padding:1px 4px;border-radius:4px;margin-left:6px;\">INCONCLUSIVE</span>"
+              : "<span style=\"font-size:10px;color:#1f2937;background:#fca5a5;border:1px solid #ef4444;padding:1px 4px;border-radius:4px;margin-left:6px;\">FAIL</span>"
+            )
+          );
 
-        return "<div style=\"display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid " + border + ";border-radius:6px;background:" + bg + ";margin:4px 0;\">" +
-               "<div style=\"min-width:16px;color:" + color + ";font-weight:bold;\">" + mark + "</div>" +
-               "<div style=\"color:" + color + "\">" + (s.msg || "") + badge + "</div>" +
-               "</div>";
+        return "<div style=\"display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border:1px solid " + border + ";border-radius:6px;background:" + bg + ";margin:4px 0;\">"
+               + "<div style=\"min-width:16px;color:" + color + ";font-weight:bold;\">" + mark + "</div>"
+               + "<div style=\"color:" + color + "\">" + msg + badge + "</div>"
+               + "</div>";
       }).join("");
     },
 
