@@ -16,6 +16,16 @@
       var caps = (ctx && ctx.caps) || {};
       var MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
 
+      async function waitUntilTrue(fn, timeoutMs, stepMs) {
+        var deadline = Date.now() + (timeoutMs|0 || 0);
+        var step = Math.max(20, (stepMs|0) || 80);
+        while (Date.now() < deadline) {
+          try { if (fn()) return true; } catch(_) {}
+          await sleep(step);
+        }
+        try { return !!fn(); } catch(_) { return false; }
+      }
+
       // Precondition: enter town once (centralized; avoid repeated toggles across scenarios)
       const okTown = (typeof ctx.ensureTownOnce === "function") ? await ctx.ensureTownOnce() : false;
       const inTown = (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "town");
@@ -209,6 +219,61 @@
         }
       } catch (eHR) {
         record(false, "Home routes after waits failed: " + (eHR && eHR.message ? eHR.message : String(eHR)));
+      }
+
+      // Fallback: if town appears empty (no NPCs, shops, or props) for a short time, walk to gate and exit.
+      try {
+        var endBy = Date.now() + 2200;
+        var cntNPC = 0, cntProps = 0, cntShops = 0;
+        while (Date.now() < endBy) {
+          try {
+            cntNPC = has(window.GameAPI.getNPCs) ? ((window.GameAPI.getNPCs() || []).length | 0) : 0;
+            cntProps = has(window.GameAPI.getTownProps) ? ((window.GameAPI.getTownProps() || []).length | 0) : 0;
+            cntShops = has(window.GameAPI.getShops) ? ((window.GameAPI.getShops() || []).length | 0) : 0;
+          } catch (_) { cntNPC = cntProps = cntShops = 0; }
+          if (cntNPC || cntProps || cntShops) break;
+          await sleep(180);
+        }
+        if (!cntNPC && !cntProps && !cntShops) {
+          var gate = has(window.GameAPI.getTownGate) ? window.GameAPI.getTownGate() : null;
+          if (gate && typeof gate.x === "number" && typeof gate.y === "number") {
+            var routedG = false;
+            try { if (MV && typeof MV.routeTo === "function") routedG = await MV.routeTo(gate.x, gate.y, { timeoutMs: (CONFIG.timeouts && CONFIG.timeouts.route) || 2500, stepMs: 90 }); } catch (_) {}
+            if (!routedG) {
+              var pathG = has(window.GameAPI.routeToDungeon) ? (window.GameAPI.routeToDungeon(gate.x, gate.y) || []) : [];
+              var bg = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 2500);
+              for (var gi = 0; gi < pathG.length; gi++) {
+                var stg = pathG[gi];
+                if (bg.exceeded()) break;
+                var dxg = Math.sign(stg.x - window.GameAPI.getPlayer().x);
+                var dyg = Math.sign(stg.y - window.GameAPI.getPlayer().y);
+                key(dxg === -1 ? "ArrowLeft" : dxg === 1 ? "ArrowRight" : (dyg === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(90);
+              }
+            }
+            // final bump onto gate
+            try {
+              var plg = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: gate.x, y: gate.y };
+              if (plg.x !== gate.x || plg.y !== gate.y) {
+                var bdx = Math.sign(gate.x - plg.x), bdy = Math.sign(gate.y - plg.y);
+                key(bdx === -1 ? "ArrowLeft" : bdx === 1 ? "ArrowRight" : (bdy === -1 ? "ArrowUp" : "ArrowDown"));
+                await sleep(120);
+              }
+            } catch (_) {}
+            if (typeof ctx.ensureAllModalsClosed === "function") { await ctx.ensureAllModalsClosed(1); }
+            key("g");
+            await sleep(260);
+            var left = has(window.GameAPI.getMode) ? (window.GameAPI.getMode() === "world") : false;
+            if (!left) { key("g"); await sleep(240); left = has(window.GameAPI.getMode) ? (window.GameAPI.getMode() === "world") : false; }
+            record(left, "Empty town fallback: exited to overworld");
+          } else {
+            recordSkip("Empty town fallback: gate unknown (skipped exit)");
+          }
+        } else {
+          record(true, "Town content present: npc " + cntNPC + ", props " + cntProps + ", shops " + cntShops);
+        }
+      } catch (eExit) {
+        record(false, "Empty town fallback failed: " + (eExit && eExit.message ? eExit.message : String(eExit)));
       }
 
       return true;
