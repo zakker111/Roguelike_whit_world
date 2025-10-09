@@ -1868,6 +1868,12 @@
     });
   }
   function hideShopPanel() {
+    // Step 1 refactor: delegate to ShopUI if available, keep fallback
+    if (window.ShopUI && typeof ShopUI.hide === "function") {
+      ShopUI.hide();
+      requestDraw();
+      return;
+    }
     const el = document.getElementById("shop-panel");
     if (el) el.hidden = true;
     requestDraw();
