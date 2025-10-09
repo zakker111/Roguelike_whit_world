@@ -874,7 +874,8 @@
       // Update status to reflect completion of this run
       try {
         const Bstat = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-        if (Bstat && typeof Bstat.setStatus ===();
+        if (Bstat && typeof Bstat.setStatus === "function") Bstat.setStatus(`Run ${i + 1} / ${n}: completed`);
+      } catch (_) {}
 
       // Perf snapshot aggregation
       try {
