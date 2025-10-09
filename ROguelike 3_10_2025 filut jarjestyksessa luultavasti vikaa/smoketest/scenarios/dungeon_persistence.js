@@ -14,6 +14,17 @@
       var makeBudget = ctx.makeBudget || (ms => { var s=Date.now(),dl=s+(ms|0); return { exceeded:()=>Date.now()>dl, remain:()=>Math.max(0,dl-Date.now()) }; });
       var CONFIG = ctx.CONFIG || { timeouts: { route: 5000, interact: 250 } };
       var caps = (ctx && ctx.caps) || {};
+      var ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) ? ctx.ensureAllModalsClosed : async function(){};
+
+      async function waitUntil(fn, timeoutMs, stepMs) {
+        var deadline = Date.now() + (timeoutMs|0 || 0);
+        var step = Math.max(20, (stepMs|0) || 80);
+        while (Date.now() < deadline) {
+          try { if (fn()) return true; } catch(_){}
+          await sleep(step);
+        }
+        try { return !!fn(); } catch(_){ return false; }
+      }
 
       // Ensure dungeon mode; auto-enter if needed. Handle town/dungeon/world transitions robustly.
       var mode0 = (window.GameAPI && has(window.GameAPI.getMode)) ? window.GameAPI.getMode() : null;
@@ -125,7 +136,28 @@
             key(dx2 === -1 ? "ArrowLeft" : dx2 === 1 ? "ArrowRight" : (dy2 === -1 ? "ArrowUp" : "ArrowDown"));
             await sleep(110);
           }
-          key("g"); await sleep(300); // exit on '>'
+          // Best-effort: final bump onto exact exit tile if still adjacent
+          try {
+            var plNow = window.GameAPI.getPlayer();
+            if (plNow && (plNow.x !== exit.x || plNow.y !== exit.y)) {
+              var bdx = Math.sign(exit.x - plNow.x), bdy = Math.sign(exit.y - plNow.y);
+              key(bdx === -1 ? "ArrowLeft" : bdx === 1 ? "ArrowRight" : (bdy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(120);
+            }
+          } catch(_){}
+          // Ensure modals closed so 'g' is not intercepted
+          await ensureAllModalsClosed(2);
+          key("g"); await sleep(260); // exit on '>'
+          // Fallback: call API directly if keypress was intercepted
+          if (has(window.GameAPI.returnToWorldIfAtExit)) {
+            var okRet = window.GameAPI.returnToWorldIfAtExit();
+            if (!okRet) {
+              // Try one more key press in case focus changed
+              key("g"); await sleep(200);
+            }
+          }
+          // Wait briefly for mode change
+          await waitUntil(function(){ try { return window.GameAPI.getMode() === "world"; } catch(_){ return false; } }, 600, 80);
 
           var m1 = has(window.GameAPI.getMode) ? window.GameAPI.getMode() : "";
           record(m1 === "world", (m1 === "world") ? "Returned to overworld from dungeon" : ("Attempted return to overworld (mode=" + m1 + ")"));
@@ -133,9 +165,12 @@
           // Re-enter same dungeon and compare persistence markers
           if (has(window.GameAPI.enterDungeonIfOnEntrance)) {
             var playerBeforeReenter = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : null;
+            await ensureAllModalsClosed(1);
             window.GameAPI.enterDungeonIfOnEntrance();
-            await sleep(300);
+            await sleep(260);
+            // Fallback: press 'g' to trigger context if API didn't take
             var m2 = has(window.GameAPI.getMode) ? window.GameAPI.getMode() : "";
+            if (m2 !== "dungeon") { key("g"); await sleep(220); m2 = has(window.GameAPI.getMode) ? window.GameAPI.getMode() : ""; }
             if (m2 === "dungeon") {
               var postCorpses = has(window.GameAPI.getCorpses) ? window.GameAPI.getCorpses().map(c => (c.x + "," + c.y + ":" + c.kind)) : [];
               var postDecals = has(window.GameAPI.getDecalsCount) ? window.GameAPI.getDecalsCount() : 0;
