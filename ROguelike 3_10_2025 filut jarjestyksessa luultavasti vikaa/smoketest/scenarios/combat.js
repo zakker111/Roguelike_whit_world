@@ -105,10 +105,46 @@
         }
       } catch (_) {}
 
-      // Optional settle: wait 5 turns so spawned enemies/NPCs can act before we engage
+      // Confirm enemy is near, then wait for first enemy hit (up to a short cap)
       try {
-        for (var wt = 0; wt < 5; wt++) { key("Numpad5"); await sleep(80); }
-        record(true, "Waited 5 turns before engaging");
+        var playerPos = (typeof window.GameAPI.getPlayer === "function") ? window.GameAPI.getPlayer() : { x: 0, y: 0 };
+        var listNow = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+        var nearest = null, bestD2 = Infinity;
+        for (var ne = 0; ne < listNow.length; ne++) {
+          var en = listNow[ne];
+          var d2 = Math.abs(en.x - playerPos.x) + Math.abs(en.y - playerPos.y);
+          if (d2 < bestD2) { bestD2 = d2; nearest = en; }
+        }
+        var NEAR_R = 5;
+        if (nearest) {
+          record(bestD2 <= NEAR_R, "Enemy nearby: dist " + bestD2 + (bestD2 <= NEAR_R ? " (<= " + NEAR_R + ")" : " (> " + NEAR_R + ")"));
+        } else {
+          recordSkip("No enemies visible after spawn for proximity check");
+        }
+
+        // If near enough, wait for first enemy hit (player HP drops)
+        var st0 = (typeof window.GameAPI.getPlayerStatus === "function") ? window.GameAPI.getPlayerStatus() : null;
+        var hp0 = (st0 && typeof st0.hp === "number") ? st0.hp : null;
+        var turnsToWait = 10;
+        var gotHit = false;
+        if (nearest && bestD2 <= NEAR_R && hp0 != null) {
+          for (var wt = 0; wt < turnsToWait; wt++) {
+            key("Numpad5");
+            await sleep(80);
+            var stCur = (typeof window.GameAPI.getPlayerStatus === "function") ? window.GameAPI.getPlayerStatus() : null;
+            var hpCur = (stCur && typeof stCur.hp === "number") ? stCur.hp : null;
+            if (hpCur != null && hpCur < hp0) {
+              record(true, "Enemy hit: HP " + hp0 + " -> " + hpCur + " in " + (wt + 1) + " turns");
+              gotHit = true;
+              break;
+            }
+          }
+          if (!gotHit) {
+            recordSkip("Enemy hit: none within " + turnsToWait + " turns");
+          }
+        } else {
+          recordSkip("Enemy not near; skip waiting for hit");
+        }
       } catch (_) {}
 
       // Route to nearest enemy and bump-attack
