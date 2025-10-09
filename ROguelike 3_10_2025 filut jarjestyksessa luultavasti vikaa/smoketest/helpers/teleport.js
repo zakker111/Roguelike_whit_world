@@ -24,7 +24,7 @@
     },
 
     // Convenience: teleport to town gate and press 'g' to exit to overworld.
-    // opts: { closeModals: true, waitMs: 300 }
+    // opts: { closeModals: true, waitMs: 500 }
     async teleportToGateAndExit(ctx, opts) {
       try {
         const G = window.GameAPI || {};
@@ -32,7 +32,7 @@
         const key = (ctx && ctx.key) || (MV && MV.key) || function(){};
         const sleep = (ctx && ctx.sleep) || ((ms) => new Promise(r => setTimeout(r, ms | 0)));
         const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) ? ctx.ensureAllModalsClosed : async function(){};
-        const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 300;
+        const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 500;
 
         if (!has(G.getMode) || G.getMode() !== "town") return false;
 

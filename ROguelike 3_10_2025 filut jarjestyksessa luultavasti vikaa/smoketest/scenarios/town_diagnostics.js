@@ -207,6 +207,46 @@
               await sleep(100);
             }
           }
+
+          // Before opening shop UI, try a natural bump on a shopkeeper adjacent to the shop tile
+          try {
+            var npcsAll2 = has(window.GameAPI.getNPCs) ? (window.GameAPI.getNPCs() || []) : [];
+            var keeper = null, kdMin = Infinity;
+            for (var ii2 = 0; ii2 < npcsAll2.length; ii2++) {
+              var n2 = npcsAll2[ii2];
+              var d2k = Math.abs(n2.x - shop.x) + Math.abs(n2.y - shop.y);
+              if (d2k <= 1 && d2k < kdMin) { kdMin = d2k; keeper = n2; }
+            }
+            if (keeper) {
+              // Route adjacent to keeper and bump once toward them
+              var routedAdj = false;
+              try {
+                if (MV && typeof MV.routeAdjTo === "function") {
+                  routedAdj = await MV.routeAdjTo(keeper.x, keeper.y, { timeoutMs: 1200, stepMs: 90 });
+                }
+              } catch (_) {}
+              if (!routedAdj) {
+                var pathA = has(window.GameAPI.routeToDungeon) ? window.GameAPI.routeToDungeon(shop.x, shop.y) : [];
+                var budA = makeBudget(1200);
+                for (var pa = 0; pa < pathA.length; pa++) {
+                  var stp = pathA[pa];
+                  if (budA.exceeded()) break;
+                  var dxA = Math.sign(stp.x - window.GameAPI.getPlayer().x);
+                  var dyA = Math.sign(stp.y - window.GameAPI.getPlayer().y);
+                  key(dxA === -1 ? "ArrowLeft" : dxA === 1 ? "ArrowRight" : (dyA === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(90);
+                }
+              }
+              var dxB = Math.sign(keeper.x - window.GameAPI.getPlayer().x);
+              var dyB = Math.sign(keeper.y - window.GameAPI.getPlayer().y);
+              key(dxB === -1 ? "ArrowLeft" : dxB === 1 ? "ArrowRight" : (dyB === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(160);
+              record(true, "Bump near shopkeeper: OK");
+            } else {
+              record(true, "Bump near shopkeeper: skipped (none near shop)");
+            }
+          } catch (_) {}
+
           var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
           key("g");
           await sleep(Math.min(ib.remain(), 220));
@@ -236,7 +276,7 @@
       // If any routing step timed out, attempt safe exit: teleport to gate and press 'g'
       try {
         if (hadTimeout && window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "town" && TP && typeof TP.teleportToGateAndExit === "function") {
-          var exited = await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 300 });
+          var exited = await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 500 });
           record(exited, exited ? "Diagnostics timeout: exited town via teleport" : "Diagnostics timeout: failed to exit town");
         }
       } catch (_) {}

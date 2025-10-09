@@ -3071,6 +3071,19 @@
       setCritPart: (part) => { try { setCritPart(String(part || "")); return true; } catch(_) { return false; } },
       getPlayerStatus: () => { try { return { hp: player.hp, maxHp: player.maxHp, dazedTurns: player.dazedTurns | 0 }; } catch(_) { return { hp: 0, maxHp: 0, dazedTurns: 0 }; } },
       setPlayerDazedTurns: (n) => { try { player.dazedTurns = Math.max(0, (Number(n) || 0) | 0); return true; } catch(_) { return false; } },
+      // DEV/test-only: clamp an enemy's HP by coordinates; returns true if found and set.
+      setEnemyHpAt: (x, y, hp) => {
+        try {
+          const nx = (Number(x) || 0) | 0;
+          const ny = (Number(y) || 0) | 0;
+          const val = Math.max(1, Number(hp) || 1);
+          const e = enemies.find(en => (en.x|0) === nx && (en.y|0) === ny);
+          if (!e || typeof e.hp !== "number") return false;
+          e.hp = val;
+          updateUI(); requestDraw();
+          return true;
+        } catch(_) { return false; }
+      },
       isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
       // Visibility/FOV helpers for smoketest
       getVisibilityAt: (x, y) => {

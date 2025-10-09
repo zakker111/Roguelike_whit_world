@@ -65,7 +65,30 @@
         }
       } catch (_) {}
 
-      var enemiesBefore = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : 0;
+      // Snapshot before spawns for low-HP clamping of new enemies
+      var enemiesBeforeList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+      var enemiesBefore = enemiesBeforeList.length;
+
+      // Helper: clamp HP of newly spawned enemies (by position delta)
+      async function clampNewEnemiesLowHp(beforeList, afterList) {
+        try {
+          if (!Array.isArray(beforeList) || !Array.isArray(afterList)) return 0;
+          var beforeSet = new Set(beforeList.map(function(e){ return (e && (e.x != null) && (e.y != null)) ? (e.x + "," + e.y) : ""; }));
+          var clamped = 0;
+          for (var i = 0; i < afterList.length; i++) {
+            var e = afterList[i];
+            var key = (e && (e.x != null) && (e.y != null)) ? (e.x + "," + e.y) : "";
+            if (key && !beforeSet.has(key)) {
+              if (typeof window.GameAPI.setEnemyHpAt === "function") {
+                if (window.GameAPI.setEnemyHpAt(e.x, e.y, 1)) clamped++;
+                await sleep(10);
+              }
+            }
+          }
+          if (clamped > 0) record(true, "Spawn clamp: set low HP for " + clamped + " new enemy(ies)");
+          return clamped;
+        } catch (_) { return 0; }
+      }
 
       // Spawn enemies via GOD panel and GameAPI (multiple attempts)
       try {
@@ -82,9 +105,14 @@
               var btn = document.getElementById("god-spawn-enemy-btn");
               if (btn) { btn.click(); await sleep(160); }
             }
-            var enemiesAfterDom = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
+            var enemiesAfterDomList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : enemiesBeforeList;
+            var enemiesAfterDom = enemiesAfterDomList.length;
             spawnedOk = enemiesAfterDom > enemiesBefore;
             record(spawnedOk, "Dungeon spawn (GOD): enemies " + enemiesBefore + " -> " + enemiesAfterDom);
+            // Clamp low HP for newly spawned ones
+            await clampNewEnemiesLowHp(enemiesBeforeList, enemiesAfterDomList);
+            enemiesBeforeList = enemiesAfterDomList.slice(0);
+            enemiesBefore = enemiesAfterDom;
           } else {
             recordSkip("Dungeon spawn (GOD) skipped (not in dungeon)");
           }
@@ -96,8 +124,15 @@
             window.GameAPI.spawnEnemyNearby(2);
             await sleep(200);
           }
-          var enemiesNow = (typeof window.GameAPI.getEnemies === "function") ? window.GameAPI.getEnemies().length : enemiesBefore;
+          var enemiesNowList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : enemiesBeforeList;
+          var enemiesNow = enemiesNowList.length;
           spawnedOk = enemiesNow > enemiesBefore;
+          // Clamp newly spawned via fallback
+          if (spawnedOk) {
+            await clampNewEnemiesLowHp(enemiesBeforeList, enemiesNowList);
+            enemiesBeforeList = enemiesNowList.slice(0);
+            enemiesBefore = enemiesNow;
+          }
           attempts++;
         }
         if (!spawnedOk) {
@@ -111,10 +146,15 @@
         try {
           var modeForSpawn2 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
           if (modeForSpawn2 === "dungeon") {
+            // Snapshot before
+            var beforeExtra = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
             var gob2 = document.getElementById("god-open-btn");
             if (gob2) { gob2.click(); await sleep(150); }
             var btn2 = document.getElementById("god-spawn-enemy-btn");
             if (btn2) { btn2.click(); await sleep(160); }
+            // Clamp new ones to low HP
+            var afterExtra = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+            if (typeof clampNewEnemiesLowHp === "function") { await clampNewEnemiesLowHp(beforeExtra, afterExtra); }
           }
         } catch (_) {}
         // Close modals so wait/keys are not swallowed

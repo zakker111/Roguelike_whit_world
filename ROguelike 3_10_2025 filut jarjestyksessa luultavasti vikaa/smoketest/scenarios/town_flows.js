@@ -258,7 +258,7 @@
 
       // Fallback: if town appears empty (no NPCs, shops, or props) for a short time, walk to gate and exit.
       try {
-        var endBy = Date.now() + 2200;
+        var endBy = Date.now() + 500;
         var cntNPC = 0, cntProps = 0, cntShops = 0;
         while (Date.now() < endBy) {
           try {
@@ -267,7 +267,7 @@
             cntShops = has(window.GameAPI.getShops) ? ((window.GameAPI.getShops() || []).length | 0) : 0;
           } catch (_) { cntNPC = cntProps = cntShops = 0; }
           if (cntNPC || cntProps || cntShops) break;
-          await sleep(180);
+          await sleep(100);
         }
         if (!cntNPC && !cntProps && !cntShops) {
           var gate = has(window.GameAPI.getTownGate) ? window.GameAPI.getTownGate() : null;
