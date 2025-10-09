@@ -203,6 +203,13 @@
 
   function spawnGateGreeters(ctx, count = 4) {
     if (!ctx.townExitAt) return false;
+    // Clamp to ensure at most one NPC near the gate within a small radius
+    const RADIUS = 2;
+    const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
+    const existingNear = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
+    const target = Math.max(0, Math.min((count | 0), 1 - existingNear));
+    if (target <= 0) { clearAdjacentNPCsAroundPlayer(ctx); return true; }
+
     const dirs = [
       { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
       { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 }
@@ -216,20 +223,38 @@
     ];
     let placed = 0;
     // two rings around the gate
-    for (let ring = 1; ring <= 2 && placed < count; ring++) {
+    for (let ring = 1; ring <= 2 && placed < target; ring++) {
       for (const d of dirs) {
-        const x = ctx.townExitAt.x + d.dx * ring;
-        const y = ctx.townExitAt.y + d.dy * ring;
+        const x = gx + d.dx * ring;
+        const y = gy + d.dy * ring;
         if (_isFreeTownFloor(ctx, x, y) && _manhattan(ctx, ctx.player.x, ctx.player.y, x, y) > 1) {
           const name = names[(Math.floor(ctx.rng() * names.length)) % names.length];
-          ctx.npcs.push({ x, y, name, lines });
+          ctx.npcs.push({ x, y, name, lines, greeter: true });
           placed++;
-          if (placed >= count) break;
+          if (placed >= target) break;
         }
       }
     }
     clearAdjacentNPCsAroundPlayer(ctx);
     return true;
+  }
+
+  function enforceGateNPCLimit(ctx, limit = 1, radius = 2) {
+    if (!ctx || !ctx.npcs || !ctx.townExitAt) return;
+    const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
+    const nearIdx = [];
+    for (let i = 0; i < ctx.npcs.length; i++) {
+      const n = ctx.npcs[i];
+      if (_manhattan(ctx, n.x, n.y, gx, gy) <= radius) nearIdx.push({ i, d: _manhattan(ctx, n.x, n.y, gx, gy) });
+    }
+    if (nearIdx.length <= limit) return;
+    // Keep the closest 'limit'; remove others
+    nearIdx.sort((a, b) => a.d - b.d || a.i - b.i);
+    const keepSet = new Set(nearIdx.slice(0, limit).map(o => o.i));
+    const toRemove = nearIdx.slice(limit).map(o => o.i).sort((a, b) => b - a);
+    for (const idx of toRemove) {
+      ctx.npcs.splice(idx, 1);
+    }
   }
 
   function clearAdjacentNPCsAroundPlayer(ctx) {
@@ -796,6 +821,9 @@
         }
       }
     } catch (_) {}
+
+    // Enforce a single NPC near the gate to avoid congestion
+    try { enforceGateNPCLimit(ctx, 1, 2); } catch (_) {}
 
     // Finish
     if (ctx.updateUI) ctx.updateUI();

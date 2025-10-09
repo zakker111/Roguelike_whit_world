@@ -74,7 +74,8 @@
         Town.generate(ctx);
         if (typeof Town.ensureSpawnClear === "function") Town.ensureSpawnClear(ctx);
         ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
-        if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 4);
+        // Town.generate already spawns a gate greeter; avoid duplicates.
+        if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 0);
       }
       if (ctx.UI && typeof UI.showTownExitButton === "function") UI.showTownExitButton();
       if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");

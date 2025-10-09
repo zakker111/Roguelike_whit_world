@@ -1202,7 +1202,8 @@
         {
           const Tn2 = modHandle("Town");
           if (Tn2 && typeof Tn2.spawnGateGreeters === "function") {
-            Tn2.spawnGateGreeters(ctx, 4);
+            // Town.generate already ensures a greeter; do not spawn additional here.
+            Tn2.spawnGateGreeters(ctx, 0);
             npcs = ctx.npcs || npcs;
           }
         }
