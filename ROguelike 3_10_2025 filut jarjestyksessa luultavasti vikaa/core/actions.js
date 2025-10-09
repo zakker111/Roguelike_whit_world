@@ -74,7 +74,7 @@
 
           // Try loading existing state
           if (ctx.DungeonState && typeof DungeonState.load === "function" && DungeonState.load(ctx, info.x, info.y)) {
-            ctx.log(`You re-enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "notice");
+            // Re-entry message is logged centrally in DungeonState.applyState to avoid duplicates.
             ctx.requestDraw();
             return true;
           }
