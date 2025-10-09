@@ -573,17 +573,40 @@
       } catch (_) {}
 
       const S = window.SmokeTest && window.SmokeTest.Scenarios ? window.SmokeTest.Scenarios : {};
-      const pipeline = [
-        { name: "world", fn: S.World && S.World.run },
-        { name: "dungeon", fn: S.Dungeon && S.Dungeon.run },
-        { name: "inventory", fn: S.Inventory && S.Inventory.run },
-        { name: "combat", fn: S.Combat && S.Combat.run },
-        { name: "dungeon_persistence", fn: S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run },
-        { name: "town", fn: S.Town && S.Town.run },
-        { name: "town_diagnostics", fn: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run },
-        { name: "overlays", fn: S.Overlays && S.Overlays.run },
-        { name: "determinism", fn: S.Determinism && S.Determinism.run },
-      ];
+      // Build pipeline; if scenarios were provided in URL, respect that order; else use default
+      const avail = {
+        world: S.World && S.World.run,
+        dungeon: S.Dungeon && S.Dungeon.run,
+        inventory: S.Inventory && S.Inventory.run,
+        combat: S.Combat && S.Combat.run,
+        dungeon_persistence: S.Dungeon && S.Dungeon.Persistence && S.Dungeon.Persistence.run,
+        town: S.Town && S.Town.run,
+        town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
+        overlays: S.Overlays && S.Overlays.run,
+        determinism: S.Determinism && S.Determinism.run,
+      };
+      let pipeline = [];
+      try {
+        if (sel && sel.length) {
+          for (const name of sel) {
+            const fn = avail[name];
+            if (typeof fn === "function") pipeline.push({ name, fn });
+          }
+        }
+      } catch (_) {}
+      if (!pipeline.length) {
+        pipeline = [
+          { name: "world", fn: avail.world },
+          { name: "dungeon", fn: avail.dungeon },
+          { name: "inventory", fn: avail.inventory },
+          { name: "combat", fn: avail.combat },
+          { name: "dungeon_persistence", fn: avail.dungeon_persistence },
+          { name: "town", fn: avail.town },
+          { name: "town_diagnostics", fn: avail.town_diagnostics },
+          { name: "overlays", fn: avail.overlays },
+          { name: "determinism", fn: avail.determinism },
+        ];
+      }
 
       // Stream progress into GOD panel/status
       let Banner = null;
