@@ -76,7 +76,7 @@
           // Route to chest tile
           var pathC = has(window.GameAPI.routeToDungeon) ? (window.GameAPI.routeToDungeon(chest.x, chest.y) || []) : [];
           var budgetC = makeBudget((CONFIG.timeouts && CONFIG.timeouts.route) || 5000);
-          for (var i = 0; i &lt; pathC.length; i++) {
+          for (var i = 0; i < pathC.length; i++) {
             var step = pathC[i];
             if (budgetC.exceeded()) { recordSkip("Routing to chest timed out"); break; }
             var dx = Math.sign(step.x - (has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer().x : step.x));
@@ -101,8 +101,8 @@
           var invAfter = has(window.GameAPI.getInventory) ? (window.GameAPI.getInventory() || []).length : null;
 
           var lootedFlag = !!(chestAfter ? chestAfter.looted : true); // if chest record missing, assume looted/consumed
-          var lootCountReduced = !!(chestAfter && typeof chestBefore.lootCount === "number" && typeof chestAfter.lootCount === "number" && chestAfter.lootCount &lt; chestBefore.lootCount);
-          var inventoryChanged = (invBefore != null && invAfter != null) ? (invAfter &gt; invBefore) : false;
+          var lootCountReduced = !!(chestAfter && typeof chestBefore.lootCount === "number" && typeof chestAfter.lootCount === "number" && chestAfter.lootCount < chestBefore.lootCount);
+          var inventoryChanged = (invBefore != null && invAfter != null) ? (invAfter > invBefore) : false;
 
           var okLoot = lootedFlag || lootCountReduced || inventoryChanged;
           record(okLoot, "Chest loot: " + (okLoot ? "OK" : "NO-OP") + " at (" + chest.x + "," + chest.y + ")" + (lootCountReduced ? " (loot--)" : "") + (inventoryChanged ? " (inv++)" : ""));
