@@ -52,9 +52,11 @@
         let path = [];
         try {
           const mode = (window.GameAPI && has(window.GameAPI.getMode)) ? window.GameAPI.getMode() : "";
-          if (mode === "dungeon" && has(window.GameAPI.routeToDungeon)) {
+          // Use current-map routing (routeToDungeon) for any non-world mode (works for town and dungeon)
+          if (mode !== "world" && has(window.GameAPI.routeToDungeon)) {
             path = window.GameAPI.routeToDungeon(x, y) || [];
           } else if (has(window.GameAPI.routeTo)) {
+            // World-mode routing
             path = window.GameAPI.routeTo(x, y) || [];
           }
         } catch (_) {}

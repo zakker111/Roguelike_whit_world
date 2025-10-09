@@ -265,6 +265,8 @@
         try {
           const G = window.GameAPI || {};
           const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          // Proactively close any modals so movement/interaction isn't intercepted
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
           const modeNow = getMode();
           // Initialize lock namespace
           try {
@@ -279,16 +281,50 @@
             try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {}
             return true;
           }
-          // If in town, try returning to world first
+          // If in town, try returning to world first (route to gate and exit, else fallback to New Game)
           if (modeNow === "town") {
             try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
             await sleep(260);
+            if (getMode() !== "world") {
+              // Attempt to route to town gate and press G to leave
+              try {
+                const gate = (typeof G.getTownGate === "function") ? G.getTownGate() : null;
+                if (gate && typeof G.routeToDungeon === "function") {
+                  const path = G.routeToDungeon(gate.x, gate.y) || [];
+                  for (const st of path) {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
+                    const dx = Math.sign(st.x - pl.x);
+                    const dy = Math.sign(st.y - pl.y);
+                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(70);
+                  }
+                  // Step onto gate if adjacent
+                  try {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: gate.x, y: gate.y };
+                    if (pl.x !== gate.x || pl.y !== gate.y) {
+                      const dx = Math.sign(gate.x - pl.x);
+                      const dy = Math.sign(gate.y - pl.y);
+                      key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(120);
+                    }
+                  } catch (_) {}
+                  try { key("g"); } catch (_) {}
+                  await sleep(220);
+                }
+              } catch (_) {}
+              if (getMode() !== "world") {
+                // Fallback to New Game
+                try { openGodPanel(); } catch (_) {}
+                await sleep(120);
+                try { const btn = document.getElementById("god-newgame-btn"); if (btn) btn.click(); } catch (_) {}
+                await sleep(300);
+              }
+            }
           }
 
           // Route to a tile adjacent to the dungeon entrance
           try {
             const MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
-            let routedAdj = false;
             let target = null;
 
             if (typeof G.nearestDungeon === "function") {
@@ -297,9 +333,8 @@
             if (typeof G.gotoNearestDungeon === "function") {
               // Some implementations auto-walk and land the player onto/near the entrance
               await G.gotoNearestDungeon();
-              routedAdj = true; // best-effort; we will still bumpToward below
             } else if (target && MV && typeof MV.routeAdjTo === "function") {
-              routedAdj = await MV.routeAdjTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
+              await MV.routeAdjTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
             } else if (target && typeof G.routeTo === "function") {
               // Fallback: compute an adjacent target and key-walk
               const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
@@ -315,20 +350,36 @@
                 }
                 if (path && path.length) break;
               }
-              routedAdj = true;
             }
 
-            // Final bump to step onto the entrance tile; verify we're actually standing on it
+            // Final bump to step onto the entrance tile; verify tile underfoot/adjacent
             if (target) {
               try {
+                const tiles = (window.World && window.World.TILES) ? window.World.TILES : null;
+                const worldObj = (typeof G.getWorld === "function") ? G.getWorld() : null;
                 const isOnTarget = () => {
                   try {
                     const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
                     return !!(pl && pl.x === target.x && pl.y === target.y);
                   } catch (_) { return false; }
                 };
+                const onDungeonTileOrAdj = () => {
+                  try {
+                    if (!worldObj || !tiles) return false;
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
+                    if (!pl) return false;
+                    const tileHere = (worldObj.map && worldObj.map[pl.y]) ? worldObj.map[pl.y][pl.x] : null;
+                    if (tileHere === tiles.DUNGEON) return true;
+                    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                    for (const d of dirs) {
+                      const nx = pl.x + d.dx, ny = pl.y + d.dy;
+                      const t = (worldObj.map && worldObj.map[ny]) ? worldObj.map[ny][nx] : null;
+                      if (t === tiles.DUNGEON) return true;
+                    }
+                    return false;
+                  } catch (_) { return false; }
+                };
 
-                // First bump toward target
                 if (!isOnTarget()) {
                   if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
                   else {
@@ -340,10 +391,9 @@
                   await sleep(120);
                 }
 
-                // If still not exactly on target, try a short precise route to the exact tile
-                if (!isOnTarget()) {
+                if (!isOnTarget() && !onDungeonTileOrAdj()) {
                   if (MV && typeof MV.routeTo === "function") {
-                    await MV.routeTo(target.x, target.y, { timeoutMs: 1200, stepMs: 80 });
+                    await MV.routeTo(target.x, target.y, { timeoutMs: 1600, stepMs: 80 });
                   } else if (typeof G.routeTo === "function") {
                     const pathExact = G.routeTo(target.x, target.y) || [];
                     for (const st of pathExact) {
@@ -356,8 +406,7 @@
                   }
                 }
 
-                // Last resort: a couple more bumps toward the exact entrance
-                for (let t = 0; t < 2 && !isOnTarget(); t++) {
+                for (let t = 0; t < 2 && !isOnTarget() && !onDungeonTileOrAdj(); t++) {
                   if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
                   else {
                     const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
@@ -371,7 +420,8 @@
             }
           } catch (_) {}
 
-          // Attempt entry once (normalized 'g')
+          // Ensure no modals are intercepting the action, then attempt entry (normalized 'g')
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
           try { key("g"); } catch (_) {}
           await sleep(300);
           try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
@@ -382,6 +432,7 @@
           if (ok) { try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {} }
           return ok;
         } catch (_) { return false; }
+      } catch (_) { return false; }
       }
 
       // Centralized, single-attempt town entry to avoid repeated re-enter across scenarios
@@ -389,6 +440,8 @@
         try {
           const G = window.GameAPI || {};
           const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
+          // Proactively close any modals so movement/interaction isn't intercepted
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
           const modeNow = getMode();
           // Initialize lock namespace
           try {
@@ -448,13 +501,31 @@
               }
             }
 
-            // Final bump onto the gate tile; verify we're actually standing on the town tile
+            // Final bump onto the gate tile before interaction; verify tile underfoot/adjacent
             if (target) {
               try {
+                const tiles = (window.World && window.World.TILES) ? window.World.TILES : null;
+                const worldObj = (typeof G.getWorld === "function") ? G.getWorld() : null;
                 const isOnTarget = () => {
                   try {
                     const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
                     return !!(pl && pl.x === target.x && pl.y === target.y);
+                  } catch (_) { return false; }
+                };
+                const onTownTileOrAdj = () => {
+                  try {
+                    if (!worldObj || !tiles) return false;
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
+                    if (!pl) return false;
+                    const tileHere = (worldObj.map && worldObj.map[pl.y]) ? worldObj.map[pl.y][pl.x] : null;
+                    if (tileHere === tiles.TOWN) return true;
+                    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                    for (const d of dirs) {
+                      const nx = pl.x + d.dx, ny = pl.y + d.dy;
+                      const t = (worldObj.map && worldObj.map[ny]) ? worldObj.map[ny][nx] : null;
+                      if (t === tiles.TOWN) return true;
+                    }
+                    return false;
                   } catch (_) { return false; }
                 };
 
@@ -469,10 +540,9 @@
                   await sleep(120);
                 }
 
-                // If still not exactly on target, try a short precise route to the exact tile
-                if (!isOnTarget()) {
+                if (!isOnTarget() && !onTownTileOrAdj()) {
                   if (MV && typeof MV.routeTo === "function") {
-                    await MV.routeTo(target.x, target.y, { timeoutMs: 1200, stepMs: 80 });
+                    await MV.routeTo(target.x, target.y, { timeoutMs: 1600, stepMs: 80 });
                   } else if (typeof G.routeTo === "function") {
                     const pathExact = G.routeTo(target.x, target.y) || [];
                     for (const st of pathExact) {
@@ -485,8 +555,7 @@
                   }
                 }
 
-                // Last resort: a couple more bumps toward the exact gate tile
-                for (let t = 0; t < 2 && !isOnTarget(); t++) {
+                for (let t = 0; t < 2 && !isOnTarget() && !onTownTileOrAdj(); t++) {
                   if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
                   else {
                     const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
@@ -500,7 +569,8 @@
             }
           } catch (_) {}
 
-          // Attempt entry once (normalized 'g')
+          // Ensure no modals are intercepting the action, then attempt entry (normalized 'g')
+          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
           try { key("g"); } catch (_) {}
           await sleep(300);
           try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
@@ -511,6 +581,7 @@
           if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
           return ok;
         } catch (_) { return false; }
+      } catch (_) { return false; }
       }
 
       const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip, ensureDungeonOnce, ensureTownOnce };
