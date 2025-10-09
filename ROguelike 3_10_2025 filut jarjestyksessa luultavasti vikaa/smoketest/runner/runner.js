@@ -235,19 +235,6 @@
           }
         } catch (_) {}
       }
-        // Abort rule: if movement test reports immobile, abort the rest of this run
-        try {
-          if (!ok && /immobile/i.test(text)) {
-            __abortRequested = true;
-            __abortReason = "immobile";
-            var B2 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-            if (B2 && typeof B2.log === "function") {
-              B2.log("Aborting current run due to immobile state; remaining scenarios will be skipped.", "warn");
-            }
-            gameLog("[SMOKE] Run aborted due to immobile", "warn");
-          }
-        } catch (_) {}
-      }
       function recordSkip(msg) {
         steps.push({ ok: true, msg: String(msg || ""), skipped: true });
         try {
