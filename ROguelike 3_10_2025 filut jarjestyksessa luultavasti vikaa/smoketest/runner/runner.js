@@ -20,10 +20,12 @@
         dev: p("dev", "0") === "1",
         smokecount: Number(p("smokecount", "1")) || 1,
         legacy: p("legacy", "0") === "1",
-        scenarios: sel.split(",").map(s => s.trim()).filter(Boolean)
+        scenarios: sel.split(",").map(s => s.trim()).filter(Boolean),
+        // New: skip scenarios after they have passed a given number of runs (0 = disabled)
+        skipokafter: Number(p("skipokafter", "0")) || 0
       };
     } catch (_) {
-      return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [] };
+      return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [], skipokafter: 0 };
     }
   }
 
@@ -176,6 +178,8 @@
       const runTotal = (ctx && ctx.total) ? (ctx.total | 0) : null;
       const stacking = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.STACK_LOGS);
       const suppress = !!(ctx && ctx.suppressReport);
+      // New: scenarios to skip (already stable OK in prior runs)
+      const skipSet = new Set((ctx && ctx.skipScenarios) ? ctx.skipScenarios : []);
 
       await waitUntilGameReady(6000);
       await waitUntilScenariosReady(2000);
@@ -210,6 +214,8 @@
       } catch (_) {}
 
       const baseCtx = { key, sleep, makeBudget, ensureAllModalsClosed, CONFIG, caps, record, recordSkip };
+      // Collect per-scenario results to inform runSeries skipping strategy
+      let scenarioResults = [];
 
       // Dev-only RNG audit (if module present)
       try {
@@ -249,8 +255,17 @@
 
       for (let i = 0; i < pipeline.length; i++) {
         const step = pipeline[i];
+        // Selection filter
         if (sel.length && !sel.includes(step.name)) continue;
+        // Skip scenarios that have reached the stable OK threshold in prior runs
+        if (skipSet && skipSet.has(step.name)) {
+          recordSkip("Scenario '" + step.name + "' skipped (stable OK threshold reached)");
+          scenarioResults.push({ name: step.name, passed: true, skippedStable: true });
+          continue;
+        }
+        // Availability check
         if (typeof step.fn !== "function") { recordSkip("Scenario '" + step.name + "' not available"); continue; }
+        const beforeCount = steps.length;
         try {
           if (Banner && typeof Banner.log === "function") Banner.log("Running scenario: " + step.name, "info");
           await step.fn(baseCtx);
@@ -259,6 +274,12 @@
           if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
+        // Per-scenario pass determination: pass if no failures recorded during this scenario block
+        try {
+          const during = steps.slice(beforeCount);
+          const hasFail = during.some(s => !s.ok && !s.skipped);
+          scenarioResults.push({ name: step.name, passed: !hasFail });
+        } catch (_) {}
       }
 
       // Build report via reporting renderer
@@ -336,7 +357,7 @@
         }
         jsonToken.textContent = JSON.stringify({ ok, steps, caps });
       } catch (_) {}
-      return { ok, steps, caps };
+      return { ok, steps, caps, scenarioResults };
     } catch (e) {
       try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
       return null;
@@ -350,6 +371,9 @@
     let pass = 0, fail = 0;
     let perfSumTurn = 0, perfSumDraw = 0;
     const stacking = n > 1;
+    // New: skip scenarios after they have passed this many runs (0 = disabled)
+    const skipAfter = (Number(params.skipokafter || 0) | 0);
+    const scenarioPassCounts = new Map();
 
     try {
       window.SmokeTest = window.SmokeTest || {};
@@ -500,9 +524,26 @@
     for (let i = 0; i < n; i++) {
       await applyFreshSeedForRun(i);
 
-      const res = await run({ index: i + 1, total: n, suppressReport: false });
+      // Build skip list from scenarios that have already met the stable OK threshold
+      const skipList = (skipAfter > 0)
+        ? Array.from(scenarioPassCounts.entries()).filter(([name, cnt]) => (cnt | 0) >= skipAfter).map(([name]) => name)
+        : [];
+
+      const res = await run({ index: i + 1, total: n, suppressReport: false, skipScenarios: skipList });
       all.push(res);
       if (res && res.ok) pass++; else fail++;
+
+      // Update scenario pass counts
+      try {
+        if (res && Array.isArray(res.scenarioResults)) {
+          for (const sr of res.scenarioResults) {
+            if (!sr || !sr.name) continue;
+            if (sr.passed && !sr.skippedStable) {
+              scenarioPassCounts.set(sr.name, (scenarioPassCounts.get(sr.name) || 0) + 1);
+            }
+          }
+        }
+      } catch (_) {}
 
       // Accumulate step results by message
       try {
@@ -523,7 +564,8 @@
       // Progress snippet
       try {
         const Bprog = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>`;
+        const skippedStable = (skipList && skipList.length) ? `<div style="opacity:0.85;">Skipped (stable OK): ${skipList.join(", ")}</div>` : ``;
+        const progHtml = `<div style="margin-top:6px;"><strong>Smoke Test Progress:</strong> ${i + 1} / ${n}</div><div>Pass: ${pass}  Fail: ${fail}</div>${skippedStable}`;
         if (Bprog && typeof Bprog.appendToPanel === "function") Bprog.appendToPanel(progHtml);
       } catch (_) {}
 
