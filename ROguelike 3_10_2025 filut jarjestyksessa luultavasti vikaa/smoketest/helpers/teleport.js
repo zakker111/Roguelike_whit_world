@@ -88,6 +88,70 @@
         return false;
       }
     },
+
+    // Convenience: teleport to dungeon exit and press 'g' to leave to overworld.
+    // opts: { closeModals: true, waitMs: 500 }
+    async teleportToDungeonExitAndLeave(ctx, opts) {
+      try {
+        const G = window.GameAPI || {};
+        const MV = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
+        const key = (ctx && ctx.key) || (MV && MV.key) || function(){};
+        const sleep = (ctx && ctx.sleep) || ((ms) => new Promise(r => setTimeout(r, ms | 0)));
+        const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) ? ctx.ensureAllModalsClosed : async function(){};
+        const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 500;
+
+        if (!has(G.getMode) || G.getMode() !== "dungeon") return false;
+
+        const exit = has(G.getDungeonExit) ? G.getDungeonExit() : null;
+        if (!exit || typeof exit.x !== "number" || typeof exit.y !== "number") return false;
+
+        // Close modals so 'g' isn't swallowed
+        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(1); } catch (_){}
+
+        const tpOk = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: true, fallbackScanRadius: 4 });
+        if (tpOk) {
+          try { key("g"); } catch (_) {}
+          await sleep(waitMs);
+          try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
+          await sleep(waitMs);
+          const modeNow = has(G.getMode) ? G.getMode() : "";
+          return modeNow === "world";
+        }
+
+        // If teleport failed, try route+bump as fallback
+        let routed = false;
+        try { if (MV && typeof MV.routeTo === "function") routed = await MV.routeTo(exit.x, exit.y, { timeoutMs: 2000, stepMs: 90 }); } catch (_){}
+        if (!routed && has(G.routeToDungeon)) {
+          const path = G.routeToDungeon(exit.x, exit.y) || [];
+          for (let i = 0; i < path.length; i++) {
+            const st = path[i];
+            const pl = has(G.getPlayer) ? G.getPlayer() : st;
+            const dx = Math.sign(st.x - pl.x);
+            const dy = Math.sign(st.y - pl.y);
+            key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+            await sleep(80);
+          }
+        }
+        // If adjacent, single nudge
+        try {
+          const pl = has(G.getPlayer) ? G.getPlayer() : { x: exit.x, y: exit.y };
+          if (Math.abs(pl.x - exit.x) + Math.abs(pl.y - exit.y) === 1) {
+            const dx = Math.sign(exit.x - pl.x);
+            const dy = Math.sign(exit.y - pl.y);
+            key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+            await sleep(120);
+          }
+        } catch (_){}
+
+        try { key("g"); } catch (_){}
+        await sleep(waitMs);
+        try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
+        await sleep(waitMs);
+        return (has(G.getMode) ? G.getMode() : "") === "world";
+      } catch (_) {
+        return false;
+      }
+    },
   };
 
   window.SmokeTest.Helpers.Teleport = Teleport;

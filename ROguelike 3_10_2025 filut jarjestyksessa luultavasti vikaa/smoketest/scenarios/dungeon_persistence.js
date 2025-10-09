@@ -217,6 +217,14 @@
           // Wait briefly for mode change
           await waitUntil(function(){ try { return window.GameAPI.getMode() === "world"; } catch(_){ return false; } }, 600, 80);
 
+          // Fallback: if still in dungeon, attempt a safe teleport-to-exit and leave with a short settle wait
+          try {
+            var TP = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport;
+            if (has(window.GameAPI.getMode) && window.GameAPI.getMode() !== "world" && TP && typeof TP.teleportToDungeonExitAndLeave === "function") {
+              await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 500 });
+            }
+          } catch (_) {}
+
           var m1 = has(window.GameAPI.getMode) ? window.GameAPI.getMode() : "";
           record(m1 === "world", (m1 === "world") ? "Returned to overworld from dungeon" : ("Attempted return to overworld (mode=" + m1 + ")"));
 
