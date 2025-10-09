@@ -24,7 +24,9 @@
         // New: skip scenarios after they have passed a given number of runs (0 = disabled)
         skipokafter: Number(p("skipokafter", "0")) || 0,
         // Control dungeon persistence scenario frequency: "once" (default), "always", or "never"
-        persistence: (p("persistence", "once") || "once").toLowerCase()
+        persistence: (p("persistence", "once") || "once").toLowerCase(),
+        // Optional base seed override; if provided, seeds are derived deterministically per run
+        seed: (function(){ const v = p("seed", ""); if (!v) return null; const n = Number(v); return Number.isFinite(n) ? (n >>> 0) : null; })()
       };
     } catch (_) {
       return { smoketest: false, dev: false, smokecount: 1, legacy: false, scenarios: [], skipokafter: 0 };
@@ -541,22 +543,55 @@
     // Aggregation of steps across runs (union of success)
     const agg = new Map();
     const okMsgs = new Set();
-
+    // Track seeds used within this series to guarantee uniqueness
+   
     // Fresh seed helpers
     function randomUint32(runIndex) {
+      let r = 0;
       try {
         if (window.crypto && typeof window.crypto.getRandomValues === "function") {
           const buf = new Uint32Array(1);
           window.crypto.getRandomValues(buf);
-          return (buf[0] >>> 0);
+          r = (buf[0] >>> 0);
+        } else {
+          // Fallback base entropy
+          r = (Date.now() >>> 0);
         }
-      } catch (_) {}
-      // Fallback: mix Date.now and index via xorshift-like scrambler
-      let t = (Date.now() + ((runIndex | 0) * 0x9e3779b1)) >>> 0;
+      } catch (_) {
+        r = (Date.now() >>> 0);
+      }
+      // Mix in run index to guarantee different values per run
+      let t = (r ^ (((runIndex + 1) * 0x9e3779b1) >>> 0)) >>> 0;
+      // xorshift-like scrambler
       t ^= t << 13; t >>>= 0;
       t ^= t >> 17; t >>>= 0;
       t ^= t << 5;  t >>>= 0;
       return t >>> 0;
+    }
+    // Deterministically derive a per-run seed from optional base param; guarantee uniqueness in-series
+    function deriveSeed(runIndex) {
+      const base = (params && typeof params.seed !== "undefined") ? params.seed : null;
+      let s;
+      if (base != null) {
+        // Mix base with golden-ratio constant and run index, then scramble
+        s = (base ^ (((runIndex + 1) * 0x9e3779b1) >>> 0)) >>> 0;
+        s ^= s << 13; s >>>= 0;
+        s ^= s >> 17; s >>>= 0;
+        s ^= s << 5;  s >>>= 0;
+        s >>>= 0;
+      } else {
+        s = randomUint32(runIndex);
+      }
+      // Ensure uniqueness within this runSeries
+      if (usedSeeds.has(s)) {
+        s = (s ^ ((Date.now() & 0xffffffff) >>> 0) ^ 0x85ebca6b) >>> 0;
+        s ^= s << 13; s >>>= 0;
+        s ^= s >> 17; s >>>= 0;
+        s ^= s << 5;  s >>>= 0;
+        s >>>= 0;
+      }
+      usedSeeds.add(s);
+      return s >>> 0;
     }
     async function applyFreshSeedForRun(runIndex) {
       try {
@@ -637,7 +672,7 @@
         } catch (_) {}
 
         // 2) Apply a fresh seed via the GOD panel controls
-        const s = randomUint32(runIndex);
+        const s = deriveSeed(runIndex);
         try { openGodPanel(); } catch (_) {}
         await sleep(120);
         try {
