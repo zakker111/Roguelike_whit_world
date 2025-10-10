@@ -125,7 +125,7 @@
         record(false, "Gold ops failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Bump-buy near shop (NPC adjacent to a shop)
+      // Bump-buy near shop (NPC adjacent to a shop) — teleport near keeper first, then route adj and bump
       try {
         var npcs = has(window.GameAPI.getNPCs) ? (window.GameAPI.getNPCs() || []) : [];
         if (shops && shops.length && npcs && npcs.length && has(window.GameAPI.getGold)) {
@@ -140,17 +140,34 @@
           }
           if (targetNPC) {
             var gBefore = window.GameAPI.getGold();
-            // route to adjacent tile to NPC and then bump
-            var adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}].map(v => ({ x: targetNPC.x + v.dx, y: targetNPC.y + v.dy }));
-            var path = [];
-            // Prefer movement helper
+
+            // 1) Teleport to a safe tile near the keeper (avoid walls/NPC occupancy)
+            var teleportedNear = false;
+            if (TP && typeof TP.teleportTo === "function") {
+              var adjTiles = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
+                .map(v => ({ x: targetNPC.x + v.dx, y: targetNPC.y + v.dy }));
+              for (var t = 0; t < adjTiles.length && !teleportedNear; t++) {
+                try {
+                  teleportedNear = !!(await TP.teleportTo(adjTiles[t].x, adjTiles[t].y, { ensureWalkable: true, fallbackScanRadius: 3 }));
+                } catch (_) { teleportedNear = false; }
+              }
+              // If adjacency is densely blocked, allow a broader safe fallback near the keeper
+              if (!teleportedNear) {
+                try { teleportedNear = !!(await TP.teleportTo(targetNPC.x, targetNPC.y, { ensureWalkable: true, fallbackScanRadius: 4 })); } catch (_) {}
+              }
+            }
+
+            // 2) Route to adjacency and bump toward keeper
             var routedAdj = false;
             try {
               if (MV && typeof MV.routeAdjTo === "function") {
                 routedAdj = await MV.routeAdjTo(targetNPC.x, targetNPC.y, { timeoutMs: (CONFIG.timeouts && CONFIG.timeouts.route) || 2500, stepMs: 100 });
               }
             } catch (_) {}
+            // Fallback precise routing to any adjacent tile
             if (!routedAdj) {
+              var adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}].map(v => ({ x: targetNPC.x + v.dx, y: targetNPC.y + v.dy }));
+              var path = [];
               for (var a = 0; a < adj.length; a++) {
                 var p = has(window.GameAPI.routeToDungeon) ? window.GameAPI.routeToDungeon(adj[a].x, adj[a].y) : [];
                 if (p && p.length) { path = p; break; }
@@ -159,17 +176,22 @@
               for (var k = 0; k < path.length; k++) {
                 var step = path[k];
                 if (budget.exceeded()) { hadTimeout = true; recordSkip("Routing to shopkeeper timed out"); break; }
-                var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                var plNow = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: step.x, y: step.y };
+                var dx = Math.sign(step.x - plNow.x);
+                var dy = Math.sign(step.y - plNow.y);
                 key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                 await sleep(100);
               }
             }
-            // bump
-            var dxb = Math.sign(targetNPC.x - window.GameAPI.getPlayer().x);
-            var dyb = Math.sign(targetNPC.y - window.GameAPI.getPlayer().y);
+
+            // bump toward keeper
+            var pl = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: targetNPC.x, y: targetNPC.y };
+            var dxb = Math.sign(targetNPC.x - pl.x);
+            var dyb = Math.sign(targetNPC.y - pl.y);
             key(dxb === -1 ? "ArrowLeft" : dxb === 1 ? "ArrowRight" : (dyb === -1 ? "ArrowUp" : "ArrowDown"));
             await sleep(220);
+
+            // Verify purchase/interaction effect
             var gAfter = window.GameAPI.getGold();
             var inv = has(window.GameAPI.getInventory) ? (window.GameAPI.getInventory() || []) : [];
             var gotItem = inv && inv.length ? true : false;
