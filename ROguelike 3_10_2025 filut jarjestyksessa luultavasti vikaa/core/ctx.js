@@ -43,6 +43,11 @@
       if (window.Town) ctx.Town = window.Town;
       if (window.TownAI) ctx.TownAI = window.TownAI;
       if (window.DungeonState) ctx.DungeonState = window.DungeonState;
+      // Services (guarantee via ctx for shop/time helpers)
+      if (window.ShopService) ctx.ShopService = window.ShopService;
+      if (window.TimeService) ctx.TimeService = window.TimeService;
+      if (window.Combat) ctx.Combat = window.Combat;
+      if (window.Stats) ctx.Stats = window.Stats;
     }
     return ctx;
   }
