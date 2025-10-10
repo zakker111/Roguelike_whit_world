@@ -527,7 +527,9 @@
       return Combat.enemyDamageMultiplier(level);
     }
     if (window.Enemies && typeof Enemies.damageMultiplier === "function") {
-     }
+      return Enemies.damageMultiplier(level);
+    }
+    return 1 + 0.15 * Math.max(0, (level || 1) -}
 
   // Classify enemy danger based on level difference vs player
   function enemyThreatLabel(enemy) {
