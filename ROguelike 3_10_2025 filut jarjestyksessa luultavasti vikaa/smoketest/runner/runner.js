@@ -675,11 +675,18 @@
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
 
-        // If death occurred during/after scenario, do not abort the entire run; continue with next scenario
+        // If death occurred during/after scenario, abort like immobile
         try {
-          if (isDeathDetected()) {
-            recordSkip("Death detected; continuing with next scenario");
-            // No abort flags; allow subsequent scenarios in this run to proceed (they may be skipped if still dead)
+          if (isDeathDetected() && !aborted) {
+            record(false, "Death detected (run aborted)");
+            aborted = true;
+            __abortRequested = true;
+            __abortReason = "dead";
+            try {
+              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
+            } catch (_) {}
+            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
+            break;
           }
         } catch (_) {}
 
@@ -901,25 +908,70 @@
             try {
               const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
               const routeAndExit = async (tx, ty, label) => {
-                // Teleport to the target tile instead of routing; then press G to exit.
-                try {
-                  if (B && typeof B.log === "function") B.log(`Teleporting to ${label} at (${tx},${ty})…`, "info");
-                } catch (_) {}
-                try {
-                  if (typeof G.teleportTo === "function") {
-                    G.teleportTo(tx, ty, { ensureWalkable: true });
-                    await sleep(150);
+                // Teleport to the target tile and ensure we're exactly on it before attempting exit.
+                const onTile = () => {
+                  try {
+                    if (typeof G.getPlayer !== "function") return false;
+                    const p = G.getPlayer();
+                    if (!p) return false;
+                    const same = (p.x === tx && p.y === ty);
+                    // For dungeon exits, also confirm the tile is STAIRS ('>') to avoid wrong coords
+                    if (same && typeof G.getMap === "function" && G.TILES) {
+                      try {
+                        const map = G.getMap();
+                        const t = (map && map[ty]) ? map[ty][tx] : null;
+                        if ((String(label || "").toLowerCase().indexOf("dungeon") !== -1) && t !== G.TILES.STAIRS) {
+                          return false;
+                        }
+                      } catch (_) {}
+                    }
+                    return same;
+                  } catch (_) { return false; }
+                };
+                const tryTeleport = async () => {
+                  try {
+                    if (B && typeof B.log === "function") B.log(`Teleporting to ${label} at (${tx},${ty})…`, "info");
+                  } catch (_) {}
+                  try {
+                    if (typeof G.teleportTo === "function") {
+                      G.teleportTo(tx, ty, { ensureWalkable: true });
+                      await sleep(180);
+                    }
+                  } catch (_) {}
+                };
+                // Close modals to avoid swallowing 'g'
+                try { await ensureAllModalsClosed(1); } catch (_) {}
+                // Up to 3 attempts: ensure on tile, then try to exit
+                for (let attempt = 0; attempt < 3; attempt++) {
+                  if (!onTile()) {
+                    await tryTeleport();
                   }
-                } catch (_) {}
-                // Perform context action (exit)
-                try { if (B && typeof B.log === "function") B.log(`Pressing G to exit ${label}…`, "notice"); } catch (_) {}
-                try { key("g"); } catch (_) {}
-                await sleep(240);
-                // Also call API fallback if present
-                try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
-                await sleep(240);
-                // Wait until world mode
-                await waitUntilTrue(() => { try { return (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world"); } catch(_) { return false; } }, 2000, 80);
+                  // Re-check position
+                  if (!onTile()) {
+                    // If still not on tile, retry teleport once more in this attempt
+                    await tryTeleport();
+                  }
+                  // If we are on tile, attempt exit
+                  if (onTile()) {
+                    try { if (B && typeof B.log === "function") B.log(`Pressing G to exit ${label}…`, "notice"); } catch (_) {}
+                    try { key("g"); } catch (_) {}
+                    await sleep(260);
+                    // API fallback
+                    try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
+                    await sleep(260);
+                    // If we reached world, stop attempts
+                    const gotWorld = await waitUntilTrue(() => {
+                      try { return (typeof G.getMode === "function" && G.getMode() === "world"); } catch(_) { return false; }
+                    }, 1200, 80);
+                    if (gotWorld) {
+                      await sleep(120);
+                      return;
+                    }
+                  }
+                  // Not exited yet; try again (teleport will be retried on next loop)
+                }
+                // Final wait as a last resort
+                await waitUntilTrue(() => { try { return (typeof G.getMode === "function" && G.getMode() === "world"); } catch(_) { return false; } }, 2000, 80);
                 await sleep(120);
               };
 
