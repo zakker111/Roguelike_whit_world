@@ -727,12 +727,32 @@
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Running scenario: " + step.name, "info");
           await step.fn(baseCtx);
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Scenario completed: " + step.name, "good");
-          // Close the GOD panel after town diagnostics to avoid overlaying subsequent scenarios
+          // Close the GOD panel after town diagnostics to avoid overlaying subsequent scenarios (robust)
           if (step.name === "town_diagnostics") {
-            try { key("Escape"); } catch (_) {}
-            await sleep(120);
-            try { if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod(); } catch (_) {}
-            await sleep(80);
+            // First, try the generic modal closer a couple of times
+            try { await ensureAllModalsClosed(2); } catch (_) {}
+            // Then, explicitly target the GOD panel and verify closure
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try { key("Escape"); } catch (_) {}
+              await sleep(100);
+              try { if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod(); } catch (_) {}
+              try {
+                const gp = document.getElementById("god-panel");
+                if (gp) gp.hidden = true;
+              } catch (_) {}
+              await sleep(100);
+              // Verify closed
+              let closed = false;
+              try {
+                if (window.UI && typeof window.UI.isGodOpen === "function") {
+                  closed = !window.UI.isGodOpen();
+                } else {
+                  const gp = document.getElementById("god-panel");
+                  closed = !!(gp && gp.hidden === true);
+                }
+              } catch (_) { closed = false; }
+              if (closed) break;
+            }
           }
         } catch (e) {
           if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
