@@ -207,10 +207,28 @@
         record(false, "Bump-buy failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Route to first shop and interact (press G), then Esc-close UI
+      // Route to first shop and interact (press G), then Esc-close UI — teleport near shop first to avoid long routes
       try {
         if (shops && shops.length) {
           var shop = shops[0];
+
+          // Teleport to a safe adjacent tile near the shop (avoid walls/NPCs)
+          var teleportedNearShop = false;
+          if (TP && typeof TP.teleportTo === "function") {
+            var adjShopTiles = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
+              .map(v => ({ x: shop.x + v.dx, y: shop.y + v.dy }));
+            for (var ts = 0; ts < adjShopTiles.length && !teleportedNearShop; ts++) {
+              try {
+                teleportedNearShop = !!(await TP.teleportTo(adjShopTiles[ts].x, adjShopTiles[ts].y, { ensureWalkable: true, fallbackScanRadius: 3 }));
+              } catch (_) { teleportedNearShop = false; }
+            }
+            // If adjacency is densely blocked, allow a broader safe fallback near the shop
+            if (!teleportedNearShop) {
+              try { teleportedNearShop = !!(await TP.teleportTo(shop.x, shop.y, { ensureWalkable: true, fallbackScanRadius: 4 })); } catch (_) {}
+            }
+          }
+
+          // Route to the exact shop tile after teleporting near it
           var routedS = false;
           try {
             if (MV && typeof MV.routeTo === "function") {
@@ -223,8 +241,9 @@
             for (var si = 0; si < pathS.length; si++) {
               var st = pathS[si];
               if (budgetS.exceeded()) { hadTimeout = true; recordSkip("Routing to shop timed out"); break; }
-              var dx = Math.sign(st.x - window.GameAPI.getPlayer().x);
-              var dy = Math.sign(st.y - window.GameAPI.getPlayer().y);
+              var plNowS = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: st.x, y: st.y };
+              var dx = Math.sign(st.x - plNowS.x);
+              var dy = Math.sign(st.y - plNowS.y);
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(100);
             }
@@ -253,14 +272,16 @@
                 for (var pa = 0; pa < pathA.length; pa++) {
                   var stp = pathA[pa];
                   if (budA.exceeded()) break;
-                  var dxA = Math.sign(stp.x - window.GameAPI.getPlayer().x);
-                  var dyA = Math.sign(stp.y - window.GameAPI.getPlayer().y);
+                  var plNowA = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: stp.x, y: stp.y };
+                  var dxA = Math.sign(stp.x - plNowA.x);
+                  var dyA = Math.sign(stp.y - plNowA.y);
                   key(dxA === -1 ? "ArrowLeft" : dxA === 1 ? "ArrowRight" : (dyA === -1 ? "ArrowUp" : "ArrowDown"));
                   await sleep(90);
                 }
               }
-              var dxB = Math.sign(keeper.x - window.GameAPI.getPlayer().x);
-              var dyB = Math.sign(keeper.y - window.GameAPI.getPlayer().y);
+              var plB = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: keeper.x, y: keeper.y };
+              var dxB = Math.sign(keeper.x - plB.x);
+              var dyB = Math.sign(keeper.y - plB.y);
               key(dxB === -1 ? "ArrowLeft" : dxB === 1 ? "ArrowRight" : (dyB === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(160);
               record(true, "Bump near shopkeeper: OK");
@@ -270,6 +291,8 @@
           } catch (_) {}
 
           var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
+          // Close modals to avoid swallowing 'g'
+          try { await ctx.ensureAllModalsClosed?.(1); } catch (_) {}
           key("g");
           await sleep(Math.min(ib.remain(), 220));
           // Esc closes Shop UI fallback panel
