@@ -3,6 +3,7 @@
  *
  * Exports (window.Combat augmentation):
  * - getPlayerBlockChance(ctx, loc)
+ * - getEnemyBlockChance(ctx, enemy, loc)
  * - enemyDamageAfterDefense(ctx, raw)
  * - enemyDamageMultiplier(level)  // small helper for consistency
  *
@@ -44,6 +45,13 @@
     return Math.max(0, Math.min(0.6, base * mod));
   }
 
+  function getEnemyBlockChance(ctx, enemy, loc) {
+    const type = enemy && enemy.type ? String(enemy.type) : "";
+    const base = type === "ogre" ? 0.10 : (type === "troll" ? 0.08 : 0.06);
+    const mod = (loc && typeof loc.blockMod === "number") ? loc.blockMod : 1.0;
+    return Math.max(0, Math.min(0.35, base * mod));
+  }
+
   function enemyDamageAfterDefense(ctx, raw) {
     const def = getPlayerDefenseFromCtx(ctx);
     const DR = Math.max(0, Math.min(0.85, def / (def + 6)));
@@ -59,6 +67,7 @@
   const base = (typeof window !== "undefined" && window.Combat) ? window.Combat : {};
   const augmented = Object.assign({}, base, {
     getPlayerBlockChance,
+    getEnemyBlockChance,
     enemyDamageAfterDefense,
     enemyDamageMultiplier,
   });

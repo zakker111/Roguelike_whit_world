@@ -4,6 +4,7 @@
  * Exports (window.Utils):
  * - manhattan(ax, ay, bx, by)
  * - inBounds(ctx, x, y)
+ * - isWalkableTile(ctx, x, y): tile-only walkability (ignores occupancy)
  * - isFreeFloor(ctx, x, y): generic free-floor check (dungeon/town maps)
  * - isFreeTownFloor(ctx, x, y): town-specific free tile check including props/NPCs
  */
@@ -48,6 +49,7 @@
   window.Utils = {
     manhattan,
     inBounds,
+    isWalkableTile,
     isFreeFloor,
     isFreeTownFloor,
   };

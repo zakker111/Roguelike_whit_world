@@ -239,6 +239,13 @@
     });
   </script>
   <script src="/ui/tileset.js" defer></script>
+  <!-- Render split modules (loaded before orchestrator) -->
+  <script src="/ui/render_core.js" defer></script>
+  <script src="/ui/render_overworld.js" defer></script>
+  <script src="/ui/render_town.js" defer></script>
+  <script src="/ui/render_dungeon.js" defer></script>
+  <script src="/ui/render_overlays.js" defer></script>
+  <!-- Orchestrator -->
   <script src="/ui/render.js" defer></script>
   <script src="/ui/decals.js" defer></script>
   <script src="/ui/ui.js" defer></script>
@@ -265,6 +272,8 @@
   <script src="/core/game_loop.js" defer></script>
   <script src="/core/input.js" defer></script>
   <script src="/core/game_api.js" defer></script>
+  <!-- Phase 2: FOVCamera glue module -->
+  <script src="/core/fov_camera.js" defer></script>
   <script src="/core/game.js" defer></script>
 
   <!-- Optional smoke test runner: load when ?smoketest=1 -->
