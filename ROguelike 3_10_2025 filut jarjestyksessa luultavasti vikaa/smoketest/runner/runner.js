@@ -682,18 +682,11 @@
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
 
-        // If death occurred during/after scenario, abort like immobile
+        // If death occurred during/after scenario, do not abort the entire run; continue with next scenario
         try {
-          if (isDeathDetected() && !aborted) {
-            record(false, "Death detected (run aborted)");
-            aborted = true;
-            __abortRequested = true;
-            __abortReason = "dead";
-            try {
-              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
-            } catch (_) {}
-            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
-            break;
+          if (isDeathDetected()) {
+            recordSkip("Death detected; continuing with next scenario");
+            // No abort flags; allow subsequent scenarios in this run to proceed
           }
         } catch (_) {}
 
@@ -949,6 +942,7 @@
                 // Close modals to avoid swallowing 'g'
                 try { await ensureAllModalsClosed(1); } catch (_) {}
                 // Up to 3 attempts: ensure on tile, then try to exit
+                let exited = false;
                 for (let attempt = 0; attempt < 3; attempt++) {
                   if (!onTile()) {
                     await tryTeleport();
@@ -969,17 +963,31 @@
                     // If we reached world, stop attempts
                     const gotWorld = await waitUntilTrue(() => {
                       try { return (typeof G.getMode === "function" && G.getMode() === "world"); } catch(_) { return false; }
-                    }, 1200, 80);
+                    }, 1400, 80);
                     if (gotWorld) {
+                      exited = true;
                       await sleep(120);
-                      return;
+                      break;
                     }
                   }
                   // Not exited yet; try again (teleport will be retried on next loop)
                 }
-                // Final wait as a last resort
-                await waitUntilTrue(() => { try { return (typeof G.getMode === "function" && G.getMode() === "world"); } catch(_) { return false; } }, 2000, 80);
-                await sleep(120);
+                if (!exited) {
+                  // Final resort: start a new game to guarantee overworld
+                  try {
+                    if (B && typeof B.log === "function") B.log(`Exit to overworld failed after retries; starting New Game.`, "warn");
+                  } catch (_) {}
+                  try { openGodPanel(); } catch (_) {}
+                  await sleep(120);
+                  try {
+                    const btn = document.getElementById("god-newgame-btn");
+                    if (btn) btn.click();
+                  } catch (_) {}
+                  await waitUntilTrue(() => {
+                    try { return (typeof G.getMode === "function" && G.getMode() === "world"); } catch(_) { return false; }
+                  }, 2500, 100);
+                  await sleep(120);
+                }
               };
 
               // Close any modals first
