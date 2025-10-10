@@ -242,6 +242,10 @@
   <script src="/ui/render.js" defer></script>
   <script src="/ui/decals.js" defer></script>
   <script src="/ui/ui.js" defer></script>
+  <!-- Step 1: minimal ShopUI module (hide/ensurePanel); loaded before core/game.js -->
+  <script src="/ui/shop_panel.js" defer></script>
+  <!-- Step 6: InputMouse (canvas clicks) loaded before core/game.js -->
+  <script src="/ui/input_mouse.js" defer></script>
 
   <!-- Player and equipment -->
   <script src="/entities/player_utils.js" defer></script>
@@ -260,6 +264,7 @@
   <script src="/core/modes.js" defer></script>
   <script src="/core/game_loop.js" defer></script>
   <script src="/core/input.js" defer></script>
+  <script src="/core/game_api.js" defer></script>
   <script src="/core/game.js" defer></script>
 
   <!-- Optional smoke test runner: load when ?smoketest=1 -->
@@ -297,6 +302,7 @@
             "/smoketest/scenarios/town_flows.js",
             "/smoketest/scenarios/dungeon_persistence.js",
             "/smoketest/scenarios/town_diagnostics.js",
+            "/smoketest/scenarios/api.js",
             // Orchestrator (default) - load last so scenarios are ready
             "/smoketest/runner/runner.js"
             // Legacy thin shim appended below

@@ -1512,6 +1512,12 @@
         isGodOpen: () => !!(window.UI && UI.isGodOpen && UI.isGodOpen()),
         // Ensure shop modal is part of the modal stack priority
         isShopOpen: () => {
+          // Step 2: Prefer ShopUI state when available; fallback to DOM check
+          try {
+            if (window.ShopUI && typeof ShopUI.isOpen === "function") {
+              return !!ShopUI.isOpen();
+            }
+          } catch (_) {}
           try {
             const el = document.getElementById("shop-panel");
             return !!(el && el.hidden === false);
@@ -1790,139 +1796,31 @@
     if (!wasHidden) requestDraw();
   }
 
-  // ---------------- Simple Shop UI (fallback) ----------------
-  let currentShopStock = null; // [{item, price}]
-  function priceFor(item) {
-    if (!item) return 10;
-    if (item.kind === "potion") {
-      const h = item.heal != null ? item.heal : 5;
-      return Math.max(5, Math.min(50, Math.round(h * 2)));
-    }
-    const base = (item.atk || 0) * 10 + (item.def || 0) * 10;
-    const tier = (item.tier || 1);
-    return Math.max(15, Math.round(base + tier * 15));
-  }
-  function cloneItem(it) {
-    try { return JSON.parse(JSON.stringify(it)); } catch (_) {}
-    return Object.assign({}, it);
-  }
-  function ensureShopPanel() {
-    let el = document.getElementById("shop-panel");
-    if (el) return el;
-    el = document.createElement("div");
-    el.id = "shop-panel";
-    el.style.position = "fixed";
-    el.style.left = "50%";
-    el.style.top = "50%";
-    el.style.transform = "translate(-50%,-50%)";
-    el.style.zIndex = "9998";
-    el.style.minWidth = "300px";
-    el.style.maxWidth = "520px";
-    el.style.maxHeight = "60vh";
-    el.style.overflow = "auto";
-    el.style.padding = "12px";
-    el.style.background = "rgba(14, 18, 28, 0.95)";
-    el.style.color = "#e5e7eb";
-    el.style.border = "1px solid #334155";
-    el.style.borderRadius = "8px";
-    el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
-    el.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <strong>Shop</strong>
-        <button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button>
-      </div>
-      <div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div>
-      <div id="shop-list"></div>
-    `;
-    document.body.appendChild(el);
-    const btn = el.querySelector("#shop-close-btn");
-    if (btn) btn.onclick = () => hideShopPanel();
-    return el;
-  }
-  function renderShopPanel() {
-    const el = ensureShopPanel();
-    el.hidden = false;
-    const goldDiv = el.querySelector("#shop-gold");
-    const listDiv = el.querySelector("#shop-list");
-    const gold = (player.inventory.find(i => i && i.kind === "gold")?.amount) || 0;
-    if (goldDiv) goldDiv.textContent = `Gold: ${gold}`;
-    if (!listDiv) return;
-    if (!Array.isArray(currentShopStock) || currentShopStock.length === 0) {
-      listDiv.innerHTML = `<div style="color:#94a3b8;">No items for sale.</div>`;
+  // Shop UI delegated to ui/shop_panel.js
+  function hideShopPanel() {
+    // Step 1 refactor: delegate to ShopUI if available, keep fallback
+    if (window.ShopUI && typeof ShopUI.hide === "function") {
+      ShopUI.hide();
+      requestDraw();
       return;
     }
-    listDiv.innerHTML = currentShopStock.map((row, idx) => {
-      const name = describeItem(row.item) || "item";
-      const p = row.price | 0;
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">
-        <div>${name} — <span style="color:#93c5fd;">${p}g</span></div>
-        <button data-idx="${idx}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Buy</button>
-      </div>`;
-    }).join("");
-    // Attach handlers
-    Array.from(listDiv.querySelectorAll("button[data-idx]")).forEach(btn => {
-      btn.onclick = () => {
-        const i = Number(btn.getAttribute("data-idx") || -1);
-        shopBuyIndex(i);
-      };
-    });
-  }
-  function hideShopPanel() {
     const el = document.getElementById("shop-panel");
     if (el) el.hidden = true;
     requestDraw();
   }
   function openShopFor(npc) {
-    // Generate a small stock list
-    const stock = [];
-    // A couple of potions
-    stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
-    stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
-    // Some equipment via Items if available
-    try {
-      if (window.Items && typeof Items.createEquipment === "function") {
-        const t1 = Items.createEquipment(1, rng);
-        const t2 = Items.createEquipment(2, rng);
-        if (t1) stock.push({ item: t1, price: priceFor(t1) });
-        if (t2) stock.push({ item: t2, price: priceFor(t2) });
-      } else {
-        // fallback simple gear
-        const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: initialDecay(1) };
-        const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: initialDecay(1) };
-        stock.push({ item: s, price: priceFor(s) });
-        stock.push({ item: a, price: priceFor(a) });
-      }
-    } catch (_) {}
-    currentShopStock = stock;
-    renderShopPanel();
-  }
-  function shopBuyIndex(idx) {
-    if (!Array.isArray(currentShopStock) || idx < 0 || idx >= currentShopStock.length) return;
-    const row = currentShopStock[idx];
-    const cost = row.price | 0;
-    let goldObj = player.inventory.find(i => i && i.kind === "gold");
-    const cur = goldObj && typeof goldObj.amount === "number" ? goldObj.amount : 0;
-    if (cur < cost) {
-      log("You don't have enough gold.", "warn");
-      renderShopPanel();
+    // Step 4: fully delegate to ShopUI
+    if (window.ShopUI && typeof ShopUI.openForNPC === "function") {
+      try { ShopUI.openForNPC(getCtx(), npc); } catch (_) {}
       return;
     }
-    const copy = cloneItem(row.item);
-    // Deduct gold and add item
-    if (!goldObj) { goldObj = { kind: "gold", amount: 0, name: "gold" }; player.inventory.push(goldObj); }
-    goldObj.amount = (goldObj.amount | 0) - cost;
-    if (copy.kind === "potion") {
-      // Merge same potions
-      const same = player.inventory.find(i => i && i.kind === "potion" && (i.heal ?? 0) === (copy.heal ?? 0));
-      if (same) same.count = (same.count || 1) + (copy.count || 1);
-      else player.inventory.push(copy);
-    } else {
-      player.inventory.push(copy);
+    try { log("Shop UI not available.", "warn"); } catch (_) {}
+  }
+  function shopBuyIndex(idx) {
+    // Step 4: fully delegate to ShopUI
+    if (window.ShopUI && typeof ShopUI.buyIndex === "function") {
+      try { ShopUI.buyIndex(getCtx(), idx); } catch (_) {}
     }
-    updateUI();
-    renderInventoryPanel();
-    log(`You bought ${describeItem(copy)} for ${cost} gold.`, "good");
-    renderShopPanel();
   }
 
   // GOD mode actions
@@ -2509,6 +2407,12 @@
           onTownExit: () => requestLeaveTown(),
           // Panels for ESC-close default behavior
           isShopOpen: () => {
+            // Step 2: Prefer ShopUI.isOpen if available; fallback to DOM
+            try {
+              if (window.ShopUI && typeof ShopUI.isOpen === "function") {
+                return !!ShopUI.isOpen();
+              }
+            } catch (_) {}
             try {
               const el = document.getElementById("shop-panel");
               return !!(el && el.hidden === false);
@@ -2706,97 +2610,25 @@
   initWorld();
   setupInput();
 
-  // Mouse/click support on the canvas: click specific containers (chests/corpses) to loot
-  (function setupMouse() {
-    try {
-      const canvasEl = document.getElementById("game");
-      if (!canvasEl) return;
-
-      function hasContainerAt(x, y) {
-        try {
-          return Array.isArray(corpses) && corpses.find(c => c && c.x === x && c.y === y && (!c.looted || (Array.isArray(c.loot) && c.loot.length > 0)));
-        } catch (_) {
-          return null;
-        }
-      }
-
-      canvasEl.addEventListener("click", (ev) => {
-        try {
-          // If UI modals are open, let them handle clicks
-          if (window.UI) {
-            if (typeof UI.isLootOpen === "function" && UI.isLootOpen()) return;
-            if (typeof UI.isInventoryOpen === "function" && UI.isInventoryOpen()) return;
-            if (typeof UI.isGodOpen === "function" && UI.isGodOpen()) return;
-          }
-          // Only act in dungeon and town; for world we ignore clicks for now
-          if (mode !== "dungeon" && mode !== "town") return;
-
-          const rect = canvasEl.getBoundingClientRect();
-          const px = ev.clientX - rect.left;
-          const py = ev.clientY - rect.top;
-
-          // Map pixel to tile coordinates considering camera
-          const tx = Math.floor((camera.x + Math.max(0, px)) / TILE);
-          const ty = Math.floor((camera.y + Math.max(0, py)) / TILE);
-
-          if (!inBounds(tx, ty)) return;
-
-          if (mode === "dungeon") {
-            const targetContainer = hasContainerAt(tx, ty);
-
-            if (targetContainer) {
-              // If clicked on our own tile and there is a container here, loot it
-              if (tx === player.x && ty === player.y) {
-                lootCorpse();
-                return;
-              }
-              // If adjacent to the clicked container, step onto it and loot
-              const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
-              if (md === 1) {
-                const dx = Math.sign(tx - player.x);
-                const dy = Math.sign(ty - player.y);
-                tryMovePlayer(dx, dy);
-                // If we arrived on the container, auto-loot
-                setTimeout(() => {
-                  try {
-                    if (player.x === tx && player.y === ty) lootCorpse();
-                  } catch (_) {}
-                }, 0);
-                return;
-              }
-              // Not adjacent: inform the player
-              log("Move next to the chest/corpse and click it to loot.", "info");
-              return;
-            }
-
-            // If no container was clicked, allow simple adjacent click-to-move QoL
-            const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
-            if (md === 1) {
-              const dx = Math.sign(tx - player.x);
-              const dy = Math.sign(ty - player.y);
-              tryMovePlayer(dx, dy);
-            }
-            return;
-          }
-
-          if (mode === "town") {
-            // In town, click on player's tile performs the context action (talk/exit/loot if chest underfoot)
-            if (tx === player.x && ty === player.y) {
-              doAction();
-              return;
-            }
-            // Adjacent tile click: small QoL move
-            const md = Math.abs(tx - player.x) + Math.abs(ty - player.y);
-            if (md === 1) {
-              const dx = Math.sign(tx - player.x);
-              const dy = Math.sign(ty - player.y);
-              tryMovePlayer(dx, dy);
-            }
-          }
-        } catch (_) {}
+  // Mouse/click support delegated to ui/input_mouse.js
+  try {
+    if (window.InputMouse && typeof InputMouse.init === "function") {
+      InputMouse.init({
+        canvasId: "game",
+        getMode: () => mode,
+        TILE,
+        getCamera: () => camera,
+        getPlayer: () => ({ x: player.x, y: player.y }),
+        inBounds: (x, y) => inBounds(x, y),
+        isWalkable: (x, y) => isWalkable(x, y),
+        getCorpses: () => corpses,
+        getEnemies: () => enemies,
+        tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
+        lootCorpse: () => lootCorpse(),
+        doAction: () => doAction(),
       });
-    } catch (_) {}
-  })();
+    }
+  } catch (_) {}
 
   {
     const GL = modHandle("GameLoop");
@@ -2810,496 +2642,60 @@
     }
   }
 
-  // Expose a minimal API for smoke tests and diagnostics
+  // Expose GameAPI via builder
   try {
-    window.GameAPI = {
-      getMode: () => mode,
-      getWorld: () => world,
-      getPlayer: () => ({ x: player.x, y: player.y }),
-      moveStep: (dx, dy) => { tryMovePlayer(dx, dy); },
-      // Overworld helpers
-      isWalkableOverworld: (x, y) => {
-        if (!world || !world.map) return false;
-        const t = world.map[y] && world.map[y][x];
-        return (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
-      },
-      nearestDungeon: () => {
-        if (!world || !Array.isArray(world.dungeons) || world.dungeons.length === 0) return null;
-        const sx = player.x, sy = player.y;
-        let best = null, bestD = Infinity;
-        for (const d of world.dungeons) {
-          const dd = Math.abs(d.x - sx) + Math.abs(d.y - sy);
-          if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
-        }
-        return best;
-      },
-      nearestTown: () => {
-        if (!world || !Array.isArray(world.towns) || world.towns.length === 0) return null;
-        const sx = player.x, sy = player.y;
-        let best = null, bestD = Infinity;
-        for (const t of world.towns) {
-          const dd = Math.abs(t.x - sx) + Math.abs(t.y - sy);
-          if (dd < bestD) { bestD = dd; best = { x: t.x, y: t.y }; }
-        }
-        return best;
-      },
-      routeTo: (tx, ty) => {
-        // BFS over overworld to build a simple path
-        if (!world || !world.map) return [];
-        const w = world.width, h = world.height;
-        const start = { x: player.x, y: player.y };
-        const q = [start];
-        const prev = new Map();
-        const seen = new Set([`${start.x},${start.y}`]);
-        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-        while (q.length) {
-          const cur = q.shift();
-          if (cur.x === tx && cur.y === ty) break;
-          for (const d of dirs) {
-            const nx = cur.x + d.dx, ny = cur.y + d.dy;
-            const key = `${nx},${ny}`;
-            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-            if (seen.has(key)) continue;
-            if (!window.GameAPI.isWalkableOverworld(nx, ny)) continue;
-            seen.add(key);
-            prev.set(key, cur);
-            q.push({ x: nx, y: ny });
-          }
-        }
-        // reconstruct
-        const path = [];
-        let curKey = `${tx},${ty}`;
-        if (!prev.has(curKey) && !(start.x === tx && start.y === ty)) return [];
-        let cur = { x: tx, y: ty };
-        while (!(cur.x === start.x && cur.y === start.y)) {
-          path.push(cur);
-          const p = prev.get(`${cur.x},${cur.y}`);
-          if (!p) break;
-          cur = p;
-        }
-        path.reverse();
-        return path;
-      },
-      gotoNearestDungeon: async () => {
-        const target = window.GameAPI.nearestDungeon();
-        if (!target) { return true; }
-        const path = window.GameAPI.routeTo(target.x, target.y);
-        if (!path || !path.length) { return false; }
-        for (const step of path) {
-          const dx = Math.sign(step.x - player.x);
-          const dy = Math.sign(step.y - player.y);
-          try { window.GameAPI.moveStep(dx, dy); } catch (_) {}
-          await new Promise(r => setTimeout(r, 60));
-        }
-        return true;
-      },
-      gotoNearestTown: async () => {
-        const target = window.GameAPI.nearestTown();
-        if (!target) { return true; }
-        const path = window.GameAPI.routeTo(target.x, target.y);
-        if (!path || !path.length) { return false; }
-        for (const step of path) {
-          const dx = Math.sign(step.x - player.x);
-          const dy = Math.sign(step.y - player.y);
-          try { window.GameAPI.moveStep(dx, dy); } catch (_) {}
-          await new Promise(r => setTimeout(r, 60));
-        }
-        return true;
-      },
-      enterTownIfOnTile: () => {
-        try {
-          // Use local wrapper to ensure mutated ctx is synced back and UI/redraw updates occur
-          return !!enterTownIfOnTile();
-        } catch (_) { return false; }
-      },
-      enterDungeonIfOnEntrance: () => {
-        try {
-          // Use local wrapper to ensure mutated ctx is synced back and UI/redraw updates occur
-          return !!enterDungeonIfOnEntrance();
-        } catch (_) { return false; }
-      },
-      // Current map pathing helpers (town/dungeon)
-      getEnemies: () => enemies.map(e => ({ x: e.x, y: e.y, hp: e.hp, type: e.type, immobileTurns: e.immobileTurns || 0, bleedTurns: e.bleedTurns || 0 })),
-      // Include index so runner can correlate to NPC internals when needed
-      getNPCs: () => (Array.isArray(npcs) ? npcs.map((n, i) => ({ i, x: n.x, y: n.y, name: n.name })) : []),
-      getTownProps: () => (Array.isArray(townProps) ? townProps.map(p => ({ x: p.x, y: p.y, type: p.type || "" })) : []),
-      getDungeonExit: () => (dungeonExitAt ? { x: dungeonExitAt.x, y: dungeonExitAt.y } : null),
-      getTownGate: () => (townExitAt ? { x: townExitAt.x, y: townExitAt.y } : null),
-      getCorpses: () => (Array.isArray(corpses) ? corpses.map(c => ({ kind: c.kind || "corpse", x: c.x, y: c.y, looted: !!c.looted, lootCount: Array.isArray(c.loot) ? c.loot.length : 0 })) : []),
-      getChestsDetailed: () => {
-        if (!Array.isArray(corpses)) return [];
-        const list = [];
-        for (const c of corpses) {
-          if (c && c.kind === "chest") {
-            const items = Array.isArray(c.loot) ? c.loot : [];
-            const names = items.map(it => {
-              if (!it) return "(null)";
-              if (it.name) return it.name;
-              if (it.kind === "equip") {
-                const stats = [];
-                if (typeof it.atk === "number") stats.push(`+${it.atk} atk`);
-                if (typeof it.def === "number") stats.push(`+${it.def} def`);
-                return `${it.slot || "equip"}${stats.length ? ` (${stats.join(", ")})` : ""}`;
-              }
-              if (it.kind === "potion") return it.name || "potion";
-              return it.kind || "item";
-            });
-            list.push({ x: c.x, y: c.y, items: names });
-          }
-        }
-        return list;
-      },
-      getInventory: () => (Array.isArray(player.inventory) ? player.inventory.map((it, i) => ({ i, kind: it.kind, slot: it.slot, name: it.name, atk: it.atk, def: it.def, decay: it.decay, count: it.count })) : []),
-      getEquipment: () => {
-        const eq = player.equipment || {};
-        function info(it) { return it ? { name: it.name, slot: it.slot, atk: it.atk, def: it.def, decay: it.decay, twoHanded: !!it.twoHanded } : null; }
-        return { left: info(eq.left), right: info(eq.right), head: info(eq.head), torso: info(eq.torso), legs: info(eq.legs), hands: info(eq.hands) };
-      },
-      getStats: () => {
-        try {
-          return { atk: getPlayerAttack(), def: getPlayerDefense(), hp: player.hp, maxHp: player.maxHp, level: player.level };
-        } catch(_) { return { atk: 0, def: 0, hp: player.hp, maxHp: player.maxHp, level: player.level }; }
-      },
-      equipItemAtIndex: (idx) => { try { equipItemByIndex(idx|0); return true; } catch(_) { return false; } },
-      equipItemAtIndexHand: (idx, hand) => { try { equipItemByIndexHand(idx|0, String(hand || "left")); return true; } catch(_) { return false; } },
-      unequipSlot: (slot) => { try { unequipSlot(String(slot)); return true; } catch(_) { return false; } },
-      // Potions
-      getPotions: () => {
-        try {
-          if (!Array.isArray(player.inventory)) return [];
-          const out = [];
-          for (let i = 0; i < player.inventory.length; i++) {
-            const it = player.inventory[i];
-            if (it && it.kind === "potion") {
-              out.push({ i, heal: it.heal, count: it.count, name: it.name });
-            }
-          }
-          return out;
-        } catch(_) { return []; }
-      },
-      drinkPotionAtIndex: (idx) => { try { drinkPotionByIndex(idx|0); return true; } catch(_) { return false; } },
-      getGold: () => {
-        try {
-          const g = player.inventory.find(i => i && i.kind === "gold");
-          return g && typeof g.amount === "number" ? g.amount : 0;
-        } catch(_) { return 0; }
-      },
-      addGold: (amt) => {
-        try {
-          const amount = Number(amt) || 0;
-          if (amount <= 0) return false;
-          let g = player.inventory.find(i => i && i.kind === "gold");
-          if (!g) { g = { kind: "gold", amount: 0, name: "gold" }; player.inventory.push(g); }
-          g.amount += amount;
-          updateUI(); renderInventoryPanel();
-          return true;
-        } catch(_) { return false; }
-      },
-      removeGold: (amt) => {
-        try {
-          const amount = Number(amt) || 0;
-          if (amount <= 0) return true;
-          let g = player.inventory.find(i => i && i.kind === "gold");
-          if (!g) return false;
-          g.amount = Math.max(0, (g.amount|0) - amount);
-          updateUI(); renderInventoryPanel();
-          return true;
-        } catch(_) { return false; }
-      },
-      // Debug helpers for town buildings/props
-      getNPCHomeByIndex: (idx) => {
-        try {
-          if (!Array.isArray(npcs) || idx < 0 || idx >= npcs.length) return null;
-          const n = npcs[idx];
-          const b = n && n._home && n._home.building ? n._home.building : null;
-          if (!b) return null;
-          const propsIn = (Array.isArray(townProps) ? townProps.filter(p => (p.x > b.x && p.x < b.x + b.w - 1 && p.y > b.y && p.y < b.y + b.h - 1)) : []).map(p => ({ x: p.x, y: p.y, type: p.type || "" }));
-          return { building: { x: b.x, y: b.y, w: b.w, h: b.h, door: b.door ? { x: b.door.x, y: b.door.y } : null }, props: propsIn };
-        } catch (_) { return null; }
-      },
-      equipBestFromInventory: () => {
-        // Try to equip any better items from inventory using existing helper; return names equipped
-        const equipped = [];
-        if (!Array.isArray(player.inventory) || player.inventory.length === 0) return equipped;
-        // Iterate a snapshot since equip may mutate inventory
-        const snap = player.inventory.slice(0);
-        for (const it of snap) {
-          if (it && it.kind === "equip") {
-            if (equipIfBetter(it)) {
-              // Remove equipped item from inventory snapshot? equipIfBetter does not mutate inventory by default; ensure no duping
-              // Best-effort: if inventory still contains same object, remove one instance
-              const idx = player.inventory.indexOf(it);
-              if (idx !== -1) player.inventory.splice(idx, 1);
-              equipped.push(it.name || "equip");
-            }
-          }
-        }
-        return equipped;
-      },
-      // Shops/time/perf helpers for test runner
-      getShops: () => (Array.isArray(shops) ? shops.map(s => ({ x: s.x, y: s.y, name: s.name || "", alwaysOpen: !!s.alwaysOpen, openMin: s.openMin, closeMin: s.closeMin })) : []),
-      isShopOpenNowFor: (shop) => {
-        try { return isShopOpenNow(shop); } catch (_) { return false; }
-      },
-      getShopSchedule: (shop) => {
-        try { return shopScheduleStr(shop); } catch (_) { return ""; }
-      },
-      // Town home route diagnostic (programmatic access for smoke tests)
-      checkHomeRoutes: () => {
-        try {
-          if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
-            return TownAI.checkHomeRoutes(getCtx()) || null;
-          }
-        } catch (_) {}
-        return null;
-      },
-      getClock: () => getClock(),
-      advanceMinutes: (mins) => { try { advanceTimeMinutes((Number(mins) || 0) | 0); updateUI(); requestDraw(); return true; } catch (_) { return false; } },
-      restUntilMorning: () => { try { restUntilMorning(); } catch (_) {} },
-      restAtInn: () => { try { restAtInn(); } catch (_) {} },
-      getPerf: () => {
-        try { return { lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }; } catch (_) { return { lastTurnMs: 0, lastDrawMs: 0 }; }
-      },
-      getDecalsCount: () => Array.isArray(decals) ? decals.length : 0,
-      returnToWorldIfAtExit: () => {
-        try {
-          return !!returnToWorldIfAtExit();
-        } catch(_) { return false; }
-      },
-      // Crit/status test helpers
-      setAlwaysCrit: (v) => { try { setAlwaysCrit(!!v); return true; } catch(_) { return false; } },
-      setCritPart: (part) => { try { setCritPart(String(part || "")); return true; } catch(_) { return false; } },
-      getPlayerStatus: () => { try { return { hp: player.hp, maxHp: player.maxHp, dazedTurns: player.dazedTurns | 0 }; } catch(_) { return { hp: 0, maxHp: 0, dazedTurns: 0 }; } },
-      setPlayerDazedTurns: (n) => { try { player.dazedTurns = Math.max(0, (Number(n) || 0) | 0); return true; } catch(_) { return false; } },
-      // DEV/test-only: clamp an enemy's HP by coordinates; returns true if found and set.
-      setEnemyHpAt: (x, y, hp) => {
-        try {
-          const nx = (Number(x) || 0) | 0;
-          const ny = (Number(y) || 0) | 0;
-          const val = Math.max(1, Number(hp) || 1);
-          const e = enemies.find(en => (en.x|0) === nx && (en.y|0) === ny);
-          if (!e || typeof e.hp !== "number") return false;
-          e.hp = val;
-          updateUI(); requestDraw();
-          return true;
-        } catch(_) { return false; }
-      },
-      isWalkableDungeon: (x, y) => inBounds(x, y) && isWalkable(x, y),
-      // Visibility/FOV helpers for smoketest
-      getVisibilityAt: (x, y) => {
-        try {
-          if (!inBounds(x|0, y|0)) return false;
-          return !!(visible[y|0] && visible[y|0][x|0]);
-        } catch(_) { return false; }
-      },
-      getTiles: () => ({ WALL: TILES.WALL, FLOOR: TILES.FLOOR, DOOR: TILES.DOOR, STAIRS: TILES.STAIRS, WINDOW: TILES.WINDOW }),
-      getTile: (x, y) => {
-        try {
-          if (!inBounds(x|0, y|0)) return null;
-          return map[y|0][x|0];
-        } catch(_) { return null; }
-      },
-      hasEnemy: (x, y) => {
-        try {
-          if (occupancy && typeof occupancy.hasEnemy === "function") return !!occupancy.hasEnemy(x|0, y|0);
-          return enemies.some(e => (e.x|0) === (x|0) && (e.y|0) === (y|0));
-        } catch(_) { return false; }
-      },
-      hasNPC: (x, y) => {
-        try {
-          if (occupancy && typeof occupancy.hasNPC === "function") return !!occupancy.hasNPC(x|0, y|0);
-          return npcs.some(n => (n.x|0) === (x|0) && (n.y|0) === (y|0));
-        } catch(_) { return false; }
-      },
-      hasLOS: (x0, y0, x1, y1) => {
-        try {
-          const c = getCtx();
-          if (c && c.los && typeof c.los.hasLOS === "function") return !!c.los.hasLOS(c, x0|0, y0|0, x1|0, y1|0);
-        } catch(_) {}
-        return false;
-      },
-      // GOD helpers for smoketest fallbacks
-      spawnEnemyNearby: (count = 1) => {
-        try { godSpawnEnemyNearby((Number(count) || 0) | 0 || 1); return true; } catch(_) { return false; }
-      },
-      spawnItems: (count = 3) => {
-        try { godSpawnItems((Number(count) || 0) | 0 || 3); return true; } catch(_) { return false; }
-      },
-      addPotionToInventory: (heal, name) => {
-        try { addPotionToInventory((Number(heal) || 0) || 3, String(name || "")); return true; } catch(_) { return false; }
-      },
-      // Test helper: spawn a chest near the player in dungeon mode (best-effort).
-      // Returns true if at least one chest was placed.
-      spawnChestNearby: (count = 1) => {
-        try {
-          const n = Math.max(1, (Number(count) || 0) | 0);
-          if (mode !== "dungeon") return false;
-          const isFreeFloor = (x, y) => {
-            if (!inBounds(x, y)) return false;
-            if (map[y][x] !== TILES.FLOOR) return false;
-            if (player.x === x && player.y === y) return false;
-            if (enemies.some(e => e.x === x && e.y === y)) return false;
-            return true;
-          };
-          const pickNearby = () => {
-            // Try a local radius first
-            for (let i = 0; i < 60; i++) {
-              const dx = randInt(-4, 4);
-              const dy = randInt(-4, 4);
-              const x = player.x + dx, y = player.y + dy;
-              if (isFreeFloor(x, y)) return { x, y };
-            }
-            // Fallback: any free floor
-            for (let y = 0; y < map.length; y++) {
-              for (let x = 0; x < (map[0] ? map[0].length : 0); x++) {
-                if (isFreeFloor(x, y)) return { x, y };
-              }
-            }
-            return null;
-          };
-          let made = 0;
-          for (let i = 0; i < n; i++) {
-            const spot = pickNearby();
-            if (!spot) break;
-            const loot = generateLoot("chest") || [];
-            corpses.push({ x: spot.x, y: spot.y, kind: "chest", looted: loot.length === 0, loot });
-            made++;
-            try { log(`GOD: Spawned chest at (${spot.x},${spot.y}).`, "notice"); } catch (_) {}
-          }
-          if (made > 0) { requestDraw(); return true; }
-          return false;
-        } catch (_) { return false; }
-      },
-
-      routeToDungeon: (tx, ty) => {
-        // BFS on current map (works for both town and dungeon as it uses isWalkable)
-        const w = map[0] ? map[0].length : 0;
-        const h = map.length;
-        if (w === 0 || h === 0) return [];
-        const start = { x: player.x, y: player.y };
-        const q = [start];
-        const prev = new Map();
-        const seen = new Set([`${start.x},${start.y}`]);
-        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-        while (q.length) {
-          const cur = q.shift();
-          if (cur.x === tx && cur.y === ty) break;
-          for (const d of dirs) {
-            const nx = cur.x + d.dx, ny = cur.y + d.dy;
-            const key = `${nx},${ny}`;
-            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-            if (seen.has(key)) continue;
-            if (!window.GameAPI.isWalkableDungeon(nx, ny)) continue;
-            seen.add(key);
-            prev.set(key, cur);
-            q.push({ x: nx, y: ny });
-          }
-        }
-        const path = [];
-        let curKey = `${tx},${ty}`;
-        if (!prev.has(curKey) && !(start.x === tx && start.y === ty)) return [];
-        let cur = { x: tx, y: ty };
-        while (!(cur.x === start.x && cur.y === start.y)) {
-          path.push(cur);
-          const p = prev.get(`${cur.x},${cur.y}`);
-          if (!p) break;
-          cur = p;
-        }
-        path.reverse();
-        return path;
-      },
-
-      // DEV/test-only: teleport player to a target tile and refresh state (camera/FOV/UI/redraw).
-      // opts: { ensureWalkable: true, fallbackScanRadius: 6 }
-      teleportTo: (tx, ty, opts) => {
-        try {
-          const x = (Number(tx) || 0) | 0;
-          const y = (Number(ty) || 0) | 0;
-          const ensureWalkable = !opts || (opts.ensureWalkable !== false);
-          const fallbackR = (opts && opts.fallbackScanRadius != null) ? (opts.fallbackScanRadius | 0) : 6;
-
-          const curMode = mode;
-          const canWorld = () => {
-            if (!world || !world.map) return false;
-            const t = world.map[y] && world.map[y][x];
-            return (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
-          };
-          const canLocal = () => {
-            if (!inBounds(x, y)) return false;
-            if (!ensureWalkable) return true;
-            if (!isWalkable(x, y)) return false;
-            // avoid enemies/NPCs on the exact tile
-            if (curMode === "dungeon" && enemies.some(e => e.x === x && e.y === y)) return false;
-            if (curMode === "town") {
-              const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(x, y) : (Array.isArray(npcs) && npcs.some(n => n.x === x && n.y === y));
-              if (npcBlocked) return false;
-            }
-            return true;
-          };
-
-          let ok = false;
-          if (curMode === "world") {
-            ok = canWorld();
-          } else {
-            ok = canLocal();
-          }
-
-          // If target is blocked, scan a small radius for a free alternative
-          if (!ok && ensureWalkable) {
-            const r = Math.max(1, fallbackR | 0);
-            let best = null, bestD = Infinity;
-            for (let dy = -r; dy <= r; dy++) {
-              for (let dx = -r; dx <= r; dx++) {
-                const nx = x + dx, ny = y + dy;
-                const md = Math.abs(dx) + Math.abs(dy);
-                if (md > r) continue;
-                if (curMode === "world") {
-                  if (!world || !world.map) continue;
-                  const t = world.map[ny] && world.map[ny][nx];
-                  const walk = (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
-                  if (walk && md < bestD) { best = { x: nx, y: ny }; bestD = md; }
-                } else {
-                  if (!inBounds(nx, ny)) continue;
-                  // block entity-occupied
-                  if (curMode === "dungeon" && enemies.some(e => e.x === nx && e.y === ny)) continue;
-                  if (curMode === "town") {
-                    const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(nx, ny) : (Array.isArray(npcs) && npcs.some(n => n.x === nx && n.y === ny));
-                    if (npcBlocked) continue;
-                  }
-                  if (isWalkable(nx, ny) && md < bestD) { best = { x: nx, y: ny }; bestD = md; }
-                }
-              }
-            }
-            if (best) { player.x = best.x; player.y = best.y; ok = true; }
-          }
-
-          if (!ok) {
-            // If we didn't relax, try setting anyway (for testing blocked tiles)
-            if (!ensureWalkable) { player.x = x; player.y = y; ok = true; }
-          } else {
-            if (curMode !== "world") { player.x = (player.x | 0); player.y = (player.y | 0); } // ensure ints
-            if (curMode === "world") { player.x = x; player.y = y; }
-            if (curMode !== "world" && !(player.x === x && player.y === y)) {
-              // If ok was from fallback, the assignment already occurred above
-            } else {
-              player.x = x; player.y = y;
-            }
-          }
-
-          if (ok) {
-            updateCamera();
-            // Invalidate FOV cache to force recompute
-            _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-            recomputeFOV();
-            updateUI();
-            requestDraw();
-          }
-          return !!ok;
-        } catch (_) {
-          return false;
-        }
-      }
-    };
+    if (window.GameAPIBuilder && typeof GameAPIBuilder.create === "function") {
+      window.GameAPI = GameAPIBuilder.create({
+        getMode: () => mode,
+        getWorld: () => world,
+        getPlayer: () => player,
+        getEnemies: () => enemies,
+        getNPCs: () => npcs,
+        getTownProps: () => townProps,
+        getCorpses: () => corpses,
+        getShops: () => shops,
+        getDungeonExit: () => dungeonExitAt,
+        getTownGate: () => townExitAt,
+        getMap: () => map,
+        getVisible: () => visible,
+        getCamera: () => camera,
+        getOccupancy: () => occupancy,
+        getDecals: () => decals,
+        getPerfStats: () => ({ lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }),
+        TILES,
+        tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
+        enterTownIfOnTile: () => enterTownIfOnTile(),
+        enterDungeonIfOnEntrance: () => enterDungeonIfOnEntrance(),
+        isWalkable: (x, y) => isWalkable(x, y),
+        inBounds: (x, y) => inBounds(x, y),
+        updateCamera: () => updateCamera(),
+        recomputeFOV: () => recomputeFOV(),
+        requestDraw: () => requestDraw(),
+        updateUI: () => updateUI(),
+        renderInventoryPanel: () => renderInventoryPanel(),
+        equipItemByIndex: (idx) => equipItemByIndex(idx),
+        equipItemByIndexHand: (idx, hand) => equipItemByIndexHand(idx, hand),
+        unequipSlot: (slot) => unequipSlot(slot),
+        drinkPotionByIndex: (idx) => drinkPotionByIndex(idx),
+        addPotionToInventory: (heal, name) => addPotionToInventory(heal, name),
+        getPlayerAttack: () => getPlayerAttack(),
+        getPlayerDefense: () => getPlayerDefense(),
+        isShopOpenNow: (shop) => isShopOpenNow(shop),
+        shopScheduleStr: (shop) => shopScheduleStr(shop),
+        advanceTimeMinutes: (mins) => advanceTimeMinutes(mins),
+        restUntilMorning: () => restUntilMorning(),
+        restAtInn: () => restAtInn(),
+        returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
+        setAlwaysCrit: (v) => setAlwaysCrit(v),
+        setCritPart: (part) => setCritPart(part),
+        godSpawnEnemyNearby: (count) => godSpawnEnemyNearby(count),
+        godSpawnItems: (count) => godSpawnItems(count),
+        generateLoot: (source) => generateLoot(source),
+        getClock: () => getClock(),
+        getCtx: () => getCtx(),
+        log: (msg, type) => log(msg, type),
+      });
+    }
   } catch (_) {}
 
 })();

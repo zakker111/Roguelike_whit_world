@@ -125,7 +125,7 @@
         record(false, "Gold ops failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Bump-buy near shop (NPC adjacent to a shop)
+      // Bump-buy near shop (NPC adjacent to a shop) — teleport near keeper first, then route adj and bump
       try {
         var npcs = has(window.GameAPI.getNPCs) ? (window.GameAPI.getNPCs() || []) : [];
         if (shops && shops.length && npcs && npcs.length && has(window.GameAPI.getGold)) {
@@ -140,17 +140,34 @@
           }
           if (targetNPC) {
             var gBefore = window.GameAPI.getGold();
-            // route to adjacent tile to NPC and then bump
-            var adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}].map(v => ({ x: targetNPC.x + v.dx, y: targetNPC.y + v.dy }));
-            var path = [];
-            // Prefer movement helper
+
+            // 1) Teleport to a safe tile near the keeper (avoid walls/NPC occupancy)
+            var teleportedNear = false;
+            if (TP && typeof TP.teleportTo === "function") {
+              var adjTiles = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
+                .map(v => ({ x: targetNPC.x + v.dx, y: targetNPC.y + v.dy }));
+              for (var t = 0; t < adjTiles.length && !teleportedNear; t++) {
+                try {
+                  teleportedNear = !!(await TP.teleportTo(adjTiles[t].x, adjTiles[t].y, { ensureWalkable: true, fallbackScanRadius: 3 }));
+                } catch (_) { teleportedNear = false; }
+              }
+              // If adjacency is densely blocked, allow a broader safe fallback near the keeper
+              if (!teleportedNear) {
+                try { teleportedNear = !!(await TP.teleportTo(targetNPC.x, targetNPC.y, { ensureWalkable: true, fallbackScanRadius: 4 })); } catch (_) {}
+              }
+            }
+
+            // 2) Route to adjacency and bump toward keeper
             var routedAdj = false;
             try {
               if (MV && typeof MV.routeAdjTo === "function") {
                 routedAdj = await MV.routeAdjTo(targetNPC.x, targetNPC.y, { timeoutMs: (CONFIG.timeouts && CONFIG.timeouts.route) || 2500, stepMs: 100 });
               }
             } catch (_) {}
+            // Fallback precise routing to any adjacent tile
             if (!routedAdj) {
+              var adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}].map(v => ({ x: targetNPC.x + v.dx, y: targetNPC.y + v.dy }));
+              var path = [];
               for (var a = 0; a < adj.length; a++) {
                 var p = has(window.GameAPI.routeToDungeon) ? window.GameAPI.routeToDungeon(adj[a].x, adj[a].y) : [];
                 if (p && p.length) { path = p; break; }
@@ -159,17 +176,22 @@
               for (var k = 0; k < path.length; k++) {
                 var step = path[k];
                 if (budget.exceeded()) { hadTimeout = true; recordSkip("Routing to shopkeeper timed out"); break; }
-                var dx = Math.sign(step.x - window.GameAPI.getPlayer().x);
-                var dy = Math.sign(step.y - window.GameAPI.getPlayer().y);
+                var plNow = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: step.x, y: step.y };
+                var dx = Math.sign(step.x - plNow.x);
+                var dy = Math.sign(step.y - plNow.y);
                 key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                 await sleep(100);
               }
             }
-            // bump
-            var dxb = Math.sign(targetNPC.x - window.GameAPI.getPlayer().x);
-            var dyb = Math.sign(targetNPC.y - window.GameAPI.getPlayer().y);
+
+            // bump toward keeper
+            var pl = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: targetNPC.x, y: targetNPC.y };
+            var dxb = Math.sign(targetNPC.x - pl.x);
+            var dyb = Math.sign(targetNPC.y - pl.y);
             key(dxb === -1 ? "ArrowLeft" : dxb === 1 ? "ArrowRight" : (dyb === -1 ? "ArrowUp" : "ArrowDown"));
             await sleep(220);
+
+            // Verify purchase/interaction effect
             var gAfter = window.GameAPI.getGold();
             var inv = has(window.GameAPI.getInventory) ? (window.GameAPI.getInventory() || []) : [];
             var gotItem = inv && inv.length ? true : false;
@@ -185,10 +207,28 @@
         record(false, "Bump-buy failed: " + (e && e.message ? e.message : String(e)));
       }
 
-      // Route to first shop and interact (press G), then Esc-close UI
+      // Route to first shop and interact (press G), then Esc-close UI — teleport near shop first to avoid long routes
       try {
         if (shops && shops.length) {
           var shop = shops[0];
+
+          // Teleport to a safe adjacent tile near the shop (avoid walls/NPCs)
+          var teleportedNearShop = false;
+          if (TP && typeof TP.teleportTo === "function") {
+            var adjShopTiles = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}]
+              .map(v => ({ x: shop.x + v.dx, y: shop.y + v.dy }));
+            for (var ts = 0; ts < adjShopTiles.length && !teleportedNearShop; ts++) {
+              try {
+                teleportedNearShop = !!(await TP.teleportTo(adjShopTiles[ts].x, adjShopTiles[ts].y, { ensureWalkable: true, fallbackScanRadius: 3 }));
+              } catch (_) { teleportedNearShop = false; }
+            }
+            // If adjacency is densely blocked, allow a broader safe fallback near the shop
+            if (!teleportedNearShop) {
+              try { teleportedNearShop = !!(await TP.teleportTo(shop.x, shop.y, { ensureWalkable: true, fallbackScanRadius: 4 })); } catch (_) {}
+            }
+          }
+
+          // Route to the exact shop tile after teleporting near it
           var routedS = false;
           try {
             if (MV && typeof MV.routeTo === "function") {
@@ -201,8 +241,9 @@
             for (var si = 0; si < pathS.length; si++) {
               var st = pathS[si];
               if (budgetS.exceeded()) { hadTimeout = true; recordSkip("Routing to shop timed out"); break; }
-              var dx = Math.sign(st.x - window.GameAPI.getPlayer().x);
-              var dy = Math.sign(st.y - window.GameAPI.getPlayer().y);
+              var plNowS = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: st.x, y: st.y };
+              var dx = Math.sign(st.x - plNowS.x);
+              var dy = Math.sign(st.y - plNowS.y);
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(100);
             }
@@ -231,14 +272,16 @@
                 for (var pa = 0; pa < pathA.length; pa++) {
                   var stp = pathA[pa];
                   if (budA.exceeded()) break;
-                  var dxA = Math.sign(stp.x - window.GameAPI.getPlayer().x);
-                  var dyA = Math.sign(stp.y - window.GameAPI.getPlayer().y);
+                  var plNowA = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: stp.x, y: stp.y };
+                  var dxA = Math.sign(stp.x - plNowA.x);
+                  var dyA = Math.sign(stp.y - plNowA.y);
                   key(dxA === -1 ? "ArrowLeft" : dxA === 1 ? "ArrowRight" : (dyA === -1 ? "ArrowUp" : "ArrowDown"));
                   await sleep(90);
                 }
               }
-              var dxB = Math.sign(keeper.x - window.GameAPI.getPlayer().x);
-              var dyB = Math.sign(keeper.y - window.GameAPI.getPlayer().y);
+              var plB = has(window.GameAPI.getPlayer) ? window.GameAPI.getPlayer() : { x: keeper.x, y: keeper.y };
+              var dxB = Math.sign(keeper.x - plB.x);
+              var dyB = Math.sign(keeper.y - plB.y);
               key(dxB === -1 ? "ArrowLeft" : dxB === 1 ? "ArrowRight" : (dyB === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(160);
               record(true, "Bump near shopkeeper: OK");
@@ -247,25 +290,23 @@
             }
           } catch (_) {}
 
-          var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
-          key("g");
-          await sleep(Math.min(ib.remain(), 220));
-          // Esc closes Shop UI fallback panel
+          // Check if shop UI opened via bump; close if open (no 'g' used)
           try {
             var open = !!(document.getElementById("shop-panel") && document.getElementById("shop-panel").hidden === false);
             if (open) {
+              record(true, "Shop UI opened by bump (no G)");
               key("Escape");
               var closed = await waitUntilTrue(function () { var el = document.getElementById("shop-panel"); return !!(el && el.hidden === true); }, 600, 60, sleep);
               record(closed, "Shop UI closes with Esc");
             } else {
-              record(true, "Shop UI not open (no Esc-close needed)");
+              record(true, "Shop UI did not open via bump (no G)");
             }
           } catch (_) {}
           // Optional buy/sell
           var didAny = false;
           if (has(window.GameAPI.shopBuyFirst)) { var okB = !!window.GameAPI.shopBuyFirst(); record(okB, "Shop buy (first item)"); didAny = true; }
           if (has(window.GameAPI.shopSellFirst)) { var okS = !!window.GameAPI.shopSellFirst(); record(okS, "Shop sell (first inventory item)"); didAny = true; }
-          if (!didAny) record(true, "Interacted at shop (G). No programmatic buy/sell API; skipped.");
+          if (!didAny) record(true, "Interacted at shop by bump (no G). No programmatic buy/sell API; skipped.");
         }
       } catch (e) {
         record(false, "Shop interaction failed: " + (e && e.message ? e.message : String(e)));

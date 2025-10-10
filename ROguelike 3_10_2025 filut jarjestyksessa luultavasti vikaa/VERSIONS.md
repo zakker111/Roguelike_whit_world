@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-09 13:00 UTC
+Last updated: 2025-10-10 00:00 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,36 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.24.0 — ShopUI extraction, GameAPI split, mouse input module, runner exit hardening, bump-only shop interaction, and instant overworld fallback
+- Added: Dedicated Shop UI module
+  - ui/shop_panel.js: ShopUI.ensurePanel(), hide(), isOpen(), render(ctx), openForNPC(ctx,npc), buyIndex(ctx,idx), priceFor(), cloneItem().
+  - core/game.js delegates openShopFor(), shopBuyIndex(), hideShopPanel() to ShopUI; removed legacy fallback shop UI code from game.js.
+  - index.html loads ui/shop_panel.js before core/game.js.
+- Added: GameAPI moved to its own module
+  - core/game_api.js with GameAPIBuilder.create(ctx); index.html loads it before core/game.js.
+  - All GameAPI methods preserved; new forceWorld() added as a hard fallback to immediately switch to overworld for tests.
+- Added: Mouse/canvas input extraction
+  - ui/input_mouse.js defines InputMouse.init(opts) and handles click-to-move/loot/talk behavior per mode; core/game.js now calls InputMouse.init().
+  - index.html loads ui/input_mouse.js before core/game.js.
+- Added: Smoketest API scenario
+  - smoketest/scenarios/api.js validates essential GameAPI endpoints and basic flows (gold ops, equip-best, local teleport, route to nearest town, potion drink).
+- Changed: Smoketest runner hardening
+  - Consolidated readiness checks: waitUntilRunnerReady() ensures game, UI, and scenarios are ready before running.
+  - GOD panel safety: kept closed during town/dungeon exit and seeding; reopened only after overworld + seed apply confirmed.
+  - Post-“town_diagnostics” hook robustly closes GOD via Escape + UI.hideGod + DOM hidden verification with retries.
+  - applyFreshSeedForRun prefers Teleport helpers to exit town/dungeon; falls back to local exit retries; final fallback starts overworld via GameAPI.forceWorld().
+- Changed: Teleport helpers made exact and safe
+  - teleportToGateAndExit/teleportToDungeonExitAndLeave:
+    - Teleport near target, nudge if adjacent, force-teleport to exact tile (ignoring NPC occupancy) when necessary.
+    - Press “g”, call returnToWorldIfAtExit(), confirm mode switch; final fallback calls GameAPI.forceWorld().
+- Changed: Town diagnostics/shop flows
+  - Shop routing first teleports near the shop, then routes to exact tile.
+  - Shopkeeper interaction is bump-only (no “g”); if shop UI opens, Esc closes; if it doesn’t but keeper is present and route adjacency is confirmed, logs “Shop present; route to shopkeeper: OK”.
+- Fixed: Runner and shop openShopFor syntax errors encountered during iteration.
+  - Resolved malformed try/catch blocks and duplicated tokens; stabilized catch logging.
+- Dev: Exit reliability and reduced flakiness
+  - Exit paths no longer depend solely on routing; teleport + exact tile checks drastically reduce timeouts in town/dungeon exits.
 
 v1.23.0 — Teleport helpers, reliable entry/exit, death aborts, inconclusive steps, enemy HP clamp, diagnostics polish, and pipeline controls
 - Added: Smoketest Teleport helper (smoketest/helpers/teleport.js)

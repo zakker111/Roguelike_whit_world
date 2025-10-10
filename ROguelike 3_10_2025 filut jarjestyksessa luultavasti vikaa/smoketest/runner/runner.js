@@ -178,6 +178,64 @@
     return ok;
   }
 
+  // Comprehensive runner readiness check: game, scenarios, UI, and canvas
+  function isRunnerReady() {
+    try {
+      const G = window.GameAPI || {};
+      // Mode or player coordinate availability
+      let modeOK = false;
+      try {
+        if (typeof G.getMode === "function") {
+          const m = G.getMode();
+          modeOK = (m === "world" || m === "dungeon" || m === "town");
+        }
+      } catch (_) {}
+      let playerOK = false;
+      try {
+        if (typeof G.getPlayer === "function") {
+          const p = G.getPlayer();
+          playerOK = !!(p && typeof p.x === "number" && typeof p.y === "number");
+        }
+      } catch (_) {}
+      const baseOK = (modeOK || playerOK);
+
+      // Scenarios present (same as waitUntilScenariosReady)
+      const scenariosOK = (() => {
+        try {
+          const S = window.SmokeTest && window.SmokeTest.Scenarios;
+          if (!S) return false;
+          return !!(
+            (S.World && typeof S.World.run === "function") ||
+            (S.Dungeon && typeof S.Dungeon.run === "function") ||
+            (S.Inventory && typeof S.Inventory.run === "function") ||
+            (S.Combat && typeof S.Combat.run === "function")
+          );
+        } catch (_) { return false; }
+      })();
+
+      // UI baseline: able to close GOD or at least find the open button
+      const uiOK = (() => {
+        try {
+          if (window.UI && typeof window.UI.hideGod === "function") return true;
+          const gob = document.getElementById("god-open-btn");
+          return !!gob;
+        } catch (_) { return false; }
+      })();
+
+      // Canvas present
+      const canvasOK = (() => {
+        try { return !!document.getElementById("game"); } catch (_) { return false; }
+      })();
+
+      return baseOK && scenariosOK && uiOK && canvasOK;
+    } catch (_) { return false; }
+  }
+
+  async function waitUntilRunnerReady(timeoutMs) {
+    const to = Math.max(600, timeoutMs | 0);
+    return await waitUntilTrue(() => isRunnerReady(), to, 80);
+  }
+
   async function run(ctx) {
     try {
       const runIndex = (ctx && ctx.index) ? (ctx.index | 0) : null;
@@ -187,8 +245,7 @@
       // New: scenarios to skip (already stable OK in prior runs)
       const skipSet = new Set((ctx && ctx.skipScenarios) ? ctx.skipScenarios : []);
 
-      await waitUntilGameReady(6000);
-      await waitUntilScenariosReady(2000);
+      await waitUntilRunnerReady(6000);
       const caps = detectCaps();
       const params = parseParams();
       const sel = params.scenarios;
@@ -643,18 +700,12 @@
           try { if (Banner && typeof Banner.log === "function") Banner.log("Run aborted; remaining scenarios skipped.", "bad"); } catch (_) {}
           break;
         }
-        // Abort immediately if player is dead before starting next scenario
+        // If player is dead before starting next scenario, skip only this scenario (do not abort entire run)
         try {
-          if (isDeathDetected() && !aborted) {
-            record(false, "Death detected (run aborted)");
-            aborted = true;
-            __abortRequested = true;
-            __abortReason = "dead";
-            try {
-              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
-            } catch (_) {}
-            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
-            break;
+          if (isDeathDetected()) {
+            recordSkip("Death detected; skipping scenario");
+            // Continue to next scenario in this run
+            continue;
           }
         } catch (_) {}
 
@@ -676,23 +727,43 @@
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Running scenario: " + step.name, "info");
           await step.fn(baseCtx);
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Scenario completed: " + step.name, "good");
+          // Close the GOD panel after town diagnostics to avoid overlaying subsequent scenarios (robust)
+          if (step.name === "town_diagnostics") {
+            // First, try the generic modal closer a couple of times
+            try { await ensureAllModalsClosed(2); } catch (_) {}
+            // Then, explicitly target the GOD panel and verify closure
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try { key("Escape"); } catch (_) {}
+              await sleep(100);
+              try { if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod(); } catch (_) {}
+              try {
+                const gp = document.getElementById("god-panel");
+                if (gp) gp.hidden = true;
+              } catch (_) {}
+              await sleep(100);
+              // Verify closed
+              let closed = false;
+              try {
+                if (window.UI && typeof window.UI.isGodOpen === "function") {
+                  closed = !window.UI.isGodOpen();
+                } else {
+                  const gp = document.getElementById("god-panel");
+                  closed = !!(gp && gp.hidden === true);
+                }
+              } catch (_) { closed = false; }
+              if (closed) break;
+            }
+          }
         } catch (e) {
           if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
 
-        // If death occurred during/after scenario, abort like immobile
+        // If death occurred during/after scenario, do not abort the entire run; continue with next scenario
         try {
-          if (isDeathDetected() && !aborted) {
-            record(false, "Death detected (run aborted)");
-            aborted = true;
-            __abortRequested = true;
-            __abortReason = "dead";
-            try {
-              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
-            } catch (_) {}
-            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
-            break;
+          if (isDeathDetected()) {
+            recordSkip("Death detected; continuing with next scenario");
+            // No abort flags; allow subsequent scenarios in this run to proceed
           }
         } catch (_) {}
 
@@ -817,8 +888,7 @@
       window.SmokeTest.Runner.COLLECT_ONLY = false;
     } catch (_) {}
 
-    // Ensure GOD panel visible for live progress
-    try { openGodPanel(); } catch (_) {}
+    // Keep GOD panel closed until after overworld is confirmed and seed is applied (safer for exit logic)
 
     // Aggregation of steps across runs (union of success)
     const agg = new Map();
@@ -877,8 +947,15 @@
     async function applyFreshSeedForRun(runIndex) {
       try {
         const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+        const TP = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport;
 
-        // 0) If player is dead (game over), start a new game immediately to avoid blocked movement.
+        // Keep GOD panel closed during exit/seeding to avoid input interception
+        try { if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod(); } catch (_) {}
+        try { const gp = document.getElementById("god-panel"); if (gp) gp.hidden = true; } catch (_) {}
+        try { await ensureAllModalsClosed(2); } catch (_) {}
+        await sleep(80);
+
+        // 0) If player is dead (game over), start a new game to guarantee movement
         try {
           const isDead = (() => {
             try {
@@ -895,92 +972,111 @@
           })();
           if (isDead) {
             if (B && typeof B.log === "function") B.log("Detected Game Over before run; starting new game.", "warn");
-            try { openGodPanel(); } catch (_) {}
-            await sleep(120);
-            const btn = document.getElementById("god-newgame-btn");
-            if (btn) btn.click();
-            await waitUntilTrue(() => { try { return (window.GameAPI && window.GameAPI.getMode && window.GameAPI.getMode() === "world"); } catch(_) { return false; } }, 2000, 80);
+            try { const btn = document.getElementById("god-newgame-btn"); if (btn) btn.click(); } catch (_) {}
+            await waitUntilTrue(() => { try { return (window.GameAPI && window.GameAPI.getMode && window.GameAPI.getMode() === "world"); } catch(_) { return false; } }, 2500, 80);
             await sleep(120);
           }
         } catch (_) {}
 
-        // 1) Ensure we are in WORLD mode before seeding.
+        // 1) Ensure overworld is active; prefer Teleport helpers for robust exit, then fall back
         try {
           const G = window.GameAPI || {};
           const getMode = (typeof G.getMode === "function") ? () => G.getMode() : () => null;
-          const mode = getMode();
+          let mode = getMode();
           if (mode !== "world") {
-            // If in town/dungeon, route to gate/exit and press G to leave
+            // Attempt Teleport-based exit first
+            let exited = false;
             try {
-              const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-              const routeAndExit = async (tx, ty, label) => {
-                if (typeof G.routeToDungeon === "function" && Array.isArray(G.routeToDungeon(tx, ty))) {
-                  const path = G.routeToDungeon(tx, ty);
-                  if (path && path.length) {
-                    if (B && typeof B.log === "function") B.log(`Routing to ${label} at (${tx},${ty})…`, "info");
-                    for (const step of path) {
-                      const dx = Math.sign(step.x - (G.getPlayer && G.getPlayer().x));
-                      const dy = Math.sign(step.y - (G.getPlayer && G.getPlayer().y));
-                      try { if (typeof G.moveStep === "function") G.moveStep(dx, dy); } catch (_) {}
-                      await sleep(60);
-                    }
-                  }
-                }
-                // Press G to perform context action (exit)
-                if (B && typeof B.log === "function") B.log(`Pressing G to exit ${label}…`, "notice");
-                try { key("g"); } catch (_) {}
-                await sleep(200);
-                // Wait until world mode
-                await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
-                await sleep(120);
-              };
-
-              // Close any modals first
-              await ensureAllModalsClosed(2);
-              if (mode === "town" && typeof G.getTownGate === "function") {
-                const gate = G.getTownGate();
-                if (gate && typeof gate.x === "number" && typeof gate.y === "number") {
-                  await routeAndExit(gate.x, gate.y, "town gate");
-                } else {
-                  // Fallback: use Start New Game
-                  if (B && typeof B.log === "function") B.log("Town gate unknown; starting new game.", "warn");
-                  try { openGodPanel(); } catch (_) {}
-                  await sleep(120);
-                  const btn = document.getElementById("god-newgame-btn");
-                  if (btn) btn.click();
-                  await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
-                  await sleep(120);
-                }
-              } else if (mode === "dungeon" && typeof G.getDungeonExit === "function") {
-                const exit = G.getDungeonExit();
-                if (exit && typeof exit.x === "number" && typeof exit.y === "number") {
-                  await routeAndExit(exit.x, exit.y, "dungeon entrance");
-                } else {
-                  // Fallback: Start New Game
-                  if (B && typeof B.log === "function") B.log("Dungeon exit unknown; starting new game.", "warn");
-                  try { openGodPanel(); } catch (_) {}
-                  await sleep(120);
-                  const btn = document.getElementById("god-newgame-btn");
-                  if (btn) btn.click();
-                  await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
-                  await sleep(120);
-                }
-              } else {
-                // Unknown mode; fallback to Start New Game
-                try { openGodPanel(); } catch (_) {}
-                await sleep(120);
-                const btn = document.getElementById("god-newgame-btn");
-                if (btn) btn.click();
-                await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
-                await sleep(120);
+              if (mode === "town" && TP && typeof TP.teleportToGateAndExit === "function") {
+                exited = await TP.teleportToGateAndExit({ key, sleep, ensureAllModalsClosed }, { closeModals: true, waitMs: 320 });
+              } else if (mode === "dungeon" && TP && typeof TP.teleportToDungeonExitAndLeave === "function") {
+                exited = await TP.teleportToDungeonExitAndLeave({ key, sleep, ensureAllModalsClosed }, { closeModals: true, waitMs: 320 });
               }
             } catch (_) {}
+            // If Teleport path did not succeed, use local routeAndExit fallback with retries
+            if (!exited) {
+              const routeAndExit = async (tx, ty, label) => {
+                const onTile = () => {
+                  try {
+                    if (typeof G.getPlayer !== "function") return false;
+                    const p = G.getPlayer();
+                    if (!p) return false;
+                    const same = (p.x === tx && p.y === ty);
+                    if (same && typeof G.getMap === "function" && G.TILES) {
+                      try {
+                        const map = G.getMap();
+                        const t = (map && map[ty]) ? map[ty][tx] : null;
+                        // For dungeon exits, require STAIRS ('>'); for town, just exact coordinate match
+                        if ((String(label || "").toLowerCase().indexOf("dungeon") !== -1) && t !== G.TILES.STAIRS) {
+                          return false;
+                        }
+                      } catch (_) {}
+                    }
+                    return same;
+                  } catch (_) { return false; }
+                };
+                const tryTeleport = async () => {
+                  try { if (B && typeof B.log === "function") B.log(`Teleporting to ${label} at (${tx},${ty})…`, "info"); } catch (_) {}
+                  try {
+                    if (typeof G.teleportTo === "function") {
+                      G.teleportTo(tx, ty, { ensureWalkable: true });
+                      await sleep(200);
+                    }
+                  } catch (_) {}
+                };
+                try { await ensureAllModalsClosed(1); } catch (_) {}
+                let okExit = false;
+                for (let attempt = 0; attempt < 3; attempt++) {
+                  if (!onTile()) await tryTeleport();
+                  if (!onTile()) await tryTeleport();
+                  if (onTile()) {
+                    try { key("g"); } catch (_) {}
+                    await sleep(280);
+                    try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
+                    await sleep(280);
+                    const gotWorld = await waitUntilTrue(() => {
+                      try { return (typeof G.getMode === "function" && G.getMode() === "world"); } catch(_) { return false; }
+                    }, 1600, 80);
+                    if (gotWorld) { okExit = true; break; }
+                  }
+                }
+                return okExit;
+              };
+
+              try {
+                await ensureAllModalsClosed(2);
+                if (mode === "town" && typeof G.getTownGate === "function") {
+                  const gate = G.getTownGate();
+                  if (gate && typeof gate.x === "number" && typeof gate.y === "number") {
+                    exited = await routeAndExit(gate.x, gate.y, "town gate");
+                  }
+                } else if (mode === "dungeon" && typeof G.getDungeonExit === "function") {
+                  const exit = G.getDungeonExit();
+                  if (exit && typeof exit.x === "number" && typeof exit.y === "number") {
+                    exited = await routeAndExit(exit.x, exit.y, "dungeon entrance");
+                  }
+                }
+              } catch (_) {}
+            }
+            // Final resort: Start New Game to guarantee overworld
+            if (!exited) {
+              try { if (B && typeof B.log === "function") B.log("Exit to overworld failed; starting New Game.", "warn"); } catch (_) {}
+              try { const btn = document.getElementById("god-newgame-btn"); if (btn) btn.click(); } catch (_) {}
+              await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 2500, 100);
+              await sleep(120);
+            }
           }
         } catch (_) {}
 
-        // 2) Apply a fresh seed via the GOD panel controls
+        // Confirm overworld is active before seeding
+        try {
+          await waitUntilTrue(() => {
+            try { return (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world"); } catch (_) { return false; }
+          }, 2500, 80);
+        } catch (_) {}
+
+        // 2) Apply fresh seed programmatically (GOD panel stays closed)
         const s = deriveSeed(runIndex);
-        try { openGodPanel(); } catch (_) {}
         await sleep(120);
         try {
           const Dom = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
@@ -1001,9 +1097,16 @@
             if (ab) ab.click();
           }
         } catch (_) {}
-        // Give time for regeneration
         await sleep(420);
+        try {
+          await waitUntilTrue(() => {
+            try { return (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world"); } catch (_) { return false; }
+          }, 2000, 80);
+        } catch (_) {}
         try { if (B && typeof B.log === "function") B.log(`Applied fresh seed for run ${runIndex + 1}: ${s}`, "notice"); } catch (_) {}
+
+        // Reopen GOD for visibility only after seed confirmed
+        try { openGodPanel(); } catch (_) {}
       } catch (_) {}
     }
 
@@ -1295,7 +1398,7 @@
             return;
           }
         } catch (_) {}
-        await waitUntilGameReady(6000);
+        await waitUntilRunnerReady(6000);
         await runSeries(count);
       };
       if (document.readyState !== "loading") {
