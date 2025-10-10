@@ -670,8 +670,11 @@
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Running scenario: " + step.name, "info");
           await step.fn(baseCtx);
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Scenario completed: " + step.name, "good");
-        } catch (e) {
-          if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
+          // Close the GOD panel after town diagnostics to avoid overlaying subsequent scenarios
+          if (step.name === "town_diagnostics") {
+            try { key("Escape"); } catch (_) {}
+            await sleep(120);
+            try { if (          if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
 
