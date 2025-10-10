@@ -40,50 +40,74 @@
         if (!gate && has(G.nearestTown)) gate = G.nearestTown();
         if (!gate) return false;
 
-        // Close modals so 'g' isn't swallowed
-        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(1); } catch (_){}
+        const isOnGate = () => {
+          try {
+            const pl = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
+            return (pl.x === gate.x && pl.y === gate.y);
+          } catch(_) { return false; }
+        };
 
-        const tpOk = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: true, fallbackScanRadius: 4 });
-        if (tpOk) {
-          try { key("g"); } catch (_) {}
-          await sleep(waitMs);
-          // As a fallback, try context action APIs
-          try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
-          await sleep(waitMs);
-          const modeNow = has(G.getMode) ? G.getMode() : "";
-          return modeNow === "world";
-        }
-
-        // If teleport failed, try a precise route+bump as fallback
-        let routed = false;
-        try { if (MV && typeof MV.routeTo === "function") routed = await MV.routeTo(gate.x, gate.y, { timeoutMs: 2000, stepMs: 90 }); } catch (_){}
-        if (!routed && has(G.routeToDungeon)) {
-          const path = G.routeToDungeon(gate.x, gate.y) || [];
-          for (let i = 0; i < path.length; i++) {
-            const st = path[i];
-            const pl = has(G.getPlayer) ? G.getPlayer() : st;
-            const dx = Math.sign(st.x - pl.x);
-            const dy = Math.sign(st.y - pl.y);
-            key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-            await sleep(80);
-          }
-        }
-        // If adjacent, single nudge
-        try {
-          const pl = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
-          if (Math.abs(pl.x - gate.x) + Math.abs(pl.y - gate.y) === 1) {
+        const stepTowardGateOnce = async () => {
+          try {
+            const pl = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
             const dx = Math.sign(gate.x - pl.x);
             const dy = Math.sign(gate.y - pl.y);
             key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
             await sleep(120);
-          }
-        } catch (_){}
+          } catch(_) {}
+        };
 
-        try { key("g"); } catch (_){}
+        // Close modals so 'g' isn't swallowed
+        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(1); } catch (_){}
+
+        // Try to land exactly on gate, with walkable-guard first
+        let tpOk = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: true, fallbackScanRadius: 4 });
+        // If we teleported but did not end up exactly on gate (landed adjacent due to NPC block), try to step or force-teleport
+        if (tpOk && !isOnGate()) {
+          // If adjacent, nudge once toward gate
+          try {
+            const pl = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
+            if (Math.abs(pl.x - gate.x) + Math.abs(pl.y - gate.y) === 1) {
+              await stepTowardGateOnce();
+            }
+          } catch(_) {}
+          // If still not on gate, force-teleport ignoring walkability (NPCs)
+          if (!isOnGate()) {
+            try { tpOk = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch(_) {}
+          }
+        }
+
+        // If initial teleport failed, try routing precisely to gate
+        if (!tpOk) {
+          let routed = false;
+          try { if (MV && typeof MV.routeTo === "function") routed = await MV.routeTo(gate.x, gate.y, { timeoutMs: 2000, stepMs: 90 }); } catch (_){}
+          if (!routed && has(G.routeToDungeon)) {
+            const path = G.routeToDungeon(gate.x, gate.y) || [];
+            for (let i = 0; i < path.length; i++) {
+              const st = path[i];
+              const pl = has(G.getPlayer) ? G.getPlayer() : st;
+              const dx = Math.sign(st.x - pl.x);
+              const dy = Math.sign(st.y - pl.y);
+              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(80);
+            }
+          }
+          // Final nudge if adjacent
+          if (!isOnGate()) await stepTowardGateOnce();
+        }
+
+        // Ensure we are exactly on gate before pressing 'g'. If not, one last force-teleport.
+        if (!isOnGate()) {
+          try { await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch(_) {}
+        }
+
+        // Press 'g' and use API fallback; then confirm world
+        try { key("g"); } catch (_) {}
         await sleep(waitMs);
         try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
         await sleep(waitMs);
-        return (has(G.getMode) ? G.getMode() : "") === "world";
+        const modeNow = has(G.getMode) ? G.getMode() : "";
+        return modeNow === "world";
       } catch (_) {
         return false;
       }
@@ -105,49 +129,72 @@
         const exit = has(G.getDungeonExit) ? G.getDungeonExit() : null;
         if (!exit || typeof exit.x !== "number" || typeof exit.y !== "number") return false;
 
-        // Close modals so 'g' isn't swallowed
-        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(1); } catch (_){}
+        const isOnExit = () => {
+          try {
+            const pl = has(G.getPlayer) ? G.getPlayer() : { x: exit.x, y: exit.y };
+            return (pl.x === exit.x && pl.y === exit.y);
+          } catch(_) { return false; }
+        };
 
-        const tpOk = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: true, fallbackScanRadius: 4 });
-        if (tpOk) {
-          try { key("g"); } catch (_) {}
-          await sleep(waitMs);
-          try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
-          await sleep(waitMs);
-          const modeNow = has(G.getMode) ? G.getMode() : "";
-          return modeNow === "world";
-        }
-
-        // If teleport failed, try route+bump as fallback
-        let routed = false;
-        try { if (MV && typeof MV.routeTo === "function") routed = await MV.routeTo(exit.x, exit.y, { timeoutMs: 2000, stepMs: 90 }); } catch (_){}
-        if (!routed && has(G.routeToDungeon)) {
-          const path = G.routeToDungeon(exit.x, exit.y) || [];
-          for (let i = 0; i < path.length; i++) {
-            const st = path[i];
-            const pl = has(G.getPlayer) ? G.getPlayer() : st;
-            const dx = Math.sign(st.x - pl.x);
-            const dy = Math.sign(st.y - pl.y);
-            key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-            await sleep(80);
-          }
-        }
-        // If adjacent, single nudge
-        try {
-          const pl = has(G.getPlayer) ? G.getPlayer() : { x: exit.x, y: exit.y };
-          if (Math.abs(pl.x - exit.x) + Math.abs(pl.y - exit.y) === 1) {
+        const stepTowardExitOnce = async () => {
+          try {
+            const pl = has(G.getPlayer) ? G.getPlayer() : { x: exit.x, y: exit.y };
             const dx = Math.sign(exit.x - pl.x);
             const dy = Math.sign(exit.y - pl.y);
             key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
             await sleep(120);
-          }
-        } catch (_){}
+          } catch(_) {}
+        };
 
-        try { key("g"); } catch (_){}
+        // Close modals so 'g' isn't swallowed
+        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(1); } catch (_){}
+
+        // Try to land exactly on exit, with walkable-guard first
+        let tpOk = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: true, fallbackScanRadius: 4 });
+        // If we teleported but did not end up exactly on exit, try to step or force-teleport
+        if (tpOk && !isOnExit()) {
+          try {
+            const pl = has(G.getPlayer) ? G.getPlayer() : { x: exit.x, y: exit.y };
+            if (Math.abs(pl.x - exit.x) + Math.abs(pl.y - exit.y) === 1) {
+              await stepTowardExitOnce();
+            }
+          } catch(_) {}
+          if (!isOnExit()) {
+            try { tpOk = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch(_) {}
+          }
+        }
+
+        // If teleport failed, try route+bump as fallback
+        if (!tpOk) {
+          let routed = false;
+          try { if (MV && typeof MV.routeTo === "function") routed = await MV.routeTo(exit.x, exit.y, { timeoutMs: 2000, stepMs: 90 }); } catch (_){}
+          if (!routed && has(G.routeToDungeon)) {
+            const path = G.routeToDungeon(exit.x, exit.y) || [];
+            for (let i = 0; i < path.length; i++) {
+              const st = path[i];
+              const pl = has(G.getPlayer) ? G.getPlayer() : st;
+              const dx = Math.sign(st.x - pl.x);
+              const dy = Math.sign(st.y - pl.y);
+              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(80);
+            }
+          }
+          // Final nudge if adjacent
+          if (!isOnExit()) await stepTowardExitOnce();
+        }
+
+        // Ensure we are exactly on exit before pressing 'g'. If not, one last force-teleport.
+        if (!isOnExit()) {
+          try { await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch(_) {}
+        }
+
+        // Press 'g' and use API fallback; then confirm world
+        try { key("g"); } catch (_) {}
         await sleep(waitMs);
         try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
         await sleep(waitMs);
-        return (has(G.getMode) ? G.getMode() : "") === "world";
+        const modeNow = has(G.getMode) ? G.getMode() : "";
+        return modeNow === "world";
       } catch (_) {
         return false;
       }
