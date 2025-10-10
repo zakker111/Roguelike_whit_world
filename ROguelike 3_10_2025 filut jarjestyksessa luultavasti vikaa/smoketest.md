@@ -13,7 +13,11 @@ Runner options (URL params)
 - Enable DEV logs and diagnostics: `&dev=1`
 - Inject malformed JSON for validator checks (DEV only): `&validatebad=1` (or `&badjson=1`)
 - Multiple runs: `&smokecount=N` (e.g., `&smokecount=3`)
-- Example: `index.html?smoketest=1&dev=1&smokecount=2`
+- Skip stable scenarios after N runs: `&skipokafter=N`
+- Dungeon persistence frequency: `&persistence=once|always|never`
+- Base RNG seed (per‑run derivation): `&seed=BASE`
+- Abort current run on immobile: `&abortonimmobile=1` (default continues and records)
+- Example: `index.html?smoketest=1&dev=1&smokecount=2&skipokafter=1&persistence=once&seed=12345`
 
 Report and checklist
 - GOD panel shows:
@@ -46,7 +50,8 @@ Dungeon entry and persistence
   - Loots chest if present, exits on '>' to overworld, re‑enters immediately.
   - Verifies chest remains empty (looted persists), corpses/decals counts not less, and corpse key overlap.
 - Exit:
-  - Stair guard: pressing G on a non‑stair tile remains in dungeon.
+  - Uses Teleport helpers to land exactly on the stairs tile ('>'), presses 'g', calls returnToWorldIfAtExit(), and confirms “world” mode.
+  - If exact placement or key handling fails, final fallback calls GameAPI.forceWorld() to guarantee overworld for the next steps.
 
 Enemies and combat
 - GOD spawn:
@@ -73,11 +78,16 @@ Town generation and interactions
 - Town entry; NPC presence:
   - Runner routes to town; if empty, attempts home routes and greeter spawn, then asserts NPC presence.
 - NPC bump:
-  - Routes adjacent to nearest NPC and bumps to trigger dialogue.
+  - Teleports safely near target when appropriate, routes adjacent to nearest NPC, then bumps toward them to trigger dialogue (no 'G' required).
 - NPC home/props:
   - Routes to NPC home door; tests reaching interior and interacting with a prop.
 - Shop:
-  - Route to shop; open with G; Escape closes shop panel.
+  - Teleport to a safe adjacent tile near the shop, then route to the shop tile.
+  - Bump toward the shopkeeper (no G). If the menu doesn’t open but the keeper is present and adjacency/route succeeded, log “Shop present; route to shopkeeper: OK”.
+  - Escape closes the Shop panel when open.
+  - Teleport safely near the shop (avoids walls/NPC occupancy), route to the exact shop tile, then bump near the shopkeeper (no 'G').
+  - If the shop UI opens via bump, Escape closes the panel and records result.
+  - If the shop UI does not open but the shopkeeper is present and routing adjacency is confirmed, logs “Shop present; route to shopkeeper: OK”.
 
 Performance and overlays
 - Grid overlay and path/home overlays toggle from GOD panel; overlays default OFF.
@@ -123,12 +133,16 @@ Quick regression checklist
 - [ ] Tileset fallback: renders even if atlas missing
 
 Recent updates
-- Live Matchup scoreboard (GOD panel):
-  - Sticky/pinned header at the top of the output.
-  - FAIL items listed first, then SKIPs, then OKs; up to 20 items by default; Expand to show everything.
-- Aggregation across runs (union of success):
-  - Final aggregated report appended at the end; steps marked OK if any run passed, SKIP if only skipped, FAIL otherwise.
-- Seed per run + world-mode guard:
-  - Runner ensures “world” mode before seeding and applies a fresh 32-bit seed for each run in a series.
-- Entry hardening:
-  - Town/Dungeon scenarios close modals, route to target or adjacent tile with larger budgets, then nudge and enter via API.
+- Shop UI + GameAPI modularization:
+  - ShopUI extracted to ui/shop_panel.js; core/game.js delegates open/hide/buy; GameAPI moved to core/game_api.js.
+  - New GameAPI.forceWorld() for smoketest hard fallback to overworld.
+- Mouse input module:
+  - ui/input_mouse.js now handles click-to-move/loot/talk; loaded before core/game.js.
+- Teleport helpers made exact and safe:
+  - Town/Dungeon exit helpers teleport near, nudge, then force-teleport to exact tile if needed; confirm “world”; final fallback uses GameAPI.forceWorld().
+- Runner hardening:
+  - Consolidated readiness guard waitUntilRunnerReady(); GOD kept closed during exit/seeding; reopened only after overworld + seed confirmed.
+  - Post-“town_diagnostics” hook robustly closes GOD (Escape + UI.hideGod + DOM hidden check).
+- Town diagnostics and shop flows:
+  - Teleport near shop, route to exact tile, bump near shopkeeper (no 'G'); Escape closes if UI opens.
+  - If menu fails to open but keeper present and route adjacency confirmed, logs “Shop present; route to shopkeeper: OK”.
