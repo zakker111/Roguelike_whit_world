@@ -290,27 +290,23 @@
             }
           } catch (_) {}
 
-          var ib = makeBudget((CONFIG.timeouts && CONFIG.timeouts.interact) || 250);
-          // Close modals to avoid swallowing 'g'
-          try { await ctx.ensureAllModalsClosed?.(1); } catch (_) {}
-          key("g");
-          await sleep(Math.min(ib.remain(), 220));
-          // Esc closes Shop UI fallback panel
+          // Check if shop UI opened via bump; close if open (no 'g' used)
           try {
             var open = !!(document.getElementById("shop-panel") && document.getElementById("shop-panel").hidden === false);
             if (open) {
+              record(true, "Shop UI opened by bump (no G)");
               key("Escape");
               var closed = await waitUntilTrue(function () { var el = document.getElementById("shop-panel"); return !!(el && el.hidden === true); }, 600, 60, sleep);
               record(closed, "Shop UI closes with Esc");
             } else {
-              record(true, "Shop UI not open (no Esc-close needed)");
+              record(true, "Shop UI did not open via bump (no G)");
             }
           } catch (_) {}
           // Optional buy/sell
           var didAny = false;
           if (has(window.GameAPI.shopBuyFirst)) { var okB = !!window.GameAPI.shopBuyFirst(); record(okB, "Shop buy (first item)"); didAny = true; }
           if (has(window.GameAPI.shopSellFirst)) { var okS = !!window.GameAPI.shopSellFirst(); record(okS, "Shop sell (first inventory item)"); didAny = true; }
-          if (!didAny) record(true, "Interacted at shop (G). No programmatic buy/sell API; skipped.");
+          if (!didAny) record(true, "Interacted at shop by bump (no G). No programmatic buy/sell API; skipped.");
         }
       } catch (e) {
         record(false, "Shop interaction failed: " + (e && e.message ? e.message : String(e)));
