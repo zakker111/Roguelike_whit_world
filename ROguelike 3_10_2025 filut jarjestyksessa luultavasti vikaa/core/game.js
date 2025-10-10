@@ -711,6 +711,10 @@
 }
 
   function inBounds(x, y) {
+    // Phase 1: prefer Utils.inBounds when available to avoid duplication
+    if (window.Utils && typeof Utils.inBounds === "function") {
+      try { return !!Utils.inBounds(getCtx(), x, y); } catch (_) {}
+    }
     const mh = map.length || MAP_ROWS;
     const mw = map[0] ? map[0].length : MAP_COLS;
     return x >= 0 && y >= 0 && x < mw && y < mh;
@@ -826,6 +830,10 @@
   }
 
   function isWalkable(x, y) {
+    // Phase 1: prefer Utils.isWalkableTile to unify tile semantics (ignore occupancy)
+    if (window.Utils && typeof Utils.isWalkableTile === "function") {
+      try { return !!Utils.isWalkableTile(getCtx(), x, y); } catch (_) {}
+    }
     if (!inBounds(x, y)) return false;
     const t = map[y][x];
     return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS;
