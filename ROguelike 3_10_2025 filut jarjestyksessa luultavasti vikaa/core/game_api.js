@@ -547,6 +547,11 @@
           return !!ok;
         } catch (_) { return false; }
       },
+      // Force-overworld: immediately set mode to world by regenerating it.
+      // This is a hard escape hatch for tests: it does not wipe inventory; it just reinitializes the overworld.
+      forceWorld: () => {
+        try { ctx.initWorld(); ctx.requestDraw(); return true; } catch (_) { return false; }
+      },
     };
     return api;
   }

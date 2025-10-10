@@ -106,7 +106,12 @@
         await sleep(waitMs);
         try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
         await sleep(waitMs);
-        const modeNow = has(G.getMode) ? G.getMode() : "";
+        let modeNow = has(G.getMode) ? G.getMode() : "";
+        if (modeNow === "world") return true;
+
+        // Final fallback: force-overworld (hard escape hatch)
+        try { if (has(G.forceWorld)) { G.forceWorld(); await sleep(waitMs); } } catch (_) {}
+        modeNow = has(G.getMode) ? G.getMode() : "";
         return modeNow === "world";
       } catch (_) {
         return false;
@@ -193,7 +198,12 @@
         await sleep(waitMs);
         try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
         await sleep(waitMs);
-        const modeNow = has(G.getMode) ? G.getMode() : "";
+        let modeNow = has(G.getMode) ? G.getMode() : "";
+        if (modeNow === "world") return true;
+
+        // Final fallback: force-overworld (hard escape hatch)
+        try { if (has(G.forceWorld)) { G.forceWorld(); await sleep(waitMs); } } catch (_) {}
+        modeNow = has(G.getMode) ? G.getMode() : "";
         return modeNow === "world";
       } catch (_) {
         return false;
