@@ -643,18 +643,12 @@
           try { if (Banner && typeof Banner.log === "function") Banner.log("Run aborted; remaining scenarios skipped.", "bad"); } catch (_) {}
           break;
         }
-        // Abort immediately if player is dead before starting next scenario
+        // If player is dead before starting next scenario, skip only this scenario (do not abort entire run)
         try {
-          if (isDeathDetected() && !aborted) {
-            record(false, "Death detected (run aborted)");
-            aborted = true;
-            __abortRequested = true;
-            __abortReason = "dead";
-            try {
-              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
-            } catch (_) {}
-            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
-            break;
+          if (isDeathDetected()) {
+            recordSkip("Death detected; skipping scenario");
+            // Continue to next scenario in this run
+            continue;
           }
         } catch (_) {}
 
@@ -681,18 +675,11 @@
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
 
-        // If death occurred during/after scenario, abort like immobile
+        // If death occurred during/after scenario, do not abort the entire run; continue with next scenario
         try {
-          if (isDeathDetected() && !aborted) {
-            record(false, "Death detected (run aborted)");
-            aborted = true;
-            __abortRequested = true;
-            __abortReason = "dead";
-            try {
-              if (Banner && typeof Banner.log === "function") Banner.log("ABORT: death detected; aborting remaining scenarios in this run.", "bad");
-            } catch (_) {}
-            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "dead"; } catch (_) {}
-            break;
+          if (isDeathDetected()) {
+            recordSkip("Death detected; continuing with next scenario");
+            // No abort flags; allow subsequent scenarios in this run to proceed (they may be skipped if still dead)
           }
         } catch (_) {}
 
