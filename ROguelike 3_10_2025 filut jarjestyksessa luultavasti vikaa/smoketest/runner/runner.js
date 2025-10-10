@@ -674,7 +674,11 @@
           if (step.name === "town_diagnostics") {
             try { key("Escape"); } catch (_) {}
             await sleep(120);
-            try { if (          if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
+            try { if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod(); } catch (_) {}
+            await sleep(80);
+          }
+        } catch (e) {
+          if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
           record(false, step.name + " failed: " + (e && e.message ? e.message : String(e)));
         }
 
