@@ -178,6 +178,64 @@
     return ok;
   }
 
+  // Comprehensive runner readiness check: game, scenarios, UI, and canvas
+  function isRunnerReady() {
+    try {
+      const G = window.GameAPI || {};
+      // Mode or player coordinate availability
+      let modeOK = false;
+      try {
+        if (typeof G.getMode === "function") {
+          const m = G.getMode();
+          modeOK = (m === "world" || m === "dungeon" || m === "town");
+        }
+      } catch (_) {}
+      let playerOK = false;
+      try {
+        if (typeof G.getPlayer === "function") {
+          const p = G.getPlayer();
+          playerOK = !!(p && typeof p.x === "number" && typeof p.y === "number");
+        }
+      } catch (_) {}
+      const baseOK = (modeOK || playerOK);
+
+      // Scenarios present (same as waitUntilScenariosReady)
+      const scenariosOK = (() => {
+        try {
+          const S = window.SmokeTest && window.SmokeTest.Scenarios;
+          if (!S) return false;
+          return !!(
+            (S.World && typeof S.World.run === "function") ||
+            (S.Dungeon && typeof S.Dungeon.run === "function") ||
+            (S.Inventory && typeof S.Inventory.run === "function") ||
+            (S.Combat && typeof S.Combat.run === "function")
+          );
+        } catch (_) { return false; }
+      })();
+
+      // UI baseline: able to close GOD or at least find the open button
+      const uiOK = (() => {
+        try {
+          if (window.UI && typeof window.UI.hideGod === "function") return true;
+          const gob = document.getElementById("god-open-btn");
+          return !!gob;
+        } catch (_) { return false; }
+      })();
+
+      // Canvas present
+      const canvasOK = (() => {
+        try { return !!document.getElementById("game"); } catch (_) { return false; }
+      })();
+
+      return baseOK && scenariosOK && uiOK && canvasOK;
+    } catch (_) { return false; }
+  }
+
+  async function waitUntilRunnerReady(timeoutMs) {
+    const to = Math.max(600, timeoutMs | 0);
+    return await waitUntilTrue(() => isRunnerReady(), to, 80);
+  }
+
   async function run(ctx) {
     try {
       const runIndex = (ctx && ctx.index) ? (ctx.index | 0) : null;
@@ -187,8 +245,7 @@
       // New: scenarios to skip (already stable OK in prior runs)
       const skipSet = new Set((ctx && ctx.skipScenarios) ? ctx.skipScenarios : []);
 
-      await waitUntilGameReady(6000);
-      await waitUntilScenariosReady(2000);
+      await waitUntilRunnerReady(6000);
       const caps = detectCaps();
       const params = parseParams();
       const sel = params.scenarios;
@@ -1350,7 +1407,7 @@
             return;
           }
         } catch (_) {}
-        await waitUntilGameReady(6000);
+        await waitUntilRunnerReady(6000);
         await runSeries(count);
       };
       if (document.readyState !== "loading") {
