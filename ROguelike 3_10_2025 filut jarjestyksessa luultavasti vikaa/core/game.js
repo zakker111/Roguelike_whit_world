@@ -481,6 +481,10 @@
   }
 
   function getEnemyBlockChance(enemy, loc) {
+    // Phase 1: centralize combat math in Combat; fall back to Enemies for compatibility
+    if (window.Combat && typeof Combat.getEnemyBlockChance === "function") {
+      return Combat.getEnemyBlockChance(getCtx(), enemy, loc);
+    }
     if (window.Enemies && typeof Enemies.enemyBlockChance === "function") {
       return Enemies.enemyBlockChance(enemy, loc);
     }
