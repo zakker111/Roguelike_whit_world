@@ -947,7 +947,13 @@
 
   
   function updateCamera() {
-    // Center camera on player
+    // Prefer centralized camera module
+    const FC = modHandle("FOVCamera");
+    if (FC && typeof FC.updateCamera === "function") {
+      FC.updateCamera(getCtx());
+      return;
+    }
+    // Fallback: center camera on player
     const mapCols = map[0] ? map[0].length : COLS;
     const mapRows = map ? map.length : ROWS;
     const mapWidth = mapCols * TILE;
