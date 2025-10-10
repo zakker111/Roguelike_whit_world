@@ -914,24 +914,25 @@
             try {
               const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
               const routeAndExit = async (tx, ty, label) => {
-                if (typeof G.routeToDungeon === "function" && Array.isArray(G.routeToDungeon(tx, ty))) {
-                  const path = G.routeToDungeon(tx, ty);
-                  if (path && path.length) {
-                    if (B && typeof B.log === "function") B.log(`Routing to ${label} at (${tx},${ty})…`, "info");
-                    for (const step of path) {
-                      const dx = Math.sign(step.x - (G.getPlayer && G.getPlayer().x));
-                      const dy = Math.sign(step.y - (G.getPlayer && G.getPlayer().y));
-                      try { if (typeof G.moveStep === "function") G.moveStep(dx, dy); } catch (_) {}
-                      await sleep(60);
-                    }
+                // Teleport to the target tile instead of routing; then press G to exit.
+                try {
+                  if (B && typeof B.log === "function") B.log(`Teleporting to ${label} at (${tx},${ty})…`, "info");
+                } catch (_) {}
+                try {
+                  if (typeof G.teleportTo === "function") {
+                    G.teleportTo(tx, ty, { ensureWalkable: true });
+                    await sleep(150);
                   }
-                }
-                // Press G to perform context action (exit)
-                if (B && typeof B.log === "function") B.log(`Pressing G to exit ${label}…`, "notice");
+                } catch (_) {}
+                // Perform context action (exit)
+                try { if (B && typeof B.log === "function") B.log(`Pressing G to exit ${label}…`, "notice"); } catch (_) {}
                 try { key("g"); } catch (_) {}
-                await sleep(200);
+                await sleep(240);
+                // Also call API fallback if present
+                try { if (typeof G.returnToWorldIfAtExit === "function") G.returnToWorldIfAtExit(); } catch (_) {}
+                await sleep(240);
                 // Wait until world mode
-                await waitUntilTrue(() => { try { return getMode() === "world"; } catch(_) { return false; } }, 1800, 80);
+                await waitUntilTrue(() => { try { return (window.GameAPI && typeof window.GameAPI.getMode === "function" && window.GameAPI.getMode() === "world"); } catch(_) { return false; } }, 2000, 80);
                 await sleep(120);
               };
 
