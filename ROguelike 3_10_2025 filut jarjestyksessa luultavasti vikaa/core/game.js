@@ -408,12 +408,15 @@
 
   
   function getPlayerAttack() {
+    // Phase 1: centralize via Stats (which prefers Player under the hood)
     if (window.Stats && typeof Stats.getPlayerAttack === "function") {
       return Stats.getPlayerAttack(getCtx());
     }
+    // Fallback: prefer Player module if Stats unavailable
     if (window.Player && typeof Player.getAttack === "function") {
       return Player.getAttack(player);
     }
+    // Last-resort minimal fallback
     let bonus = 0;
     const eq = player.equipment || {};
     if (eq.left && typeof eq.left.atk === "number") bonus += eq.left.atk;
@@ -425,12 +428,15 @@
 
   
   function getPlayerDefense() {
+    // Phase 1: centralize via Stats (which prefers Player under the hood)
     if (window.Stats && typeof Stats.getPlayerDefense === "function") {
       return Stats.getPlayerDefense(getCtx());
     }
+    // Fallback: prefer Player module if Stats unavailable
     if (window.Player && typeof Player.getDefense === "function") {
       return Player.getDefense(player);
     }
+    // Last-resort minimal fallback
     let def = 0;
     const eq = player.equipment || {};
     if (eq.left && typeof eq.left.def === "number") def += eq.left.def;
