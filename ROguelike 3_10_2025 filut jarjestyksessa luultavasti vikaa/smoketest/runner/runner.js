@@ -876,8 +876,7 @@
       window.SmokeTest.Runner.COLLECT_ONLY = false;
     } catch (_) {}
 
-    // Ensure GOD panel visible for live progress
-    try { openGodPanel(); } catch (_) {}
+    // Keep GOD panel closed until after overworld is confirmed and seed is applied (safer for exit logic)
 
     // Aggregation of steps across runs (union of success)
     const agg = new Map();
