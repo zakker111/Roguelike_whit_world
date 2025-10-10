@@ -346,8 +346,9 @@
     ? PlayerUtils.capitalize
     : (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   const enemyColor = (type) => {
-    if (window.Enemies && typeof Enemies.colorFor === "function") {
-      return Enemies.colorFor(type);
+    const EM = modHandle("Enemies");
+    if (EM && typeof EM.colorFor === "function") {
+      return EM.colorFor(type);
     }
     return COLORS.enemy;
   };
@@ -361,8 +362,9 @@
 
   // Decay helpers
   function initialDecay(tier) {
-    if (window.Items && typeof Items.initialDecay === "function") {
-      return Items.initialDecay(tier);
+    const IH = modHandle("Items");
+    if (IH && typeof IH.initialDecay === "function") {
+      return IH.initialDecay(tier);
     }
     
     if (tier <= 1) return randFloat(10, 35, 0);
@@ -409,12 +411,14 @@
   
   function getPlayerAttack() {
     // Phase 1: centralize via Stats (which prefers Player under the hood)
-    if (window.Stats && typeof Stats.getPlayerAttack === "function") {
-      return Stats.getPlayerAttack(getCtx());
+    const S = modHandle("Stats");
+    if (S && typeof S.getPlayerAttack === "function") {
+      return S.getPlayerAttack(getCtx());
     }
     // Fallback: prefer Player module if Stats unavailable
-    if (window.Player && typeof Player.getAttack === "function") {
-      return Player.getAttack(player);
+    const P = modHandle("Player");
+    if (P && typeof P.getAttack === "function") {
+      return P.getAttack(player);
     }
     // Last-resort minimal fallback
     let bonus = 0;
@@ -429,12 +433,14 @@
   
   function getPlayerDefense() {
     // Phase 1: centralize via Stats (which prefers Player under the hood)
-    if (window.Stats && typeof Stats.getPlayerDefense === "function") {
-      return Stats.getPlayerDefense(getCtx());
+    const S = modHandle("Stats");
+    if (S && typeof S.getPlayerDefense === "function") {
+      return S.getPlayerDefense(getCtx());
     }
     // Fallback: prefer Player module if Stats unavailable
-    if (window.Player && typeof Player.getDefense === "function") {
-      return Player.getDefense(player);
+    const P = modHandle("Player");
+    if (P && typeof P.getDefense === "function") {
+      return P.getDefense(player);
     }
     // Last-resort minimal fallback
     let def = 0;
@@ -450,11 +456,13 @@
 
   function describeItem(item) {
     // Single source of truth: prefer Player.describeItem, then Items.describe
-    if (window.Player && typeof Player.describeItem === "function") {
-      return Player.describeItem(item);
+    const P = modHandle("Player");
+    if (P && typeof P.describeItem === "function") {
+      return P.describeItem(item);
     }
-    if (window.Items && typeof Items.describe === "function") {
-      return Items.describe(item);
+    const IH = modHandle("Items");
+    if (IH && typeof IH.describe === "function") {
+      return IH.describe(item);
     }
     // Minimal fallback
     if (!item) return "";
@@ -463,8 +471,9 @@
 
   
   function rollHitLocation() {
-    if (window.Combat && typeof Combat.rollHitLocation === "function") {
-      return Combat.rollHitLocation(rng);
+    const C = modHandle("Combat");
+    if (C && typeof C.rollHitLocation === "function") {
+      return C.rollHitLocation(rng);
     }
     const r = rng();
     if (r < 0.50) return { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 };
@@ -474,27 +483,31 @@
   }
 
   function critMultiplier() {
-    if (window.Combat && typeof Combat.critMultiplier === "function") {
-      return Combat.critMultiplier(rng);
+    const C = modHandle("Combat");
+    if (C && typeof C.critMultiplier === "function") {
+      return C.critMultiplier(rng);
     }
     return 1.6 + rng() * 0.4;
   }
 
   function getEnemyBlockChance(enemy, loc) {
     // Phase 1: centralize combat math in Combat; fall back to Enemies for compatibility
-    if (window.Combat && typeof Combat.getEnemyBlockChance === "function") {
-      return Combat.getEnemyBlockChance(getCtx(), enemy, loc);
+    const C = modHandle("Combat");
+    if (C && typeof C.getEnemyBlockChance === "function") {
+      return C.getEnemyBlockChance(getCtx(), enemy, loc);
     }
-    if (window.Enemies && typeof Enemies.enemyBlockChance === "function") {
-      return Enemies.enemyBlockChance(enemy, loc);
+    const EM = modHandle("Enemies");
+    if (EM && typeof EM.enemyBlockChance === "function") {
+      return EM.enemyBlockChance(enemy, loc);
     }
     const base = enemy.type === "ogre" ? 0.10 : enemy.type === "troll" ? 0.08 : 0.06;
     return Math.max(0, Math.min(0.35, base * (loc?.blockMod || 1.0)));
   }
 
   function getPlayerBlockChance(loc) {
-    if (window.Combat && typeof Combat.getPlayerBlockChance === "function") {
-      return Combat.getPlayerBlockChance(getCtx(), loc);
+    const C = modHandle("Combat");
+    if (C && typeof C.getPlayerBlockChance === "function") {
+      return C.getPlayerBlockChance(getCtx(), loc);
     }
     const eq = player.equipment || {};
     const leftDef = (eq.left && typeof eq.left.def === "number") ? eq.left.def : 0;
@@ -506,8 +519,9 @@
 
   // Enemy damage after applying player's defense with diminishing returns and a chip-damage floor
   function enemyDamageAfterDefense(raw) {
-    if (window.Combat && typeof Combat.enemyDamageAfterDefense === "function") {
-      return Combat.enemyDamageAfterDefense(getCtx(), raw);
+    const C = modHandle("Combat");
+    if (C && typeof C.enemyDamageAfterDefense === "function") {
+      return C.enemyDamageAfterDefense(getCtx(), raw);
     }
     const def = getPlayerDefense();
     const DR = Math.max(0, Math.min(0.85, def / (def + 6)));
@@ -517,8 +531,9 @@
 
   
   function enemyLevelFor(type, depth) {
-    if (window.Enemies && typeof Enemies.levelFor === "function") {
-      return Enemies.levelFor(type, depth, rng);
+    const EM = modHandle("Enemies");
+    if (EM && typeof EM.levelFor === "function") {
+      return EM.levelFor(type, depth, rng);
     }
     const tier = type === "ogre" ? 2 : (type === "troll" ? 1 : 0);
     const jitter = rng() < 0.35 ? 1 : 0;
@@ -527,11 +542,13 @@
 
   function enemyDamageMultiplier(level) {
     // Phase 1: centralize in Combat; fall back to Enemies.* for compatibility
-    if (window.Combat && typeof Combat.enemyDamageMultiplier === "function") {
-      return Combat.enemyDamageMultiplier(level);
+    const C = modHandle("Combat");
+    if (C && typeof C.enemyDamageMultiplier === "function") {
+      return C.enemyDamageMultiplier(level);
     }
-    if (window.Enemies && typeof Enemies.damageMultiplier === "function") {
-      return Enemies.damageMultiplier(level);
+    const EM = modHandle("Enemies");
+    if (EM && typeof EM.damageMultiplier === "function") {
+      return EM.damageMultiplier(level);
     }
     return 1 + 0.15 * Math.max(0, (level || 1) - 1);
   }
@@ -567,8 +584,9 @@
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    if (window.Player && typeof Player.addPotion === "function") {
-      Player.addPotion(player, heal, name);
+    const P = modHandle("Player");
+    if (P && typeof P.addPotion === "function") {
+      P.addPotion(player, heal, name);
       return;
     }
     const existing = player.inventory.find(i => i.kind === "potion" && (i.heal ?? 3) === heal);
@@ -580,8 +598,9 @@
   }
 
   function drinkPotionByIndex(idx) {
-    if (window.Player && typeof Player.drinkPotionByIndex === "function") {
-      Player.drinkPotionByIndex(player, idx, {
+    const P = modHandle("Player");
+    if (P && typeof P.drinkPotionByIndex === "function") {
+      P.drinkPotionByIndex(player, idx, {
         log,
         updateUI,
         renderInventory: () => renderInventoryPanel(),
@@ -1067,22 +1086,25 @@
 
   // Town shops helpers and resting
   function shopAt(x, y) {
-    if (window.ShopService && typeof ShopService.shopAt === "function") {
-      return ShopService.shopAt(getCtx(), x, y);
+    const SS = modHandle("ShopService");
+    if (SS && typeof SS.shopAt === "function") {
+      return SS.shopAt(getCtx(), x, y);
     }
     if (!Array.isArray(shops)) return null;
     return shops.find(s => s.x === x && s.y === y) || null;
   }
   // Shop schedule helpers (delegated to ShopService)
   function minutesOfDay(h, m = 0) {
-    if (window.ShopService && typeof ShopService.minutesOfDay === "function") {
-      return ShopService.minutesOfDay(h, m, DAY_MINUTES);
+    const SS = modHandle("ShopService");
+    if (SS && typeof SS.minutesOfDay === "function") {
+      return SS.minutesOfDay(h, m, DAY_MINUTES);
     }
     return ((h | 0) * 60 + (m | 0)) % DAY_MINUTES;
   }
   function isOpenAt(shop, minutes) {
-    if (window.ShopService && typeof ShopService.isOpenAt === "function") {
-      return ShopService.isOpenAt(shop, minutes);
+    const SS = modHandle("ShopService");
+    if (SS && typeof SS.isOpenAt === "function") {
+      return SS.isOpenAt(shop, minutes);
     }
     if (!shop) return false;
     if (shop.alwaysOpen) return true;
@@ -1092,8 +1114,9 @@
     return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
   }
   function isShopOpenNow(shop = null) {
-    if (window.ShopService && typeof ShopService.isShopOpenNow === "function") {
-      return ShopService.isShopOpenNow(getCtx(), shop || null);
+    const SS = modHandle("ShopService");
+    if (SS && typeof SS.isShopOpenNow === "function") {
+      return SS.isShopOpenNow(getCtx(), shop || null);
     }
     const t = getClock();
     const minutes = t.hours * 60 + t.minutes;
@@ -1101,8 +1124,9 @@
     return isOpenAt(shop, minutes);
   }
   function shopScheduleStr(shop) {
-    if (window.ShopService && typeof ShopService.shopScheduleStr === "function") {
-      return ShopService.shopScheduleStr(shop);
+    const SS = modHandle("ShopService");
+    if (SS && typeof SS.shopScheduleStr === "function") {
+      return SS.shopScheduleStr(shop);
     }
     if (!shop) return "";
     const h2 = (min) => {
@@ -1668,16 +1692,18 @@
 
   
   function generateLoot(source) {
-    if (window.Loot && typeof Loot.generate === "function") {
-      return Loot.generate(getCtx(), source);
+    const L = modHandle("Loot");
+    if (L && typeof L.generate === "function") {
+      return L.generate(getCtx(), source);
     }
     return [];
   }
 
   
   function interactTownProps() {
-    if (window.Town && typeof Town.interactProps === "function") {
-      return !!Town.interactProps(getCtx());
+    const Tn = modHandle("Town");
+    if (Tn && typeof Tn.interactProps === "function") {
+      return !!Tn.interactProps(getCtx());
     }
     return false;
   }
@@ -1931,8 +1957,9 @@
 
   function equipItemByIndex(idx) {
     // Phase 1: delegate to Player/PlayerEquip to avoid duplicate logic in game.js
-    if (window.Player && typeof Player.equipItemByIndex === "function") {
-      Player.equipItemByIndex(player, idx, {
+    const P = modHandle("Player");
+    if (P && typeof P.equipItemByIndex === "function") {
+      P.equipItemByIndex(player, idx, {
         log,
         updateUI,
         renderInventory: () => renderInventoryPanel(),
@@ -1945,8 +1972,9 @@
 
   function equipItemByIndexHand(idx, hand) {
     // Phase 1: delegate to Player/PlayerEquip with preferredHand hint
-    if (window.Player && typeof Player.equipItemByIndex === "function") {
-      Player.equipItemByIndex(player, idx, {
+    const P = modHandle("Player");
+    if (P && typeof P.equipItemByIndex === "function") {
+      P.equipItemByIndex(player, idx, {
         log,
         updateUI,
         renderInventory: () => renderInventoryPanel(),
@@ -1959,32 +1987,16 @@
   }
 
   function unequipSlot(slot) {
-    if (window.Player && typeof Player.unequipSlot === "function") {
-      Player.unequipSlot(player, slot, {
+    const P = modHandle("Player");
+    if (P && typeof P.unequipSlot === "function") {
+      P.unequipSlot(player, slot, {
         log,
         updateUI,
         renderInventory: () => renderInventoryPanel(),
       });
       return;
     }
-    // fallback
-    const eq = player.equipment || {};
-    const valid = ["left","right","head","torso","legs","hands"];
-    if (!valid.includes(slot)) return;
-    if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right && eq.left.twoHanded) {
-      const item = eq.left;
-      eq.left = null; eq.right = null;
-      player.inventory.push(item);
-      log(`You unequip ${describeItem(item)} (two-handed).`);
-      updateUI(); renderInventoryPanel();
-      return;
-    }
-    const it = eq[slot];
-    if (!it) return;
-    eq[slot] = null;
-    player.inventory.push(it);
-    log(`You unequip ${describeItem(it)} from ${slot}.`);
-    updateUI(); renderInventoryPanel();
+    log("Equip system not available.", "warn");
   }
 
   
