@@ -522,11 +522,12 @@
   }
 
   function enemyDamageMultiplier(level) {
-    if (window.Enemies && typeof Enemies.damageMultiplier === "function") {
-      return Enemies.damageMultiplier(level);
+    // Phase 1: centralize in Combat; fall back to Enemies.* for compatibility
+    if (window.Combat && typeof Combat.enemyDamageMultiplier === "function") {
+      return Combat.enemyDamageMultiplier(level);
     }
-    return 1 + 0.15 * Math.max(0, (level || 1) - 1);
-  }
+    if (window.Enemies && typeof Enemies.damageMultiplier === "function") {
+     }
 
   // Classify enemy danger based on level difference vs player
   function enemyThreatLabel(enemy) {
