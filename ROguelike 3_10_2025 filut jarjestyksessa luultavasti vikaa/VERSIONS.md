@@ -1,6 +1,11 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.13 — Phase 3 step 13: Loot and AI modules to ESM
+- Changed: entities/loot.js converted to ES module (export generate, lootHere) and retains window.Loot; index.html loads as type="module".
+- Changed: ai/ai.js converted to ES module (export enemiesAct) and retains window.AI; index.html loads as type="module".
+- Changed: ai/town_ai.js converted to ES module (exports via named export populateTown, townNPCsAct, checkHomeRoutes) and retains window.TownAI; index.html loads as type="module".
+
 v1.34.12 — Phase 3 step 12: Entities and Data modules to ESM
 - Changed: entities/items.js converted to ES module (export MATERIALS, TYPES, initialDecay, createEquipment, createEquipmentOfSlot, createByKey, createNamed, addType, listTypes, getTypeDef, typesBySlot, pickType, describe) and retains window.Items; index.html loads as type="module".
 - Changed: entities/enemies.js converted to ES module (export TYPES, listTypes, getTypeDef, colorFor, glyphFor, equipTierFor, equipChanceFor, potionWeightsFor, pickType, levelFor, damageMultiplier, enemyBlockChance, createEnemyAt) and retains window.Enemies; index.html loads as type="module".
