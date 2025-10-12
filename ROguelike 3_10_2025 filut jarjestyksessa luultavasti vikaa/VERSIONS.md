@@ -10,6 +10,10 @@ Conventions
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
 
+v1.30.0 — ctx-first ShopService in Town generation and UI handler gating
+- Changed: worldgen/town_gen.js now prefers ctx.ShopService for minutesOfDay/isOpenAt/isShopOpenNow/shopScheduleStr/shopAt, removing direct window.ShopService reliance.
+- Changed: core/game.js UI.setHandlers.isShopOpen now uses UIBridge.isShopOpen() as the single gating source.
+
 v1.29.0 — Modes: runtime-only persistence and confirm fallback removal
 - Changed: core/modes.js now delegates dungeon save/load/enter/exit exclusively to ctx.DungeonRuntime when available; removed window.DungeonRuntime fallbacks.
 - Changed: Town exit confirm fallback removed; if UIBridge.showConfirm is unavailable, leaveTownNow proceeds immediately to avoid getting stuck.

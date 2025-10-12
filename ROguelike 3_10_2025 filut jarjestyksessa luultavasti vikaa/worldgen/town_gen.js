@@ -467,8 +467,8 @@
     }
     function minutesOfDay(ctx, h, m = 0) {
       try {
-        if (window.ShopService && typeof ShopService.minutesOfDay === "function") {
-          return ShopService.minutesOfDay(h, m, 24 * 60);
+        if (ctx && ctx.ShopService && typeof ctx.ShopService.minutesOfDay === "function") {
+          return ctx.ShopService.minutesOfDay(h, m, 24 * 60);
         }
       } catch (_) {}
       return ((h | 0) * 60 + (m | 0)) % (24 * 60);
@@ -858,11 +858,26 @@
 
   // ---- Shop helpers for interactProps ----
   function minutesOfDayLocal(h, m = 0) {
-    try { if (window.ShopService && typeof ShopService.minutesOfDay === "function") return ShopService.minutesOfDay(h, m, 24 * 60); } catch (_){}
+    try {
+      if (typeof window !== "undefined" && window.Ctx && typeof Ctx.create === "function") {
+        // If a ctx is available via create, prefer its ShopService
+        const ctx = Ctx.create({});
+        if (ctx.ShopService && typeof ctx.ShopService.minutesOfDay === "function") {
+          return ctx.ShopService.minutesOfDay(h, m, 24 * 60);
+        }
+      }
+      if (typeof window !== "undefined" && window.ShopService && typeof ShopService.minutesOfDay === "function") {
+        return ShopService.minutesOfDay(h, m, 24 * 60);
+      }
+    } catch (_){}
     return ((h | 0) * 60 + (m | 0)) % (24 * 60);
   }
   function isOpenAt(ctx, shop, minutes) {
-    if (window.ShopService && typeof ShopService.isOpenAt === "function") return ShopService.isOpenAt(shop, minutes);
+    try {
+      if (ctx && ctx.ShopService && typeof ctx.ShopService.isOpenAt === "function") {
+        return ctx.ShopService.isOpenAt(shop, minutes);
+      }
+    } catch (_){}
     if (!shop) return false;
     if (shop.alwaysOpen) return true;
     if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
@@ -871,14 +886,22 @@
     return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
   }
   function isShopOpenNow(ctx, shop = null) {
-    if (window.ShopService && typeof ShopService.isShopOpenNow === "function") return ShopService.isShopOpenNow(ctx, shop);
+    try {
+      if (ctx && ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") {
+        return ctx.ShopService.isShopOpenNow(ctx, shop);
+      }
+    } catch (_){}
     const t = ctx.time;
     const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
     if (!shop) return t && t.phase === "day";
     return isOpenAt(ctx, shop, minutes);
   }
   function shopScheduleStr(ctx, shop) {
-    if (window.ShopService && typeof ShopService.shopScheduleStr === "function") return ShopService.shopScheduleStr(shop);
+    try {
+      if (ctx && ctx.ShopService && typeof ctx.ShopService.shopScheduleStr === "function") {
+        return ctx.ShopService.shopScheduleStr(shop);
+      }
+    } catch (_){}
     if (!shop) return "";
     const h2 = (min) => {
       const hh = ((min / 60) | 0) % 24;
@@ -887,7 +910,11 @@
     return `Opens ${h2(shop.openMin)}:00, closes ${h2(shop.closeMin)}:00`;
   }
   function shopAt(ctx, x, y) {
-    if (window.ShopService && typeof ShopService.shopAt === "function") return ShopService.shopAt(ctx, x, y);
+    try {
+      if (ctx && ctx.ShopService && typeof ctx.ShopService.shopAt === "function") {
+        return ctx.ShopService.shopAt(ctx, x, y);
+      }
+    } catch (_){}
     const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
     return shops.find(s => s.x === x && s.y === y) || null;
   }

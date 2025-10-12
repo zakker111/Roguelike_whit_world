@@ -2376,17 +2376,12 @@
           onTownExit: () => requestLeaveTown(),
           // Panels for ESC-close default behavior
           isShopOpen: () => {
-            // Prefer ShopUI.isOpen via ctx; fallback to DOM check
+            // Prefer UIBridge single-source gating
             try {
-              const SU = modHandle("ShopUI");
-              if (SU && typeof SU.isOpen === "function") {
-                return !!SU.isOpen();
-              }
+              const UB = modHandle("UIBridge");
+              if (UB && typeof UB.isShopOpen === "function") return !!UB.isShopOpen();
             } catch (_) {}
-            try {
-              const el = document.getElementById("shop-panel");
-              return !!(el && el.hidden === false);
-            } catch (_) { return false; }
+            return false;
           },
           onHideShop: () => hideShopPanel(),
           onGodCheckHomes: () => {
