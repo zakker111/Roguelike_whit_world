@@ -128,15 +128,8 @@
         return;
       }
     } catch (_) {}
-    if (ctx.DungeonState && typeof DungeonState.save === "function") {
-      try { if (window.DEV) console.log("[TRACE] Modes.saveCurrentDungeonState"); } catch (_) {}
-      DungeonState.save(ctx);
-      return;
-    }
     // Fallback in-memory snapshot on ctx._dungeonStates if present
-    const key = (ctx.DungeonState && typeof DungeonState.key === "function")
-      ? DungeonState.key(ctx.dungeon.x, ctx.dungeon.y)
-      : `${ctx.dungeon.x},${ctx.dungeon.y}`;
+    const key = `${ctx.dungeon.x},${ctx.dungeon.y}`;
     if (!ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
     ctx._dungeonStates[key] = {
       map: ctx.map,
@@ -174,16 +167,7 @@
         return ok;
       }
     } catch (_) {}
-    if (ctx.DungeonState && typeof DungeonState.load === "function") {
-      const ok = DungeonState.load(ctx, x, y);
-      if (ok) {
-        syncAfterMutation(ctx);
-      }
-      return ok;
-    }
-    const key = (ctx.DungeonState && typeof DungeonState.key === "function")
-      ? DungeonState.key(x, y)
-      : `${x},${y}`;
+    const key = `${x},${y}`;
     const st = ctx._dungeonStates && ctx._dungeonStates[key];
     if (!st) return false;
     ctx.mode = "dungeon";
@@ -296,12 +280,7 @@
         return ok;
       }
     } catch (_) {}
-    // Fallback to DungeonState helper if present
-    if (ctx.DungeonState && typeof DungeonState.returnToWorldIfAtExit === "function") {
-      const ok = DungeonState.returnToWorldIfAtExit(ctx);
-      if (ok) syncAfterMutation(ctx);
-      return ok;
-    }
+    
     // Last-resort local fallback
     if (ctx.mode !== "dungeon" || !ctx.world) return false;
     if (!ctx.dungeonExitAt) return false;

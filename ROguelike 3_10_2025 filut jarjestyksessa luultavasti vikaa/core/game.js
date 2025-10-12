@@ -786,11 +786,6 @@
     if (DR && typeof DR.save === "function") {
       return DR.save(getCtx(), logOnce);
     }
-    if (window.DungeonState && typeof DungeonState.save === "function") {
-      try { if (window.DEV && logOnce) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
-      DungeonState.save(getCtx());
-      return;
-    }
     if (mode !== "dungeon" || !currentDungeon || !dungeonExitAt) return;
     const key = dungeonKeyFromWorldPos(currentDungeon.x, currentDungeon.y);
     dungeonStates[key] = {
@@ -831,18 +826,6 @@
       const ctx = getCtx();
       const ok = DR.load(ctx, x, y);
       if (ok) syncFromCtx(ctx);
-      return ok;
-    }
-    if (window.DungeonState && typeof DungeonState.load === "function") {
-      const ctxMod = getCtx();
-      const ok = DungeonState.load(ctxMod, x, y);
-      if (ok) {
-        syncFromCtx(ctxMod);
-        updateCamera();
-        recomputeFOV();
-        updateUI();
-        requestDraw();
-      }
       return ok;
     }
     const key = dungeonKeyFromWorldPos(x, y);
@@ -2292,8 +2275,6 @@
       const DR = modHandle("DungeonRuntime");
       if (DR && typeof DR.save === "function") {
         DR.save(getCtx(), false);
-      } else if (window.DungeonState && typeof DungeonState.save === "function") {
-        DungeonState.save(getCtx());
       }
     } catch (_) {}
   }
@@ -2424,10 +2405,11 @@
           onTownExit: () => requestLeaveTown(),
           // Panels for ESC-close default behavior
           isShopOpen: () => {
-            // Step 2: Prefer ShopUI.isOpen if available; fallback to DOM
+            // Prefer ShopUI.isOpen via ctx; fallback to DOM check
             try {
-              if (window.ShopUI && typeof ShopUI.isOpen === "function") {
-                return !!ShopUI.isOpen();
+              const SU = modHandle("ShopUI");
+              if (SU && typeof SU.isOpen === "function") {
+                return !!SU.isOpen();
               }
             } catch (_) {}
             try {
