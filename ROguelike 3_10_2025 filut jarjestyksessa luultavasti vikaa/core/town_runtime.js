@@ -110,7 +110,13 @@
     } catch (_) {}
 
     // Hide UI elements
-    try { if (ctx.UI && typeof UI.hideTownExitButton === "function") UI.hideTownExitButton(); } catch (_) {}
+    try {
+      if (ctx.UI && typeof ctx.UI.hideTownExitButton === "function") {
+        ctx.UI.hideTownExitButton();
+      } else if (typeof window !== "undefined" && window.UI && typeof UI.hideTownExitButton === "function") {
+        UI.hideTownExitButton();
+      }
+    } catch (_) {}
 
     // Recompute FOV/camera/UI and inform player
     try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
