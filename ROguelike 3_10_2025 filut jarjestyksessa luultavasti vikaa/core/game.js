@@ -1204,8 +1204,8 @@
   function doAction() {
     hideLootPanel();
 
-    // Town gate exit takes priority over other interactions
-    if (mode === "town" && townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
+    // Town: attempt to exit if at gate (TownRuntime will validate both gate interior and adjacent door tiles)
+    if (mode === "town") {
       if (returnToWorldFromTown()) return;
     }
 
@@ -1227,7 +1227,6 @@
     }
 
     if (mode === "town") {
-      if (returnToWorldFromTown()) return;
       lootCorpse();
       return;
     }
