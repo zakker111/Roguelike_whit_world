@@ -1375,7 +1375,12 @@
   }
 
   function requestLeaveTown() {
-    // Handle confirm here so we can sync locals after leaving
+    const M = modHandle("Modes");
+    if (M && typeof M.requestLeaveTown === "function") {
+      M.requestLeaveTown(getCtx());
+      return;
+    }
+    // Fallback confirm
     const doLeave = () => leaveTownNow();
     if (window.UI && typeof UI.showConfirm === "function") {
       const x = window.innerWidth / 2 - 140;
@@ -1390,6 +1395,16 @@
 
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
+    // Prefer TownRuntime centralization
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.returnToWorldIfAtGate === "function") {
+      const ctx = getCtx();
+      const ok = !!TR.returnToWorldIfAtGate(ctx);
+      if (ok) {
+        syncFromCtx(ctx);
+        return true;
+      }
+    }
     if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
       // Immediate exit on gate when pressing G (disable confirm UI)
       leaveTownNow();

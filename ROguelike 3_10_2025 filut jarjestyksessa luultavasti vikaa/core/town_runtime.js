@@ -7,6 +7,7 @@
  * - spawnGateGreeters(ctx, count=4)
  * - isFreeTownFloor(ctx, x, y)
  * - talk(ctx): bump-talk with nearby NPCs; returns true if handled
+ * - returnToWorldIfAtGate(ctx): leaves town if the player stands on the gate tile; returns true if handled
  */
 (function () {
   function generate(ctx) {
@@ -83,5 +84,43 @@
     return true;
   }
 
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk };
+  function returnToWorldIfAtGate(ctx) {
+    if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
+    const atGate = !!(ctx.townExitAt && ctx.player.x === ctx.townExitAt.x && ctx.player.y === ctx.townExitAt.y);
+    if (!atGate) return false;
+
+    // Switch mode and restore overworld map
+    ctx.mode = "world";
+    ctx.map = ctx.world.map;
+
+    // Clear town-only state
+    try {
+      if (Array.isArray(ctx.npcs)) ctx.npcs.length = 0;
+      if (Array.isArray(ctx.shops)) ctx.shops.length = 0;
+      if (Array.isArray(ctx.townProps)) ctx.townProps.length = 0;
+      if (Array.isArray(ctx.townBuildings)) ctx.townBuildings.length = 0;
+    } catch (_) {}
+
+    // Restore world position if available
+    try {
+      if (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
+        ctx.player.x = ctx.worldReturnPos.x;
+        ctx.player.y = ctx.worldReturnPos.y;
+      }
+    } catch (_) {}
+
+    // Hide UI elements
+    try { if (ctx.UI && typeof UI.hideTownExitButton === "function") UI.hideTownExitButton(); } catch (_) {}
+
+    // Recompute FOV/camera/UI and inform player
+    try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+    try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
+    try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+    try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}
+    try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+
+    return true;
+  }
+
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, returnToWorldIfAtGate };
 })();
