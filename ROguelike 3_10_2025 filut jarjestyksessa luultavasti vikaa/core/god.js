@@ -8,6 +8,8 @@
  * - spawnEnemyNearby(ctx, count=1)
  * - applySeed(ctx, seedUint32)
  * - rerollSeed(ctx)
+ * - setAlwaysCrit(ctx, v:boolean)
+ * - setCritPart(ctx, part: "torso"|"head"|"hands"|"legs"|"" )
  */
 (function () {
   function heal(ctx) {
@@ -171,5 +173,32 @@
     return applySeed(ctx, s);
   }
 
-  window.God = { heal, spawnStairsHere, spawnItems, spawnEnemyNearby, applySeed, rerollSeed };
+  function setAlwaysCrit(ctx, v) {
+    const on = !!v;
+    try {
+      if (typeof window !== "undefined") window.ALWAYS_CRIT = on;
+      try { localStorage.setItem("ALWAYS_CRIT", on ? "1" : "0"); } catch (_) {}
+    } catch (_) {}
+    try {
+      ctx.log(`GOD: Always Crit ${on ? "enabled" : "disabled"}.`, on ? "good" : "warn");
+    } catch (_) {}
+    if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+  }
+
+  function setCritPart(ctx, part) {
+    const valid = new Set(["torso","head","hands","legs",""]);
+    const p = valid.has(part) ? part : "";
+    try {
+      if (typeof window !== "undefined") window.ALWAYS_CRIT_PART = p;
+      if (p) { try { localStorage.setItem("ALWAYS_CRIT_PART", p); } catch (_) {} }
+      else { try { localStorage.removeItem("ALWAYS_CRIT_PART"); } catch (_) {} }
+    } catch (_) {}
+    try {
+      if (p) ctx.log(`GOD: Forcing crit hit location: ${p}.`, "notice");
+      else ctx.log("GOD: Cleared forced crit hit location.", "notice");
+    } catch (_) {}
+    if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+  }
+
+  window.God = { heal, spawnStairsHere, spawnItems, spawnEnemyNearby, applySeed, rerollSeed, setAlwaysCrit, setCritPart };
 })();
