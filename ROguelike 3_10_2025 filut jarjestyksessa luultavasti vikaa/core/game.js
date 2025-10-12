@@ -1596,13 +1596,23 @@
         onShowInventory: () => showInventoryPanel(),
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
-        onHideGod: () => { if (window.UI && UI.hideGod) UI.hideGod(); requestDraw(); },
+        onHideGod: () => {
+          const UB = modHandle("UIBridge");
+          try {
+            if (UB && typeof UB.hideGod === "function") UB.hideGod(getCtx());
+            else if (window.UI && UI.hideGod) UI.hideGod();
+          } catch (_) {}
+          requestDraw();
+        },
         onHideShop: () => hideShopPanel(),
         onShowGod: () => {
-          if (window.UI) {
-            if (typeof UI.setGodFov === "function") UI.setGodFov(fovRadius);
-            if (typeof UI.showGod === "function") UI.showGod();
-          }
+          const UB = modHandle("UIBridge");
+          try {
+            if (UB && typeof UB.showGod === "function") UB.showGod(getCtx());
+            else if (window.UI && typeof UI.showGod === "function") UI.showGod();
+          } catch (_) {}
+          const UIH = modHandle("UI");
+          if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
           requestDraw();
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
@@ -1755,15 +1765,21 @@
       }
       { const ctx = getCtx(); if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg }); }
       if (isCrit && loc.part === "legs" && enemy.hp > 0) {
-        if (window.Status && typeof Status.applyLimpToEnemy === "function") {
-          Status.applyLimpToEnemy(getCtx(), enemy, 2);
-        } else {
-          enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2);
-          log(`${capitalize(enemy.type || "enemy")} staggers; its legs are crippled and it can't move for 2 turns.`, "notice");
+        {
+          const ST = modHandle("Status");
+          if (ST && typeof ST.applyLimpToEnemy === "function") {
+            ST.applyLimpToEnemy(getCtx(), enemy, 2);
+          } else {
+            enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2);
+            log(`${capitalize(enemy.type || "enemy")} staggers; its legs are crippled and it can't move for 2 turns.`, "notice");
+          }
         }
       }
-      if (isCrit && enemy.hp > 0 && window.Status && typeof Status.applyBleedToEnemy === "function") {
-        Status.applyBleedToEnemy(getCtx(), enemy, 2);
+      if (isCrit && enemy.hp > 0) {
+        const ST = modHandle("Status");
+        if (ST && typeof ST.applyBleedToEnemy === "function") {
+          ST.applyBleedToEnemy(getCtx(), enemy, 2);
+        }
       }
 
       if (enemy.hp <= 0) {

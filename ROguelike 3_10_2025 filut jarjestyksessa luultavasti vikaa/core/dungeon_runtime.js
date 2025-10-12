@@ -295,10 +295,7 @@
       if (!container) {
         list.forEach(c => c.looted = true);
         ctx.log && ctx.log("Nothing of value here.");
-        try {
-          if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx);
-          else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx);
-        } catch (_) {}
+        try { save(ctx, false); } catch (_) {}
         ctx.updateUI && ctx.updateUI();
         ctx.turn && ctx.turn();
         return true;
@@ -325,11 +322,7 @@
       container.looted = true;
       ctx.updateUI && ctx.updateUI();
       ctx.log && ctx.log(`You loot: ${acquired.join(", ")}.`);
-      try {
-        if (typeof save === "function") save(ctx, false);
-        else if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx);
-        else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx);
-      } catch (_) {}
+      try { save(ctx, false); } catch (_) {}
       ctx.turn && ctx.turn();
       return true;
     } catch (_) {}
@@ -399,15 +392,7 @@
     } catch (_) {}
 
     // Persist dungeon state so corpses remain on revisit
-    try {
-      if (typeof save === "function") {
-        save(ctx, false);
-      } else if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
-        ctx.DungeonState.save(ctx);
-      } else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
-        DungeonState.save(ctx);
-      }
-    } catch (_) {}
+    try { save(ctx, false); } catch (_) {}
   }
 
   function enter(ctx, info) {
