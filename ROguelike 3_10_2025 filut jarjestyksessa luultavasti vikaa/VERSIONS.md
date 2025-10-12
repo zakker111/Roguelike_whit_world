@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.11 — Phase 3 step 11: World and Dungeon core modules to ESM
+- Changed: world/world.js converted to ES module (export TILES, generate, isWalkable, pickTownStart, biomeName) and retains window.World; index.html loads as type="module".
+- Changed: world/los.js converted to ES module (export tileTransparent, hasLOS) and retains window.LOS; index.html loads as type="module".
+- Changed: world/fov.js converted to ES module (export recomputeFOV) and retains window.FOV; index.html loads as type="module".
+- Changed: dungeon/dungeon.js converted to ES module (export generateLevel) and retains window.Dungeon; index.html loads as type="module".
+- Changed: dungeon/occupancy_grid.js converted to ES module (export create, build) and retains window.OccupancyGrid; index.html loads as type="module".
+- Changed: dungeon/dungeon_state.js converted to ES module (export key, save, load, returnToWorldIfAtExit) and retains window.DungeonState; index.html loads as type="module".
+
 v1.34.10 — Phase 3 step 10: Tileset and UI modules to ESM
 - Changed: ui/tileset.js converted to ES module (export Tileset) and retains window.Tileset; index.html loads as type="module".
 - Changed: ui/ui.js converted to ES module (export UI) and retains window.UI; index.html loads as type="module".
