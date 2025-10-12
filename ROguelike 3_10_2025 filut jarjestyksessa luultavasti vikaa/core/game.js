@@ -1415,9 +1415,10 @@
   }
 
   function returnToWorldIfAtExit() {
-    if (window.Modes && typeof Modes.returnToWorldIfAtExit === "function") {
+    const M = modHandle("Modes");
+    if (M && typeof M.returnToWorldIfAtExit === "function") {
       const ctx = getCtx();
-      const ok = Modes.returnToWorldIfAtExit(ctx);
+      const ok = M.returnToWorldIfAtExit(ctx);
       if (ok) {
         // Sync mutated ctx back into local state
         mode = ctx.mode || mode;
@@ -1854,9 +1855,10 @@
 
   // Shop UI delegated to ui/shop_panel.js
   function hideShopPanel() {
-    // Step 1 refactor: delegate to ShopUI if available, keep fallback
-    if (window.ShopUI && typeof ShopUI.hide === "function") {
-      ShopUI.hide();
+    // Delegate to ShopUI via ctx handle when available; fallback to DOM
+    const SU = modHandle("ShopUI");
+    if (SU && typeof SU.hide === "function") {
+      SU.hide();
       requestDraw();
       return;
     }
@@ -1865,76 +1867,39 @@
     requestDraw();
   }
   function openShopFor(npc) {
-    // Step 4: fully delegate to ShopUI
-    if (window.ShopUI && typeof ShopUI.openForNPC === "function") {
-      try { ShopUI.openForNPC(getCtx(), npc); } catch (_) {}
+    // Delegate to ShopUI via ctx handle
+    const SU = modHandle("ShopUI");
+    if (SU && typeof SU.openForNPC === "function") {
+      try { SU.openForNPC(getCtx(), npc); } catch (_) {}
       return;
     }
     try { log("Shop UI not available.", "warn"); } catch (_) {}
   }
   function shopBuyIndex(idx) {
-    // Step 4: fully delegate to ShopUI
-    if (window.ShopUI && typeof ShopUI.buyIndex === "function") {
-      try { ShopUI.buyIndex(getCtx(), idx); } catch (_) {}
+    // Delegate to ShopUI via ctx handle
+    const SU = modHandle("ShopUI");
+    if (SU && typeof SU.buyIndex === "function") {
+      try { SU.buyIndex(getCtx(), idx); } catch (_) {}
     }
   }
 
   // GOD mode actions
   function godHeal() {
-    if (window.God && typeof God.heal === "function") { God.heal(getCtx()); return; }
-    const prev = player.hp;
-    player.hp = player.maxHp;
-    if (player.hp > prev) {
-      log(`GOD: You are fully healed (${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)} HP).`, "good");
-    } else {
-      log(`GOD: HP already full (${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
-    }
-    updateUI();
-    requestDraw();
+    const G = modHandle("God");
+    if (G && typeof G.heal === "function") { G.heal(getCtx()); return; }
+    log("GOD: heal not available.", "warn");
   }
 
   function godSpawnStairsHere() {
-    if (window.God && typeof God.spawnStairsHere === "function") { God.spawnStairsHere(getCtx()); return; }
-    if (!inBounds(player.x, player.y)) {
-      log("GOD: Cannot place stairs out of bounds.", "warn");
-      return;
-    }
-    map[player.y][player.x] = TILES.STAIRS;
-    seen[player.y][player.x] = true;
-    visible[player.y][player.x] = true;
-    log("GOD: Stairs appear beneath your feet.", "notice");
-    requestDraw();
+    const G = modHandle("God");
+    if (G && typeof G.spawnStairsHere === "function") { G.spawnStairsHere(getCtx()); return; }
+    log("GOD: spawnStairsHere not available.", "warn");
   }
 
   function godSpawnItems(count = 3) {
-    if (window.God && typeof God.spawnItems === "function") { God.spawnItems(getCtx(), count); return; }
-    const created = [];
-    for (let i = 0; i < count; i++) {
-      let it = null;
-      if (window.Items && typeof Items.createEquipment === "function") {
-        const tier = Math.min(3, Math.max(1, Math.floor((floor + 1) / 2)));
-        it = Items.createEquipment(tier, rng);
-      } else if (window.DungeonItems && DungeonItems.lootFactories && typeof DungeonItems.lootFactories === "object") {
-        const keys = Object.keys(DungeonItems.lootFactories);
-        if (keys.length > 0) {
-          const k = keys[randInt(0, keys.length - 1)];
-          try { it = DungeonItems.lootFactories[k](getCtx(), { tier: 2 }); } catch (_) {}
-        }
-      }
-      if (!it) {
-        if (rng() < 0.5) it = { kind: "equip", slot: "hand", name: "debug sword", atk: 1.5, tier: 2, decay: initialDecay(2) };
-        else it = { kind: "equip", slot: "torso", name: "debug armor", def: 1.0, tier: 2, decay: initialDecay(2) };
-      }
-      player.inventory.push(it);
-      created.push(describeItem(it));
-    }
-    if (created.length) {
-      log(`GOD: Spawned ${created.length} item${created.length > 1 ? "s" : ""}:`);
-      created.forEach(n => log(`- ${n}`));
-      updateUI();
-      renderInventoryPanel();
-      requestDraw();
-    }
+    const G = modHandle("God");
+    if (G && typeof G.spawnItems === "function") { G.spawnItems(getCtx(), count); return; }
+    log("GOD: spawnItems not available.", "warn");
   }
 
   /**
@@ -1944,60 +1909,9 @@
    * - Applies small randomized jitters to hp/atk for variety (deterministic via rng).
    */
   function godSpawnEnemyNearby(count = 1) {
-    if (window.God && typeof God.spawnEnemyNearby === "function") { God.spawnEnemyNearby(getCtx(), count); return; }
-    const isFreeFloor = (x, y) => {
-      if (!inBounds(x, y)) return false;
-      if (map[y][x] !== TILES.FLOOR) return false;
-      if (player.x === x && player.y === y) return false;
-      if (enemies.some(e => e.x === x && e.y === y)) return false;
-      return true;
-    };
-
-    const pickNearby = () => {
-      const maxAttempts = 60;
-      for (let i = 0; i < maxAttempts; i++) {
-        const dx = randInt(-5, 5);
-        const dy = randInt(-5, 5);
-        const x = player.x + dx;
-        const y = player.y + dy;
-        if (isFreeFloor(x, y)) return { x, y };
-      }
-      const free = [];
-      for (let y = 0; y < map.length; y++) {
-        for (let x = 0; x < (map[0] ? map[0].length : 0); x++) {
-          if (isFreeFloor(x, y)) free.push({ x, y });
-        }
-      }
-      if (free.length === 0) return null;
-      return free[randInt(0, free.length - 1)];
-    };
-
-    const ctx = getCtx();
-    const spawned = [];
-    for (let i = 0; i < count; i++) {
-      const spot = pickNearby();
-      if (!spot) break;
-      const makeEnemy = (ctx.enemyFactory || ((x, y, depth) => ({ x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false })));
-      const e = makeEnemy(spot.x, spot.y, floor);
-
-      if (typeof e.hp === "number" && rng() < 0.7) {
-        const mult = 0.85 + rng() * 0.5;
-        e.hp = Math.max(1, Math.round(e.hp * mult));
-      }
-      if (typeof e.atk === "number" && rng() < 0.7) {
-        const multA = 0.85 + rng() * 0.5;
-        e.atk = Math.max(0.1, round1(e.atk * multA));
-      }
-      e.announced = false;
-      enemies.push(e);
-      spawned.push(e);
-      log(`GOD: Spawned ${capitalize(e.type || "enemy")} Lv ${e.level || 1} at (${e.x},${e.y}).`, "notice");
-    }
-    if (spawned.length > 0) {
-      requestDraw();
-    } else {
-      log("GOD: No free space to spawn an enemy nearby.", "warn");
-    }
+    const G = modHandle("God");
+    if (G && typeof G.spawnEnemyNearby === "function") { G.spawnEnemyNearby(getCtx(), count); return; }
+    log("GOD: spawnEnemyNearby not available.", "warn");
   }
 
   
@@ -2149,7 +2063,8 @@
 
   // GOD: always-crit toggle
   function setAlwaysCrit(v) {
-    if (window.God && typeof God.setAlwaysCrit === "function") { God.setAlwaysCrit(getCtx(), v); return; }
+    const G = modHandle("God");
+    if (G && typeof G.setAlwaysCrit === "function") { G.setAlwaysCrit(getCtx(), v); alwaysCrit = !!v; return; }
     alwaysCrit = !!v;
     try { window.ALWAYS_CRIT = alwaysCrit; localStorage.setItem("ALWAYS_CRIT", alwaysCrit ? "1" : "0"); } catch (_) {}
     log(`GOD: Always Crit ${alwaysCrit ? "enabled" : "disabled"}.`, alwaysCrit ? "good" : "warn");
@@ -2157,7 +2072,8 @@
 
   // GOD: set forced crit body part for player attacks
   function setCritPart(part) {
-    if (window.God && typeof God.setCritPart === "function") { God.setCritPart(getCtx(), part); return; }
+    const G = modHandle("God");
+    if (G && typeof G.setCritPart === "function") { G.setCritPart(getCtx(), part); forcedCritPart = part; return; }
     const valid = new Set(["torso","head","hands","legs",""]);
     const p = valid.has(part) ? part : "";
     forcedCritPart = p;
@@ -2172,7 +2088,20 @@
 
   // GOD: apply a deterministic RNG seed and regenerate current map
   function applySeed(seedUint32) {
-    if (window.God && typeof God.applySeed === "function") { God.applySeed(getCtx(), seedUint32); return; }
+    const G = modHandle("God");
+    if (G && typeof G.applySeed === "function") {
+      const ctx = getCtx();
+      G.applySeed(ctx, seedUint32);
+      // Sync RNG and any regenerated state back into local variables
+      rng = ctx.rng || rng;
+      syncFromCtx(ctx);
+      updateCamera();
+      recomputeFOV();
+      updateUI();
+      requestDraw();
+      return;
+    }
+    // Minimal fallback
     const s = (Number(seedUint32) >>> 0);
     currentSeed = s;
     try { localStorage.setItem("SEED", String(s)); } catch (_) {}
@@ -2208,7 +2137,18 @@
 
   // GOD: reroll seed using current time
   function rerollSeed() {
-    if (window.God && typeof God.rerollSeed === "function") { God.rerollSeed(getCtx()); return; }
+    const G = modHandle("God");
+    if (G && typeof G.rerollSeed === "function") {
+      const ctx = getCtx();
+      G.rerollSeed(ctx);
+      rng = ctx.rng || rng;
+      syncFromCtx(ctx);
+      updateCamera();
+      recomputeFOV();
+      updateUI();
+      requestDraw();
+      return;
+    }
     const s = (Date.now() % 0xffffffff) >>> 0;
     applySeed(s);
   }
