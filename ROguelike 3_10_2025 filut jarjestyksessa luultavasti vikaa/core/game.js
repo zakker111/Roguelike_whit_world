@@ -1567,6 +1567,14 @@
           } catch (_) {}
           return false;
         },
+        // Smoke config modal priority after Shop
+        isSmokeOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isSmokeOpen === "function") return !!UB.isSmokeOpen();
+          } catch (_) {}
+          return false;
+        },
         // actions
         onRestart: () => restartGame(),
         onShowInventory: () => showInventoryPanel(),
@@ -1580,6 +1588,13 @@
           requestDraw();
         },
         onHideShop: () => hideShopPanel(),
+        onHideSmoke: () => {
+          const UB = modHandle("UIBridge");
+          try {
+            if (UB && typeof UB.hideSmoke === "function") UB.hideSmoke(getCtx());
+          } catch (_) {}
+          requestDraw();
+        },
         onShowGod: () => {
           const UB = modHandle("UIBridge");
           try {

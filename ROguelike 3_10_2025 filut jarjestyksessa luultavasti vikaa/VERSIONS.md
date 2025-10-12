@@ -10,6 +10,11 @@ Conventions
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
 
+v1.32.0 — Smoke panel wrappers and input gating via UIBridge
+- Added: core/ui_bridge.js now exposes showSmoke(ctx) and hideSmoke(ctx) in addition to isSmokeOpen().
+- Changed: core/input.js Keyboard handler includes Smoke modal in priority stack; Esc closes Smoke via onHideSmoke.
+- Changed: core/game.js setupInput wires isSmokeOpen and onHideSmoke using UIBridge, aligning with other modals (GOD/Shop/Inventory/Loot).
+
 v1.31.0 — ctx-first glue in Modes/DungeonRuntime; Shop via UIBridge
 - Changed: core/modes.js inBounds now prefers ctx.Utils.inBounds before local fallback.
 - Changed: core/dungeon_runtime.js now prefers ctx.DungeonState for save/load with window fallback; keyFromWorldPos is a pure string key; OccupancyGrid build prefers ctx.OccupancyGrid before window fallback.

@@ -22,6 +22,8 @@
  * - showShop(ctx, npc)        // opens shop for a given NPC/spot
  * - hideShop(ctx)             // hides shop panel
  * - buyShopIndex(ctx, idx)    // triggers a buy by index
+ * - showSmoke(ctx)            // opens Smoke Config panel
+ * - hideSmoke(ctx)            // hides Smoke Config panel
  *
  * Notes:
  * - Thin layer: delegates to window.UI if present (and window.ShopUI for shop panel).
@@ -153,6 +155,14 @@
   function isSmokeOpen() {
     try { return !!(hasUI() && UI.isSmokeOpen && UI.isSmokeOpen()); } catch (_) { return false; }
   }
+  function showSmoke(ctx) {
+    if (!hasUI()) return;
+    try { UI.showSmoke && UI.showSmoke(); } catch (_) {}
+  }
+  function hideSmoke(ctx) {
+    if (!hasUI()) return;
+    try { UI.hideSmoke && UI.hideSmoke(); } catch (_) {}
+  }
 
   // Aggregate modal state for simple gating
   function isAnyModalOpen() {
@@ -203,6 +213,8 @@
     hideShop,
     buyShopIndex,
     isSmokeOpen,
+    showSmoke,
+    hideSmoke,
     isAnyModalOpen,
     showConfirm,
     showTownExitButton,

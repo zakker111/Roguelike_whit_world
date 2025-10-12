@@ -4,8 +4,8 @@
  *
  * Exports (window.Input):
  * - init(handlers): installs keydown listener. `handlers` can include:
- *   { isDead, isInventoryOpen, isLootOpen, isGodOpen, isShopOpen, onRestart, onShowInventory, onHideInventory,
- *     onHideLoot, onHideGod, onHideShop, onShowGod, onMove(dx,dy), onWait, onLoot, onDescend, adjustFov(delta) }
+ *   { isDead, isInventoryOpen, isLootOpen, isGodOpen, isShopOpen, isSmokeOpen, onRestart, onShowInventory, onHideInventory,
+ *     onHideLoot, onHideGod, onHideShop, onHideSmoke, onShowGod, onMove(dx,dy), onWait, onLoot, onDescend, adjustFov(delta) }
  * - destroy(): removes listener.
  *
  * Rules and priorities
@@ -58,6 +58,16 @@
         if (isEsc) {
           e.preventDefault();
           _handlers.onHideShop && _handlers.onHideShop();
+        } else {
+          e.preventDefault();
+        }
+        return;
+      }
+      if (_handlers.isSmokeOpen && _handlers.isSmokeOpen()) {
+        const isEsc = e.key === "Escape" || e.key === "Esc";
+        if (isEsc) {
+          e.preventDefault();
+          _handlers.onHideSmoke && _handlers.onHideSmoke();
         } else {
           e.preventDefault();
         }
