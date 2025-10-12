@@ -1,5 +1,10 @@
 # Game Version History
-Last updated: 2025-10-12 00:00 UTC
+Last updated: 2025-10-12 00:30 UTC
+
+v1.34.20 — Render ESM imports + ctx-first grid overlay
+- Changed: ui/render.js now imports RenderCore/RenderOverworld/RenderTown/RenderDungeon via ES modules and delegates directly, removing window.* checks.
+- Changed: ui/render_overworld.js, ui/render_town.js, and ui/render_dungeon.js import RenderCore and call drawGridOverlay(view) directly (no window.RenderCore gating).
+- Changed: ui/render_core.js computeView prefers ctx.drawGrid when present and falls back to window.DRAW_GRID, enabling ctx-first grid toggle.
 
 v1.34.19 — Optional bundling (Vite) and ctx-first cleanup
 - Added: package.json and vite.config.js for optional bundling with Vite (dev/build/preview).

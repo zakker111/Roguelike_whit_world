@@ -63,6 +63,17 @@
 
       if (inTown) {
         try {
+          // Ensure GOD panel is visible before clicking overlay toggles
+          try {
+            if (window.UIBridge && typeof window.UIBridge.showGod === "function") {
+              window.UIBridge.showGod({});
+              await sleep(120);
+            } else {
+              var gob = document.getElementById("god-open-btn");
+              if (gob) { gob.click(); await sleep(120); }
+            }
+          } catch (_) {}
+
           var perfBefore = (typeof window.GameAPI.getPerf === "function") ? window.GameAPI.getPerf() : { lastDrawMs: 0 };
           // Toggle overlays
           try { var btn1 = document.getElementById("god-toggle-route-paths-btn"); btn1 && btn1.click(); } catch (_) {}

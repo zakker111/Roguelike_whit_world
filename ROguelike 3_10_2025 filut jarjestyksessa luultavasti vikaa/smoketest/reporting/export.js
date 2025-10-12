@@ -18,8 +18,6 @@
     try {
       if (window.UIBridge && typeof window.UIBridge.showGod === "function") {
         window.UIBridge.showGod({});
-      } else if (window.UI && typeof window.UI.showGod === "function") {
-        window.UI.showGod();
       } else {
         try { var btn = document.getElementById("god-open-btn"); btn && btn.click(); } catch (_) {}
       }

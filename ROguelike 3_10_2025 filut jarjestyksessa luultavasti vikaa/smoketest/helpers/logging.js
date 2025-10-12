@@ -61,10 +61,12 @@
       const banner = Logging.ensureBanner();
       const m = Logging.currentMode();
       const line = "[SMOKE]" + (m ? ` [${m}]` : "") + " " + msg;
-      banner.textContent = line;
+      if (banner) banner.textContent = line;
       Logging.setStatus(msg);
       try {
-        if (window.Logger && typeof Logger.log === "function") {
+        if (window.GameAPI && typeof window.GameAPI.log === "function") {
+          window.GameAPI.log(line, type || "info");
+        } else if (window.Logger && typeof Logger.log === "function") {
           Logger.log(line, type || "info");
         }
       } catch (_) {}
