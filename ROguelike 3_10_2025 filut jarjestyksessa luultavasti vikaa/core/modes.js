@@ -136,6 +136,16 @@
   }
 
   function loadDungeonStateFor(ctx, x, y) {
+    // Prefer centralized DungeonRuntime if available
+    try {
+      if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.load === "function") {
+        const ok = DungeonRuntime.load(ctx, x, y);
+        if (ok) {
+          syncAfterMutation(ctx);
+        }
+        return ok;
+      }
+    } catch (_) {}
     if (ctx.DungeonState && typeof DungeonState.load === "function") {
       const ok = DungeonState.load(ctx, x, y);
       if (ok) {

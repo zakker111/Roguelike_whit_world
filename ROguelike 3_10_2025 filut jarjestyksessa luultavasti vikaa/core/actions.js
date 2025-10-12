@@ -325,7 +325,8 @@
     return (((h | 0) * 60 + (m | 0)) % DAY + DAY) % DAY;
   }
   function isOpenAtShop(ctx, shop, minutes) {
-    if (window.ShopService && typeof ShopService.isOpenAt === "function") return ShopService.isOpenAt(shop, minutes);
+    if (ctx.ShopService && typeof ctx.ShopService.isOpenAt === "function") return ctx.ShopService.isOpenAt(shop, minutes);
+    if (typeof window !== "undefined" && window.ShopService && typeof ShopService.isOpenAt === "function") return ShopService.isOpenAt(shop, minutes);
     if (!shop) return false;
     if (shop.alwaysOpen) return true;
     if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
@@ -334,14 +335,16 @@
     return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
   }
   function isShopOpenNow(ctx, shop) {
-    if (window.ShopService && typeof ShopService.isShopOpenNow === "function") return ShopService.isShopOpenNow(ctx, shop);
+    if (ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") return ctx.ShopService.isShopOpenNow(ctx, shop);
+    if (typeof window !== "undefined" && window.ShopService && typeof ShopService.isShopOpenNow === "function") return ShopService.isShopOpenNow(ctx, shop);
     const t = ctx.time;
     const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
     if (!shop) return t && t.phase === "day";
     return isOpenAtShop(ctx, shop, minutes);
   }
   function shopScheduleStr(ctx, shop) {
-    if (window.ShopService && typeof ShopService.shopScheduleStr === "function") return ShopService.shopScheduleStr(shop);
+    if (ctx.ShopService && typeof ctx.ShopService.shopScheduleStr === "function") return ctx.ShopService.shopScheduleStr(shop);
+    if (typeof window !== "undefined" && window.ShopService && typeof ShopService.shopScheduleStr === "function") return ShopService.shopScheduleStr(shop);
     if (!shop) return "";
     const h2 = (min) => {
       const hh = ((min / 60) | 0) % 24;
