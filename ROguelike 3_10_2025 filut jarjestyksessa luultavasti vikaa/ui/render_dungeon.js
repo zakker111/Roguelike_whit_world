@@ -12,14 +12,26 @@
       cam, tileOffsetX, tileOffsetY, startX, startY, endX, endY
     } = Object.assign({}, view, ctx);
 
+    const mapRows = map.length;
+    const mapCols = map[0] ? map[0].length : 0;
+
     // tiles within viewport range
     for (let y = startY; y <= endY; y++) {
-      const rowMap = map[y];
-      const rowSeen = seen[y] || [];
-      const rowVis = visible[y] || [];
+      const yIn = y >= 0 && y < mapRows;
+      const rowMap = yIn ? map[y] : null;
+      const rowSeen = yIn ? (seen[y] || []) : [];
+      const rowVis = yIn ? (visible[y] || []) : [];
       for (let x = startX; x <= endX; x++) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
+
+        // Off-map space: draw void
+        if (!yIn || x < 0 || x >= mapCols) {
+          ctx2d.fillStyle = COLORS.wallDark;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          continue;
+        }
+
         const vis = !!rowVis[x];
         const everSeen = !!rowSeen[x];
 

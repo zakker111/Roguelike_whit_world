@@ -23,18 +23,26 @@
     ctx2d.fillText(ch, x + half, y + half + 1);
   }
 
+  function posMod(n, m) {
+    var r = n % m;
+    return r < 0 ? r + m : r;
+  }
+
   function computeView(ctx) {
     const { ctx2d, TILE, ROWS, COLS, COLORS, TILES, map, camera: camMaybe } = ctx;
 
     const cam = camMaybe || { x: 0, y: 0, width: COLS * TILE, height: ROWS * TILE };
-    const tileOffsetX = cam.x % TILE;
-    const tileOffsetY = cam.y % TILE;
-    const startX = Math.max(0, Math.floor(cam.x / TILE));
-    const startY = Math.max(0, Math.floor(cam.y / TILE));
+    // Normalize offsets to [0, TILE)
+    const tileOffsetX = posMod(cam.x, TILE);
+    const tileOffsetY = posMod(cam.y, TILE);
+    // Allow negative start indices so camera can truly center on player near edges
+    const startX = Math.floor(cam.x / TILE);
+    const startY = Math.floor(cam.y / TILE);
     const mapRows = map.length;
     const mapCols = map[0] ? map[0].length : 0;
-    const endX = Math.min(mapCols - 1, startX + COLS - 1);
-    const endY = Math.min(mapRows - 1, startY + ROWS - 1);
+    // Draw a full COLS x ROWS window regardless of map bounds; renderers must guard OOB
+    const endX = startX + COLS - 1;
+    const endY = startY + ROWS - 1;
 
     // Clear and set text properties once per frame
     ctx2d.clearRect(0, 0, cam.width, cam.height);

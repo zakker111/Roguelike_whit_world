@@ -29,12 +29,23 @@
     };
 
     const WT = (typeof window !== "undefined" && window.World && World.TILES) ? World.TILES : null;
+    const mapRows = map.length;
+    const mapCols = map[0] ? map[0].length : 0;
 
     for (let y = startY; y <= endY; y++) {
-      const row = map[y];
+      const yIn = y >= 0 && y < mapRows;
+      const row = yIn ? map[y] : null;
       for (let x = startX; x <= endX; x++) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
+
+        // Off-map: draw canvas background color tile
+        if (!yIn || x < 0 || x >= mapCols) {
+          ctx2d.fillStyle = "#0b0c10";
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          continue;
+        }
+
         const t = row[x];
         let fill = WCOL.grass;
         if (WT) {
