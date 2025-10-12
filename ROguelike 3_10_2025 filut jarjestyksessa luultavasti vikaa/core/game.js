@@ -747,9 +747,10 @@
   }
 
   function inBounds(x, y) {
-    // Phase 1: prefer Utils.inBounds when available to avoid duplication
-    if (window.Utils && typeof Utils.inBounds === "function") {
-      try { return !!Utils.inBounds(getCtx(), x, y); } catch (_) {}
+    // Prefer ctx-first Utils.inBounds to avoid duplication
+    const U = modHandle("Utils");
+    if (U && typeof U.inBounds === "function") {
+      try { return !!U.inBounds(getCtx(), x, y); } catch (_) {}
     }
     const mh = map.length || MAP_ROWS;
     const mw = map[0] ? map[0].length : MAP_COLS;
@@ -866,9 +867,10 @@
   }
 
   function isWalkable(x, y) {
-    // Phase 1: prefer Utils.isWalkableTile to unify tile semantics (ignore occupancy)
-    if (window.Utils && typeof Utils.isWalkableTile === "function") {
-      try { return !!Utils.isWalkableTile(getCtx(), x, y); } catch (_) {}
+    // Prefer ctx-first Utils.isWalkableTile to unify tile semantics (ignore occupancy)
+    const U = modHandle("Utils");
+    if (U && typeof U.isWalkableTile === "function") {
+      try { return !!U.isWalkableTile(getCtx(), x, y); } catch (_) {}
     }
     if (!inBounds(x, y)) return false;
     const t = map[y][x];
@@ -2223,7 +2225,10 @@
     } catch (_) {}
     gainXP(enemy.xp || 5);
     try {
-      if (window.DungeonState && typeof DungeonState.save === "function") {
+      const DR = modHandle("DungeonRuntime");
+      if (DR && typeof DR.save === "function") {
+        DR.save(getCtx(), false);
+      } else if (window.DungeonState && typeof DungeonState.save === "function") {
         DungeonState.save(getCtx());
       }
     } catch (_) {}
