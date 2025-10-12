@@ -118,10 +118,7 @@ export function isShopOpen() {
       return !!window.ShopUI.isOpen();
     }
   } catch (_) {}
-  try {
-    const el = document.getElementById("shop-panel");
-    return !!(el && el.hidden === false);
-  } catch (_) { return false; }
+  return false;
 }
 export function showShop(ctx, npc) {
   try {
@@ -137,10 +134,6 @@ export function hideShop(ctx) {
       window.ShopUI.hide();
       return;
     }
-  } catch (_) {}
-  try {
-    const el = document.getElementById("shop-panel");
-    if (el) el.hidden = true;
   } catch (_) {}
 }
 export function buyShopIndex(ctx, idx) {

@@ -1,5 +1,10 @@
 # Game Version History
-Last updated: 2025-10-12 01:20 UTC
+Last updated: 2025-10-12 01:30 UTC
+
+v1.34.23 — UIBridge: remove DOM fallbacks for Shop UI
+- Changed: UIBridge.isShopOpen now relies solely on ShopUI.isOpen()
+- Changed: UIBridge.hideShop no longer hides #shop-panel via DOM; delegates only to ShopUI.hide()
+- Benefit: single path through UIBridge → ShopUI for shop modals; reduces divergence and hidden UI state risks
 
 v1.34.22 — Phase 2 cleanup: remove remaining DOM panel fallbacks and tighten ShopService usage
 - Changed: core/game.js inventory panel flows now rely solely on InventoryController or UIBridge
