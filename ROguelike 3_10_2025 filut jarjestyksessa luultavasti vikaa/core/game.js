@@ -1876,9 +1876,7 @@
       requestDraw();
       return;
     }
-    const panel = document.getElementById("inv-panel");
-    if (!panel) return;
-    panel.hidden = true;
+    // No DOM fallback; rely on UIBridge/InventoryController
     requestDraw();
   }
 

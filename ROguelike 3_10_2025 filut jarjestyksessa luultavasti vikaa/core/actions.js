@@ -104,12 +104,9 @@ function describeProp(ctx, p) {
 // Shop schedule helpers (centralized via ShopService)
 function isOpenAtShop(ctx, shop, minutes) {
   if (ctx.ShopService && typeof ctx.ShopService.isOpenAt === "function") return ctx.ShopService.isOpenAt(shop, minutes);
+  // Minimal fallback: unknown schedule => treat as closed unless explicitly alwaysOpen
   if (!shop) return false;
-  if (shop.alwaysOpen) return true;
-  if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
-  const o = shop.openMin, c = shop.closeMin;
-  if (o === c) return false;
-  return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
+  return !!shop.alwaysOpen;
 }
 function isShopOpenNow(ctx, shop) {
   if (ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") return ctx.ShopService.isShopOpenNow(ctx, shop);
@@ -120,12 +117,7 @@ function isShopOpenNow(ctx, shop) {
 }
 function shopScheduleStr(ctx, shop) {
   if (ctx.ShopService && typeof ctx.ShopService.shopScheduleStr === "function") return ctx.ShopService.shopScheduleStr(shop);
-  if (!shop) return "";
-  const h2 = (min) => {
-    const hh = ((min / 60) | 0) % 24;
-    return String(hh).padStart(2, "0");
-  };
-  return `Opens ${h2(shop.openMin)}:00, closes ${h2(shop.closeMin)}:00`;
+  return "";
 }
 
 // Inn rest helpers
@@ -210,17 +202,18 @@ export function loot(ctx) {
     const s = shopAt(ctx, ctx.player.x, ctx.player.y);
     if (s) {
       const openNow = isShopOpenNow(ctx, s);
-      const schedule = shopScheduleStr(ctx, s);
+      const sched = shopScheduleStr(ctx, s);
+      const schedPart = sched ? `${sched}. ` : "";
       const nameLower = (s.name || "").toLowerCase();
       if (nameLower === "inn") {
-        ctx.log(`Inn: ${schedule}. ${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
+        ctx.log(`Inn: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
         ctx.log("You enter the inn.", "notice");
         // Inns provide resting; allow rest regardless
         restAtInn(ctx);
         return true;
       }
       if (nameLower === "tavern") {
-        ctx.log(`Tavern: ${schedule}. ${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
+        ctx.log(`Tavern: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
         const phase = (ctx.time && ctx.time.phase) || "day";
         if (phase === "night" || phase === "dusk") ctx.log("You step into the tavern. It's lively inside.", "notice");
         else if (phase === "day") ctx.log("You enter the tavern. A few patrons sit quietly.", "info");
@@ -229,7 +222,7 @@ export function loot(ctx) {
         return true;
       }
       if (openNow) ctx.log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "notice");
-      else ctx.log(`The ${s.name || "shop"} is closed. ${schedule}`, "warn");
+      else ctx.log(`The ${s.name || "shop"} is closed.${sched ? " " + sched : ""}`, "warn");
       ctx.requestDraw();
       return true;
     }
