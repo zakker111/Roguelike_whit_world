@@ -12,6 +12,12 @@ v1.34.1 — Phase 3 step 1: Services to ESM
 - Changed: services/shop_service.js converted to ES module (export minutesOfDay, isOpenAt, isShopOpenNow, shopScheduleStr, shopAt) and retains window.ShopService for back-compat.
 - Changed: index.html loads both services as type="module".
 
+v1.34.2 — Phase 3 step 2: Facades to ESM
+- Changed: core/ui_bridge.js converted to ES module; functions exported and window.UIBridge retained for back-compat.
+- Changed: core/dungeon_runtime.js converted to ES module; functions exported and window.DungeonRuntime retained for back-compat.
+- Changed: core/town_runtime.js converted to ES module; functions exported and window.TownRuntime retained for back-compat.
+- Changed: index.html loads these facades as type="module".
+
 v1.33.0 — Phase 2 completion: ctx-first AI status, GOD consolidation, final sweep
 - Changed: ai/ai.js now uses ctx.Status for daze/bleed application with a safe fallback to window.Status.
 - Changed: GOD utilities consolidated under data/god.js; removed core/god.js to avoid duplication and ensure a single source of truth.

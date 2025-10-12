@@ -1,7 +1,7 @@
 /**
  * TownRuntime: generation and helpers for town mode.
  *
- * Exports (window.TownRuntime):
+ * Exports (ESM + window.TownRuntime):
  * - generate(ctx): populates ctx.map/visible/seen/npcs/shops/props/buildings/etc.
  * - ensureSpawnClear(ctx)
  * - spawnGateGreeters(ctx, count=4)
@@ -9,127 +9,129 @@
  * - talk(ctx): bump-talk with nearby NPCs; returns true if handled
  * - returnToWorldIfAtGate(ctx): leaves town if the player stands on the gate tile; returns true if handled
  */
-(function () {
-  function generate(ctx) {
-    const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
-    if (Tn && typeof Tn.generate === "function") {
-      const handled = Tn.generate(ctx);
-      if (handled) {
-        // Greeters at gate: Town.generate should ensure one; allow module to add none if unnecessary
-        if (typeof Tn.spawnGateGreeters === "function") {
-          try { Tn.spawnGateGreeters(ctx, 0); } catch (_) {}
-        }
-        // Post-gen camera/FOV/UI
-        try { ctx.updateCamera(); } catch (_) {}
-        try { ctx.recomputeFOV(); } catch (_) {}
-        try { ctx.updateUI(); } catch (_) {}
-        try { ctx.requestDraw(); } catch (_) {}
-        return true;
+
+export function generate(ctx) {
+  const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
+  if (Tn && typeof Tn.generate === "function") {
+    const handled = Tn.generate(ctx);
+    if (handled) {
+      // Greeters at gate: Town.generate should ensure one; allow module to add none if unnecessary
+      if (typeof Tn.spawnGateGreeters === "function") {
+        try { Tn.spawnGateGreeters(ctx, 0); } catch (_) {}
       }
+      // Post-gen camera/FOV/UI
+      try { ctx.updateCamera(); } catch (_) {}
+      try { ctx.recomputeFOV(); } catch (_) {}
+      try { ctx.updateUI(); } catch (_) {}
+      try { ctx.requestDraw(); } catch (_) {}
+      return true;
     }
-    ctx.log && ctx.log("Town module missing; unable to generate town.", "warn");
+  }
+  ctx.log && ctx.log("Town module missing; unable to generate town.", "warn");
+  return false;
+}
+
+export function ensureSpawnClear(ctx) {
+  const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
+  if (Tn && typeof Tn.ensureSpawnClear === "function") {
+    Tn.ensureSpawnClear(ctx);
+    return;
+  }
+  ctx.log && ctx.log("Town.ensureSpawnClear not available.", "warn");
+}
+
+export function spawnGateGreeters(ctx, count) {
+  const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
+  if (Tn && typeof Tn.spawnGateGreeters === "function") {
+    Tn.spawnGateGreeters(ctx, count);
+    return;
+  }
+  ctx.log && ctx.log("Town.spawnGateGreeters not available.", "warn");
+}
+
+export function isFreeTownFloor(ctx, x, y) {
+  try {
+    if (ctx && ctx.Utils && typeof ctx.Utils.isFreeTownFloor === "function") {
+      return !!ctx.Utils.isFreeTownFloor(ctx, x, y);
+    }
+  } catch (_) {}
+  const U = (typeof window !== "undefined" ? window.Utils : null);
+  if (U && typeof U.isFreeTownFloor === "function") {
+    return !!U.isFreeTownFloor(ctx, x, y);
+  }
+  if (!ctx.inBounds(x, y)) return false;
+  const t = ctx.map[y][x];
+  if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
+  if (x === ctx.player.x && y === ctx.player.y) return false;
+  if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n.x === x && n.y === y)) return false;
+  if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
+  return true;
+}
+
+export function talk(ctx) {
+  if (ctx.mode !== "town") return false;
+  const targets = [];
+  const npcs = ctx.npcs || [];
+  for (const n of npcs) {
+    const d = Math.abs(n.x - ctx.player.x) + Math.abs(n.y - ctx.player.y);
+    if (d <= 1) targets.push(n);
+  }
+  if (targets.length === 0) {
+    ctx.log && ctx.log("There is no one to talk to here.");
     return false;
   }
+  const pick = (arr, rng) => arr[(arr.length === 1) ? 0 : Math.floor((rng ? rng() : Math.random()) * arr.length) % arr.length];
+  const npc = pick(targets, ctx.rng);
+  const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
+  const line = pick(lines, ctx.rng);
+  ctx.log && ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
+  ctx.requestDraw && ctx.requestDraw();
+  return true;
+}
 
-  function ensureSpawnClear(ctx) {
-    const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
-    if (Tn && typeof Tn.ensureSpawnClear === "function") {
-      Tn.ensureSpawnClear(ctx);
-      return;
+export function returnToWorldIfAtGate(ctx) {
+  if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
+  const atGate = !!(ctx.townExitAt && ctx.player.x === ctx.townExitAt.x && ctx.player.y === ctx.townExitAt.y);
+  if (!atGate) return false;
+
+  // Switch mode and restore overworld map
+  ctx.mode = "world";
+  ctx.map = ctx.world.map;
+
+  // Clear town-only state
+  try {
+    if (Array.isArray(ctx.npcs)) ctx.npcs.length = 0;
+    if (Array.isArray(ctx.shops)) ctx.shops.length = 0;
+    if (Array.isArray(ctx.townProps)) ctx.townProps.length = 0;
+    if (Array.isArray(ctx.townBuildings)) ctx.townBuildings.length = 0;
+  } catch (_) {}
+
+  // Restore world position if available
+  try {
+    if (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
+      ctx.player.x = ctx.worldReturnPos.x;
+      ctx.player.y = ctx.worldReturnPos.y;
     }
-    ctx.log && ctx.log("Town.ensureSpawnClear not available.", "warn");
-  }
+  } catch (_) {}
 
-  function spawnGateGreeters(ctx, count) {
-    const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
-    if (Tn && typeof Tn.spawnGateGreeters === "function") {
-      Tn.spawnGateGreeters(ctx, count);
-      return;
+  // Hide UI elements
+  try {
+    if (ctx.UIBridge && typeof ctx.UIBridge.hideTownExitButton === "function") {
+      ctx.UIBridge.hideTownExitButton(ctx);
     }
-    ctx.log && ctx.log("Town.spawnGateGreeters not available.", "warn");
-  }
+  } catch (_) {}
 
-  function isFreeTownFloor(ctx, x, y) {
-    try {
-      if (ctx && ctx.Utils && typeof ctx.Utils.isFreeTownFloor === "function") {
-        return !!ctx.Utils.isFreeTownFloor(ctx, x, y);
-      }
-    } catch (_) {}
-    const U = (typeof window !== "undefined" ? window.Utils : null);
-    if (U && typeof U.isFreeTownFloor === "function") {
-      return !!U.isFreeTownFloor(ctx, x, y);
-    }
-    if (!ctx.inBounds(x, y)) return false;
-    const t = ctx.map[y][x];
-    if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
-    if (x === ctx.player.x && y === ctx.player.y) return false;
-    if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n.x === x && n.y === y)) return false;
-    if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
-    return true;
-  }
+  // Recompute FOV/camera/UI and inform player
+  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
+  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}
+  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 
-  function talk(ctx) {
-    if (ctx.mode !== "town") return false;
-    const targets = [];
-    const npcs = ctx.npcs || [];
-    for (const n of npcs) {
-      const d = Math.abs(n.x - ctx.player.x) + Math.abs(n.y - ctx.player.y);
-      if (d <= 1) targets.push(n);
-    }
-    if (targets.length === 0) {
-      ctx.log && ctx.log("There is no one to talk to here.");
-      return false;
-    }
-    const pick = (arr, rng) => arr[(arr.length === 1) ? 0 : Math.floor((rng ? rng() : Math.random()) * arr.length) % arr.length];
-    const npc = pick(targets, ctx.rng);
-    const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
-    const line = pick(lines, ctx.rng);
-    ctx.log && ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
-    ctx.requestDraw && ctx.requestDraw();
-    return true;
-  }
+  return true;
+}
 
-  function returnToWorldIfAtGate(ctx) {
-    if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
-    const atGate = !!(ctx.townExitAt && ctx.player.x === ctx.townExitAt.x && ctx.player.y === ctx.townExitAt.y);
-    if (!atGate) return false;
-
-    // Switch mode and restore overworld map
-    ctx.mode = "world";
-    ctx.map = ctx.world.map;
-
-    // Clear town-only state
-    try {
-      if (Array.isArray(ctx.npcs)) ctx.npcs.length = 0;
-      if (Array.isArray(ctx.shops)) ctx.shops.length = 0;
-      if (Array.isArray(ctx.townProps)) ctx.townProps.length = 0;
-      if (Array.isArray(ctx.townBuildings)) ctx.townBuildings.length = 0;
-    } catch (_) {}
-
-    // Restore world position if available
-    try {
-      if (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
-        ctx.player.x = ctx.worldReturnPos.x;
-        ctx.player.y = ctx.worldReturnPos.y;
-      }
-    } catch (_) {}
-
-    // Hide UI elements
-    try {
-      if (ctx.UIBridge && typeof ctx.UIBridge.hideTownExitButton === "function") {
-        ctx.UIBridge.hideTownExitButton(ctx);
-      }
-    } catch (_) {}
-
-    // Recompute FOV/camera/UI and inform player
-    try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-    try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-    try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-    try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}
-    try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
-
-    return true;
-  }
-
+// Back-compat: attach to window for classic scripts
+if (typeof window !== "undefined") {
   window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, returnToWorldIfAtGate };
-})();
+}
