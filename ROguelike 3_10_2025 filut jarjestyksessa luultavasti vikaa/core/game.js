@@ -584,6 +584,10 @@
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.addPotion === "function") {
+      return IC.addPotion(getCtx(), heal, name);
+    }
     const P = modHandle("Player");
     if (P && typeof P.addPotion === "function") {
       P.addPotion(player, heal, name);
@@ -598,6 +602,10 @@
   }
 
   function drinkPotionByIndex(idx) {
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.drinkByIndex === "function") {
+      return IC.drinkByIndex(getCtx(), idx);
+    }
     const P = modHandle("Player");
     if (P && typeof P.drinkPotionByIndex === "function") {
       P.drinkPotionByIndex(player, idx, {
@@ -669,21 +677,29 @@
   
   
   function generateLevel(depth = 1) {
+    const DR = modHandle("DungeonRuntime");
+    if (DR && typeof DR.generate === "function") {
+      const ctx = getCtx();
+      ctx.startRoomRect = startRoomRect;
+      DR.generate(ctx, depth);
+      // Sync back references mutated by the module
+      syncFromCtx(ctx);
+      startRoomRect = ctx.startRoomRect || startRoomRect;
+      return;
+    }
+    // Fallback: keep previous inline behavior
     const D = modHandle("Dungeon");
     if (D && typeof D.generateLevel === "function") {
       const ctx = getCtx();
       ctx.startRoomRect = startRoomRect;
       D.generateLevel(ctx, depth);
-      // Sync back references mutated by the module
       map = ctx.map;
       seen = ctx.seen;
       visible = ctx.visible;
       enemies = ctx.enemies;
       corpses = ctx.corpses;
       startRoomRect = ctx.startRoomRect;
-      // Clear decals on new floor
       decals = [];
-      // Invalidate FOV cache and recompute
       _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
       recomputeFOV();
       updateCamera();
@@ -705,16 +721,13 @@
         } catch (_) {}
       }
       updateUI();
-      // Unified message: dungeons are single-level; exploration only
       log("You explore the dungeon.");
-      // Save initial dungeon state snapshot (log once on entry)
       saveCurrentDungeonState(true);
       requestDraw();
       return;
     }
     // Fallback: flat-floor map
     map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
-    // Ensure a staircase exists in the fallback map
     const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
     if (map[sy] && typeof map[sy][sx] !== "undefined") {
       map[sy][sx] = TILES.STAIRS;
@@ -722,16 +735,13 @@
     enemies = [];
     corpses = [];
     decals = [];
-    // Invalidate FOV cache and recompute
     _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
     recomputeFOV();
     updateCamera();
     updateUI();
-    // Unified message: dungeons are single-level; exploration only
     log("You explore the dungeon.");
-    // Save fallback dungeon state as well (log once on entry)
     saveCurrentDungeonState(true);
-}
+  }
 
   function inBounds(x, y) {
     // Phase 1: prefer Utils.inBounds when available to avoid duplication
@@ -745,6 +755,10 @@
 
   // --------- Dungeon persistence helpers ---------
   function dungeonKeyFromWorldPos(x, y) {
+    const DR = modHandle("DungeonRuntime");
+    if (DR && typeof DR.keyFromWorldPos === "function") {
+      return DR.keyFromWorldPos(x, y);
+    }
     if (window.DungeonState && typeof DungeonState.key === "function") {
       return DungeonState.key(x, y);
     }
@@ -752,6 +766,10 @@
   }
 
   function saveCurrentDungeonState(logOnce = false) {
+    const DR = modHandle("DungeonRuntime");
+    if (DR && typeof DR.save === "function") {
+      return DR.save(getCtx(), logOnce);
+    }
     if (window.DungeonState && typeof DungeonState.save === "function") {
       try { if (window.DEV && logOnce) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
       DungeonState.save(getCtx());
@@ -792,23 +810,18 @@
   }
 
   function loadDungeonStateFor(x, y) {
+    const DR = modHandle("DungeonRuntime");
+    if (DR && typeof DR.load === "function") {
+      const ctx = getCtx();
+      const ok = DR.load(ctx, x, y);
+      if (ok) syncFromCtx(ctx);
+      return ok;
+    }
     if (window.DungeonState && typeof DungeonState.load === "function") {
       const ctxMod = getCtx();
       const ok = DungeonState.load(ctxMod, x, y);
       if (ok) {
-        // Sync mutated ctx back into local state to ensure mode/map changes take effect
-        mode = ctxMod.mode || mode;
-        map = ctxMod.map || map;
-        seen = ctxMod.seen || seen;
-        visible = ctxMod.visible || visible;
-        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
-        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
-        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
-        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
-        townExitAt = ctxMod.townExitAt || townExitAt;
-        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
-        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
+        syncFromCtx(ctxMod);
         updateCamera();
         recomputeFOV();
         updateUI();
@@ -833,11 +846,9 @@
     decals = st.decals || [];
     dungeonExitAt = st.dungeonExitAt || { x, y };
 
-    // Place player at the entrance hole
     player.x = dungeonExitAt.x;
     player.y = dungeonExitAt.y;
 
-    // Ensure the entrance tile is marked as stairs
     if (inBounds(dungeonExitAt.x, dungeonExitAt.y)) {
       map[dungeonExitAt.y][dungeonExitAt.x] = TILES.STAIRS;
       if (visible[dungeonExitAt.y]) visible[dungeonExitAt.y][dungeonExitAt.x] = true;
@@ -847,7 +858,6 @@
     recomputeFOV();
     updateCamera();
     updateUI();
-    // Re-entry message is logged centrally in DungeonState.applyState to avoid duplicates.
     requestDraw();
     return true;
   }
@@ -1073,6 +1083,11 @@
   
 
   function talkNearbyNPC() {
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.talk === "function") {
+      const ok = !!TR.talk(getCtx());
+      return ok;
+    }
     if (mode !== "town") return false;
     const targets = [];
     for (const n of npcs) {
@@ -1168,27 +1183,21 @@
   }
 
   function generateTown() {
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.generate === "function") {
+      const ctx = getCtx();
+      const handled = !!TR.generate(ctx);
+      if (handled) {
+        syncFromCtx(ctx);
+        return;
+      }
+    }
     const Tn = modHandle("Town");
     if (Tn && typeof Tn.generate === "function") {
       const ctx = getCtx();
       const handled = Tn.generate(ctx);
       if (handled) {
-        // Sync back mutated references
-        map = ctx.map; seen = ctx.seen; visible = ctx.visible;
-        enemies = ctx.enemies; corpses = ctx.corpses; decals = ctx.decals || [];
-        npcs = ctx.npcs || []; shops = ctx.shops || [];
-        townProps = ctx.townProps || []; townBuildings = ctx.townBuildings || [];
-        townPlaza = ctx.townPlaza || null; tavern = ctx.tavern || null;
-        townExitAt = ctx.townExitAt || townExitAt; townName = ctx.townName || townName;
-        // Ensure greeters on entry to give immediate life at the gate
-        {
-          const Tn2 = modHandle("Town");
-          if (Tn2 && typeof Tn2.spawnGateGreeters === "function") {
-            // Town.generate already ensures a greeter; do not spawn additional here.
-            Tn2.spawnGateGreeters(ctx, 0);
-            npcs = ctx.npcs || npcs;
-          }
-        }
+        syncFromCtx(ctx);
         updateCamera(); recomputeFOV(); updateUI(); requestDraw();
         return;
       }
@@ -1197,18 +1206,24 @@
   }
 
   function ensureTownSpawnClear() {
-    {
-      const Tn = modHandle("Town");
-      if (Tn && typeof Tn.ensureSpawnClear === "function") {
-        Tn.ensureSpawnClear(getCtx());
-        return;
-      }
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.ensureSpawnClear === "function") {
+      TR.ensureSpawnClear(getCtx());
+      return;
+    }
+    const Tn = modHandle("Town");
+    if (Tn && typeof Tn.ensureSpawnClear === "function") {
+      Tn.ensureSpawnClear(getCtx());
+      return;
     }
     log("Town.ensureSpawnClear not available.", "warn");
   }
 
   function isFreeTownFloor(x, y) {
-    // Prefer shared Utils module
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.isFreeTownFloor === "function") {
+      return !!TR.isFreeTownFloor(getCtx(), x, y);
+    }
     if (window.Utils && typeof Utils.isFreeTownFloor === "function") {
       return Utils.isFreeTownFloor(getCtx(), x, y);
     }
@@ -1245,12 +1260,15 @@
   }
 
   function spawnGateGreeters(count = 4) {
-    {
-      const Tn = modHandle("Town");
-      if (Tn && typeof Tn.spawnGateGreeters === "function") {
-        Tn.spawnGateGreeters(getCtx(), count);
-        return;
-      }
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.spawnGateGreeters === "function") {
+      TR.spawnGateGreeters(getCtx(), count);
+      return;
+    }
+    const Tn = modHandle("Town");
+    if (Tn && typeof Tn.spawnGateGreeters === "function") {
+      Tn.spawnGateGreeters(getCtx(), count);
+      return;
     }
     log("Town.spawnGateGreeters not available.", "warn");
   }
@@ -1930,26 +1948,41 @@
 
   
   function renderInventoryPanel() {
+    // Keep totals in sync
+    updateUI();
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.render === "function") {
+      IC.render(getCtx());
+      return;
+    }
     if (window.UI && typeof UI.renderInventory === "function") {
-      // Keep totals in sync
-      updateUI();
-      // Always render content; panel may be opening and not yet marked as open
       UI.renderInventory(player, describeItem);
     }
   }
 
   function showInventoryPanel() {
-    renderInventoryPanel();
-    if (window.UI && typeof UI.showInventory === "function") {
-      UI.showInventory();
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.show === "function") {
+      IC.show(getCtx());
     } else {
-      const panel = document.getElementById("inv-panel");
-      if (panel) panel.hidden = false;
+      renderInventoryPanel();
+      if (window.UI && typeof UI.showInventory === "function") {
+        UI.showInventory();
+      } else {
+        const panel = document.getElementById("inv-panel");
+        if (panel) panel.hidden = false;
+      }
     }
     requestDraw();
   }
 
   function hideInventoryPanel() {
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.hide === "function") {
+      IC.hide(getCtx());
+      requestDraw();
+      return;
+    }
     if (window.UI && typeof UI.hideInventory === "function") {
       UI.hideInventory();
       requestDraw();
@@ -1962,7 +1995,12 @@
   }
 
   function equipItemByIndex(idx) {
-    // Phase 1: delegate to Player/PlayerEquip to avoid duplicate logic in game.js
+    // Delegate to InventoryController (which uses Player/PlayerEquip internally)
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.equipByIndex === "function") {
+      IC.equipByIndex(getCtx(), idx);
+      return;
+    }
     const P = modHandle("Player");
     if (P && typeof P.equipItemByIndex === "function") {
       P.equipItemByIndex(player, idx, {
@@ -1977,7 +2015,12 @@
   }
 
   function equipItemByIndexHand(idx, hand) {
-    // Phase 1: delegate to Player/PlayerEquip with preferredHand hint
+    // Delegate to InventoryController
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.equipByIndexHand === "function") {
+      IC.equipByIndexHand(getCtx(), idx, hand);
+      return;
+    }
     const P = modHandle("Player");
     if (P && typeof P.equipItemByIndex === "function") {
       P.equipItemByIndex(player, idx, {
@@ -1993,6 +2036,11 @@
   }
 
   function unequipSlot(slot) {
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.unequipSlot === "function") {
+      IC.unequipSlot(getCtx(), slot);
+      return;
+    }
     const P = modHandle("Player");
     if (P && typeof P.unequipSlot === "function") {
       P.unequipSlot(player, slot, {
