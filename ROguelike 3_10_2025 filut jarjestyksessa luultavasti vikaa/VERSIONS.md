@@ -33,6 +33,12 @@ v1.34.5 — Phase 3 step 5: Core game to ESM
   - Retains window.Game facade for back-compat and existing bootstrap.
 - Changed: index.html already loads core/game.js as type="module".
 
+v1.34.6 — Phase 3 step 6: Remaining core helpers to ESM
+- Changed: core/fov_camera.js converted to ES module (export updateCamera) and retains window.FOVCamera for back-compat; index.html loads as type="module".
+- Changed: core/inventory_controller.js converted to ES module (export render, show, hide, addPotion, drinkByIndex, equipByIndex, equipByIndexHand, unequipSlot) and retains window.InventoryController; index.html already wired.
+- Changed: core/game_loop.js converted to ES module (export requestDraw, start) and retains window.GameLoop; index.html loads as type="module".
+- Changed: core/input.js converted to ES module (export init, destroy) and retains window.Input; index.html loads as type="module".
+
 v1.34.5 — Phase 3 step 4.1: core/game.js module-ready, attach window.Game
 - Changed: core/game.js now attaches a window.Game facade exposing minimal engine APIs (getCtx, requestDraw, initWorld, generateLevel, tryMovePlayer, doAction, descendIfPossible, applySeed, rerollSeed, setFovRadius, updateUI).
 - Changed: index.html now loads core/game.js with type="module" ahead of future ESM export adoption.
