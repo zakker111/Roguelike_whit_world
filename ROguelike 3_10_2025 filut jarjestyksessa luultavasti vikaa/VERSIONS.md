@@ -1,6 +1,11 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.14 — Phase 3 step 14: Player modules to ESM
+- Changed: entities/player_utils.js converted to ES module (export round1, clamp, capitalize) and retains window.PlayerUtils; index.html loads as type="module".
+- Changed: entities/player_equip.js converted to ES module (export equipIfBetter, equipItemByIndex, unequipSlot) and retains window.PlayerEquip; index.html loads as type="module".
+- Changed: entities/player.js converted to ES module (export defaults, setDefaults, normalize, resetFromDefaults, forceUpdate, createInitial, getAttack, getDefense, describeItem, addPotion, drinkPotionByIndex, equipIfBetter, equipItemByIndex, decayEquipped, gainXP, unequipSlot) and retains window.Player; index.html loads as type="module".
+
 v1.34.13 — Phase 3 step 13: Loot and AI modules to ESM
 - Changed: entities/loot.js converted to ES module (export generate, lootHere) and retains window.Loot; index.html loads as type="module".
 - Changed: ai/ai.js converted to ES module (export enemiesAct) and retains window.AI; index.html loads as type="module".
