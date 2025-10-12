@@ -164,22 +164,14 @@
    * Uses UI.showLoot when present, otherwise writes directly to the fallback DOM panel.
    */
   function showLoot(ctx, list) {
-    // Prefer UIBridge when available, then UI, then DOM fallback
+    // Prefer UIBridge when available; else DOM fallback
     try {
-      const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
+      const UB = (ctx && ctx.UIBridge) || null;
       if (UB && typeof UB.showLoot === "function") {
         UB.showLoot(ctx, list || []);
         return;
       }
     } catch (_) {}
-    if (ctx && ctx.UI && typeof ctx.UI.showLoot === "function") {
-      ctx.UI.showLoot(list || []);
-      return;
-    }
-    if (typeof window !== "undefined" && window.UI && typeof UI.showLoot === "function") {
-      UI.showLoot(list || []);
-      return;
-    }
     const panel = document.getElementById("loot-panel");
     const ul = document.getElementById("loot-list");
     if (!panel || !ul) return;
@@ -196,22 +188,14 @@
    * Hide the loot panel. Uses UI.hideLoot when present or a simple DOM toggle otherwise.
    */
   function hideLoot(ctx) {
-    // Prefer UIBridge when available, then UI, then DOM fallback
+    // Prefer UIBridge when available; else DOM fallback
     try {
-      const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
+      const UB = (ctx && ctx.UIBridge) || null;
       if (UB && typeof UB.hideLoot === "function") {
         UB.hideLoot(ctx);
         return;
       }
     } catch (_) {}
-    if (ctx && ctx.UI && typeof ctx.UI.hideLoot === "function") {
-      ctx.UI.hideLoot();
-      return;
-    }
-    if (typeof window !== "undefined" && window.UI && typeof UI.hideLoot === "function") {
-      UI.hideLoot();
-      return;
-    }
     const panel = document.getElementById("loot-panel");
     if (!panel) return;
     panel.hidden = true;
@@ -271,12 +255,6 @@
       try {
         if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
           ctx.DungeonRuntime.save(ctx, false);
-        } else if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.save === "function") {
-          DungeonRuntime.save(ctx, false);
-        } else if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
-          ctx.DungeonState.save(ctx);
-        } else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
-          DungeonState.save(ctx);
         }
       } catch (_) {}
       if (typeof ctx.updateUI === "function") ctx.updateUI();
@@ -299,13 +277,9 @@
           // Rerender inventory if open (prefer UIBridge)
           let invOpen = false;
           try {
-            const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
+            const UB = (ctx && ctx.UIBridge) || null;
             if (UB && typeof UB.isInventoryOpen === "function") {
               invOpen = !!UB.isInventoryOpen();
-            } else if (ctx.UI && typeof ctx.UI.isInventoryOpen === "function") {
-              invOpen = !!ctx.UI.isInventoryOpen();
-            } else if (typeof window !== "undefined" && window.UI && typeof UI.isInventoryOpen === "function") {
-              invOpen = !!UI.isInventoryOpen();
             }
           } catch (_) {}
           if (invOpen && typeof ctx.renderInventory === "function") ctx.renderInventory();
@@ -340,12 +314,6 @@
     try {
       if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
         ctx.DungeonRuntime.save(ctx, false);
-      } else if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.save === "function") {
-        DungeonRuntime.save(ctx, false);
-      } else if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
-        ctx.DungeonState.save(ctx);
-      } else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
-        DungeonState.save(ctx);
       }
     } catch (_) {}
 

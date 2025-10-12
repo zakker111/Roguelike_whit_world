@@ -385,7 +385,6 @@
     let open = false;
     try {
       if (UB && typeof UB.isInventoryOpen === "function") open = !!UB.isInventoryOpen();
-      else if (window.UI && typeof UI.isInventoryOpen === "function") open = !!UI.isInventoryOpen();
     } catch (_) {}
     if (open) renderInventoryPanel();
   }
@@ -1380,7 +1379,7 @@
       M.requestLeaveTown(getCtx());
       return;
     }
-    // Fallback confirm via UIBridge preferred, then UI, then window.confirm
+    // Centralized confirm via UIBridge; if unavailable, proceed to leave to avoid getting stuck
     const doLeave = () => leaveTownNow();
     const pos = { x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60 };
     try {
@@ -1390,13 +1389,7 @@
         return;
       }
     } catch (_) {}
-    if (window.UI && typeof UI.showConfirm === "function") {
-      UI.showConfirm("Do you want to leave the town?", pos, () => doLeave(), () => {});
-    } else {
-      if (window.confirm && window.confirm("Do you want to leave the town?")) {
-        doLeave();
-      }
-    }
+    doLeave();
   }
 
   function returnToWorldFromTown() {
@@ -1550,21 +1543,21 @@
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isInventoryOpen === "function") return !!UB.isInventoryOpen();
           } catch (_) {}
-          return !!(window.UI && UI.isInventoryOpen && UI.isInventoryOpen());
+          return false;
         },
         isLootOpen: () => {
           try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isLootOpen === "function") return !!UB.isLootOpen();
           } catch (_) {}
-          return !!(window.UI && UI.isLootOpen && UI.isLootOpen());
+          return false;
         },
         isGodOpen: () => {
           try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isGodOpen === "function") return !!UB.isGodOpen();
           } catch (_) {}
-          return !!(window.UI && UI.isGodOpen && UI.isGodOpen());
+          return false;
         },
         // Ensure shop modal is part of the modal stack priority
         isShopOpen: () => {
@@ -1589,7 +1582,6 @@
           const UB = modHandle("UIBridge");
           try {
             if (UB && typeof UB.hideGod === "function") UB.hideGod(getCtx());
-            else if (window.UI && UI.hideGod) UI.hideGod();
           } catch (_) {}
           requestDraw();
         },
@@ -1598,7 +1590,6 @@
           const UB = modHandle("UIBridge");
           try {
             if (UB && typeof UB.showGod === "function") UB.showGod(getCtx());
-            else if (window.UI && typeof UI.showGod === "function") UI.showGod();
           } catch (_) {}
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
