@@ -1992,7 +1992,8 @@
       return;
     }
     if (window.UI && typeof UI.renderInventory === "function") {
-      UI.renderInventory(player  }
+      UI.renderInventory(player, describeItem);
+    }
 
   function showInventoryPanel() {
     const IC = modHandle("InventoryController");
