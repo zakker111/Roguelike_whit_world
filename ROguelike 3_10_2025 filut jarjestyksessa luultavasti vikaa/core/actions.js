@@ -23,10 +23,8 @@
   function doAction(ctx) {
     // Hide loot UI if open
     try {
-      const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
+      const UB = ctx && ctx.UIBridge;
       if (UB && typeof UB.hideLoot === "function") UB.hideLoot(ctx);
-      else if (ctx.UI && typeof ctx.UI.hideLoot === "function") ctx.UI.hideLoot();
-      else if (typeof window !== "undefined" && window.UI && typeof UI.hideLoot === "function") UI.hideLoot();
     } catch (_) {}
 
     if (ctx.mode === "world") {
@@ -36,20 +34,14 @@
           const okTown = !!ctx.Modes.enterTownIfOnTile(ctx);
           if (okTown) return true;
         }
-        if (typeof window !== "undefined" && window.Modes && typeof Modes.enterTownIfOnTile === "function") {
-          const okTown = !!Modes.enterTownIfOnTile(ctx);
-          if (okTown) return true;
-        }
+        
       } catch (_) {}
       try {
         if (ctx.Modes && typeof ctx.Modes.enterDungeonIfOnEntrance === "function") {
           const okDun = !!ctx.Modes.enterDungeonIfOnEntrance(ctx);
           if (okDun) return true;
         }
-        if (typeof window !== "undefined" && window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
-          const okDun = !!Modes.enterDungeonIfOnEntrance(ctx);
-          if (okDun) return true;
-        }
+        
       } catch (_) {}
       // Unhandled tile in world: allow fallback movement handlers to proceed
       return false;
@@ -220,10 +212,7 @@
           const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
           if (ok) return true;
         }
-        if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.returnToWorldIfAtExit === "function") {
-          const ok = DungeonRuntime.returnToWorldIfAtExit(ctx);
-          if (ok) return true;
-        }
+        
       } catch (_) {}
 
       // Delegate loot handling centrally
@@ -232,10 +221,7 @@
           ctx.DungeonRuntime.lootHere(ctx);
           return true;
         }
-        if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.lootHere === "function") {
-          DungeonRuntime.lootHere(ctx);
-          return true;
-        }
+        
       } catch (_) {}
       if (ctx.Loot && typeof ctx.Loot.lootHere === "function") {
         ctx.Loot.lootHere(ctx);
@@ -275,22 +261,9 @@
   }
 
   // ---- Shop schedule helpers (centralized via ShopService) ----
-  function minutesOfDay(h, m) {
-    try {
-      let day = 1440;
-      const TSM = (ctx && ctx.TimeService) || (typeof TimeService !== "undefined" ? TimeService : null);
-      if (TSM && typeof TSM.create === "function") {
-        day = TSM.create({}).DAY_MINUTES || 1440;
-      }
-      const SSM = (ctx && ctx.ShopService) || (typeof ShopService !== "undefined" ? ShopService : null);
-      if (SSM && typeof SSM.minutesOfDay === "function") return SSM.minutesOfDay(h, m, day);
-    } catch (_) {}
-    const DAY = 1440;
-    return (((h | 0) * 60 + (m | 0)) % DAY + DAY) % DAY;
-  }
+  
   function isOpenAtShop(ctx, shop, minutes) {
     if (ctx.ShopService && typeof ctx.ShopService.isOpenAt === "function") return ctx.ShopService.isOpenAt(shop, minutes);
-    if (typeof window !== "undefined" && window.ShopService && typeof ShopService.isOpenAt === "function") return ShopService.isOpenAt(shop, minutes);
     if (!shop) return false;
     if (shop.alwaysOpen) return true;
     if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
@@ -300,7 +273,6 @@
   }
   function isShopOpenNow(ctx, shop) {
     if (ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") return ctx.ShopService.isShopOpenNow(ctx, shop);
-    if (typeof window !== "undefined" && window.ShopService && typeof ShopService.isShopOpenNow === "function") return ShopService.isShopOpenNow(ctx, shop);
     const t = ctx.time;
     const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
     if (!shop) return t && t.phase === "day";
@@ -308,7 +280,6 @@
   }
   function shopScheduleStr(ctx, shop) {
     if (ctx.ShopService && typeof ctx.ShopService.shopScheduleStr === "function") return ctx.ShopService.shopScheduleStr(shop);
-    if (typeof window !== "undefined" && window.ShopService && typeof ShopService.shopScheduleStr === "function") return ShopService.shopScheduleStr(shop);
     if (!shop) return "";
     const h2 = (min) => {
       const hh = ((min / 60) | 0) % 24;
@@ -321,7 +292,7 @@
   function restAtInn(ctx) {
     // Advance to 06:00 and fully heal
     try {
-      const TSM = (ctx.TimeService || (typeof TimeService !== "undefined" ? TimeService : null));
+      const TSM = ctx.TimeService;
       if (TSM && typeof TSM.create === "function") {
         const TS = TSM.create({ dayMinutes: 24 * 60, cycleTurns: 360 });
         const clock = ctx.time;
