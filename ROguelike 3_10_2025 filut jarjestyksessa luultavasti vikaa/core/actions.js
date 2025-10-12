@@ -112,7 +112,7 @@ function isShopOpenNow(ctx, shop) {
   if (ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") return ctx.ShopService.isShopOpenNow(ctx, shop);
   const t = ctx.time;
   const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
-  if (!shop) return t && t.phase === "day";
+  if (!shop) return false;
   return isOpenAtShop(ctx, shop, minutes);
 }
 function shopScheduleStr(ctx, shop) {
