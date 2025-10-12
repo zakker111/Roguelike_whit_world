@@ -162,6 +162,78 @@
     return true;
   }
 
+  function generateLoot(ctx, source) {
+    try {
+      if (ctx && ctx.Loot && typeof ctx.Loot.generate === "function") {
+        return ctx.Loot.generate(ctx, source) || [];
+      }
+      if (typeof window !== "undefined" && window.Loot && typeof window.Loot.generate === "function") {
+        return window.Loot.generate(ctx, source) || [];
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  function returnToWorldIfAtExit(ctx) {
+    if (!ctx || ctx.mode !== "dungeon" || !ctx.world) return false;
+    const onExit =
+      (ctx.dungeonExitAt &&
+        ctx.player.x === ctx.dungeonExitAt.x &&
+        ctx.player.y === ctx.dungeonExitAt.y) ||
+      (ctx.inBounds && ctx.inBounds(ctx.player.x, ctx.player.y) &&
+        ctx.map && ctx.map[ctx.player.y] &&
+        ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
+
+    if (!onExit) return false;
+
+    // Save state first
+    try { save(ctx, false); } catch (_) {
+      try { if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx); } catch (_) {}
+      try { if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx); } catch (_) {}
+    }
+
+    // Switch to world and clear dungeon-only entities
+    ctx.mode = "world";
+    if (Array.isArray(ctx.enemies)) ctx.enemies.length = 0;
+    if (Array.isArray(ctx.corpses)) ctx.corpses.length = 0;
+    if (Array.isArray(ctx.decals)) ctx.decals.length = 0;
+
+    // Use world map
+    ctx.map = ctx.world.map;
+
+    // Restore world position: prefer stored worldReturnPos; else dungeon entrance coordinates
+    let rx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : null;
+    let ry = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : null;
+    if (rx == null || ry == null) {
+      const info = ctx.dungeon || ctx.dungeonInfo;
+      if (info && typeof info.x === "number" && typeof info.y === "number") {
+        rx = info.x; ry = info.y;
+      }
+    }
+    // Clamp to bounds as a safety net
+    try {
+      if (rx == null || ry == null) {
+        const cols = ctx.world.map[0].length;
+        const rows = ctx.world.map.length;
+        rx = Math.max(0, Math.min(cols - 1, ctx.player.x));
+        ry = Math.max(0, Math.min(rows - 1, ctx.player.y));
+      }
+    } catch (_) {}
+
+    ctx.player.x = rx; ctx.player.y = ry;
+
+    // Recompute FOV and UI
+    try {
+      if (ctx.FOV && typeof ctx.FOV.recomputeFOV === "function") ctx.FOV.recomputeFOV(ctx);
+      else if (ctx.recomputeFOV) ctx.recomputeFOV();
+    } catch (_) {}
+    try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+    try { ctx.log && ctx.log("You climb back to the overworld.", "notice"); } catch (_) {}
+    try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+
+    return true;
+  }
+
   function killEnemy(ctx, enemy) {
     if (!ctx || !enemy) return;
     // Announce death
@@ -234,5 +306,5 @@
     } catch (_) {}
   }
 
-  window.DungeonRuntime = { keyFromWorldPos, save, load, generate, killEnemy };
+  window.DungeonRuntime = { keyFromWorldPos, save, load, generate, generateLoot, returnToWorldIfAtExit, killEnemy };
 })();

@@ -1726,6 +1726,10 @@
 
   
   function generateLoot(source) {
+    const DR = modHandle("DungeonRuntime");
+    if (DR && typeof DR.generateLoot === "function") {
+      return DR.generateLoot(getCtx(), source);
+    }
     const L = modHandle("Loot");
     if (L && typeof L.generate === "function") {
       return L.generate(getCtx(), source);

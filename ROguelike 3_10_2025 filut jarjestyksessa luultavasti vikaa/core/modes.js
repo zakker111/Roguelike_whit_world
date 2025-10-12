@@ -241,6 +241,14 @@
       if (ok) syncAfterMutation(ctx);
       return ok;
     }
+    // Prefer DungeonRuntime centralization if available
+    try {
+      if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.returnToWorldIfAtExit === "function") {
+        const ok = DungeonRuntime.returnToWorldIfAtExit(ctx);
+        if (ok) syncAfterMutation(ctx);
+        return ok;
+      }
+    } catch (_) {}
     if (ctx.mode !== "dungeon" || !ctx.world) return false;
     if (!ctx.dungeonExitAt) return false;
     if (ctx.player.x !== ctx.dungeonExitAt.x || ctx.player.y !== ctx.dungeonExitAt.y) {
