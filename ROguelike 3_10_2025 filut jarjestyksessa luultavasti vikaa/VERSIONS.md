@@ -1,37 +1,13 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
-v1.34.0 — Phase 3 kickoff: incremental ES module adoption
-- Changed: core/ctx.js converted to ES module exports (create, attachModules, ensureUtils, ensureLOS) while still attaching window.Ctx for back-compat.
-- Changed: utils/utils.js converted to ES module exports (manhattan, inBounds, isWalkableTile, isFreeFloor, isFreeTownFloor) while still attaching window.Utils.
-- Changed: index.html now loads core/ctx.js and utils/utils.js as type="module" to prepare for broader ESM migration.
-- Plan: continue migrating low-risk modules (services and facades) to ESM while maintaining window.* back-compat to avoid breaking classic scripts.
+v1.34.8 — Phase 3 step 8: UI Decals and Logger to ESM
+- Changed: ui/decals.js converted to ES module (export add, tick) and retains window.Decals; index.html loads as type="module".
+- Changed: ui/logger.js converted to ES module (export Logger) and retains window.Logger; index.html loads as type="module".
 
-v1.34.1 — Phase 3 step 1: Services to ESM
-- Changed: services/time_service.js converted to ES module (export create) and retains window.TimeService for back-compat.
-- Changed: services/shop_service.js converted to ES module (export minutesOfDay, isOpenAt, isShopOpenNow, shopScheduleStr, shopAt) and retains window.ShopService for back-compat.
-- Changed: index.html loads both services as type="module".
-
-v1.34.2 — Phase 3 step 2: Facades to ESM
-- Changed: core/ui_bridge.js converted to ES module; functions exported and window.UIBridge retained for back-compat.
-- Changed: core/dungeon_runtime.js converted to ES module; functions exported and window.DungeonRuntime retained for back-compat.
-- Changed: core/town_runtime.js converted to ES module; functions exported and window.TownRuntime retained for back-compat.
-- Changed: index.html loads these facades as type="module".
-
-v1.34.3 — Phase 3 step 3: Actions and Modes to ESM
-- Changed: core/actions.js converted to ES module (export doAction, loot, descend) and retains window.Actions for back-compat.
-- Changed: core/modes.js converted to ES module (export enterTownIfOnTile, enterDungeonIfOnEntrance, returnToWorldIfAtExit, leaveTownNow, requestLeaveTown, saveCurrentDungeonState, loadDungeonStateFor) and retains window.Modes.
-- Changed: index.html loads Actions and Modes as type="module".
-
-v1.34.4 — Phase 3 step 4: GameAPI to ESM
-- Changed: core/game_api.js converted to ES module (export create) and retains window.GameAPIBuilder for back-compat.
-- Changed: index.html loads GameAPI as type="module".
-
-v1.34.5 — Phase 3 step 5: Core game to ESM
-- Changed: core/game.js converted to ES module:
-  - Removed IIFE wrapper, added ESM exports for key helpers (getCtx, requestDraw, initWorld, generateLevel, tryMovePlayer, doAction, descendIfPossible, applySeed, rerollSeed, setFovRadius, updateUI).
-  - Retains window.Game facade for back-compat and existing bootstrap.
-- Changed: index.html already loads core/game.js as type="module".
+v1.34.7 — Phase 3 step 7: UI InputMouse to ESM
+- Changed: ui/input_mouse.js converted to ES module (export init) and retains window.InputMouse for back-compat.
+- Changed: index.html loads ui/input_mouse.js as type="module".
 
 v1.34.6 — Phase 3 step 6: Remaining core helpers to ESM
 - Changed: core/fov_camera.js converted to ES module (export updateCamera) and retains window.FOVCamera for back-compat; index.html loads as type="module".
@@ -39,18 +15,37 @@ v1.34.6 — Phase 3 step 6: Remaining core helpers to ESM
 - Changed: core/game_loop.js converted to ES module (export requestDraw, start) and retains window.GameLoop; index.html loads as type="module".
 - Changed: core/input.js converted to ES module (export init, destroy) and retains window.Input; index.html loads as type="module".
 
-v1.34.7 — Phase 3 step 7: UI InputMouse to ESM
-- Changed: ui/input_mouse.js converted to ES module (export init) and retains window.InputMouse for back-compat.
-- Changed: index.html loads ui/input_mouse.js as type="module".
+v1.34.5 — Phase 3 step 5: Core game to ESM
+- Changed: core/game.js converted to ES module:
+  - Removed IIFE wrapper, added ESM exports for key helpers (getCtx, requestDraw, initWorld, generateLevel, tryMovePlayer, doAction, descendIfPossible, applySeed, rerollSeed, setFovRadius, updateUI).
+  - Retains window.Game facade for back-compat and existing bootstrap.
+- Changed: index.html already loads core/game.js as type="module".
 
-v1.34.8 — Phase 3 step 8: UI Decals and Logger to ESM
-- Changed: ui/decals.js converted to ES module (export add, tick) and retains window.Decals; index.html loads as type="module".
-- Changed: ui/logger.js converted to ES module (export Logger) and retains window.Logger; index.html loads as type="module".
+v1.34.4 — Phase 3 step 4: GameAPI to ESM
+- Changed: core/game_api.js converted to ES module (export create) and retains window.GameAPIBuilder for back-compat.
+- Changed: index.html loads GameAPI as type="module".
 
-v1.34.5 — Phase 3 step 4.1: core/game.js module-ready, attach window.Game
-- Changed: core/game.js now attaches a window.Game facade exposing minimal engine APIs (getCtx, requestDraw, initWorld, generateLevel, tryMovePlayer, doAction, descendIfPossible, applySeed, rerollSeed, setFovRadius, updateUI).
-- Changed: index.html now loads core/game.js with type="module" ahead of future ESM export adoption.
-- Note: This step keeps the internal IIFE logic intact but provides a stable window.Game surface and prepares for full ESM conversion in a later step.
+v1.34.3 — Phase 3 step 3: Actions and Modes to ESM
+- Changed: core/actions.js converted to ES module (export doAction, loot, descend) and retains window.Actions for back-compat.
+- Changed: core/modes.js converted to ES module (export enterTownIfOnTile, enterDungeonIfOnEntrance, returnToWorldIfAtExit, leaveTownNow, requestLeaveTown, saveCurrentDungeonState, loadDungeonStateFor) and retains window.Modes.
+- Changed: index.html loads Actions and Modes as type="module".
+
+v1.34.2 — Phase 3 step 2: Facades to ESM
+- Changed: core/ui_bridge.js converted to ES module; functions exported and window.UIBridge retained for back-compat.
+- Changed: core/dungeon_runtime.js converted to ES module; functions exported and window.DungeonRuntime retained for back-compat.
+- Changed: core/town_runtime.js converted to ES module; functions exported and window.TownRuntime retained for back-compat.
+- Changed: index.html loads these facades as type="module".
+
+v1.34.1 — Phase 3 step 1: Services to ESM
+- Changed: services/time_service.js converted to ES module (export create) and retains window.TimeService for back-compat.
+- Changed: services/shop_service.js converted to ES module (export minutesOfDay, isOpenAt, isShopOpenNow, shopScheduleStr, shopAt) and retains window.ShopService for back-compat.
+- Changed: index.html loads both services as type="module".
+
+v1.34.0 — Phase 3 kickoff: incremental ES module adoption
+- Changed: core/ctx.js converted to ES module exports (create, attachModules, ensureUtils, ensureLOS) while still attaching window.Ctx for back-compat.
+- Changed: utils/utils.js converted to ES module exports (manhattan, inBounds, isWalkableTile, isFreeFloor, isFreeTownFloor) while still attaching window.Utils.
+- Changed: index.html now loads core/ctx.js and utils/utils.js as type="module" to prepare for broader ESM migration.
+- Plan: continue migrating low-risk modules (services and facades) to ESM while maintaining window.* back-compat to avoid breaking classic scripts.
 
 v1.33.0 — Phase 2 completion: ctx-first AI status, GOD consolidation, final sweep
 - Changed: ai/ai.js now uses ctx.Status for daze/bleed application with a safe fallback to window.Status.
@@ -94,29 +89,6 @@ v1.28.0 — Player HUD via UIBridge, unified modal gating, minor cleanup
 - Added: UIBridge.isAnyModalOpen() aggregates isLootOpen/isInventoryOpen/isGodOpen/isShopOpen/isSmokeOpen for simpler gating.
 - Changed: InputMouse click gating uses UIBridge.isAnyModalOpen() to short-circuit when any modal is open.
 
-v1.27.0 — UI gating centralization via UIBridge; Shop/Smoke wrappers; runtime-only persistence
-- Added: UIBridge wrappers
-  - core/ui_bridge.js: isShopOpen() and isSmokeOpen() wrappers (ShopUI.isOpen and UI.isSmokeOpen with safe fallbacks).
-- Changed: Mouse input gating
-  - ui/input_mouse.js now uses UIBridge.isLootOpen/isInventoryOpen/isGodOpen/isShopOpen/isSmokeOpen only; removed direct window.UI and window.ShopUI checks.
-- Changed: Keyboard input shop gating
-  - core/game.js Input handlers now use UIBridge.isShopOpen() to determine modal priority; removed DOM fallback.
-- Changed: Loot and persistence
-  - entities/loot.js routes loot panel open/close and inventory-open checks through UIBridge only; Dungeon persistence saves via DungeonRuntime only.
-
-v1.26.0 — Stable town/city names, ctx-first UI in core, safer loot/inventory fallacks
-- Fixed: Town/city names now persist and are reused on signs and greetings
-  - worldgen/town_gen.js persists the generated name into the corresponding world.towns entry (info.name). Re-entries use the saved name.
-- Changed: Core game uses UIBridge-only for inventory/loot/gameover where possible
-  - core/game.js: show/hide Loot/Inventory/GameOver now delegate to UIBridge with a minimal DOM fallback; removed direct UI.* calls.
-  - dungeonKeyFromWorldPos now prefers DungeonRuntime-only (no DungeonState.key path).
-- Changed: Modes/TownRuntime UI delegations simplified
-  - core/modes.js and core/town_runtime.js: show/hide Town Exit button and leave-town confirmation now go through UIBridge (fallback to browser confirm only).
-- Changed: Player integration via ctx-first handles
-  - core/game.js: equipIfBetter and gainXP now call Player via modHandle(\"Player\") instead of window.Player checks.
-- UI: InputMouse modal gating
-  - Clicks are ignored while ShopUI or other modals are open (UIBridge-preferred), preventing accidental actions.
-
 v1.26.0 — Stable town/city names, ctx-first UI in core, safer loot/inventory fallbacks
 - Fixed: Town/city names now persist and are reused on signs and greetings
   - worldgen/town_gen.js persists the generated name into the corresponding world.towns entry (info.name). Re-entries use the saved name.
@@ -128,7 +100,7 @@ v1.26.0 — Stable town/city names, ctx-first UI in core, safer loot/inventory f
 - Changed: Player integration via ctx-first handles
   - core/game.js: equipIfBetter and gainXP now call Player via modHandle("Player") instead of window.Player checks.
 - UI: InputMouse modal gating
-  - Clicks are ignored while ShopUI or other modals are open (UIBridge-preferred), preventing accidental actions.
+  - Clicks are ignored while inventory/loot/GOD panels are open to avoid accidental actions.
 
 v1.25.0 — Runtime-centric persistence
 - Changed: Dungeon persistence centralized via DungeonRuntime across core modules
@@ -380,7 +352,7 @@ v1.14 — Performance/UX tweaks, FOV guard, Diagnostics, and corpse walk-through
 - Added: syncFromCtx(ctx) helper to consolidate state syncing after mode/action module calls
   - Reduces repetition and risk of missed fields when entering towns/dungeons or performing GOD/Actions flows.
 - Changed: Occupancy handling
-  - Dungeon: rebuildOccupancy each turn after enemiesAct to reflect movement and deaths.
+  - Dungeon: rebuildOccupancy each turn after enemiesAct to reflect enemy movement/deaths.
   - killEnemy now clears enemy occupancy on the death tile immediately so the player can walk onto the corpse right away.
 - Added: GOD “Diagnostics” button
   - Logs determinism source (RNG service vs fallback), current seed, mode/floor/FOV, map size, entity counts, loaded modules, and last perf times.
