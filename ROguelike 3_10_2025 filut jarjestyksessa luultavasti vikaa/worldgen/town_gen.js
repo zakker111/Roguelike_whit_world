@@ -24,19 +24,30 @@
 (function () {
   function inBounds(ctx, x, y) {
     try {
-      if (window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
+      if (ctx && ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
+      if (typeof window !== "undefined" && window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
     } catch (_) {}
     const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
     return x >= 0 && y >= 0 && x < cols && y < rows;
   }
 
   function _manhattan(ctx, ax, ay, bx, by) {
-    if (window.Utils && typeof Utils.manhattan === "function") return Utils.manhattan(ax, ay, bx, by);
+    try {
+      if (ctx && ctx.Utils && typeof ctx.Utils.manhattan === "function") return ctx.Utils.manhattan(ax, ay, bx, by);
+    } catch (_) {}
+    try {
+      if (typeof window !== "undefined" && window.Utils && typeof Utils.manhattan === "function") return Utils.manhattan(ax, ay, bx, by);
+    } catch (_) {}
     return Math.abs(ax - bx) + Math.abs(ay - by);
   }
 
   function _isFreeTownFloor(ctx, x, y) {
-    if (window.Utils && typeof Utils.isFreeTownFloor === "function") return Utils.isFreeTownFloor(ctx, x, y);
+    try {
+      if (ctx && ctx.Utils && typeof ctx.Utils.isFreeTownFloor === "function") return ctx.Utils.isFreeTownFloor(ctx, x, y);
+    } catch (_) {}
+    try {
+      if (typeof window !== "undefined" && window.Utils && typeof Utils.isFreeTownFloor === "function") return Utils.isFreeTownFloor(ctx, x, y);
+    } catch (_) {}
     if (!inBounds(ctx, x, y)) return false;
     const t = ctx.map[y][x];
     if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
@@ -76,8 +87,8 @@
           ctx.log("You relax on the bench and drift to sleep...", "info");
           if (typeof ctx.advanceTimeMinutes === "function") {
             // rest until 06:00 with light heal
-            const TS = (window.TimeService && typeof TimeService.create === "function")
-              ? TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
+            const TS = (ctx.TimeService && typeof ctx.TimeService.create === "function")
+              ? ctx.TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
               : null;
             const clock = ctx.time;
             const curMin = clock ? (clock.hours * 60 + clock.minutes) : 0;
@@ -779,9 +790,13 @@
 
     // NPCs via TownAI if present
     ctx.npcs = [];
-    if (window.TownAI && typeof TownAI.populateTown === "function") {
-      TownAI.populateTown(ctx);
-    }
+    try {
+      if (ctx && ctx.TownAI && typeof ctx.TownAI.populateTown === "function") {
+        ctx.TownAI.populateTown(ctx);
+      } else if (typeof window !== "undefined" && window.TownAI && typeof TownAI.populateTown === "function") {
+        TownAI.populateTown(ctx);
+      }
+    } catch (_) {}
 
     // Roaming villagers near plaza
     const ND = (window.GameData && GameData.npcs) ? GameData.npcs : null;
