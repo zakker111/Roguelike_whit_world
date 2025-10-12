@@ -1804,13 +1804,19 @@
     // Prefer UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideLoot === "function") {
-      const wasOpen = (UB.isLootOpen && typeof UB.isLootOpen === "function") ? UB.isLootOpen() : true;
+      let wasOpen = true;
+      try {
+        if (typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen();
+      } catch (_) {}
       UB.hideLoot(getCtx());
       if (wasOpen) requestDraw();
       return;
     }
     if (window.UI && typeof UI.hideLoot === "function") {
-      const wasOpen = (typeof UI.isLootOpen === "function") ? UI.isLootOpen() : true;
+      let wasOpen = true;
+      try {
+        if (typeof UI.isLootOpen === "function") wasOpen = !!UI.isLootOpen();
+      } catch (_) {}
       UI.hideLoot();
       if (wasOpen) requestDraw();
       return;
