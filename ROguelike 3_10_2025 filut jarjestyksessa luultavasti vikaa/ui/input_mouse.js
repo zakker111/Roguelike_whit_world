@@ -45,6 +45,11 @@
             if (UB && typeof UB.isInventoryOpen === "function" && UB.isInventoryOpen()) return;
             if (UB && typeof UB.isGodOpen === "function" && UB.isGodOpen()) return;
           } catch (_) {}
+          // Also respect ShopUI state
+          try {
+            var SU = (typeof window !== "undefined" ? window.ShopUI : null);
+            if (SU && typeof SU.isOpen === "function" && SU.isOpen()) return;
+          } catch (_) {}
           if (window.UI) {
             if (typeof UI.isLootOpen === "function" && UI.isLootOpen()) return;
             if (typeof UI.isInventoryOpen === "function" && UI.isInventoryOpen()) return;
