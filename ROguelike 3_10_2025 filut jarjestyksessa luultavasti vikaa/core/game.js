@@ -1683,7 +1683,14 @@
             }
             if (doorShop) {
               const openNow = isShopOpenNow(doorShop);
-              const sched = shopScheduleStr(
+              const sched = shopScheduleStr(doorShop);
+              if (openNow) {
+                openShopFor(npc);
+              } else {
+                log(`The ${doorShop.name || "shop"} is closed. ${sched}`, "warn");
+              }
+            }
+          } catch (_) {}
 
           requestDraw();
         } else {
