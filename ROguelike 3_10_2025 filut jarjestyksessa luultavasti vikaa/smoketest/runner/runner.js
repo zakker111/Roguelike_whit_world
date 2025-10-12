@@ -752,9 +752,6 @@
                   const gp = document.getElementById("god-panel");
                   closed = !!(gp && gp.hidden === true);
                 }
-              }st gp = document.getElementById("god-panel");
-                  closed = !!(gp && gp.hidden === true);
-                }
               } catch (_) { closed = false; }
               if (closed) break;
             }
