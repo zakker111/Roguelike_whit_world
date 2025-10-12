@@ -1344,28 +1344,12 @@
   }
 
   function leaveTownNow() {
-    if (window.Modes && typeof Modes.leaveTownNow === "function") {
+    const M = modHandle("Modes");
+    if (M && typeof M.leaveTownNow === "function") {
       const ctx = getCtx();
-      Modes.leaveTownNow(ctx);
+      M.leaveTownNow(ctx);
       // Sync mutated ctx back into local state
-      mode = ctx.mode || mode;
-      map = ctx.map || map;
-      seen = ctx.seen || seen;
-      visible = ctx.visible || visible;
-      enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-      corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-      decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-      npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
-      shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-      townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
-      townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
-      townPlaza = null;
-      tavern = null;
-      worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-      townExitAt = null;
-      dungeonExitAt = null;
-      currentDungeon = ctx.dungeon || ctx.dungeonInfo || null;
-      if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+      syncFromCtx(ctx);
       recomputeFOV();
       updateCamera();
       updateUI();
@@ -1421,18 +1405,7 @@
       const ok = M.returnToWorldIfAtExit(ctx);
       if (ok) {
         // Sync mutated ctx back into local state
-        mode = ctx.mode || mode;
-        map = ctx.map || map;
-        seen = ctx.seen || seen;
-        visible = ctx.visible || visible;
-        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-        townExitAt = ctx.townExitAt || townExitAt;
-        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+        syncFromCtx(ctx);
         recomputeFOV();
         updateCamera();
         updateUI();
@@ -1440,6 +1413,8 @@
       }
       return ok;
     }
+    return false;
+  }
     return false;
   }
 

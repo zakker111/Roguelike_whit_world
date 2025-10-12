@@ -83,6 +83,23 @@
     if (WT && (t === ctx.World.TILES.TOWN || tryEnterAdjacent(ctx.World.TILES.TOWN))) {
       ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
       ctx.mode = "town";
+
+      // Prefer centralized TownRuntime generation/helpers
+      try {
+        if (ctx.TownRuntime && typeof ctx.TownRuntime.generate === "function") {
+          const ok = !!ctx.TownRuntime.generate(ctx);
+          if (ok) {
+            // After TownRuntime.generate, ensure gate exit anchor and UI
+            ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
+            if (ctx.UI && typeof ctx.UI.showTownExitButton === "function") ctx.UI.showTownExitButton();
+            if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            syncAfterMutation(ctx);
+            return true;
+          }
+        }
+      } catch (_) {}
+
+      // Fallback: inline generation path via Town module
       if (ctx.Town && typeof Town.generate === "function") {
         Town.generate(ctx);
         if (typeof Town.ensureSpawnClear === "function") Town.ensureSpawnClear(ctx);
