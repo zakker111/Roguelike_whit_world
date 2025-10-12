@@ -1787,14 +1787,28 @@
   }
 
   function showLootPanel(list) {
+    // Prefer UIBridge
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.showLoot === "function") {
+      UB.showLoot(getCtx(), list);
+      requestDraw();
+      return;
+    }
     if (window.UI && typeof UI.showLoot === "function") {
-      // Only request a redraw if the UI module actually opened/changed state
       UI.showLoot(list);
       requestDraw();
     }
   }
 
   function hideLootPanel() {
+    // Prefer UIBridge
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.hideLoot === "function") {
+      const wasOpen = (UB.isLootOpen && typeof UB.isLootOpen === "function") ? UB.isLootOpen() : true;
+      UB.hideLoot(getCtx());
+      if (wasOpen) requestDraw();
+      return;
+    }
     if (window.UI && typeof UI.hideLoot === "function") {
       const wasOpen = (typeof UI.isLootOpen === "function") ? UI.isLootOpen() : true;
       UI.hideLoot();
@@ -1965,10 +1979,14 @@
       IC.render(getCtx());
       return;
     }
-    if (window.UI && typeof UI.renderInventory === "function") {
-      UI.renderInventory(player, describeItem);
+    // Prefer UIBridge
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.renderInventory === "function") {
+      UB.renderInventory(getCtx());
+      return;
     }
-  }
+    if (window.UI && typeof UI.renderInventory === "function") {
+      UI.renderInventory(player  }
 
   function showInventoryPanel() {
     const IC = modHandle("InventoryController");
@@ -1976,7 +1994,10 @@
       IC.show(getCtx());
     } else {
       renderInventoryPanel();
-      if (window.UI && typeof UI.showInventory === "function") {
+      const UB = modHandle("UIBridge");
+      if (UB && typeof UB.showInventory === "function") {
+        UB.showInventory(getCtx());
+      } else if (window.UI && typeof UI.showInventory === "function") {
         UI.showInventory();
       } else {
         const panel = document.getElementById("inv-panel");
@@ -1990,6 +2011,12 @@
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.hide === "function") {
       IC.hide(getCtx());
+      requestDraw();
+      return;
+    }
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.hideInventory === "function") {
+      UB.hideInventory(getCtx());
       requestDraw();
       return;
     }
@@ -2066,6 +2093,13 @@
   
 
   function showGameOver() {
+    // Prefer UIBridge
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.showGameOver === "function") {
+      UB.showGameOver(getCtx());
+      requestDraw();
+      return;
+    }
     if (window.UI && typeof UI.showGameOver === "function") {
       UI.showGameOver(player, floor);
       requestDraw();
@@ -2148,6 +2182,12 @@
   }
 
   function hideGameOver() {
+    // Prefer UIBridge
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.hideGameOver === "function") {
+      UB.hideGameOver(getCtx());
+      return;
+    }
     if (window.UI && typeof UI.hideGameOver === "function") {
       UI.hideGameOver();
       return;
@@ -2213,6 +2253,12 @@
 
   
   function updateUI() {
+    // Prefer UIBridge
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.updateStats === "function") {
+      UB.updateStats(getCtx());
+      return;
+    }
     if (window.UI && typeof UI.updateStats === "function") {
       UI.updateStats(player, floor, getPlayerAttack, getPlayerDefense, getClock());
       return;
