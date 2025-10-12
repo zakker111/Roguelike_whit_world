@@ -310,8 +310,7 @@ export function create(ctx) {
       try { return ctx.getClock(); } catch (_) { return { hhmm: "00:00", phase: "day", hours: 0, minutes: 0 }; }
     },
     advanceMinutes: (mins) => { try { ctx.advanceTimeMinutes((Number(mins)||0)|0); ctx.updateUI(); ctx.requestDraw(); return true; } catch (_) { return false; } },
-    restUntilMorning: () => { try { ctx.restUntilMorning(); } catch (_) {} },
-    restAtInn: () => { try { ctx.restAtInn(); } catch (_) {} },
+    
     getPerf: () => {
       try {
         const p = ctx.getPerfStats();
