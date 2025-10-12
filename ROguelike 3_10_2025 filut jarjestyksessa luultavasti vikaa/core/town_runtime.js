@@ -147,12 +147,8 @@ export function returnToWorldIfAtGate(ctx) {
     }
   } catch (_) {}
 
-  // Recompute FOV/camera/UI and inform player
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  // Inform player; Game will handle camera/FOV/UI/draw after syncing ctx
   try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 
   return true;
 }
