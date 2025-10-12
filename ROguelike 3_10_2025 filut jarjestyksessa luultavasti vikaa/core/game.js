@@ -376,14 +376,19 @@
   }
 
   function rerenderInventoryIfOpen() {
-    if (window.UI && UI.isInventoryOpen && UI.isInventoryOpen()) {
-      renderInventoryPanel();
-    }
+    const UB = modHandle("UIBridge");
+    let open = false;
+    try {
+      if (UB && typeof UB.isInventoryOpen === "function") open = !!UB.isInventoryOpen();
+      else if (window.UI && typeof UI.isInventoryOpen === "function") open = !!UI.isInventoryOpen();
+    } catch (_) {}
+    if (open) renderInventoryPanel();
   }
 
   function decayEquipped(slot, amount) {
-    if (window.Player && typeof Player.decayEquipped === "function") {
-      Player.decayEquipped(player, slot, amount, {
+    const P = modHandle("Player");
+    if (P && typeof P.decayEquipped === "function") {
+      P.decayEquipped(player, slot, amount, {
         log,
         updateUI,
         onInventoryChange: () => rerenderInventoryIfOpen(),
@@ -399,8 +404,9 @@
       log(`${capitalize(it.name)} breaks and is destroyed.`, "bad");
       // Optional flavor for breakage
       try {
-        if (window.Flavor && typeof Flavor.onBreak === "function") {
-          Flavor.onBreak(getCtx(), { side: "player", slot, item: it });
+        const F = modHandle("Flavor");
+        if (F && typeof F.onBreak === "function") {
+          F.onBreak(getCtx(), { side: "player", slot, item: it });
         }
       } catch (_) {}
       player.equipment[slot] = null;
@@ -1236,8 +1242,9 @@
     if (TR && typeof TR.isFreeTownFloor === "function") {
       return !!TR.isFreeTownFloor(getCtx(), x, y);
     }
-    if (window.Utils && typeof Utils.isFreeTownFloor === "function") {
-      return Utils.isFreeTownFloor(getCtx(), x, y);
+    const U = modHandle("Utils");
+    if (U && typeof U.isFreeTownFloor === "function") {
+      return U.isFreeTownFloor(getCtx(), x, y);
     }
     if (!inBounds(x, y)) return false;
     if (map[y][x] !== TILES.FLOOR && map[y][x] !== TILES.DOOR) return false;
@@ -1248,8 +1255,9 @@
   }
 
   function manhattan(ax, ay, bx, by) {
-    if (window.Utils && typeof Utils.manhattan === "function") {
-      return Utils.manhattan(ax, ay, bx, by);
+    const U = modHandle("Utils");
+    if (U && typeof U.manhattan === "function") {
+      return U.manhattan(ax, ay, bx, by);
     }
     return Math.abs(ax - bx) + Math.abs(ay - by);
   }
@@ -1547,10 +1555,11 @@
         isGodOpen: () => !!(window.UI && UI.isGodOpen && UI.isGodOpen()),
         // Ensure shop modal is part of the modal stack priority
         isShopOpen: () => {
-          // Step 2: Prefer ShopUI state when available; fallback to DOM check
+          // Prefer ShopUI state when available; fallback to DOM check
           try {
-            if (window.ShopUI && typeof ShopUI.isOpen === "function") {
-              return !!ShopUI.isOpen();
+            const SU = modHandle("ShopUI");
+            if (SU && typeof SU.isOpen === "function") {
+              return !!SU.isOpen();
             }
           } catch (_) {}
           try {
@@ -1596,8 +1605,9 @@
   // Visual: add or strengthen a blood decal at tile (x,y)
   function addBloodDecal(x, y, mult = 1.0) {
     // Prefer Decals module
-    if (window.Decals && typeof Decals.add === "function") {
-      Decals.add(getCtx(), x, y, mult);
+    const DC = modHandle("Decals");
+    if (DC && typeof DC.add === "function") {
+      DC.add(getCtx(), x, y, mult);
       return;
     }
     if (!inBounds(x, y)) return;
@@ -2320,18 +2330,22 @@
       rebuildOccupancy();
       // Status effects tick (bleed, dazed, etc.)
       try {
-        if (window.Status && typeof Status.tick === "function") {
-          Status.tick(getCtx());
+        const ST = modHandle("Status");
+        if (ST && typeof ST.tick === "function") {
+          ST.tick(getCtx());
         }
       } catch (_) {}
       // Visual: decals fade each turn
-      if (window.Decals && typeof Decals.tick === "function") {
-        Decals.tick(getCtx());
-      } else if (decals && decals.length) {
-        for (let i = 0; i < decals.length; i++) {
-          decals[i].a *= 0.92;
+      {
+        const DC = modHandle("Decals");
+        if (DC && typeof DC.tick === "function") {
+          DC.tick(getCtx());
+        } else if (decals && decals.length) {
+          for (let i = 0; i < decals.length; i++) {
+            decals[i].a *= 0.92;
+          }
+          decals = decals.filter(d => d.a > 0.04);
         }
-        decals = decals.filter(d => d.a > 0.04);
       }
       // clamp corpse list length
       if (corpses.length > 50) corpses = corpses.slice(-50);
