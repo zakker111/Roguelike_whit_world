@@ -776,9 +776,6 @@
     if (DR && typeof DR.keyFromWorldPos === "function") {
       return DR.keyFromWorldPos(x, y);
     }
-    if (window.DungeonState && typeof DungeonState.key === "function") {
-      return DungeonState.key(x, y);
-    }
     return `${x},${y}`;
   }
 
@@ -1086,10 +1083,6 @@
     {
       const UB = modHandle("UIBridge");
       if (UB && typeof UB.hideTownExitButton === "function") UB.hideTownExitButton(getCtx());
-      else {
-        const UIH = modHandle("UI");
-        if (UIH && typeof UIH.hideTownExitButton === "function") UIH.hideTownExitButton();
-      }
     }
     requestDraw();
   }
@@ -1880,10 +1873,21 @@
       requestDraw();
       return;
     }
-    if (window.UI && typeof UI.showLoot === "function") {
-      UI.showLoot(list);
-      requestDraw();
-    }
+    // Minimal DOM fallback
+    try {
+      const panel = document.getElementById("loot-panel");
+      const ul = document.getElementById("loot-list");
+      if (panel && ul) {
+        ul.innerHTML = "";
+        (list || []).forEach(name => {
+          const li = document.createElement("li");
+          li.textContent = name;
+          ul.appendChild(li);
+        });
+        panel.hidden = false;
+        requestDraw();
+      }
+    } catch (_) {}
   }
 
   function hideLootPanel() {
@@ -1895,15 +1899,6 @@
         if (typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen();
       } catch (_) {}
       UB.hideLoot(getCtx());
-      if (wasOpen) requestDraw();
-      return;
-    }
-    if (window.UI && typeof UI.hideLoot === "function") {
-      let wasOpen = true;
-      try {
-        if (typeof UI.isLootOpen === "function") wasOpen = !!UI.isLootOpen();
-      } catch (_) {}
-      UI.hideLoot();
       if (wasOpen) requestDraw();
       return;
     }
@@ -1990,9 +1985,6 @@
       UB.renderInventory(getCtx());
       return;
     }
-    if (window.UI && typeof UI.renderInventory === "function") {
-      UI.renderInventory(player, describeItem);
-    }
   }
 
   function showInventoryPanel() {
@@ -2004,8 +1996,6 @@
       const UB = modHandle("UIBridge");
       if (UB && typeof UB.showInventory === "function") {
         UB.showInventory(getCtx());
-      } else if (window.UI && typeof UI.showInventory === "function") {
-        UI.showInventory();
       } else {
         const panel = document.getElementById("inv-panel");
         if (panel) panel.hidden = false;
@@ -2024,11 +2014,6 @@
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideInventory === "function") {
       UB.hideInventory(getCtx());
-      requestDraw();
-      return;
-    }
-    if (window.UI && typeof UI.hideInventory === "function") {
-      UI.hideInventory();
       requestDraw();
       return;
     }
@@ -2104,11 +2089,6 @@
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.showGameOver === "function") {
       UB.showGameOver(getCtx());
-      requestDraw();
-      return;
-    }
-    if (window.UI && typeof UI.showGameOver === "function") {
-      UI.showGameOver(player, floor);
       requestDraw();
       return;
     }
@@ -2221,10 +2201,6 @@
       UB.hideGameOver(getCtx());
       return;
     }
-    if (window.UI && typeof UI.hideGameOver === "function") {
-      UI.hideGameOver();
-      return;
-    }
     const panel = document.getElementById("gameover-panel");
     if (panel) panel.hidden = true;
   }
@@ -2299,10 +2275,6 @@
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.updateStats === "function") {
       UB.updateStats(getCtx());
-      return;
-    }
-    if (window.UI && typeof UI.updateStats === "function") {
-      UI.updateStats(player, floor, getPlayerAttack, getPlayerDefense, getClock());
       return;
     }
     // Fallback if UI module not loaded
