@@ -33,6 +33,7 @@
       if (window.FOV) ctx.FOV = window.FOV;
       if (window.AI) ctx.AI = window.AI;
       if (window.Input) ctx.Input = window.Input;
+      if (window.Actions) ctx.Actions = window.Actions;
       if (window.Render) ctx.Render = window.Render;
       if (window.Tileset) ctx.Tileset = window.Tileset;
       if (window.Flavor) ctx.Flavor = window.Flavor;

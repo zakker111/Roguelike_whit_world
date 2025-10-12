@@ -1346,9 +1346,10 @@
   }
 
   function leaveTownNow() {
-    if (window.Modes && typeof Modes.leaveTownNow === "function") {
+    const M = modHandle("Modes");
+    if (M && typeof M.leaveTownNow === "function") {
       const ctx = getCtx();
-      Modes.leaveTownNow(ctx);
+      M.leaveTownNow(ctx);
       // Sync mutated ctx back into local state
       mode = ctx.mode || mode;
       map = ctx.map || map;
@@ -1417,9 +1418,10 @@
   }
 
   function returnToWorldIfAtExit() {
-    if (window.Modes && typeof Modes.returnToWorldIfAtExit === "function") {
+    const M = modHandle("Modes");
+    if (M && typeof M.returnToWorldIfAtExit === "function") {
       const ctx = getCtx();
-      const ok = Modes.returnToWorldIfAtExit(ctx);
+      const ok = M.returnToWorldIfAtExit(ctx);
       if (ok) {
         // Sync mutated ctx back into local state
         mode = ctx.mode || mode;
@@ -1453,37 +1455,40 @@
       if (returnToWorldFromTown()) return;
     }
 
-    // Prefer module
-    if (window.Actions && typeof Actions.doAction === "function") {
-      const ctxMod = getCtx();
-      const handled = Actions.doAction(ctxMod);
-      if (handled) {
-        // Sync mutated ctx back into local state to ensure mode/map changes take effect
-        mode = ctxMod.mode || mode;
-        map = ctxMod.map || map;
-        seen = ctxMod.seen || seen;
-        visible = ctxMod.visible || visible;
-        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
-        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
-        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
-        // Town-specific state
-        npcs = Array.isArray(ctxMod.npcs) ? ctxMod.npcs : npcs;
-        shops = Array.isArray(ctxMod.shops) ? ctxMod.shops : shops;
-        townProps = Array.isArray(ctxMod.townProps) ? ctxMod.townProps : townProps;
-        townBuildings = Array.isArray(ctxMod.townBuildings) ? ctxMod.townBuildings : townBuildings;
-        townPlaza = ctxMod.townPlaza || townPlaza;
-        tavern = ctxMod.tavern || tavern;
-        // Anchors/persistence
-        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
-        townExitAt = ctxMod.townExitAt || townExitAt;
-        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
-        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
-        updateCamera();
-        recomputeFOV();
-        updateUI();
-        requestDraw();
-        return;
+    // Prefer ctx-first Actions module
+    {
+      const A = modHandle("Actions");
+      if (A && typeof A.doAction === "function") {
+        const ctxMod = getCtx();
+        const handled = A.doAction(ctxMod);
+        if (handled) {
+          // Sync mutated ctx back into local state to ensure mode/map changes take effect
+          mode = ctxMod.mode || mode;
+          map = ctxMod.map || map;
+          seen = ctxMod.seen || seen;
+          visible = ctxMod.visible || visible;
+          enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
+          corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
+          decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
+          // Town-specific state
+          npcs = Array.isArray(ctxMod.npcs) ? ctxMod.npcs : npcs;
+          shops = Array.isArray(ctxMod.shops) ? ctxMod.shops : shops;
+          townProps = Array.isArray(ctxMod.townProps) ? ctxMod.townProps : townProps;
+          townBuildings = Array.isArray(ctxMod.townBuildings) ? ctxMod.townBuildings : townBuildings;
+          townPlaza = ctxMod.townPlaza || townPlaza;
+          tavern = ctxMod.tavern || tavern;
+          // Anchors/persistence
+          worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
+          townExitAt = ctxMod.townExitAt || townExitAt;
+          dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
+          currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
+          if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
+          updateCamera();
+          recomputeFOV();
+          updateUI();
+          requestDraw();
+          return;
+        }
       }
     }
 
@@ -1509,9 +1514,12 @@
   }
 
   function descendIfPossible() {
-    if (window.Actions && typeof Actions.descend === "function") {
-      const handled = Actions.descend(getCtx());
-      if (handled) return;
+    {
+      const A = modHandle("Actions");
+      if (A && typeof A.descend === "function") {
+        const handled = A.descend(getCtx());
+        if (handled) return;
+      }
     }
     if (mode === "world" || mode === "town") {
       doAction();
@@ -1555,13 +1563,24 @@
         onShowInventory: () => showInventoryPanel(),
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
-        onHideGod: () => { if (window.UI && UI.hideGod) UI.hideGod(); requestDraw(); },
-        onHideShop: () => hideShopPanel(),
-        onShowGod: () => {
-          if (window.UI) {
-            if (typeof UI.setGodFov === "function") UI.setGodFov(fovRadius);
-            if (typeof UI.showGod === "function") UI.showGod();
+        onHideGod: () => {
+          const UB = modHandle("UIBridge");
+          if (UB && typeof UB.hideGod === "function") {
+            UB.hideGod(getCtx());
+          } else if (window.UI && UI.hideGod) {
+            UI.hideGod();
           }
+          requestDraw();
+        },
+        onShowGod: () => {
+          const UB = modHandle("UIBridge");
+          if (UB && typeof UB.showGod === "function") {
+            UB.showGod(getCtx());
+          } else if (window.UI && typeof UI.showGod === "function") {
+            UI.showGod();
+          }
+          const UIH = modHandle("UI");
+          if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
           requestDraw();
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
@@ -1605,10 +1624,13 @@
       if (!wmap) return;
       const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
       if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return;
-      if (window.World && typeof World.isWalkable === "function" && World.isWalkable(wmap[ny][nx])) {
-        player.x = nx; player.y = ny;
-        updateCamera();
-        turn();
+      {
+        const W = modHandle("World");
+        if (W && typeof W.isWalkable === "function" && W.isWalkable(wmap[ny][nx])) {
+          player.x = nx; player.y = ny;
+          updateCamera();
+          turn();
+        }
       }
       return;
     }
@@ -1766,29 +1788,32 @@
   function lootCorpse() {
     if (isDead) return;
 
-    // Prefer Actions module for all interaction/loot flows across modes
-    if (window.Actions && typeof Actions.loot === "function") {
-      const ctxMod = getCtx();
-      const handled = Actions.loot(ctxMod);
-      if (handled) {
-        // Sync mutated ctx back into local state
-        mode = ctxMod.mode || mode;
-        map = ctxMod.map || map;
-        seen = ctxMod.seen || seen;
-        visible = ctxMod.visible || visible;
-        enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
-        corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
-        decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
-        worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
-        townExitAt = ctxMod.townExitAt || townExitAt;
-        dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
-        if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
-        updateCamera();
-        recomputeFOV();
-        updateUI();
-        requestDraw();
-        return;
+    // Prefer ctx-first Actions module for all interaction/loot flows across modes
+    {
+      const A = modHandle("Actions");
+      if (A && typeof A.loot === "function") {
+        const ctxMod = getCtx();
+        const handled = A.loot(ctxMod);
+        if (handled) {
+          // Sync mutated ctx back into local state
+          mode = ctxMod.mode || mode;
+          map = ctxMod.map || map;
+          seen = ctxMod.seen || seen;
+          visible = ctxMod.visible || visible;
+          enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
+          corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
+          decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
+          worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
+          townExitAt = ctxMod.townExitAt || townExitAt;
+          dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
+          currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
+          if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
+          updateCamera();
+          recomputeFOV();
+          updateUI();
+          requestDraw();
+          return;
+        }
       }
     }
 
