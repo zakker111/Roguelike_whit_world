@@ -277,8 +277,13 @@
   // ---- Shop schedule helpers (centralized via ShopService) ----
   function minutesOfDay(h, m) {
     try {
-      const day = (TimeService && typeof TimeService.create === "function") ? TimeService.create({}).DAY_MINUTES : 1440;
-      if (window.ShopService && typeof ShopService.minutesOfDay === "function") return ShopService.minutesOfDay(h, m, day);
+      let day = 1440;
+      const TSM = (ctx && ctx.TimeService) || (typeof TimeService !== "undefined" ? TimeService : null);
+      if (TSM && typeof TSM.create === "function") {
+        day = TSM.create({}).DAY_MINUTES || 1440;
+      }
+      const SSM = (ctx && ctx.ShopService) || (typeof ShopService !== "undefined" ? ShopService : null);
+      if (SSM && typeof SSM.minutesOfDay === "function") return SSM.minutesOfDay(h, m, day);
     } catch (_) {}
     const DAY = 1440;
     return (((h | 0) * 60 + (m | 0)) % DAY + DAY) % DAY;

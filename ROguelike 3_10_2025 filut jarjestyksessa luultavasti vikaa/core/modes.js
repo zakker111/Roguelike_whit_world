@@ -32,20 +32,28 @@
       ctx.player.x = ctx.worldReturnPos.x;
       ctx.player.y = ctx.worldReturnPos.y;
     }
-    if (ctx.UI && typeof ctx.UI.hideTownExitButton === "function") ctx.UI.hideTownExitButton();
+    try {
+      if (ctx.UIBridge && typeof ctx.UIBridge.hideTownExitButton === "function") ctx.UIBridge.hideTownExitButton(ctx);
+      else if (ctx.UI && typeof ctx.UI.hideTownExitButton === "function") ctx.UI.hideTownExitButton();
+    } catch (_) {}
     if (ctx.log) ctx.log("You return to the overworld.", "notice");
     syncAfterMutation(ctx);
   }
 
   function requestLeaveTown(ctx) {
-    if (ctx.UI && typeof ctx.UI.showConfirm === "function") {
-      const x = window.innerWidth / 2 - 140;
-      const y = window.innerHeight / 2 - 60;
-      ctx.UI.showConfirm("Do you want to leave the town?", { x, y }, () => leaveTownNow(ctx), () => {});
-    } else {
-      if (window.confirm && window.confirm("Do you want to leave the town?")) {
-        leaveTownNow(ctx);
+    const pos = { x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60 };
+    try {
+      if (ctx.UIBridge && typeof ctx.UIBridge.showConfirm === "function") {
+        ctx.UIBridge.showConfirm(ctx, "Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
+        return;
       }
+      if (ctx.UI && typeof ctx.UI.showConfirm === "function") {
+        ctx.UI.showConfirm("Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
+        return;
+      }
+    } catch (_) {}
+    if (typeof window !== "undefined" && window.confirm && window.confirm("Do you want to leave the town?")) {
+      leaveTownNow(ctx);
     }
   }
 
@@ -81,39 +89,45 @@
     }
 
     if (WT && (t === ctx.World.TILES.TOWN || tryEnterAdjacent(ctx.World.TILES.TOWN))) {
-      ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
-      ctx.mode = "town";
+        ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
+        ctx.mode = "town";
 
-      // Prefer centralized TownRuntime generation/helpers
-      try {
-        if (ctx.TownRuntime && typeof ctx.TownRuntime.generate === "function") {
-          const ok = !!ctx.TownRuntime.generate(ctx);
-          if (ok) {
-            // After TownRuntime.generate, ensure gate exit anchor and UI
-            ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
-            if (ctx.UI && typeof ctx.UI.showTownExitButton === "function") ctx.UI.showTownExitButton();
-            if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
-            syncAfterMutation(ctx);
-            return true;
+        // Prefer centralized TownRuntime generation/helpers
+        try {
+          if (ctx.TownRuntime && typeof ctx.TownRuntime.generate === "function") {
+            const ok = !!ctx.TownRuntime.generate(ctx);
+            if (ok) {
+              // After TownRuntime.generate, ensure gate exit anchor and UI
+              ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
+              try {
+                if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
+                else if (ctx.UI && typeof ctx.UI.showTownExitButton === "function") ctx.UI.showTownExitButton();
+              } catch (_) {}
+              if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+              syncAfterMutation(ctx);
+              return true;
+            }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
 
-      // Fallback: inline generation path via Town module
-      if (ctx.Town && typeof Town.generate === "function") {
-        Town.generate(ctx);
-        if (typeof Town.ensureSpawnClear === "function") Town.ensureSpawnClear(ctx);
-        ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
-        // Town.generate already spawns a gate greeter; avoid duplicates.
-        if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 0);
+        // Fallback: inline generation path via Town module
+        if (ctx.Town && typeof Town.generate === "function") {
+          Town.generate(ctx);
+          if (typeof Town.ensureSpawnClear === "function") Town.ensureSpawnClear(ctx);
+          ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
+          // Town.generate already spawns a gate greeter; avoid duplicates.
+          if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 0);
+        }
+        try {
+          if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
+          else if (ctx.UI && typeof ctx.UI.showTownExitButton === "function") ctx.UI.showTownExitButton();
+        } catch (_) {}
+        if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+        syncAfterMutation(ctx);
+        return true;
       }
-      if (ctx.UI && typeof ctx.UI.showTownExitButton === "function") ctx.UI.showTownExitButton();
-      if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
-      syncAfterMutation(ctx);
-      return true;
+      return false;
     }
-    return false;
-  }
 
   function saveCurrentDungeonState(ctx) {
     if (!(ctx.mode === "dungeon" && ctx.dungeon && ctx.dungeonExitAt)) return;

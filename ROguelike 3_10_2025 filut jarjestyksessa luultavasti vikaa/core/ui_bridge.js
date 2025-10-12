@@ -15,6 +15,9 @@
  * - showGod(ctx)
  * - hideGod(ctx)
  * - isGodOpen()
+ * - showConfirm(ctx, text, pos, onOk, onCancel)
+ * - showTownExitButton(ctx)
+ * - hideTownExitButton(ctx)
  *
  * Notes:
  * - Thin layer: delegates to window.UI if present.
@@ -102,6 +105,29 @@
     try { return !!(hasUI() && UI.isGodOpen && UI.isGodOpen()); } catch (_) { return false; }
   }
 
+  function showConfirm(ctx, text, pos, onOk, onCancel) {
+    if (hasUI() && typeof UI.showConfirm === "function") {
+      try { UI.showConfirm(text, pos, onOk, onCancel); } catch (_) {}
+      return;
+    }
+    // Fallback: simple browser confirm
+    try {
+      const ok = typeof window !== "undefined" && window.confirm ? window.confirm(text) : true;
+      if (ok && typeof onOk === "function") onOk();
+      else if (!ok && typeof onCancel === "function") onCancel();
+    } catch (_) {}
+  }
+
+  function showTownExitButton(ctx) {
+    if (!hasUI()) return;
+    try { UI.showTownExitButton && UI.showTownExitButton(); } catch (_) {}
+  }
+
+  function hideTownExitButton(ctx) {
+    if (!hasUI()) return;
+    try { UI.hideTownExitButton && UI.hideTownExitButton(); } catch (_) {}
+  }
+
   window.UIBridge = {
     updateStats,
     renderInventory,
@@ -115,6 +141,9 @@
     hideGameOver,
     showGod,
     hideGod,
-    isGodOpen
+    isGodOpen,
+    showConfirm,
+    showTownExitButton,
+    hideTownExitButton
   };
 })();

@@ -1082,8 +1082,14 @@
     recomputeFOV();
     updateUI();
     log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
-    const UIH = modHandle("UI");
-    if (UIH && typeof UIH.hideTownExitButton === "function") UIH.hideTownExitButton();
+    {
+      const UB = modHandle("UIBridge");
+      if (UB && typeof UB.hideTownExitButton === "function") UB.hideTownExitButton(getCtx());
+      else {
+        const UIH = modHandle("UI");
+        if (UIH && typeof UIH.hideTownExitButton === "function") UIH.hideTownExitButton();
+      }
+    }
     requestDraw();
   }
 
