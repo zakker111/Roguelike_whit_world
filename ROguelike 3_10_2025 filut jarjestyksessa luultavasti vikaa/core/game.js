@@ -1107,29 +1107,7 @@
     return true;
   }
 
-  // Town shops helpers and resting
-  function shopAt(x, y) {
-    const SS = modHandle("ShopService");
-    if (SS && typeof SS.shopAt === "function") {
-      return SS.shopAt(getCtx(), x, y);
-    }
-    if (!Array.isArray(shops)) return null;
-    return shops.find(s => s.x === x && s.y === y) || null;
-  }
-  // Shop schedule helpers (delegated to ShopService)
-  
-  function isOpenAt(shop, minutes) {
-    const SS = modHandle("ShopService");
-    if (SS && typeof SS.isOpenAt === "function") {
-      return SS.isOpenAt(shop, minutes);
-    }
-    if (!shop) return false;
-    if (shop.alwaysOpen) return true;
-    if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
-    const o = shop.openMin, c = shop.closeMin;
-    if (o === c) return false;
-    return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
-  }
+  // Town shops helpers routed via ShopService
   function isShopOpenNow(shop = null) {
     const SS = modHandle("ShopService");
     if (SS && typeof SS.isShopOpenNow === "function") {
@@ -1162,118 +1140,11 @@
   function advanceTimeMinutes(mins) {
     turnCounter = TS.advanceMinutes(turnCounter, mins);
   }
-  function restUntilMorning(healFraction = 0.25) {
-    const mins = minutesUntil(6, 0); // rest until 06:00 dawn
-    advanceTimeMinutes(mins);
-    const heal = Math.max(1, Math.floor(player.maxHp * healFraction));
-    const prev = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + heal);
-    log(`You rest until morning (${getClock().hhmm}). HP ${prev.toFixed(1)} -> ${player.hp.toFixed(1)}.`, "good");
-    updateUI();
-    requestDraw();
-  }
-  function restAtInn() {
-    const mins = minutesUntil(6, 0);
-    advanceTimeMinutes(mins);
-    const prev = player.hp;
-    player.hp = player.maxHp;
-    log(`You spend the night at the inn. You wake up fully rested at ${getClock().hhmm}.`, "good");
-    updateUI();
-    requestDraw();
-  }
 
-  function generateTown() {
-    const TR = modHandle("TownRuntime");
-    if (TR && typeof TR.generate === "function") {
-      const ctx = getCtx();
-      const handled = !!TR.generate(ctx);
-      if (handled) {
-        syncFromCtx(ctx);
-        return;
-      }
-    }
-    const Tn = modHandle("Town");
-    if (Tn && typeof Tn.generate === "function") {
-      const ctx = getCtx();
-      const handled = Tn.generate(ctx);
-      if (handled) {
-        syncFromCtx(ctx);
-        updateCamera(); recomputeFOV(); updateUI(); requestDraw();
-        return;
-      }
-    }
-    log("Town module missing; unable to generate town.", "warn");
-  }
+  
+  
 
-  function ensureTownSpawnClear() {
-    const TR = modHandle("TownRuntime");
-    if (TR && typeof TR.ensureSpawnClear === "function") {
-      TR.ensureSpawnClear(getCtx());
-      return;
-    }
-    const Tn = modHandle("Town");
-    if (Tn && typeof Tn.ensureSpawnClear === "function") {
-      Tn.ensureSpawnClear(getCtx());
-      return;
-    }
-    log("Town.ensureSpawnClear not available.", "warn");
-  }
-
-  function isFreeTownFloor(x, y) {
-    const TR = modHandle("TownRuntime");
-    if (TR && typeof TR.isFreeTownFloor === "function") {
-      return !!TR.isFreeTownFloor(getCtx(), x, y);
-    }
-    const U = modHandle("Utils");
-    if (U && typeof U.isFreeTownFloor === "function") {
-      return U.isFreeTownFloor(getCtx(), x, y);
-    }
-    if (!inBounds(x, y)) return false;
-    if (map[y][x] !== TILES.FLOOR && map[y][x] !== TILES.DOOR) return false;
-    if (x === player.x && y === player.y) return false;
-    if (Array.isArray(npcs) && npcs.some(n => n.x === x && n.y === y)) return false;
-    if (Array.isArray(townProps) && townProps.some(p => p.x === x && p.y === y)) return false;
-    return true;
-  }
-
-  function manhattan(ax, ay, bx, by) {
-    const U = modHandle("Utils");
-    if (U && typeof U.manhattan === "function") {
-      return U.manhattan(ax, ay, bx, by);
-    }
-    return Math.abs(ax - bx) + Math.abs(ay - by);
-  }
-
-  function clearAdjacentNPCsAroundPlayer() {
-    // Ensure the four cardinal neighbors around the player are not all occupied by NPCs
-    const neighbors = [
-      { x: player.x + 1, y: player.y },
-      { x: player.x - 1, y: player.y },
-      { x: player.x, y: player.y + 1 },
-      { x: player.x, y: player.y - 1 },
-    ];
-    // If any neighbor has an NPC, remove up to two to keep space
-    for (const pos of neighbors) {
-      const idx = npcs.findIndex(n => n.x === pos.x && n.y === pos.y);
-      if (idx !== -1) {
-        npcs.splice(idx, 1);
-      }
-    }
-  }
-
-  function spawnGateGreeters(count = 4) {
-    const TR = modHandle("TownRuntime");
-    if (TR && typeof TR.spawnGateGreeters === "function") {
-      TR.spawnGateGreeters(getCtx(), count);
-      return;
-    }
-    const Tn = modHandle("Town");
-    if (Tn && typeof Tn.spawnGateGreeters === "function") {
-      Tn.spawnGateGreeters(getCtx(), count);
-      return;
-    }
-    log("Town.spawnGateGreeters not available.", "warn");
-  }
+  
 
   function syncFromCtx(ctx) {
     if (!ctx) return;
@@ -1889,52 +1760,26 @@
   }
 
   function showLootPanel(list) {
-    // Prefer UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.showLoot === "function") {
       UB.showLoot(getCtx(), list);
       requestDraw();
-      return;
     }
-    // Minimal DOM fallback
-    try {
-      const panel = document.getElementById("loot-panel");
-      const ul = document.getElementById("loot-list");
-      if (panel && ul) {
-        ul.innerHTML = "";
-        (list || []).forEach(name => {
-          const li = document.createElement("li");
-          li.textContent = name;
-          ul.appendChild(li);
-        });
-        panel.hidden = false;
-        requestDraw();
-      }
-    } catch (_) {}
   }
 
   function hideLootPanel() {
-    // Prefer UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideLoot === "function") {
       let wasOpen = true;
-      try {
-        if (typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen();
-      } catch (_) {}
+      try { if (typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen(); } catch (_) {}
       UB.hideLoot(getCtx());
       if (wasOpen) requestDraw();
-      return;
     }
-    const panel = document.getElementById("loot-panel");
-    if (!panel) return;
-    const wasHidden = panel.hidden === true;
-    panel.hidden = true;
-    if (!wasHidden) requestDraw();
   }
 
   // Shop UI delegated to ui/shop_panel.js
   function hideShopPanel() {
-    // Prefer UIBridge wrapper; fallback to ShopUI then DOM
+    // Prefer UIBridge wrapper; fallback to ShopUI
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideShop === "function") {
       UB.hideShop(getCtx());
@@ -1945,11 +1790,7 @@
     if (SU && typeof SU.hide === "function") {
       SU.hide();
       requestDraw();
-      return;
     }
-    const el = document.getElementById("shop-panel");
-    if (el) el.hidden = true;
-    requestDraw();
   }
   function openShopFor(npc) {
     // Prefer UIBridge wrapper; fallback to ShopUI
@@ -2124,21 +1965,11 @@
   
 
   function showGameOver() {
-    // Prefer UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.showGameOver === "function") {
       UB.showGameOver(getCtx());
       requestDraw();
-      return;
     }
-    const panel = document.getElementById("gameover-panel");
-    const summary = document.getElementById("gameover-summary");
-    const gold = (player.inventory.find(i => i.kind === "gold")?.amount) || 0;
-    if (summary) {
-      summary.textContent = `You died on floor ${floor} (Lv ${player.level}). Gold: ${gold}. XP: ${player.xp}/${player.xpNext}.`;
-    }
-    if (panel) panel.hidden = false;
-    requestDraw();
   }
 
   // GOD: always-crit toggle
@@ -2234,14 +2065,10 @@
   }
 
   function hideGameOver() {
-    // Prefer UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideGameOver === "function") {
       UB.hideGameOver(getCtx());
-      return;
     }
-    const panel = document.getElementById("gameover-panel");
-    if (panel) panel.hidden = true;
   }
 
   function restartGame() {
@@ -2347,10 +2174,7 @@
   }
 
   
-  function occupied(x, y) {
-    if (player.x === x && player.y === y) return true;
-    return enemies.some(e => e.x === x && e.y === y);
-  }
+  
 
   
   function turn() {
@@ -2744,8 +2568,6 @@
         isShopOpenNow: (shop) => isShopOpenNow(shop),
         shopScheduleStr: (shop) => shopScheduleStr(shop),
         advanceTimeMinutes: (mins) => advanceTimeMinutes(mins),
-        restUntilMorning: () => restUntilMorning(),
-        restAtInn: () => restAtInn(),
         returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
         setAlwaysCrit: (v) => setAlwaysCrit(v),
         setCritPart: (part) => setCritPart(part),
@@ -2789,4 +2611,3 @@ export {
   rerollSeed,
   setFovRadius,
   updateUI
-};

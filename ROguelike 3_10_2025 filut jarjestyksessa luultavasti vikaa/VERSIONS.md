@@ -1,5 +1,19 @@
 # Game Version History
-Last updated: 2025-10-12 00:30 UTC
+Last updated: 2025-10-12 01:05 UTC
+
+v1.34.21 — Phase 2 cleanup: remove redundant helpers and unify UI via UIBridge
+- Removed: unused/duplicated helpers from core/game.js now handled by modules/services
+  - talkNearbyNPC (TownRuntime.talk covers this)
+  - occupied (OccupancyGrid provides blocking queries)
+  - GameAPI exposures for restUntilMorning/restAtInn (rest flows live in Actions via TimeService)
+- Fixed: stray malformed loot-panel tail in core/game.js; restored a clean pair of
+  - showLootPanel(list): UIBridge.showLoot(ctx, list)
+  - hideLootPanel(): UIBridge.hideLoot(ctx) with isLootOpen check for conditional redraw
+- Changed: simplified UI fallbacks to prefer UIBridge-only for inventory and shop
+  - hideShopPanel(): UIBridge.hideShop(ctx), fallback to ShopUI.hide only
+  - showInventoryPanel()/hideInventoryPanel(): UIBridge/InventoryController only (removed DOM fallback)
+- Changed: talkNearbyNPC function removed from core/game.js; TownRuntime.talk remains the single source.
+- Safety: behavior unchanged—delegations were already in place; this trims dead code and reduces divergence risk.
 
 v1.34.20 — Render ESM imports + ctx-first grid overlay
 - Changed: ui/render.js now imports RenderCore/RenderOverworld/RenderTown/RenderDungeon via ES modules and delegates directly, removing window.* checks.
