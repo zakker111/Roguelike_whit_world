@@ -234,6 +234,9 @@
       townPlaza,
       tavern,
       dungeonExitAt,
+      // camera
+      camera,
+      getCamera: () => camera,
       // dungeon info
       dungeon: currentDungeon,
       dungeonInfo: currentDungeon,
