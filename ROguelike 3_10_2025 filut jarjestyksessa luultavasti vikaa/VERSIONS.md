@@ -1,6 +1,10 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.17 — Phase 3 step 17: Delegate equipment decay to EquipmentDecay
+- Changed: core/game.js decayAttackHands and decayBlockingHands now prefer EquipmentDecay.decayAttackHands/decayBlockingHands with ctx-first hooks (log/updateUI/inventory rerender), retaining local fallback logic.
+- Benefit: single source of truth for wear/decay semantics (including two-handed behavior) and easier balancing.
+
 v1.34.16 — Phase 3 step 16: Combat modules to ESM
 - Changed: combat/combat_utils.js converted to ES module (export profiles, rollHitLocation, critMultiplier) and augments window.Combat; index.html loads as type="module".
 - Changed: combat/combat.js converted to ES module (export getPlayerBlockChance, getEnemyBlockChance, enemyDamageAfterDefense, enemyDamageMultiplier) and augments window.Combat; index.html loads as type="module".

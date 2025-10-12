@@ -2567,6 +2567,17 @@
   }
 
   function decayAttackHands(light = false) {
+    // Prefer centralized EquipmentDecay service
+    const ED = modHandle("EquipmentDecay");
+    if (ED && typeof ED.decayAttackHands === "function") {
+      ED.decayAttackHands(player, rng, { twoHanded: usingTwoHanded(), light }, {
+        log,
+        updateUI,
+        onInventoryChange: () => rerenderInventoryIfOpen(),
+      });
+      return;
+    }
+    // Fallback: local logic
     const eq = player.equipment || {};
     const amtMain = light ? randFloat(0.6, 1.6, 1) : randFloat(1.0, 2.2, 1);
     if (usingTwoHanded()) {
@@ -2591,6 +2602,17 @@
   }
 
   function decayBlockingHands() {
+    // Prefer centralized EquipmentDecay service
+    const ED = modHandle("EquipmentDecay");
+    if (ED && typeof ED.decayBlockingHands === "function") {
+      ED.decayBlockingHands(player, rng, { twoHanded: usingTwoHanded() }, {
+        log,
+        updateUI,
+        onInventoryChange: () => rerenderInventoryIfOpen(),
+      });
+      return;
+    }
+    // Fallback: local logic
     const eq = player.equipment || {};
     const amt = randFloat(0.6, 1.6, 1);
     if (usingTwoHanded()) {
