@@ -34,7 +34,6 @@
     }
     try {
       if (ctx.UIBridge && typeof ctx.UIBridge.hideTownExitButton === "function") ctx.UIBridge.hideTownExitButton(ctx);
-      else if (ctx.UI && typeof ctx.UI.hideTownExitButton === "function") ctx.UI.hideTownExitButton();
     } catch (_) {}
     if (ctx.log) ctx.log("You return to the overworld.", "notice");
     syncAfterMutation(ctx);
@@ -45,10 +44,6 @@
     try {
       if (ctx.UIBridge && typeof ctx.UIBridge.showConfirm === "function") {
         ctx.UIBridge.showConfirm(ctx, "Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
-        return;
-      }
-      if (ctx.UI && typeof ctx.UI.showConfirm === "function") {
-        ctx.UI.showConfirm("Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
         return;
       }
     } catch (_) {}
@@ -101,7 +96,6 @@
               ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
               try {
                 if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
-                else if (ctx.UI && typeof ctx.UI.showTownExitButton === "function") ctx.UI.showTownExitButton();
               } catch (_) {}
               if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
               syncAfterMutation(ctx);
@@ -120,7 +114,6 @@
         }
         try {
           if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
-          else if (ctx.UI && typeof ctx.UI.showTownExitButton === "function") ctx.UI.showTownExitButton();
         } catch (_) {}
         if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
         syncAfterMutation(ctx);

@@ -82,4 +82,6 @@ Development
 
 Notes
 - Prefer ctx.* over window.* in modules.
+- Use UIBridge (core/ui_bridge.js) for UI interactions (inventory, loot, game over, confirm, town exit button) instead of calling window.UI directly.
+- Dungeon/town lifecycles are centralized via DungeonRuntime and TownRuntime; Modes delegates transitions and persistence through these facades.
 - UI panels are ESC-to-close; input prioritizes closing modals before movement.

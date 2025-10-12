@@ -113,10 +113,6 @@
     try {
       if (ctx.UIBridge && typeof ctx.UIBridge.hideTownExitButton === "function") {
         ctx.UIBridge.hideTownExitButton(ctx);
-      } else if (ctx.UI && typeof ctx.UI.hideTownExitButton === "function") {
-        ctx.UI.hideTownExitButton();
-      } else if (typeof window !== "undefined" && window.UI && typeof UI.hideTownExitButton === "function") {
-        UI.hideTownExitButton();
       }
     } catch (_) {}
 

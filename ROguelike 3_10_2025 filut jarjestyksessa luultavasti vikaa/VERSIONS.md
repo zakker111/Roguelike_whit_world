@@ -10,7 +10,33 @@ Conventions
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
 
-v1.25.0 — Runtime-centric persistence, UIBridge confirmations/buttons, and GOD toggle centralization
+v1.26.0 — Stable town/city names, ctx-first UI in core, safer loot/inventory fallbacks
+- Fixed: Town/city names now persist and are reused on signs and greetings
+  - worldgen/town_gen.js persists the generated name into the corresponding world.towns entry (info.name). Re-entries use the saved name.
+- Changed: Core game uses UIBridge-only for inventory/loot/gameover where possible
+  - core/game.js: show/hide Loot/Inventory/GameOver now delegate to UIBridge with a minimal DOM fallback; removed direct UI.* calls.
+  - dungeonKeyFromWorldPos now prefers DungeonRuntime-only (no DungeonState.key path).
+- Changed: Modes/TownRuntime UI delegations simplified
+  - core/modes.js and core/town_runtime.js: show/hide Town Exit button and leave-town confirmation now go through UIBridge (fallback to browser confirm only).
+- Changed: Player integration via ctx-first handles
+  - core/game.js: equipIfBetter and gainXP now call Player via modHandle(\"Player\") instead of window.Player checks.
+- UI: InputMouse modal gating
+  - Clicks are ignored while ShopUI or other modals are open (UIBridge-preferred), preventing accidental actions.
+
+v1.26.0 — Stable town/city names, ctx-first UI in core, safer loot/inventory fallbacks
+- Fixed: Town/city names now persist and are reused on signs and greetings
+  - worldgen/town_gen.js persists the generated name into the corresponding world.towns entry (info.name). Re-entries use the saved name.
+- Changed: Core game uses UIBridge-only for inventory/loot/gameover where possible
+  - core/game.js: show/hide Loot/Inventory/GameOver now delegate to UIBridge with a minimal DOM fallback; removed direct UI.* calls.
+  - dungeonKeyFromWorldPos now prefers DungeonRuntime-only (no DungeonState.key path).
+- Changed: Modes/TownRuntime UI delegations simplified
+  - core/modes.js and core/town_runtime.js: show/hide Town Exit button and leave-town confirmation now go through UIBridge (fallback to browser confirm only).
+- Changed: Player integration via ctx-first handles
+  - core/game.js: equipIfBetter and gainXP now call Player via modHandle("Player") instead of window.Player checks.
+- UI: InputMouse modal gating
+  - Clicks are ignored while ShopUI or other modals are open (UIBridge-preferred), preventing accidental actions.
+
+v1.25.0 — Runtime-centric persistence
 - Changed: Dungeon persistence centralized via DungeonRuntime across core modules
   - core/game.js: saveCurrentDungeonState/loadDungeonStateFor prefer DungeonRuntime; removed direct DungeonState.save/load calls. Fallback is in-memory snapshot only when DungeonRuntime is missing.
   - core/modes.js: saveCurrentDungeonState/loadDungeonStateFor prefer DungeonRuntime; removed DungeonState.* usage; return-to-world uses DungeonRuntime or local fallback.
