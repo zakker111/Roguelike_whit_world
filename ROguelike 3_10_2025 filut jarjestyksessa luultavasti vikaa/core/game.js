@@ -1528,6 +1528,27 @@
     }
   }
 
+  // Defensive stance: Brace for one turn (dungeon mode).
+  // Increases block chance for the current turn if holding a defensive hand item (any hand item with def > 0).
+  function brace() {
+    if (isDead) return;
+    if (mode !== "dungeon") {
+      log("You can brace only in the dungeon.", "info");
+      return;
+    }
+    const eq = player.equipment || {};
+    const hasDefHand = !!((eq.left && typeof eq.left.def === "number" && eq.left.def > 0) || (eq.right && typeof eq.right.def === "number" && eq.right.def > 0));
+    if (!hasDefHand) {
+      log("You raise your arms, but without a defensive hand item bracing is ineffective.", "warn");
+      // Still consume the turn to avoid free actions if desired
+      turn();
+      return;
+    }
+    player.braceTurns = 1;
+    log("You brace behind your shield. Your block is increased this turn.", "notice");
+    turn();
+  }
+
   function setupInput() {
     const I = modHandle("Input");
     if (I && typeof I.init === "function") {
@@ -1604,6 +1625,7 @@
         onWait: () => turn(),
         onLoot: () => doAction(),
         onDescend: () => descendIfPossible(),
+        onBrace: () => brace(),
         adjustFov: (delta) => adjustFov(delta),
       });
     }
@@ -2364,6 +2386,10 @@
           }
           decals = decals.filter(d => d.a > 0.04);
         }
+      }
+      // End of turn: brace stance lasts only for this enemy round
+      if (player && typeof player.braceTurns === "number" && player.braceTurns > 0) {
+        player.braceTurns = 0;
       }
       // clamp corpse list length
       if (corpses.length > 50) corpses = corpses.slice(-50);

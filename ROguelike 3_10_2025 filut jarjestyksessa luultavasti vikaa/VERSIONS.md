@@ -1,6 +1,13 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.18 — Brace stance (defensive action)
+- Added: New input binding 'B' for Brace (dungeon only). Consumes a turn and increases block chance for this turn if holding a defensive hand item (any hand item with defense).
+- Changed: combat/combat.js getPlayerBlockChance now respects player.braceTurns, applying a brace bonus and a slightly higher clamp (up to 75%) during the stance.
+- Changed: core/game.js clears brace state at end of the player's turn in dungeon mode; wiring for onBrace added to input setup.
+- Docs: README updated with 'Brace: B' control.
+- Notes: Brace is a simple one-turn stance, no attack change since the action consumes the turn.
+
 v1.34.17 — Phase 3 step 17: Delegate equipment decay to EquipmentDecay
 - Changed: core/game.js decayAttackHands and decayBlockingHands now prefer EquipmentDecay.decayAttackHands/decayBlockingHands with ctx-first hooks (log/updateUI/inventory rerender), retaining local fallback logic.
 - Benefit: single source of truth for wear/decay semantics (including two-handed behavior) and easier balancing.

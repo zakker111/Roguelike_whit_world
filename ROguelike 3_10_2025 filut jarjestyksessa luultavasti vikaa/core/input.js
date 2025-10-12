@@ -141,6 +141,13 @@ export function init(handlers) {
       return;
     }
 
+    // Brace (B): defensive stance for one turn (dungeon mode), increases block chance this turn
+    if (e.key && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      if (_handlers.onBrace) _handlers.onBrace();
+      return;
+    }
+
     // Descend / context action for stairs (N only; Enter disabled)
     if (e.key && e.key.toLowerCase() === "n") {
       e.preventDefault();

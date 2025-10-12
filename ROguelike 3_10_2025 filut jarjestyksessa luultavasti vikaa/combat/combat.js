@@ -42,7 +42,11 @@ export function getPlayerBlockChance(ctx, loc) {
   const handDef = Math.max(leftDef, rightDef);
   const base = 0.08 + handDef * 0.06;
   const mod = (loc && typeof loc.blockMod === "number") ? loc.blockMod : 1.0;
-  return Math.max(0, Math.min(0.6, base * mod));
+  // Brace stance: if active, increase block chance for this turn.
+  const braceBonus = (p && typeof p.braceTurns === "number" && p.braceTurns > 0) ? 1.5 : 1.0;
+  // Slightly higher clamp while bracing.
+  const clampMax = (braceBonus > 1.0) ? 0.75 : 0.6;
+  return Math.max(0, Math.min(clampMax, base * mod * braceBonus));
 }
 
 export function getEnemyBlockChance(ctx, enemy, loc) {

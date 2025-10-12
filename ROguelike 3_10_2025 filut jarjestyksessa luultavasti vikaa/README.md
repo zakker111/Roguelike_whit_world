@@ -12,6 +12,7 @@ Play it
   - Inventory: I
   - GOD panel: P
   - Wait: Numpad5
+  - Brace: B (dungeon only; raises block chance this turn if holding a defensive hand item)
 
 Data-driven configuration
 - JSON files under data/ drive most content:
