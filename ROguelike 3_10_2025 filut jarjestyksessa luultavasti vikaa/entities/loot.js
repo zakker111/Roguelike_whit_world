@@ -253,8 +253,13 @@
       // Persist the looted state immediately and consume a turn,
       // so revisiting the dungeon remembers emptied chests/corpses.
       try {
-        if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx);
-        else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx);
+        if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
+          ctx.DungeonRuntime.save(ctx, false);
+        } else if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
+          ctx.DungeonState.save(ctx);
+        } else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
+          DungeonState.save(ctx);
+        }
       } catch (_) {}
       if (typeof ctx.updateUI === "function") ctx.updateUI();
       if (typeof ctx.turn === "function") ctx.turn();
@@ -306,7 +311,9 @@
     container.looted = true;
     // Persist dungeon state immediately so revisits remember emptied chest/corpse
     try {
-      if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
+      if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
+        ctx.DungeonRuntime.save(ctx, false);
+      } else if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
         ctx.DungeonState.save(ctx);
       } else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
         DungeonState.save(ctx);

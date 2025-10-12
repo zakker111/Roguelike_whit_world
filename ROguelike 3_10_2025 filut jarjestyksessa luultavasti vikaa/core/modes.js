@@ -283,12 +283,7 @@
   }
 
   function returnToWorldIfAtExit(ctx) {
-    if (ctx.DungeonState && typeof DungeonState.returnToWorldIfAtExit === "function") {
-      const ok = DungeonState.returnToWorldIfAtExit(ctx);
-      if (ok) syncAfterMutation(ctx);
-      return ok;
-    }
-    // Prefer DungeonRuntime centralization if available
+    // Prefer DungeonRuntime centralization first
     try {
       if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
         const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
@@ -301,6 +296,13 @@
         return ok;
       }
     } catch (_) {}
+    // Fallback to DungeonState helper if present
+    if (ctx.DungeonState && typeof DungeonState.returnToWorldIfAtExit === "function") {
+      const ok = DungeonState.returnToWorldIfAtExit(ctx);
+      if (ok) syncAfterMutation(ctx);
+      return ok;
+    }
+    // Last-resort local fallback
     if (ctx.mode !== "dungeon" || !ctx.world) return false;
     if (!ctx.dungeonExitAt) return false;
     if (ctx.player.x !== ctx.dungeonExitAt.x || ctx.player.y !== ctx.dungeonExitAt.y) {
