@@ -27,6 +27,12 @@ v1.34.4 — Phase 3 step 4: GameAPI to ESM
 - Changed: core/game_api.js converted to ES module (export create) and retains window.GameAPIBuilder for back-compat.
 - Changed: index.html loads GameAPI as type="module".
 
+v1.34.5 — Phase 3 step 5: Core game to ESM
+- Changed: core/game.js converted to ES module:
+  - Removed IIFE wrapper, added ESM exports for key helpers (getCtx, requestDraw, initWorld, generateLevel, tryMovePlayer, doAction, descendIfPossible, applySeed, rerollSeed, setFovRadius, updateUI).
+  - Retains window.Game facade for back-compat and existing bootstrap.
+- Changed: index.html already loads core/game.js as type="module".
+
 v1.34.5 — Phase 3 step 4.1: core/game.js module-ready, attach window.Game
 - Changed: core/game.js now attaches a window.Game facade exposing minimal engine APIs (getCtx, requestDraw, initWorld, generateLevel, tryMovePlayer, doAction, descendIfPossible, applySeed, rerollSeed, setFovRadius, updateUI).
 - Changed: index.html now loads core/game.js with type="module" ahead of future ESM export adoption.

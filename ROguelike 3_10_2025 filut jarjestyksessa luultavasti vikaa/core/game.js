@@ -28,7 +28,6 @@
  * - RNG is seeded via the GOD panel or auto-init; seed is persisted to localStorage ("SEED").
  * - Diagnostics in GOD and boot logs show current RNG source and seed for reproducibility.
  */
-(() => {
   try {
     if (window.DEV) {
       console.log("[BOOT] game.js loaded. Modules present:", {
@@ -2721,4 +2720,17 @@ if (typeof window !== "undefined") {
   };
 }
 
-})();
+// ESM exports for module consumers
+export {
+  getCtx,
+  requestDraw,
+  initWorld,
+  generateLevel,
+  tryMovePlayer,
+  doAction,
+  descendIfPossible,
+  applySeed,
+  rerollSeed,
+  setFovRadius,
+  updateUI
+};
