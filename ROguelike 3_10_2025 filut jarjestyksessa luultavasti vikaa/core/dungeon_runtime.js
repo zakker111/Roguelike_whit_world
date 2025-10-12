@@ -234,6 +234,117 @@
     return true;
   }
 
+  function lootHere(ctx) {
+    if (!ctx) return false;
+    // Prefer existing Loot module for full-featured behavior
+    try {
+      if ((ctx.Loot || (typeof window !== "undefined" ? window.Loot : null)) && typeof Loot.lootHere === "function") {
+        Loot.lootHere(ctx);
+        return true;
+      }
+    } catch (_) {}
+
+    // Minimal fallback: transfer all items from corpse underfoot into inventory, auto-equip via ctx.equipIfBetter
+    try {
+      const list = Array.isArray(ctx.corpses) ? ctx.corpses.filter(c => c && c.x === ctx.player.x && c.y === ctx.player.y) : [];
+      if (list.length === 0) {
+        ctx.log && ctx.log("There is no corpse here to loot.");
+        return true;
+      }
+      const container = list.find(c => Array.isArray(c.loot) && c.loot.length > 0);
+      if (!container) {
+        list.forEach(c => c.looted = true);
+        ctx.log && ctx.log("Nothing of value here.");
+        if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
+          DungeonState.save(ctx);
+        }
+        ctx.updateUI && ctx.updateUI();
+        ctx.turn && ctx.turn();
+        return true;
+      }
+      const acquired = [];
+      for (const item of container.loot) {
+        if (!item) continue;
+        if (item.kind === "equip" && typeof ctx.equipIfBetter === "function") {
+          const equipped = ctx.equipIfBetter(item);
+          acquired.push(equipped ? (ctx.describeItem ? ctx.describeItem(item) : (item.name || "equipment")) : (ctx.describeItem ? ctx.describeItem(item) : (item.name || "equipment")));
+          if (!equipped) (ctx.player.inventory || (ctx.player.inventory = [])).push(item);
+        } else if (item.kind === "gold") {
+          const gold = (ctx.player.inventory || (ctx.player.inventory = [])).find(i => i && i.kind === "gold");
+          if (gold) gold.amount += item.amount;
+          else ctx.player.inventory.push({ kind: "gold", amount: item.amount, name: "gold" });
+          acquired.push(item.name || `${item.amount} gold`);
+        } else {
+          (ctx.player.inventory || (ctx.player.inventory = [])).push(item);
+          acquired.push(item.name || (item.kind || "item"));
+        }
+      }
+      container.loot = [];
+      container.looted = true;
+      ctx.updateUI && ctx.updateUI();
+      ctx.log && ctx.log(`You loot: ${acquired.join(", ")}.`);
+      if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
+        DungeonState.save(ctx);
+      }
+      ctx.turn && ctx.turn();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function lootHere(ctx) {
+    if (!ctx || ctx.mode !== "dungeon") return false;
+
+    // QoL: if adjacent to a corpse/chest, step onto it (only if not on exit)
+    try {
+      const onExit =
+        (ctx.dungeonExitAt &&
+          ctx.player.x === ctx.dungeonExitAt.x &&
+          ctx.player.y === ctx.dungeonExitAt.y) ||
+        (ctx.inBounds && ctx.inBounds(ctx.player.x, ctx.player.y) &&
+          ctx.map && ctx.map[ctx.player.y] &&
+          ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
+
+      if (!onExit) {
+        const neighbors = [
+          { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
+        ];
+        const hereList = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+        let target = null;
+        for (const d of neighbors) {
+          const tx = ctx.player.x + d.dx, ty = ctx.player.y + d.dy;
+          const c = hereList.find(c => c && c.x === tx && c.y === ty);
+          if (c) { target = { x: tx, y: ty }; break; }
+        }
+        if (target) {
+          const walkable = (ctx.inBounds(target.x, target.y) &&
+            (ctx.map[target.y][target.x] === ctx.TILES.FLOOR || ctx.map[target.y][target.x] === ctx.TILES.DOOR));
+          const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
+          if (walkable && !enemyBlocks) {
+            ctx.player.x = target.x; ctx.player.y = target.y;
+            ctx.requestDraw && ctx.requestDraw();
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Delegate to Loot.lootHere if available
+    try {
+      if (ctx.Loot && typeof ctx.Loot.lootHere === "function") {
+        ctx.Loot.lootHere(ctx);
+        return true;
+      }
+      if (typeof window !== "undefined" && window.Loot && typeof Loot.lootHere === "function") {
+        Loot.lootHere(ctx);
+        return true;
+      }
+    } catch (_) {}
+
+    // Not handled
+    return false;
+  }
+
   function killEnemy(ctx, enemy) {
     if (!ctx || !enemy) return;
     // Announce death

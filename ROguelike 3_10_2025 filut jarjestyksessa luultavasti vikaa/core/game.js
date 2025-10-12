@@ -1777,6 +1777,11 @@
 
     // Dungeon-only fallback: loot ground or guide user
     if (mode === "dungeon") {
+      const DR = modHandle("DungeonRuntime");
+      if (DR && typeof DR.lootHere === "function") {
+        DR.lootHere(getCtx());
+        return;
+      }
       if (window.Loot && typeof Loot.lootHere === "function") {
         Loot.lootHere(getCtx());
         return;

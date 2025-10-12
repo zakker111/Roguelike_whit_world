@@ -263,84 +263,33 @@
     }
 
     if (ctx.mode === "dungeon") {
-      // Return to overworld when on the entrance tile (">") or stairs tile,
-      // regardless of cameFromWorld flag. Do this BEFORE any adjacent QoL movement.
-      const onExit =
-        (ctx.dungeonExitAt && ctx.player.x === ctx.dungeonExitAt.x && ctx.player.y === ctx.dungeonExitAt.y) ||
-        (inBounds(ctx, ctx.player.x, ctx.player.y) && ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
-
-      if (ctx.world && onExit) {
-        // Persist current dungeon state before leaving
-        if (ctx.DungeonState && typeof DungeonState.save === "function") {
-          DungeonState.save(ctx);
-        }
-        // Return to world immediately
-        ctx.mode = "world";
-        ctx.enemies.length = 0;
-        ctx.corpses.length = 0;
-        ctx.decals.length = 0;
-        ctx.map = ctx.world.map;
-        // Restore exact overworld position:
-        // Prefer stored worldReturnPos; otherwise fall back to known dungeon entrance coords.
-        let rx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : null;
-        let ry = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : null;
-        if (rx == null || ry == null) {
-          const info = ctx.dungeon || ctx.dungeonInfo;
-          if (info && typeof info.x === "number" && typeof info.y === "number") {
-            rx = info.x; ry = info.y;
-          }
-        }
-        // Final safety: clamp to map bounds
-        if (rx == null || ry == null) {
-          rx = Math.max(0, Math.min(ctx.world.map[0].length - 1, ctx.player.x));
-          ry = Math.max(0, Math.min(ctx.world.map.length - 1, ctx.player.y));
-        }
-        ctx.player.x = rx; ctx.player.y = ry;
-
-        if (ctx.FOV && typeof FOV.recomputeFOV === "function") {
-          FOV.recomputeFOV(ctx);
-        }
-        if (typeof ctx.updateUI === "function") ctx.updateUI();
-        ctx.log("You climb back to the overworld.", "notice");
-        ctx.requestDraw();
-        return true;
-      }
-
-      // QoL: if adjacent to a chest/corpse, step onto it and loot automatically (only when NOT on exit)
+      // Prefer centralized return flow
       try {
-        const neighbors = [
-          { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-        ];
-        const hereList = Array.isArray(ctx.corpses) ? ctx.corpses : [];
-        let target = null;
-        for (const d of neighbors) {
-          const tx = ctx.player.x + d.dx, ty = ctx.player.y + d.dy;
-          const c = hereList.find(c => c && c.x === tx && c.y === ty);
-          if (c) { target = { x: tx, y: ty }; break; }
-        }
-        if (target) {
-          // Move onto the container tile if walkable and not blocked by enemy
-          const walkable = (ctx.inBounds(target.x, target.y) && (ctx.map[target.y][target.x] === ctx.TILES.FLOOR || ctx.map[target.y][target.x] === ctx.TILES.DOOR));
-          const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
-          if (walkable && !enemyBlocks) {
-            ctx.player.x = target.x; ctx.player.y = target.y;
-            if (typeof ctx.requestDraw === "function") ctx.requestDraw();
-          }
+        if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.returnToWorldIfAtExit === "function") {
+          const ok = DungeonRuntime.returnToWorldIfAtExit(ctx);
+          if (ok) return true;
         }
       } catch (_) {}
 
-      // Dungeon loot via Loot module
+      // Delegate loot handling centrally
+      try {
+        if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.lootHere === "function") {
+          DungeonRuntime.lootHere(ctx);
+          return true;
+        }
+      } catch (_) {}
       if (ctx.Loot && typeof Loot.lootHere === "function") {
         Loot.lootHere(ctx);
         return true;
       }
+
       // If standing on a blood decal, describe it
       if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
         ctx.log("The floor here is stained with blood.", "info");
         ctx.requestDraw();
         return true;
       }
-      // Guidance if not at exit
+      // Guidance if not handled
       ctx.log("Return to the entrance (the hole '>') and press G to leave.", "info");
       return true;
     }
