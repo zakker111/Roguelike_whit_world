@@ -43,11 +43,24 @@
       if (window.Town) ctx.Town = window.Town;
       if (window.TownAI) ctx.TownAI = window.TownAI;
       if (window.DungeonState) ctx.DungeonState = window.DungeonState;
+      // Runtime facades
+      if (window.DungeonRuntime) ctx.DungeonRuntime = window.DungeonRuntime;
+      if (window.TownRuntime) ctx.TownRuntime = window.TownRuntime;
+      if (window.Modes) ctx.Modes = window.Modes;
+      // UI facades
+      if (window.UIBridge) ctx.UIBridge = window.UIBridge;
+      if (window.ShopUI) ctx.ShopUI = window.ShopUI;
       // Services (guarantee via ctx for shop/time helpers)
       if (window.ShopService) ctx.ShopService = window.ShopService;
       if (window.TimeService) ctx.TimeService = window.TimeService;
       if (window.Combat) ctx.Combat = window.Combat;
       if (window.Stats) ctx.Stats = window.Stats;
+      // Misc helpers used by modules
+      if (window.Decals) ctx.Decals = window.Decals;
+      if (window.Status) ctx.Status = window.Status;
+      if (window.OccupancyGrid) ctx.OccupancyGrid = window.OccupancyGrid;
+      if (window.God) ctx.God = window.God;
+      if (window.GameLoop) ctx.GameLoop = window.GameLoop;
     }
     return ctx;
   }

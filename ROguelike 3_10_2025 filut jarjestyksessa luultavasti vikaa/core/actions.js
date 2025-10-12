@@ -26,12 +26,36 @@
     if (ctx.mode === "world") {
       // Delegate world entry actions to Modes to avoid duplication
       try {
+        if (ctx.Modes && typeof ctx.Modes.enterTownIfOnTile === "function") {
+          const okTown = !!ctx.Modes.enterTownIfOnTile(ctx);
+          if (okTown) return true;
+        }
         if (typeof window !== "undefined" && window.Modes && typeof Modes.enterTownIfOnTile === "function") {
           const okTown = !!Modes.enterTownIfOnTile(ctx);
           if (okTown) return true;
         }
       } catch (_) {}
       try {
+        if (ctx.Modes && typeof ctx.Modes.enterDungeonIfOnEntrance === "function") {
+          const okDun = !!ctx.Modes.enterDungeonIfOnEntrance(ctx);
+          if (okDun) return true;
+        }
+        if (typeof window !== "undefined" && window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
+          const okDun = !!Modes.enterDungeonIfOnEntrance(ctx);
+          if (okDun) return true;
+        }
+      } catch (_) {}
+      // Unhandled tile in world: allow fallback movement handlers to proceed
+      return false;
+    }
+        if (typeof window !== "undefined" && window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
+          const okDun = !!Modes.enterDungeonIfOnEntrance(ctx);
+          if (okDun) return true;
+        }
+      } catch (_) {}
+      // Unhandled tile in world: allow fallback movement handlers to proceed
+      return false;
+    }
         if (typeof window !== "undefined" && window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
           const okDun = !!Modes.enterDungeonIfOnEntrance(ctx);
           if (okDun) return true;
@@ -202,6 +226,10 @@
     if (ctx.mode === "dungeon") {
       // Prefer centralized return flow
       try {
+        if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
+          const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
+          if (ok) return true;
+        }
         if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.returnToWorldIfAtExit === "function") {
           const ok = DungeonRuntime.returnToWorldIfAtExit(ctx);
           if (ok) return true;
@@ -210,6 +238,10 @@
 
       // Delegate loot handling centrally
       try {
+        if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.lootHere === "function") {
+          ctx.DungeonRuntime.lootHere(ctx);
+          return true;
+        }
         if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.lootHere === "function") {
           DungeonRuntime.lootHere(ctx);
           return true;
@@ -219,6 +251,17 @@
         ctx.Loot.lootHere(ctx);
         return true;
       }
+
+      // If standing on a blood decal, describe it
+      if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
+        ctx.log("The floor here is stained with blood.", "info");
+        ctx.requestDraw();
+        return true;
+      }
+      // Guidance if not handled
+      ctx.log("Return to the entrance (the hole '>') and press G to leave.", "info");
+      return true;
+    }
 
       // If standing on a blood decal, describe it
       if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {

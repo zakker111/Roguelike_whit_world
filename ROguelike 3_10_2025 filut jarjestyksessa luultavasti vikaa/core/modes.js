@@ -102,6 +102,10 @@
     if (!(ctx.mode === "dungeon" && ctx.dungeon && ctx.dungeonExitAt)) return;
     // Prefer centralized DungeonRuntime.save when available
     try {
+      if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
+        ctx.DungeonRuntime.save(ctx, false);
+        return;
+      }
       if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.save === "function") {
         DungeonRuntime.save(ctx, false);
         return;
@@ -138,6 +142,13 @@
   function loadDungeonStateFor(ctx, x, y) {
     // Prefer centralized DungeonRuntime if available
     try {
+      if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.load === "function") {
+        const ok = ctx.DungeonRuntime.load(ctx, x, y);
+        if (ok) {
+          syncAfterMutation(ctx);
+        }
+        return ok;
+      }
       if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.load === "function") {
         const ok = DungeonRuntime.load(ctx, x, y);
         if (ok) {
@@ -216,6 +227,10 @@
 
       // Prefer centralized enter flow
       try {
+        if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.enter === "function") {
+          const ok = ctx.DungeonRuntime.enter(ctx, info);
+          if (ok) return true;
+        }
         if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.enter === "function") {
           const ok = DungeonRuntime.enter(ctx, info);
           if (ok) return true;
@@ -258,6 +273,11 @@
     }
     // Prefer DungeonRuntime centralization if available
     try {
+      if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
+        const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
+        if (ok) syncAfterMutation(ctx);
+        return ok;
+      }
       if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.returnToWorldIfAtExit === "function") {
         const ok = DungeonRuntime.returnToWorldIfAtExit(ctx);
         if (ok) syncAfterMutation(ctx);
