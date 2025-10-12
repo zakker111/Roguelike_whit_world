@@ -71,9 +71,14 @@
       for (let i = 0; i < n; i++) {
         key("Escape"); await sleep(80);
         try {
-          if (window.UI && typeof window.UI.hideLoot === "function") window.UI.hideLoot();
-          if (window.UI && typeof window.UI.hideInventory === "function") window.UI.hideInventory();
-          if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod();
+          if (window.UIBridge && typeof window.UIBridge.hideLoot === "function") window.UIBridge.hideLoot({});
+          if (window.UIBridge && typeof window.UIBridge.hideInventory === "function") window.UIBridge.hideInventory({});
+          if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
+        } catch (_) {}
+        try {
+          if ((!window.UIBridge || typeof window.UIBridge.hideLoot !== "function") && window.UI && typeof window.UI.hideLoot === "function") window.UI.hideLoot();
+          if ((!window.UIBridge || typeof window.UIBridge.hideInventory !== "function") && window.UI && typeof window.UI.hideInventory === "function") window.UI.hideInventory();
+          if ((!window.UIBridge || typeof window.UIBridge.hideGod !== "function") && window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod();
         } catch (_) {}
       }
     } catch (_) {}
@@ -81,6 +86,12 @@
 
   // Ensure the GOD panel is visible so logs render into its output area
   function openGodPanel() {
+    try {
+      if (window.UIBridge && typeof window.UIBridge.showGod === "function") {
+        window.UIBridge.showGod({});
+        return true;
+      }
+    } catch (_) {}
     try {
       if (window.UI && typeof window.UI.showGod === "function") {
         window.UI.showGod();
@@ -735,7 +746,10 @@
             for (let attempt = 0; attempt < 3; attempt++) {
               try { key("Escape"); } catch (_) {}
               await sleep(100);
-              try { if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod(); } catch (_) {}
+              try {
+                if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
+                else if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod();
+              } catch (_) {}
               try {
                 const gp = document.getElementById("god-panel");
                 if (gp) gp.hidden = true;
@@ -744,7 +758,9 @@
               // Verify closed
               let closed = false;
               try {
-                if (window.UI && typeof window.UI.isGodOpen === "function") {
+                if (window.UIBridge && typeof window.UIBridge.isGodOpen === "function") {
+                  closed = !window.UIBridge.isGodOpen();
+                } else if (window.UI && typeof window.UI.isGodOpen === "function") {
                   closed = !window.UI.isGodOpen();
                 } else {
                   const gp = document.getElementById("god-panel");
@@ -950,8 +966,9 @@
         const TP = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport;
 
         // Keep GOD panel closed during exit/seeding to avoid input interception
-        try { if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod(); } catch (_) {}
-        try { const gp = document.getElementById("god-panel"); if (gp) gp.hidden = true; } catch (_) {}
+        try {
+          if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
+          else if (window.UI &&Id("god-panel"); if (gp) gp.hidden = true; } catch (_) {}
         try { await ensureAllModalsClosed(2); } catch (_) {}
         await sleep(80);
 
