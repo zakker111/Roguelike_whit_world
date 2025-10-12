@@ -1613,19 +1613,7 @@
       });
     }
   }
-          const UIH = modHandle("UI");
-          if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
-          requestDraw();
-        },
-        onMove: (dx, dy) => tryMovePlayer(dx, dy),
-        onWait: () => turn(),
-        onLoot: () => doAction(),
-        onDescend: () => descendIfPossible(),
-        adjustFov: (delta) => adjustFov(delta),
-      });
-    }
-  }
-
+          
   
   // Visual: add or strengthen a blood decal at tile (x,y)
   function addBloodDecal(x, y, mult = 1.0) {
