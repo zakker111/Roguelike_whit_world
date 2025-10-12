@@ -2238,20 +2238,27 @@
   }
 
   function killEnemy(enemy) {
+    // Delegate to DungeonRuntime first
+    const DR = modHandle("DungeonRuntime");
+    if (DR && typeof DR.killEnemy === "function") {
+      const ctx = getCtx();
+      DR.killEnemy(ctx, enemy);
+      // Sync mutated ctx (enemies, corpses, occupancy, player xp)
+      syncFromCtx(ctx);
+      return;
+    }
+    // Fallback local behavior
     const name = capitalize(enemy.type || "enemy");
     log(`${name} dies.`, "bad");
     const loot = generateLoot(enemy);
     corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
-    // Remove from enemies immediately
     enemies = enemies.filter(e => e !== enemy);
-    // Clear enemy occupancy for this tile so player can walk onto corpse
     try {
       if (occupancy && typeof occupancy.clearEnemy === "function") {
         occupancy.clearEnemy(enemy.x, enemy.y);
       }
     } catch (_) {}
     gainXP(enemy.xp || 5);
-    // Persist dungeon state immediately so corpses remain on revisit
     try {
       if (window.DungeonState && typeof DungeonState.save === "function") {
         DungeonState.save(getCtx());
