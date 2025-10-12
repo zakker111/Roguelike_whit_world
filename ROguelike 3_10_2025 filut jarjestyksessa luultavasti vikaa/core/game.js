@@ -172,6 +172,11 @@
   // Occupancy Grid (entities on tiles)
   let occupancy = null;
   function rebuildOccupancy() {
+    const OG = modHandle("OccupancyGrid");
+    if (OG && typeof OG.build === "function") {
+      occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
+      return;
+    }
     if (typeof window !== "undefined" && window.OccupancyGrid && typeof OccupancyGrid.build === "function") {
       occupancy = OccupancyGrid.build({ map, enemies, npcs, props: townProps, player });
     }
@@ -666,8 +671,9 @@
   function log(msg, type = "info") {
     // Mirror logs to console only in DEV for noise control
     try { if (window.DEV) console.debug(`[${type}] ${msg}`); } catch (_) {}
-    if (window.Logger && typeof Logger.log === "function") {
-      Logger.log(msg, type);
+    const LG = modHandle("Logger");
+    if (LG && typeof LG.log === "function") {
+      LG.log(msg, type);
       return;
     }
     // Fallback (in case logger.js isn't loaded)
@@ -1550,9 +1556,27 @@
       Input.init({
         // state queries
         isDead: () => isDead,
-        isInventoryOpen: () => !!(window.UI && UI.isInventoryOpen && UI.isInventoryOpen()),
-        isLootOpen: () => !!(window.UI && UI.isLootOpen && UI.isLootOpen()),
-        isGodOpen: () => !!(window.UI && UI.isGodOpen && UI.isGodOpen()),
+        isInventoryOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isInventoryOpen === "function") return !!UB.isInventoryOpen();
+          } catch (_) {}
+          return !!(window.UI && UI.isInventoryOpen && UI.isInventoryOpen());
+        },
+        isLootOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isLootOpen === "function") return !!UB.isLootOpen();
+          } catch (_) {}
+          return !!(window.UI && UI.isLootOpen && UI.isLootOpen());
+        },
+        isGodOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isGodOpen === "function") return !!UB.isGodOpen();
+          } catch (_) {}
+          return !!(window.UI && UI.isGodOpen && UI.isGodOpen());
+        },
         // Ensure shop modal is part of the modal stack priority
         isShopOpen: () => {
           // Prefer ShopUI state when available; fallback to DOM check
@@ -1572,22 +1596,23 @@
         onShowInventory: () => showInventoryPanel(),
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
-        onHideGod: () => {
-          const UB = modHandle("UIBridge");
-          if (UB && typeof UB.hideGod === "function") {
-            UB.hideGod(getCtx());
-          } else if (window.UI && UI.hideGod) {
-            UI.hideGod();
+        onHideGod: () => { if (window.UI && UI.hideGod) UI.hideGod(); requestDraw(); },
+        onHideShop: () => hideShopPanel(),
+        onShowGod: () => {
+          if (window.UI) {
+            if (typeof UI.setGodFov === "function") UI.setGodFov(fovRadius);
+            if (typeof UI.showGod === "function") UI.showGod();
           }
           requestDraw();
         },
-        onShowGod: () => {
-          const UB = modHandle("UIBridge");
-          if (UB && typeof UB.showGod === "function") {
-            UB.showGod(getCtx());
-          } else if (window.UI && typeof UI.showGod === "function") {
-            UI.showGod();
-          }
+        onMove: (dx, dy) => tryMovePlayer(dx, dy),
+        onWait: () => turn(),
+        onLoot: () => doAction(),
+        onDescend: () => descendIfPossible(),
+        adjustFov: (delta) => adjustFov(delta),
+      });
+    }
+  }
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
           requestDraw();
