@@ -1117,13 +1117,7 @@
     return shops.find(s => s.x === x && s.y === y) || null;
   }
   // Shop schedule helpers (delegated to ShopService)
-  function minutesOfDay(h, m = 0) {
-    const SS = modHandle("ShopService");
-    if (SS && typeof SS.minutesOfDay === "function") {
-      return SS.minutesOfDay(h, m, DAY_MINUTES);
-    }
-    return ((h | 0) * 60 + (m | 0)) % DAY_MINUTES;
-  }
+  
   function isOpenAt(shop, minutes) {
     const SS = modHandle("ShopService");
     if (SS && typeof SS.isOpenAt === "function") {
@@ -1144,7 +1138,11 @@
     const t = getClock();
     const minutes = t.hours * 60 + t.minutes;
     if (!shop) return t.phase === "day";
-    return isOpenAt(shop, minutes);
+    if (shop.alwaysOpen) return true;
+    const o = shop.openMin, c = shop.closeMin;
+    if (typeof o !== "number" || typeof c !== "number") return false;
+    if (o === c) return false;
+    return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
   }
   function shopScheduleStr(shop) {
     const SS = modHandle("ShopService");
