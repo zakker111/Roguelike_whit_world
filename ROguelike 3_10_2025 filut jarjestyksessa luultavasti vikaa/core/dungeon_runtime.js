@@ -9,13 +9,16 @@
  */
 (function () {
   function keyFromWorldPos(x, y) {
-    if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.key === "function") {
-      return DungeonState.key(x, y);
-    }
+    // Use a stable string key; avoid coupling to external state modules
     return `${x},${y}`;
   }
 
   function save(ctx, logOnce) {
+    if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
+      try { if (typeof window !== "undefined" && window.DEV && logOnce) console.log("[TRACE] Calling ctx.DungeonState.save"); } catch (_) {}
+      ctx.DungeonState.save(ctx);
+      return;
+    }
     if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
       try { if (window.DEV && logOnce) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
       DungeonState.save(ctx);
@@ -56,6 +59,16 @@
   }
 
   function load(ctx, x, y) {
+    if (ctx.DungeonState && typeof ctx.DungeonState.load === "function") {
+      const ok = ctx.DungeonState.load(ctx, x, y);
+      if (ok) {
+        ctx.updateCamera && ctx.updateCamera();
+        ctx.recomputeFOV && ctx.recomputeFOV();
+        ctx.updateUI && ctx.updateUI();
+        ctx.requestDraw && ctx.requestDraw();
+      }
+      return ok;
+    }
     if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.load === "function") {
       const ok = DungeonState.load(ctx, x, y);
       if (ok) {
@@ -123,7 +136,9 @@
       } catch (_) {}
       // Occupancy
       try {
-        if (typeof window !== "undefined" && window.OccupancyGrid && typeof OccupancyGrid.build === "function") {
+        if (ctx.OccupancyGrid && typeof ctx.OccupancyGrid.build === "function") {
+          ctx.occupancy = ctx.OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+        } else if (typeof window !== "undefined" && window.OccupancyGrid && typeof OccupancyGrid.build === "function") {
           ctx.occupancy = OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
         }
       } catch (_) {}

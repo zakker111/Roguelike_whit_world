@@ -10,6 +10,11 @@ Conventions
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
 
+v1.31.0 — ctx-first glue in Modes/DungeonRuntime; Shop via UIBridge
+- Changed: core/modes.js inBounds now prefers ctx.Utils.inBounds before local fallback.
+- Changed: core/dungeon_runtime.js now prefers ctx.DungeonState for save/load with window fallback; keyFromWorldPos is a pure string key; OccupancyGrid build prefers ctx.OccupancyGrid before window fallback.
+- Added: UIBridge shop wrappers integrated in core/game.js (open/hide/buy) to centralize ShopUI usage.
+
 v1.30.0 — ctx-first ShopService in Town generation and UI handler gating
 - Changed: worldgen/town_gen.js now prefers ctx.ShopService for minutesOfDay/isOpenAt/isShopOpenNow/shopScheduleStr/shopAt, removing direct window.ShopService reliance.
 - Changed: core/game.js UI.setHandlers.isShopOpen now uses UIBridge.isShopOpen() as the single gating source.
