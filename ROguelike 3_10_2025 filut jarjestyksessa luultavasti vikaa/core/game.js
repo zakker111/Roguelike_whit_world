@@ -1896,7 +1896,13 @@
 
   // Shop UI delegated to ui/shop_panel.js
   function hideShopPanel() {
-    // Delegate to ShopUI via ctx handle when available; fallback to DOM
+    // Prefer UIBridge wrapper; fallback to ShopUI then DOM
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.hideShop === "function") {
+      UB.hideShop(getCtx());
+      requestDraw();
+      return;
+    }
     const SU = modHandle("ShopUI");
     if (SU && typeof SU.hide === "function") {
       SU.hide();
@@ -1908,7 +1914,12 @@
     requestDraw();
   }
   function openShopFor(npc) {
-    // Delegate to ShopUI via ctx handle
+    // Prefer UIBridge wrapper; fallback to ShopUI
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.showShop === "function") {
+      try { UB.showShop(getCtx(), npc); } catch (_) {}
+      return;
+    }
     const SU = modHandle("ShopUI");
     if (SU && typeof SU.openForNPC === "function") {
       try { SU.openForNPC(getCtx(), npc); } catch (_) {}
@@ -1917,7 +1928,12 @@
     try { log("Shop UI not available.", "warn"); } catch (_) {}
   }
   function shopBuyIndex(idx) {
-    // Delegate to ShopUI via ctx handle
+    // Prefer UIBridge wrapper; fallback to ShopUI
+    const UB = modHandle("UIBridge");
+    if (UB && typeof UB.buyShopIndex === "function") {
+      try { UB.buyShopIndex(getCtx(), idx); } catch (_) {}
+      return;
+    }
     const SU = modHandle("ShopUI");
     if (SU && typeof SU.buyIndex === "function") {
       try { SU.buyIndex(getCtx(), idx); } catch (_) {}

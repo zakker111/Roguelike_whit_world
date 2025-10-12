@@ -18,9 +18,13 @@
  * - showConfirm(ctx, text, pos, onOk, onCancel)
  * - showTownExitButton(ctx)
  * - hideTownExitButton(ctx)
+ * - isShopOpen()
+ * - showShop(ctx, npc)        // opens shop for a given NPC/spot
+ * - hideShop(ctx)             // hides shop panel
+ * - buyShopIndex(ctx, idx)    // triggers a buy by index
  *
  * Notes:
- * - Thin layer: delegates to window.UI if present.
+ * - Thin layer: delegates to window.UI if present (and window.ShopUI for shop panel).
  * - Keeps calls consistent and reduces direct UI wiring inside core/game.js.
  */
 (function () {
@@ -105,7 +109,7 @@
     try { return !!(hasUI() && UI.isGodOpen && UI.isGodOpen()); } catch (_) { return false; }
   }
 
-  // Shop UI open-state (wrapper)
+  // Shop UI wrappers
   function isShopOpen() {
     try {
       if (typeof window !== "undefined" && window.ShopUI && typeof window.ShopUI.isOpen === "function") {
@@ -116,6 +120,33 @@
       const el = document.getElementById("shop-panel");
       return !!(el && el.hidden === false);
     } catch (_) { return false; }
+  }
+  function showShop(ctx, npc) {
+    try {
+      if (typeof window !== "undefined" && window.ShopUI && typeof window.ShopUI.openForNPC === "function") {
+        window.ShopUI.openForNPC(ctx, npc);
+        return;
+      }
+    } catch (_) {}
+  }
+  function hideShop(ctx) {
+    try {
+      if (typeof window !== "undefined" && window.ShopUI && typeof window.ShopUI.hide === "function") {
+        window.ShopUI.hide();
+        return;
+      }
+    } catch (_) {}
+    try {
+      const el = document.getElementById("shop-panel");
+      if (el) el.hidden = true;
+    } catch (_) {}
+  }
+  function buyShopIndex(ctx, idx) {
+    try {
+      if (typeof window !== "undefined" && window.ShopUI && typeof window.ShopUI.buyIndex === "function") {
+        window.ShopUI.buyIndex(ctx, idx);
+      }
+    } catch (_) {}
   }
 
   // Smoke panel open-state (used by input gating)
@@ -168,6 +199,9 @@
     hideGod,
     isGodOpen,
     isShopOpen,
+    showShop,
+    hideShop,
+    buyShopIndex,
     isSmokeOpen,
     isAnyModalOpen,
     showConfirm,
