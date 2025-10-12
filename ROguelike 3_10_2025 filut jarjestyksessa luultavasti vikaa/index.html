@@ -171,11 +171,11 @@
 
   <!-- Core context and deterministic RNG service -->
   <script src="/core/ctx.js" type="module" defer></script>
-  <script src="/core/rng_service.js" defer></script>
+  <script src="/core/rng_service.js" type="module" defer></script>
 
   <!-- Utilities (available early for modules that use shared helpers/RNG fallback) -->
   <script src="/utils/utils.js" type="module" defer></script>
-  <script src="/utils/rng_fallback.js" defer></script>
+  <script src="/utils/rng_fallback.js" type="module" defer></script>
 
   <!-- Boot diagnostics: log RNG source and seed -->
   <script>
@@ -249,8 +249,8 @@
   <script src="/ui/render.js" type="module" defer></script>
   <script src="/ui/decals.js" type="module" defer></script>
   <script src="/ui/ui.js" type="module" defer></script>
-  <!-- Step 1: minimal ShopUI module (hide/ensurePanel); loaded before core/game.js -->
-  <script src="/ui/shop_panel.js" defer></script>
+  <!-- ShopUI module -->
+  <script src="/ui/shop_panel.js" type="module" defer></script>
   <!-- Step 6: InputMouse (canvas clicks) loaded before core/game.js -->
   <script src="/ui/input_mouse.js" type="module" defer></script>
 
@@ -264,7 +264,7 @@
   <script src="/ai/town_ai.js" type="module" defer></script>
 
   <!-- Worldgen -->
-  <script src="/worldgen/town_gen.js" defer></script>
+  <script src="/worldgen/town_gen.js" type="module" defer></script>
 
   <!-- Core runtime -->
   <script src="/core/actions.js" type="module" defer></script>

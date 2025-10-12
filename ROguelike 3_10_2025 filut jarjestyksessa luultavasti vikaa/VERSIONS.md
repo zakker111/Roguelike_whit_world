@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.15 — Phase 3 step 15: RNG services, ShopUI, and Town generation to ESM
+- Changed: core/rng_service.js converted to ES module (export init, applySeed, autoInit, rng, int, float, chance, getSeed) and retains window.RNG; index.html loads as type="module".
+- Changed: utils/rng_fallback.js converted to ES module (export getRng) and retains window.RNGFallback; index.html loads as type="module".
+- Changed: ui/shop_panel.js converted to ES module (export ensurePanel, hide, isOpen, openForNPC, buyIndex) and retains window.ShopUI; index.html loads as type="module".
+- Changed: worldgen/town_gen.js converted to ES module (export generate, ensureSpawnClear, spawnGateGreeters, interactProps) and retains window.Town; index.html loads as type="module".
+
 v1.34.14 — Phase 3 step 14: Player modules to ESM
 - Changed: entities/player_utils.js converted to ES module (export round1, clamp, capitalize) and retains window.PlayerUtils; index.html loads as type="module".
 - Changed: entities/player_equip.js converted to ES module (export equipIfBetter, equipItemByIndex, unequipSlot) and retains window.PlayerEquip; index.html loads as type="module".

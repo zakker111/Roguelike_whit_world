@@ -2,11 +2,11 @@
  * Town
  * Compact town generation and helpers used by the game and TownAI.
  *
- * API:
- *   Town.generate(ctx) -> handled:boolean (true if it generated town and mutated ctx)
- *   Town.ensureSpawnClear(ctx) -> handled:boolean
- *   Town.spawnGateGreeters(ctx, count) -> handled:boolean
- *   Town.interactProps(ctx) -> handled:boolean
+ * API (ESM + window.Town):
+ *   generate(ctx) -> handled:boolean (true if it generated town and mutated ctx)
+ *   ensureSpawnClear(ctx) -> handled:boolean
+ *   spawnGateGreeters(ctx, count) -> handled:boolean
+ *   interactProps(ctx) -> handled:boolean
  *
  * Layout overview
  * - Walls and a gate near the player (fast travel into town).
@@ -21,7 +21,7 @@
  * - Visibility and enemies are reset for town mode; TownAI populates NPCs after layout.
  * - Interactions (signs, well, benches) give quick flavor and small resting options.
  */
-(function () {
+
   function inBounds(ctx, x, y) {
     try {
       if (ctx && ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
@@ -934,5 +934,8 @@
     return shops.find(s => s.x === x && s.y === y) || null;
   }
 
-  window.Town = { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
-})();
+  // Back-compat: attach to window and export for ESM
+  export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
+  if (typeof window !== "undefined") {
+    window.Town = { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
+  }
