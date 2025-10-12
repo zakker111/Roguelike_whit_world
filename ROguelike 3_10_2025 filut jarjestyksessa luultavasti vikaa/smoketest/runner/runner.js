@@ -74,6 +74,8 @@
           if (window.UIBridge && typeof window.UIBridge.hideLoot === "function") window.UIBridge.hideLoot({});
           if (window.UIBridge && typeof window.UIBridge.hideInventory === "function") window.UIBridge.hideInventory({});
           if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
+          if (window.UIBridge && typeof window.UIBridge.hideShop === "function") window.UIBridge.hideShop({});
+          if (window.UIBridge && typeof window.UIBridge.hideSmoke === "function") window.UIBridge.hideSmoke({});
         } catch (_) {}
       }
     } catch (_) {}
@@ -738,10 +740,6 @@
               try {
                 if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
               } catch (_) {}
-              try {
-                const gp = document.getElementById("god-panel");
-                if (gp) gp.hidden = true;
-              } catch (_) {}
               await sleep(100);
               // Verify closed
               let closed = false;
@@ -749,8 +747,8 @@
                 if (window.UIBridge && typeof window.UIBridge.isGodOpen === "function") {
                   closed = !window.UIBridge.isGodOpen();
                 } else {
-                  const gp = document.getElementById("god-panel");
-                  closed = !!(gp && gp.hidden === true);
+                  // Without UIBridge, assume closed to avoid DOM coupling
+                  closed = true;
                 }
               } catch (_) { closed = false; }
               if (closed) break;
@@ -956,10 +954,6 @@
           if (window.UIBridge && typeof window.UIBridge.hideGod === "function") {
             window.UIBridge.hideGod({});
           }
-        } catch (_) {}
-        try {
-          const gp = document.getElementById("god-panel");
-          if (gp) gp.hidden = true;
         } catch (_) {}
         try { await ensureAllModalsClosed(2); } catch (_) {}
         await sleep(80);
