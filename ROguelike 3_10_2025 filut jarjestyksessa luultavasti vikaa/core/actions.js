@@ -48,27 +48,11 @@
       // Unhandled tile in world: allow fallback movement handlers to proceed
       return false;
     }
-        if (typeof window !== "undefined" && window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
-          const okDun = !!Modes.enterDungeonIfOnEntrance(ctx);
-          if (okDun) return true;
-        }
-      } catch (_) {}
-      // Unhandled tile in world: allow fallback movement handlers to proceed
-      return false;
-    }
-        if (typeof window !== "undefined" && window.Modes && typeof Modes.enterDungeonIfOnEntrance === "function") {
-          const okDun = !!Modes.enterDungeonIfOnEntrance(ctx);
-          if (okDun) return true;
-        }
-      } catch (_) {}
-      // Unhandled tile in world: allow fallback movement handlers to proceed
-      return false;
-    }
 
     if (ctx.mode === "town") {
       // Prefer Town interactions (props, talk)
-      if (ctx.Town && typeof Town.interactProps === "function") {
-        const handled = Town.interactProps(ctx);
+      if (ctx.Town && typeof ctx.Town.interactProps === "function") {
+        const handled = ctx.Town.interactProps(ctx);
         if (handled) return true;
       }
       const s = shopAt(ctx, ctx.player.x, ctx.player.y);
@@ -197,8 +181,8 @@
         return true;
       }
       // Prefer props interaction; if not handled, describe underfoot prop explicitly.
-      if (ctx.Town && typeof Town.interactProps === "function") {
-        const handled = Town.interactProps(ctx);
+      if (ctx.Town && typeof ctx.Town.interactProps === "function") {
+        const handled = ctx.Town.interactProps(ctx);
         if (handled) return true;
       }
       const p = propAt(ctx, ctx.player.x, ctx.player.y);
@@ -251,17 +235,6 @@
         ctx.Loot.lootHere(ctx);
         return true;
       }
-
-      // If standing on a blood decal, describe it
-      if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
-        ctx.log("The floor here is stained with blood.", "info");
-        ctx.requestDraw();
-        return true;
-      }
-      // Guidance if not handled
-      ctx.log("Return to the entrance (the hole '>') and press G to leave.", "info");
-      return true;
-    }
 
       // If standing on a blood decal, describe it
       if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
