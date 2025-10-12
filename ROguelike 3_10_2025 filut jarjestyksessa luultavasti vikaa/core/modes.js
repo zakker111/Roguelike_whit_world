@@ -47,9 +47,8 @@
         return;
       }
     } catch (_) {}
-    if (typeof window !== "undefined" && window.confirm && window.confirm("Do you want to leave the town?")) {
-      leaveTownNow(ctx);
-    }
+    // Fallback: proceed to leave to avoid getting stuck without a confirm UI
+    leaveTownNow(ctx);
   }
 
   function enterTownIfOnTile(ctx) {
@@ -130,10 +129,6 @@
         ctx.DungeonRuntime.save(ctx, false);
         return;
       }
-      if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.save === "function") {
-        DungeonRuntime.save(ctx, false);
-        return;
-      }
     } catch (_) {}
     // Fallback in-memory snapshot on ctx._dungeonStates if present
     const key = `${ctx.dungeon.x},${ctx.dungeon.y}`;
@@ -161,13 +156,6 @@
     try {
       if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.load === "function") {
         const ok = ctx.DungeonRuntime.load(ctx, x, y);
-        if (ok) {
-          syncAfterMutation(ctx);
-        }
-        return ok;
-      }
-      if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.load === "function") {
-        const ok = DungeonRuntime.load(ctx, x, y);
         if (ok) {
           syncAfterMutation(ctx);
         }
@@ -239,10 +227,6 @@
           const ok = ctx.DungeonRuntime.enter(ctx, info);
           if (ok) return true;
         }
-        if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.enter === "function") {
-          const ok = DungeonRuntime.enter(ctx, info);
-          if (ok) return true;
-        }
       } catch (_) {}
 
       // Fallback: inline generation path
@@ -278,11 +262,6 @@
     try {
       if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.returnToWorldIfAtExit === "function") {
         const ok = ctx.DungeonRuntime.returnToWorldIfAtExit(ctx);
-        if (ok) syncAfterMutation(ctx);
-        return ok;
-      }
-      if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.returnToWorldIfAtExit === "function") {
-        const ok = DungeonRuntime.returnToWorldIfAtExit(ctx);
         if (ok) syncAfterMutation(ctx);
         return ok;
       }
