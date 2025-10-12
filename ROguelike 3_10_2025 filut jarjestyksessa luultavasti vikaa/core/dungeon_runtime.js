@@ -234,64 +234,7 @@
     return true;
   }
 
-  function lootHere(ctx) {
-    if (!ctx) return false;
-    // Prefer existing Loot module for full-featured behavior
-    try {
-      if ((ctx.Loot || (typeof window !== "undefined" ? window.Loot : null)) && typeof Loot.lootHere === "function") {
-        Loot.lootHere(ctx);
-        return true;
-      }
-    } catch (_) {}
-
-    // Minimal fallback: transfer all items from corpse underfoot into inventory, auto-equip via ctx.equipIfBetter
-    try {
-      const list = Array.isArray(ctx.corpses) ? ctx.corpses.filter(c => c && c.x === ctx.player.x && c.y === ctx.player.y) : [];
-      if (list.length === 0) {
-        ctx.log && ctx.log("There is no corpse here to loot.");
-        return true;
-      }
-      const container = list.find(c => Array.isArray(c.loot) && c.loot.length > 0);
-      if (!container) {
-        list.forEach(c => c.looted = true);
-        ctx.log && ctx.log("Nothing of value here.");
-        if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
-          DungeonState.save(ctx);
-        }
-        ctx.updateUI && ctx.updateUI();
-        ctx.turn && ctx.turn();
-        return true;
-      }
-      const acquired = [];
-      for (const item of container.loot) {
-        if (!item) continue;
-        if (item.kind === "equip" && typeof ctx.equipIfBetter === "function") {
-          const equipped = ctx.equipIfBetter(item);
-          acquired.push(equipped ? (ctx.describeItem ? ctx.describeItem(item) : (item.name || "equipment")) : (ctx.describeItem ? ctx.describeItem(item) : (item.name || "equipment")));
-          if (!equipped) (ctx.player.inventory || (ctx.player.inventory = [])).push(item);
-        } else if (item.kind === "gold") {
-          const gold = (ctx.player.inventory || (ctx.player.inventory = [])).find(i => i && i.kind === "gold");
-          if (gold) gold.amount += item.amount;
-          else ctx.player.inventory.push({ kind: "gold", amount: item.amount, name: "gold" });
-          acquired.push(item.name || `${item.amount} gold`);
-        } else {
-          (ctx.player.inventory || (ctx.player.inventory = [])).push(item);
-          acquired.push(item.name || (item.kind || "item"));
-        }
-      }
-      container.loot = [];
-      container.looted = true;
-      ctx.updateUI && ctx.updateUI();
-      ctx.log && ctx.log(`You loot: ${acquired.join(", ")}.`);
-      if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
-        DungeonState.save(ctx);
-      }
-      ctx.turn && ctx.turn();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
+  
 
   function lootHere(ctx) {
     if (!ctx || ctx.mode !== "dungeon") return false;
@@ -339,6 +282,56 @@
         Loot.lootHere(ctx);
         return true;
       }
+    } catch (_) {}
+
+    // Minimal fallback: transfer items from corpse underfoot into inventory; auto-equip when better
+    try {
+      const list = Array.isArray(ctx.corpses) ? ctx.corpses.filter(c => c && c.x === ctx.player.x && c.y === ctx.player.y) : [];
+      if (list.length === 0) {
+        ctx.log && ctx.log("There is no corpse here to loot.");
+        return true;
+      }
+      const container = list.find(c => Array.isArray(c.loot) && c.loot.length > 0);
+      if (!container) {
+        list.forEach(c => c.looted = true);
+        ctx.log && ctx.log("Nothing of value here.");
+        try {
+          if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx);
+          else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx);
+        } catch (_) {}
+        ctx.updateUI && ctx.updateUI();
+        ctx.turn && ctx.turn();
+        return true;
+      }
+      const acquired = [];
+      for (const item of container.loot) {
+        if (!item) continue;
+        if (item.kind === "equip" && typeof ctx.equipIfBetter === "function") {
+          const equipped = ctx.equipIfBetter(item);
+          const desc = ctx.describeItem ? ctx.describeItem(item) : (item.name || "equipment");
+          acquired.push(equipped ? `equipped ${desc}` : desc);
+          if (!equipped) (ctx.player.inventory || (ctx.player.inventory = [])).push(item);
+        } else if (item.kind === "gold") {
+          const gold = (ctx.player.inventory || (ctx.player.inventory = [])).find(i => i && i.kind === "gold");
+          if (gold) gold.amount += item.amount;
+          else ctx.player.inventory.push({ kind: "gold", amount: item.amount, name: "gold" });
+          acquired.push(item.name || `${item.amount} gold`);
+        } else {
+          (ctx.player.inventory || (ctx.player.inventory = [])).push(item);
+          acquired.push(item.name || (item.kind || "item"));
+        }
+      }
+      container.loot = [];
+      container.looted = true;
+      ctx.updateUI && ctx.updateUI();
+      ctx.log && ctx.log(`You loot: ${acquired.join(", ")}.`);
+      try {
+        if (typeof save === "function") save(ctx, false);
+        else if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx);
+        else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx);
+      } catch (_) {}
+      ctx.turn && ctx.turn();
+      return true;
     } catch (_) {}
 
     // Not handled
@@ -417,5 +410,45 @@
     } catch (_) {}
   }
 
-  window.DungeonRuntime = { keyFromWorldPos, save, load, generate, generateLoot, returnToWorldIfAtExit, killEnemy };
+  function enter(ctx, info) {
+    if (!ctx || !info) return false;
+    ctx.dungeon = info;
+    ctx.dungeonInfo = info;
+    ctx.floor = Math.max(1, (info.level | 0) || 1);
+    ctx.mode = "dungeon";
+
+    // Try loading an existing state first
+    try {
+      if (load(ctx, info.x, info.y)) {
+        return true;
+      }
+    } catch (_) {}
+
+    // Announce entry and generate a fresh floor
+    try { ctx.log && ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "notice"); } catch (_) {}
+    generate(ctx, ctx.floor);
+
+    // Mark entrance position as the exit and ensure tile visuals
+    try {
+      ctx.dungeonExitAt = { x: ctx.player.x, y: ctx.player.y };
+      if (ctx.inBounds && ctx.inBounds(ctx.player.x, ctx.player.y)) {
+        ctx.map[ctx.player.y][ctx.player.x] = ctx.TILES.STAIRS;
+        if (Array.isArray(ctx.seen) && ctx.seen[ctx.player.y]) ctx.seen[ctx.player.y][ctx.player.x] = true;
+        if (Array.isArray(ctx.visible) && ctx.visible[ctx.player.y]) ctx.visible[ctx.player.y][ctx.player.x] = true;
+      }
+    } catch (_) {}
+
+    // Persist immediately
+    try { save(ctx, true); } catch (_) {}
+
+    // Ensure visuals are refreshed
+    try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+    try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
+    try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+    try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+
+    return true;
+  }
+
+  window.DungeonRuntime = { keyFromWorldPos, save, load, generate, generateLoot, returnToWorldIfAtExit, killEnemy, enter };
 })();

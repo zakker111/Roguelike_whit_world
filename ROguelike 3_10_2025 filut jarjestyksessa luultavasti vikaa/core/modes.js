@@ -214,17 +214,15 @@
       ctx.dungeon = info;
       ctx.dungeonInfo = info;
 
-      // Load saved state if present
-      if (loadDungeonStateFor(ctx, info.x, info.y)) {
-        if (ctx.log) ctx.log(`[DEV] Loaded saved dungeon at ${info.x},${info.y}.`, "notice");
-        try {
-          const dx = (ctx.dungeonExitAt && typeof ctx.dungeonExitAt.x === "number") ? ctx.dungeonExitAt.x : "n/a";
-          const dy = (ctx.dungeonExitAt && typeof ctx.dungeonExitAt.y === "number") ? ctx.dungeonExitAt.y : "n/a";
-          if (window.DEV) console.log("[DEV] Loaded saved dungeon at " + info.x + "," + info.y + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + ctx.player.x + "," + ctx.player.y + ")");
-        } catch (_) {}
-        return true;
-      }
+      // Prefer centralized enter flow
+      try {
+        if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.enter === "function") {
+          const ok = DungeonRuntime.enter(ctx, info);
+          if (ok) return true;
+        }
+      } catch (_) {}
 
+      // Fallback: inline generation path
       ctx.floor = Math.max(1, info.level | 0);
       ctx.mode = "dungeon";
       if (ctx.Dungeon && typeof Dungeon.generateLevel === "function") {
