@@ -1841,9 +1841,6 @@
       const UB = modHandle("UIBridge");
       if (UB && typeof UB.showInventory === "function") {
         UB.showInventory(getCtx());
-      } else {
-        const panel = document.getElementById("inv-panel");
-        if (panel) panel.hidden = false;
       }
     }
     requestDraw();

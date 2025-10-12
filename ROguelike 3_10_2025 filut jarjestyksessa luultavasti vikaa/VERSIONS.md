@@ -1,5 +1,10 @@
 # Game Version History
-Last updated: 2025-10-12 01:35 UTC
+Last updated: 2025-10-12 01:42 UTC
+
+v1.34.25 — game.js sweep: inventory and shop helpers aligned with Phase 2
+- Changed: showInventoryPanel no longer toggles #inv-panel via DOM; relies on InventoryController.show or UIBridge.showInventory only.
+- Changed: isShopOpenNow now prefers ShopService and falls back only to alwaysOpen (or false) when service is unavailable; removed local schedule math.
+- Changed: shopScheduleStr returns empty string when ShopService is unavailable (no local formatting), keeping ShopService as the single source.
 
 v1.34.24 — Shop flows: UIBridge-only routing in core, stricter open-state fallback
 - Changed: core/game.js shop UI functions (hideShopPanel, openShopFor, shopBuyIndex) now route exclusively through UIBridge; direct ShopUI fallbacks removed.
