@@ -39,10 +39,17 @@
       canvasEl.addEventListener("click", function (ev) {
         try {
           // If UI modals are open, let them handle clicks
+          try {
+            var UB = (typeof window !== "undefined" ? window.UIBridge : null);
+            if (UB && typeof UB.isLootOpen === "function" && UB.isLootOpen()) return;
+            if (UB && typeof UB.isInventoryOpen === "function" && UB.isInventoryOpen()) return;
+            if (UB && typeof UB.isGodOpen === "function" && UB.isGodOpen()) return;
+          } catch (_) {}
           if (window.UI) {
             if (typeof UI.isLootOpen === "function" && UI.isLootOpen()) return;
             if (typeof UI.isInventoryOpen === "function" && UI.isInventoryOpen()) return;
             if (typeof UI.isGodOpen === "function" && UI.isGodOpen()) return;
+            if (typeof UI.isSmokeOpen === "function" && UI.isSmokeOpen()) return;
           }
 
           var mode = getMode();
