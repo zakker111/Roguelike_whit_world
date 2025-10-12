@@ -2,7 +2,7 @@
  * TownAI
  * Handles town NPC population, scheduling, pathing, and per-turn routines.
  *
- * Exports (window.TownAI):
+ * Exports (ESM + window.TownAI):
  *  - populateTown(ctx): spawn shopkeepers, residents, pets, greeters
  *  - townNPCsAct(ctx): per-turn movement and routines
  *  - checkHomeRoutes(ctx): diagnostics for reachability to homes (and late-night shelter)
@@ -18,7 +18,7 @@
  * - Pathfinding budget scales with NPC count; MAX_VISITS prevents worst-case traversal bursts.
  * - Runtime occupancy considers blocking props; relaxed occupancy is used only for debug visualization.
  */
-(function () {
+
   function randInt(ctx, a, b) { return Math.floor(ctx.rng() * (b - a + 1)) + a; }
   function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
 
@@ -1186,9 +1186,12 @@
     return res;
   }
 
-  window.TownAI = {
-    populateTown,
-    townNPCsAct,
-    checkHomeRoutes,
-  };
-})();
+  // Back-compat: attach to window and export for ESM
+  export { populateTown, townNPCsAct, checkHomeRoutes };
+  if (typeof window !== "undefined") {
+    window.TownAI = {
+      populateTown,
+      townNPCsAct,
+      checkHomeRoutes,
+    };
+  }

@@ -170,12 +170,12 @@
   </script>
 
   <!-- Core context and deterministic RNG service -->
-  <script src="/core/ctx.js" defer></script>
-  <script src="/core/rng_service.js" defer></script>
+  <script src="/core/ctx.js" type="module" defer></script>
+  <script src="/core/rng_service.js" type="module" defer></script>
 
   <!-- Utilities (available early for modules that use shared helpers/RNG fallback) -->
-  <script src="/utils/utils.js" defer></script>
-  <script src="/utils/rng_fallback.js" defer></script>
+  <script src="/utils/utils.js" type="module" defer></script>
+  <script src="/utils/rng_fallback.js" type="module" defer></script>
 
   <!-- Boot diagnostics: log RNG source and seed -->
   <script>
@@ -202,32 +202,39 @@
   </script>
 
   <!-- World modules -->
-  <script src="/world/world.js" defer></script>
-  <script src="/world/los.js" defer></script>
-  <script src="/world/fov.js" defer></script>
+  <script src="/world/world.js" type="module" defer></script>
+  <script src="/world/los.js" type="module" defer></script>
+  <script src="/world/fov.js" type="module" defer></script>
 
   <!-- Data (load registries before adapters so they're ready sooner) -->
-  <script src="/data/loader.js" defer></script>
-  <script src="/data/flavor.js" defer></script>
-  <script src="/data/god.js" defer></script>
+  <script src="/data/loader.js" type="module" defer></script>
+  <script src="/data/flavor.js" type="module" defer></script>
+  <script src="/data/god.js" type="module" defer></script>
 
   <!-- Entities and dungeon adapters -->
-  <script src="/entities/items.js" defer></script>
-  <script src="/entities/enemies.js" defer></script>
-  <script src="/dungeon/dungeon_items.js" defer></script>
-  <script src="/entities/loot.js" defer></script>
+  <script src="/entities/items.js" type="module" defer></script>
+  <script src="/entities/enemies.js" type="module" defer></script>
+  <script src="/dungeon/dungeon_items.js" type="module" defer></script>
+  <script src="/entities/loot.js" type="module" defer></script>
 
   <!-- Dungeon core and helpers -->
-  <script src="/dungeon/occupancy_grid.js" defer></script>
-  <script src="/dungeon/dungeon_state.js" defer></script>
-  <script src="/dungeon/dungeon.js" defer></script>
+  <script src="/dungeon/occupancy_grid.js" type="module" defer></script>
+  <script src="/dungeon/dungeon_state.js" type="module" defer></script>
+  <script src="/dungeon/dungeon.js" type="module" defer></script>
 
   <!-- Services -->
-  <script src="/services/time_service.js" defer></script>
-  <script src="/services/shop_service.js" defer></script>
+  <script src="/services/time_service.js" type="module" defer></script>
+  <script src="/services/shop_service.js" type="module" defer></script>
+
+  <!-- Combat modules -->
+  <script src="/combat/combat_utils.js" type="module" defer></script>
+  <script src="/combat/combat.js" type="module" defer></script>
+  <script src="/combat/stats.js" type="module" defer></script>
+  <script src="/combat/status_effects.js" type="module" defer></script>
+  <script src="/combat/equipment_decay.js" type="module" defer></script>
 
   <!-- UI and rendering -->
-  <script src="/ui/logger.js" defer></script>
+  <script src="/ui/logger.js" type="module" defer></script>
   <script>
     // Initialize Logger once DOM is ready; deferred scripts will have loaded by then
     document.addEventListener('DOMContentLoaded', function () {
@@ -238,34 +245,47 @@
       } catch (e) {}
     });
   </script>
-  <script src="/ui/tileset.js" defer></script>
-  <script src="/ui/render.js" defer></script>
-  <script src="/ui/decals.js" defer></script>
-  <script src="/ui/ui.js" defer></script>
-  <!-- Step 1: minimal ShopUI module (hide/ensurePanel); loaded before core/game.js -->
-  <script src="/ui/shop_panel.js" defer></script>
+  <script src="/ui/tileset.js" type="module" defer></script>
+  <!-- Render split modules (loaded before orchestrator) -->
+  <script src="/ui/render_core.js" type="module" defer></script>
+  <script src="/ui/render_overworld.js" type="module" defer></script>
+  <script src="/ui/render_town.js" type="module" defer></script>
+  <script src="/ui/render_dungeon.js" type="module" defer></script>
+  <script src="/ui/render_overlays.js" type="module" defer></script>
+  <!-- Orchestrator -->
+  <script src="/ui/render.js" type="module" defer></script>
+  <script src="/ui/decals.js" type="module" defer></script>
+  <script src="/ui/ui.js" type="module" defer></script>
+  <!-- ShopUI module -->
+  <script src="/ui/shop_panel.js" type="module" defer></script>
   <!-- Step 6: InputMouse (canvas clicks) loaded before core/game.js -->
-  <script src="/ui/input_mouse.js" defer></script>
+  <script src="/ui/input_mouse.js" type="module" defer></script>
 
   <!-- Player and equipment -->
-  <script src="/entities/player_utils.js" defer></script>
-  <script src="/entities/player_equip.js" defer></script>
-  <script src="/entities/player.js" defer></script>
+  <script src="/entities/player_utils.js" type="module" defer></script>
+  <script src="/entities/player_equip.js" type="module" defer></script>
+  <script src="/entities/player.js" type="module" defer></script>
 
   <!-- AI -->
-  <script src="/ai/ai.js" defer></script>
-  <script src="/ai/town_ai.js" defer></script>
+  <script src="/ai/ai.js" type="module" defer></script>
+  <script src="/ai/town_ai.js" type="module" defer></script>
 
   <!-- Worldgen -->
-  <script src="/worldgen/town_gen.js" defer></script>
+  <script src="/worldgen/town_gen.js" type="module" defer></script>
 
   <!-- Core runtime -->
-  <script src="/core/actions.js" defer></script>
-  <script src="/core/modes.js" defer></script>
-  <script src="/core/game_loop.js" defer></script>
-  <script src="/core/input.js" defer></script>
-  <script src="/core/game_api.js" defer></script>
-  <script src="/core/game.js" defer></script>
+  <script src="/core/actions.js" type="module" defer></script>
+  <script src="/core/modes.js" type="module" defer></script>
+  <script src="/core/game_loop.js" type="module" defer></script>
+  <script src="/core/input.js" type="module" defer></script>
+  <script src="/core/game_api.js" type="module" defer></script>
+  <!-- Phase 2 modules -->
+  <script src="/core/fov_camera.js" type="module" defer></script>
+  <script src="/core/inventory_controller.js" type="module" defer></script>
+  <script src="/core/town_runtime.js" type="module" defer></script>
+  <script src="/core/dungeon_runtime.js" type="module" defer></script>
+  <script src="/core/ui_bridge.js" type="module" defer></script>
+  <script src="/core/game.js" type="module" defer></script>
 
   <!-- Optional smoke test runner: load when ?smoketest=1 -->
   <script>

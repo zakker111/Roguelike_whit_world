@@ -12,6 +12,7 @@ Play it
   - Inventory: I
   - GOD panel: P
   - Wait: Numpad5
+  - Brace: B (dungeon only; raises block chance this turn if holding a defensive hand item)
 
 Data-driven configuration
 - JSON files under data/ drive most content:
@@ -44,6 +45,16 @@ Local dev server
   - node server.js
   - Open http://localhost:8080/?dev=1
 - You can change the port with PORT=9000 node server.js
+
+Bundling (optional, Vite)
+- This project supports optional bundling for production using Vite. Native ESM still works without bundling.
+- Setup:
+  - npm install
+  - npm run dev         # start Vite dev server (imports are resolved automatically)
+  - npm run build       # builds to dist/ with optimized assets
+  - npm run preview     # serves the built dist/ on http://localhost:8080
+- Deploy:
+  - You can deploy either the raw repo (native ESM) or the dist/ folder produced by Vite.
 
 Key features at a glance
 - Single-floor dungeons with connected rooms, guaranteed stairs, and data-driven enemies.
@@ -82,4 +93,6 @@ Development
 
 Notes
 - Prefer ctx.* over window.* in modules.
+- Use UIBridge (core/ui_bridge.js) for UI interactions (inventory, loot, game over, confirm, town exit button) instead of calling window.UI directly.
+- Dungeon/town lifecycles are centralized via DungeonRuntime and TownRuntime; Modes delegates transitions and persistence through these facades.
 - UI panels are ESC-to-close; input prioritizes closing modals before movement.

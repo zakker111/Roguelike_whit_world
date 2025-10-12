@@ -2,11 +2,11 @@
  * Town
  * Compact town generation and helpers used by the game and TownAI.
  *
- * API:
- *   Town.generate(ctx) -> handled:boolean (true if it generated town and mutated ctx)
- *   Town.ensureSpawnClear(ctx) -> handled:boolean
- *   Town.spawnGateGreeters(ctx, count) -> handled:boolean
- *   Town.interactProps(ctx) -> handled:boolean
+ * API (ESM + window.Town):
+ *   generate(ctx) -> handled:boolean (true if it generated town and mutated ctx)
+ *   ensureSpawnClear(ctx) -> handled:boolean
+ *   spawnGateGreeters(ctx, count) -> handled:boolean
+ *   interactProps(ctx) -> handled:boolean
  *
  * Layout overview
  * - Walls and a gate near the player (fast travel into town).
@@ -21,22 +21,33 @@
  * - Visibility and enemies are reset for town mode; TownAI populates NPCs after layout.
  * - Interactions (signs, well, benches) give quick flavor and small resting options.
  */
-(function () {
+
   function inBounds(ctx, x, y) {
     try {
-      if (window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
+      if (ctx && ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
+      if (typeof window !== "undefined" && window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
     } catch (_) {}
     const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
     return x >= 0 && y >= 0 && x < cols && y < rows;
   }
 
   function _manhattan(ctx, ax, ay, bx, by) {
-    if (window.Utils && typeof Utils.manhattan === "function") return Utils.manhattan(ax, ay, bx, by);
+    try {
+      if (ctx && ctx.Utils && typeof ctx.Utils.manhattan === "function") return ctx.Utils.manhattan(ax, ay, bx, by);
+    } catch (_) {}
+    try {
+      if (typeof window !== "undefined" && window.Utils && typeof Utils.manhattan === "function") return Utils.manhattan(ax, ay, bx, by);
+    } catch (_) {}
     return Math.abs(ax - bx) + Math.abs(ay - by);
   }
 
   function _isFreeTownFloor(ctx, x, y) {
-    if (window.Utils && typeof Utils.isFreeTownFloor === "function") return Utils.isFreeTownFloor(ctx, x, y);
+    try {
+      if (ctx && ctx.Utils && typeof ctx.Utils.isFreeTownFloor === "function") return ctx.Utils.isFreeTownFloor(ctx, x, y);
+    } catch (_) {}
+    try {
+      if (typeof window !== "undefined" && window.Utils && typeof Utils.isFreeTownFloor === "function") return Utils.isFreeTownFloor(ctx, x, y);
+    } catch (_) {}
     if (!inBounds(ctx, x, y)) return false;
     const t = ctx.map[y][x];
     if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
@@ -76,8 +87,8 @@
           ctx.log("You relax on the bench and drift to sleep...", "info");
           if (typeof ctx.advanceTimeMinutes === "function") {
             // rest until 06:00 with light heal
-            const TS = (window.TimeService && typeof TimeService.create === "function")
-              ? TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
+            const TS = (ctx.TimeService && typeof ctx.TimeService.create === "function")
+              ? ctx.TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
               : null;
             const clock = ctx.time;
             const curMin = clock ? (clock.hours * 60 + clock.minutes) : 0;
@@ -276,16 +287,17 @@
 
   // ---- Generation (compact version; retains core behavior and mutations) ----
   function generate(ctx) {
-    // Determine current town size from overworld (default 'big')
+    // Determine current town size from overworld (default 'big') and capture its world entry for persistence
     let townSize = "big";
+    let info = null;
     try {
       if (ctx.world && Array.isArray(ctx.world.towns)) {
         const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : ctx.player.x;
         const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : ctx.player.y;
-        const info = ctx.world.towns.find(t => t.x === wx && t.y === wy);
+        info = ctx.world.towns.find(t => t.x === wx && t.y === wy) || null;
         if (info && info.size) townSize = info.size;
       }
-    } catch (_) {}
+    } catch (_) { info = null; }
 
     // Size the town map from data/town.json (fallback to previous values)
     const TOWNCFG = (window.GameData && GameData.town) || null;
@@ -304,21 +316,37 @@
     for (let x = 0; x < W; x++) { ctx.map[0][x] = ctx.TILES.WALL; ctx.map[H - 1][x] = ctx.TILES.WALL; }
     for (let y = 0; y < H; y++) { ctx.map[y][0] = ctx.TILES.WALL; ctx.map[y][W - 1] = ctx.TILES.WALL; }
 
-    // Gate nearest to player
+    // Gate placement: prefer the edge matching the approach direction, else nearest edge
     const clampXY = (x, y) => ({ x: Math.max(1, Math.min(W - 2, x)), y: Math.max(1, Math.min(H - 2, y)) });
-    const targets = [
-      { x: 1, y: ctx.player.y },                // west
-      { x: W - 2, y: ctx.player.y },            // east
-      { x: ctx.player.x, y: 1 },                // north
-      { x: ctx.player.x, y: H - 2 },            // south
-    ].map(p => clampXY(p.x, p.y));
-    let best = targets[0], bd = Infinity;
-    for (const t of targets) {
-      const d = Math.abs(t.x - ctx.player.x) + Math.abs(t.y - ctx.player.y);
-      if (d < bd) { bd = d; best = t; }
+    const pxy = clampXY(ctx.player.x, ctx.player.y);
+    let gate = null;
+
+    // If Modes recorded an approach direction (E/W/N/S), pick corresponding perimeter gate
+    const dir = (typeof ctx.enterFromDir === "string") ? ctx.enterFromDir : "";
+    if (dir) {
+      if (dir === "E") gate = { x: 1, y: pxy.y };           // entered moving east -> came from west -> west edge
+      else if (dir === "W") gate = { x: W - 2, y: pxy.y };  // entered moving west -> came from east -> east edge
+      else if (dir === "N") gate = { x: pxy.x, y: H - 2 };  // entered moving north -> came from south -> south edge
+      else if (dir === "S") gate = { x: pxy.x, y: 1 };      // entered moving south -> came from north -> north edge
     }
-    const gate = best;
-    // Carve gate
+
+    if (!gate) {
+      // Fallback: pick nearest edge to the player's (clamped) position
+      const targets = [
+        { x: 1, y: pxy.y },                // west
+        { x: W - 2, y: pxy.y },            // east
+        { x: pxy.x, y: 1 },                // north
+        { x: pxy.x, y: H - 2 },            // south
+      ];
+      let best = targets[0], bd = Infinity;
+      for (const t of targets) {
+        const d = Math.abs(t.x - pxy.x) + Math.abs(t.y - pxy.y);
+        if (d < bd) { bd = d; best = t; }
+      }
+      gate = best;
+    }
+
+    // Carve gate: mark the perimeter door and the interior gate tile as floor
     if (gate.x === 1) ctx.map[gate.y][0] = ctx.TILES.DOOR;
     else if (gate.x === W - 2) ctx.map[gate.y][W - 1] = ctx.TILES.DOOR;
     else if (gate.y === 1) ctx.map[0][gate.x] = ctx.TILES.DOOR;
@@ -328,14 +356,22 @@
     ctx.player.x = gate.x; ctx.player.y = gate.y;
     ctx.townExitAt = { x: gate.x, y: gate.y };
 
-    // Name
-    const prefixes = ["Oak", "Ash", "Pine", "River", "Stone", "Iron", "Silver", "Gold", "Wolf", "Fox", "Moon", "Star", "Red", "White", "Black", "Green"];
-    const suffixes = ["dale", "ford", "field", "burg", "ton", "stead", "haven", "fall", "gate", "port", "wick", "shire", "crest", "view", "reach"];
-    const mid = ["", "wood", "water", "brook", "hill", "rock", "ridge"];
-    const p = prefixes[(Math.floor(ctx.rng() * prefixes.length)) % prefixes.length];
-    const m = mid[(Math.floor(ctx.rng() * mid.length)) % mid.length];
-    const s = suffixes[(Math.floor(ctx.rng() * suffixes.length)) % suffixes.length];
-    ctx.townName = [p, m, s].filter(Boolean).join("");
+    // Name: persist on the world.towns entry so it remains stable across visits
+    let townName = null;
+    try {
+      if (info && typeof info.name === "string" && info.name) townName = info.name;
+    } catch (_) { townName = null; }
+    if (!townName) {
+      const prefixes = ["Oak", "Ash", "Pine", "River", "Stone", "Iron", "Silver", "Gold", "Wolf", "Fox", "Moon", "Star", "Red", "White", "Black", "Green"];
+      const suffixes = ["dale", "ford", "field", "burg", "ton", "stead", "haven", "fall", "gate", "port", "wick", "shire", "crest", "view", "reach"];
+      const mid = ["", "wood", "water", "brook", "hill", "rock", "ridge"];
+      const p = prefixes[(Math.floor(ctx.rng() * prefixes.length)) % prefixes.length];
+      const m = mid[(Math.floor(ctx.rng() * mid.length)) % mid.length];
+      const s = suffixes[(Math.floor(ctx.rng() * suffixes.length)) % suffixes.length];
+      townName = [p, m, s].filter(Boolean).join("");
+      try { if (info) info.name = townName; } catch (_) {}
+    }
+    ctx.townName = townName;
 
     // Plaza
     const plaza = { x: (W / 2) | 0, y: (H / 2) | 0 };
@@ -442,8 +478,8 @@
     }
     function minutesOfDay(ctx, h, m = 0) {
       try {
-        if (window.ShopService && typeof ShopService.minutesOfDay === "function") {
-          return ShopService.minutesOfDay(h, m, 24 * 60);
+        if (ctx && ctx.ShopService && typeof ctx.ShopService.minutesOfDay === "function") {
+          return ctx.ShopService.minutesOfDay(h, m, 24 * 60);
         }
       } catch (_) {}
       return ((h | 0) * 60 + (m | 0)) % (24 * 60);
@@ -754,9 +790,13 @@
 
     // NPCs via TownAI if present
     ctx.npcs = [];
-    if (window.TownAI && typeof TownAI.populateTown === "function") {
-      TownAI.populateTown(ctx);
-    }
+    try {
+      if (ctx && ctx.TownAI && typeof ctx.TownAI.populateTown === "function") {
+        ctx.TownAI.populateTown(ctx);
+      } else if (typeof window !== "undefined" && window.TownAI && typeof TownAI.populateTown === "function") {
+        TownAI.populateTown(ctx);
+      }
+    } catch (_) {}
 
     // Roaming villagers near plaza
     const ND = (window.GameData && GameData.npcs) ? GameData.npcs : null;
@@ -833,11 +873,26 @@
 
   // ---- Shop helpers for interactProps ----
   function minutesOfDayLocal(h, m = 0) {
-    try { if (window.ShopService && typeof ShopService.minutesOfDay === "function") return ShopService.minutesOfDay(h, m, 24 * 60); } catch (_){}
+    try {
+      if (typeof window !== "undefined" && window.Ctx && typeof Ctx.create === "function") {
+        // If a ctx is available via create, prefer its ShopService
+        const ctx = Ctx.create({});
+        if (ctx.ShopService && typeof ctx.ShopService.minutesOfDay === "function") {
+          return ctx.ShopService.minutesOfDay(h, m, 24 * 60);
+        }
+      }
+      if (typeof window !== "undefined" && window.ShopService && typeof ShopService.minutesOfDay === "function") {
+        return ShopService.minutesOfDay(h, m, 24 * 60);
+      }
+    } catch (_){}
     return ((h | 0) * 60 + (m | 0)) % (24 * 60);
   }
   function isOpenAt(ctx, shop, minutes) {
-    if (window.ShopService && typeof ShopService.isOpenAt === "function") return ShopService.isOpenAt(shop, minutes);
+    try {
+      if (ctx && ctx.ShopService && typeof ctx.ShopService.isOpenAt === "function") {
+        return ctx.ShopService.isOpenAt(shop, minutes);
+      }
+    } catch (_){}
     if (!shop) return false;
     if (shop.alwaysOpen) return true;
     if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
@@ -846,14 +901,22 @@
     return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
   }
   function isShopOpenNow(ctx, shop = null) {
-    if (window.ShopService && typeof ShopService.isShopOpenNow === "function") return ShopService.isShopOpenNow(ctx, shop);
+    try {
+      if (ctx && ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") {
+        return ctx.ShopService.isShopOpenNow(ctx, shop);
+      }
+    } catch (_){}
     const t = ctx.time;
     const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
     if (!shop) return t && t.phase === "day";
     return isOpenAt(ctx, shop, minutes);
   }
   function shopScheduleStr(ctx, shop) {
-    if (window.ShopService && typeof ShopService.shopScheduleStr === "function") return ShopService.shopScheduleStr(shop);
+    try {
+      if (ctx && ctx.ShopService && typeof ctx.ShopService.shopScheduleStr === "function") {
+        return ctx.ShopService.shopScheduleStr(shop);
+      }
+    } catch (_){}
     if (!shop) return "";
     const h2 = (min) => {
       const hh = ((min / 60) | 0) % 24;
@@ -862,10 +925,17 @@
     return `Opens ${h2(shop.openMin)}:00, closes ${h2(shop.closeMin)}:00`;
   }
   function shopAt(ctx, x, y) {
-    if (window.ShopService && typeof ShopService.shopAt === "function") return ShopService.shopAt(ctx, x, y);
+    try {
+      if (ctx && ctx.ShopService && typeof ctx.ShopService.shopAt === "function") {
+        return ctx.ShopService.shopAt(ctx, x, y);
+      }
+    } catch (_){}
     const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
     return shops.find(s => s.x === x && s.y === y) || null;
   }
 
-  window.Town = { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
-})();
+  // Back-compat: attach to window and export for ESM
+  export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
+  if (typeof window !== "undefined") {
+    window.Town = { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
+  }
