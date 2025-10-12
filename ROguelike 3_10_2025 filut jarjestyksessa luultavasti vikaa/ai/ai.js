@@ -272,13 +272,14 @@
         if (isCrit) ctx.log(`Critical! ${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "crit");
         else ctx.log(`${Cap(e.type)} hits your ${loc.part} for ${dmg}.`);
         // Apply status effects
-        if (isCrit && loc.part === "head" && typeof window !== "undefined" && window.Status && typeof Status.applyDazedToPlayer === "function") {
+        const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
+        if (isCrit && loc.part === "head" && ST && typeof ST.applyDazedToPlayer === "function") {
           const dur = (ctx.rng ? (1 + Math.floor(ctx.rng() * 2)) : 1); // 1-2 turns
-          try { Status.applyDazedToPlayer(ctx, dur); } catch (_) {}
+          try { ST.applyDazedToPlayer(ctx, dur); } catch (_) {}
         }
         // Bleed on critical hits to the player (short duration)
-        if (isCrit && typeof window !== "undefined" && window.Status && typeof Status.applyBleedToPlayer === "function") {
-          try { Status.applyBleedToPlayer(ctx, 2); } catch (_) {}
+        if (isCrit && ST && typeof ST.applyBleedToPlayer === "function") {
+          try { ST.applyBleedToPlayer(ctx, 2); } catch (_) {}
         }
         if (ctx.Flavor && typeof ctx.Flavor.logHit === "function") {
           ctx.Flavor.logHit(ctx, { attacker: e, loc, crit: isCrit, dmg });

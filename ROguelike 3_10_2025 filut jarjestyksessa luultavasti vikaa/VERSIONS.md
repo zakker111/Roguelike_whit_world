@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.33.0 — Phase 2 completion: ctx-first AI status, GOD consolidation, final sweep
+- Changed: ai/ai.js now uses ctx.Status for daze/bleed application with a safe fallback to window.Status.
+- Changed: GOD utilities consolidated under data/god.js; removed core/god.js to avoid duplication and ensure a single source of truth.
+- Dev: Final ctx-first sweep across core and AI; minimal DOM/UI fallbacks retained for resilience.
+- Test: Run smoketest via ?smoketest=1 (e.g., https://<deployment>/index.html?smoketest=1) to verify flows end-to-end.
+
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
 Conventions
