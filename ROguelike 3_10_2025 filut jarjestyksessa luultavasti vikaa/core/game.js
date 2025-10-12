@@ -1386,12 +1386,18 @@
       M.requestLeaveTown(getCtx());
       return;
     }
-    // Fallback confirm
+    // Fallback confirm via UIBridge preferred, then UI, then window.confirm
     const doLeave = () => leaveTownNow();
+    const pos = { x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60 };
+    try {
+      const UB = modHandle("UIBridge");
+      if (UB && typeof UB.showConfirm === "function") {
+        UB.showConfirm(getCtx(), "Do you want to leave the town?", pos, () => doLeave(), () => {});
+        return;
+      }
+    } catch (_) {}
     if (window.UI && typeof UI.showConfirm === "function") {
-      const x = window.innerWidth / 2 - 140;
-      const y = window.innerHeight / 2 - 60;
-      UI.showConfirm("Do you want to leave the town?", { x, y }, () => doLeave(), () => {});
+      UI.showConfirm("Do you want to leave the town?", pos, () => doLeave(), () => {});
     } else {
       if (window.confirm && window.confirm("Do you want to leave the town?")) {
         doLeave();

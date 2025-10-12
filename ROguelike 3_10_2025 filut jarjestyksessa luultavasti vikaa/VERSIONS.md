@@ -1,5 +1,5 @@
 # Game Version History
-Last updated: 2025-10-10 00:00 UTC
+Last updated: 2025-10-12 00:00 UTC
 
 This file tracks notable changes to the game across iterations. Versions here reflect functional milestones rather than semantic releases.
 
@@ -9,6 +9,20 @@ Conventions
 - Fixed: bug fixes
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
+
+v1.25.0 — Runtime-centric persistence, UIBridge confirmations/buttons, and GOD toggle centralization
+- Changed: Dungeon persistence centralized via DungeonRuntime across core modules
+  - core/game.js: saveCurrentDungeonState/loadDungeonStateFor prefer DungeonRuntime; removed direct DungeonState.save/load calls. Fallback is in-memory snapshot only when DungeonRuntime is missing.
+  - core/modes.js: saveCurrentDungeonState/loadDungeonStateFor prefer DungeonRuntime; removed DungeonState.* usage; return-to-world uses DungeonRuntime or local fallback.
+  - entities/loot.js: looting saves via DungeonRuntime.save(ctx,false) with safe fallbacks.
+- Added: UIBridge expanded for uniform UI flows
+  - core/ui_bridge.js: showConfirm(ctx,text,pos,onOk,onCancel), showTownExitButton(ctx), hideTownExitButton(ctx).
+  - core/modes.js and core/town_runtime.js: use UIBridge to show/hide town exit button and confirm town exit.
+  - core/actions.js: minutesOfDay prefers ctx.TimeService/ctx.ShopService.
+  - core/game.js: requestLeaveTown fallback prefers UIBridge.showConfirm.
+- Added: GOD toggle centralization
+  - core/god.js: setAlwaysCrit(ctx,v) and setCritPart(ctx,part); core/game.js already delegates to God, ensuring consistent logging/persistence.
+- Dev: Continued ctx-first sweep to reduce window.* coupling; UI fallbacks retained where necessary.
 
 v1.24.0 — ShopUI extraction, GameAPI split, mouse input module, runner exit hardening, bump-only shop interaction, and instant overworld fallback
 - Added: Dedicated Shop UI module
