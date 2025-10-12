@@ -721,9 +721,8 @@
           seen[player.y][player.x] = true;
         }
       }
-      if (typeof window !== "undefined" && window.OccupancyGrid && typeof OccupancyGrid.build === "function") {
-        rebuildOccupancy();
-      }
+      // Rebuild occupancy using ctx-first handle; module will no-op if unavailable.
+      rebuildOccupancy();
       if (window.DEV) {
         try {
           const visCount = enemies.filter(e => inBounds(e.x, e.y) && visible[e.y][e.x]).length;
@@ -2417,10 +2416,12 @@
   
   
   
-  if (window.UI && typeof UI.init === "function") {
-      UI.init();
-      if (typeof UI.setHandlers === "function") {
-        UI.setHandlers({
+  {
+    const UIH = modHandle("UI");
+    if (UIH && typeof UIH.init === "function") {
+      UIH.init();
+      if (typeof UIH.setHandlers === "function") {
+        UIH.setHandlers({
           onEquip: (idx) => equipItemByIndex(idx),
           onEquipHand: (idx, hand) => equipItemByIndexHand(idx, hand),
           onUnequip: (slot) => unequipSlot(slot),
@@ -2585,6 +2586,7 @@
         });
       }
     }
+  }
 
   // Hand decay helpers
   function usingTwoHanded() {

@@ -46,6 +46,16 @@ Local dev server
   - Open http://localhost:8080/?dev=1
 - You can change the port with PORT=9000 node server.js
 
+Bundling (optional, Vite)
+- This project supports optional bundling for production using Vite. Native ESM still works without bundling.
+- Setup:
+  - npm install
+  - npm run dev         # start Vite dev server (imports are resolved automatically)
+  - npm run build       # builds to dist/ with optimized assets
+  - npm run preview     # serves the built dist/ on http://localhost:8080
+- Deploy:
+  - You can deploy either the raw repo (native ESM) or the dist/ folder produced by Vite.
+
 Key features at a glance
 - Single-floor dungeons with connected rooms, guaranteed stairs, and data-driven enemies.
 - Interaction-first gameplay: bump-to-attack, G to loot/interact/enter/exit.

@@ -1,6 +1,11 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.19 — Optional bundling (Vite) and ctx-first cleanup
+- Added: package.json and vite.config.js for optional bundling with Vite (dev/build/preview).
+- Docs: README updated with bundling instructions and deployment notes.
+- Cleanup: core/game.js now initializes UI via ctx-first handle (modHandle("UI")) instead of window.UI; occupancy rebuild no longer references window.OccupancyGrid directly.
+
 v1.34.18 — Brace stance (defensive action)
 - Added: New input binding 'B' for Brace (dungeon only). Consumes a turn and increases block chance for this turn if holding a defensive hand item (any hand item with defense).
 - Changed: combat/combat.js getPlayerBlockChance now respects player.braceTurns, applying a brace bonus and a slightly higher clamp (up to 75%) during the stance.
