@@ -69,17 +69,20 @@
       equipment: clone(defaults.equipment) || { ...DEFAULT_EQUIPMENT },
     });
 
-    // Ensure the player starts with a basic stick in inventory.
-    // Prefer registry-driven item if available; otherwise fall back to a named hand item.
+    // Ensure the player starts with a basic stick in inventory (avoid duplicates if already present).
     try {
-      let stick = null;
-      if (window.Items && typeof Items.createByKey === "function") {
-        stick = Items.createByKey("stick", 1);
-      }
-      if (!stick && window.Items && typeof Items.createNamed === "function") {
-        stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
-      }
-      if (stick) {
+      const hasStick = Array.isArray(p.inventory) && p.inventory.some(it => it && it.kind === "equip" && String(it.name || "").toLowerCase() === "stick");
+      if (!hasStick) {
+        let stick = null;
+        if (window.Items && typeof Items.createByKey === "function") {
+          stick = Items.createByKey("stick", 1);
+        }
+        if (!stick && window.Items && typeof Items.createNamed === "function") {
+          stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
+        }
+        if (!stick) {
+          stick = { kind: "equip", slot: "hand", name: "stick", atk: 1.0, tier: 1 };
+        }
         try { stick.decay = 99; } catch (_) {}
         p.inventory.push(stick);
       }
@@ -233,6 +236,24 @@
       player[k] = Array.isArray(fresh[k]) ? fresh[k].slice() :
                   (fresh[k] && typeof fresh[k] === "object" ? JSON.parse(JSON.stringify(fresh[k])) : fresh[k]);
     }
+    // Ensure starter stick is present on new game (avoid duplicates)
+    try {
+      const hasStick = Array.isArray(player.inventory) && player.inventory.some(it => it && it.kind === "equip" && String(it.name || "").toLowerCase() === "stick");
+      if (!hasStick) {
+        let stick = null;
+        if (window.Items && typeof Items.createByKey === "function") {
+          stick = Items.createByKey("stick", 1);
+        }
+        if (!stick && window.Items && typeof Items.createNamed === "function") {
+          stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
+        }
+        if (!stick) {
+          stick = { kind: "equip", slot: "hand", name: "stick", atk: 1.0, tier: 1 };
+        }
+        try { stick.decay = 99; } catch (_) {}
+        player.inventory.push(stick);
+      }
+    } catch (_) {}
     forceUpdate(player);
     return player;
   }
