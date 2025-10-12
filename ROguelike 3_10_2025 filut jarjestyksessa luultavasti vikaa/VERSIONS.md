@@ -1,5 +1,9 @@
 # Game Version History
-Last updated: 2025-10-12 01:30 UTC
+Last updated: 2025-10-12 01:35 UTC
+
+v1.34.24 — Shop flows: UIBridge-only routing in core, stricter open-state fallback
+- Changed: core/game.js shop UI functions (hideShopPanel, openShopFor, shopBuyIndex) now route exclusively through UIBridge; direct ShopUI fallbacks removed.
+- Changed: core/actions.js isShopOpenNow returns false when ShopService is unavailable and no shop object is provided (instead of assuming day-phase), avoiding misleading “Open now” messages without schedule data.
 
 v1.34.23 — UIBridge: remove DOM fallbacks for Shop UI
 - Changed: UIBridge.isShopOpen now relies solely on ShopUI.isOpen()
