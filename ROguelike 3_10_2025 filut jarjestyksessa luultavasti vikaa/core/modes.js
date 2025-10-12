@@ -54,17 +54,30 @@
     const WT = ctx.World && ctx.World.TILES;
     const t = ctx.world.map[ctx.player.y][ctx.player.x];
 
+    // Try to move one step into a target tile and capture approach direction
     function tryEnterAdjacent(kindTile) {
-      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+      const dirs = [
+        { dx: 1, dy: 0, dir: "E" },
+        { dx: -1, dy: 0, dir: "W" },
+        { dx: 0, dy: 1, dir: "S" },
+        { dx: 0, dy: -1, dir: "N" },
+      ];
       for (const d of dirs) {
         const nx = ctx.player.x + d.dx, ny = ctx.player.y + d.dy;
         if (!inBounds(ctx, nx, ny)) continue;
         if (ctx.world.map[ny][nx] === kindTile) {
+          // Record the direction of movement (the side we approached from)
+          ctx.enterFromDir = d.dir;
           ctx.player.x = nx; ctx.player.y = ny;
           return true;
         }
       }
       return false;
+    }
+
+    // If already on the town tile, there's no clear approach; clear any stale dir
+    if (WT && t === ctx.World.TILES.TOWN) {
+      ctx.enterFromDir = "";
     }
 
     if (WT && (t === ctx.World.TILES.TOWN || tryEnterAdjacent(ctx.World.TILES.TOWN))) {

@@ -304,21 +304,37 @@
     for (let x = 0; x < W; x++) { ctx.map[0][x] = ctx.TILES.WALL; ctx.map[H - 1][x] = ctx.TILES.WALL; }
     for (let y = 0; y < H; y++) { ctx.map[y][0] = ctx.TILES.WALL; ctx.map[y][W - 1] = ctx.TILES.WALL; }
 
-    // Gate nearest to player
+    // Gate placement: prefer the edge matching the approach direction, else nearest edge
     const clampXY = (x, y) => ({ x: Math.max(1, Math.min(W - 2, x)), y: Math.max(1, Math.min(H - 2, y)) });
-    const targets = [
-      { x: 1, y: ctx.player.y },                // west
-      { x: W - 2, y: ctx.player.y },            // east
-      { x: ctx.player.x, y: 1 },                // north
-      { x: ctx.player.x, y: H - 2 },            // south
-    ].map(p => clampXY(p.x, p.y));
-    let best = targets[0], bd = Infinity;
-    for (const t of targets) {
-      const d = Math.abs(t.x - ctx.player.x) + Math.abs(t.y - ctx.player.y);
-      if (d < bd) { bd = d; best = t; }
+    const pxy = clampXY(ctx.player.x, ctx.player.y);
+    let gate = null;
+
+    // If Modes recorded an approach direction (E/W/N/S), pick corresponding perimeter gate
+    const dir = (typeof ctx.enterFromDir === "string") ? ctx.enterFromDir : "";
+    if (dir) {
+      if (dir === "E") gate = { x: 1, y: pxy.y };           // entered moving east -> came from west -> west edge
+      else if (dir === "W") gate = { x: W - 2, y: pxy.y };  // entered moving west -> came from east -> east edge
+      else if (dir === "N") gate = { x: pxy.x, y: H - 2 };  // entered moving north -> came from south -> south edge
+      else if (dir === "S") gate = { x: pxy.x, y: 1 };      // entered moving south -> came from north -> north edge
     }
-    const gate = best;
-    // Carve gate
+
+    if (!gate) {
+      // Fallback: pick nearest edge to the player's (clamped) position
+      const targets = [
+        { x: 1, y: pxy.y },                // west
+        { x: W - 2, y: pxy.y },            // east
+        { x: pxy.x, y: 1 },                // north
+        { x: pxy.x, y: H - 2 },            // south
+      ];
+      let best = targets[0], bd = Infinity;
+      for (const t of targets) {
+        const d = Math.abs(t.x - pxy.x) + Math.abs(t.y - pxy.y);
+        if (d < bd) { bd = d; best = t; }
+      }
+      gate = best;
+    }
+
+    // Carve gate: mark the perimeter door and the interior gate tile as floor
     if (gate.x === 1) ctx.map[gate.y][0] = ctx.TILES.DOOR;
     else if (gate.x === W - 2) ctx.map[gate.y][W - 1] = ctx.TILES.DOOR;
     else if (gate.y === 1) ctx.map[0][gate.x] = ctx.TILES.DOOR;
