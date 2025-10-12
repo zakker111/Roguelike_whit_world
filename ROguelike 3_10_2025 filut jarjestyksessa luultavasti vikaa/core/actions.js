@@ -22,7 +22,12 @@
 
   function doAction(ctx) {
     // Hide loot UI if open
-    try { if (ctx.UI && typeof ctx.UI.hideLoot === "function") ctx.UI.hideLoot(); } catch (_) {}
+    try {
+      const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
+      if (UB && typeof UB.hideLoot === "function") UB.hideLoot(ctx);
+      else if (ctx.UI && typeof ctx.UI.hideLoot === "function") ctx.UI.hideLoot();
+      else if (typeof window !== "undefined" && window.UI && typeof UI.hideLoot === "function") UI.hideLoot();
+    } catch (_) {}
 
     if (ctx.mode === "world") {
       // Delegate world entry actions to Modes to avoid duplication
