@@ -91,7 +91,33 @@ export function talk(ctx) {
 
 export function returnToWorldIfAtGate(ctx) {
   if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
-  const atGate = !!(ctx.townExitAt && ctx.player.x === ctx.townExitAt.x && ctx.player.y === ctx.townExitAt.y);
+  if (!ctx.townExitAt || !ctx.map || !Array.isArray(ctx.map) || !ctx.TILES) return false;
+
+  const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
+  const px = ctx.player.x, py = ctx.player.y;
+
+  // Local inBounds
+  const inBounds = (x, y) => {
+    const rows = ctx.map.length, cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+    return x >= 0 && y >= 0 && x < cols && y < rows;
+  };
+
+  // Consider standing either on the interior gate FLOOR tile or the perimeter DOOR tile adjacent to it.
+  let atGate = (px === gx && py === gy);
+  if (!atGate) {
+    const neighbors = [
+      { x: gx + 1, y: gy },
+      { x: gx - 1, y: gy },
+      { x: gx, y: gy + 1 },
+      { x: gx, y: gy - 1 },
+    ];
+    for (const n of neighbors) {
+      if (inBounds(n.x, n.y) && ctx.map[n.y][n.x] === ctx.TILES.DOOR && px === n.x && py === n.y) {
+        atGate = true;
+        break;
+      }
+    }
+  }
   if (!atGate) return false;
 
   // Switch mode and restore overworld map
