@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.0 — Phase 3 kickoff: incremental ES module adoption
+- Changed: core/ctx.js converted to ES module exports (create, attachModules, ensureUtils, ensureLOS) while still attaching window.Ctx for back-compat.
+- Changed: utils/utils.js converted to ES module exports (manhattan, inBounds, isWalkableTile, isFreeFloor, isFreeTownFloor) while still attaching window.Utils.
+- Changed: index.html now loads core/ctx.js and utils/utils.js as type="module" to prepare for broader ESM migration.
+- Plan: continue migrating low-risk modules (services and facades) to ESM while maintaining window.* back-compat to avoid breaking classic scripts.
+
 v1.33.0 — Phase 2 completion: ctx-first AI status, GOD consolidation, final sweep
 - Changed: ai/ai.js now uses ctx.Status for daze/bleed application with a safe fallback to window.Status.
 - Changed: GOD utilities consolidated under data/god.js; removed core/god.js to avoid duplication and ensure a single source of truth.
