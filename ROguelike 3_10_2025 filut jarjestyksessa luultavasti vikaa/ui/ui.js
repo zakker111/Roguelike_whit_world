@@ -250,6 +250,10 @@ export const UI = {
         const next = !this.getGridState();
         this.setGridState(next);
         this.updateGridButton();
+        // Notify game so ctx.drawGrid can be set (ctx-first render preference)
+        if (typeof this.handlers.onGodToggleGrid === "function") {
+          try { this.handlers.onGodToggleGrid(next); } catch (_) {}
+        }
       });
       this.updateGridButton();
     }
@@ -544,7 +548,7 @@ export const UI = {
     if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
   },
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -564,6 +568,7 @@ export const UI = {
     if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
     if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
     if (typeof onGodDiagnostics === "function") this.handlers.onGodDiagnostics = onGodDiagnostics;
+    if (typeof onGodToggleGrid === "function") this.handlers.onGodToggleGrid = onGodToggleGrid;
   },
 
   updateStats(player, floor, getAtk, getDef, time) {

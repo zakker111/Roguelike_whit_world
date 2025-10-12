@@ -5,6 +5,7 @@
  * - draw(ctx, view)
  */
 import * as RenderCore from "./render_core.js";
+import * as World from "../world/world.js";
 
 export function draw(ctx, view) {
   const {
@@ -29,7 +30,7 @@ export function draw(ctx, view) {
     dungeon: "#2a1b2a",
   };
 
-  const WT = (typeof window !== "undefined" && window.World && World.TILES) ? World.TILES : null;
+  const WT = World.TILES;
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 

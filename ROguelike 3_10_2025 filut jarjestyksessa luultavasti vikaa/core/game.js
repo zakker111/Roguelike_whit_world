@@ -213,6 +213,8 @@
   // GOD toggles
   let alwaysCrit = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? !!window.ALWAYS_CRIT : false;
   let forcedCritPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string") ? window.ALWAYS_CRIT_PART : (typeof localStorage !== "undefined" ? (localStorage.getItem("ALWAYS_CRIT_PART") || "") : "");
+  // Render grid preference (ctx-first). Default from window.DRAW_GRID; UI toggle will update this.
+  let drawGridPref = (typeof window !== "undefined" && typeof window.DRAW_GRID === "boolean") ? !!window.DRAW_GRID : true;
 
   
   function getCtx() {
@@ -2431,6 +2433,7 @@
           onGodHeal: () => godHeal(),
           onGodSpawn: () => godSpawnItems(),
           onGodSetFov: (v) => setFovRadius(v),
+          onGodToggleGrid: (v) => { drawGridPref = !!v; requestDraw(); },
           onGodSpawnEnemy: () => godSpawnEnemyNearby(),
           onGodSpawnStairs: () => godSpawnStairsHere(),
           onGodSetAlwaysCrit: (v) => setAlwaysCrit(v),

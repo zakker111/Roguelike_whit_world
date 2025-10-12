@@ -75,11 +75,6 @@
           if (window.UIBridge && typeof window.UIBridge.hideInventory === "function") window.UIBridge.hideInventory({});
           if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
         } catch (_) {}
-        try {
-          if ((!window.UIBridge || typeof window.UIBridge.hideLoot !== "function") && window.UI && typeof window.UI.hideLoot === "function") window.UI.hideLoot();
-          if ((!window.UIBridge || typeof window.UIBridge.hideInventory !== "function") && window.UI && typeof window.UI.hideInventory === "function") window.UI.hideInventory();
-          if ((!window.UIBridge || typeof window.UIBridge.hideGod !== "function") && window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod();
-        } catch (_) {}
       }
     } catch (_) {}
   }
@@ -89,12 +84,6 @@
     try {
       if (window.UIBridge && typeof window.UIBridge.showGod === "function") {
         window.UIBridge.showGod({});
-        return true;
-      }
-    } catch (_) {}
-    try {
-      if (window.UI && typeof window.UI.showGod === "function") {
-        window.UI.showGod();
         return true;
       }
     } catch (_) {}
@@ -227,7 +216,7 @@
       // UI baseline: able to close GOD or at least find the open button
       const uiOK = (() => {
         try {
-          if (window.UI && typeof window.UI.hideGod === "function") return true;
+          if (window.UIBridge && typeof window.UIBridge.hideGod === "function") return true;
           const gob = document.getElementById("god-open-btn");
           return !!gob;
         } catch (_) { return false; }
@@ -748,7 +737,6 @@
               await sleep(100);
               try {
                 if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
-                else if (window.UI && typeof window.UI.hideGod === "function") window.UI.hideGod();
               } catch (_) {}
               try {
                 const gp = document.getElementById("god-panel");
@@ -760,10 +748,11 @@
               try {
                 if (window.UIBridge && typeof window.UIBridge.isGodOpen === "function") {
                   closed = !window.UIBridge.isGodOpen();
-                } else if (window.UI && typeof window.UI.isGodOpen === "function") {
-                  closed = !window.UI.isGodOpen();
                 } else {
                   const gp = document.getElementById("god-panel");
+                  closed = !!(gp && gp.hidden === true);
+                }
+              }st gp = document.getElementById("god-panel");
                   closed = !!(gp && gp.hidden === true);
                 }
               } catch (_) { closed = false; }
@@ -969,8 +958,6 @@
         try {
           if (window.UIBridge && typeof window.UIBridge.hideGod === "function") {
             window.UIBridge.hideGod({});
-          } else if (window.UI && typeof window.UI.hideGod === "function") {
-            window.UI.hideGod();
           }
         } catch (_) {}
         try {
