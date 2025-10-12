@@ -276,16 +276,17 @@
 
   // ---- Generation (compact version; retains core behavior and mutations) ----
   function generate(ctx) {
-    // Determine current town size from overworld (default 'big')
+    // Determine current town size from overworld (default 'big') and capture its world entry for persistence
     let townSize = "big";
+    let info = null;
     try {
       if (ctx.world && Array.isArray(ctx.world.towns)) {
         const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : ctx.player.x;
         const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : ctx.player.y;
-        const info = ctx.world.towns.find(t => t.x === wx && t.y === wy);
+        info = ctx.world.towns.find(t => t.x === wx && t.y === wy) || null;
         if (info && info.size) townSize = info.size;
       }
-    } catch (_) {}
+    } catch (_) { info = null; }
 
     // Size the town map from data/town.json (fallback to previous values)
     const TOWNCFG = (window.GameData && GameData.town) || null;
@@ -344,14 +345,22 @@
     ctx.player.x = gate.x; ctx.player.y = gate.y;
     ctx.townExitAt = { x: gate.x, y: gate.y };
 
-    // Name
-    const prefixes = ["Oak", "Ash", "Pine", "River", "Stone", "Iron", "Silver", "Gold", "Wolf", "Fox", "Moon", "Star", "Red", "White", "Black", "Green"];
-    const suffixes = ["dale", "ford", "field", "burg", "ton", "stead", "haven", "fall", "gate", "port", "wick", "shire", "crest", "view", "reach"];
-    const mid = ["", "wood", "water", "brook", "hill", "rock", "ridge"];
-    const p = prefixes[(Math.floor(ctx.rng() * prefixes.length)) % prefixes.length];
-    const m = mid[(Math.floor(ctx.rng() * mid.length)) % mid.length];
-    const s = suffixes[(Math.floor(ctx.rng() * suffixes.length)) % suffixes.length];
-    ctx.townName = [p, m, s].filter(Boolean).join("");
+    // Name: persist on the world.towns entry so it remains stable across visits
+    let townName = null;
+    try {
+      if (info && typeof info.name === "string" && info.name) townName = info.name;
+    } catch (_) { townName = null; }
+    if (!townName) {
+      const prefixes = ["Oak", "Ash", "Pine", "River", "Stone", "Iron", "Silver", "Gold", "Wolf", "Fox", "Moon", "Star", "Red", "White", "Black", "Green"];
+      const suffixes = ["dale", "ford", "field", "burg", "ton", "stead", "haven", "fall", "gate", "port", "wick", "shire", "crest", "view", "reach"];
+      const mid = ["", "wood", "water", "brook", "hill", "rock", "ridge"];
+      const p = prefixes[(Math.floor(ctx.rng() * prefixes.length)) % prefixes.length];
+      const m = mid[(Math.floor(ctx.rng() * mid.length)) % mid.length];
+      const s = suffixes[(Math.floor(ctx.rng() * suffixes.length)) % suffixes.length];
+      townName = [p, m, s].filter(Boolean).join("");
+      try { if (info) info.name = townName; } catch (_) {}
+    }
+    ctx.townName = townName;
 
     // Plaza
     const plaza = { x: (W / 2) | 0, y: (H / 2) | 0 };
