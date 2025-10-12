@@ -967,8 +967,16 @@
 
         // Keep GOD panel closed during exit/seeding to avoid input interception
         try {
-          if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
-          else if (window.UI &&Id("god-panel"); if (gp) gp.hidden = true; } catch (_) {}
+          if (window.UIBridge && typeof window.UIBridge.hideGod === "function") {
+            window.UIBridge.hideGod({});
+          } else if (window.UI && typeof window.UI.hideGod === "function") {
+            window.UI.hideGod();
+          }
+        } catch (_) {}
+        try {
+          const gp = document.getElementById("god-panel");
+          if (gp) gp.hidden = true;
+        } catch (_) {}
         try { await ensureAllModalsClosed(2); } catch (_) {}
         await sleep(80);
 
