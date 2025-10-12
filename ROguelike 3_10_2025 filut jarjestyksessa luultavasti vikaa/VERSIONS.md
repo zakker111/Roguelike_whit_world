@@ -10,6 +10,11 @@ Conventions
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
 
+v1.28.0 — Player HUD via UIBridge, unified modal gating, minor cleanup
+- Changed: Player.forceUpdate now prefers UIBridge.updateStats with a minimal ctx; UI.updateStats used as fallback.
+- Added: UIBridge.isAnyModalOpen() aggregates isLootOpen/isInventoryOpen/isGodOpen/isShopOpen/isSmokeOpen for simpler gating.
+- Changed: InputMouse click gating uses UIBridge.isAnyModalOpen() to short-circuit when any modal is open.
+
 v1.27.0 — UI gating centralization via UIBridge; Shop/Smoke wrappers; runtime-only persistence
 - Added: UIBridge wrappers
   - core/ui_bridge.js: isShopOpen() and isSmokeOpen() wrappers (ShopUI.isOpen and UI.isSmokeOpen with safe fallbacks).

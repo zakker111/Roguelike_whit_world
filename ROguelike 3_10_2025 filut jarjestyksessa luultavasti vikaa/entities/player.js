@@ -239,9 +239,20 @@
 
   // Force HUD refresh and broadcast a change event
   function forceUpdate(player) {
-    if (window.UI && typeof UI.updateStats === "function") {
-      UI.updateStats(player, window.floor || 1, getAttack.bind(null, player), getDefense.bind(null, player));
-    }
+    try {
+      if (typeof window !== "undefined" && window.UIBridge && typeof UIBridge.updateStats === "function") {
+        const ctx = {
+          player,
+          floor: (typeof window !== "undefined" && typeof window.floor === "number") ? window.floor : 1,
+          getPlayerAttack: () => getAttack(player),
+          getPlayerDefense: () => getDefense(player),
+          time: null
+        };
+        UIBridge.updateStats(ctx);
+      } else if (typeof window !== "undefined" && window.UI && typeof UI.updateStats === "function") {
+        UI.updateStats(player, window.floor || 1, getAttack.bind(null, player), getDefense.bind(null, player));
+      }
+    } catch (_) {}
     window.dispatchEvent(new CustomEvent("player:changed", { detail: { player } }));
   }
 

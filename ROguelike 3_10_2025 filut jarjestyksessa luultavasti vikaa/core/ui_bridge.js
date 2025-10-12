@@ -123,6 +123,13 @@
     try { return !!(hasUI() && UI.isSmokeOpen && UI.isSmokeOpen()); } catch (_) { return false; }
   }
 
+  // Aggregate modal state for simple gating
+  function isAnyModalOpen() {
+    try {
+      return !!(isLootOpen() || isInventoryOpen() || isGodOpen() || isShopOpen() || isSmokeOpen());
+    } catch (_) { return false; }
+  }
+
   function showConfirm(ctx, text, pos, onOk, onCancel) {
     if (hasUI() && typeof UI.showConfirm === "function") {
       try { UI.showConfirm(text, pos, onOk, onCancel); } catch (_) {}
@@ -162,6 +169,7 @@
     isGodOpen,
     isShopOpen,
     isSmokeOpen,
+    isAnyModalOpen,
     showConfirm,
     showTownExitButton,
     hideTownExitButton

@@ -38,14 +38,10 @@
 
       canvasEl.addEventListener("click", function (ev) {
         try {
-          // If UI modals are open, let them handle clicks (UIBridge centralization)
+          // If any modal is open, let it handle clicks
           try {
             var UB = (typeof window !== "undefined" ? window.UIBridge : null);
-            if (UB && typeof UB.isLootOpen === "function" && UB.isLootOpen()) return;
-            if (UB && typeof UB.isInventoryOpen === "function" && UB.isInventoryOpen()) return;
-            if (UB && typeof UB.isGodOpen === "function" && UB.isGodOpen()) return;
-            if (UB && typeof UB.isShopOpen === "function" && UB.isShopOpen()) return;
-            if (UB && typeof UB.isSmokeOpen === "function" && UB.isSmokeOpen()) return;
+            if (UB && typeof UB.isAnyModalOpen === "function" && UB.isAnyModalOpen()) return;
           } catch (_) {}
 
           var mode = getMode();
