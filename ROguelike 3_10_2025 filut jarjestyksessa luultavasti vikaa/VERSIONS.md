@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.9 — Phase 3 step 9: Render modules to ESM
+- Changed: ui/render_core.js converted to ES module (export computeView, drawGlyph, enemyColor, drawGridOverlay) and retains window.RenderCore; index.html loads as type="module".
+- Changed: ui/render.js converted to ES module (export draw) and retains window.Render; index.html loads as type="module".
+- Changed: ui/render_dungeon.js converted to ES module (export draw) and retains window.RenderDungeon; index.html loads as type="module".
+- Changed: ui/render_overworld.js converted to ES module (export draw) and retains window.RenderOverworld; index.html loads as type="module".
+- Changed: ui/render_town.js converted to ES module (export draw) and retains window.RenderTown; index.html loads as type="module".
+- Changed: ui/render_overlays.js converted to ES module (export drawTownDebugOverlay, drawTownPaths, drawTownHomePaths, drawTownRoutePaths, drawLampGlow) and retains window.RenderOverlays; index.html loads as type="module".
+
 v1.34.8 — Phase 3 step 8: UI Decals and Logger to ESM
 - Changed: ui/decals.js converted to ES module (export add, tick) and retains window.Decals; index.html loads as type="module".
 - Changed: ui/logger.js converted to ES module (export Logger) and retains window.Logger; index.html loads as type="module".

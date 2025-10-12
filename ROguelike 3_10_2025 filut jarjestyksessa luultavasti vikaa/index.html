@@ -240,13 +240,13 @@
   </script>
   <script src="/ui/tileset.js" defer></script>
   <!-- Render split modules (loaded before orchestrator) -->
-  <script src="/ui/render_core.js" defer></script>
-  <script src="/ui/render_overworld.js" defer></script>
-  <script src="/ui/render_town.js" defer></script>
-  <script src="/ui/render_dungeon.js" defer></script>
-  <script src="/ui/render_overlays.js" defer></script>
+  <script src="/ui/render_core.js" type="module" defer></script>
+  <script src="/ui/render_overworld.js" type="module" defer></script>
+  <script src="/ui/render_town.js" type="module" defer></script>
+  <script src="/ui/render_dungeon.js" type="module" defer></script>
+  <script src="/ui/render_overlays.js" type="module" defer></script>
   <!-- Orchestrator -->
-  <script src="/ui/render.js" defer></script>
+  <script src="/ui/render.js" type="module" defer></script>
   <script src="/ui/decals.js" type="module" defer></script>
   <script src="/ui/ui.js" defer></script>
   <!-- Step 1: minimal ShopUI module (hide/ensurePanel); loaded before core/game.js -->
