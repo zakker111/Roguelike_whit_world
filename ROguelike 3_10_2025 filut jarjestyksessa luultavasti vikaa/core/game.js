@@ -654,9 +654,10 @@
 
   
   function equipIfBetter(item) {
-    // Phase 1: delegate to Player/PlayerEquip to avoid duplicate logic
-    if (window.Player && typeof Player.equipIfBetter === "function") {
-      return Player.equipIfBetter(player, item, {
+    // Delegate via ctx-first handle
+    const P = modHandle("Player");
+    if (P && typeof P.equipIfBetter === "function") {
+      return P.equipIfBetter(player, item, {
         log,
         updateUI,
         renderInventory: () => renderInventoryPanel(),
@@ -2243,8 +2244,9 @@
 
   
   function gainXP(amount) {
-    if (window.Player && typeof Player.gainXP === "function") {
-      Player.gainXP(player, amount, { log, updateUI });
+    const P = modHandle("Player");
+    if (P && typeof P.gainXP === "function") {
+      P.gainXP(player, amount, { log, updateUI });
       return;
     }
     player.xp += amount;
