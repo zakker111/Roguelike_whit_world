@@ -1673,18 +1673,17 @@
 
           // Heuristic: if NPC is at/near a shop door, open a simple shop UI to buy potions and gear
           try {
-            const nearShop = (() => {
-              if (!Array.isArray(shops)) return false;
+            // If this NPC is at or adjacent to a shop door, gate opening by schedule
+            let doorShop = null;
+            if (Array.isArray(shops)) {
               for (const s of shops) {
                 const d = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
-                if (d <= 1) return true;
+                if (d <= 1) { doorShop = s; break; }
               }
-              return false;
-            })();
-            if (nearShop) {
-              openShopFor(npc);
             }
-          } catch (_) {}
+            if (doorShop) {
+              const openNow = isShopOpenNow(doorShop);
+              const sched = shopScheduleStr(
 
           requestDraw();
         } else {
@@ -2226,8 +2225,12 @@
     floor = 1;
     window.floor = floor;
     isDead = false;
-    // Clear transient status effects on restart
+    // Reset player using Player defaults when available; clear transient effects
     try {
+      const P = modHandle("Player");
+      if (P && typeof P.resetFromDefaults === "function") {
+        P.resetFromDefaults(player);
+      }
       if (player) { player.bleedTurns = 0; player.dazedTurns = 0; }
     } catch (_) {}
     mode = "world";

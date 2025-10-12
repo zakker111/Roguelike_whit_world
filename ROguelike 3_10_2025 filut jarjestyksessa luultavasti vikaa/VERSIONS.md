@@ -10,6 +10,10 @@ Conventions
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
 
+v1.32.1 — Shop open-hours gating and New Game reset via Player defaults
+- Changed: core/game.js now gates bump-open of Shop UI by schedule; if the keeper is at/adjacent to a shop door and it's closed, the schedule is logged instead of opening the panel.
+- Changed: restartGame() delegates to Player.resetFromDefaults(player) when available to ensure a clean new-game state (inventory/equipment/HP/XP), then clears transient status and re-initializes the overworld.
+
 v1.32.0 — Smoke panel wrappers and input gating via UIBridge
 - Added: core/ui_bridge.js now exposes showSmoke(ctx) and hideSmoke(ctx) in addition to isSmokeOpen().
 - Changed: core/input.js Keyboard handler includes Smoke modal in priority stack; Esc closes Smoke via onHideSmoke.
