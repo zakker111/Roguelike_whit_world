@@ -40,8 +40,13 @@ export function init(opts) {
       try {
         // If any modal is open, let it handle clicks
         try {
-          var UB = (typeof window !== "undefined" ? window.UIBridge : null);
-          if (UB && typeof UB.isAnyModalOpen === "function" && UB.isAnyModalOpen()) return;
+          var hasAnyModalOpen = (opts && typeof opts.isAnyModalOpen === "function") ? opts.isAnyModalOpen : null;
+          if (hasAnyModalOpen ? hasAnyModalOpen() : (function () {
+            try {
+              var UB = (typeof window !== "undefined" ? window.UIBridge : null);
+              return !!(UB && typeof UB.isAnyModalOpen === "function" && UB.isAnyModalOpen());
+            } catch (_) { return false; }
+          })()) return;
         } catch (_) {}
 
         var mode = getMode();

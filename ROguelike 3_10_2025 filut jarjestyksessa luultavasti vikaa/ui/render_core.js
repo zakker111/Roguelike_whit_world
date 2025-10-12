@@ -51,7 +51,9 @@ export function computeView(ctx) {
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
 
-  const drawGrid = (typeof window !== "undefined" && typeof window.DRAW_GRID === "boolean") ? window.DRAW_GRID : true;
+  const drawGrid = (typeof ctx.drawGrid === "boolean")
+    ? ctx.drawGrid
+    : ((typeof window !== "undefined" && typeof window.DRAW_GRID === "boolean") ? window.DRAW_GRID : true);
 
   const TS = ctx.Tileset || (typeof window !== "undefined" ? window.Tileset : null);
   const tilesetReady = !!(TS && typeof TS.isReady === "function" && TS.isReady());

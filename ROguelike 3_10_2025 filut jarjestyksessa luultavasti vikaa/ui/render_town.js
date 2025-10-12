@@ -4,6 +4,8 @@
  * Exports (ESM + window.RenderTown):
  * - draw(ctx, view)
  */
+import * as RenderCore from "./render_core.js";
+import * as RenderOverlays from "./render_overlays.js";
 
 export function draw(ctx, view) {
   const {
@@ -198,9 +200,7 @@ export function draw(ctx, view) {
   } catch (_) {}
 
   // Grid overlay (if enabled)
-  if (typeof window !== "undefined" && window.RenderCore && typeof RenderCore.drawGridOverlay === "function") {
-    RenderCore.drawGridOverlay(view);
-  }
+  RenderCore.drawGridOverlay(view);
 }
 
 // Back-compat: attach to window

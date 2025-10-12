@@ -2679,6 +2679,13 @@
         tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
         lootCorpse: () => lootCorpse(),
         doAction: () => doAction(),
+        isAnyModalOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isAnyModalOpen === "function") return !!UB.isAnyModalOpen();
+          } catch (_) {}
+          return false;
+        },
       });
     }
   } catch (_) {}
