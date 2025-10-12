@@ -75,6 +75,11 @@
   }
 
   function shopAt(ctx, x, y) {
+    try {
+      if (ctx.ShopService && typeof ctx.ShopService.shopAt === "function") {
+        return ctx.ShopService.shopAt(ctx, x, y);
+      }
+    } catch (_) {}
     const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
     return shops.find(s => s.x === x && s.y === y) || null;
   }

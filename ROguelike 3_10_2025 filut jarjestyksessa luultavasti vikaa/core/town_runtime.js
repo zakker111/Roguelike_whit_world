@@ -50,6 +50,11 @@
   }
 
   function isFreeTownFloor(ctx, x, y) {
+    try {
+      if (ctx && ctx.Utils && typeof ctx.Utils.isFreeTownFloor === "function") {
+        return !!ctx.Utils.isFreeTownFloor(ctx, x, y);
+      }
+    } catch (_) {}
     const U = (typeof window !== "undefined" ? window.Utils : null);
     if (U && typeof U.isFreeTownFloor === "function") {
       return !!U.isFreeTownFloor(ctx, x, y);
