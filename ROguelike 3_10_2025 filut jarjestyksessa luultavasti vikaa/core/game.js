@@ -1084,28 +1084,7 @@
 
   
 
-  function talkNearbyNPC() {
-    const TR = modHandle("TownRuntime");
-    if (TR && typeof TR.talk === "function") {
-      const ok = !!TR.talk(getCtx());
-      return ok;
-    }
-    if (mode !== "town") return false;
-    const targets = [];
-    for (const n of npcs) {
-      const d = Math.abs(n.x - player.x) + Math.abs(n.y - player.y);
-      if (d <= 1) targets.push(n);
-    }
-    if (targets.length === 0) {
-      log("There is no one to talk to here.");
-      return false;
-    }
-    const npc = targets[randInt(0, targets.length - 1)];
-    const line = npc.lines[randInt(0, npc.lines.length - 1)];
-    log(`${npc.name}: ${line}`, "info");
-    requestDraw();
-    return true;
-  }
+  
 
   // Town shops helpers routed via ShopService
   function isShopOpenNow(shop = null) {
