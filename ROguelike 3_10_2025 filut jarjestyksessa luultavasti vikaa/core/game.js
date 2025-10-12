@@ -1178,7 +1178,8 @@
       const ctx = getCtx();
       const ok = !!TR.returnToWorldIfAtGate(ctx);
       if (ok) {
-        syncFromCtx(ctx);
+        // Apply mutations and refresh derived state after syncing to ensure world map, FOV, and camera are in sync
+        applyCtxMutationAndRefresh(ctx);
         return true;
       }
     }
