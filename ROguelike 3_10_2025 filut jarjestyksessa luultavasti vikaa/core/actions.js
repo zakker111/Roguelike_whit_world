@@ -21,7 +21,7 @@
 
   function doAction(ctx) {
     // Hide loot UI if open
-    try { if (ctx.UI && typeof UI.hideLoot === "function") UI.hideLoot(); } catch (_) {}
+    try { if (ctx.UI && typeof ctx.UI.hideLoot === "function") ctx.UI.hideLoot(); } catch (_) {}
 
     if (ctx.mode === "world") {
       const t = (ctx.world && ctx.world.map) ? ctx.world.map[ctx.player.y][ctx.player.x] : null;
@@ -52,7 +52,7 @@
             ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
             // Optional greeters kept minimal
             if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 0);
-            if (ctx.UI && typeof UI.showTownExitButton === "function") UI.showTownExitButton();
+            if (ctx.UI && typeof ctx.UI.showTownExitButton === "function") ctx.UI.showTownExitButton();
             ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}.`, "notice");
             ctx.requestDraw();
             return true;
@@ -278,8 +278,8 @@
           return true;
         }
       } catch (_) {}
-      if (ctx.Loot && typeof Loot.lootHere === "function") {
-        Loot.lootHere(ctx);
+      if (ctx.Loot && typeof ctx.Loot.lootHere === "function") {
+        ctx.Loot.lootHere(ctx);
         return true;
       }
 
@@ -354,8 +354,9 @@
   function restAtInn(ctx) {
     // Advance to 06:00 and fully heal
     try {
-      if (typeof TimeService !== "undefined" && TimeService && typeof TimeService.create === "function") {
-        const TS = TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 });
+      const TSM = (ctx.TimeService || (typeof TimeService !== "undefined" ? TimeService : null));
+      if (TSM && typeof TSM.create === "function") {
+        const TS = TSM.create({ dayMinutes: 24 * 60, cycleTurns: 360 });
         const clock = ctx.time;
         const curMin = clock ? (clock.hours * 60 + clock.minutes) : 0;
         const goalMin = 6 * 60;

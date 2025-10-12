@@ -32,16 +32,16 @@
       ctx.player.x = ctx.worldReturnPos.x;
       ctx.player.y = ctx.worldReturnPos.y;
     }
-    if (ctx.UI && typeof UI.hideTownExitButton === "function") UI.hideTownExitButton();
+    if (ctx.UI && typeof ctx.UI.hideTownExitButton === "function") ctx.UI.hideTownExitButton();
     if (ctx.log) ctx.log("You return to the overworld.", "notice");
     syncAfterMutation(ctx);
   }
 
   function requestLeaveTown(ctx) {
-    if (ctx.UI && typeof UI.showConfirm === "function") {
+    if (ctx.UI && typeof ctx.UI.showConfirm === "function") {
       const x = window.innerWidth / 2 - 140;
       const y = window.innerHeight / 2 - 60;
-      UI.showConfirm("Do you want to leave the town?", { x, y }, () => leaveTownNow(ctx), () => {});
+      ctx.UI.showConfirm("Do you want to leave the town?", { x, y }, () => leaveTownNow(ctx), () => {});
     } else {
       if (window.confirm && window.confirm("Do you want to leave the town?")) {
         leaveTownNow(ctx);
@@ -90,7 +90,7 @@
         // Town.generate already spawns a gate greeter; avoid duplicates.
         if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 0);
       }
-      if (ctx.UI && typeof UI.showTownExitButton === "function") UI.showTownExitButton();
+      if (ctx.UI && typeof ctx.UI.showTownExitButton === "function") ctx.UI.showTownExitButton();
       if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
       syncAfterMutation(ctx);
       return true;
@@ -100,6 +100,13 @@
 
   function saveCurrentDungeonState(ctx) {
     if (!(ctx.mode === "dungeon" && ctx.dungeon && ctx.dungeonExitAt)) return;
+    // Prefer centralized DungeonRuntime.save when available
+    try {
+      if (typeof window !== "undefined" && window.DungeonRuntime && typeof DungeonRuntime.save === "function") {
+        DungeonRuntime.save(ctx, false);
+        return;
+      }
+    } catch (_) {}
     if (ctx.DungeonState && typeof DungeonState.save === "function") {
       try { if (window.DEV) console.log("[TRACE] Modes.saveCurrentDungeonState"); } catch (_) {}
       DungeonState.save(ctx);
@@ -275,7 +282,7 @@
     }
     ctx.player.x = rx; ctx.player.y = ry;
 
-    if (ctx.FOV && typeof FOV.recomputeFOV === "function") FOV.recomputeFOV(ctx);
+    if (ctx.FOV && typeof ctx.FOV.recomputeFOV === "function") ctx.FOV.recomputeFOV(ctx);
     if (ctx.updateUI) ctx.updateUI();
     if (ctx.log) ctx.log("You climb back to the overworld.", "notice");
     if (ctx.requestDraw) ctx.requestDraw();

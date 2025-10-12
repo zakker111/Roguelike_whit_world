@@ -164,7 +164,11 @@
    * Uses UI.showLoot when present, otherwise writes directly to the fallback DOM panel.
    */
   function showLoot(ctx, list) {
-    if (window.UI && typeof UI.showLoot === "function") {
+    if (ctx && ctx.UI && typeof ctx.UI.showLoot === "function") {
+      ctx.UI.showLoot(list);
+      return;
+    }
+    if (typeof window !== "undefined" && window.UI && typeof UI.showLoot === "function") {
       UI.showLoot(list);
       return;
     }
@@ -184,7 +188,11 @@
    * Hide the loot panel. Uses UI.hideLoot when present or a simple DOM toggle otherwise.
    */
   function hideLoot(ctx) {
-    if (window.UI && typeof UI.hideLoot === "function") {
+    if (ctx && ctx.UI && typeof ctx.UI.hideLoot === "function") {
+      ctx.UI.hideLoot();
+      return;
+    }
+    if (typeof window !== "undefined" && window.UI && typeof UI.hideLoot === "function") {
       UI.hideLoot();
       return;
     }
@@ -244,7 +252,10 @@
       else ctx.log("All corpses here have nothing of value.");
       // Persist the looted state immediately and consume a turn,
       // so revisiting the dungeon remembers emptied chests/corpses.
-      try { if (window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx); } catch (_) {}
+      try {
+        if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx);
+        else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx);
+      } catch (_) {}
       if (typeof ctx.updateUI === "function") ctx.updateUI();
       if (typeof ctx.turn === "function") ctx.turn();
       return;
@@ -262,8 +273,9 @@
         if (!equipped) {
           player.inventory.push(item);
         } else {
-          if (window.UI && UI.isInventoryOpen && UI.isInventoryOpen() && typeof ctx.renderInventory === "function") {
-            ctx.renderInventory();
+          if ((ctx.UI && typeof ctx.UI.isInventoryOpen === "function" && ctx.UI.isInventoryOpen())
+              || (typeof window !== "undefined" && window.UI && typeof UI.isInventoryOpen === "function" && UI.isInventoryOpen())) {
+            if (typeof ctx.renderInventory === "function") ctx.renderInventory();
           }
         }
       } else if (item && item.kind === "gold") {
@@ -294,7 +306,9 @@
     container.looted = true;
     // Persist dungeon state immediately so revisits remember emptied chest/corpse
     try {
-      if (window.DungeonState && typeof DungeonState.save === "function") {
+      if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
+        ctx.DungeonState.save(ctx);
+      } else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
         DungeonState.save(ctx);
       }
     } catch (_) {}
