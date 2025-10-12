@@ -200,7 +200,7 @@
 
   window.RenderTown = { draw };
 })();</old_code>
-<new_code>
+
 /**
  * RenderTown: draws town map tiles, shops, props, NPCs, player, and overlays.
  *
