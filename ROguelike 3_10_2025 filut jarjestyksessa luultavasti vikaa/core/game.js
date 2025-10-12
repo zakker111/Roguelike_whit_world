@@ -1441,8 +1441,6 @@
     }
     return false;
   }
-    return false;
-  }
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
   function doAction() {
