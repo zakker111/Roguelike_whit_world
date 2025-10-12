@@ -40,6 +40,9 @@
     }
   } catch (_) {}
   import { TILE, COLS, ROWS, MAP_COLS, MAP_ROWS, FOV_DEFAULT, TILES, COLORS } from './constants.js';
+  import * as InventoryActions from './inventory_actions.js';
+  import { playerAttackEnemy } from '../combat/orchestrator.js';
+  import { buildGodHandlers } from './god_handlers.js';
   let fovRadius = FOV_DEFAULT;
 
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
@@ -197,6 +200,8 @@
       player, enemies, corpses, decals, map, seen, visible, occupancy,
       floor, depth: floor,
       fovRadius,
+      alwaysCrit,
+      forcedCritPart,
       // world/overworld
       mode,
       world,
@@ -250,6 +255,7 @@
       // Visual decals
       addBloodDecal: (x, y, mult) => addBloodDecal(x, y, mult),
       // Decay and side effects
+      decayAttackHands,
       decayBlockingHands,
       decayEquipped,
       rerenderInventoryIfOpen,
@@ -578,58 +584,11 @@
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.addPotion === "function") {
-      return IC.addPotion(getCtx(), heal, name);
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.addPotion === "function") {
-      P.addPotion(player, heal, name);
-      return;
-    }
-    const existing = player.inventory.find(i => i.kind === "potion" && (i.heal ?? 3) === heal);
-    if (existing) {
-      existing.count = (existing.count || 1) + 1;
-    } else {
-      player.inventory.push({ kind: "potion", heal, count: 1, name });
-    }
+    return InventoryActions.addPotion(getCtx(), heal, name);
   }
 
   function drinkPotionByIndex(idx) {
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.drinkByIndex === "function") {
-      return IC.drinkByIndex(getCtx(), idx);
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.drinkPotionByIndex === "function") {
-      P.drinkPotionByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-      });
-      return;
-    }
-    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
-    const it = player.inventory[idx];
-    if (!it || it.kind !== "potion") return;
-
-    const heal = it.heal ?? 3;
-    const prev = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + heal);
-    const gained = player.hp - prev;
-    if (gained > 0) {
-      log(`You drink a potion and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
-    } else {
-      log(`You drink a potion but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
-    }
-
-    if (it.count && it.count > 1) {
-      it.count -= 1;
-    } else {
-      player.inventory.splice(idx, 1);
-    }
-    updateUI();
-    renderInventoryPanel();
+    return InventoryActions.drinkByIndex(getCtx(), idx);
   }
 
   
@@ -1515,69 +1474,7 @@
 
     const enemy = enemies.find(e => e.x === nx && e.y === ny);
     if (enemy) {
-      let loc = rollHitLocation();
-      if (alwaysCrit && forcedCritPart) {
-        const profiles = {
-          torso: { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 },
-          head:  { part: "head",  mult: 1.1, blockMod: 0.85, critBonus: 0.15 },
-          hands: { part: "hands", mult: 0.9, blockMod: 0.75, critBonus: -0.05 },
-          legs:  { part: "legs",  mult: 0.95, blockMod: 0.75, critBonus: -0.03 },
-        };
-        if (profiles[forcedCritPart]) loc = profiles[forcedCritPart];
-      }
-
-      if (rng() < getEnemyBlockChance(enemy, loc)) {
-        log(`${capitalize(enemy.type || "enemy")} blocks your attack to the ${loc.part}.`, "block");
-        decayAttackHands(true);
-        decayEquipped("hands", randFloat(0.2, 0.7, 1));
-        turn();
-        return;
-      }
-
-      let dmg = getPlayerAttack() * loc.mult;
-      let isCrit = false;
-      const critChance = Math.max(0, Math.min(0.6, 0.12 + loc.critBonus));
-      if (alwaysCrit || rng() < critChance) {
-        isCrit = true;
-        dmg *= critMultiplier();
-      }
-      dmg = Math.max(0, round1(dmg));
-      enemy.hp -= dmg;
-
-      if (dmg > 0) {
-        addBloodDecal(enemy.x, enemy.y, isCrit ? 1.6 : 1.0);
-      }
-
-      if (isCrit) {
-        log(`Critical! You hit the ${enemy.type || "enemy"}'s ${loc.part} for ${dmg}.`, "crit");
-      } else {
-        log(`You hit the ${enemy.type || "enemy"}'s ${loc.part} for ${dmg}.`);
-      }
-      { const ctx = getCtx(); if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg }); }
-      if (isCrit && loc.part === "legs" && enemy.hp > 0) {
-        {
-          const ST = modHandle("Status");
-          if (ST && typeof ST.applyLimpToEnemy === "function") {
-            ST.applyLimpToEnemy(getCtx(), enemy, 2);
-          } else {
-            enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2);
-            log(`${capitalize(enemy.type || "enemy")} staggers; its legs are crippled and it can't move for 2 turns.`, "notice");
-          }
-        }
-      }
-      if (isCrit && enemy.hp > 0) {
-        const ST = modHandle("Status");
-        if (ST && typeof ST.applyBleedToEnemy === "function") {
-          ST.applyBleedToEnemy(getCtx(), enemy, 2);
-        }
-      }
-
-      if (enemy.hp <= 0) {
-        killEnemy(enemy);
-      }
-
-      decayAttackHands();
-      decayEquipped("hands", randFloat(0.3, 1.0, 1));
+      playerAttackEnemy(getCtx(), enemy, { forcedCritPart, alwaysCrit });
       turn();
       return;
     }
@@ -1772,62 +1669,15 @@
   }
 
   function equipItemByIndex(idx) {
-    // Delegate to InventoryController (which uses Player/PlayerEquip internally)
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.equipByIndex === "function") {
-      IC.equipByIndex(getCtx(), idx);
-      return;
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.equipItemByIndex === "function") {
-      P.equipItemByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-        describeItem: (it) => describeItem(it),
-      });
-      return;
-    }
-    log("Equip system not available.", "warn");
+    return InventoryActions.equipByIndex(getCtx(), idx);
   }
 
   function equipItemByIndexHand(idx, hand) {
-    // Delegate to InventoryController
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.equipByIndexHand === "function") {
-      IC.equipByIndexHand(getCtx(), idx, hand);
-      return;
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.equipItemByIndex === "function") {
-      P.equipItemByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-        describeItem: (it) => describeItem(it),
-        preferredHand: hand,
-      });
-      return;
-    }
-    log("Equip system not available.", "warn");
+    return InventoryActions.equipByIndexHand(getCtx(), idx, hand);
   }
 
   function unequipSlot(slot) {
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.unequipSlot === "function") {
-      IC.unequipSlot(getCtx(), slot);
-      return;
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.unequipSlot === "function") {
-      P.unequipSlot(player, slot, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-      });
-      return;
-    }
-    log("Equip system not available.", "warn");
+    return InventoryActions.unequipSlot(getCtx(), slot);
   }
 
   
@@ -2104,24 +1954,22 @@
     if (UIH && typeof UIH.init === "function") {
       UIH.init();
       if (typeof UIH.setHandlers === "function") {
-        UIH.setHandlers({
+        const godHandlers = buildGodHandlers(() => getCtx(), {
+          setFovRadius: (v) => setFovRadius(v),
+          requestDraw: () => requestDraw(),
+          setAlwaysCrit: (v) => setAlwaysCrit(v),
+          setCritPart: (part) => setCritPart(part),
+          applySeed: (seed) => applySeed(seed),
+          rerollSeed: () => rerollSeed(),
+          requestLeaveTown: () => requestLeaveTown(),
+        });
+        UIH.setHandlers(Object.assign({
           onEquip: (idx) => equipItemByIndex(idx),
           onEquipHand: (idx, hand) => equipItemByIndexHand(idx, hand),
           onUnequip: (slot) => unequipSlot(slot),
           onDrink: (idx) => drinkPotionByIndex(idx),
           onRestart: () => restartGame(),
           onWait: () => turn(),
-          onGodHeal: () => godHeal(),
-          onGodSpawn: () => godSpawnItems(),
-          onGodSetFov: (v) => setFovRadius(v),
-          onGodToggleGrid: (v) => { drawGridPref = !!v; requestDraw(); },
-          onGodSpawnEnemy: () => godSpawnEnemyNearby(),
-          onGodSpawnStairs: () => godSpawnStairsHere(),
-          onGodSetAlwaysCrit: (v) => setAlwaysCrit(v),
-          onGodSetCritPart: (part) => setCritPart(part),
-          onGodApplySeed: (seed) => applySeed(seed),
-          onGodRerollSeed: () => rerollSeed(),
-          onTownExit: () => requestLeaveTown(),
           // Panels for ESC-close default behavior
           isShopOpen: () => {
             // Prefer UIBridge single-source gating
@@ -2132,142 +1980,7 @@
             return false;
           },
           onHideShop: () => hideShopPanel(),
-          onGodCheckHomes: () => {
-            const ctx = getCtx();
-            if (ctx.mode !== "town") {
-              log("Home route check is available in town mode only.", "warn");
-              requestDraw();
-              return;
-            }
-            // Ensure town NPCs are populated before running the check
-            try {
-              if ((!Array.isArray(ctx.npcs) || ctx.npcs.length === 0) && window.TownAI && typeof TownAI.populateTown === "function") {
-                TownAI.populateTown(ctx);
-                // Sync back any mutations
-                syncFromCtx(ctx);
-                rebuildOccupancy();
-              }
-            } catch (_) {}
-
-            if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
-              const res = TownAI.checkHomeRoutes(ctx) || {};
-              const totalChecked = (typeof res.total === "number")
-                ? res.total
-                : ((res.reachable || 0) + (res.unreachable || 0));
-              const skippedStr = res.skipped ? `, ${res.skipped} skipped` : "";
-              const summaryLine = `Home route check: ${(res.reachable || 0)}/${totalChecked} reachable, ${(res.unreachable || 0)} unreachable${skippedStr}.`;
-              log(summaryLine, (res.unreachable || 0) ? "warn" : "good");
-              let extraLines = [];
-              if (res.residents && typeof res.residents.total === "number") {
-                const r = res.residents;
-                // TownAI returns atTavern; display as "inn" for consistency
-                extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
-              } else {
-                // Provide a hint if no residents were counted
-                extraLines.push("No residents were counted; ensure town NPCs are populated.");
-              }
-              // Per-resident list of late-night away residents
-              if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
-                extraLines.push(`Late-night (02:00–05:00): ${res.residentsAwayLate.length} resident(s) away from home and inn:`);
-                res.residentsAwayLate.slice(0, 10).forEach(d => {
-                  extraLines.push(`- ${d.name} at (${d.x},${d.y})`);
-                });
-                if (res.residentsAwayLate.length > 10) {
-                  extraLines.push(`...and ${res.residentsAwayLate.length - 10} more.`);
-                }
-              }
-              if (res.skipped) {
-                extraLines.push(`Skipped ${res.skipped} NPCs not expected to have homes (e.g., pets).`);
-              }
-              if (res.unreachable && Array.isArray(res.details)) {
-                res.details.slice(0, 8).forEach(d => {
-                  extraLines.push(`- ${d.name}: ${d.reason}`);
-                });
-                if (res.details.length > 8) extraLines.push(`...and ${res.details.length - 8} more.`);
-              }
-              // Mirror summary inside GOD panel output area for visibility while modal is open
-              try {
-                const el = document.getElementById("god-check-output");
-                if (el) {
-                  const html = [summaryLine].concat(extraLines).map(s => `<div>${s}</div>`).join("");
-                  el.innerHTML = html;
-                }
-              } catch (_) {}
-              // Also write all extra lines to the main log
-              extraLines.forEach(line => log(line, "info"));
-              // Request draw to show updated debug paths (if enabled)
-              requestDraw();
-            } else {
-              log("TownAI.checkHomeRoutes not available.", "warn");
-            }
-          },
-          onGodCheckInnTavern: () => {
-            const ctx = getCtx();
-            if (ctx.mode !== "town") {
-              log("Inn check is available in town mode only.", "warn");
-              requestDraw();
-              return;
-            }
-            const list = Array.isArray(shops) ? shops : [];
-            const inns = list.filter(s => (s.name || "").toLowerCase().includes("inn"));
-            const line = `Inn: ${inns.length} inn(s).`;
-            log(line, inns.length ? "info" : "warn");
-            const lines = [];
-            inns.slice(0, 6).forEach((s, i) => {
-              lines.push(`- Inn ${i + 1} at door (${s.x},${s.y})`);
-            });
-            try {
-              const el = document.getElementById("god-check-output");
-              if (el) {
-                const html = [line].concat(lines).map(s => `<div>${s}</div>`).join("");
-                el.innerHTML = html;
-              }
-            } catch (_) {}
-            lines.forEach(l => log(l, "info"));
-            requestDraw();
-          },
-          onGodDiagnostics: () => {
-            const ctx = getCtx();
-            const mods = {
-              Enemies: !!ctx.Enemies, Items: !!ctx.Items, Player: !!ctx.Player,
-              UI: !!ctx.UI, Logger: !!ctx.Logger, Loot: !!ctx.Loot,
-              Dungeon: !!ctx.Dungeon, DungeonItems: !!ctx.DungeonItems,
-              FOV: !!ctx.FOV, AI: !!ctx.AI, Input: !!ctx.Input,
-              Render: !!ctx.Render, Tileset: !!ctx.Tileset, Flavor: !!ctx.Flavor,
-              World: !!ctx.World, Town: !!ctx.Town, TownAI: !!ctx.TownAI,
-              DungeonState: !!ctx.DungeonState
-            };
-            const rngSrc = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
-            const seedStr = (typeof currentSeed === "number") ? String(currentSeed >>> 0) : "(random)";
-            log("Diagnostics:", "notice");
-            log(`- Determinism: ${rngSrc}  Seed: ${seedStr}`, "info");
-            log(`- Mode: ${mode}  Floor: ${floor}  FOV: ${fovRadius}`, "info");
-            log(`- Map: ${map.length}x${(map[0] ? map[0].length : 0)}`, "info");
-            log(`- Entities: enemies=${enemies.length} corpses=${corpses.length} npcs=${npcs.length}`, "info");
-            log(`- Modules: ${Object.keys(mods).filter(k=>mods[k]).join(", ")}`, "info");
-            log(`- PERF last turn: ${PERF.lastTurnMs.toFixed(2)}ms, last draw: ${PERF.lastDrawMs.toFixed(2)}ms`, "info");
-            requestDraw();
-          },
-          onGodRunSmokeTest: () => {
-            // Reload the page with ?smoketest=1 so the loader injects the runner and it auto-runs
-            try {
-              const url = new URL(window.location.href);
-              url.searchParams.set("smoketest", "1");
-              // Preserve existing dev flag/state if set in localStorage
-              if (window.DEV || localStorage.getItem("DEV") === "1") {
-                url.searchParams.set("dev", "1");
-              }
-              log("GOD: Reloading with smoketest=1…", "notice");
-              window.location.href = url.toString();
-            } catch (e) {
-              try { console.error(e); } catch (_) {}
-              try {
-                log("GOD: Failed to construct URL; reloading with ?smoketest=1", "warn");
-              } catch (_) {}
-              window.location.search = "?smoketest=1";
-            }
-          },
-        });
+        }, godHandlers));
       }
     }
   }
