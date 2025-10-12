@@ -174,10 +174,6 @@
     const OG = modHandle("OccupancyGrid");
     if (OG && typeof OG.build === "function") {
       occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
-      return;
-    }
-    if (typeof window !== "undefined" && window.OccupancyGrid && typeof OccupancyGrid.build === "function") {
-      occupancy = OccupancyGrid.build({ map, enemies, npcs, props: townProps, player });
     }
   }
   let floor = 1;
@@ -1533,8 +1529,9 @@
   }
 
   function setupInput() {
-    if (window.Input && typeof Input.init === "function") {
-      Input.init({
+    const I = modHandle("Input");
+    if (I && typeof I.init === "function") {
+      I.init({
         // state queries
         isDead: () => isDead,
         isInventoryOpen: () => {
@@ -2617,8 +2614,9 @@
 
   // Mouse/click support delegated to ui/input_mouse.js
   try {
-    if (window.InputMouse && typeof InputMouse.init === "function") {
-      InputMouse.init({
+    const IM = modHandle("InputMouse");
+    if (IM && typeof IM.init === "function") {
+      IM.init({
         canvasId: "game",
         getMode: () => mode,
         TILE,
