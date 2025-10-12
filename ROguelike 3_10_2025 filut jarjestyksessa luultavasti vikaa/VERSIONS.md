@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.12 — Phase 3 step 12: Entities and Data modules to ESM
+- Changed: entities/items.js converted to ES module (export MATERIALS, TYPES, initialDecay, createEquipment, createEquipmentOfSlot, createByKey, createNamed, addType, listTypes, getTypeDef, typesBySlot, pickType, describe) and retains window.Items; index.html loads as type="module".
+- Changed: entities/enemies.js converted to ES module (export TYPES, listTypes, getTypeDef, colorFor, glyphFor, equipTierFor, equipChanceFor, potionWeightsFor, pickType, levelFor, damageMultiplier, enemyBlockChance, createEnemyAt) and retains window.Enemies; index.html loads as type="module".
+- Changed: dungeon/dungeon_items.js converted to ES module (export lootFactories, registerLoot, spawnChest, placeChestInStartRoom) and retains window.DungeonItems; index.html loads as type="module".
+- Changed: data/loader.js converted to ES module (export GameData) and retains window.GameData; index.html loads as type="module".
+- Changed: data/god.js converted to ES module (export heal, spawnStairsHere, spawnItems, spawnEnemyNearby, setAlwaysCrit, setCritPart, applySeed, rerollSeed) and retains window.God; index.html loads as type="module".
+- Changed: data/flavor.js converted to ES module (export logHit, logPlayerHit, announceFloorEnemyCount) and retains window.Flavor; index.html loads as type="module".
+
 v1.34.11 — Phase 3 step 11: World and Dungeon core modules to ESM
 - Changed: world/world.js converted to ES module (export TILES, generate, isWalkable, pickTownStart, biomeName) and retains window.World; index.html loads as type="module".
 - Changed: world/los.js converted to ES module (export tileTransparent, hasLOS) and retains window.LOS; index.html loads as type="module".

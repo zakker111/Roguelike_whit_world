@@ -1,7 +1,7 @@
 /**
  * GameData loader: loads JSON registries for items, enemies, npcs, consumables, shops, town config.
  * Exposes:
- *   window.GameData = {
+ *   export const GameData = {
  *     ready: Promise<void>,
  *     items: Array | null,
  *     enemies: Array | null,
@@ -14,145 +14,146 @@
  * When running from file:// where fetch() of local JSON is often blocked,
  * we provide compact, hardcoded defaults so the game remains playable.
  */
-(function () {
-  const DATA_FILES = {
-    items: "data/items.json",
-    enemies: "data/enemies.json",
-    npcs: "data/npcs.json",
-    consumables: "data/consumables.json",
-    shops: "data/shops.json",
-    town: "data/town.json",
-    flavor: "data/flavor.json",
-  };
 
-  // Compact defaults used when JSON is unavailable (e.g., file://)
-  // Minimal defaults to avoid duplicating JSON content.
-  // Intentionally left empty so modules use their own internal fallbacks when data is missing.
-  const DEFAULTS = {};
+const DATA_FILES = {
+  items: "data/items.json",
+  enemies: "data/enemies.json",
+  npcs: "data/npcs.json",
+  consumables: "data/consumables.json",
+  shops: "data/shops.json",
+  town: "data/town.json",
+  flavor: "data/flavor.json",
+};
 
-  function fetchJson(url) {
-    return fetch(url, { cache: "no-cache" })
-      .then(r => {
-        if (!r.ok) throw new Error("HTTP " + r.status + " for " + url);
-        return r.json();
-      });
-  }
+// Compact defaults used when JSON is unavailable (e.g., file://)
+// Minimal defaults to avoid duplicating JSON content.
+// Intentionally left empty so modules use their own internal fallbacks when data is missing.
+const DEFAULTS = {};
 
-  const GameData = {
-    items: null,
-    enemies: null,
-    npcs: null,
-    consumables: null,
-    shops: null,
-    town: null,
-    flavor: null,
-    ready: null,
-  };
+function fetchJson(url) {
+  return fetch(url, { cache: "no-cache" })
+    .then(r => {
+      if (!r.ok) throw new Error("HTTP " + r.status + " for " + url);
+      return r.json();
+    });
+}
 
+export const GameData = {
+  items: null,
+  enemies: null,
+  npcs: null,
+  consumables: null,
+  shops: null,
+  town: null,
+  flavor: null,
+  ready: null,
+};
 
-  function logNotice(msg) {
-    try {
-      if (window.Logger && typeof Logger.log === "function") {
-        Logger.log(msg, "notice");
-      } else if (window.DEV && typeof console !== "undefined") {
-        console.debug("[GameData] " + msg);
-      }
-    } catch (_) {}
-  }
-
-  function runningFromFile() {
-    try { return typeof location !== "undefined" && location.protocol === "file:"; } catch (_) { return false; }
-  }
-
-  function applyDefaultsIfNeeded() {
-    // No-op: avoid duplicating JSON content with hardcoded defaults.
-    // Modules across the codebase already provide sensible fallbacks when registries are missing.
-  }
-
-  GameData.ready = (async function loadAll() {
-    try {
-      const [items, enemies, npcs, consumables, shops, town, flavor] = await Promise.all([
-        fetchJson(DATA_FILES.items).catch(() => null),
-        fetchJson(DATA_FILES.enemies).catch(() => null),
-        fetchJson(DATA_FILES.npcs).catch(() => null),
-        fetchJson(DATA_FILES.consumables).catch(() => null),
-        fetchJson(DATA_FILES.shops).catch(() => null),
-        fetchJson(DATA_FILES.town).catch(() => null),
-        fetchJson(DATA_FILES.flavor).catch(() => null),
-      ]);
-
-      GameData.items = Array.isArray(items) ? items : null;
-      GameData.enemies = Array.isArray(enemies) ? enemies : null;
-      GameData.npcs = (npcs && typeof npcs === "object") ? npcs : null;
-      GameData.consumables = (consumables && typeof consumables === "object") ? consumables : null;
-      GameData.shops = Array.isArray(shops) ? shops : null;
-      GameData.town = (town && typeof town === "object") ? town : null;
-      GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
-
-      // If running under file://, note that JSON may not load due to fetch/CORS
-      if (runningFromFile()) {
-        logNotice("Detected file:// context; JSON registries may be unavailable. Modules will use internal fallbacks.");
-      }
-
-      // DEV-only: inject malformed entries to exercise validators when ?validatebad=1 is present
-      (function maybeInjectBadJson() {
-        try {
-          const params = new URLSearchParams(location.search);
-          const enabled = (params.get("validatebad") === "1") || (params.get("badjson") === "1");
-          const dev = window.DEV || localStorage.getItem("DEV") === "1" || (params.get("dev") === "1");
-          if (!enabled || !dev) return;
-          window.ValidationLog = window.ValidationLog || { warnings: [], notices: [] };
-
-          if (Array.isArray(GameData.items)) {
-            GameData.items.push({ id: "bad_item_no_slot", name: "bad", atk: { "1": [0, 0] } });
-            GameData.items.push({ id: "bad_item_no_ranges", slot: "hand", name: "bad2" });
-            window.ValidationLog.notices.push("Injected bad item entries");
-          }
-
-          if (Array.isArray(GameData.enemies)) {
-            GameData.enemies.push({ id: "bad_enemy_no_glyph", color: "#fff", tier: 1, weightByDepth: [[0, 0.1]] });
-            GameData.enemies.push({ id: "bad_enemy_no_weights", glyph: "?", color: "#fff", tier: 1, hp: [[0, 3, 0.5]], atk: [[0, 1, 0.2]], xp: [[0, 5, 0.5]] });
-            GameData.enemies.push({ id: "bad_enemy_no_stats", glyph: "x", color: "#fff", tier: 1, weightByDepth: [[0, 0.1]] });
-            window.ValidationLog.notices.push("Injected bad enemy entries");
-          }
-
-          if (GameData.npcs && typeof GameData.npcs === "object") {
-            GameData.npcs.residentLines = [];
-            GameData.npcs.shopkeeperLines = [];
-            window.ValidationLog.notices.push("Emptied some NPC arrays");
-          }
-          window.BAD_JSON_INJECTED = true;
-        } catch (_) {}
-      })();
-
-      // Minimal validation/logging for NPCs schema
-      (function validateNPCs() {
-        const ND = GameData.npcs;
-        if (!ND) { logNotice("NPCs registry missing; using defaults in AI/Town."); return; }
-        function isArr(a) { return Array.isArray(a) && a.length > 0; }
-        if (!isArr(ND.residentNames)) logNotice("NPCs: residentNames missing or empty.");
-        if (!isArr(ND.residentLines)) logNotice("NPCs: residentLines missing or empty.");
-        if (!isArr(ND.shopkeeperNames)) logNotice("NPCs: shopkeeperNames missing or empty.");
-        if (!isArr(ND.shopkeeperLines)) logNotice("NPCs: shopkeeperLines missing or empty.");
-        if (!isArr(ND.petCats)) logNotice("NPCs: petCats missing or empty.");
-        if (!isArr(ND.petDogs)) logNotice("NPCs: petDogs missing or empty.");
-      })();
-
-      if (window.DEV) {
-        try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town }); } catch (_) {}
-      }
-
-      // If any registry failed to load, modules will use internal fallbacks.
-      if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor) {
-        logNotice("Some registries failed to load; modules will use internal fallbacks.");
-      }
-    } catch (e) {
-      try { console.warn("[GameData] load error", e); } catch (_) {}
-      // Keep whatever loaded; fill in defaults for missing ones
-      applyDefaultsIfNeeded();
-      logNotice("Registry load error; using built-in defaults.");
+function logNotice(msg) {
+  try {
+    if (window.Logger && typeof Logger.log === "function") {
+      Logger.log(msg, "notice");
+    } else if (window.DEV && typeof console !== "undefined") {
+      console.debug("[GameData] " + msg);
     }
-  })();
+  } catch (_) {}
+}
 
-  window.GameData = GameData;
+function runningFromFile() {
+  try { return typeof location !== "undefined" && location.protocol === "file:"; } catch (_) { return false; }
+}
+
+function applyDefaultsIfNeeded() {
+  // No-op: avoid duplicating JSON content with hardcoded defaults.
+  // Modules across the codebase already provide sensible fallbacks when registries are missing.
+}
+
+GameData.ready = (async function loadAll() {
+  try {
+    const [items, enemies, npcs, consumables, shops, town, flavor] = await Promise.all([
+      fetchJson(DATA_FILES.items).catch(() => null),
+      fetchJson(DATA_FILES.enemies).catch(() => null),
+      fetchJson(DATA_FILES.npcs).catch(() => null),
+      fetchJson(DATA_FILES.consumables).catch(() => null),
+      fetchJson(DATA_FILES.shops).catch(() => null),
+      fetchJson(DATA_FILES.town).catch(() => null),
+      fetchJson(DATA_FILES.flavor).catch(() => null),
+    ]);
+
+    GameData.items = Array.isArray(items) ? items : null;
+    GameData.enemies = Array.isArray(enemies) ? enemies : null;
+    GameData.npcs = (npcs && typeof npcs === "object") ? npcs : null;
+    GameData.consumables = (consumables && typeof consumables === "object") ? consumables : null;
+    GameData.shops = Array.isArray(shops) ? shops : null;
+    GameData.town = (town && typeof town === "object") ? town : null;
+    GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
+
+    // If running under file://, note that JSON may not load due to fetch/CORS
+    if (runningFromFile()) {
+      logNotice("Detected file:// context; JSON registries may be unavailable. Modules will use internal fallbacks.");
+    }
+
+    // DEV-only: inject malformed entries to exercise validators when ?validatebad=1 is present
+    (function maybeInjectBadJson() {
+      try {
+        const params = new URLSearchParams(location.search);
+        const enabled = (params.get("validatebad") === "1") || (params.get("badjson") === "1");
+        const dev = window.DEV || localStorage.getItem("DEV") === "1" || (params.get("dev") === "1");
+        if (!enabled || !dev) return;
+        window.ValidationLog = window.ValidationLog || { warnings: [], notices: [] };
+
+        if (Array.isArray(GameData.items)) {
+          GameData.items.push({ id: "bad_item_no_slot", name: "bad", atk: { "1": [0, 0] } });
+          GameData.items.push({ id: "bad_item_no_ranges", slot: "hand", name: "bad2" });
+          window.ValidationLog.notices.push("Injected bad item entries");
+        }
+
+        if (Array.isArray(GameData.enemies)) {
+          GameData.enemies.push({ id: "bad_enemy_no_glyph", color: "#fff", tier: 1, weightByDepth: [[0, 0.1]] });
+          GameData.enemies.push({ id: "bad_enemy_no_weights", glyph: "?", color: "#fff", tier: 1, hp: [[0, 3, 0.5]], atk: [[0, 1, 0.2]], xp: [[0, 5, 0.5]] });
+          GameData.enemies.push({ id: "bad_enemy_no_stats", glyph: "x", color: "#fff", tier: 1, weightByDepth: [[0, 0.1]] });
+          window.ValidationLog.notices.push("Injected bad enemy entries");
+        }
+
+        if (GameData.npcs && typeof GameData.npcs === "object") {
+          GameData.npcs.residentLines = [];
+          GameData.npcs.shopkeeperLines = [];
+          window.ValidationLog.notices.push("Emptied some NPC arrays");
+        }
+        window.BAD_JSON_INJECTED = true;
+      } catch (_) {}
+    })();
+
+    // Minimal validation/logging for NPCs schema
+    (function validateNPCs() {
+      const ND = GameData.npcs;
+      if (!ND) { logNotice("NPCs registry missing; using defaults in AI/Town."); return; }
+      function isArr(a) { return Array.isArray(a) && a.length > 0; }
+      if (!isArr(ND.residentNames)) logNotice("NPCs: residentNames missing or empty.");
+      if (!isArr(ND.residentLines)) logNotice("NPCs: residentLines missing or empty.");
+      if (!isArr(ND.shopkeeperNames)) logNotice("NPCs: shopkeeperNames missing or empty.");
+      if (!isArr(ND.shopkeeperLines)) logNotice("NPCs: shopkeeperLines missing or empty.");
+      if (!isArr(ND.petCats)) logNotice("NPCs: petCats missing or empty.");
+      if (!isArr(ND.petDogs)) logNotice("NPCs: petDogs missing or empty.");
+    })();
+
+    if (window.DEV) {
+      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town }); } catch (_) {}
+    }
+
+    // If any registry failed to load, modules will use internal fallbacks.
+    if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor) {
+      logNotice("Some registries failed to load; modules will use internal fallbacks.");
+    }
+  } catch (e) {
+    try { console.warn("[GameData] load error", e); } catch (_) {}
+    // Keep whatever loaded; fill in defaults for missing ones
+    applyDefaultsIfNeeded();
+    logNotice("Registry load error; using built-in defaults.");
+  }
 })();
+
+// Back-compat: attach to window
+if (typeof window !== "undefined") {
+  window.GameData = GameData;
+}
