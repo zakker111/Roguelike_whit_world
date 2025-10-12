@@ -1,6 +1,13 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.16 — Phase 3 step 16: Combat modules to ESM
+- Changed: combat/combat_utils.js converted to ES module (export profiles, rollHitLocation, critMultiplier) and augments window.Combat; index.html loads as type="module".
+- Changed: combat/combat.js converted to ES module (export getPlayerBlockChance, getEnemyBlockChance, enemyDamageAfterDefense, enemyDamageMultiplier) and augments window.Combat; index.html loads as type="module".
+- Changed: combat/stats.js converted to ES module (export getPlayerAttack, getPlayerDefense) and retains window.Stats; index.html loads as type="module".
+- Changed: combat/status_effects.js converted to ES module (export applyLimpToEnemy, applyDazedToPlayer, applyBleedToEnemy, applyBleedToPlayer, tick) and retains window.Status; index.html loads as type="module".
+- Changed: combat/equipment_decay.js converted to ES module (export initialDecay, decayEquipped, decayAttackHands, decayBlockingHands) and retains window.EquipmentDecay; index.html loads as type="module".
+
 v1.34.15 — Phase 3 step 15: RNG services, ShopUI, and Town generation to ESM
 - Changed: core/rng_service.js converted to ES module (export init, applySeed, autoInit, rng, int, float, chance, getSeed) and retains window.RNG; index.html loads as type="module".
 - Changed: utils/rng_fallback.js converted to ES module (export getRng) and retains window.RNGFallback; index.html loads as type="module".
