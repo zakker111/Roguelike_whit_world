@@ -216,6 +216,11 @@
         ctx2d.restore();
       }
     } catch (_) {}
+
+    // Grid overlay (if enabled)
+    if (window.RenderCore && typeof RenderCore.drawGridOverlay === "function") {
+      RenderCore.drawGridOverlay(view);
+    }
   }
 
   window.RenderOverworld = { draw };

@@ -172,6 +172,11 @@
         RenderCore.drawGlyph(ctx2d, screenX, screenY, "@", COLORS.player, TILE);
       }
     }
+
+    // Grid overlay (if enabled)
+    if (window.RenderCore && typeof RenderCore.drawGridOverlay === "function") {
+      RenderCore.drawGridOverlay(view);
+    }
   }
 
   window.RenderDungeon = { draw };

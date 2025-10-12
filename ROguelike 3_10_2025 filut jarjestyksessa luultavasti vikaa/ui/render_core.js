@@ -5,6 +5,7 @@
  * - computeView(ctx): returns { ctx2d, TILE, ROWS, COLS, COLORS, TILES, cam, tileOffsetX, tileOffsetY, startX, startY, endX, endY, mapRows, mapCols, drawGrid, TS, tilesetReady }
  * - drawGlyph(ctx2d, x, y, ch, color, TILE)
  * - enemyColor(ctx, type, COLORS)
+ * - drawGridOverlay(view): draws a light grid aligned to tile boundaries when enabled
  */
 (function () {
   function enemyColor(ctx, type, COLORS) {
@@ -51,9 +52,6 @@
     ctx2d.textBaseline = "middle";
 
     const drawGrid = (typeof window !== "undefined" && typeof window.DRAW_GRID === "boolean") ? window.DRAW_GRID : true;
-    if (drawGrid) {
-      ctx2d.strokeStyle = "rgba(122,162,247,0.05)";
-    }
 
     const TS = ctx.Tileset || (typeof window !== "undefined" ? window.Tileset : null);
     const tilesetReady = !!(TS && typeof TS.isReady === "function" && TS.isReady());
@@ -65,5 +63,35 @@
     };
   }
 
-  window.RenderCore = { computeView, drawGlyph, enemyColor };
+  function drawGridOverlay(view) {
+    try {
+      const { ctx2d, TILE, COLS, ROWS, tileOffsetX, tileOffsetY, cam, drawGrid } = view || {};
+      if (!ctx2d || !TILE || !COLS || !ROWS || !cam) return;
+      const enabled = (typeof drawGrid === "boolean") ? drawGrid
+        : ((typeof window !== "undefined" && typeof window.DRAW_GRID === "boolean") ? window.DRAW_GRID : true);
+      if (!enabled) return;
+
+      ctx2d.save();
+      ctx2d.strokeStyle = "rgba(122,162,247,0.08)";
+      ctx2d.lineWidth = 1;
+
+      // Vertical lines
+      ctx2d.beginPath();
+      for (let c = 0; c <= COLS; c++) {
+        const x = Math.floor(c * TILE - tileOffsetX) + 0.5;
+        ctx2d.moveTo(x, 0);
+        ctx2d.lineTo(x, cam.height);
+      }
+      // Horizontal lines
+      for (let r = 0; r <= ROWS; r++) {
+        const y = Math.floor(r * TILE - tileOffsetY) + 0.5;
+        ctx2d.moveTo(0, y);
+        ctx2d.lineTo(cam.width, y);
+      }
+      ctx2d.stroke();
+      ctx2d.restore();
+    } catch (_) {}
+  }
+
+  window.RenderCore = { computeView, drawGlyph, enemyColor, drawGridOverlay };
 })();
