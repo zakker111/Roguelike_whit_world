@@ -10,7 +10,17 @@ Conventions
 - UI: user interface-only changes
 - Dev: refactors, tooling, or internal changes
 
-v1.26.0 — Stable town/city names, ctx-first UI in core, safer loot/inventory fallbacks
+v1.27.0 — UI gating centralization via UIBridge; Shop/Smoke wrappers; runtime-only persistence
+- Added: UIBridge wrappers
+  - core/ui_bridge.js: isShopOpen() and isSmokeOpen() wrappers (ShopUI.isOpen and UI.isSmokeOpen with safe fallbacks).
+- Changed: Mouse input gating
+  - ui/input_mouse.js now uses UIBridge.isLootOpen/isInventoryOpen/isGodOpen/isShopOpen/isSmokeOpen only; removed direct window.UI and window.ShopUI checks.
+- Changed: Keyboard input shop gating
+  - core/game.js Input handlers now use UIBridge.isShopOpen() to determine modal priority; removed DOM fallback.
+- Changed: Loot and persistence
+  - entities/loot.js routes loot panel open/close and inventory-open checks through UIBridge only; Dungeon persistence saves via DungeonRuntime only.
+
+v1.26.0 — Stable town/city names, ctx-first UI in core, safer loot/inventory fallacks
 - Fixed: Town/city names now persist and are reused on signs and greetings
   - worldgen/town_gen.js persists the generated name into the corresponding world.towns entry (info.name). Re-entries use the saved name.
 - Changed: Core game uses UIBridge-only for inventory/loot/gameover where possible

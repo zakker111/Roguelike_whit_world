@@ -38,24 +38,15 @@
 
       canvasEl.addEventListener("click", function (ev) {
         try {
-          // If UI modals are open, let them handle clicks
+          // If UI modals are open, let them handle clicks (UIBridge centralization)
           try {
             var UB = (typeof window !== "undefined" ? window.UIBridge : null);
             if (UB && typeof UB.isLootOpen === "function" && UB.isLootOpen()) return;
             if (UB && typeof UB.isInventoryOpen === "function" && UB.isInventoryOpen()) return;
             if (UB && typeof UB.isGodOpen === "function" && UB.isGodOpen()) return;
+            if (UB && typeof UB.isShopOpen === "function" && UB.isShopOpen()) return;
+            if (UB && typeof UB.isSmokeOpen === "function" && UB.isSmokeOpen()) return;
           } catch (_) {}
-          // Also respect ShopUI state
-          try {
-            var SU = (typeof window !== "undefined" ? window.ShopUI : null);
-            if (SU && typeof SU.isOpen === "function" && SU.isOpen()) return;
-          } catch (_) {}
-          if (window.UI) {
-            if (typeof UI.isLootOpen === "function" && UI.isLootOpen()) return;
-            if (typeof UI.isInventoryOpen === "function" && UI.isInventoryOpen()) return;
-            if (typeof UI.isGodOpen === "function" && UI.isGodOpen()) return;
-            if (typeof UI.isSmokeOpen === "function" && UI.isSmokeOpen()) return;
-          }
 
           var mode = getMode();
           if (mode !== "dungeon" && mode !== "town") return;

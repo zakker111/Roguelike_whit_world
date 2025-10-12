@@ -105,6 +105,24 @@
     try { return !!(hasUI() && UI.isGodOpen && UI.isGodOpen()); } catch (_) { return false; }
   }
 
+  // Shop UI open-state (wrapper)
+  function isShopOpen() {
+    try {
+      if (typeof window !== "undefined" && window.ShopUI && typeof window.ShopUI.isOpen === "function") {
+        return !!window.ShopUI.isOpen();
+      }
+    } catch (_) {}
+    try {
+      const el = document.getElementById("shop-panel");
+      return !!(el && el.hidden === false);
+    } catch (_) { return false; }
+  }
+
+  // Smoke panel open-state (used by input gating)
+  function isSmokeOpen() {
+    try { return !!(hasUI() && UI.isSmokeOpen && UI.isSmokeOpen()); } catch (_) { return false; }
+  }
+
   function showConfirm(ctx, text, pos, onOk, onCancel) {
     if (hasUI() && typeof UI.showConfirm === "function") {
       try { UI.showConfirm(text, pos, onOk, onCancel); } catch (_) {}
@@ -142,6 +160,8 @@
     showGod,
     hideGod,
     isGodOpen,
+    isShopOpen,
+    isSmokeOpen,
     showConfirm,
     showTownExitButton,
     hideTownExitButton
