@@ -43,6 +43,10 @@ v1.34.7 — Phase 3 step 7: UI InputMouse to ESM
 - Changed: ui/input_mouse.js converted to ES module (export init) and retains window.InputMouse for back-compat.
 - Changed: index.html loads ui/input_mouse.js as type="module".
 
+v1.34.8 — Phase 3 step 8: UI Decals and Logger to ESM
+- Changed: ui/decals.js converted to ES module (export add, tick) and retains window.Decals; index.html loads as type="module".
+- Changed: ui/logger.js converted to ES module (export Logger) and retains window.Logger; index.html loads as type="module".
+
 v1.34.5 — Phase 3 step 4.1: core/game.js module-ready, attach window.Game
 - Changed: core/game.js now attaches a window.Game facade exposing minimal engine APIs (getCtx, requestDraw, initWorld, generateLevel, tryMovePlayer, doAction, descendIfPossible, applySeed, rerollSeed, setFovRadius, updateUI).
 - Changed: index.html now loads core/game.js with type="module" ahead of future ESM export adoption.

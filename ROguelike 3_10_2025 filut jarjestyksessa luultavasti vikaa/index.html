@@ -227,7 +227,7 @@
   <script src="/services/shop_service.js" type="module" defer></script>
 
   <!-- UI and rendering -->
-  <script src="/ui/logger.js" defer></script>
+  <script src="/ui/logger.js" type="module" defer></script>
   <script>
     // Initialize Logger once DOM is ready; deferred scripts will have loaded by then
     document.addEventListener('DOMContentLoaded', function () {
@@ -247,7 +247,7 @@
   <script src="/ui/render_overlays.js" defer></script>
   <!-- Orchestrator -->
   <script src="/ui/render.js" defer></script>
-  <script src="/ui/decals.js" defer></script>
+  <script src="/ui/decals.js" type="module" defer></script>
   <script src="/ui/ui.js" defer></script>
   <!-- Step 1: minimal ShopUI module (hide/ensurePanel); loaded before core/game.js -->
   <script src="/ui/shop_panel.js" defer></script>
