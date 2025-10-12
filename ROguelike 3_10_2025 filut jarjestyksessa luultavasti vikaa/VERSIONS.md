@@ -1,6 +1,10 @@
 # Game Version History
 Last updated: 2025-10-12 00:00 UTC
 
+v1.34.10 — Phase 3 step 10: Tileset and UI modules to ESM
+- Changed: ui/tileset.js converted to ES module (export Tileset) and retains window.Tileset; index.html loads as type="module".
+- Changed: ui/ui.js converted to ES module (export UI) and retains window.UI; index.html loads as type="module".
+
 v1.34.9 — Phase 3 step 9: Render modules to ESM
 - Changed: ui/render_core.js converted to ES module (export computeView, drawGlyph, enemyColor, drawGridOverlay) and retains window.RenderCore; index.html loads as type="module".
 - Changed: ui/render.js converted to ES module (export draw) and retains window.Render; index.html loads as type="module".
