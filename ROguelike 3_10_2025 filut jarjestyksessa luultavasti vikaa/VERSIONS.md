@@ -1,5 +1,13 @@
 # Game Version History
-Last updated: 2025-10-12 01:05 UTC
+Last updated: 2025-10-12 01:20 UTC
+
+v1.34.22 — Phase 2 cleanup: remove remaining DOM panel fallbacks and tighten ShopService usage
+- Changed: core/game.js inventory panel flows now rely solely on InventoryController or UIBridge
+  - Removed DOM fallback in showInventoryPanel/hideInventoryPanel for a cleaner, centralized UI path
+- Changed: core/actions.js shop helpers simplified to prefer ShopService exclusively
+  - isOpenAtShop falls back only to alwaysOpen when ShopService is unavailable
+  - shopScheduleStr returns empty string when ShopService is unavailable, avoiding duplicated local formatting
+- Note: Loot and Game Over panels already routed through UIBridge-only flows; no DOM fallbacks remain in core/game.js for panels.
 
 v1.34.21 — Phase 2 cleanup: remove redundant helpers and unify UI via UIBridge
 - Removed: unused/duplicated helpers from core/game.js now handled by modules/services
