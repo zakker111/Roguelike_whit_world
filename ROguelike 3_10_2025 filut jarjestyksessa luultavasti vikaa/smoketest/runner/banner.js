@@ -13,28 +13,8 @@
     ensureBanner() {
       const L = getLogging();
       if (L && typeof L.ensureBanner === "function") return L.ensureBanner();
-      // fallback: minimal banner
-      try {
-        var el = document.getElementById("smoke-banner");
-        if (el) return el;
-        el = document.createElement("div");
-        el.id = "smoke-banner";
-        el.style.position = "fixed";
-        el.style.right = "12px";
-        el.style.bottom = "12px";
-        el.style.zIndex = "9999";
-        el.style.padding = "8px 10px";
-        el.style.fontFamily = "JetBrains Mono, monospace";
-        el.style.fontSize = "12px";
-        el.style.background = "rgba(21,22,27,0.9)";
-        el.style.color = "#d6deeb";
-        el.style.border = "1px solid rgba(122,162,247,0.35)";
-        el.style.borderRadius = "8px";
-        el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.5)";
-        el.textContent = "[SMOKE] Runner ready…";
-        document.body.appendChild(el);
-        return el;
-      } catch (_) { return null; }
+      // Minimal fallback: reuse existing element if present; avoid styling duplication
+      try { return document.getElementById("smoke-banner") || null; } catch (_) { return null; }
     },
 
     ensureStatusEl() {
@@ -47,8 +27,6 @@
         if (!el) {
           el = document.createElement("div");
           el.id = "smoke-status";
-          el.style.margin = "6px 0";
-          el.style.color = "#93c5fd";
           host.prepend(el);
         }
         return el;
@@ -82,13 +60,17 @@
     log(msg, type) {
       const L = getLogging();
       if (L && typeof L.log === "function") return L.log(msg, type);
-      const banner = Banner.ensureBanner();
+      const el = Banner.ensureBanner();
       const m = Banner.currentMode();
       const line = "[SMOKE]" + (m ? " [" + m + "]" : "") + " " + msg;
-      if (banner) banner.textContent = line;
+      if (el) el.textContent = line;
       Banner.setStatus(msg);
       try {
-        if (window.Logger && typeof Logger.log === "function") Logger.log(line, type || "info");
+        if (window.GameAPI && typeof window.GameAPI.log === "function") {
+          window.GameAPI.log(line, type || "info");
+        } else if (window.Logger && typeof Logger.log === "function") {
+          Logger.log(line, type || "info");
+        }
       } catch (_) {}
       try { console.log(line); } catch (_) {}
     },
