@@ -18,17 +18,17 @@ const round1 = (n) => Math.round(n * 10) / 10;
 function getRng(rng) {
   if (typeof rng === "function") return rng;
   try {
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") {
-      if (typeof RNG.getSeed !== "function" || RNG.getSeed() == null) {
-        if (typeof RNG.autoInit === "function") RNG.autoInit();
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") {
+      if (typeof window.RNG.getSeed !== "function" || window.RNG.getSeed() == null) {
+        if (typeof window.RNG.autoInit === "function") window.RNG.autoInit();
       }
-      return RNG.rng;
+      return window.RNG.rng;
     }
   } catch (_) {}
   // Shared fallback for determinism without duplicating PRNG implementations
   try {
-    if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
-      return RNGFallback.getRng();
+    if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
+      RNGFallback.getRng();
     }
   } catch (_) {}
   // Ultimate fallback: non-deterministic
@@ -361,12 +361,12 @@ export function createNamed(config, rng) {
 
 // If GameData is present, extend TYPES after data is ready
 try {
-  if (window.GameData && GameData.ready && typeof GameData.ready.then === "function") {
-    GameData.ready.then(() => {
-      try { applyJsonItems(GameData.items); } catch (_) {}
+  if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
+    window.GameData.ready.then(() => {
+      try { applyJsonItems(window.GameData.items); } catch (_) {}
     });
-  } else if (window.GameData && Array.isArray(GameData.items)) {
-    applyJsonItems(GameData.items);
+  } else if (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.items)) {
+    applyJsonItems(window.GameData.items);
   }
 } catch (_) {}
 

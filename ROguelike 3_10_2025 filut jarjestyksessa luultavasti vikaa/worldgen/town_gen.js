@@ -25,7 +25,7 @@
   function inBounds(ctx, x, y) {
     try {
       if (ctx && ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
-      if (typeof window !== "undefined" && window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
+      if (typeof window !== "undefined" && window.Utils && typeof window.Utils.inBounds === "function") return window.Utils.inBounds(ctx, x, y);
     } catch (_) {}
     const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
     return x >= 0 && y >= 0 && x < cols && y < rows;
@@ -36,7 +36,7 @@
       if (ctx && ctx.Utils && typeof ctx.Utils.manhattan === "function") return ctx.Utils.manhattan(ax, ay, bx, by);
     } catch (_) {}
     try {
-      if (typeof window !== "undefined" && window.Utils && typeof Utils.manhattan === "function") return Utils.manhattan(ax, ay, bx, by);
+      if (typeof window !== "undefined" && window.Utils && typeof window.Utils.manhattan === "function") return window.Utils.manhattan(ax, ay, bx, by);
     } catch (_) {}
     return Math.abs(ax - bx) + Math.abs(ay - by);
   }
@@ -46,7 +46,7 @@
       if (ctx && ctx.Utils && typeof ctx.Utils.isFreeTownFloor === "function") return ctx.Utils.isFreeTownFloor(ctx, x, y);
     } catch (_) {}
     try {
-      if (typeof window !== "undefined" && window.Utils && typeof Utils.isFreeTownFloor === "function") return Utils.isFreeTownFloor(ctx, x, y);
+      if (typeof window !== "undefined" && window.Utils && typeof window.Utils.isFreeTownFloor === "function") return window.Utils.isFreeTownFloor(ctx, x, y);
     } catch (_) {}
     if (!inBounds(ctx, x, y)) return false;
     const t = ctx.map[y][x];
@@ -300,7 +300,7 @@
     } catch (_) { info = null; }
 
     // Size the town map from data/town.json (fallback to previous values)
-    const TOWNCFG = (window.GameData && GameData.town) || null;
+    const TOWNCFG = (typeof window !== "undefined" && window.GameData && window.GameData.town) || null;
     function cfgSize(sizeKey) {
       const d = (TOWNCFG && TOWNCFG.sizes && TOWNCFG.sizes[sizeKey]) || null;
       if (d) return { W: Math.min(ctx.MAP_COLS, d.W | 0), H: Math.min(ctx.MAP_ROWS, d.H | 0) };
@@ -493,7 +493,7 @@
       return { openMin: o, closeMin: c, alwaysOpen: false };
     }
 
-    const shopDefs = (window.GameData && Array.isArray(GameData.shops)) ? GameData.shops.slice(0) : [
+    const shopDefs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops.slice(0) : [
       { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
       { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
       { type: "armorer", name: "Armorer", open: "08:00", close: "17:00" },
@@ -793,13 +793,13 @@
     try {
       if (ctx && ctx.TownAI && typeof ctx.TownAI.populateTown === "function") {
         ctx.TownAI.populateTown(ctx);
-      } else if (typeof window !== "undefined" && window.TownAI && typeof TownAI.populateTown === "function") {
-        TownAI.populateTown(ctx);
+      } else if (typeof window !== "undefined" && window.TownAI && typeof window.TownAI.populateTown === "function") {
+        window.TownAI.populateTown(ctx);
       }
     } catch (_) {}
 
     // Roaming villagers near plaza
-    const ND = (window.GameData && GameData.npcs) ? GameData.npcs : null;
+    const ND = (typeof window !== "undefined" && window.GameData && window.GameData.npcs) ? window.GameData.npcs : null;
     const baseLines = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length)
       ? ND.residentLines
       : [
@@ -877,8 +877,8 @@
       if (ctx && ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") {
         return ctx.ShopService.isShopOpenNow(ctx, shop);
       }
-      if (typeof window !== "undefined" && window.ShopService && typeof ShopService.isShopOpenNow === "function") {
-        return ShopService.isShopOpenNow(ctx, shop);
+      if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.isShopOpenNow === "function") {
+        return window.ShopService.isShopOpenNow(ctx, shop);
       }
     } catch (_){}
     return false;
@@ -888,8 +888,8 @@
       if (ctx && ctx.ShopService && typeof ctx.ShopService.shopScheduleStr === "function") {
         return ctx.ShopService.shopScheduleStr(shop);
       }
-      if (typeof window !== "undefined" && window.ShopService && typeof ShopService.shopScheduleStr === "function") {
-        return ShopService.shopScheduleStr(shop);
+      if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.shopScheduleStr === "function") {
+        return window.ShopService.shopScheduleStr(shop);
       }
     } catch (_){}
     return "";
@@ -899,8 +899,8 @@
       if (ctx && ctx.ShopService && typeof ctx.ShopService.shopAt === "function") {
         return ctx.ShopService.shopAt(ctx, x, y);
       }
-      if (typeof window !== "undefined" && window.ShopService && typeof ShopService.shopAt === "function") {
-        return ShopService.shopAt(ctx, x, y);
+      if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.shopAt === "function") {
+        return window.ShopService.shopAt(ctx, x, y);
       }
     } catch (_){}
     return null;

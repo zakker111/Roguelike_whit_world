@@ -15,7 +15,7 @@
 function inBounds(ctx, x, y) {
   try {
     if (ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
-    if (typeof window !== "undefined" && window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
+    if (typeof window !== "undefined" && window.Utils && typeof window.Utils.inBounds === "function") return window.Utils.inBounds(ctx, x, y);
   } catch (_) {}
   const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
   return x >= 0 && y >= 0 && x < cols && y < rows;
