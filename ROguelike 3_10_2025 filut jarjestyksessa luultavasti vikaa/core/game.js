@@ -1129,10 +1129,6 @@
     if (M && typeof M.leaveTownNow === "function") {
       const ctx = getCtx();
       M.leaveTownNow(ctx);
-      const TR = modHandle("TownRuntime");
-      if (TR && typeof TR.applyLeaveSync === "function") {
-        TR.applyLeaveSync(ctx);
-      }
       // Sync mutated ctx back into local state, then center camera and refresh
       syncFromCtx(ctx);
       updateCamera();

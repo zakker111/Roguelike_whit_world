@@ -37,11 +37,21 @@ function syncAfterMutation(ctx) {
 
 // Public API
 export function leaveTownNow(ctx) {
-  if (!ctx.world) return;
+  if (!ctx || !ctx.world) return;
+  // Centralize leave/transition via TownRuntime
+  try {
+    if (ctx.TownRuntime && typeof ctx.TownRuntime.applyLeaveSync === "function") {
+      ctx.TownRuntime.applyLeaveSync(ctx);
+      return;
+    }
+  } catch (_) {}
+  // Fallback: minimal path to avoid getting stuck if TownRuntime is missing
   ctx.mode = "world";
   ctx.map = ctx.world.map;
-  ctx.npcs.length = 0;
-  ctx.shops.length = 0;
+  try {
+    if (Array.isArray(ctx.npcs)) ctx.npcs.length = 0;
+    if (Array.isArray(ctx.shops)) ctx.shops.length = 0;
+  } catch (_) {}
   if (ctx.worldReturnPos) {
     ctx.player.x = ctx.worldReturnPos.x;
     ctx.player.y = ctx.worldReturnPos.y;
@@ -108,7 +118,8 @@ export function enterTownIfOnTile(ctx) {
             // After TownRuntime.generate, ensure gate exit anchor and UI
             ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
             try {
-              if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
+              if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
+              else if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
             } catch (_) {}
             if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
             syncAfterMutation(ctx);
@@ -126,7 +137,8 @@ export function enterTownIfOnTile(ctx) {
         if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 0);
       }
       try {
-        if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
+        if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
+        else if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
       } catch (_) {}
       if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
       syncAfterMutation(ctx);
