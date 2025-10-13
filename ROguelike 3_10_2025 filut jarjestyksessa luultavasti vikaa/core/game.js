@@ -750,13 +750,31 @@
       log("You explore the dungeon.");
       try {
         const DR = modHandle("DungeonRuntime");
+        const ctx = getCtx();
         if (DR && typeof DR.save === "function") {
-          DR.save(getCtx(), true);
+          DR.save(ctx, true);
         } else {
-          saveCurrentDungeonState(true);
+          const DS = modHandle("DungeonState");
+          if (DS && typeof DS.save === "function") {
+            DS.save(ctx);
+          }
         }
       } catch (_) {
-        saveCurrentDungeonState(true);
+        try {
+          const DS = modHandle("DungeonState");
+          if (DS && typeof DS.save === "function") {
+            DS.save(getCtx());
+          }
+        } catch (_) {}
+      }
+        }
+      } catch (_) {
+        try {
+          const DS = modHandle("DungeonState");
+          if (DS && typeof DS.save === "function") {
+            DS.save(getCtx());
+          }
+        } catch (_) {}
       }
       requestDraw();
       return;
@@ -807,84 +825,13 @@
     return `${x},${y}`;
   }
 
-  function saveCurrentDungeonState(logOnce = false) {
-    const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.save === "function") {
-      return DR.save(getCtx(), logOnce);
-    }
-    if (mode !== "dungeon" || !currentDungeon || !dungeonExitAt) return;
-    const key = dungeonKeyFromWorldPos(currentDungeon.x, currentDungeon.y);
-    dungeonStates[key] = {
-      map,
-      seen,
-      visible,
-      enemies,
-      corpses,
-      decals,
-      dungeonExitAt: { x: dungeonExitAt.x, y: dungeonExitAt.y },
-      info: currentDungeon,
-      level: floor
-    };
-    if (logOnce) {
-      try {
-        const totalEnemies = Array.isArray(enemies) ? enemies.length : 0;
-        const typeCounts = (() => {
-          try {
-            if (!Array.isArray(enemies) || enemies.length === 0) return "";
-            const mapCounts = {};
-            for (const e of enemies) {
-              const t = (e && e.type) ? String(e.type) : "(unknown)";
-              mapCounts[t] = (mapCounts[t] || 0) + 1;
-            }
-            const parts = Object.keys(mapCounts).sort().map(k => `${k}:${mapCounts[k]}`);
-            return parts.join(", ");
-          } catch (_) { return ""; }
-        })();
-        const msg = `Dungeon snapshot: enemies=${totalEnemies}${typeCounts ? ` [${typeCounts}]` : ""}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
+  `;
         log(msg, "notice");
       } catch (_) {}
     }
   }
 
-  function loadDungeonStateFor(x, y) {
-    const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.load === "function") {
-      const ctx = getCtx();
-      const ok = DR.load(ctx, x, y);
-      if (ok) syncFromCtx(ctx);
-      return ok;
-    }
-    const key = dungeonKeyFromWorldPos(x, y);
-    const st = dungeonStates[key];
-    if (!st) return false;
-
-    mode = "dungeon";
-    currentDungeon = st.info || { x, y, level: st.level || 1, size: "medium" };
-    floor = st.level || 1;
-
-    map = st.map;
-    seen = st.seen;
-    visible = st.visible;
-    enemies = st.enemies;
-    corpses = st.corpses;
-    decals = st.decals || [];
-    dungeonExitAt = st.dungeonExitAt || { x, y };
-
-    player.x = dungeonExitAt.x;
-    player.y = dungeonExitAt.y;
-
-    if (inBounds(dungeonExitAt.x, dungeonExitAt.y)) {
-      map[dungeonExitAt.y][dungeonExitAt.x] = TILES.STAIRS;
-      if (visible[dungeonExitAt.y]) visible[dungeonExitAt.y][dungeonExitAt.x] = true;
-      if (seen[dungeonExitAt.y]) seen[dungeonExitAt.y][dungeonExitAt.x] = true;
-    }
-
-    recomputeFOV();
-    updateCamera();
-    updateUI();
-    requestDraw();
-    return true;
-  }
+  
 
   function isWalkable(x, y) {
     // Centralize via Utils.isWalkableTile; no local fallback
