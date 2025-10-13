@@ -1427,7 +1427,7 @@
           } catch (_) {}
           requestDraw();
         },
-        onHideShop: () => hideShopPanel(),
+        onHideShop: () => { const UB = modHandle("UIBridge"); if (UB && typeof UB.hideShop === "function") { UB.hideShop(getCtx()); requestDraw(); } },
         onHideSmoke: () => {
           const UB = modHandle("UIBridge");
           try {
