@@ -749,10 +749,11 @@
       }
       updateUI();
       log("You explore the dungeon.");
-      saveCurrentDungeonState(true);
-      requestDraw();
-      return;
-    }
+      try {
+        const DR = modHandle("DungeonRuntime");
+        if (DR && typeof DR.save === "function") {
+          DR.save(getCtx(), true);
+        } else    }
     // Fallback: flat-floor map
     map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
     const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
@@ -767,8 +768,13 @@
     updateCamera();
     updateUI();
     log("You explore the dungeon.");
-    saveCurrentDungeonState(true);
-  }
+    try {
+      const DR = modHandle("DungeonRuntime");
+      if (DR && typeof DR.save === "function") {
+        DR.save(getCtx(), true);
+      } else {
+        saveCurrentDungeonState(true);
+
 
   function inBounds(x, y) {
     // Prefer ctx-first Utils.inBounds to avoid duplication
@@ -1910,19 +1916,7 @@
     // No fallback here: AI behavior is defined in ai.js
   }
 
-  function townNPCsAct() {
-    if (mode !== "town") return;
-    // Delegated to TownRuntime.tick; keep minimal fallback if TownRuntime missing
-    const TR = modHandle("TownRuntime");
-    if (TR && typeof TR.tick === "function") {
-      TR.tick(getCtx());
-      return;
-    }
-    const TAI = modHandle("TownAI");
-    if (TAI && typeof TAI.townNPCsAct === "function") {
-      TAI.townNPCsAct(getCtx());
-    }
-  }
+  
 
   
   
