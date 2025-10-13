@@ -21,10 +21,10 @@ function setDecayIfEquip(item, decay = 99) {
 // --- Built-in loot factories ---
 export const lootFactories = {
   potion: (ctx) => {
-    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-      ? RNG.rng
-      : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
-          ? RNGFallback.getRng()
+    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+      ? window.RNG.rng
+      : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+          ? window.RNGFallback.getRng()
           : Math.random));
     const r = rng();
     if (r < 0.5) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
@@ -34,10 +34,10 @@ export const lootFactories = {
 
   armor: (ctx, opts = {}) => {
     const tier = opts.tier ?? 2;
-    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-      ? RNG.rng
-      : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
-          ? RNGFallback.getRng()
+    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+      ? window.RNG.rng
+      : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+          ? window.RNGFallback.getRng()
           : Math.random));
     const slots = ["head", "torso", "legs", "hands"];
     const slot = slots[Math.floor(rng() * slots.length)];
@@ -52,7 +52,7 @@ export const lootFactories = {
 
   handWeapon: (ctx, opts = {}) => {
     const tier = opts.tier ?? 2;
-    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
+    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
     const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
     if (ItemsMod && typeof ItemsMod.createByKey === "function") {
       const keys = ["sword", "axe", "bow"];
@@ -68,7 +68,7 @@ export const lootFactories = {
   equipment: (ctx, opts = {}) => {
     const tier = opts.tier ?? 2;
     const slot = opts.slot || "hand";
-    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
+    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
     const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
     if (ItemsMod && typeof ItemsMod.createEquipmentOfSlot === "function") {
       return setDecayIfEquip(ItemsMod.createEquipmentOfSlot(slot, tier, rng), opts.decayAll ?? 99);
@@ -79,7 +79,7 @@ export const lootFactories = {
   },
 
   anyEquipment: (ctx, opts = {}) => {
-    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? RNG.rng : Math.random);
+    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
     const tier = opts.tier ?? 2;
     const slots = ["hand", "head", "torso", "legs", "hands"];
     const slot = slots[Math.floor(rng() * slots.length)];
