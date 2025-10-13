@@ -115,11 +115,7 @@ export function returnToWorldIfAtGate(ctx) {
   } catch (_) {}
 
   // Hide UI elements
-  try {
-    if (ctx.UIBridge && typeof ctx.UIBridge.hideTownExitButton === "function") {
-      ctx.UIBridge.hideTownExitButton(ctx);
-    }
-  } catch (_) {}
+  hideExitButton(ctx);
 
   // Recompute FOV/camera/UI and inform player
   try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
@@ -131,7 +127,22 @@ export function returnToWorldIfAtGate(ctx) {
   return true;
 }
 
+export function showExitButton(ctx) {
+  try {
+    if (ctx && ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") {
+      ctx.UIBridge.showTownExitButton(ctx);
+    }
+  } catch (_) {}
+}
+export function hideExitButton(ctx) {
+  try {
+    if (ctx && ctx.UIBridge && typeof ctx.UIBridge.hideTownExitButton === "function") {
+      ctx.UIBridge.hideTownExitButton(ctx);
+    }
+  } catch (_) {}
+}
+
 // Back-compat: attach to window for classic scripts
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, returnToWorldIfAtGate };
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, returnToWorldIfAtGate, showExitButton, hideExitButton };
 }
