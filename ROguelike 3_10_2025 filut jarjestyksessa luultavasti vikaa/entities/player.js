@@ -261,19 +261,52 @@ export function resetFromDefaults(player) {
 export function forceUpdate(player) {
   try {
     if (typeof window !== "undefined" && window.UIBridge && typeof UIBridge.updateStats === "function") {
-      const ctx = {
-        player,
-        floor: (typeof window !== "undefined" && typeof window.floor === "number") ? window.floor : 1,
-        getPlayerAttack: () => getAttack(player),
-        getPlayerDefense: () => getDefense(player),
-        time: null
-      };
-      UIBridge.updateStats(ctx);
+      // Prefer ctx from GameAPI/Game for accurate floor/time/stats wiring
+      let ctx = null;
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getCtx === "function") {
+          ctx = window.GameAPI.getCtx();
+        } else if (window.Game && typeof window.Game.getCtx === "function") {
+          ctx = window.Game.getCtx();
+        }
+      } catch (_) {}
+      if (ctx) {
+        // Ensure player reference reflects current object
+        try { ctx.player = player; } catch (_) {}
+        UIBridge.updateStats(ctx);
+      } else {
+        // Minimal fallback context
+        const minimal = {
+          player,
+          floor: 1,
+          getPlayerAttack: () => getAttack(player),
+          getPlayerDefense: () => getDefense(player),
+          time: null
+        };
+        try {
+          if (window.GameAPI && typeof window.GameAPI.getClock === "function") {
+            minimal.time = window.GameAPI.getClock();
+          }
+        } catch (_) {}
+        UIBridge.updateStats(minimal);
+      }
     } else if (typeof window !== "undefined" && window.UI && typeof UI.updateStats === "function") {
-      UI.updateStats(player, window.floor || 1, getAttack.bind(null, player), getDefense.bind(null, player));
+      // Fallback directly to UI with a derived floor (prefer GameAPI ctx)
+      let floor = 1;
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getCtx === "function") {
+          const c = window.GameAPI.getCtx();
+          if (c && typeof c.floor === "number") floor = c.floor;
+        } else if (typeof window.floor === "number") {
+          floor = window.floor;
+        }
+      } catch (_) {}
+      UI.updateStats(player, floor, getAttack.bind(null, player), getDefense.bind(null, player));
     }
   } catch (_) {}
-  window.dispatchEvent(new CustomEvent("player:changed", { detail: { player } }));
+  try {
+    window.dispatchEvent(new CustomEvent("player:changed", { detail: { player } }));
+  } catch (_) {}
 }
 
 // Update defaults at runtime (e.g., Player.setDefaults({ hp: 30, maxHp: 30 }))
