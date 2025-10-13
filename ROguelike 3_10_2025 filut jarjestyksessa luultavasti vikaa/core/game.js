@@ -531,12 +531,17 @@
     if (C && typeof C.getPlayerBlockChance === "function") {
       return C.getPlayerBlockChance(getCtx(), loc);
     }
-    const eq = player.equipment || {};
+    // Minimal fallback aligned with Combat module (includes brace bonus)
+    const p = player || {};
+    const eq = p.equipment || {};
     const leftDef = (eq.left && typeof eq.left.def === "number") ? eq.left.def : 0;
     const rightDef = (eq.right && typeof eq.right.def === "number") ? eq.right.def : 0;
     const handDef = Math.max(leftDef, rightDef);
     const base = 0.08 + handDef * 0.06;
-    return Math.max(0, Math.min(0.6, base * (loc?.blockMod || 1.0)));
+    const mod = (loc && typeof loc.blockMod === "number") ? loc.blockMod : 1.0;
+    const braceBonus = (p && typeof p.braceTurns === "number" && p.braceTurns > 0) ? 1.5 : 1.0;
+    const clampMax = (braceBonus > 1.0) ? 0.75 : 0.6;
+    return Math.max(0, Math.min(clampMax, base * mod * braceBonus));
   }
 
   // Enemy damage after applying player's defense with diminishing returns and a chip-damage floor
