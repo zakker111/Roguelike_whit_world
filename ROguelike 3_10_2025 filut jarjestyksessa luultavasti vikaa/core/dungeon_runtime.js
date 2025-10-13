@@ -23,9 +23,9 @@ export function save(ctx, logOnce) {
     ctx.DungeonState.save(ctx);
     return;
   }
-  if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
+  if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") {
     try { if (window.DEV && logOnce) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
-    DungeonState.save(ctx);
+    window.DungeonState.save(ctx);
     return;
   }
   if (ctx.mode !== "dungeon" || !ctx.dungeonInfo || !ctx.dungeonExitAt) return;
@@ -73,15 +73,15 @@ export function load(ctx, x, y) {
     }
     return ok;
   }
-  if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.load === "function") {
-    const ok = DungeonState.load(ctx, x, y);
+  if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.load === "function") {
+    const ok = window.DungeonState.load(ctx, x, y);
     if (ok) {
       ctx.updateCamera && ctx.updateCamera();
       ctx.recomputeFOV && ctx.recomputeFOV();
       ctx.updateUI && ctx.updateUI();
       ctx.requestDraw && ctx.requestDraw();
     }
-    return ok;
+
   }
   const key = keyFromWorldPos(x, y);
   const st = ctx._dungeonStates[key];
@@ -142,8 +142,8 @@ export function generate(ctx, depth) {
     try {
       if (ctx.OccupancyGrid && typeof ctx.OccupancyGrid.build === "function") {
         ctx.occupancy = ctx.OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-      } else if (typeof window !== "undefined" && window.OccupancyGrid && typeof OccupancyGrid.build === "function") {
-        ctx.occupancy = OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      } else if (typeof window !== "undefined" && window.OccupancyGrid && typeof window.OccupancyGrid.build === "function") {
+        ctx.occupancy = window.OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
       }
     } catch (_) {}
     // Dev counts
@@ -208,7 +208,7 @@ export function returnToWorldIfAtExit(ctx) {
   // Save state first
   try { save(ctx, false); } catch (_) {
     try { if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx); } catch (_) {}
-    try { if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx); } catch (_) {}
+    try { if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "functioneonState.save(ctx); } catch (_) {}
   }
 
   // Switch to world and clear dungeon-only entities

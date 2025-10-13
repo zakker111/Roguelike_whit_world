@@ -1,6 +1,19 @@
 # Game Version History
 Last updated: 2025-10-13 00:00 UTC
 
+v1.34.29 — Phase 4 continuation: ctx-first cleanups and window.* consistency
+- Changed: core/game.js
+  - Dungeon loot fallback now prefers ctx-first Loot handle via modHandle; removed direct window.Loot + bare Loot.lootHere usage.
+  - Player initialization and helpers now consistently check window.* before calling globals (Player.createInitial, PlayerUtils.capitalize, RNG.autoInit, RNG.rng, RNGFallback.getRng).
+- Changed: core/dungeon_runtime.js
+  - Fixed window fallback calls to DungeonState.save/load to use window.DungeonState explicitly (no bare DungeonState symbol).
+  - OccupancyGrid window fallback now uses window.OccupancyGrid.build explicitly.
+  - Loot.lootHere window fallback corrected in generateLoot/lootHere paths.
+- Changed: core/modes.js
+  - Fixed window fallback calls to DungeonState.save/load to use window.DungeonState explicitly.
+- Benefit: reduces risk of ReferenceError due to bare global symbols; strengthens ctx-first and back-compat window wiring.
+- Dev: No behavior changes expected; improves robustness and maintainability.
+
 v1.34.28 — Phase 4 continuation: TownAI ctx-first and diagnostics alignment
 - Changed: core/game.js GOD “Home route check” now prefers ctx.TownAI for populateTown and checkHomeRoutes (with window fallback), aligning with ctx-first usage.
 - Benefit: reduces window.* coupling and keeps diagnostics consistent with runtime/module handles.

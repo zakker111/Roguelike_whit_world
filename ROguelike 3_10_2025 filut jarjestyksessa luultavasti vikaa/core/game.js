@@ -72,8 +72,8 @@
 
   // Global time-of-day cycle (shared across modes)
   // Centralized via TimeService to avoid duplication and keep math consistent.
-  const TS = (window.TimeService && typeof TimeService.create === "function")
-    ? TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
+  const TS = ((typeof window !== "undefined" && window.TimeService && typeof window.TimeService.create === "function")
+    ? window.TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
     : (function () {
         const DAY_MINUTES = 24 * 60;
         const CYCLE_TURNS = 360;
@@ -161,9 +161,9 @@
   let map = [];
   let seen = [];
   let visible = [];
-  let player = (window.Player && typeof Player.createInitial === "function")
-    ? Player.createInitial()
-    : { x: 0, y: 0, hp: 20, maxHp: 40, inventory: [], atk: 1, xp: 0, level: 1, xpNext: 20, equipment: { left: null, right: null, head: null, torso: null, legs: null, hands: null } };
+  let player = ((typeof window !== "undefined" && window.Player && typeof window.Player.createInitial === "function")
+    ? window.Player.createInitial()
+    : { x: 0, y: 0, hp: 20, maxHp: 40, inventory: [], atk: 1, xp: 0, level: 1, xpNext: 20, equipment: { left: null, right: null, head: null, torso: null, legs: null, hands: null } });
   let enemies = [];
   let corpses = [];
   // Visual decals like blood stains on the floor; array of { x, y, a (alpha 0..1), r (radius px) }
@@ -174,9 +174,9 @@
   let floor = 1;
   // RNG: centralized via RNG service; allow persisted seed for reproducibility
   let currentSeed = null;
-  if (typeof window !== "undefined" && window.RNG && typeof RNG.autoInit === "function") {
+  if (typeof window !== "undefined" && window.RNG && typeof window.RNG.autoInit === "function") {
     try {
-      currentSeed = RNG.autoInit();
+      currentSeed = window.RNG.autoInit();
       // RNG.autoInit returns the seed value
     } catch (_) {
       try {
@@ -190,18 +190,18 @@
       currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
     } catch (_) { currentSeed = null; }
   }
-  let rng = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-    ? RNG.rng
+  let rng = ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+    ? window.RNG.rng
     : (function () {
         // Shared centralized fallback (deterministic) if RNG service not available
         try {
-          if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
-            return RNGFallback.getRng(currentSeed);
+          if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
+            return window.RNGFallback.getRng(currentSeed);
           }
         } catch (_) {}
         // Ultimate fallback: non-deterministic
         return Math.random;
-      })();
+      })());
   let isDead = false;
   let startRoomRect = null;
   // GOD toggles
@@ -341,9 +341,9 @@
     if (typeof window !== "undefined" && window.RNG && typeof RNG.chance === "function") return RNG.chance(p);
     return rng() < p;
   };
-  const capitalize = (window.PlayerUtils && typeof PlayerUtils.capitalize === "function")
-    ? PlayerUtils.capitalize
-    : (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const capitalize = ((typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.capitalize === "function")
+    ? window.PlayerUtils.capitalize
+    : (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   const enemyColor = (type) => {
     const EM = modHandle("Enemies");
     if (EM && typeof EM.colorFor === "function") {
@@ -1503,9 +1503,12 @@
         DR.lootHere(getCtx());
         return;
       }
-      if (window.Loot && typeof Loot.lootHere === "function") {
-        Loot.lootHere(getCtx());
-        return;
+      {
+        const L = modHandle("Loot");
+        if (L && typeof L.lootHere === "function") {
+          L.lootHere(getCtx());
+          return;
+        }
       }
       log("Return to the entrance (the hole '>') and press G to leave.", "info");
       requestDraw();

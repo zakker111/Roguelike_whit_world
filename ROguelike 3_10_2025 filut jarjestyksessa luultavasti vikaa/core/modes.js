@@ -167,8 +167,8 @@ export function saveCurrentDungeonState(ctx) {
       ctx.DungeonState.save(ctx);
       return;
     }
-    if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
-      DungeonState.save(ctx);
+    if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") {
+      window.DungeonState.save(ctx);
       return;
     }
   } catch (_) {}
@@ -189,8 +189,8 @@ export function loadDungeonStateFor(ctx, x, y) {
       if (ok) syncAfterMutation(ctx);
       return ok;
     }
-    if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.load === "function") {
-      const ok = DungeonState.load(ctx, x, y);
+    if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.load === "function") {
+      const ok = window.DungeonState.load(ctx, x, y);
       if (ok) syncAfterMutation(ctx);
       return ok;
     }
