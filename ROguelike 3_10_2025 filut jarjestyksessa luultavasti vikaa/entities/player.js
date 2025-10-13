@@ -266,8 +266,6 @@ export function forceUpdate(player) {
       try {
         if (window.GameAPI && typeof window.GameAPI.getCtx === "function") {
           ctx = window.GameAPI.getCtx();
-        } else if (window.Game && typeof window.Game.getCtx === "function") {
-          ctx = window.Game.getCtx();
         }
       } catch (_) {}
       if (ctx) {

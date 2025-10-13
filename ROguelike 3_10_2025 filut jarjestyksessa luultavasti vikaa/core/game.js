@@ -2239,22 +2239,7 @@
     }
   } catch (_) {}
 
-// Back-compat: attach selected helpers to window.Game (classic scripts)
-if (typeof window !== "undefined") {
-  window.Game = {
-    getCtx,
-    requestDraw,
-    initWorld,
-    generateLevel,
-    tryMovePlayer,
-    doAction,
-    descendIfPossible,
-    applySeed,
-    rerollSeed,
-    setFovRadius,
-    updateUI
-  };
-}
+
 
 // ESM exports for module consumers
 export {
