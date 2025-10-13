@@ -1916,6 +1916,19 @@
     // No fallback here: AI behavior is defined in ai.js
   }
 
+  function townNPCsAct() {
+    if (mode !== "town") return;
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.tick === "function") {
+      TR.tick(getCtx());
+      return;
+    }
+    const TAI = modHandle("TownAI");
+    if (TAI && typeof TAI.townNPCsAct === "function") {
+      TAI.townNPCsAct(getCtx());
+    }
+  }
+
   
 
   
