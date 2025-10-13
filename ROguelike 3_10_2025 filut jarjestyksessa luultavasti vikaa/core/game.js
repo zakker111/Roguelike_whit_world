@@ -509,14 +509,10 @@
   }
 
   function getEnemyBlockChance(enemy, loc) {
-    // Phase 1: centralize combat math in Combat; fall back to Enemies for compatibility
+    // Prefer Combat math; then fall back to Fallbacks; minimal local last-resort
     const C = modHandle("Combat");
     if (C && typeof C.getEnemyBlockChance === "function") {
       return C.getEnemyBlockChance(getCtx(), enemy, loc);
-    }
-    const EM = modHandle("Enemies");
-    if (EM && typeof EM.enemyBlockChance === "function") {
-      return EM.enemyBlockChance(enemy, loc);
     }
     const FB = modHandle("Fallbacks");
     if (FB && typeof FB.enemyBlockChance === "function") {
@@ -572,14 +568,9 @@
   }
 
   function enemyDamageMultiplier(level) {
-    // Phase 1: centralize in Combat; fall back to Enemies.* for compatibility
     const C = modHandle("Combat");
     if (C && typeof C.enemyDamageMultiplier === "function") {
       return C.enemyDamageMultiplier(level);
-    }
-    const EM = modHandle("Enemies");
-    if (EM && typeof EM.damageMultiplier === "function") {
-      return EM.damageMultiplier(level);
     }
     const FB = modHandle("Fallbacks");
     if (FB && typeof FB.enemyDamageMultiplier === "function") {
@@ -2068,10 +2059,12 @@
 
   
   function updateUI() {
-    // Prefer UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.updateStats === "function") {
       UB.updateStats(getCtx());
+    }
+  }
+s(getCtx());
       return;
     }
     // Fallback if UI module not loaded
