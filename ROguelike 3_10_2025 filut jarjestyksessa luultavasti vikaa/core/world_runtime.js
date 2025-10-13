@@ -4,8 +4,9 @@
  * Exports (ESM + window.WorldRuntime):
  * - generate(ctx, { width, height }?)
  * - tryMovePlayerWorld(ctx, dx, dy)
+ * - tick(ctx)      // optional per-turn hook for world mode
  */
-
+ 
 export function generate(ctx, opts = {}) {
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
   if (!(W && typeof W.generate === "function")) {
@@ -84,7 +85,18 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   return true;
 }
 
+/**
+ * Optional per-turn hook for world mode.
+ * Keeps the interface consistent with TownRuntime/DungeonRuntime tick hooks.
+ * Currently a no-op placeholder for future world-side time/day effects.
+ */
+export function tick(ctx) {
+  // Intentionally minimal; world mode reveals everything and has no occupancy/NPCs.
+  // Modules can extend this later for overlays or time-driven effects.
+  return true;
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
-  window.WorldRuntime = { generate, tryMovePlayerWorld };
+  window.WorldRuntime = { generate, tryMovePlayerWorld, tick };
 }
