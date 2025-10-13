@@ -70,21 +70,44 @@ export function isFreeTownFloor(ctx, x, y) {
 
 export function talk(ctx) {
   if (ctx.mode !== "town") return false;
-  const targets = [];
   const npcs = ctx.npcs || [];
+  const near = [];
   for (const n of npcs) {
     const d = Math.abs(n.x - ctx.player.x) + Math.abs(n.y - ctx.player.y);
-    if (d <= 1) targets.push(n);
+    if (d <= 1) near.push(n);
   }
-  if (targets.length === 0) {
+  if (!near.length) {
     ctx.log && ctx.log("There is no one to talk to here.");
     return false;
   }
   const pick = (arr, rng) => arr[(arr.length === 1) ? 0 : Math.floor((rng ? rng() : Math.random()) * arr.length) % arr.length];
-  const npc = pick(targets, ctx.rng);
+  const npc = pick(near, ctx.rng);
   const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
   const line = pick(lines, ctx.rng);
   ctx.log && ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
+
+  // If the NPC is at or adjacent to a shop door, gate opening by schedule via ShopService
+  try {
+    let doorShop = null;
+    const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+    for (const s of shops) {
+      const dd = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
+      if (dd <= 1) { doorShop = s; break; }
+    }
+    if (doorShop) {
+      const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
+      const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, doorShop) : false;
+      const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(doorShop) : "";
+      if (openNow) {
+        if (ctx.UIBridge && typeof ctx.UIBridge.showShop === "function") {
+          ctx.UIBridge.showShop(ctx, npc);
+        }
+      } else {
+        ctx.log && ctx.log(`The ${doorShop.name || "shop"} is closed. ${sched}`, "warn");
+      }
+    }
+  } catch (_) {}
+
   ctx.requestDraw && ctx.requestDraw();
   return true;
 }

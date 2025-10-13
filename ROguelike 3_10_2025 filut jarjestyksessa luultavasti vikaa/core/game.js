@@ -1505,37 +1505,13 @@
       if (!inBounds(nx, ny)) return;
       const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(nx, ny) : npcs.some(n => n.x === nx && n.y === ny);
       if (npcBlocked) {
-        // Treat bumping into an NPC as a "hit"/interaction: they respond with a line
-        const npc = npcs.find(n => n.x === nx && n.y === ny);
-        if (npc) {
-          const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
-          const li = randInt(0, lines.length - 1);
-          log(`${npc.name || "Villager"}: ${lines[li]}`, "info");
-
-          // Heuristic: if NPC is at/near a shop door, open a simple shop UI to buy potions and gear
-          try {
-            // If this NPC is at or adjacent to a shop door, gate opening by schedule
-            let doorShop = null;
-            if (Array.isArray(shops)) {
-              for (const s of shops) {
-                const d = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
-                if (d <= 1) { doorShop = s; break; }
-              }
-            }
-            if (doorShop) {
-              const openNow = isShopOpenNow(doorShop);
-              const sched = shopScheduleStr(doorShop);
-              if (openNow) {
-                openShopFor(npc);
-              } else {
-                log(`The ${doorShop.name || "shop"} is closed. ${sched}`, "warn");
-              }
-            }
-          } catch (_) {}
-
-          requestDraw();
+        // Delegate bump-talk and shop gating to TownRuntime
+        const TR = modHandle("TownRuntime");
+        if (TR && typeof TR.talk === "function") {
+          TR.talk(getCtx());
         } else {
           log("Excuse me!", "info");
+          requestDraw();
         }
         return;
       }
