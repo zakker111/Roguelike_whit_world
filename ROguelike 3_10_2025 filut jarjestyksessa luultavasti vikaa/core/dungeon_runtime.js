@@ -295,8 +295,8 @@ export function lootHere(ctx) {
       ctx.Loot.lootHere(ctx);
       return true;
     }
-    if (typeof window !== "undefined" && window.Loot && typeof Loot.lootHere === "function") {
-      Loot.lootHere(ctx);
+    if (typeof window !== "undefined" && window.Loot && typeof window.Loot.lootHere === "function") {
+      window.Loot.lootHere(ctx);
       return true;
     }
   } catch (_) {}

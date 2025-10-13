@@ -72,7 +72,7 @@
 
   // Global time-of-day cycle (shared across modes)
   // Centralized via TimeService to avoid duplication and keep math consistent.
-  const TS = ((typeof window !== "undefined" && window.TimeService && typeof window.TimeService.create === "function")
+  const TS = (typeof window !== "undefined" && window.TimeService && typeof window.TimeService.create === "function")
     ? window.TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
     : (function () {
         const DAY_MINUTES = 24 * 60;
