@@ -1475,19 +1475,6 @@
         const ok = !!WR.tryMovePlayerWorld(getCtx(), dx, dy);
         if (ok) return;
       }
-      // Legacy path: direct World.isWalkable
-      const nx = player.x + dx;
-      const ny = player.y + dy;
-      const wmap = world && world.map ? world.map : null;
-      if (!wmap) return;
-      const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
-      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return;
-      const W = modHandle("World");
-      if (W && typeof W.isWalkable === "function" && W.isWalkable(wmap[ny][nx])) {
-        player.x = nx; player.y = ny;
-        updateCamera();
-        turn();
-      }
       return;
     }
 
@@ -1497,26 +1484,6 @@
       if (TR && typeof TR.tryMoveTown === "function") {
         const ok = !!TR.tryMoveTown(getCtx(), dx, dy);
         if (ok) return;
-      }
-      // Legacy fallback path
-      const nx = player.x + dx;
-      const ny = player.y + dy;
-      if (!inBounds(nx, ny)) return;
-      const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(nx, ny) : npcs.some(n => n.x === nx && n.y === ny);
-      if (npcBlocked) {
-        const TR2 = modHandle("TownRuntime");
-        if (TR2 && typeof TR2.talk === "function") {
-          TR2.talk(getCtx());
-        } else {
-          log("Excuse me!", "info");
-          requestDraw();
-        }
-        return;
-      }
-      if (isWalkable(nx, ny)) {
-        player.x = nx; player.y = ny;
-        updateCamera();
-        turn();
       }
       return;
     }
@@ -1528,17 +1495,6 @@
         const ok = !!DR.tryMoveDungeon(getCtx(), dx, dy);
         if (ok) return;
       }
-    }
-    // Minimal legacy fallback: move only into empty walkable tiles
-    const nx = player.x + dx;
-    const ny = player.y + dy;
-    if (!inBounds(nx, ny)) return;
-    const blockedByEnemy = (occupancy && typeof occupancy.hasEnemy === "function") ? occupancy.hasEnemy(nx, ny) : enemies.some(e => e.x === nx && e.y === ny);
-    if (isWalkable(nx, ny) && !blockedByEnemy) {
-      player.x = nx;
-      player.y = ny;
-      updateCamera();
-      turn();
     }
   }
 
@@ -1945,45 +1901,11 @@
       const DR = modHandle("DungeonRuntime");
       if (DR && typeof DR.tick === "function") {
         DR.tick(getCtx());
-      } else {
-        enemiesAct();
-        rebuildOccupancy();
-        try {
-          const ST = modHandle("Status");
-          if (ST && typeof ST.tick === "function") {
-            ST.tick(getCtx());
-          }
-        } catch (_) {}
-        {
-          const DC = modHandle("Decals");
-          if (DC && typeof DC.tick === "function") {
-            DC.tick(getCtx());
-          } else if (decals && decals.length) {
-            for (let i = 0; i < decals.length; i++) {
-              decals[i].a *= 0.92;
-            }
-            decals = decals.filter(d => d.a > 0.04);
-          }
-        }
-        if (player && typeof player.braceTurns === "number" && player.braceTurns > 0) {
-          player.braceTurns = 0;
-        }
-        if (corpses.length > 50) corpses = corpses.slice(-50);
       }
     } else if (mode === "town") {
       const TR = modHandle("TownRuntime");
       if (TR && typeof TR.tick === "function") {
         TR.tick(getCtx());
-      } else {
-        townTick = (townTick + 1) | 0;
-        const TAI = modHandle("TownAI");
-        if (TAI && typeof TAI.townNPCsAct === "function") {
-          TAI.townNPCsAct(getCtx());
-        }
-        const TOWN_OCC_STRIDE = 2;
-        if ((townTick % TOWN_OCC_STRIDE) === 0) {
-          rebuildOccupancy();
-        }
       }
     } else if (mode === "world") {
       const WR = modHandle("WorldRuntime");
