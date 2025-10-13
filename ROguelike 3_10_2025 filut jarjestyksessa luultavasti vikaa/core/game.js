@@ -1945,6 +1945,12 @@
 
   function townNPCsAct() {
     if (mode !== "town") return;
+    // Delegated to TownRuntime.tick; keep minimal fallback if TownRuntime missing
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.tick === "function") {
+      TR.tick(getCtx());
+      return;
+    }
     const TAI = modHandle("TownAI");
     if (TAI && typeof TAI.townNPCsAct === "function") {
       TAI.townNPCsAct(getCtx());
@@ -1966,44 +1972,48 @@
 
 
     if (mode === "dungeon") {
-      enemiesAct();
-      // Ensure occupancy reflects enemy movement/deaths this turn to avoid stale blocking
-      rebuildOccupancy();
-      // Status effects tick (bleed, dazed, etc.)
-      try {
-        const ST = modHandle("Status");
-        if (ST && typeof ST.tick === "function") {
-          ST.tick(getCtx());
-        }
-      } catch (_) {}
-      // Visual: decals fade each turn
-      {
-        const DC = modHandle("Decals");
-        if (DC && typeof DC.tick === "function") {
-          DC.tick(getCtx());
-        } else if (decals && decals.length) {
-          for (let i = 0; i < decals.length; i++) {
-            decals[i].a *= 0.92;
-          }
-          decals = decals.filter(d => d.a > 0.04);
-        }
-      }
-      // End of turn: brace stance lasts only for this enemy round
-      if (player && typeof player.braceTurns === "number" && player.braceTurns > 0) {
-        player.braceTurns = 0;
-      }
-      // clamp corpse list length
-      if (corpses.length > 50) corpses = corpses.slice(-50);
-
-      // Persistence snapshot logging removed from per-turn to avoid noise.
-      // DungeonState.save is still called on key events (entry, kills, explicit saves).
-    } else if (mode === "town") {
-      townTick = (townTick + 1) | 0;
-      townNPCsAct();
-      // Rebuild occupancy at a modest stride to avoid ghost-blocking after NPC bursts
-      const TOWN_OCC_STRIDE = 2;
-      if ((townTick % TOWN_OCC_STRIDE) === 0) {
+      const DR = modHandle("DungeonRuntime");
+      if (DR && typeof DR.tick === "function") {
+        DR.tick(getCtx());
+      } else {
+        enemiesAct();
         rebuildOccupancy();
+        try {
+          const ST = modHandle("Status");
+          if (ST && typeof ST.tick === "function") {
+            ST.tick(getCtx());
+          }
+        } catch (_) {}
+        {
+          const DC = modHandle("Decals");
+          if (DC && typeof DC.tick === "function") {
+            DC.tick(getCtx());
+          } else if (decals && decals.length) {
+            for (let i = 0; i < decals.length; i++) {
+              decals[i].a *= 0.92;
+            }
+            decals = decals.filter(d => d.a > 0.04);
+          }
+        }
+        if (player && typeof player.braceTurns === "number" && player.braceTurns > 0) {
+          player.braceTurns = 0;
+        }
+        if (corpses.length > 50) corpses = corpses.slice(-50);
+      }
+    } else if (mode === "town") {
+      const TR = modHandle("TownRuntime");
+      if (TR && typeof TR.tick === "function") {
+        TR.tick(getCtx());
+      } else {
+        townTick = (townTick + 1) | 0;
+        const TAI = modHandle("TownAI");
+        if (TAI && typeof TAI.townNPCsAct === "function") {
+          TAI.townNPCsAct(getCtx());
+        }
+        const TOWN_OCC_STRIDE = 2;
+        if ((townTick % TOWN_OCC_STRIDE) === 0) {
+          rebuildOccupancy();
+        }
       }
     }
 

@@ -608,7 +608,57 @@ export function tryMoveDungeon(ctx, dx, dy) {
   return false;
 }
 
+export function tick(ctx) {
+  if (!ctx || ctx.mode !== "dungeon") return false;
+  // Enemies act via AI
+  try {
+    const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);
+    if (AIH && typeof AIH.enemiesAct === "function") {
+      AIH.enemiesAct(ctx);
+    }
+  } catch (_) {}
+  // Ensure occupancy reflects enemy movement/deaths this turn
+  try {
+    const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+    if (OG && typeof OG.build === "function") {
+      ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+    }
+  } catch (_) {}
+  // Status effects tick (bleed, dazed, etc.)
+  try {
+    const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
+    if (ST && typeof ST.tick === "function") {
+      ST.tick(ctx);
+    }
+  } catch (_) {}
+  // Visual: decals fade each turn
+  try {
+    const DC = ctx.Decals || (typeof window !== "undefined" ? window.Decals : null);
+    if (DC && typeof DC.tick === "function") {
+      DC.tick(ctx);
+    } else if (Array.isArray(ctx.decals) && ctx.decals.length) {
+      for (let i = 0; i < ctx.decals.length; i++) {
+        ctx.decals[i].a *= 0.92;
+      }
+      ctx.decals = ctx.decals.filter(d => d.a > 0.04);
+    }
+  } catch (_) {}
+  // End of turn: brace stance lasts only for this enemy round
+  try {
+    if (ctx.player && typeof ctx.player.braceTurns === "number" && ctx.player.braceTurns > 0) {
+      ctx.player.braceTurns = 0;
+    }
+  } catch (_) {}
+  // Clamp corpse list length
+  try {
+    if (Array.isArray(ctx.corpses) && ctx.corpses.length > 50) {
+      ctx.corpses = ctx.corpses.slice(-50);
+    }
+  } catch (_) {}
+  return true;
+}
+
 // Back-compat: attach to window for classic scripts
 if (typeof window !== "undefined") {
-  window.DungeonRuntime = { keyFromWorldPos, save, load, generate, generateLoot, returnToWorldIfAtExit, lootHere, killEnemy, enter, tryMoveDungeon };
+  window.DungeonRuntime = { keyFromWorldPos, save, load, generate, generateLoot, returnToWorldIfAtExit, lootHere, killEnemy, enter, tryMoveDungeon, tick };
 }

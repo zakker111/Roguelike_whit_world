@@ -247,6 +247,29 @@ export function hideExitButton(ctx) {
 }
 
 // Back-compat: attach to window for classic scripts
+export function tick(ctx) {
+  if (!ctx || ctx.mode !== "town") return false;
+  // Drive NPC behavior
+  try {
+    const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
+    if (TAI && typeof TAI.townNPCsAct === "function") {
+      TAI.townNPCsAct(ctx);
+    }
+  } catch (_) {}
+  // Rebuild occupancy every other turn to avoid ghost-blocking after NPC bursts
+  try {
+    const stride = 2;
+    const t = (ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+    if ((t % stride) === 0) {
+      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+      if (OG && typeof OG.build === "function") {
+        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      }
+    }
+  } catch (_) {}
+  return true;
+}
+
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, returnToWorldIfAtGate, applyLeaveSync, showExitButton, hideExitButton };
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, showExitButton, hideExitButton };
 }
