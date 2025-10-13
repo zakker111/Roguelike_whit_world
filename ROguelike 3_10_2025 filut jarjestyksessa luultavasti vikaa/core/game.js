@@ -1896,20 +1896,18 @@
   }
 
   function killEnemy(enemy) {
-    // Delegate to DungeonRuntime first
+    // Prefer centralized DungeonRuntime to handle loot, occupancy, XP, and persistence
     const DR = modHandle("DungeonRuntime");
     if (DR && typeof DR.killEnemy === "function") {
       const ctx = getCtx();
       DR.killEnemy(ctx, enemy);
-      // Sync mutated ctx (enemies, corpses, occupancy, player xp)
       syncFromCtx(ctx);
       return;
     }
-    // Fallback local behavior
+    // Minimal fallback: announce death, add corpse without loot, clear enemy, award XP
     const name = capitalize(enemy.type || "enemy");
     log(`${name} dies.`, "bad");
-    const loot = generateLoot(enemy);
-    corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
+    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
     enemies = enemies.filter(e => e !== enemy);
     try {
       if (occupancy && typeof occupancy.clearEnemy === "function") {
@@ -1917,12 +1915,6 @@
       }
     } catch (_) {}
     gainXP(enemy.xp || 5);
-    try {
-      const DR = modHandle("DungeonRuntime");
-      if (DR && typeof DR.save === "function") {
-        DR.save(getCtx(), false);
-      }
-    } catch (_) {}
   }
 
   
