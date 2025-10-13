@@ -135,14 +135,42 @@ export function applyLeaveSync(ctx) {
   // Hide UI elements
   hideExitButton(ctx);
 
-  // Recompute FOV/camera/UI and inform player
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+  // Ensure camera is centered on player
+  try {
+    if (ctx && typeof ctx.updateCamera === "function") ctx.updateCamera();
+    else centerCamera(ctx);
+  } catch (_) { centerCamera(ctx); }
+
+  // Recompute FOV/UI and inform player
   try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
   try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}
   try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 
   return true;
+}
+
+// Fallback camera centering if FOVCamera/updateCamera is unavailable
+function centerCamera(ctx) {
+  try {
+    const cam = (typeof ctx.getCamera === "function") ? ctx.getCamera() : (ctx.camera || null);
+    if (!cam) return;
+    const TILE = (typeof ctx.TILE === "number") ? ctx.TILE : 32;
+    const rows = ctx.map.length;
+    const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+    const mapWidth = cols * TILE;
+    const mapHeight = rows * TILE;
+    const targetX = ctx.player.x * TILE + TILE / 2 - cam.width / 2;
+    const targetY = ctx.player.y * TILE + TILE / 2 - cam.height / 2;
+    const slackX = Math.max(0, cam.width / 2 - TILE / 2);
+    const slackY = Math.max(0, cam.height / 2 - TILE / 2);
+    const minX = -slackX;
+    const minY = -slackY;
+    const maxX = (mapWidth - cam.width) + slackX;
+    const maxY = (mapHeight - cam.height) + slackY;
+    cam.x = Math.max(minX, Math.min(targetX, maxX));
+    cam.y = Math.max(minY, Math.min(targetY, maxY));
+  } catch (_) {}
 }
 
 export function showExitButton(ctx) {
