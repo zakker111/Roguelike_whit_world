@@ -1230,24 +1230,11 @@
     const M = modHandle("Modes");
     if (M && typeof M.requestLeaveTown === "function") {
       M.requestLeaveTown(getCtx());
-      return;
     }
-    // Centralized confirm via UIBridge; if unavailable, proceed to leave to avoid getting stuck
-    const doLeave = () => leaveTownNow();
-    const pos = { x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60 };
-    try {
-      const UB = modHandle("UIBridge");
-      if (UB && typeof UB.showConfirm === "function") {
-        UB.showConfirm(getCtx(), "Do you want to leave the town?", pos, () => doLeave(), () => {});
-        return;
-      }
-    } catch (_) {}
-    doLeave();
   }
 
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
-    // Prefer TownRuntime centralization
     const TR = modHandle("TownRuntime");
     if (TR && typeof TR.returnToWorldIfAtGate === "function") {
       const ctx = getCtx();
@@ -1256,11 +1243,6 @@
         syncFromCtx(ctx);
         return true;
       }
-    }
-    if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      // Immediate exit on gate when pressing G (disable confirm UI)
-      leaveTownNow();
-      return true;
     }
     log("Return to the town gate to exit to the overworld.", "info");
     return false;
