@@ -1686,27 +1686,7 @@
     }
   }
 
-  // Shop UI routed via UIBridge only
-  function hideShopPanel() {
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.hideShop === "function") {
-      UB.hideShop(getCtx());
-      requestDraw();
-    }
-  }
-  function openShopFor(npc) {
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.showShop === "function") {
-      UB.showShop(getCtx(), npc);
-    }
-  }
-  function shopBuyIndex(idx) {
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.buyShopIndex === "function") {
-      UB.buyShopIndex(getCtx(), idx);
-    }
-  }
-
+  
   // GOD mode actions (delegated to GodControls)
   function godHeal() {
     const GC = modHandle("GodControls");
@@ -2133,7 +2113,7 @@
             } catch (_) {}
             return false;
           },
-          onHideShop: () => hideShopPanel(),
+          onHideShop: () => { const UB = modHandle("UIBridge"); if (UB && typeof UB.hideShop === "function") { UB.hideShop(getCtx()); requestDraw(); } },
           onGodCheckHomes: () => {
             const ctx = getCtx();
             if (ctx.mode !== "town") {
