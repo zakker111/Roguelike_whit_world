@@ -177,7 +177,6 @@
     }
   }
   let floor = 1;
-  window.floor = floor;
   // RNG: centralized via RNG service; allow persisted seed for reproducibility
   let currentSeed = null;
   if (typeof window !== "undefined" && window.RNG && typeof RNG.autoInit === "function") {
@@ -791,14 +790,12 @@
   }
 
   function inBounds(x, y) {
-    // Prefer ctx-first Utils.inBounds to avoid duplication
+    // Centralize via Utils.inBounds; no local fallback
     const U = modHandle("Utils");
     if (U && typeof U.inBounds === "function") {
-      try { return !!U.inBounds(getCtx(), x, y); } catch (_) {}
+      return !!U.inBounds(getCtx(), x, y);
     }
-    const mh = map.length || MAP_ROWS;
-    const mw = map[0] ? map[0].length : MAP_COLS;
-    return x >= 0 && y >= 0 && x < mw && y < mh;
+    return false;
   }
 
   // --------- Dungeon persistence helpers ---------
@@ -864,7 +861,6 @@
     mode = "dungeon";
     currentDungeon = st.info || { x, y, level: st.level || 1, size: "medium" };
     floor = st.level || 1;
-    window.floor = floor;
 
     map = st.map;
     seen = st.seen;
@@ -891,14 +887,12 @@
   }
 
   function isWalkable(x, y) {
-    // Prefer ctx-first Utils.isWalkableTile to unify tile semantics (ignore occupancy)
+    // Centralize via Utils.isWalkableTile; no local fallback
     const U = modHandle("Utils");
     if (U && typeof U.isWalkableTile === "function") {
-      try { return !!U.isWalkableTile(getCtx(), x, y); } catch (_) {}
+      return !!U.isWalkableTile(getCtx(), x, y);
     }
-    if (!inBounds(x, y)) return false;
-    const t = map[y][x];
-    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS;
+    return false;
   }
 
   
@@ -1158,7 +1152,7 @@
     townExitAt = ctx.townExitAt || townExitAt;
     dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
     currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-    if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+    if (typeof ctx.floor === "number") { floor = (ctx.floor | 0); }
   }
 
   // Helper: apply ctx sync and refresh visuals/UI in one place
@@ -1855,7 +1849,6 @@
   function restartGame() {
     hideGameOver();
     floor = 1;
-    window.floor = floor;
     isDead = false;
     // Reset player using Player defaults when available; clear transient effects
     try {
