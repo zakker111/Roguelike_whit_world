@@ -1,5 +1,14 @@
 # Game Version History
-Last updated: 2025-10-12 01:42 UTC
+Last updated: 2025-10-13 00:00 UTC
+
+v1.34.26 — Phase 4 continuation: centralized movement with safe fallbacks, town leave/exit UI via runtime
+- Changed: core/game.js tryMovePlayer now prefers WorldRuntime/TownRuntime/DungeonRuntime and restores minimal fallbacks per mode to keep playability if a runtime is unavailable or declines movement.
+  - World: direct overworld walk fallback (bounds + World.isWalkable) if runtime returns false.
+  - Town: bump-talk when NPC blocks via TownRuntime.talk; minimal walkability fallback.
+  - Dungeon: move into walkable empty tiles when runtime path is unavailable.
+- Changed: core/modes.js leaveTownNow delegates to TownRuntime.applyLeaveSync(ctx). Enter-town flows prefer TownRuntime.generate(ctx) and TownRuntime.showExitButton(ctx), falling back to UIBridge only when needed.
+- Changed: core/game.js leaveTownNow path simplified to rely on Modes; redundant TownRuntime.applyLeaveSync double-call removed from core.
+- Dev: Deployed and verified movement across world/town/dungeon; smoketest runner available at /index.html?smoketest=1.
 
 v1.34.25 — game.js sweep: inventory and shop helpers aligned with Phase 2
 - Changed: showInventoryPanel no longer toggles #inv-panel via DOM; relies on InventoryController.show or UIBridge.showInventory only.
