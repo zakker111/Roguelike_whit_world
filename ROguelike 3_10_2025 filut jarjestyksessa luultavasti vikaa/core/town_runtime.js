@@ -94,6 +94,15 @@ export function returnToWorldIfAtGate(ctx) {
   const atGate = !!(ctx.townExitAt && ctx.player.x === ctx.townExitAt.x && ctx.player.y === ctx.townExitAt.y);
   if (!atGate) return false;
 
+  // Apply leave to overworld
+  applyLeaveSync(ctx);
+
+  return true;
+}
+
+export function applyLeaveSync(ctx) {
+  if (!ctx || !ctx.world) return false;
+
   // Switch mode and restore overworld map
   ctx.mode = "world";
   ctx.map = ctx.world.map;
@@ -104,6 +113,8 @@ export function returnToWorldIfAtGate(ctx) {
     if (Array.isArray(ctx.shops)) ctx.shops.length = 0;
     if (Array.isArray(ctx.townProps)) ctx.townProps.length = 0;
     if (Array.isArray(ctx.townBuildings)) ctx.townBuildings.length = 0;
+    ctx.townPlaza = null;
+    ctx.tavern = null;
   } catch (_) {}
 
   // Restore world position if available
@@ -112,6 +123,13 @@ export function returnToWorldIfAtGate(ctx) {
       ctx.player.x = ctx.worldReturnPos.x;
       ctx.player.y = ctx.worldReturnPos.y;
     }
+  } catch (_) {}
+
+  // Clear exit anchors
+  try {
+    ctx.townExitAt = null;
+    ctx.dungeonExitAt = null;
+    ctx.dungeon = ctx.dungeonInfo = null;
   } catch (_) {}
 
   // Hide UI elements
@@ -144,5 +162,5 @@ export function hideExitButton(ctx) {
 
 // Back-compat: attach to window for classic scripts
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, returnToWorldIfAtGate, showExitButton, hideExitButton };
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, returnToWorldIfAtGate, applyLeaveSync, showExitButton, hideExitButton };
 }
