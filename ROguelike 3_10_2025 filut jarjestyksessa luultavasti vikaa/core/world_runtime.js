@@ -3,11 +3,7 @@
  *
  * Exports (ESM + window.WorldRuntime):
  * - generate(ctx, { width, height }?)
- *
- * Notes:
- * - Delegates to ctx.World.generate; picks a town-adjacent start via World.pickTownStart when available.
- * - Clears town/dungeon-specific arrays; sets seen/visible fully for world mode.
- * - Updates camera/FOV/UI and logs arrival message; hides town exit button via TownRuntime.
+ * - tryMovePlayerWorld(ctx, dx, dy)
  */
 
 export function generate(ctx, opts = {}) {
@@ -72,7 +68,23 @@ export function generate(ctx, opts = {}) {
   return true;
 }
 
+export function tryMovePlayerWorld(ctx, dx, dy) {
+  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
+  const nx = ctx.player.x + (dx | 0);
+  const ny = ctx.player.y + (dy | 0);
+  const wmap = ctx.world.map;
+  const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
+  if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return false;
+  const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+  const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(wmap[ny][nx]) : true;
+  if (!walkable) return false;
+  ctx.player.x = nx; ctx.player.y = ny;
+  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+  try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+  return true;
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
-  window.WorldRuntime = { generate };
+  window.WorldRuntime = { generate, tryMovePlayerWorld };
 }

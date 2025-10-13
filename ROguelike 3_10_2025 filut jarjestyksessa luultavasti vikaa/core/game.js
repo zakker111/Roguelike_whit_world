@@ -1479,21 +1479,25 @@
   function tryMovePlayer(dx, dy) {
     if (isDead) return;
 
-    // WORLD MODE: move over overworld tiles (no NPCs here)
+    // WORLD MODE
     if (mode === "world") {
+      const WR = modHandle("WorldRuntime");
+      if (WR && typeof WR.tryMovePlayerWorld === "function") {
+        const ok = !!WR.tryMovePlayerWorld(getCtx(), dx, dy);
+        if (ok) return;
+      }
+      // Legacy path: direct World.isWalkable
       const nx = player.x + dx;
       const ny = player.y + dy;
       const wmap = world && world.map ? world.map : null;
       if (!wmap) return;
       const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
       if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return;
-      {
-        const W = modHandle("World");
-        if (W && typeof W.isWalkable === "function" && W.isWalkable(wmap[ny][nx])) {
-          player.x = nx; player.y = ny;
-          updateCamera();
-          turn();
-        }
+      const W = modHandle("World");
+      if (W && typeof W.isWalkable === "function" && W.isWalkable(wmap[ny][nx])) {
+        player.x = nx; player.y = ny;
+        updateCamera();
+        turn();
       }
       return;
     }
