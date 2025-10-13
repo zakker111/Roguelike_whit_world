@@ -1106,32 +1106,20 @@
 
   
 
-  // Town shops helpers routed via ShopService
+  // Town shops helpers routed via ShopService (delegated)
   function isShopOpenNow(shop = null) {
     const SS = modHandle("ShopService");
     if (SS && typeof SS.isShopOpenNow === "function") {
       return SS.isShopOpenNow(getCtx(), shop || null);
     }
-    const t = getClock();
-    const minutes = t.hours * 60 + t.minutes;
-    if (!shop) return t.phase === "day";
-    if (shop.alwaysOpen) return true;
-    const o = shop.openMin, c = shop.closeMin;
-    if (typeof o !== "number" || typeof c !== "number") return false;
-    if (o === c) return false;
-    return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
+    return false;
   }
   function shopScheduleStr(shop) {
     const SS = modHandle("ShopService");
     if (SS && typeof SS.shopScheduleStr === "function") {
       return SS.shopScheduleStr(shop);
     }
-    if (!shop) return "";
-    const h2 = (min) => {
-      const hh = ((min / 60) | 0) % 24;
-      return String(hh).padStart(2, "0");
-    };
-    return `Opens ${h2(shop.openMin)}:00, closes ${h2(shop.closeMin)}:00`;
+    return "";
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
     return TS.minutesUntil(turnCounter, hourTarget, minuteTarget);
