@@ -1395,20 +1395,6 @@
         const ok = !!WR.tryMovePlayerWorld(getCtx(), dx, dy);
         if (ok) return;
       }
-      // Legacy fallback: direct world map walk
-      const nx = player.x + dx;
-      const ny = player.y + dy;
-      const wmap = world && world.map ? world.map : null;
-      if (!wmap) return;
-      const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
-      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return;
-      const W = modHandle("World");
-      const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(wmap[ny][nx]) : true;
-      if (walkable) {
-        player.x = nx; player.y = ny;
-        updateCamera();
-        turn();
-      }
       return;
     }
 
@@ -1418,26 +1404,6 @@
       if (TR && typeof TR.tryMoveTown === "function") {
         const ok = !!TR.tryMoveTown(getCtx(), dx, dy);
         if (ok) return;
-      }
-      // Legacy fallback path
-      const nx = player.x + dx;
-      const ny = player.y + dy;
-      if (!inBounds(nx, ny)) return;
-      const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(nx, ny) : npcs.some(n => n.x === nx && n.y === ny);
-      if (npcBlocked) {
-        const TR2 = modHandle("TownRuntime");
-        if (TR2 && typeof TR2.talk === "function") {
-          TR2.talk(getCtx());
-        } else {
-          log("Excuse me!", "info");
-          requestDraw();
-        }
-        return;
-      }
-      if (isWalkable(nx, ny)) {
-        player.x = nx; player.y = ny;
-        updateCamera();
-        turn();
       }
       return;
     }
@@ -1450,17 +1416,7 @@
         if (ok) return;
       }
     }
-    // Minimal legacy fallback: move only into empty walkable tiles
-    const nx = player.x + dx;
-    const ny = player.y + dy;
-    if (!inBounds(nx, ny)) return;
-    const blockedByEnemy = (occupancy && typeof occupancy.hasEnemy === "function") ? occupancy.hasEnemy(nx, ny) : enemies.some(e => e.x === nx && e.y === ny);
-    if (isWalkable(nx, ny) && !blockedByEnemy) {
-      player.x = nx;
-      player.y = ny;
-      updateCamera();
-      turn();
-    }
+    
   }
 
   
