@@ -81,7 +81,7 @@ export function load(ctx, x, y) {
       ctx.updateUI && ctx.updateUI();
       ctx.requestDraw && ctx.requestDraw();
     }
-
+    return ok;
   }
   const key = keyFromWorldPos(x, y);
   const st = ctx._dungeonStates[key];
@@ -208,7 +208,7 @@ export function returnToWorldIfAtExit(ctx) {
   // Save state first
   try { save(ctx, false); } catch (_) {
     try { if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx); } catch (_) {}
-    try { if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "functioneonState.save(ctx); } catch (_) {}
+    try { if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") window.DungeonState.save(ctx); } catch (_) {}
   }
 
   // Switch to world and clear dungeon-only entities
@@ -390,8 +390,8 @@ export function killEnemy(ctx, enemy) {
   try {
     if (ctx.Player && typeof ctx.Player.gainXP === "function") {
       ctx.Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
-    } else if (typeof window !== "undefined" && window.Player && typeof Player.gainXP === "function") {
-      Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
+    } else if (typeof window !== "undefined" && window.Player && typeof window.Player.gainXP === "function") {
+      window.Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
     } else {
       ctx.player.xp = (ctx.player.xp || 0) + xp;
       ctx.log && ctx.log(`You gain ${xp} XP.`);
