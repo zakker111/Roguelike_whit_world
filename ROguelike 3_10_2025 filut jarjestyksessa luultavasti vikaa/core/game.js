@@ -1198,19 +1198,14 @@
       const ctx = getCtx();
       const ok = !!M.enterTownIfOnTile(ctx);
       if (ok) {
-        // Sync mutated ctx back into local state
-        syncFromCtx(ctx);
-        updateCamera();
-        // Invalidate FOV cache and recompute
+        // Invalidate cache then centralize sync/refresh
         _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-        recomputeFOV();
-        updateUI();
+        applyCtxSyncAndRefresh(ctx);
         // Show Town Exit button via TownRuntime
         try {
           const TR = modHandle("TownRuntime");
           if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
         } catch (_) {}
-        requestDraw();
       }
       return ok;
     }
@@ -1223,12 +1218,8 @@
       const ctx = getCtx();
       const ok = !!M.enterDungeonIfOnEntrance(ctx);
       if (ok) {
-        syncFromCtx(ctx);
-        updateCamera();
         _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-        recomputeFOV();
-        updateUI();
-        requestDraw();
+        applyCtxSyncAndRefresh(ctx);
       }
       return ok;
     }
@@ -1241,10 +1232,10 @@
       const ctx = getCtx();
       M.leaveTownNow(ctx);
       applyCtxSyncTownLeave(ctx);
-      // Hide Town Exit button via UIBridge
+      // Hide Town Exit button via TownRuntime
       try {
-        const UB = modHandle("UIBridge");
-        if (UB && typeof UB.hideTownExitButton === "function") UB.hideTownExitButton(getCtx());
+        const TR = modHandle("TownRuntime");
+        if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(getCtx());
       } catch (_) {}
       return;
     }
