@@ -2064,17 +2064,7 @@
       UB.updateStats(getCtx());
     }
   }
-s(getCtx());
-      return;
-    }
-    // Fallback if UI module not loaded
-    const hpEl = document.getElementById("health");
-    const floorEl = document.getElementById("floor");
-    const gold = (player.inventory.find(i => i.kind === "gold")?.amount) || 0;
-    if (hpEl) hpEl.textContent = `HP: ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}  Gold: ${gold}`;
-    const t = getClock();
-    if (floorEl) floorEl.textContent = `Floor: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}  Time: ${t.hhmm} (${t.phase})`;
-  }
+
 
   
   function enemiesAct() {
