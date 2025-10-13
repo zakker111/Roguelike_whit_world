@@ -1258,7 +1258,7 @@
       // Prefer TownRuntime.applyLeaveSync to ensure camera centering under ctx state
       if (TR && typeof TR.applyLeaveSync === "function") {
         TR.applyLeaveSync(ctx);
-        syncFromyncing local references from ctx, update camera/FOV/UI against new world map
+        // Sync mutated ctx and refresh camera/FOV/UI against new world map
         syncFromCtx(ctx);
         updateCamera();
         recomputeFOV();
