@@ -1578,13 +1578,15 @@
     if (enemy) {
       let loc = rollHitLocation();
       if (alwaysCrit && forcedCritPart) {
-        const profiles = {
+        // Use Combat profiles if available for consistency
+        const CU = modHandle("Combat");
+        const profs = (CU && CU.profiles) ? CU.profiles : {
           torso: { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 },
           head:  { part: "head",  mult: 1.1, blockMod: 0.85, critBonus: 0.15 },
           hands: { part: "hands", mult: 0.9, blockMod: 0.75, critBonus: -0.05 },
           legs:  { part: "legs",  mult: 0.95, blockMod: 0.75, critBonus: -0.03 },
         };
-        if (profiles[forcedCritPart]) loc = profiles[forcedCritPart];
+        if (profs[forcedCritPart]) loc = profs[forcedCritPart];
       }
 
       if (rng() < getEnemyBlockChance(enemy, loc)) {
