@@ -1,6 +1,11 @@
 # Game Version History
 Last updated: 2025-10-13 00:00 UTC
 
+v1.34.28 — Phase 4 continuation: TownAI ctx-first and diagnostics alignment
+- Changed: core/game.js GOD “Home route check” now prefers ctx.TownAI for populateTown and checkHomeRoutes (with window fallback), aligning with ctx-first usage.
+- Benefit: reduces window.* coupling and keeps diagnostics consistent with runtime/module handles.
+- Dev: No behavior change expected beyond improved module wiring; occupancy rebuild retained after TownAI.populateTown.
+
 v1.34.27 — Phase 4 continuation: ctx-first fallbacks and occupancy priming
 - Changed: core/modes.js now uses ctx-first handles in fallback paths:
   - Town fallback: ctx.Town.generate/ensureSpawnClear/spawnGateGreeters (no direct window.Town).

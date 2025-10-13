@@ -1927,8 +1927,9 @@
             }
             // Ensure town NPCs are populated before running the check
             try {
-              if ((!Array.isArray(ctx.npcs) || ctx.npcs.length === 0) && window.TownAI && typeof TownAI.populateTown === "function") {
-                TownAI.populateTown(ctx);
+              const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
+              if ((!Array.isArray(ctx.npcs) || ctx.npcs.length === 0) && TAI && typeof TAI.populateTown === "function") {
+                TAI.populateTown(ctx);
                 // Sync back any mutations
                 syncFromCtx(ctx);
                 {
@@ -1945,56 +1946,59 @@
               }
             } catch (_) {}
 
-            if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
-              const res = TownAI.checkHomeRoutes(ctx) || {};
-              const totalChecked = (typeof res.total === "number")
-                ? res.total
-                : ((res.reachable || 0) + (res.unreachable || 0));
-              const skippedStr = res.skipped ? `, ${res.skipped} skipped` : "";
-              const summaryLine = `Home route check: ${(res.reachable || 0)}/${totalChecked} reachable, ${(res.unreachable || 0)} unreachable${skippedStr}.`;
-              log(summaryLine, (res.unreachable || 0) ? "warn" : "good");
-              let extraLines = [];
-              if (res.residents && typeof res.residents.total === "number") {
-                const r = res.residents;
-                // TownAI returns atTavern; display as "inn" for consistency
-                extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
+            {
+              const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
+              if (TAI && typeof TAI.checkHomeRoutes === "function") {
+                const res = TAI.checkHomeRoutes(ctx) || {};
+                const totalChecked = (typeof res.total === "number")
+                  ? res.total
+                  : ((res.reachable || 0) + (res.unreachable || 0));
+                const skippedStr = res.skipped ? `, ${res.skipped} skipped` : "";
+                const summaryLine = `Home route check: ${(res.reachable || 0)}/${totalChecked} reachable, ${(res.unreachable || 0)} unreachable${skippedStr}.`;
+                log(summaryLine, (res.unreachable || 0) ? "warn" : "good");
+                let extraLines = [];
+                if (res.residents && typeof res.residents.total === "number") {
+                  const r = res.residents;
+                  // TownAI returns atTavern; display as "inn" for consistency
+                  extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
+                } else {
+                  // Provide a hint if no residents were counted
+                  extraLines.push("No residents were counted; ensure town NPCs are populated.");
+                }
+                // Per-resident list of late-night away residents
+                if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
+                  extraLines.push(`Late-night (02:00–05:00): ${res.residentsAwayLate.length} resident(s) away from home and inn:`);
+                  res.residentsAwayLate.slice(0, 10).forEach(d => {
+                    extraLines.push(`- ${d.name} at (${d.x},${d.y})`);
+                  });
+                  if (res.residentsAwayLate.length > 10) {
+                    extraLines.push(`...and ${res.residentsAwayLate.length - 10} more.`);
+                  }
+                }
+                if (res.skipped) {
+                  extraLines.push(`Skipped ${res.skipped} NPCs not expected to have homes (e.g., pets).`);
+                }
+                if (res.unreachable && Array.isArray(res.details)) {
+                  res.details.slice(0, 8).forEach(d => {
+                    extraLines.push(`- ${d.name}: ${d.reason}`);
+                  });
+                  if (res.details.length > 8) extraLines.push(`...and ${res.details.length - 8} more.`);
+                }
+                // Mirror summary inside GOD panel output area for visibility while modal is open
+                try {
+                  const el = document.getElementById("god-check-output");
+                  if (el) {
+                    const html = [summaryLine].concat(extraLines).map(s => `<div>${s}</div>`).join("");
+                    el.innerHTML = html;
+                  }
+                } catch (_) {}
+                // Also write all extra lines to the main log
+                extraLines.forEach(line => log(line, "info"));
+                // Request draw to show updated debug paths (if enabled)
+                requestDraw();
               } else {
-                // Provide a hint if no residents were counted
-                extraLines.push("No residents were counted; ensure town NPCs are populated.");
+                log("TownAI.checkHomeRoutes not available.", "warn");
               }
-              // Per-resident list of late-night away residents
-              if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
-                extraLines.push(`Late-night (02:00–05:00): ${res.residentsAwayLate.length} resident(s) away from home and inn:`);
-                res.residentsAwayLate.slice(0, 10).forEach(d => {
-                  extraLines.push(`- ${d.name} at (${d.x},${d.y})`);
-                });
-                if (res.residentsAwayLate.length > 10) {
-                  extraLines.push(`...and ${res.residentsAwayLate.length - 10} more.`);
-                }
-              }
-              if (res.skipped) {
-                extraLines.push(`Skipped ${res.skipped} NPCs not expected to have homes (e.g., pets).`);
-              }
-              if (res.unreachable && Array.isArray(res.details)) {
-                res.details.slice(0, 8).forEach(d => {
-                  extraLines.push(`- ${d.name}: ${d.reason}`);
-                });
-                if (res.details.length > 8) extraLines.push(`...and ${res.details.length - 8} more.`);
-              }
-              // Mirror summary inside GOD panel output area for visibility while modal is open
-              try {
-                const el = document.getElementById("god-check-output");
-                if (el) {
-                  const html = [summaryLine].concat(extraLines).map(s => `<div>${s}</div>`).join("");
-                  el.innerHTML = html;
-                }
-              } catch (_) {}
-              // Also write all extra lines to the main log
-              extraLines.forEach(line => log(line, "info"));
-              // Request draw to show updated debug paths (if enabled)
-              requestDraw();
-            } else {
-              log("TownAI.checkHomeRoutes not available.", "warn");
             }
           },
           onGodCheckInnTavern: () => {
