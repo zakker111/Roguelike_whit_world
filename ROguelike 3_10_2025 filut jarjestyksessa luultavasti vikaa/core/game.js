@@ -1235,11 +1235,20 @@
 
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
+    const ctx = getCtx();
     const TR = modHandle("TownRuntime");
     if (TR && typeof TR.returnToWorldIfAtGate === "function") {
-      const ctx = getCtx();
       const ok = !!TR.returnToWorldIfAtGate(ctx);
       if (ok) {
+        syncFromCtx(ctx);
+        return true;
+      }
+    }
+    // Fallback: if standing at the gate, leave via Modes
+    if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
+      const M = modHandle("Modes");
+      if (M && typeof M.leaveTownNow === "function") {
+        M.leaveTownNow(ctx);
         syncFromCtx(ctx);
         return true;
       }
