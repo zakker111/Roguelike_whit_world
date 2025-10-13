@@ -749,33 +749,16 @@
       updateUI();
       log("You explore the dungeon.");
       try {
-        const DR = modHandle("DungeonRuntime");
-        const ctx = getCtx();
-        if (DR && typeof DR.save === "function") {
-          DR.save(ctx, true);
+        const DR2 = modHandle("DungeonRuntime");
+        if (DR2 && typeof DR2.save === "function") {
+          DR2.save(ctx, true);
         } else {
           const DS = modHandle("DungeonState");
           if (DS && typeof DS.save === "function") {
             DS.save(ctx);
           }
         }
-      } catch (_) {
-        try {
-          const DS = modHandle("DungeonState");
-          if (DS && typeof DS.save === "function") {
-            DS.save(getCtx());
-          }
-        } catch (_) {}
-      }
-        }
-      } catch (_) {
-        try {
-          const DS = modHandle("DungeonState");
-          if (DS && typeof DS.save === "function") {
-            DS.save(getCtx());
-          }
-        } catch (_) {}
-      }
+      } catch (_) {}
       requestDraw();
       return;
     }
@@ -794,15 +777,16 @@
     updateUI();
     log("You explore the dungeon.");
     try {
-      const DR = modHandle("DungeonRuntime");
-      if (DR && typeof DR.save === "function") {
-        DR.save(getCtx(), true);
+      const DR2 = modHandle("DungeonRuntime");
+      if (DR2 && typeof DR2.save === "function") {
+        DR2.save(getCtx(), true);
       } else {
-        saveCurrentDungeonState(true);
+        const DS = modHandle("DungeonState");
+        if (DS && typeof DS.save === "function") {
+          DS.save(getCtx());
+        }
       }
-    } catch (_) {
-      saveCurrentDungeonState(true);
-    }
+    } catch (_) {}
     requestDraw();
     return;
   }
@@ -825,11 +809,7 @@
     return `${x},${y}`;
   }
 
-  `;
-        log(msg, "notice");
-      } catch (_) {}
-    }
-  }
+  
 
   
 
