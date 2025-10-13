@@ -14,11 +14,17 @@
 // Helpers
 function inBounds(ctx, x, y) {
   try {
-    if (ctx.Utils && typeof ctx.Utils.inBounds === "function") {
-      return ctx.Utils.inBounds(ctx, x, y);
+    if (typeof ctx.inBounds === "function") {
+      return !!ctx.inBounds(x, y);
     }
   } catch (_) {}
-  const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
+  try {
+    if (ctx.Utils && typeof ctx.Utils.inBounds === "function") {
+      return !!ctx.Utils.inBounds(ctx, x, y);
+    }
+  } catch (_) {}
+  const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+  const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
   return x >= 0 && y >= 0 && x < cols && y < rows;
 }
 
@@ -130,71 +136,48 @@ export function enterTownIfOnTile(ctx) {
   }
 
 export function saveCurrentDungeonState(ctx) {
-  if (!(ctx.mode === "dungeon" && ctx.dungeon && ctx.dungeonExitAt)) return;
-  // Prefer centralized DungeonRuntime.save when available
+  if (!(ctx && ctx.mode === "dungeon" && ctx.dungeonExitAt)) return;
+  // Prefer centralized DungeonRuntime/DungeonState
   try {
     if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
       ctx.DungeonRuntime.save(ctx, false);
       return;
     }
   } catch (_) {}
-  // Fallback in-memory snapshot on ctx._dungeonStates if present
-  const key = `${ctx.dungeon.x},${ctx.dungeon.y}`;
-  if (!ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
-  ctx._dungeonStates[key] = {
-    map: ctx.map,
-    seen: ctx.seen,
-    visible: ctx.visible,
-    enemies: ctx.enemies,
-    corpses: ctx.corpses,
-    decals: ctx.decals || [],
-    dungeonExitAt: { x: ctx.dungeonExitAt.x, y: ctx.dungeonExitAt.y },
-    info: ctx.dungeon,
-    level: ctx.floor
-  };
   try {
-    const msg = `[DEV] Fallback save key ${key}: enemies=${Array.isArray(ctx.enemies)?ctx.enemies.length:0}, corpses=${Array.isArray(ctx.corpses)?ctx.corpses.length:0}`;
-    if (ctx.log) ctx.log(msg, "notice");
-    if (window.DEV) console.log("[TRACE] " + msg);
+    if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
+      ctx.DungeonState.save(ctx);
+      return;
+    }
+    if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
+      DungeonState.save(ctx);
+      return;
+    }
   } catch (_) {}
 }
 
 export function loadDungeonStateFor(ctx, x, y) {
-  // Prefer centralized DungeonRuntime if available
+  // Prefer centralized DungeonRuntime/DungeonState
   try {
     if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.load === "function") {
       const ok = ctx.DungeonRuntime.load(ctx, x, y);
-      if (ok) {
-        syncAfterMutation(ctx);
-      }
+      if (ok) syncAfterMutation(ctx);
       return ok;
     }
   } catch (_) {}
-  const key = `${x},${y}`;
-  const st = ctx._dungeonStates && ctx._dungeonStates[key];
-  if (!st) return false;
-  ctx.mode = "dungeon";
-  ctx.dungeon = st.info || { x, y, level: st.level || 1, size: "medium" };
-  ctx.dungeonInfo = ctx.dungeon;
-  ctx.floor = st.level || 1;
-  ctx.map = st.map;
-  ctx.seen = st.seen;
-  ctx.visible = st.visible;
-  ctx.enemies = st.enemies;
-  ctx.corpses = st.corpses;
-  ctx.decals = st.decals || [];
-  ctx.dungeonExitAt = st.dungeonExitAt || { x, y };
-  // Place player at entrance and mark as STAIRS
-  ctx.player.x = ctx.dungeonExitAt.x;
-  ctx.player.y = ctx.dungeonExitAt.y;
-  if (inBounds(ctx, ctx.player.x, ctx.player.y)) {
-    ctx.map[ctx.player.y][ctx.player.x] = ctx.TILES.STAIRS;
-    if (ctx.visible[ctx.player.y]) ctx.visible[ctx.player.y][ctx.player.x] = true;
-    if (ctx.seen[ctx.player.y]) ctx.seen[ctx.player.y][ctx.player.x] = true;
-  }
-  // Re-entry message is logged by DungeonState.applyState to avoid duplicates.
-  syncAfterMutation(ctx);
-  return true;
+  try {
+    if (ctx.DungeonState && typeof ctx.DungeonState.load === "function") {
+      const ok = ctx.DungeonState.load(ctx, x, y);
+      if (ok) syncAfterMutation(ctx);
+      return ok;
+    }
+    if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.load === "function") {
+      const ok = DungeonState.load(ctx, x, y);
+      if (ok) syncAfterMutation(ctx);
+      return ok;
+    }
+  } catch (_) {}
+  return false;
 }
 
 export function enterDungeonIfOnEntrance(ctx) {
@@ -283,7 +266,15 @@ export function returnToWorldIfAtExit(ctx) {
     return false;
   }
   // Save and return
-  saveCurrentDungeonState(ctx);
+  try {
+    if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
+      ctx.DungeonRuntime.save(ctx, false);
+    } else if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
+      ctx.DungeonState.save(ctx);
+    } else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
+      DungeonState.save(ctx);
+    }
+  } catch (_) {}
   ctx.mode = "world";
   ctx.enemies.length = 0;
   ctx.corpses.length = 0;
