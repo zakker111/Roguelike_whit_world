@@ -1244,12 +1244,23 @@
         return true;
       }
     }
-    // Fallback: if standing at the gate, leave via Modes
+    // Fallback: if standing at the gate, leave via TownRuntime/Modes
     if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
+      // Prefer TownRuntime.applyLeaveSync to ensure camera centering under ctx state
+      if (TR && typeof TR.applyLeaveSync === "function") {
+        TR.applyLeaveSync(ctx);
+        syncFromCtx(ctx);
+        return true;
+      }
       const M = modHandle("Modes");
       if (M && typeof M.leaveTownNow === "function") {
         M.leaveTownNow(ctx);
+        // After syncing local references from ctx, update camera/FOV/UI against new world map
         syncFromCtx(ctx);
+        updateCamera();
+        recomputeFOV();
+        updateUI();
+        requestDraw();
         return true;
       }
     }
