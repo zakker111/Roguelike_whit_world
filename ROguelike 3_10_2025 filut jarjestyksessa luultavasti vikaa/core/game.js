@@ -1759,26 +1759,19 @@
     if (UB && typeof UB.hideShop === "function") {
       UB.hideShop(getCtx());
       requestDraw();
-      return;
     }
-    try { log("Shop UI not available.", "warn"); } catch (_) {}
-    requestDraw();
   }
   function openShopFor(npc) {
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.showShop === "function") {
-      try { UB.showShop(getCtx(), npc); } catch (_) {}
-      return;
+      UB.showShop(getCtx(), npc);
     }
-    try { log("Shop UI not available.", "warn"); } catch (_) {}
   }
   function shopBuyIndex(idx) {
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.buyShopIndex === "function") {
-      try { UB.buyShopIndex(getCtx(), idx); } catch (_) {}
-      return;
+      UB.buyShopIndex(getCtx(), idx);
     }
-    try { log("Shop UI not available.", "warn"); } catch (_) {}
   }
 
   // GOD mode actions (delegated to GodControls)
