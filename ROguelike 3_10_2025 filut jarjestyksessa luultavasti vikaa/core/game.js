@@ -1176,6 +1176,33 @@
     requestDraw();
   }
 
+  // Helper: town-leave sync that clears town-specific state, then refreshes
+  function applyCtxSyncTownLeave(ctx) {
+    mode = ctx.mode || mode;
+    map = ctx.map || map;
+    seen = ctx.seen || seen;
+    visible = ctx.visible || visible;
+    enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
+    corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
+    decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
+    // Clear town-specific state on leave
+    npcs = [];
+    shops = [];
+    townProps = [];
+    townBuildings = [];
+    townPlaza = null;
+    tavern = null;
+    worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+    townExitAt = null;
+    dungeonExitAt = null;
+    currentDungeon = ctx.dungeon || ctx.dungeonInfo || null;
+    if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+    recomputeFOV();
+    updateCamera();
+    updateUI();
+    requestDraw();
+  }
+
   function enterTownIfOnTile() {
     const M = modHandle("Modes");
     if (M && typeof M.enterTownIfOnTile === "function") {
@@ -1219,29 +1246,7 @@
     if (M && typeof M.leaveTownNow === "function") {
       const ctx = getCtx();
       M.leaveTownNow(ctx);
-      // Sync mutated ctx back into local state
-      mode = ctx.mode || mode;
-      map = ctx.map || map;
-      seen = ctx.seen || seen;
-      visible = ctx.visible || visible;
-      enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-      corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-      decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-      npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
-      shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-      townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
-      townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
-      townPlaza = null;
-      tavern = null;
-      worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-      townExitAt = null;
-      dungeonExitAt = null;
-      currentDungeon = ctx.dungeon || ctx.dungeonInfo || null;
-      if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
-      recomputeFOV();
-      updateCamera();
-      updateUI();
-      requestDraw();
+      applyCtxSyncTownLeave(ctx);
       return;
     }
   }
