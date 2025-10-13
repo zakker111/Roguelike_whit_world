@@ -115,8 +115,11 @@ export function enterTownIfOnTile(ctx) {
         if (ctx.TownRuntime && typeof ctx.TownRuntime.generate === "function") {
           const ok = !!ctx.TownRuntime.generate(ctx);
           if (ok) {
-            // After TownRuntime.generate, ensure gate exit anchor and UI
+            // After TownRuntime.generate, ensure gate exit anchor, prime occupancy, and UI
             ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
+            try {
+              if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
+            } catch (_) {}
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
               else if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
@@ -136,6 +139,9 @@ export function enterTownIfOnTile(ctx) {
         // Town.generate already spawns a gate greeter; avoid duplicates.
         if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 0);
       }
+      try {
+        if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
+      } catch (_) {}
       try {
         if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
         else if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
