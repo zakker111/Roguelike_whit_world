@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-13 00:00 UTC
 
+v1.34.27 — Phase 4 continuation: ctx-first fallbacks and occupancy priming
+- Changed: core/modes.js now uses ctx-first handles in fallback paths:
+  - Town fallback: ctx.Town.generate/ensureSpawnClear/spawnGateGreeters (no direct window.Town).
+  - Dungeon fallback: ctx.Dungeon.generateLevel (no direct window.Dungeon).
+- Changed: core/modes.js primes OccupancyGrid immediately after dungeon fallback generation to avoid ghost-blocking before the first tick.
+- Changed: After TownRuntime.generate(ctx) succeeds, Modes primes town occupancy via TownRuntime.rebuildOccupancy(ctx) before showing the exit button (was previously only on cadence).
+- Dev: Deployment refreshed; movement and transitions remain runtime-first with minimal safe fallbacks retained for resilience.
+
 v1.34.26 — Phase 4 continuation: centralized movement with safe fallbacks, town leave/exit UI via runtime
 - Changed: core/game.js tryMovePlayer now prefers WorldRuntime/TownRuntime/DungeonRuntime and restores minimal fallbacks per mode to keep playability if a runtime is unavailable or declines movement.
   - World: direct overworld walk fallback (bounds + World.isWalkable) if runtime returns false.

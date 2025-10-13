@@ -131,13 +131,13 @@ export function enterTownIfOnTile(ctx) {
         }
       } catch (_) {}
 
-      // Fallback: inline generation path via Town module
-      if (ctx.Town && typeof Town.generate === "function") {
-        Town.generate(ctx);
-        if (typeof Town.ensureSpawnClear === "function") Town.ensureSpawnClear(ctx);
+      // Fallback: inline generation path via Town module (ctx-first)
+      if (ctx.Town && typeof ctx.Town.generate === "function") {
+        ctx.Town.generate(ctx);
+        try { if (typeof ctx.Town.ensureSpawnClear === "function") ctx.Town.ensureSpawnClear(ctx); } catch (_) {}
         ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
         // Town.generate already spawns a gate greeter; avoid duplicates.
-        if (typeof Town.spawnGateGreeters === "function") Town.spawnGateGreeters(ctx, 0);
+        try { if (typeof ctx.Town.spawnGateGreeters === "function") ctx.Town.spawnGateGreeters(ctx, 0); } catch (_) {}
       }
       try {
         if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
@@ -241,9 +241,9 @@ export function enterDungeonIfOnEntrance(ctx) {
     // Fallback: inline generation path
     ctx.floor = Math.max(1, info.level | 0);
     ctx.mode = "dungeon";
-    if (ctx.Dungeon && typeof Dungeon.generateLevel === "function") {
+    if (ctx.Dungeon && typeof ctx.Dungeon.generateLevel === "function") {
       ctx.startRoomRect = ctx.startRoomRect || null;
-      Dungeon.generateLevel(ctx, ctx.floor);
+      ctx.Dungeon.generateLevel(ctx, ctx.floor);
     }
     ctx.dungeonExitAt = { x: ctx.player.x, y: ctx.player.y };
     if (inBounds(ctx, ctx.player.x, ctx.player.y)) {
