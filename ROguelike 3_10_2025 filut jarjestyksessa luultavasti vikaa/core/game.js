@@ -753,7 +753,15 @@
         const DR = modHandle("DungeonRuntime");
         if (DR && typeof DR.save === "function") {
           DR.save(getCtx(), true);
-        } else    }
+        } else {
+          saveCurrentDungeonState(true);
+        }
+      } catch (_) {
+        saveCurrentDungeonState(true);
+      }
+      requestDraw();
+      return;
+    }
     // Fallback: flat-floor map
     map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
     const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
@@ -774,7 +782,13 @@
         DR.save(getCtx(), true);
       } else {
         saveCurrentDungeonState(true);
-
+      }
+    } catch (_) {
+      saveCurrentDungeonState(true);
+    }
+    requestDraw();
+    return;
+  }
 
   function inBounds(x, y) {
     // Prefer ctx-first Utils.inBounds to avoid duplication
