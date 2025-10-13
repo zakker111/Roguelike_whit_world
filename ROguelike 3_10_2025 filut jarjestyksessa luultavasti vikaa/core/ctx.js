@@ -70,10 +70,10 @@ export function attachModules(ctx) {
 export function ensureUtils(ctx) {
   const rng = typeof ctx.rng === "function"
     ? ctx.rng
-    : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-        ? RNG.rng
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
-            ? RNGFallback.getRng()
+    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+        ? window.RNG.rng
+        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+            ? window.RNGFallback.getRng()
             : Math.random));
   const round1 = (ctx.PlayerUtils && typeof ctx.PlayerUtils.round1 === "function")
     ? ctx.PlayerUtils.round1

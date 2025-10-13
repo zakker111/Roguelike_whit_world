@@ -181,10 +181,10 @@
   <script>
     (function () {
       try {
-        var src = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
+        var src = (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
         var seed = "(random)";
-        if (typeof window !== "undefined" && window.RNG && typeof RNG.getSeed === "function") {
-          var s = RNG.getSeed();
+        if (typeof window !== "undefined" && window.RNG && typeof window.RNG.getSeed === "function") {
+          var s = window.RNG.getSeed();
           if (s != null) seed = String((Number(s) >>> 0));
         } else {
           try {

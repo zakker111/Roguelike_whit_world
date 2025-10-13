@@ -334,11 +334,11 @@
 
   // Use RNG service if available for helpers
   const randInt = (min, max) => {
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.int === "function") return RNG.int(min, max);
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.int === "function") return window.RNG.int(min, max);
     return Math.floor(rng() * (max - min + 1)) + min;
   };
   const chance = (p) => {
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.chance === "function") return RNG.chance(p);
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.chance === "function") return window.RNG.chance(p);
     return rng() < p;
   };
   const capitalize = ((typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.capitalize === "function")
@@ -352,7 +352,7 @@
     return COLORS.enemy;
   };
   const randFloat = (min, max, decimals = 1) => {
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.float === "function") return RNG.float(min, max, decimals);
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.float === "function") return window.RNG.float(min, max, decimals);
     const v = min + rng() * (max - min);
     const p = Math.pow(10, decimals);
     return Math.round(v * p) / p;
@@ -2040,7 +2040,7 @@
               World: !!ctx.World, Town: !!ctx.Town, TownAI: !!ctx.TownAI,
               DungeonState: !!ctx.DungeonState
             };
-            const rngSrc = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
+            const rngSrc = (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
             const seedStr = (typeof currentSeed === "number") ? String(currentSeed >>> 0) : "(random)";
             log("Diagnostics:", "notice");
             log(`- Determinism: ${rngSrc}  Seed: ${seedStr}`, "info");

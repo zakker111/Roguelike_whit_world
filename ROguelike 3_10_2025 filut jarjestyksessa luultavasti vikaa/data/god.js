@@ -236,17 +236,17 @@ export function setCritPart(ctx, part) {
 export function applySeed(ctx, seedUint32) {
   const s = (Number(seedUint32) >>> 0);
   try { localStorage.setItem("SEED", String(s)); } catch (_) {}
-  if (typeof window !== "undefined" && window.RNG && typeof RNG.applySeed === "function") {
-    RNG.applySeed(s);
-    ctx.rng = RNG.rng;
+  if (typeof window !== "undefined" && window.RNG && typeof window.RNG.applySeed === "function") {
+    window.RNG.applySeed(s);
+    ctx.rng = window.RNG.rng;
   } else {
     try {
-      if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
-        ctx.rng = RNGFallback.getRng(s);
+      if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
+        ctx.rng = window.RNGFallback.getRng(s);
       } else {
         // As a last resort, use a time-seeded deterministic fallback
         ctx.rng = (function () {
-          try { return RNGFallback.getRng(s); } catch (_) {}
+          try { return window.RNGFallback.getRng(s); } catch (_) {}
           const seed = ((Date.now() % 0xffffffff) >>> 0);
           function mulberry32(a) {
             return function () {
