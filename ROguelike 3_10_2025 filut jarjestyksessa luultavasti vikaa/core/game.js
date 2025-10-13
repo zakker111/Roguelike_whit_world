@@ -1502,17 +1502,22 @@
       return;
     }
 
-    // TOWN MODE: block NPC tiles, use local isWalkable
+    // TOWN MODE
     if (mode === "town") {
+      const TR = modHandle("TownRuntime");
+      if (TR && typeof TR.tryMoveTown === "function") {
+        const ok = !!TR.tryMoveTown(getCtx(), dx, dy);
+        if (ok) return;
+      }
+      // Legacy fallback path
       const nx = player.x + dx;
       const ny = player.y + dy;
       if (!inBounds(nx, ny)) return;
       const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(nx, ny) : npcs.some(n => n.x === nx && n.y === ny);
       if (npcBlocked) {
-        // Delegate bump-talk and shop gating to TownRuntime
-        const TR = modHandle("TownRuntime");
-        if (TR && typeof TR.talk === "function") {
-          TR.talk(getCtx());
+        const TR2 = modHandle("TownRuntime");
+        if (TR2 && typeof TR2.talk === "function") {
+          TR2.talk(getCtx());
         } else {
           log("Excuse me!", "info");
           requestDraw();

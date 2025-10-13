@@ -112,6 +112,41 @@ export function talk(ctx) {
   return true;
 }
 
+export function tryMoveTown(ctx, dx, dy) {
+  if (!ctx || ctx.mode !== "town") return false;
+  const nx = ctx.player.x + (dx | 0);
+  const ny = ctx.player.y + (dy | 0);
+  if (!ctx.inBounds(nx, ny)) return false;
+
+  let npcBlocked = false;
+  try {
+    if (ctx.occupancy && typeof ctx.occupancy.hasNPC === "function") {
+      npcBlocked = !!ctx.occupancy.hasNPC(nx, ny);
+    } else {
+      npcBlocked = Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === nx && n.y === ny);
+    }
+  } catch (_) {}
+
+  if (npcBlocked) {
+    if (typeof talk === "function") {
+      talk(ctx);
+    } else if (ctx.log) {
+      ctx.log("Excuse me!", "info");
+      ctx.requestDraw && ctx.requestDraw();
+    }
+    return true;
+  }
+
+  const walkable = (typeof ctx.isWalkable === "function") ? !!ctx.isWalkable(nx, ny) : true;
+  if (walkable) {
+    ctx.player.x = nx; ctx.player.y = ny;
+    try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+    try { ctx.turn && ctx.turn(); } catch (_) {}
+    return true;
+  }
+  return false;
+}
+
 export function returnToWorldIfAtGate(ctx) {
   if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
   const atGate = !!(ctx.townExitAt && ctx.player.x === ctx.townExitAt.x && ctx.player.y === ctx.townExitAt.y);
@@ -213,5 +248,5 @@ export function hideExitButton(ctx) {
 
 // Back-compat: attach to window for classic scripts
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, returnToWorldIfAtGate, applyLeaveSync, showExitButton, hideExitButton };
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, returnToWorldIfAtGate, applyLeaveSync, showExitButton, hideExitButton };
 }
