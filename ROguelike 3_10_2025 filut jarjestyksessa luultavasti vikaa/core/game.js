@@ -1220,8 +1220,12 @@
       if (TR && typeof TR.applyLeaveSync === "function") {
         TR.applyLeaveSync(ctx);
       }
-      // Sync mutated ctx back into local state
+      // Sync mutated ctx back into local state, then center camera and refresh
       syncFromCtx(ctx);
+      updateCamera();
+      recomputeFOV();
+      updateUI();
+      requestDraw();
       return;
     }
   }
@@ -1240,7 +1244,12 @@
     if (TR && typeof TR.returnToWorldIfAtGate === "function") {
       const ok = !!TR.returnToWorldIfAtGate(ctx);
       if (ok) {
+        // Sync mutated ctx references into local state, then center camera on player
         syncFromCtx(ctx);
+        updateCamera();
+        recomputeFOV();
+        updateUI();
+        requestDraw();
         return true;
       }
     }
@@ -1249,13 +1258,7 @@
       // Prefer TownRuntime.applyLeaveSync to ensure camera centering under ctx state
       if (TR && typeof TR.applyLeaveSync === "function") {
         TR.applyLeaveSync(ctx);
-        syncFromCtx(ctx);
-        return true;
-      }
-      const M = modHandle("Modes");
-      if (M && typeof M.leaveTownNow === "function") {
-        M.leaveTownNow(ctx);
-        // After syncing local references from ctx, update camera/FOV/UI against new world map
+        syncFromyncing local references from ctx, update camera/FOV/UI against new world map
         syncFromCtx(ctx);
         updateCamera();
         recomputeFOV();
