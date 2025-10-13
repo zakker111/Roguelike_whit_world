@@ -1692,6 +1692,11 @@
 
   
   function interactTownProps() {
+    // Prefer TownRuntime.talk for bump-talk; fall back to Town.interactProps
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.talk === "function") {
+      return !!TR.talk(getCtx());
+    }
     const Tn = modHandle("Town");
     if (Tn && typeof Tn.interactProps === "function") {
       return !!Tn.interactProps(getCtx());
