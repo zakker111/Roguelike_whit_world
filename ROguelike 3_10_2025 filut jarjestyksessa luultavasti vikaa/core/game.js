@@ -170,12 +170,7 @@
   let decals = [];
   // Occupancy Grid (entities on tiles)
   let occupancy = null;
-  function rebuildOccupancy() {
-    const OG = modHandle("OccupancyGrid");
-    if (OG && typeof OG.build === "function") {
-      occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
-    }
-  }
+  
   let floor = 1;
   // RNG: centralized via RNG service; allow persisted seed for reproducibility
   let currentSeed = null;
@@ -738,8 +733,18 @@
           seen[player.y][player.x] = true;
         }
       }
-      // Rebuild occupancy using ctx-first handle; module will no-op if unavailable.
-      rebuildOccupancy();
+      // Rebuild occupancy using TownRuntime helper or direct OccupancyGrid
+      {
+        const TR = modHandle("TownRuntime");
+        if (TR && typeof TR.rebuildOccupancy === "function") {
+          TR.rebuildOccupancy(getCtx());
+        } else {
+          const OG = modHandle("OccupancyGrid");
+          if (OG && typeof OG.build === "function") {
+            occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
+          }
+        }
+      }
       if (window.DEV) {
         try {
           const visCount = enemies.filter(e => inBounds(e.x, e.y) && visible[e.y][e.x]).length;
@@ -1929,7 +1934,17 @@
                 TownAI.populateTown(ctx);
                 // Sync back any mutations
                 syncFromCtx(ctx);
-                rebuildOccupancy();
+                {
+                  const TR = modHandle("TownRuntime");
+                  if (TR && typeof TR.rebuildOccupancy === "function") {
+                    TR.rebuildOccupancy(getCtx());
+                  } else {
+                    const OG = modHandle("OccupancyGrid");
+                    if (OG && typeof OG.build === "function") {
+                      occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
+                    }
+                  }
+                }
               }
             } catch (_) {}
 

@@ -270,6 +270,18 @@ export function tick(ctx) {
   return true;
 }
 
+// Explicit occupancy rebuild helper for callers that mutate town entities outside tick cadence.
+export function rebuildOccupancy(ctx) {
+  try {
+    const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+    if (OG && typeof OG.build === "function") {
+      ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, showExitButton, hideExitButton };
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, showExitButton, hideExitButton, rebuildOccupancy };
 }
