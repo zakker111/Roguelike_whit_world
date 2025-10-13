@@ -485,6 +485,10 @@
     if (C && typeof C.rollHitLocation === "function") {
       return C.rollHitLocation(rng);
     }
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.rollHitLocation === "function") {
+      return FB.rollHitLocation(rng);
+    }
     const r = rng();
     if (r < 0.50) return { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 };
     if (r < 0.65) return { part: "head",  mult: 1.1, blockMod: 0.85, critBonus: 0.15 };
@@ -496,6 +500,10 @@
     const C = modHandle("Combat");
     if (C && typeof C.critMultiplier === "function") {
       return C.critMultiplier(rng);
+    }
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.critMultiplier === "function") {
+      return FB.critMultiplier(rng);
     }
     return 1.6 + rng() * 0.4;
   }
@@ -509,6 +517,10 @@
     const EM = modHandle("Enemies");
     if (EM && typeof EM.enemyBlockChance === "function") {
       return EM.enemyBlockChance(enemy, loc);
+    }
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.enemyBlockChance === "function") {
+      return FB.enemyBlockChance(getCtx(), enemy, loc);
     }
     const base = enemy.type === "ogre" ? 0.10 : enemy.type === "troll" ? 0.08 : 0.06;
     return Math.max(0, Math.min(0.35, base * (loc?.blockMod || 1.0)));
@@ -532,6 +544,10 @@
     const C = modHandle("Combat");
     if (C && typeof C.enemyDamageAfterDefense === "function") {
       return C.enemyDamageAfterDefense(getCtx(), raw);
+    }
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.enemyDamageAfterDefense === "function") {
+      return FB.enemyDamageAfterDefense(getCtx(), raw);
     }
     const def = getPlayerDefense();
     const DR = Math.max(0, Math.min(0.85, def / (def + 6)));
@@ -559,6 +575,10 @@
     const EM = modHandle("Enemies");
     if (EM && typeof EM.damageMultiplier === "function") {
       return EM.damageMultiplier(level);
+    }
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.enemyDamageMultiplier === "function") {
+      return FB.enemyDamageMultiplier(level);
     }
     return 1 + 0.15 * Math.max(0, (level || 1) - 1);
   }
@@ -1753,32 +1773,34 @@
     try { log("Shop UI not available.", "warn"); } catch (_) {}
   }
 
-  // GOD mode actions
+  // GOD mode actions (delegated to GodControls)
   function godHeal() {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.heal === "function") { GC.heal(() => getCtx()); return; }
     const G = modHandle("God");
     if (G && typeof G.heal === "function") { G.heal(getCtx()); return; }
     log("GOD: heal not available.", "warn");
   }
 
   function godSpawnStairsHere() {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.spawnStairsHere === "function") { GC.spawnStairsHere(() => getCtx()); return; }
     const G = modHandle("God");
     if (G && typeof G.spawnStairsHere === "function") { G.spawnStairsHere(getCtx()); return; }
     log("GOD: spawnStairsHere not available.", "warn");
   }
 
   function godSpawnItems(count = 3) {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.spawnItems === "function") { GC.spawnItems(() => getCtx(), count); return; }
     const G = modHandle("God");
     if (G && typeof G.spawnItems === "function") { G.spawnItems(getCtx(), count); return; }
     log("GOD: spawnItems not available.", "warn");
   }
 
-  /**
-   * Spawn one or more enemies near the player (debug/GOD).
-   * - Chooses a free FLOOR tile within a small radius; falls back to any free floor tile.
-   * - Creates enemy via ctx.enemyFactory or Enemies.createEnemyAt.
-   * - Applies small randomized jitters to hp/atk for variety (deterministic via rng).
-   */
   function godSpawnEnemyNearby(count = 1) {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.spawnEnemyNearby === "function") { GC.spawnEnemyNearby(() => getCtx(), count); return; }
     const G = modHandle("God");
     if (G && typeof G.spawnEnemyNearby === "function") { G.spawnEnemyNearby(getCtx(), count); return; }
     log("GOD: spawnEnemyNearby not available.", "warn");
@@ -1901,38 +1923,30 @@
     }
   }
 
-  // GOD: always-crit toggle
+  // GOD: always-crit toggle (delegated)
   function setAlwaysCrit(v) {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.setAlwaysCrit === "function") { GC.setAlwaysCrit(() => getCtx(), v); alwaysCrit = !!v; return; }
     const G = modHandle("God");
     if (G && typeof G.setAlwaysCrit === "function") { G.setAlwaysCrit(getCtx(), v); alwaysCrit = !!v; return; }
-    alwaysCrit = !!v;
-    try { window.ALWAYS_CRIT = alwaysCrit; localStorage.setItem("ALWAYS_CRIT", alwaysCrit ? "1" : "0"); } catch (_) {}
-    log(`GOD: Always Crit ${alwaysCrit ? "enabled" : "disabled"}.`, alwaysCrit ? "good" : "warn");
+    log("GOD: setAlwaysCrit not available.", "warn");
   }
 
-  // GOD: set forced crit body part for player attacks
+  // GOD: set forced crit body part for player attacks (delegated)
   function setCritPart(part) {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.setCritPart === "function") { GC.setCritPart(() => getCtx(), part); forcedCritPart = part; return; }
     const G = modHandle("God");
     if (G && typeof G.setCritPart === "function") { G.setCritPart(getCtx(), part); forcedCritPart = part; return; }
-    const valid = new Set(["torso","head","hands","legs",""]);
-    const p = valid.has(part) ? part : "";
-    forcedCritPart = p;
-    try {
-      window.ALWAYS_CRIT_PART = p;
-      if (p) localStorage.setItem("ALWAYS_CRIT_PART", p);
-      else localStorage.removeItem("ALWAYS_CRIT_PART");
-    } catch (_) {}
-    if (p) log(`GOD: Forcing crit hit location: ${p}.`, "notice");
-    else log("GOD: Cleared forced crit hit location.", "notice");
+    log("GOD: setCritPart not available.", "warn");
   }
 
-  // GOD: apply a deterministic RNG seed and regenerate current map
+  // GOD: apply a deterministic RNG seed and regenerate current map (delegated)
   function applySeed(seedUint32) {
-    const G = modHandle("God");
-    if (G && typeof G.applySeed === "function") {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.applySeed === "function") {
       const ctx = getCtx();
-      G.applySeed(ctx, seedUint32);
-      // Sync RNG and any regenerated state back into local variables
+      GC.applySeed(() => getCtx(), seedUint32);
       rng = ctx.rng || rng;
       syncFromCtx(ctx);
       updateCamera();
@@ -1941,42 +1955,35 @@
       requestDraw();
       return;
     }
-    // Minimal fallback
-    const s = (Number(seedUint32) >>> 0);
-    currentSeed = s;
-    try { localStorage.setItem("SEED", String(s)); } catch (_) {}
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.applySeed === "function") {
-      RNG.applySeed(s);
-      rng = RNG.rng;
-    } else {
-      try {
-        if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
-          rng = RNGFallback.getRng(s);
-        } else {
-          rng = Math.random;
-        }
-      } catch (_) {
-        rng = Math.random;
-      }
+    const G = modHandle("God");
+    if (G && typeof G.applySeed === "function") {
+      const ctx = getCtx();
+      G.applySeed(ctx, seedUint32);
+      rng = ctx.rng || rng;
+      syncFromCtx(ctx);
+      updateCamera();
+      recomputeFOV();
+      updateUI();
+      requestDraw();
+      return;
     }
-    if (mode === "world") {
-      log(`GOD: Applied seed ${s}. Regenerating overworld...`, "notice");
-      initWorld();
-    } else {
-      log(`GOD: Applied seed ${s}. Regenerating floor ${floor}...`, "notice");
-      generateLevel(floor);
-    }
-    requestDraw();
-    try {
-      const el = document.getElementById("god-seed-help");
-      if (el) el.textContent = `Current seed: ${s}`;
-      const input = document.getElementById("god-seed-input");
-      if (input) input.value = String(s);
-    } catch (_) {}
+    log("GOD: applySeed not available.", "warn");
   }
 
-  // GOD: reroll seed using current time
+  // GOD: reroll seed using current time (delegated)
   function rerollSeed() {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.rerollSeed === "function") {
+      const ctx = getCtx();
+      GC.rerollSeed(() => getCtx());
+      rng = ctx.rng || rng;
+      syncFromCtx(ctx);
+      updateCamera();
+      recomputeFOV();
+      updateUI();
+      requestDraw();
+      return;
+    }
     const G = modHandle("God");
     if (G && typeof G.rerollSeed === "function") {
       const ctx = getCtx();
@@ -1989,8 +1996,7 @@
       requestDraw();
       return;
     }
-    const s = (Date.now() % 0xffffffff) >>> 0;
-    applySeed(s);
+    log("GOD: rerollSeed not available.", "warn");
   }
 
   function hideGameOver() {
