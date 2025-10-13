@@ -297,8 +297,6 @@ export function forceUpdate(player) {
         if (window.GameAPI && typeof window.GameAPI.getCtx === "function") {
           const c = window.GameAPI.getCtx();
           if (c && typeof c.floor === "number") floor = c.floor;
-        } else if (typeof window.floor === "number") {
-          floor = window.floor;
         }
       } catch (_) {}
       UI.updateStats(player, floor, getAttack.bind(null, player), getDefense.bind(null, player));

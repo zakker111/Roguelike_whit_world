@@ -800,15 +800,7 @@
     return false;
   }
 
-  // --------- Dungeon persistence helpers ---------
-  function dungeonKeyFromWorldPos(x, y) {
-    const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.keyFromWorldPos === "function") {
-      return DR.keyFromWorldPos(x, y);
-    }
-    return `${x},${y}`;
-  }
-
+  
   
 
   
@@ -1843,13 +1835,7 @@
 
 
   
-  function enemiesAct() {
-    const AIH = modHandle("AI");
-    if (AIH && typeof AIH.enemiesAct === "function") {
-      AIH.enemiesAct(getCtx());
-    }
-    // No fallback here: AI behavior is defined in ai.js
-  }
+  
 
   
 

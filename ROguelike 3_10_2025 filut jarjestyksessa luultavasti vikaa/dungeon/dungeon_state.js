@@ -123,7 +123,6 @@ function applyState(ctx, st, x, y) {
   ctx.mode = "dungeon";
   ctx.dungeonInfo = st.info || { x, y, level: st.level || 1, size: "medium" };
   ctx.floor = st.level || 1;
-  if (typeof window !== "undefined") window.floor = ctx.floor;
 
   // Deep references
   ctx.map = st.map;
