@@ -1096,8 +1096,9 @@
     updateUI();
     log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
     {
-      const UB = modHandle("UIBridge");
-      if (UB && typeof UB.hideTownExitButton === "function") UB.hideTownExitButton(getCtx());
+      // Delegate town exit button visibility via TownRuntime
+      const TR = modHandle("TownRuntime");
+      if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(getCtx());
     }
     requestDraw();
   }
@@ -1300,23 +1301,7 @@
       const ctx = getCtx();
       const ok = M.returnToWorldIfAtExit(ctx);
       if (ok) {
-        // Sync mutated ctx back into local state
-        mode = ctx.mode || mode;
-        map = ctx.map || map;
-        seen = ctx.seen || seen;
-        visible = ctx.visible || visible;
-        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-        townExitAt = ctx.townExitAt || townExitAt;
-        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
-        recomputeFOV();
-        updateCamera();
-        updateUI();
-        requestDraw();
+        applyCtxSyncAndRefresh(ctx);
       }
       return ok;
     }
@@ -1691,18 +1676,7 @@
   }
 
   
-  function interactTownProps() {
-    // Prefer TownRuntime.talk for bump-talk; fall back to Town.interactProps
-    const TR = modHandle("TownRuntime");
-    if (TR && typeof TR.talk === "function") {
-      return !!TR.talk(getCtx());
-    }
-    const Tn = modHandle("Town");
-    if (Tn && typeof Tn.interactProps === "function") {
-      return !!Tn.interactProps(getCtx());
-    }
-    return false;
-  }
+  
 
   function lootCorpse() {
     if (isDead) return;
