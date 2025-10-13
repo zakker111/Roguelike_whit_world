@@ -1027,33 +1027,8 @@
       return;
     }
     const R = modHandle("Render");
-    if (!(R && typeof R.draw === "function")) return;
-
-    if (_drawQueued) return;
-    _drawQueued = true;
-    try {
-      _rafId = (typeof window !== "undefined" && window.requestAnimationFrame)
-        ? window.requestAnimationFrame(() => {
-            const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-            _drawQueued = false;
-            R.draw(getRenderCtx());
-            const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-            PERF.lastDrawMs = t1 - t0;
-            try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
-          })
-        : null;
-      if (_rafId == null) {
-        // Fallback: if RAF not available, draw immediately
-        const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-        _drawQueued = false;
-        R.draw(getRenderCtx());
-        const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-        PERF.lastDrawMs = t1 - t0;
-        try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
-      }
-    } catch (_) {
+    if (R && typeof R.draw === "function") {
       const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-      _drawQueued = false;
       R.draw(getRenderCtx());
       const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
       PERF.lastDrawMs = t1 - t0;
