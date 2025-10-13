@@ -1075,6 +1075,20 @@
   
 
   function initWorld() {
+    // Prefer WorldRuntime.generate to centralize world setup
+    const WR = modHandle("WorldRuntime");
+    if (WR && typeof WR.generate === "function") {
+      const ctx = getCtx();
+      const ok = WR.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
+      if (ok) {
+        // Sync back any mutated references from ctx
+        syncFromCtx(ctx);
+        return;
+      }
+      // Fall through to legacy path if WorldRuntime signaled failure
+    }
+
+    // Legacy path
     const W = modHandle("World");
     if (!(W && typeof W.generate === "function")) {
       log("World module missing; generating dungeon instead.", "warn");
