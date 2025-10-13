@@ -1204,6 +1204,11 @@
         _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         recomputeFOV();
         updateUI();
+        // Show Town Exit button via UIBridge
+        try {
+          const UB = modHandle("UIBridge");
+          if (UB && typeof UB.showTownExitButton === "function") UB.showTownExitButton(getCtx());
+        } catch (_) {}
         requestDraw();
       }
       return ok;
@@ -1235,6 +1240,11 @@
       const ctx = getCtx();
       M.leaveTownNow(ctx);
       applyCtxSyncTownLeave(ctx);
+      // Hide Town Exit button via UIBridge
+      try {
+        const UB = modHandle("UIBridge");
+        if (UB && typeof UB.hideTownExitButton === "function") UB.hideTownExitButton(getCtx());
+      } catch (_) {}
       return;
     }
   }
@@ -1267,6 +1277,11 @@
       const ok = !!TR.returnToWorldIfAtGate(ctx);
       if (ok) {
         syncFromCtx(ctx);
+        // Hide Town Exit button via UIBridge
+        try {
+          const UB = modHandle("UIBridge");
+          if (UB && typeof UB.hideTownExitButton === "function") UB.hideTownExitButton(getCtx());
+        } catch (_) {}
         return true;
       }
     }
