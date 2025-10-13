@@ -58,7 +58,7 @@
   let townBuildings = [];    // town buildings: [{x,y,w,h,door:{x,y}}]
   let townPlaza = null;      // central plaza coordinates {x,y}
   let tavern = null;         // tavern info: { building:{x,y,w,h,door}, door:{x,y} }
-  let townTick = 0;          // simple turn counter for town routines
+  
   let townName = null;       // current town's generated name
 
   // World/town/dungeon transition anchors

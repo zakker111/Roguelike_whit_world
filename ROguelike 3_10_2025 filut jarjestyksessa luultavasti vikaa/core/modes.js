@@ -257,47 +257,20 @@ export function returnToWorldIfAtExit(ctx) {
       return ok;
     }
   } catch (_) {}
-  
-  // Last-resort local fallback
-  if (ctx.mode !== "dungeon" || !ctx.world) return false;
-  if (!ctx.dungeonExitAt) return false;
-  if (ctx.player.x !== ctx.dungeonExitAt.x || ctx.player.y !== ctx.dungeonExitAt.y) {
-    if (ctx.log) ctx.log("Return to the dungeon entrance to go back to the overworld.", "info");
-    return false;
-  }
-  // Save and return
+
+  // Next, defer to DungeonState helper if available
   try {
-    if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
-      ctx.DungeonRuntime.save(ctx, false);
-    } else if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
-      ctx.DungeonState.save(ctx);
-    } else if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
-      DungeonState.save(ctx);
+    const DS = ctx.DungeonState || (typeof window !== "undefined" ? window.DungeonState : null);
+    if (DS && typeof DS.returnToWorldIfAtExit === "function") {
+      const ok = DS.returnToWorldIfAtExit(ctx);
+      if (ok) syncAfterMutation(ctx);
+      return ok;
     }
   } catch (_) {}
-  ctx.mode = "world";
-  ctx.enemies.length = 0;
-  ctx.corpses.length = 0;
-  ctx.decals.length = 0;
-  ctx.map = ctx.world.map;
 
-  let rx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : null;
-  let ry = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : null;
-  if (rx == null || ry == null) {
-    const info = ctx.dungeon || ctx.dungeonInfo;
-    if (info && typeof info.x === "number" && typeof info.y === "number") { rx = info.x; ry = info.y; }
-  }
-  if (rx == null || ry == null) {
-    rx = Math.max(0, Math.min(ctx.world.map[0].length - 1, ctx.player.x));
-    ry = Math.max(0, Math.min(ctx.world.map.length - 1, ctx.player.y));
-  }
-  ctx.player.x = rx; ctx.player.y = ry;
-
-  if (ctx.FOV && typeof ctx.FOV.recomputeFOV === "function") ctx.FOV.recomputeFOV(ctx);
-  if (ctx.updateUI) ctx.updateUI();
-  if (ctx.log) ctx.log("You climb back to the overworld.", "notice");
-  if (ctx.requestDraw) ctx.requestDraw();
-  return true;
+  // Minimal fallback: guide the player
+  if (ctx.log) ctx.log("Return to the dungeon entrance to go back to the overworld.", "info");
+  return false;
 }
 
 // Back-compat: attach to window for classic scripts
