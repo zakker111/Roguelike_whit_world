@@ -951,9 +951,9 @@
       time: getClock(),
       // GameLoop can measure draw time and report via this sink
       onDrawMeasured: (ms) => { PERF.lastDrawMs = ms; },
-      onDrawMeasured: (ms) => { try { PERF.lastDraw }
+    };
+  }
 
-  
   // Batch multiple draw requests within a frame to avoid redundant renders.
   let _drawQueued = false;
   let _rafId = null;
