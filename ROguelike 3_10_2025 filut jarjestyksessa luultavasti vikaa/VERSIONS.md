@@ -1,17 +1,6 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
-v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest readiness
-- Fixed: remaining bare-global references replaced with window.* checks or module imports
-  - core/game_loop.js: use window.Render.draw(...) in RAF frame
-  - core/game.js: call window.GameAPIBuilder.create(...) when building GameAPI
-  - core/game_api.js: normalize World.isWalkable calls to window.World and repair a corrupted walkability line
-  - entities/player.js: UIBridge updateStats via window.UIBridge
-- Verified: UIBridge-only routing for HUD, inventory, loot, confirm, town exit
-- Verified: Deterministic RNG fallback wiring (utils/rng_fallback.js) for modules that run before rng_service
-- Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
-- Next: continue optimization and documentation polish (no functional changes expected)
-
 v1.35.10 — Phase 5: UI/draw coalescing for modal hides (Shop/GOD/Smoke/Inventory)
 - Changed: core/game.js handlers now requestDraw only if the corresponding modal was open:
   - onHideGod/onHideSmoke/onHideShop guard redraws via UIBridge isOpen checks.
@@ -85,6 +74,17 @@ v1.35.0 — Phase 5 kickoff: UI perf metrics and polish
   - Buttons and inventory list items get subtle hover/press transitions
   - Modals (loot/inventory/gameover) have smooth opacity/transform transitions
 - Goal: begin optimization and UX polish without altering gameplay; future steps will focus on micro-performance and aesthetic improvements
+
+v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest readiness
+- Fixed: remaining bare-global references replaced with window.* checks or module imports
+  - core/game_loop.js: use window.Render.draw(...) in RAF frame
+  - core/game.js: call window.GameAPIBuilder.create(...) when building GameAPI
+  - core/game_api.js: normalize World.isWalkable calls to window.World and repair a corrupted walkability line
+  - entities/player.js: UIBridge updateStats via window.UIBridge
+- Verified: UIBridge-only routing for HUD, inventory, loot, confirm, town exit
+- Verified: Deterministic RNG fallback wiring (utils/rng_fallback.js) for modules that run before rng_service
+- Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
+- Next: continue optimization and documentation polish (no functional changes expected)
 
 v1.34.29 — Phase 4 continuation: ctx-first cleanups and window.* consistency
 - Changed: core/game.js
