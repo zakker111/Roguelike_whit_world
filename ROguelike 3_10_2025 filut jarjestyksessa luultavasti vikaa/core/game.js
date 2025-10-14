@@ -1367,12 +1367,16 @@
         },
         onShowGod: () => {
           const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isGodOpen === "function") wasOpen = !!UB.isGodOpen();
+          } catch (_) {}
           try {
             if (UB && typeof UB.showGod === "function") UB.showGod(getCtx());
           } catch (_) {}
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
-          requestDraw();
+          if (!wasOpen) requestDraw();
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
@@ -1542,9 +1546,13 @@
 
   function showLootPanel(list) {
     const UB = modHandle("UIBridge");
+    let wasOpen = false;
+    try {
+      if (UB && typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen();
+    } catch (_) {}
     if (UB && typeof UB.showLoot === "function") {
       UB.showLoot(getCtx(), list);
-      requestDraw();
+      if (!wasOpen) requestDraw();
     }
   }
 
@@ -1610,17 +1618,21 @@
   }
 
   function showInventoryPanel() {
+    const UB = modHandle("UIBridge");
+    let wasOpen = false;
+    try {
+      if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+    } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.show === "function") {
       IC.show(getCtx());
     } else {
       renderInventoryPanel();
-      const UB = modHandle("UIBridge");
       if (UB && typeof UB.showInventory === "function") {
         UB.showInventory(getCtx());
       }
     }
-    requestDraw();
+    if (!wasOpen) requestDraw();
   }
 
   function hideInventoryPanel() {

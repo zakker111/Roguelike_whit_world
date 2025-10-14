@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
+v1.35.12 — Phase 5: Coalesced draws for panel openings (GOD/Inventory/Loot)
+- Changed: core/game.js now requests a redraw on show actions only when the panel was previously closed:
+  - onShowGod, showInventoryPanel, and showLootPanel check UIBridge.isOpen first and skip redundant draw if already open.
+- Benefit: reduces unnecessary frame scheduling when toggling modals rapidly; small performance win.
+- Deployment: https://yvgru23sf8ov.cosine.page
+
 v1.35.11 — Phase 5: Smart defaults for Perf/Grid/Minimap on low-power and small screens
 - Changed: ui/ui.js now defaults these toggles to OFF when no preference is stored:
   - Grid overlay (DRAW_GRID): OFF on small screens or low-power devices (<=4 cores or <=4GB).
