@@ -7,6 +7,9 @@
 import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
 
+// Base layer offscreen cache for town (tiles only; overlays drawn per frame)
+let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
+
 export function draw(ctx, view) {
   const {
     ctx2d, TILE, COLORS, TILES, map, seen, visible, player, shops,
@@ -36,54 +39,111 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Base tiles
+  // Build base offscreen once per map/TILE change
+  try {
+    if (mapRows && mapCols) {
+      const wpx = mapCols * TILE;
+      const hpx = mapRows * TILE;
+      const needsRebuild = (!TOWN.canvas) || TOWN.mapRef !== map || TOWN.wpx !== wpx || TOWN.hpx !== hpx || TOWN.TILE !== TILE;
+      if (needsRebuild) {
+        TOWN.mapRef = map;
+        TOWN.wpx = wpx;
+        TOWN.hpx = hpx;
+        TOWN.TILE = TILE;
+        const off = document.createElement("canvas");
+        off.width = wpx;
+        off.height = hpx;
+        const oc = off.getContext("2d");
+        try {
+          oc.font = "bold 20px JetBrains Mono, monospace";
+          oc.textAlign = "center";
+          oc.textBaseline = "middle";
+        } catch (_) {}
+        for (let yy = 0; yy < mapRows; yy++) {
+          const rowMap = map[yy];
+          for (let xx = 0; xx < mapCols; xx++) {
+            const type = rowMap[xx];
+            const sx = xx * TILE, sy = yy * TILE;
+            let fill = TCOL.floor;
+            if (type === TILES.WALL) fill = TCOL.wall;
+            else if (type === TILES.WINDOW) fill = TCOL.window;
+            else if (type === TILES.DOOR) fill = TCOL.door;
+            oc.fillStyle = fill;
+            oc.fillRect(sx, sy, TILE, TILE);
+          }
+        }
+        TOWN.canvas = off;
+      }
+    }
+  } catch (_) {}
+
+  // Blit base layer if available
+  if (TOWN.canvas) {
+    try {
+      ctx2d.drawImage(TOWN.canvas, -Math.floor(cam.x), -Math.floor(cam.y));
+    } catch (_) {}
+  } else {
+    // Fallback: draw base tiles in viewport
+    for (let y = startY; y <= endY; y++) {
+      const yIn = y >= 0 && y < mapRows;
+      const rowMap = yIn ? map[y] : null;
+      for (let x = startX; x <= endX; x++) {
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+        if (!yIn || x < 0 || x >= mapCols) {
+          ctx2d.fillStyle = COLORS.wallDark;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          continue;
+        }
+        const type = rowMap[x];
+        let fill = TCOL.floor;
+        if (type === TILES.WALL) fill = TCOL.wall;
+        else if (type === TILES.WINDOW) fill = TCOL.window;
+        else if (type === TILES.DOOR) fill = TCOL.door;
+        ctx2d.fillStyle = fill;
+        ctx2d.fillRect(screenX, screenY, TILE, TILE);
+      }
+    }
+  }
+
+  // Visibility overlays within viewport (void for unseen, dim for seen-but-not-visible)
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
-    const rowMap = yIn ? map[y] : null;
     const rowSeen = yIn ? (seen[y] || []) : [];
     const rowVis = yIn ? (visible[y] || []) : [];
     for (let x = startX; x <= endX; x++) {
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
-
-      // Off-map space: draw void
       if (!yIn || x < 0 || x >= mapCols) {
         ctx2d.fillStyle = COLORS.wallDark;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
         continue;
       }
-
-      const type = rowMap[x];
       const vis = !!rowVis[x];
       const everSeen = !!rowSeen[x];
-
       if (!everSeen) {
-        // Unknown tiles: draw dark
         ctx2d.fillStyle = COLORS.wallDark;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
-        continue;
-      }
-
-      // Draw base tile
-      let fill = TCOL.floor;
-      if (type === TILES.WALL) fill = TCOL.wall;
-      else if (type === TILES.WINDOW) fill = TCOL.window;
-      else if (type === TILES.DOOR) fill = TCOL.door;
-      ctx2d.fillStyle = fill;
-      ctx2d.fillRect(screenX, screenY, TILE, TILE);
-
-      // If shop door, overlay glyph (T for Tavern, I for Inn, otherwise S) when visible
-      if (vis) {
-        const glyph = SHOP_GLYPHS[`${x},${y}`];
-        if (glyph) {
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, TCOL.shop, TILE);
-        }
-      }
-
-      // If not currently visible, dim it
-      if (!vis && everSeen) {
+      } else if (!vis) {
         ctx2d.fillStyle = COLORS.dim;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
+      }
+    }
+  }
+
+  // If shop door, overlay glyph (T for Tavern, I for Inn, otherwise S) when visible
+  for (let y = startY; y <= endY; y++) {
+    const yIn = y >= 0 && y < mapRows;
+    const rowVis = yIn ? (visible[y] || []) : [];
+    for (let x = startX; x <= endX; x++) {
+      if (!yIn || x < 0 || x >= mapCols) continue;
+      const vis = !!rowVis[x];
+      if (!vis) continue;
+      const glyph = SHOP_GLYPHS[`${x},${y}`];
+      if (glyph) {
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, TCOL.shop, TILE);
       }
     }
   }
