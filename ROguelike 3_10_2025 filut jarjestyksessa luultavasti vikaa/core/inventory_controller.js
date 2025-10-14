@@ -26,13 +26,14 @@ export function render(ctx) {
 
 export function show(ctx) {
   try {
-    render(ctx);
+    // Open panel first so render() can populate content when checking open-state
     if (ctx.UI && typeof ctx.UI.showInventory === "function") {
       ctx.UI.showInventory();
     } else {
       const panel = document.getElementById("inv-panel");
       if (panel) panel.hidden = false;
     }
+    render(ctx);
   } catch (_) {}
 }
 
