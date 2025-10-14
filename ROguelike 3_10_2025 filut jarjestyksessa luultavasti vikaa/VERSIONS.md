@@ -16,6 +16,14 @@ v1.35.0 — Phase 5 kickoff: UI perf metrics and polish
 - Added: HUD perf metrics (last turn/draw ms) next to time in the top bar
   - core/ui_bridge.js passes ctx.getPerfStats() to UI.updateStats
   - ui/ui.js displays “Perf: T <turn_ms> D <draw_ms>” when available
+- Added: Perf hook from GameLoop
+  - core/game_loop.js measures draw time and calls ctx.onDrawMeasured(dt)
+  - core/game.js provides ctx.onDrawMeasured to update PERF.lastDrawMs
+  - core/game.js adds ctx.getPerfStats so UIBridge/UI can read numbers consistently
+- Micro-optimizations and UX polish
+  - InventoryController.render now updates only when the inventory panel is open
+  - Buttons and inventory list items get subtle hover/press transitions
+  - Modals (loot/inventory/gameover) have smooth opacity/transform transitions
 - Goal: begin optimization and UX polish without altering gameplay; future steps will focus on micro-performance and aesthetic improvements
 
 v1.34.29 — Phase 4 continuation: ctx-first cleanups and window.* consistency

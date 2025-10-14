@@ -16,7 +16,11 @@ function drawOnce(getRenderCtx) {
   if (typeof window !== "undefined" && window.Render && typeof window.Render.draw === "function") {
     try {
       const ctx = (typeof getRenderCtx === "function") ? getRenderCtx() : null;
+      const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
       window.Render.draw(ctx);
+      const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      const dt = t1 - t0;
+      try { if (ctx && typeof ctx.onDrawMeasured === "function") ctx.onDrawMeasured(dt); } catch (_) {}
     } catch (e) {
       try { console.error("[GameLoop] draw error:", e); } catch (_) {}
     }

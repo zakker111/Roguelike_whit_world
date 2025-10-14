@@ -239,6 +239,8 @@
       // persistence (in-memory)
       _dungeonStates: dungeonStates,
       time: getClock(),
+      // Perf stats for HUD overlay
+      getPerfStats: () => ({ lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }),
       requestDraw,
       log,
       isWalkable, inBounds,
@@ -947,8 +949,8 @@
       townExitAt,
       enemyColor: (t) => enemyColor(t),
       time: getClock(),
-    };
-  }
+      // GameLoop can measure draw time and report via this sink
+      onDrawMeasured: (ms) => { try { PERF.lastDraw }
 
   
   // Batch multiple draw requests within a frame to avoid redundant renders.
