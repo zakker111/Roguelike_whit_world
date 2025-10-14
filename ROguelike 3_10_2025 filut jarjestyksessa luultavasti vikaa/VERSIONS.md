@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
+v1.35.14 — Phase 5: Smoketest reliability — routeTo adjacency fallback
+- Changed: core/game_api.js routeTo(tx,ty) now detects non-walkable targets (e.g., town/dungeon markers) and routes to a walkable adjacent tile or nearest walkable tile within a small ring.
+- Benefit: improves reliability for automated entry flows (world→dungeon/town) by ensuring pathing stops adjacent to entrances; reduces “Dungeon entry failed (mode=world)” and “Town entry not achieved” flakes in smoketests.
+- Note: gotoNearestDungeon/gotoNearestTown benefit automatically (they use routeTo internally).
+- Deployment: (pending next deploy)
+
 v1.35.13 — Phase 5: OffscreenCanvas adoption + crisper rendering
 - Added: ui/render_core.js createOffscreen(w,h) uses OffscreenCanvas when available, else falls back to HTMLCanvasElement.
 - Changed: ui/render_overworld.js, ui/render_town.js, ui/render_dungeon.js now use RenderCore.createOffscreen for their base caches.

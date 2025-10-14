@@ -57,28 +57,66 @@ export function create(ctx) {
         if (!w || !w.map) return [];
         const width = w.width, height = w.height;
         const start = { x: ctx.getPlayer().x, y: ctx.getPlayer().y };
+        const isWalk = (x, y) => {
+          try { return !!window.GameAPI.isWalkableOverworld(x, y); } catch (_) { return true; }
+        };
+
+        // If target tile itself is not walkable (e.g., town/dungeon marker),
+        // choose a walkable adjacent tile as the routing goal.
+        let goal = { x: (tx|0), y: (ty|0) };
+        if (!isWalk(goal.x, goal.y)) {
+          const adj = [
+            { x: goal.x + 1, y: goal.y },
+            { x: goal.x - 1, y: goal.y },
+            { x: goal.x,     y: goal.y + 1 },
+            { x: goal.x,     y: goal.y - 1 },
+          ];
+          let picked = null;
+          for (const a of adj) {
+            if (a.x < 0 || a.y < 0 || a.x >= width || a.y >= height) continue;
+            if (isWalk(a.x, a.y)) { picked = a; break; }
+          }
+          // Fallback: search small ring around target for any walkable tile
+          if (!picked) {
+            let best = null, bestD = Infinity;
+            for (let dy = -2; dy <= 2; dy++) {
+              for (let dx = -2; dx <= 2; dx++) {
+                const nx = goal.x + dx, ny = goal.y + dy;
+                const md = Math.abs(dx) + Math.abs(dy);
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                if (!isWalk(nx, ny)) continue;
+                if (md < bestD) { best = { x: nx, y: ny }; bestD = md; }
+              }
+            }
+            if (best) picked = best;
+          }
+          if (picked) goal = picked;
+        }
+
+        // BFS to goal (walkable tile)
         const q = [start];
         const prev = new Map();
         const seen = new Set([`${start.x},${start.y}`]);
         const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
         while (q.length) {
           const cur = q.shift();
-          if (cur.x === tx && cur.y === ty) break;
+          if (cur.x === goal.x && cur.y === goal.y) break;
           for (const d of dirs) {
             const nx = cur.x + d.dx, ny = cur.y + d.dy;
             const key = `${nx},${ny}`;
             if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
             if (seen.has(key)) continue;
-            if (!window.GameAPI.isWalkableOverworld(nx, ny)) continue;
+            if (!isWalk(nx, ny)) continue;
             seen.add(key);
             prev.set(key, cur);
             q.push({ x: nx, y: ny });
           }
         }
+
         const path = [];
-        const curKey = `${tx},${ty}`;
-        if (!prev.has(curKey) && !(start.x === tx && start.y === ty)) return [];
-        let cur = { x: tx, y: ty };
+        const curKey = `${goal.x},${goal.y}`;
+        if (!prev.has(curKey) && !(start.x === goal.x && start.y === goal.y)) return [];
+        let cur = { x: goal.x, y: goal.y };
         while (!(cur.x === start.x && cur.y === start.y)) {
           path.push(cur);
           const p = prev.get(`${cur.x},${cur.y}`);
