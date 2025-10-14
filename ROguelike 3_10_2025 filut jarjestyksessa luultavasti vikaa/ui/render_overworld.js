@@ -112,8 +112,18 @@ export function draw(ctx, view) {
   // Draw world base: offscreen blit if available, otherwise fallback per-tile loop
   if (WORLD.canvas) {
     try {
-      // simple blit; negative cam offsets handled by drawImage positioning
-      ctx2d.drawImage(WORLD.canvas, -Math.floor(cam.x), -Math.floor(cam.y));
+      // Cropped blit of visible viewport region (avoids drawing full map each frame)
+      const camX = Math.floor(cam.x);
+      const camY = Math.floor(cam.y);
+      const sx = Math.max(0, camX);
+      const sy = Math.max(0, camY);
+      const dx = sx - camX;
+      const dy = sy - camY;
+      const sw = Math.min(WORLD.wpx - sx, cam.width - dx);
+      const sh = Math.min(WORLD.hpx - sy, cam.height - dy);
+      if (sw > 0 && sh > 0) {
+        ctx2d.drawImage(WORLD.canvas, sx, sy, sw, sh, dx, dy, sw, sh);
+      }
     } catch (_) {}
   } else {
     for (let y = startY; y <= endY; y++) {

@@ -12,6 +12,11 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.6 — Phase 5: Cropped blits for offscreen base layers
+- Changed: ui/render_overworld.js, ui/render_town.js, ui/render_dungeon.js now crop drawImage to the visible viewport when blitting offscreen bases, avoiding full-map draws each frame.
+- Benefit: reduces draw cost further, particularly on large maps and lower-powered devices.
+- Deployment: pending (this version)
+
 v1.35.5 — Phase 5: HUD perf/minimap toggles
 - Added: GOD panel toggles for Perf and Minimap (ids god-toggle-perf-btn, god-toggle-minimap-btn).
 - UI: updateStats shows Perf timings only when enabled (persisted as SHOW_PERF in localStorage).
