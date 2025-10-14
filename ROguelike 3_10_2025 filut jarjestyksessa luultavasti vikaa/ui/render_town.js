@@ -80,18 +80,7 @@ export function draw(ctx, view) {
   // Blit base layer if available
   if (TOWN.canvas) {
     try {
-      // Cropped blit of visible viewport region
-      const camX = Math.floor(cam.x);
-      const camY = Math.floor(cam.y);
-      const sx = Math.max(0, camX);
-      const sy = Math.max(0, camY);
-      const dx = sx - camX;
-      const dy = sy - camY;
-      const sw = Math.min(TOWN.wpx - sx, cam.width - dx);
-      const sh = Math.min(TOWN.hpx - sy, cam.height - dy);
-      if (sw > 0 && sh > 0) {
-        ctx2d.drawImage(TOWN.canvas, sx, sy, sw, sh, dx, dy, sw, sh);
-      }
+      RenderCore.blitViewport(ctx2d, TOWN.canvas, cam, TOWN.wpx, TOWN.hpx);
     } catch (_) {}
   } else {
     // Fallback: draw base tiles in viewport

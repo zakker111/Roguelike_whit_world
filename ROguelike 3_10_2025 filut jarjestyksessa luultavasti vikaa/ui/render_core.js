@@ -105,7 +105,27 @@ export function drawGridOverlay(view) {
   } catch (_) {}
 }
 
+// Cropped blit helper: draw only the visible viewport from an offscreen base layer
+export function blitViewport(ctx2d, offscreenCanvas, cam, wpx, hpx) {
+  if (!ctx2d || !offscreenCanvas || !cam || !wpx || !hpx) return false;
+  try {
+    const camX = Math.floor(cam.x);
+    const camY = Math.floor(cam.y);
+    const sx = Math.max(0, camX);
+    const sy = Math.max(0, camY);
+    const dx = sx - camX;
+    const dy = sy - camY;
+    const sw = Math.min(wpx - sx, cam.width - dx);
+    const sh = Math.min(hpx - sy, cam.height - dy);
+    if (sw > 0 && sh > 0) {
+      ctx2d.drawImage(offscreenCanvas, sx, sy, sw, sh, dx, dy, sw, sh);
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
-  window.RenderCore = { computeView, drawGlyph, enemyColor, drawGridOverlay };
+  window.RenderCore = { computeView, drawGlyph, enemyColor, drawGridOverlay, blitViewport };
 }

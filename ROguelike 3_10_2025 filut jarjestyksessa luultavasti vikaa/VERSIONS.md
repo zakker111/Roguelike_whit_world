@@ -12,10 +12,17 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.7 — Phase 5: Centralized blit helper and changelog cleanup
+- Added: ui/render_core.js blitViewport(ctx2d, canvas, cam, wpx, hpx) centralizes cropped blit logic.
+  - ui/render_overworld.js, ui/render_town.js, ui/render_dungeon.js now call RenderCore.blitViewport instead of duplicating code.
+- Cleanup: VERSIONS.md ordering and consistent “Deployment:” lines; latest entries at the top.
+- Benefit: reduces duplication across renderers; keeps the changelog tidy.
+- Deployment: https://n6tas9p30d5s.cosine.page
+
 v1.35.6 — Phase 5: Cropped blits for offscreen base layers
 - Changed: ui/render_overworld.js, ui/render_town.js, ui/render_dungeon.js now crop drawImage to the visible viewport when blitting offscreen bases, avoiding full-map draws each frame.
 - Benefit: reduces draw cost further, particularly on large maps and lower-powered devices.
-- Deployment: pending (this version)
+- Deployment: https://n6tas9p30d5s.cosine.page
 
 v1.35.5 — Phase 5: HUD perf/minimap toggles
 - Added: GOD panel toggles for Perf and Minimap (ids god-toggle-perf-btn, god-toggle-minimap-btn).
