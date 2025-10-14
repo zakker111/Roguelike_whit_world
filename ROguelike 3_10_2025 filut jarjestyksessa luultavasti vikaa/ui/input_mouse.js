@@ -90,7 +90,7 @@ export function init(opts) {
               return;
             }
             // Not adjacent: inform the player
-            try { if (window.Logger && typeof Logger.log === "function") Logger.log("Move next to the chest/corpse and click it to loot.", "info"); } catch (_) {}
+            try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log("Move next to the chest/corpse and click it to loot.", "info"); } catch (_) {}
             return;
           }
 

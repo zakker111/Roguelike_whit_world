@@ -68,8 +68,8 @@
       try {
         if (window.GameAPI && typeof window.GameAPI.log === "function") {
           window.GameAPI.log(line, type || "info");
-        } else if (window.Logger && typeof Logger.log === "function") {
-          Logger.log(line, type || "info");
+        } else if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+          window.Logger.log(line, type || "info");
         }
       } catch (_) {}
       try { console.log(line); } catch (_) {}

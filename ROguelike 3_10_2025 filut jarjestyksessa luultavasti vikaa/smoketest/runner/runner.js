@@ -257,7 +257,7 @@
       // Abort controls: if a critical condition like "immobile" occurs, abort this run early
       let __abortRequested = false;
       let __abortReason = null;
-      function gameLog(m, type) { try { if (window.Logger && typeof Logger.log === "function") Logger.log(String(m || ""), type || "info"); } catch (_) {} }
+      function gameLog(m, type) { try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(String(m || ""), type || "info"); } catch (_) {} }
       function record(ok, msg) {
         const text = String(msg || "");
         if (!!ok && skipOk.has(text)) {
