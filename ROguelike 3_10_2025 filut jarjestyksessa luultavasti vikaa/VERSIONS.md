@@ -925,4 +925,5 @@ BUGS
 - some work needed for smoketestrunner
 - towns schedue bugs you can buy items even if shop is not open(this is tho good for now testing phase)
 - multirun in smoketest skips first multirun 
+- itseems eguibed items go to inventory when re going to dungeon/town
 
