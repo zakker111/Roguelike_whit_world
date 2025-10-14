@@ -13,10 +13,10 @@ export function requestDraw() {
 
 function drawOnce(getRenderCtx) {
   if (!needsDraw) return;
-  if (typeof window !== "undefined" && window.Render && typeof Render.draw === "function") {
+  if (typeof window !== "undefined" && window.Render && typeof window.Render.draw === "function") {
     try {
       const ctx = (typeof getRenderCtx === "function") ? getRenderCtx() : null;
-      Render.draw(ctx);
+      window.Render.draw(ctx);
     } catch (e) {
       try { console.error("[GameLoop] draw error:", e); } catch (_) {}
     }

@@ -2191,8 +2191,8 @@
 
   // Expose GameAPI via builder
   try {
-    if (window.GameAPIBuilder && typeof GameAPIBuilder.create === "function") {
-      window.GameAPI = GameAPIBuilder.create({
+    if (typeof window !== "undefined" && window.GameAPIBuilder && typeof window.GameAPIBuilder.create === "function") {
+      window.GameAPI = window.GameAPIBuilder.create({
         getMode: () => mode,
         getWorld: () => world,
         getPlayer: () => player,

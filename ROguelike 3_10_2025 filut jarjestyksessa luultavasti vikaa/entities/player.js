@@ -260,7 +260,7 @@ export function resetFromDefaults(player) {
 // Force HUD refresh and broadcast a change event
 export function forceUpdate(player) {
   try {
-    if (typeof window !== "undefined" && window.UIBridge && typeof UIBridge.updateStats === "function") {
+    if (typeof window !== "undefined" && window.UIBridge && typeof window.UIBridge.updateStats === "function") {
       // Prefer ctx from GameAPI/Game for accurate floor/time/stats wiring
       let ctx = null;
       try {
@@ -271,7 +271,7 @@ export function forceUpdate(player) {
       if (ctx) {
         // Ensure player reference reflects current object
         try { ctx.player = player; } catch (_) {}
-        UIBridge.updateStats(ctx);
+        window.UIBridge.updateStats(ctx);
       } else {
         // Minimal fallback context
         const minimal = {
@@ -286,7 +286,7 @@ export function forceUpdate(player) {
             minimal.time = window.GameAPI.getClock();
           }
         } catch (_) {}
-        UIBridge.updateStats(minimal);
+        window.UIBridge.updateStats(minimal);
       }
     } else if (typeof window !== "undefined" && window.UI && typeof window.UI.updateStats === "function") {
       // Fallback directly to UI with a derived floor (prefer GameAPI ctx)

@@ -22,7 +22,7 @@ export function create(ctx) {
         const w = ctx.getWorld();
         if (!w || !w.map) return false;
         const t = w.map[y] && w.map[y][x];
-        return (typeof window.World === "object" && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
+        return (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
       } catch (_) { return false; }
     },
     nearestDungeon: () => {
@@ -509,8 +509,7 @@ export function create(ctx) {
               if (mode === "world") {
                 if (!world || !world.map) continue;
                 const t = world.map[ny] && world.map[ny][nx];
-                const walk = (typeof window.World === "object" && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : t_coderunewe</;
-;
+                const walk = (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
                 if (walk && md < bestD) { best = { x: nx, y: ny }; bestD = md; }
               } else {
                 if (!ctx.inBounds(nx, ny)) continue;
