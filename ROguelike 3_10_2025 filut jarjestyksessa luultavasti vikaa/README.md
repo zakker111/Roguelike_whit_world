@@ -59,6 +59,7 @@ Bundling (optional, Vite)
 Key features at a glance
 - Single-floor dungeons with connected rooms, guaranteed stairs, and data-driven enemies.
 - Interaction-first gameplay: bump-to-attack, G to loot/interact/enter/exit.
+- HUD perf overlay: shows last turn and draw timings (ms) next to the clock for optimization visibility.
 - Inventory/equipment:
   - Two-handed items occupy both hands; unequipping one removes both.
   - One-handed items auto-equip to the empty hand or can be equipped explicitly left/right.

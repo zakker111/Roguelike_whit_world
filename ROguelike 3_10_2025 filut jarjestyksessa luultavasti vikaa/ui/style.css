@@ -183,9 +183,13 @@ html, body {
   padding: 6px 10px;
   cursor: pointer;
   font-family: inherit;
+  transition: filter 120ms ease, transform 80ms ease;
 }
 .btn:hover {
   filter: brightness(1.08);
+}
+.btn:active {
+  transform: translateY(1px) scale(0.99);
 }
 
 .inv-panel {
@@ -256,6 +260,7 @@ html, body {
 .inv-list li {
   cursor: pointer;
   margin: 4px 0;
+  transition: color 120ms ease;
 }
 .inv-list li:hover {
   color: var(--accent);

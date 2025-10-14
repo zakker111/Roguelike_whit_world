@@ -15,7 +15,11 @@
 export function render(ctx) {
   try {
     if (ctx.UI && typeof ctx.UI.renderInventory === "function") {
-      ctx.UI.renderInventory(ctx.player, ctx.describeItem);
+      // Only render when the panel is open to avoid unnecessary DOM work
+      const open = (typeof ctx.UI.isInventoryOpen === "function") ? ctx.UI.isInventoryOpen() : true;
+      if (open) {
+        ctx.UI.renderInventory(ctx.player, ctx.describeItem);
+      }
     }
   } catch (_) {}
 }

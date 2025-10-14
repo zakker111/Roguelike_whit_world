@@ -572,16 +572,21 @@ export const UI = {
   },
 
   updateStats(player, floor, getAtk, getDef, time, perf) {
+    // HP + statuses
     if (this.els.hpEl) {
       const parts = [`HP: ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}`];
       const statuses = [];
       if (player.bleedTurns && player.bleedTurns > 0) statuses.push(`Bleeding (${player.bleedTurns})`);
       if (player.dazedTurns && player.dazedTurns > 0) statuses.push(`Dazed (${player.dazedTurns})`);
       parts.push(`  Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`);
-      this.els.hpEl.textContent = parts.join("");
+      const hpStr = parts.join("");
+      if (hpStr !== this._lastHpText) {
+        this.els.hpEl.textContent = hpStr;
+        this._lastHpText = hpStr;
+      }
     }
+    // Floor + level + XP + time + perf
     if (this.els.floorEl) {
-      // Shorter labels to fit better on small screens; include time and perf if available
       const t = time || {};
       const hhmm = t.hhmm || "";
       const phase = t.phase ? t.phase : "";
@@ -589,10 +594,19 @@ export const UI = {
       const perfStr = (perf && (typeof perf.lastTurnMs === "number" || typeof perf.lastDrawMs === "number"))
         ? `  Perf: T ${(perf.lastTurnMs || 0).toFixed(1)}ms  D ${(perf.lastDrawMs || 0).toFixed(1)}ms`
         : "";
-      this.els.floorEl.textContent = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${perfStr}`;
+      const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${perfStr}`;
+      if (floorStr !== this._lastFloorText) {
+        this.els.floorEl.textContent = floorStr;
+        this._lastFloorText = floorStr;
+      }
     }
+    // Inventory stats summary
     if (this.els.invStatsEl && typeof getAtk === "function" && typeof getDef === "function") {
-      this.els.invStatsEl.textContent = `Attack: ${getAtk().toFixed(1)}   Defense: ${getDef().toFixed(1)}`;
+      const invStr = `Attack: ${getAtk().toFixed(1)}   Defense: ${getDef().toFixed(1)}`;
+      if (invStr !== this._lastInvStatsText) {
+        this.els.invStatsEl.textContent = invStr;
+        this._lastInvStatsText = invStr;
+      }
     }
   },
 
