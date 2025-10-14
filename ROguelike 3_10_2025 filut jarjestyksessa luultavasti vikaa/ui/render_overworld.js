@@ -172,9 +172,23 @@ export function draw(ctx, view) {
         MINI.canvas = off;
       }
 
-      // background
-      ctx2d.fillStyle = "rgba(13,16,24,0.6)";
+      // background + border + label
+      ctx2d.fillStyle = "rgba(13,16,24,0.70)";
       ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
+      ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(bx - 6.5, by - 6.5, wpx + 13, hpx + 13);
+      try {
+        const prevAlign = ctx2d.textAlign;
+        const prevBaseline = ctx2d.textBaseline;
+        ctx2d.textAlign = "left";
+        ctx2d.textBaseline = "top";
+        ctx2d.fillStyle = "#cbd5e1";
+        ctx2d.fillText("Minimap", bx - 4, by - 22);
+        ctx2d.textAlign = prevAlign;
+        ctx2d.textBaseline = prevBaseline;
+      } catch (_) {}
+
       // blit cached minimap
       if (MINI.canvas) {
         ctx2d.drawImage(MINI.canvas, bx, by);
