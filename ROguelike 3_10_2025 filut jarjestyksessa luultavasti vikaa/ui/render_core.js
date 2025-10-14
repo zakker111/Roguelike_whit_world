@@ -8,14 +8,24 @@
  * - drawGridOverlay(view): draws a light grid aligned to tile boundaries when enabled
  */
 
+// Simple cache for enemy type → color lookups to avoid repeated registry calls in hot paths
+const ENEMY_COLOR_CACHE = Object.create(null);
+
 export function enemyColor(ctx, type, COLORS) {
+  const key = (type != null) ? String(type) : "";
+  if (key && ENEMY_COLOR_CACHE[key]) return ENEMY_COLOR_CACHE[key];
+
+  let color = null;
   if (ctx && typeof ctx.enemyColor === "function") {
-    try { return ctx.enemyColor(type); } catch (_) {}
+    try { color = ctx.enemyColor(type); } catch (_) {}
   }
-  if (typeof window !== "undefined" && window.Enemies && typeof Enemies.colorFor === "function") {
-    return Enemies.colorFor(type);
+  if (!color && typeof window !== "undefined" && window.Enemies && typeof Enemies.colorFor === "function") {
+    try { color = Enemies.colorFor(type); } catch (_) {}
   }
-  return (COLORS && COLORS.enemy) || "#f7768e";
+  if (!color) color = (COLORS && COLORS.enemy) || "#f7768e";
+
+  if (key) ENEMY_COLOR_CACHE[key] = color;
+  return color;
 }
 
 export function drawGlyph(ctx2d, x, y, ch, color, TILE) {

@@ -12,6 +12,13 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.3 — Phase 5: Overworld base-layer offscreen cache + enemy color cache
+- Changed: ui/render_overworld.js builds a full offscreen world base (biomes + town/dungeon glyphs) at TILE resolution and blits it each frame, avoiding per-tile loops.
+  - Rebuilds only when world map reference or TILE changes.
+- Changed: ui/render_core.js adds a simple enemy type→color cache to reduce repeated registry lookups in hot paths.
+- Benefit: further draw-time reduction on overworld and minor savings in enemy glyph color computation.
+- Deployment: https://xbhi5i8j32ja.cosine.page
+
 v1.35.2 — Phase 5: Glyph lookup precompute (overworld/town)
 - Changed: ui/render_overworld.js precomputes a lookup map for town glyphs (T/t/C) based on town size to avoid per-tile Array.find scans while drawing the viewport.
 - Changed: ui/render_town.js precomputes a shop door glyph map (T/I/S) for O(1) lookup during tile rendering.

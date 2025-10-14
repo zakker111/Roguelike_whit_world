@@ -9,6 +9,8 @@ import * as World from "../world/world.js";
 
 // Minimap offscreen cache to avoid redrawing every frame
 let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0 };
+// World base layer offscreen cache (full map at TILE resolution)
+let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
 
 export function draw(ctx, view) {
   const {
@@ -51,44 +53,108 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  for (let y = startY; y <= endY; y++) {
-    const yIn = y >= 0 && y < mapRows;
-    const row = yIn ? map[y] : null;
-    for (let x = startX; x <= endX; x++) {
-      const screenX = (x - startX) * TILE - tileOffsetX;
-      const screenY = (y - startY) * TILE - tileOffsetY;
+  // Build world base offscreen once per map/TILE change
+  try {
+    const mw = mapCols;
+    const mh = mapRows;
+    if (mw && mh) {
+      const wpx = mw * TILE;
+      const hpx = mh * TILE;
+      const needsWorldRebuild = (!WORLD.canvas) || WORLD.mapRef !== map || WORLD.wpx !== wpx || WORLD.hpx !== hpx || WORLD.TILE !== TILE;
+      if (needsWorldRebuild) {
+        WORLD.mapRef = map;
+        WORLD.wpx = wpx;
+        WORLD.hpx = hpx;
+        WORLD.TILE = TILE;
+        const off = document.createElement("canvas");
+        off.width = wpx;
+        off.height = hpx;
+        const oc = off.getContext("2d");
+        // Set font/align once for glyphs
+        try {
+          oc.font = "bold 20px JetBrains Mono, monospace";
+          oc.textAlign = "center";
+          oc.textBaseline = "middle";
+        } catch (_) {}
+        for (let yy = 0; yy < mh; yy++) {
+          const rowM = map[yy];
+          for (let xx = 0; xx < mw; xx++) {
+            const t = rowM[xx];
+            let c = WCOL.grass;
+            if (WT) {
+              if (t === WT.WATER) c = WCOL.water;
+              else if (t === WT.RIVER) c = WCOL.river;
+              else if (t === WT.SWAMP) c = WCOL.swamp;
+              else if (t === WT.BEACH) c = WCOL.beach;
+              else if (t === WT.DESERT) c = WCOL.desert;
+              else if (t === WT.SNOW) c = WCOL.snow;
+              else if (t === WT.FOREST) c = WCOL.forest;
+              else if (t === WT.MOUNTAIN) c = WCOL.mountain;
+              else if (t === WT.DUNGEON) c = WCOL.dungeon;
+              else if (t === WT.TOWN) c = WCOL.town;
+            }
+            oc.fillStyle = c;
+            oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
+            // Overlay static glyphs directly onto the base
+            if (WT && t === WT.TOWN) {
+              const glyph = TOWN_GLYPHS[`${xx},${yy}`] || "T";
+              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, glyph, "#d7ba7d", TILE);
+            } else if (WT && t === WT.DUNGEON) {
+              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, "D", "#c586c0", TILE);
+            }
+          }
+        }
+        WORLD.canvas = off;
+      }
+    }
+  } catch (_) {}
 
-      // Off-map: draw canvas background color tile
-      if (!yIn || x < 0 || x >= mapCols) {
-        ctx2d.fillStyle = "#0b0c10";
+  // Draw world base: offscreen blit if available, otherwise fallback per-tile loop
+  if (WORLD.canvas) {
+    try {
+      // simple blit; negative cam offsets handled by drawImage positioning
+      ctx2d.drawImage(WORLD.canvas, -Math.floor(cam.x), -Math.floor(cam.y));
+    } catch (_) {}
+  } else {
+    for (let y = startY; y <= endY; y++) {
+      const yIn = y >= 0 && y < mapRows;
+      const row = yIn ? map[y] : null;
+      for (let x = startX; x <= endX; x++) {
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+
+        // Off-map: draw canvas background color tile
+        if (!yIn || x < 0 || x >= mapCols) {
+          ctx2d.fillStyle = "#0b0c10";
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          continue;
+        }
+
+        const t = row[x];
+        let fill = WCOL.grass;
+        if (WT) {
+          if (t === WT.WATER) fill = WCOL.water;
+          else if (t === WT.RIVER) fill = WCOL.river;
+          else if (t === WT.SWAMP) fill = WCOL.swamp;
+          else if (t === WT.BEACH) fill = WCOL.beach;
+          else if (t === WT.DESERT) fill = WCOL.desert;
+          else if (t === WT.SNOW) fill = WCOL.snow;
+          else if (t === WT.GRASS) fill = WCOL.grass;
+          else if (t === WT.FOREST) fill = WCOL.forest;
+          else if (t === WT.MOUNTAIN) fill = WCOL.mountain;
+          else if (t === WT.TOWN) fill = WCOL.town;
+          else if (t === WT.DUNGEON) fill = WCOL.dungeon;
+        }
+        ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
-        continue;
-      }
 
-      const t = row[x];
-      let fill = WCOL.grass;
-      if (WT) {
-        if (t === WT.WATER) fill = WCOL.water;
-        else if (t === WT.RIVER) fill = WCOL.river;
-        else if (t === WT.SWAMP) fill = WCOL.swamp;
-        else if (t === WT.BEACH) fill = WCOL.beach;
-        else if (t === WT.DESERT) fill = WCOL.desert;
-        else if (t === WT.SNOW) fill = WCOL.snow;
-        else if (t === WT.GRASS) fill = WCOL.grass;
-        else if (t === WT.FOREST) fill = WCOL.forest;
-        else if (t === WT.MOUNTAIN) fill = WCOL.mountain;
-        else if (t === WT.TOWN) fill = WCOL.town;
-        else if (t === WT.DUNGEON) fill = WCOL.dungeon;
-      }
-      ctx2d.fillStyle = fill;
-      ctx2d.fillRect(screenX, screenY, TILE, TILE);
-
-      // Overlay glyphs for special overworld tiles
-      if (WT && t === WT.TOWN) {
-        const glyph = TOWN_GLYPHS[`${x},${y}`] || "T";
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, "#d7ba7d", TILE);
-      } else if (WT && t === WT.DUNGEON) {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "D", "#c586c0", TILE);
+        // Overlay glyphs for special overworld tiles
+        if (WT && t === WT.TOWN) {
+          const glyph = TOWN_GLYPHS[`${x},${y}`] || "T";
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, "#d7ba7d", TILE);
+        } else if (WT && t === WT.DUNGEON) {
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, "D", "#c586c0", TILE);
+        }
       }
     }
   }
