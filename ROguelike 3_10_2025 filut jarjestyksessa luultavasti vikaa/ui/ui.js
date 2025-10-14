@@ -915,7 +915,14 @@ export const UI = {
       if (v === "1") return true;
       if (v === "0") return false;
     } catch (_) {}
-    return true; // default on
+    // Default OFF on small screens/low-power devices to reduce draw overhead
+    try {
+      const smallScreen = (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700);
+      const hc = (typeof navigator !== "undefined" && typeof navigator.hardwareConcurrency === "number") ? navigator.hardwareConcurrency : 4;
+      const dm = (typeof navigator !== "undefined" && typeof navigator.deviceMemory === "number") ? navigator.deviceMemory : 4;
+      return !(smallScreen || hc <= 4 || dm <= 4) ? true : false;
+    } catch (_) {}
+    return false;
   },
 
   setGridState(enabled) {
@@ -940,7 +947,14 @@ export const UI = {
       if (v === "1") return true;
       if (v === "0") return false;
     } catch (_) {}
-    return true; // default on
+    // Default OFF on small screens/low-power devices to keep HUD lean
+    try {
+      const smallScreen = (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700);
+      const hc = (typeof navigator !== "undefined" && typeof navigator.hardwareConcurrency === "number") ? navigator.hardwareConcurrency : 4;
+      const dm = (typeof navigator !== "undefined" && typeof navigator.deviceMemory === "number") ? navigator.deviceMemory : 4;
+      return !(smallScreen || hc <= 4 || dm <= 4) ? true : false;
+    } catch (_) {}
+    return false;
   },
 
   setPerfState(enabled) {
@@ -971,7 +985,12 @@ export const UI = {
       if (v === "1") return true;
       if (v === "0") return false;
     } catch (_) {}
-    return true; // default on
+    // Default OFF on small screens to keep UI uncluttered and reduce draw work
+    try {
+      const smallScreen = (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700);
+      return smallScreen ? false : true;
+    } catch (_) {}
+    return true;
   },
 
   setMinimapState(enabled) {

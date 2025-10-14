@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
+v1.35.11 — Phase 5: Smart defaults for Perf/Grid/Minimap on low-power and small screens
+- Changed: ui/ui.js now defaults these toggles to OFF when no preference is stored:
+  - Grid overlay (DRAW_GRID): OFF on small screens or low-power devices (<=4 cores or <=4GB).
+  - Perf overlay (SHOW_PERF): OFF on small screens or low-power devices.
+  - Minimap (SHOW_MINIMAP): OFF on small screens; ON otherwise.
+- Benefit: reduced draw work and HUD clutter by default on mobile/low-power devices; users can enable via GOD toggles.
+- Deployment: https://px1qo1zpcg1x.cosine.page
+
 v1.35.10 — Phase 5: UI/draw coalescing for modal hides (Shop/GOD/Smoke/Inventory)
 - Changed: core/game.js handlers now requestDraw only if the corresponding modal was open:
   - onHideGod/onHideSmoke/onHideShop guard redraws via UIBridge isOpen checks.
