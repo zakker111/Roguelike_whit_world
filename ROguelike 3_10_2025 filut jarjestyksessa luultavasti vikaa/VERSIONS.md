@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
+v1.35.15 — Phase 5: Perf overlay smoothing (EMA)
+- Changed: core/game.js now maintains an exponential moving average (EMA) for turn/draw times (PERF.avgTurnMs, PERF.avgDrawMs) and exposes smoothed values via getPerfStats().
+- UI: HUD shows smoothed timings automatically (still respects Perf toggle); DEV console prints last and avg values.
+- Benefit: less jitter in Perf numbers while preserving real-time responsiveness.
+- Deployment: (pending)
+
 v1.35.14 — Phase 5: Smoketest reliability — routeTo adjacency fallback
 - Changed: core/game_api.js routeTo(tx,ty) now detects non-walkable targets (e.g., town/dungeon markers) and routes to a walkable adjacent tile or nearest walkable tile within a small ring.
 - Benefit: improves reliability for automated entry flows (world→dungeon/town) by ensuring pathing stops adjacent to entrances; reduces “Dungeon entry failed (mode=world)” and “Town entry not achieved” flakes in smoketests.

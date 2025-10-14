@@ -239,8 +239,11 @@
       // persistence (in-memory)
       _dungeonStates: dungeonStates,
       time: getClock(),
-      // Perf stats for HUD overlay
-      getPerfStats: () => ({ lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }),
+      // Perf stats for HUD overlay (smoothed via EMA when available)
+      getPerfStats: () => ({
+        lastTurnMs: (typeof PERF.avgTurnMs === "number" ? PERF.avgTurnMs : (PERF.lastTurnMs || 0)),
+        lastDrawMs: (typeof PERF.avgDrawMs === "number" ? PERF.avgDrawMs : (PERF.lastDrawMs || 0))
+      }),
       requestDraw,
       log,
       isWalkable, inBounds,
@@ -958,8 +961,8 @@
   let _drawQueued = false;
   let _rafId = null;
 
-  // Simple perf counters (DEV-only visible in console)
-  const PERF = { lastTurnMs: 0, lastDrawMs: 0 };
+  // Simple perf counters (DEV-only visible in console) + EMA smoothing
+  const PERF = { lastTurnMs: 0, lastDrawMs: 0, avgTurnMs: 0, avgDrawMs: 0 };
 
   function requestDraw() {
     const GL = modHandle("GameLoop");
@@ -973,7 +976,13 @@
       R.draw(getRenderCtx());
       const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
       PERF.lastDrawMs = t1 - t0;
-      try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
+      // EMA smoothing for draw time
+      try {
+        const a = 0.35; // smoothing factor
+        if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = PERF.lastDrawMs;
+        else PERF.avgDrawMs = (a * PERF.lastDrawMs) + ((1 - a) * PERF.avgDrawMs);
+      } catch (_) {}
+      try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms (avg ${PERF.avgDrawMs.toFixed(2)}ms)`); } catch (_) {}
     }
   }
 
@@ -1919,7 +1928,13 @@
 
     const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
     PERF.lastTurnMs = t1 - t0;
-    try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms`); } catch (_) {}
+    // EMA smoothing for turn time
+    try {
+      const a = 0.35; // smoothing factor
+      if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
+      else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
+    } catch (_) {}
+    try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms (avg ${PERF.avgTurnMs.toFixed(2)}ms)`); } catch (_) {}
   }
   
   
