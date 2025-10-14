@@ -24,6 +24,18 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
+  // Precompute shop door glyphs (T/I/S) by coordinate for O(1) lookup
+  const SHOP_GLYPHS = {};
+  try {
+    if (Array.isArray(shops)) {
+      for (const s of shops) {
+        const nm = (s.name || "").toLowerCase();
+        const glyph = nm.includes("tavern") ? "T" : (nm.includes("inn") ? "I" : "S");
+        SHOP_GLYPHS[`${s.x},${s.y}`] = glyph;
+      }
+    }
+  } catch (_) {}
+
   // Base tiles
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
@@ -61,11 +73,9 @@ export function draw(ctx, view) {
       ctx2d.fillRect(screenX, screenY, TILE, TILE);
 
       // If shop door, overlay glyph (T for Tavern, I for Inn, otherwise S) when visible
-      if (vis && Array.isArray(shops)) {
-        const s = shops.find(s => s.x === x && s.y === y);
-        if (s) {
-          const nm = (s.name || "").toLowerCase();
-          const glyph = nm.includes("tavern") ? "T" : nm.includes("inn") ? "I" : "S";
+      if (vis) {
+        const glyph = SHOP_GLYPHS[`${x},${y}`];
+        if (glyph) {
           RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, TCOL.shop, TILE);
         }
       }

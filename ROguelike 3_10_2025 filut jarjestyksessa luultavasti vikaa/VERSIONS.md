@@ -12,6 +12,11 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.2 — Phase 5: Glyph lookup precompute (overworld/town)
+- Changed: ui/render_overworld.js precomputes a lookup map for town glyphs (T/t/C) based on town size to avoid per-tile Array.find scans while drawing the viewport.
+- Changed: ui/render_town.js precomputes a shop door glyph map (T/I/S) for O(1) lookup during tile rendering.
+- Benefit: reduces repeated linear scans per tile in the hot render loop.
+
 v1.35.1 — Phase 5: Overworld minimap offscreen cache
 - Changed: ui/render_overworld.js now renders the minimap to an offscreen canvas once per world-map/dimension change and blits it each frame.
   - Reduces repeated per-pixel work and improves draw-time on the overworld, especially on lower-powered devices.

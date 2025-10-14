@@ -37,6 +37,20 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
+  // Precompute town glyphs lookup to avoid per-tile array scans
+  const TOWN_GLYPHS = {};
+  try {
+    if (ctx.world && Array.isArray(ctx.world.towns)) {
+      for (const info of ctx.world.towns) {
+        let glyph = "T";
+        const sz = (info.size || "").toLowerCase();
+        if (sz === "small") glyph = "t";
+        else if (sz === "city") glyph = "C";
+        TOWN_GLYPHS[`${info.x},${info.y}`] = glyph;
+      }
+    }
+  } catch (_) {}
+
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const row = yIn ? map[y] : null;
@@ -71,17 +85,7 @@ export function draw(ctx, view) {
 
       // Overlay glyphs for special overworld tiles
       if (WT && t === WT.TOWN) {
-        let glyph = "T";
-        try {
-          if (ctx.world && Array.isArray(ctx.world.towns)) {
-            const info = ctx.world.towns.find(tt => tt.x === x && tt.y === y);
-            if (info && info.size) {
-              if (info.size === "small") glyph = "t";
-              else if (info.size === "city") glyph = "C";
-              else glyph = "T";
-            }
-          }
-        } catch (_) {}
+        const glyph = TOWN_GLYPHS[`${x},${y}`] || "T";
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, "#d7ba7d", TILE);
       } else if (WT && t === WT.DUNGEON) {
         RenderCore.drawGlyph(ctx2d, screenX, screenY, "D", "#c586c0", TILE);
