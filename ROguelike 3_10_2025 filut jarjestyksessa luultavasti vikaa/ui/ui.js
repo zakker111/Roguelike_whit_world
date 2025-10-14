@@ -638,7 +638,7 @@ export const UI = {
       rightEmpty: !(player.equipment && player.equipment.right),
     };
 
-    // Equipment slots
+    // Equipment slots (cache HTML to avoid unnecessary DOM writes)
     if (this.els.equipSlotsEl) {
       const slots = [
         ["left", "Left hand"],
@@ -659,65 +659,83 @@ export const UI = {
           return `<div class="slot"><strong>${label}:</strong> <span class="name"><span class='empty'>(empty)</span></span></div>`;
         }
       }).join("");
-      this.els.equipSlotsEl.innerHTML = html;
+      if (html !== this._lastEquipHTML) {
+        this.els.equipSlotsEl.innerHTML = html;
+        this._lastEquipHTML = html;
+      }
     }
-    // Inventory list
+    // Inventory list (skip rebuild when unchanged)
     if (this.els.invList) {
-      this.els.invList.innerHTML = "";
-      player.inventory.forEach((it, idx) => {
-        const li = document.createElement("li");
-        li.dataset.index = String(idx);
-        li.dataset.kind = it.kind || "misc";
+      const key = Array.isArray(player.inventory)
+        ? player.inventory.map(it => [
+            it.kind || "misc",
+            it.slot || "",
+            it.name || "",
+            (typeof it.atk === "number" ? it.atk : ""),
+            (typeof it.def === "number" ? it.def : ""),
+            (typeof it.decay === "number" ? it.decay : ""),
+            (typeof it.count === "number" ? it.count : ""),
+            (typeof it.amount === "number" ? it.amount : "")
+          ].join("|")).join(";;")
+        : "";
+      if (key !== this._lastInvListKey) {
+        this.els.invList.innerHTML = "";
+        player.inventory.forEach((it, idx) => {
+          const li = document.createElement("li");
+          li.dataset.index = String(idx);
+          li.dataset.kind = it.kind || "misc";
 
-        // Build display label with counts/stats where helpful
-        const baseLabel = (typeof describeItem === "function") ? describeItem(it) : (it.name || "item");
-        let label = baseLabel;
+          // Build display label with counts/stats where helpful
+          const baseLabel = (typeof describeItem === "function") ? describeItem(it) : (it.name || "item");
+          let label = baseLabel;
 
-        if (it.kind === "potion") {
-          const count = (it.count && it.count > 1) ? ` x${it.count}` : "";
-          label = `${baseLabel}${count}`;
-        } else if (it.kind === "gold") {
-          const amount = Number(it.amount || 0);
-          label = `${baseLabel}: ${amount}`;
-        } else if (it.kind === "equip") {
-          const stats = [];
-          if (typeof it.atk === "number") stats.push(`+${Number(it.atk).toFixed(1)} atk`);
-          if (typeof it.def === "number") stats.push(`+${Number(it.def).toFixed(1)} def`);
-          if (stats.length) label = `${baseLabel} (${stats.join(", ")})`;
-        }
-
-        if (it.kind === "equip" && it.slot === "hand") {
-          li.dataset.slot = "hand";
-          const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-          if (it.twoHanded) {
-            li.dataset.twohanded = "true";
-            li.title = `Two-handed • Decay: ${dec.toFixed(0)}%`;
-          } else {
-            // If exactly one hand is empty, hint which one will be used automatically
-            let autoHint = "";
-            if (this._equipState) {
-              if (this._equipState.leftEmpty && !this._equipState.rightEmpty) autoHint = " (Left is empty)";
-              else if (this._equipState.rightEmpty && !this._equipState.leftEmpty) autoHint = " (Right is empty)";
-            }
-            li.title = `Click to equip${autoHint ? autoHint : " (choose hand)"} • Decay: ${dec.toFixed(0)}%`;
+          if (it.kind === "potion") {
+            const count = (it.count && it.count > 1) ? ` x${it.count}` : "";
+            label = `${baseLabel}${count}`;
+          } else if (it.kind === "gold") {
+            const amount = Number(it.amount || 0);
+            label = `${baseLabel}: ${amount}`;
+          } else if (it.kind === "equip") {
+            const stats = [];
+            if (typeof it.atk === "number") stats.push(`+${Number(it.atk).toFixed(1)} atk`);
+            if (typeof it.def === "number") stats.push(`+${Number(it.def).toFixed(1)} def`);
+            if (stats.length) label = `${baseLabel} (${stats.join(", ")})`;
           }
-          li.style.cursor = "pointer";
-        } else if (it.kind === "equip") {
-          li.dataset.slot = it.slot || "";
-          const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-          li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
-          li.style.cursor = "pointer";
-        } else if (it.kind === "potion") {
-          li.style.cursor = "pointer";
-          li.title = "Click to drink";
-        } else {
-          li.style.opacity = "0.7";
-          li.style.cursor = "default";
-        }
 
-        li.textContent = label;
-        this.els.invList.appendChild(li);
-      });
+          if (it.kind === "equip" && it.slot === "hand") {
+            li.dataset.slot = "hand";
+            const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
+            if (it.twoHanded) {
+              li.dataset.twohanded = "true";
+              li.title = `Two-handed • Decay: ${dec.toFixed(0)}%`;
+            } else {
+              // If exactly one hand is empty, hint which one will be used automatically
+              let autoHint = "";
+              if (this._equipState) {
+                if (this._equipState.leftEmpty && !this._equipState.rightEmpty) autoHint = " (Left is empty)";
+                else if (this._equipState.rightEmpty && !this._equipState.leftEmpty) autoHint = " (Right is empty)";
+              }
+              li.title = `Click to equip${autoHint ? autoHint : " (choose hand)"} • Decay: ${dec.toFixed(0)}%`;
+            }
+            li.style.cursor = "pointer";
+          } else if (it.kind === "equip") {
+            li.dataset.slot = it.slot || "";
+            const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
+            li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
+            li.style.cursor = "pointer";
+          } else if (it.kind === "potion") {
+            li.style.cursor = "pointer";
+            li.title = "Click to drink";
+          } else {
+            li.style.opacity = "0.7";
+            li.style.cursor = "default";
+          }
+
+          li.textContent = label;
+          this.els.invList.appendChild(li);
+        });
+        this._lastInvListKey = key;
+      }
     }
   },
 

@@ -12,6 +12,13 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.9 — Phase 5: Inventory render caching (equip slots and list)
+- Changed: ui/ui.js renderInventory now:
+  - Caches equip slots HTML and only updates DOM when it changes.
+  - Computes an inventory signature key and skips list rebuild when unchanged.
+- Benefit: reduces unnecessary DOM work during background updates; improves responsiveness when inventory is closed or unchanged.
+- Deployment: https://wbokz8qnonbd.cosine.page
+
 v1.35.8 — Phase 5: Inventory render guard and minor cleanup
 - Changed: core/ui_bridge.js renderInventory(ctx) now renders only when the inventory panel is open (UI.isInventoryOpen), avoiding unnecessary DOM work.
 - Benefit: small performance gain when background updates occur while inventory is closed.
