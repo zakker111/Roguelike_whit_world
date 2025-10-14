@@ -285,8 +285,8 @@
       onEnemyDied: (enemy) => killEnemy(enemy),
     };
 
-    if (window.Ctx && typeof Ctx.create === "function") {
-      const ctx = Ctx.create(base);
+    if (typeof window !== "undefined" && window.Ctx && typeof window.Ctx.create === "function") {
+      const ctx = window.Ctx.create(base);
       // enemy factory prefers ctx.Enemies handle, falling back gracefully
       ctx.enemyFactory = (x, y, depth) => {
         const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
@@ -950,6 +950,7 @@
       enemyColor: (t) => enemyColor(t),
       time: getClock(),
       // GameLoop can measure draw time and report via this sink
+      onDrawMeasured: (ms) => { PERF.lastDrawMs = ms; },
       onDrawMeasured: (ms) => { try { PERF.lastDraw }
 
   
