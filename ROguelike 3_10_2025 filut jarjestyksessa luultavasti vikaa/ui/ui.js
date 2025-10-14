@@ -297,6 +297,26 @@ export const UI = {
       });
       this.updateRoutePathsButton();
     }
+    // Perf overlay toggle
+    this.els.godTogglePerfBtn = document.getElementById("god-toggle-perf-btn");
+    if (this.els.godTogglePerfBtn) {
+      this.els.godTogglePerfBtn.addEventListener("click", () => {
+        const next = !this.getPerfState();
+        this.setPerfState(next);
+        this.updatePerfButton();
+      });
+      this.updatePerfButton();
+    }
+    // Minimap toggle
+    this.els.godToggleMinimapBtn = document.getElementById("god-toggle-minimap-btn");
+    if (this.els.godToggleMinimapBtn) {
+      this.els.godToggleMinimapBtn.addEventListener("click", () => {
+        const next = !this.getMinimapState();
+        this.setMinimapState(next);
+        this.updateMinimapButton();
+      });
+      this.updateMinimapButton();
+    }
     // RNG seed controls
     if (this.els.godApplySeedBtn) {
       this.els.godApplySeedBtn.addEventListener("click", () => {
@@ -591,9 +611,10 @@ export const UI = {
       const hhmm = t.hhmm || "";
       const phase = t.phase ? t.phase : "";
       const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
-      const perfStr = (perf && (typeof perf.lastTurnMs === "number" || typeof perf.lastDrawMs === "number"))
-        ? `  Perf: T ${(perf.lastTurnMs || 0).toFixed(1)}ms  D ${(perf.lastDrawMs || 0).toFixed(1)}ms`
-        : "";
+      let perfStr = "";
+      if (this.getPerfState() && perf && (typeof perf.lastTurnMs === "number" || typeof perf.lastDrawMs === "number")) {
+        perfStr = `  Perf: T ${(perf.lastTurnMs || 0).toFixed(1)}ms  D ${(perf.lastDrawMs || 0).toFixed(1)}ms`;
+      }
       const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${perfStr}`;
       if (floorStr !== this._lastFloorText) {
         this.els.floorEl.textContent = floorStr;
@@ -891,6 +912,68 @@ export const UI = {
     if (!this.els.godToggleGridBtn) return;
     const on = this.getGridState();
     this.els.godToggleGridBtn.textContent = `Grid: ${on ? "On" : "Off"}`;
+  },
+
+  // --- Perf overlay controls ---
+  getPerfState() {
+    try {
+      if (typeof window.SHOW_PERF === "boolean") return window.SHOW_PERF;
+      const v = localStorage.getItem("SHOW_PERF");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (_) {}
+    return true; // default on
+  },
+
+  setPerfState(enabled) {
+    try {
+      window.SHOW_PERF = !!enabled;
+      localStorage.setItem("SHOW_PERF", enabled ? "1" : "0");
+    } catch (_) {}
+    this.updatePerfButton();
+    try {
+      if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
+        window.GameAPI.requestDraw();
+      }
+    } catch (_) {}
+  },
+
+  updatePerfButton() {
+    if (!this.els.godTogglePerfBtn) return;
+    const on = this.getPerfState();
+    this.els.godTogglePerfBtn.textContent = `Perf: ${on ? "On" : "Off"}`;
+    this.els.godTogglePerfBtn.title = on ? "Hide performance timings in HUD" : "Show performance timings in HUD";
+  },
+
+  // --- Minimap controls ---
+  getMinimapState() {
+    try {
+      if (typeof window.SHOW_MINIMAP === "boolean") return window.SHOW_MINIMAP;
+      const v = localStorage.getItem("SHOW_MINIMAP");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (_) {}
+    return true; // default on
+  },
+
+  setMinimapState(enabled) {
+    try {
+      window.SHOW_MINIMAP = !!enabled;
+      localStorage.setItem("SHOW_MINIMAP", enabled ? "1" : "0");
+    } catch (_) {}
+    this.updateMinimapButton();
+    try {
+      if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
+        window.GameAPI.requestDraw();
+      }
+    } catch (_) {}
+  },
+
+  updateMinimapButton() {
+    if (!this.els.godToggleMinimapBtn) return;
+    const on = this.getMinimapState();
+    this.els.godToggleMinimapBtn.textContent = `Minimap: ${on ? "On" : "Off"}`;
+    this.els.godToggleMinimapBtn.title = on ? "Hide overworld minimap" : "Show overworld minimap";
   },
 
   // --- Town debug overlay controls ---

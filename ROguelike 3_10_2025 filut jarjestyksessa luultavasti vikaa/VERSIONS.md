@@ -12,11 +12,16 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.5 — Phase 5: HUD perf/minimap toggles
+- Added: GOD panel toggles for Perf and Minimap (ids god-toggle-perf-btn, god-toggle-minimap-btn).
+- UI: updateStats shows Perf timings only when enabled (persisted as SHOW_PERF in localStorage).
+- Overworld: minimap rendering can be disabled via SHOW_MINIMAP (persisted); render_overworld.js respects the flag.
+
 v1.35.4 — Phase 5: Base-layer offscreen caches for dungeon and town
 - Changed: ui/render_dungeon.js now builds an offscreen base (tiles, stairs glyph) and blits it, applying per-frame visibility overlays (void/dim) and dynamic entities afterward.
 - Changed: ui/render_town.js now builds an offscreen base (walls/windows/doors/floor) and blits it, applying visibility overlays and shop glyphs per-frame.
 - Benefit: reduces per-tile work in steady-state frames for dungeon and town; complements overworld caching.
-- Deployment: pending (this version)
+- Deployment: https://bfruxbnkn5sg.cosine.page
 
 v1.35.3 — Phase 5: Overworld base-layer offscreen cache + enemy color cache
 - Changed: ui/render_overworld.js builds a full offscreen world base (biomes + town/dungeon glyphs) at TILE resolution and blits it each frame, avoiding per-tile loops.
