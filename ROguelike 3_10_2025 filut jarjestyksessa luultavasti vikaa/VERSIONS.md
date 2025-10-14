@@ -12,6 +12,11 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.8 — Phase 5: Inventory render guard and minor cleanup
+- Changed: core/ui_bridge.js renderInventory(ctx) now renders only when the inventory panel is open (UI.isInventoryOpen), avoiding unnecessary DOM work.
+- Benefit: small performance gain when background updates occur while inventory is closed.
+- Deployment: https://dr55uzvjxrmb.cosine.page
+
 v1.35.7 — Phase 5: Centralized blit helper and changelog cleanup
 - Added: ui/render_core.js blitViewport(ctx2d, canvas, cam, wpx, hpx) centralizes cropped blit logic.
   - ui/render_overworld.js, ui/render_town.js, ui/render_dungeon.js now call RenderCore.blitViewport instead of duplicating code.

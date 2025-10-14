@@ -53,6 +53,9 @@ export function updateStats(ctx) {
 export function renderInventory(ctx) {
   if (!hasUI() || typeof window.UI.renderInventory !== "function") return;
   try {
+    // Avoid DOM work when panel is closed
+    const open = (typeof window.UI.isInventoryOpen === "function") ? !!window.UI.isInventoryOpen() : true;
+    if (!open) return;
     const desc = (typeof ctx.describeItem === "function")
       ? ctx.describeItem
       : (it) => (it && it.name) ? it.name : "item";
