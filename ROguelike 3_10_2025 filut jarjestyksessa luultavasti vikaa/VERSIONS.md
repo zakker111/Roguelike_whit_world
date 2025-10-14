@@ -12,6 +12,12 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.1 — Phase 5: Overworld minimap offscreen cache
+- Changed: ui/render_overworld.js now renders the minimap to an offscreen canvas once per world-map/dimension change and blits it each frame.
+  - Reduces repeated per-pixel work and improves draw-time on the overworld, especially on lower-powered devices.
+- Deployment: https://dyw9zus2215v.cosine.page
+- Next: run smoketest to gather perf baselines and proceed with renderer/UI coalescing.
+
 v1.35.0 — Phase 5 kickoff: UI perf metrics and polish
 - Added: HUD perf metrics (last turn/draw ms) next to time in the top bar
   - core/ui_bridge.js passes ctx.getPerfStats() to UI.updateStats
