@@ -12,6 +12,13 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.10 — Phase 5: UI/draw coalescing for modal hides (Shop/GOD/Smoke/Inventory)
+- Changed: core/game.js handlers now requestDraw only if the corresponding modal was open:
+  - onHideGod/onHideSmoke/onHideShop guard redraws via UIBridge isOpen checks.
+  - hideInventoryPanel checks UI.isInventoryOpen before redrawing.
+- Benefit: avoids redundant draws when ESC-close shortcuts fire while panels are already closed; small but steady performance gain.
+- Deployment: https://ksxgidr5uonr.cosine.page
+
 v1.35.9 — Phase 5: Inventory render caching (equip slots and list)
 - Changed: ui/ui.js renderInventory now:
   - Caches equip slots HTML and only updates DOM when it changes.

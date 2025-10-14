@@ -1334,18 +1334,36 @@
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => {
           const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isGodOpen === "function") wasOpen = !!UB.isGodOpen();
+          } catch (_) {}
           try {
             if (UB && typeof UB.hideGod === "function") UB.hideGod(getCtx());
           } catch (_) {}
-          requestDraw();
+          if (wasOpen) requestDraw();
         },
-        onHideShop: () => { const UB = modHandle("UIBridge"); if (UB && typeof UB.hideShop === "function") { UB.hideShop(getCtx()); requestDraw(); } },
+        onHideShop: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isShopOpen === "function") wasOpen = !!UB.isShopOpen();
+          } catch (_) {}
+          if (UB && typeof UB.hideShop === "function") {
+            UB.hideShop(getCtx());
+            if (wasOpen) requestDraw();
+          }
+        },
         onHideSmoke: () => {
           const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isSmokeOpen === "function") wasOpen = !!UB.isSmokeOpen();
+          } catch (_) {}
           try {
             if (UB && typeof UB.hideSmoke === "function") UB.hideSmoke(getCtx());
           } catch (_) {}
-          requestDraw();
+          if (wasOpen) requestDraw();
         },
         onShowGod: () => {
           const UB = modHandle("UIBridge");
@@ -1606,20 +1624,23 @@
   }
 
   function hideInventoryPanel() {
+    const UB = modHandle("UIBridge");
+    let wasOpen = false;
+    try {
+      if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+    } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.hide === "function") {
       IC.hide(getCtx());
-      requestDraw();
+      if (wasOpen) requestDraw();
       return;
     }
-    const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideInventory === "function") {
       UB.hideInventory(getCtx());
-      requestDraw();
+      if (wasOpen) requestDraw();
       return;
     }
-    // No DOM fallback; rely on UIBridge/InventoryController
-    requestDraw();
+    if (wasOpen) requestDraw();
   }
 
   function equipItemByIndex(idx) {
@@ -1923,7 +1944,17 @@
             } catch (_) {}
             return false;
           },
-          onHideShop: () => { const UB = modHandle("UIBridge"); if (UB && typeof UB.hideShop === "function") { UB.hideShop(getCtx()); requestDraw(); } },
+          onHideShop: () => {
+            const UB = modHandle("UIBridge");
+            let wasOpen = false;
+            try {
+              if (UB && typeof UB.isShopOpen === "function") wasOpen = !!UB.isShopOpen();
+            } catch (_) {}
+            if (UB && typeof UB.hideShop === "function") {
+              UB.hideShop(getCtx());
+              if (wasOpen) requestDraw();
+            }
+          },
           onGodCheckHomes: () => {
             const ctx = getCtx();
             if (ctx.mode !== "town") {
