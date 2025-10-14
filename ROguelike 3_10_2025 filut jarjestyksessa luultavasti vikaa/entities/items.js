@@ -28,7 +28,7 @@ function getRng(rng) {
   // Shared fallback for determinism without duplicating PRNG implementations
   try {
     if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
-      RNGFallback.getRng();
+      return window.RNGFallback.getRng();
     }
   } catch (_) {}
   // Ultimate fallback: non-deterministic
@@ -58,8 +58,8 @@ function applyJsonItems(json) {
       window.ValidationLog.warnings.push(`[Items] ${msg}`);
     } catch (_) {}
     try {
-      if (window.Logger && typeof Logger.log === "function") Logger.log(`[Items] ${msg}`, "warn");
-      else if (window.DEV && typeof console !== "undefined") console.warn("[Items] " + msg, row);
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(`[Items] ${msg}`, "warn");
+      else if (typeof window !== "undefined" && window.DEV && typeof console !== "undefined") console.warn("[Items] " + msg, row);
     } catch (_) {}
   };
   const VALID_SLOTS = new Set(["hand","head","torso","legs","hands"]);

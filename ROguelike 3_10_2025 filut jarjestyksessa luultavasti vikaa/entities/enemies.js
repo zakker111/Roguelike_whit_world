@@ -50,8 +50,8 @@ function applyJsonEnemies(json) {
       window.ValidationLog.warnings.push(`[Enemies] ${msg}`);
     } catch (_) {}
     try {
-      if (window.Logger && typeof Logger.log === "function") Logger.log(`[Enemies] ${msg}`, "warn");
-      else if (window.DEV && typeof console !== "undefined") console.warn("[Enemies] " + msg, row);
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(`[Enemies] ${msg}`, "warn");
+      else if (typeof window !== "undefined" && window.DEV && typeof console !== "undefined") console.warn("[Enemies] " + msg, row);
     } catch (_) {}
   };
   for (const row of json) {
