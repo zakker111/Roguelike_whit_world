@@ -12,6 +12,12 @@ v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest r
 - Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
 - Next: continue optimization and documentation polish (no functional changes expected)
 
+v1.35.0 — Phase 5 kickoff: UI perf metrics and polish
+- Added: HUD perf metrics (last turn/draw ms) next to time in the top bar
+  - core/ui_bridge.js passes ctx.getPerfStats() to UI.updateStats
+  - ui/ui.js displays “Perf: T <turn_ms> D <draw_ms>” when available
+- Goal: begin optimization and UX polish without altering gameplay; future steps will focus on micro-performance and aesthetic improvements
+
 v1.34.29 — Phase 4 continuation: ctx-first cleanups and window.* consistency
 - Changed: core/game.js
   - Dungeon loot fallback now prefers ctx-first Loot handle via modHandle; removed direct window.Loot + bare Loot.lootHere usage.

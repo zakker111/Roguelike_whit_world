@@ -44,8 +44,9 @@ export function updateStats(ctx) {
     try { return (typeof ctx.getPlayerDefense === "function") ? ctx.getPlayerDefense() : 0; }
     catch (_) { return 0; }
   };
+  const perf = (typeof ctx.getPerfStats === "function") ? ctx.getPerfStats() : null;
   try {
-    window.UI.updateStats(ctx.player, ctx.floor, atk, def, ctx.time);
+    window.UI.updateStats(ctx.player, ctx.floor, atk, def, ctx.time, perf);
   } catch (_) {}
 }
 

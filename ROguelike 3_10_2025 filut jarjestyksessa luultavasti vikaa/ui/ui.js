@@ -571,7 +571,7 @@ export const UI = {
     if (typeof onGodToggleGrid === "function") this.handlers.onGodToggleGrid = onGodToggleGrid;
   },
 
-  updateStats(player, floor, getAtk, getDef, time) {
+  updateStats(player, floor, getAtk, getDef, time, perf) {
     if (this.els.hpEl) {
       const parts = [`HP: ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}`];
       const statuses = [];
@@ -581,12 +581,15 @@ export const UI = {
       this.els.hpEl.textContent = parts.join("");
     }
     if (this.els.floorEl) {
-      // Shorter labels to fit better on small screens; include time
+      // Shorter labels to fit better on small screens; include time and perf if available
       const t = time || {};
       const hhmm = t.hhmm || "";
       const phase = t.phase ? t.phase : "";
       const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
-      this.els.floorEl.textContent = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}`;
+      const perfStr = (perf && (typeof perf.lastTurnMs === "number" || typeof perf.lastDrawMs === "number"))
+        ? `  Perf: T ${(perf.lastTurnMs || 0).toFixed(1)}ms  D ${(perf.lastDrawMs || 0).toFixed(1)}ms`
+        : "";
+      this.els.floorEl.textContent = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${perfStr}`;
     }
     if (this.els.invStatsEl && typeof getAtk === "function" && typeof getDef === "function") {
       this.els.invStatsEl.textContent = `Attack: ${getAtk().toFixed(1)}   Defense: ${getDef().toFixed(1)}`;
