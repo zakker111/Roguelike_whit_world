@@ -30,9 +30,7 @@ export function draw(ctx, view) {
         DUN.wpx = wpx;
         DUN.hpx = hpx;
         DUN.TILE = TILE;
-        const off = document.createElement("canvas");
-        off.width = wpx;
-        off.height = hpx;
+        const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         // Set font/align once for glyphs
         try {

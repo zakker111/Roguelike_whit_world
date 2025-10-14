@@ -1,6 +1,13 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
+v1.35.13 — Phase 5: OffscreenCanvas adoption + crisper rendering
+- Added: ui/render_core.js createOffscreen(w,h) uses OffscreenCanvas when available, else falls back to HTMLCanvasElement.
+- Changed: ui/render_overworld.js, ui/render_town.js, ui/render_dungeon.js now use RenderCore.createOffscreen for their base caches.
+- Changed: ui/render_core.js computeView disables image smoothing for crisper tiles/glyphs when supported.
+- Benefit: potential performance improvements on browsers that optimize OffscreenCanvas; slightly sharper visuals; no behavior change.
+- Deployment: https://7djt27gfy2ge.cosine.page
+
 v1.35.12 — Phase 5: Coalesced draws for panel openings (GOD/Inventory/Loot)
 - Changed: core/game.js now requests a redraw on show actions only when the panel was previously closed:
   - onShowGod, showInventoryPanel, and showLootPanel check UIBridge.isOpen first and skip redundant draw if already open.

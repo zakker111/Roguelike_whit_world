@@ -50,9 +50,7 @@ export function draw(ctx, view) {
         TOWN.wpx = wpx;
         TOWN.hpx = hpx;
         TOWN.TILE = TILE;
-        const off = document.createElement("canvas");
-        off.width = wpx;
-        off.height = hpx;
+        const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         try {
           oc.font = "bold 20px JetBrains Mono, monospace";

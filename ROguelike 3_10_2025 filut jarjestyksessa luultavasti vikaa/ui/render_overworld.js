@@ -66,9 +66,7 @@ export function draw(ctx, view) {
         WORLD.wpx = wpx;
         WORLD.hpx = hpx;
         WORLD.TILE = TILE;
-        const off = document.createElement("canvas");
-        off.width = wpx;
-        off.height = hpx;
+        const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         // Set font/align once for glyphs
         try {
@@ -201,9 +199,7 @@ export function draw(ctx, view) {
           MINI.wpx = wpx;
           MINI.hpx = hpx;
           MINI.scale = scale;
-          const off = document.createElement("canvas");
-          off.width = wpx;
-          off.height = hpx;
+          const off = RenderCore.createOffscreen(wpx, hpx);
           const oc = off.getContext("2d");
           // tiles
           for (let yy = 0; yy < mh; yy++) {

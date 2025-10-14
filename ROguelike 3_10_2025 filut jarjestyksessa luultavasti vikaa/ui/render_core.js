@@ -57,6 +57,8 @@ export function computeView(ctx) {
 
   // Clear and set text properties once per frame
   ctx2d.clearRect(0, 0, cam.width, cam.height);
+  // Prefer crisp pixel rendering for tiles/glyphs
+  try { if ("imageSmoothingEnabled" in ctx2d) ctx2d.imageSmoothingEnabled = false; } catch (_) {}
   ctx2d.font = "bold 20px JetBrains Mono, monospace";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -125,7 +127,20 @@ export function blitViewport(ctx2d, offscreenCanvas, cam, wpx, hpx) {
   return false;
 }
 
+export function createOffscreen(width, height) {
+  try {
+    if (typeof OffscreenCanvas !== "undefined") {
+      const off = new OffscreenCanvas(width, height);
+      return off;
+    }
+  } catch (_) {}
+  const el = document.createElement("canvas");
+  el.width = width;
+  el.height = height;
+  return el;
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
-  window.RenderCore = { computeView, drawGlyph, enemyColor, drawGridOverlay, blitViewport };
+  window.RenderCore = { computeView, drawGlyph, enemyColor, drawGridOverlay, blitViewport, createOffscreen };
 }
