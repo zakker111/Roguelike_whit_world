@@ -52,7 +52,11 @@ export const lootFactories = {
 
   handWeapon: (ctx, opts = {}) => {
     const tier = opts.tier ?? 2;
-    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+      ? window.RNG.rng
+      : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+          ? window.RNGFallback.getRng()
+          : Math.random));
     const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
     if (ItemsMod && typeof ItemsMod.createByKey === "function") {
       const keys = ["sword", "axe", "bow"];
@@ -68,7 +72,11 @@ export const lootFactories = {
   equipment: (ctx, opts = {}) => {
     const tier = opts.tier ?? 2;
     const slot = opts.slot || "hand";
-    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+      ? window.RNG.rng
+      : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+          ? window.RNGFallback.getRng()
+          : Math.random));
     const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
     if (ItemsMod && typeof ItemsMod.createEquipmentOfSlot === "function") {
       return setDecayIfEquip(ItemsMod.createEquipmentOfSlot(slot, tier, rng), opts.decayAll ?? 99);
@@ -79,7 +87,11 @@ export const lootFactories = {
   },
 
   anyEquipment: (ctx, opts = {}) => {
-    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+    const rng = ctx.rng || ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+      ? window.RNG.rng
+      : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+          ? window.RNGFallback.getRng()
+          : Math.random));
     const tier = opts.tier ?? 2;
     const slots = ["hand", "head", "torso", "legs", "hands"];
     const slot = slots[Math.floor(rng() * slots.length)];

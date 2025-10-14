@@ -22,7 +22,7 @@ export function create(ctx) {
         const w = ctx.getWorld();
         if (!w || !w.map) return false;
         const t = w.map[y] && w.map[y][x];
-        return (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
+        return (typeof window.World === "object" && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
       } catch (_) { return false; }
     },
     nearestDungeon: () => {
@@ -300,8 +300,8 @@ export function create(ctx) {
 
     checkHomeRoutes: () => {
       try {
-        if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
-          return TownAI.checkHomeRoutes(ctx.getCtx()) || null;
+        if (typeof window !== "undefined" && window.TownAI && typeof window.TownAI.checkHomeRoutes === "function") {
+          return window.TownAI.checkHomeRoutes(ctx.getCtx()) || null;
         }
       } catch (_) {}
       return null;
@@ -509,7 +509,8 @@ export function create(ctx) {
               if (mode === "world") {
                 if (!world || !world.map) continue;
                 const t = world.map[ny] && world.map[ny][nx];
-                const walk = (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
+                const walk = (typeof window.World === "object" && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : t_coderunewe</;
+;
                 if (walk && md < bestD) { best = { x: nx, y: ny }; bestD = md; }
               } else {
                 if (!ctx.inBounds(nx, ny)) continue;

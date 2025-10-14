@@ -35,7 +35,7 @@ function hasUI() {
 }
 
 export function updateStats(ctx) {
-  if (!hasUI() || typeof UI.updateStats !== "function") return;
+  if (!hasUI() || typeof window.UI.updateStats !== "function") return;
   const atk = function () {
     try { return (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : (ctx.player.atk || 1); }
     catch (_) { return ctx.player && ctx.player.atk || 1; }
@@ -45,70 +45,70 @@ export function updateStats(ctx) {
     catch (_) { return 0; }
   };
   try {
-    UI.updateStats(ctx.player, ctx.floor, atk, def, ctx.time);
+    window.UI.updateStats(ctx.player, ctx.floor, atk, def, ctx.time);
   } catch (_) {}
 }
 
 export function renderInventory(ctx) {
-  if (!hasUI() || typeof UI.renderInventory !== "function") return;
+  if (!hasUI() || typeof window.UI.renderInventory !== "function") return;
   try {
     const desc = (typeof ctx.describeItem === "function")
       ? ctx.describeItem
       : (it) => (it && it.name) ? it.name : "item";
-    UI.renderInventory(ctx.player, desc);
+    window.UI.renderInventory(ctx.player, desc);
   } catch (_) {}
 }
 
 export function showInventory(ctx) {
   if (!hasUI()) return;
-  try { UI.showInventory && UI.showInventory(); } catch (_) {}
+  try { window.UI.showInventory && window.UI.showInventory(); } catch (_) {}
 }
 
 export function hideInventory(ctx) {
   if (!hasUI()) return;
-  try { UI.hideInventory && UI.hideInventory(); } catch (_) {}
+  try { window.UI.hideInventory && window.UI.hideInventory(); } catch (_) {}
 }
 
 export function isInventoryOpen() {
-  try { return !!(hasUI() && UI.isInventoryOpen && UI.isInventoryOpen()); } catch (_) { return false; }
+  try { return !!(hasUI() && window.UI.isInventoryOpen && window.UI.isInventoryOpen()); } catch (_) { return false; }
 }
 
 export function showLoot(ctx, list) {
   if (!hasUI()) return;
-  try { UI.showLoot && UI.showLoot(list || []); } catch (_) {}
+  try { window.UI.showLoot && window.UI.showLoot(list || []); } catch (_) {}
 }
 
 export function hideLoot(ctx) {
   if (!hasUI()) return;
-  try { UI.hideLoot && UI.hideLoot(); } catch (_) {}
+  try { window.UI.hideLoot && window.UI.hideLoot(); } catch (_) {}
 }
 
 export function isLootOpen() {
-  try { return !!(hasUI() && UI.isLootOpen && UI.isLootOpen()); } catch (_) { return false; }
+  try { return !!(hasUI() && window.UI.isLootOpen && window.UI.isLootOpen()); } catch (_) { return false; }
 }
 
 export function showGameOver(ctx) {
   if (!hasUI()) return;
-  try { UI.showGameOver && UI.showGameOver(ctx.player, ctx.floor); } catch (_) {}
+  try { window.UI.showGameOver && window.UI.showGameOver(ctx.player, ctx.floor); } catch (_) {}
 }
 
 export function hideGameOver(ctx) {
   if (!hasUI()) return;
-  try { UI.hideGameOver && UI.hideGameOver(); } catch (_) {}
+  try { window.UI.hideGameOver && window.UI.hideGameOver(); } catch (_) {}
 }
 
 export function showGod(ctx) {
   if (!hasUI()) return;
-  try { UI.showGod && UI.showGod(); } catch (_) {}
+  try { window.UI.showGod && window.UI.showGod(); } catch (_) {}
 }
 
 export function hideGod(ctx) {
   if (!hasUI()) return;
-  try { UI.hideGod && UI.hideGod(); } catch (_) {}
+  try { window.UI.hideGod && window.UI.hideGod(); } catch (_) {}
 }
 
 export function isGodOpen() {
-  try { return !!(hasUI() && UI.isGodOpen && UI.isGodOpen()); } catch (_) { return false; }
+  try { return !!(hasUI() && window.UI.isGodOpen && window.UI.isGodOpen()); } catch (_) { return false; }
 }
 
 // Shop UI wrappers
@@ -146,15 +146,15 @@ export function buyShopIndex(ctx, idx) {
 
 // Smoke panel open-state (used by input gating)
 export function isSmokeOpen() {
-  try { return !!(hasUI() && UI.isSmokeOpen && UI.isSmokeOpen()); } catch (_) { return false; }
+  try { return !!(hasUI() && window.UI.isSmokeOpen && window.UI.isSmokeOpen()); } catch (_) { return false; }
 }
 export function showSmoke(ctx) {
   if (!hasUI()) return;
-  try { UI.showSmoke && UI.showSmoke(); } catch (_) {}
+  try { window.UI.showSmoke && window.UI.showSmoke(); } catch (_) {}
 }
 export function hideSmoke(ctx) {
   if (!hasUI()) return;
-  try { UI.hideSmoke && UI.hideSmoke(); } catch (_) {}
+  try { window.UI.hideSmoke && window.UI.hideSmoke(); } catch (_) {}
 }
 
 // Aggregate modal state for simple gating
@@ -165,8 +165,8 @@ export function isAnyModalOpen() {
 }
 
 export function showConfirm(ctx, text, pos, onOk, onCancel) {
-  if (hasUI() && typeof UI.showConfirm === "function") {
-    try { UI.showConfirm(text, pos, onOk, onCancel); } catch (_) {}
+  if (hasUI() && typeof window.UI.showConfirm === "function") {
+    try { window.UI.showConfirm(text, pos, onOk, onCancel); } catch (_) {}
     return;
   }
   // Fallback: simple browser confirm
@@ -179,12 +179,12 @@ export function showConfirm(ctx, text, pos, onOk, onCancel) {
 
 export function showTownExitButton(ctx) {
   if (!hasUI()) return;
-  try { UI.showTownExitButton && UI.showTownExitButton(); } catch (_) {}
+  try { window.UI.showTownExitButton && window.UI.showTownExitButton(); } catch (_) {}
 }
 
 export function hideTownExitButton(ctx) {
   if (!hasUI()) return;
-  try { UI.hideTownExitButton && UI.hideTownExitButton(); } catch (_) {}
+  try { window.UI.hideTownExitButton && window.UI.hideTownExitButton(); } catch (_) {}
 }
 
 // Back-compat: attach to window for classic scripts

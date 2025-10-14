@@ -167,15 +167,15 @@ export function drinkPotionByIndex(player, idx, hooks = {}) {
 }
 
 export function equipIfBetter(player, item, hooks = {}) {
-  if (typeof window !== "undefined" && window.PlayerEquip && typeof PlayerEquip.equipIfBetter === "function") {
-    return PlayerEquip.equipIfBetter(player, item, hooks);
+  if (typeof window !== "undefined" && window.PlayerEquip && typeof window.PlayerEquip.equipIfBetter === "function") {
+    return window.PlayerEquip.equipIfBetter(player, item, hooks);
   }
   throw new Error("PlayerEquip module is required: PlayerEquip.equipIfBetter not found");
 }
 
 export function equipItemByIndex(player, idx, hooks = {}) {
-  if (typeof window !== "undefined" && window.PlayerEquip && typeof PlayerEquip.equipItemByIndex === "function") {
-    return PlayerEquip.equipItemByIndex(player, idx, hooks);
+  if (typeof window !== "undefined" && window.PlayerEquip && typeof window.PlayerEquip.equipItemByIndex === "function") {
+    return window.PlayerEquip.equipItemByIndex(player, idx, hooks);
   }
   throw new Error("PlayerEquip module is required: PlayerEquip.equipItemByIndex not found");
 }
@@ -211,8 +211,8 @@ export function gainXP(player, amount, hooks = {}) {
 }
 
 export function unequipSlot(player, slot, hooks = {}) {
-  if (typeof window !== "undefined" && window.PlayerEquip && typeof PlayerEquip.unequipSlot === "function") {
-    return PlayerEquip.unequipSlot(player, slot, hooks);
+  if (typeof window !== "undefined" && window.PlayerEquip && typeof window.PlayerEquip.unequipSlot === "function") {
+    return window.PlayerEquip.unequipSlot(player, slot, hooks);
   }
   throw new Error("PlayerEquip module is required: PlayerEquip.unequipSlot not found");
 }
@@ -288,7 +288,7 @@ export function forceUpdate(player) {
         } catch (_) {}
         UIBridge.updateStats(minimal);
       }
-    } else if (typeof window !== "undefined" && window.UI && typeof UI.updateStats === "function") {
+    } else if (typeof window !== "undefined" && window.UI && typeof window.UI.updateStats === "function") {
       // Fallback directly to UI with a derived floor (prefer GameAPI ctx)
       let floor = 1;
       try {
@@ -297,7 +297,7 @@ export function forceUpdate(player) {
           if (c && typeof c.floor === "number") floor = c.floor;
         }
       } catch (_) {}
-      UI.updateStats(player, floor, getAttack.bind(null, player), getDefense.bind(null, player));
+      window.UI.updateStats(player, floor, getAttack.bind(null, player), getDefense.bind(null, player));
     }
   } catch (_) {}
   try {
