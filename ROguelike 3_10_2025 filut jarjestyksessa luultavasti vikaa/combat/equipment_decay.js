@@ -12,8 +12,8 @@ function round1(n) { return Math.round(n * 10) / 10; }
 
 export function initialDecay(tier, rng) {
   try {
-    if (typeof window !== "undefined" && window.Items && typeof Items.initialDecay === "function") {
-      return Items.initialDecay(tier, rng);
+    if (typeof window !== "undefined" && window.Items && typeof window.Items.initialDecay === "function") {
+      return window.Items.initialDecay(tier, rng);
     }
   } catch (_) {}
   // Fallback (mirrors game.js/items.js behavior)
@@ -36,14 +36,14 @@ export function initialDecay(tier, rng) {
 
 export function decayEquipped(player, slot, amount, hooks) {
   hooks = hooks || {};
-  const log = hooks.log || (typeof window !== "undefined" && window.Logger && Logger.log ? Logger.log : (() => {}));
+  const log = hooks.log || (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function" ? window.Logger.log : (() => {}));
   const updateUI = hooks.updateUI || (() => {});
   const onInventoryChange = hooks.onInventoryChange || (() => {});
   const Flavor = (typeof window !== "undefined") ? window.Flavor : null;
 
   try {
-    if (typeof window !== "undefined" && window.Player && typeof Player.decayEquipped === "function") {
-      Player.decayEquipped(player, slot, amount, { log, updateUI, onInventoryChange });
+    if (typeof window !== "undefined" && window.Player && typeof window.Player.decayEquipped === "function") {
+      window.Player.decayEquipped(player, slot, amount, { log, updateUI, onInventoryChange });
       return;
     }
   } catch (_) {}

@@ -13,8 +13,8 @@
  * - round1 and other helpers prefer PlayerUtils where present.
  */
 
-const round1 = (typeof window !== "undefined" && window.PlayerUtils && typeof PlayerUtils.round1 === "function")
-  ? PlayerUtils.round1
+const round1 = (typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.round1 === "function")
+  ? window.PlayerUtils.round1
   : (n) => Math.round(n * 10) / 10;
 
 // Editable defaults for new game. Change these to customize starting attributes.
@@ -74,11 +74,11 @@ export function createInitial() {
     const hasStick = Array.isArray(p.inventory) && p.inventory.some(it => it && it.kind === "equip" && String(it.name || "").toLowerCase() === "stick");
     if (!hasStick) {
       let stick = null;
-      if (typeof window !== "undefined" && window.Items && typeof Items.createByKey === "function") {
-        stick = Items.createByKey("stick", 1);
+      if (typeof window !== "undefined" && window.Items && typeof window.Items.createByKey === "function") {
+        stick = window.Items.createByKey("stick", 1);
       }
-      if (!stick && typeof window !== "undefined" && window.Items && typeof Items.createNamed === "function") {
-        stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
+      if (!stick && typeof window !== "undefined" && window.Items && typeof window.Items.createNamed === "function") {
+        stick = window.Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
       }
       if (!stick) {
         stick = { kind: "equip", slot: "hand", name: "stick", atk: 1.0, tier: 1 };
@@ -115,8 +115,8 @@ export function getDefense(player) {
 
 export function describeItem(item) {
   // Prefer centralized description from Items module if available
-  if (typeof window !== "undefined" && window.Items && typeof Items.describe === "function") {
-    return Items.describe(item);
+  if (typeof window !== "undefined" && window.Items && typeof window.Items.describe === "function") {
+    return window.Items.describe(item);
   }
   if (!item) return "";
   if (item.kind === "equip") {
@@ -240,11 +240,11 @@ export function resetFromDefaults(player) {
     const hasStick = Array.isArray(player.inventory) && player.inventory.some(it => it && it.kind === "equip" && String(it.name || "").toLowerCase() === "stick");
     if (!hasStick) {
       let stick = null;
-      if (typeof window !== "undefined" && window.Items && typeof Items.createByKey === "function") {
-        stick = Items.createByKey("stick", 1);
+      if (typeof window !== "undefined" && window.Items && typeof window.Items.createByKey === "function") {
+        stick = window.Items.createByKey("stick", 1);
       }
-      if (!stick && typeof window !== "undefined" && window.Items && typeof Items.createNamed === "function") {
-        stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
+      if (!stick && typeof window !== "undefined" && window.Items && typeof window.Items.createNamed === "function") {
+        stick = window.Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
       }
       if (!stick) {
         stick = { kind: "equip", slot: "hand", name: "stick", atk: 1.0, tier: 1 };

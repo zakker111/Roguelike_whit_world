@@ -827,8 +827,8 @@ export const UI = {
     } catch (_) {}
     // Apply immediately
     try {
-      if (window.Logger && typeof Logger.init === "function") {
-        Logger.init();
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.init === "function") {
+        window.Logger.init();
       }
     } catch (_) {}
     // Ensure DOM reflects the state even without reinit
