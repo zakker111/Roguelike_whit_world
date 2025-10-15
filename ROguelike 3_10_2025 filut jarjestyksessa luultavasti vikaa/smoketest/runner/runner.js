@@ -239,7 +239,6 @@
   }
 
   async function run(ctx) {
-    try {
       const runIndex = (ctx && ctx.index) ? (ctx.index | 0) : null;
       const runTotal = (ctx && ctx.total) ? (ctx.total | 0) : null;
       const stacking = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.STACK_LOGS);
@@ -1380,11 +1379,7 @@
         }
       } catch (_) {}
       return { ok, steps, sanitizedSteps: sanitized || steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason, trace, keyChecklist: keyChecklistRun };
-    } catch (e) {
-      try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
-      return null;
     }
-  }
 
   async function runSeries(count) {
     const params = parseParams();
