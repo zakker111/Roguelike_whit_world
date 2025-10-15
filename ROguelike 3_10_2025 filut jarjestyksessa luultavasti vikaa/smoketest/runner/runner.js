@@ -2058,6 +2058,7 @@
           E.attachButtons(rep, summaryText, checklistText);
         }
       } catch (_) {}
+      }
       // Release run lock
     try { if (window.SmokeTest && window.SmokeTest.Runner) window.SmokeTest.Runner.RUN_LOCK = false; } catch (_) {}
 
