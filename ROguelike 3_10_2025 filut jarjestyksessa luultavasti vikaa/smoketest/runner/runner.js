@@ -260,6 +260,9 @@
       function gameLog(m, type) { try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(String(m || ""), type || "info"); } catch (_) {} }
       function record(ok, msg) {
         const text = String(msg || "");
+        const lower = text.toLowerCase();
+
+        // Prior-run OK skipping
         if (!!ok && skipOk.has(text)) {
           steps.push({ ok: true, msg: text, skipped: true, skippedReason: "prior_ok" });
           try {
@@ -272,27 +275,31 @@
           gameLog("[SMOKE] OK in prior run; skipped: " + text, "info");
           return;
         }
+
+        // Immobile handling: mark step as skipped and abort run, do NOT count as a failure
+        const isImmobile = (!ok && lower.includes("immobile"));
+        if (isImmobile && params && params.abortonimmobile && !aborted) {
+          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "immobile" });
+          try {
+            var B3 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+            if (B3 && typeof B3.log === "function") {
+              B3.log("SKIP (immobile): " + text, "warn");
+              B3.log("ABORT: immobile detected; aborting remaining scenarios in this run.", "bad");
+            }
+          } catch (_) {}
+          aborted = true;
+          __abortRequested = true;
+          __abortReason = "immobile";
+          try { window.SmokeTest.Runner.RUN_ABORT_REASON = "immobile"; } catch (_) {}
+          return;
+        }
+
+        // Normal record path
         steps.push({ ok: !!ok, msg: text });
         try {
           var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
           if (B && typeof B.log === "function") {
             B.log((ok ? "OK: " : "ERR: ") + text, ok ? "good" : "bad");
-          }
-        } catch (_) {}
-        // Abort this run immediately on immobile detection (e.g., world movement immobile)
-        try {
-          const isImmobile = (!ok && text.toLowerCase().includes("immobile"));
-          if (isImmobile && params && params.abortonimmobile && !aborted) {
-            aborted = true;
-            __abortRequested = true;
-            __abortReason = "immobile";
-            try {
-              var B2 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-              if (B2 && typeof B2.log === "function") {
-                B2.log("ABORT: immobile detected; aborting remaining scenarios in this run.", "bad");
-              }
-            } catch (_) {}
-            try { window.SmokeTest.Runner.RUN_ABORT_REASON = "immobile"; } catch (_) {}
           }
         } catch (_) {}
       }
@@ -984,6 +991,7 @@
     const n = Math.max(1, (count | 0) || params.smokecount || 1);
     const all = [];
     let pass = 0, fail = 0;
+    let skippedRuns = 0;
     let perfSumTurn = 0, perfSumDraw = 0;
     const stacking = n > 1;
     // New: skip scenarios after they have passed this many runs (0 = disabled)
@@ -1343,7 +1351,13 @@
 
       const res = await run({ index: i + 1, total: n, suppressReport: false, skipScenarios: skipList, skipSteps: Array.from(okMsgs) });
       all.push(res);
-      if (res && res.ok) pass++; else fail++;
+      if (res && res.aborted && res.abortReason === "immobile") {
+        skippedRuns++;
+      } else if (res && res.ok) {
+        pass++;
+      } else {
+        fail++;
+      }
 
       // Update scenario pass counts
       try {
@@ -1455,7 +1469,7 @@
       const failColorSum = fail ? '#ef4444' : '#86efac';
       const summary = [
         `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
-        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span></div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped: ${skippedRuns}</div>`,
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
 
@@ -1478,6 +1492,7 @@
             runnerVersion: RUNNER_VERSION,
             runs: n,
             pass, fail,
+            skipped: skippedRuns,
             avgTurnMs: Number(avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn),
             avgDrawMs: Number(avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw),
             results: all,
@@ -1485,7 +1500,7 @@
           };
           const summaryText = [
             `Roguelike Smoke Test Summary (Runner v${rep.runnerVersion})`,
-            `Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}`,
+            `Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}  Skipped: ${rep.skipped}`,
             `Avg PERF: turn ${rep.avgTurnMs} ms, draw ${rep.avgDrawMs} ms`
           ].join("\n");
           const checklistText = (R && typeof R.buildKeyChecklistHtmlFromSteps === "function" ? R.buildKeyChecklistHtmlFromSteps(aggregatedSteps) : "").replace(/<[^>]+>/g, "");
