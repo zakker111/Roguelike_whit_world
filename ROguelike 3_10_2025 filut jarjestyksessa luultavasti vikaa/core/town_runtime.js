@@ -99,11 +99,16 @@ export function talk(ctx) {
       const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, doorShop) : false;
       const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(doorShop) : "";
       if (openNow) {
+        // Coalesce draw: only request a redraw if shop was previously closed
+        let wasOpen = false;
+        try { wasOpen = !!(ctx.UIBridge && typeof ctx.UIBridge.isShopOpen === "function" && ctx.UIBridge.isShopOpen()); } catch (_) {}
         if (ctx.UIBridge && typeof ctx.UIBridge.showShop === "function") {
           ctx.UIBridge.showShop(ctx, npc);
         }
+        if (!wasOpen) { ctx.requestDraw && ctx.requestDraw(); }
       } else {
         ctx.log && ctx.log(`The ${doorShop.name || "shop"} is closed. ${sched}`, "warn");
+        ctx.requestDraw && ctx.requestDraw();
       }
     }
   } catch (_) {}

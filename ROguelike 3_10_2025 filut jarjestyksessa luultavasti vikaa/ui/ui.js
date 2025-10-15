@@ -525,6 +525,17 @@ export const UI = {
       }
     });
 
+    // Establish baseline render toggles early to avoid repeated localStorage reads in hot paths.
+    try {
+      if (typeof window.DRAW_GRID !== "boolean") window.DRAW_GRID = this.getGridState();
+      if (typeof window.SHOW_PERF !== "boolean") window.SHOW_PERF = this.getPerfState();
+      if (typeof window.SHOW_MINIMAP !== "boolean") window.SHOW_MINIMAP = this.getMinimapState();
+      // Ensure buttons reflect baseline state
+      this.updateGridButton();
+      this.updatePerfButton();
+      this.updateMinimapButton();
+    } catch (_) {}
+
     return true;
   },
 

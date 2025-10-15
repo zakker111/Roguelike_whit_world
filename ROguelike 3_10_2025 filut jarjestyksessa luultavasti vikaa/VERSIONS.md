@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
+v1.35.16 — Phase 5: Baseline toggles + coalesced Shop open redraw
+- Changed: ui/ui.js init now establishes baseline window flags (DRAW_GRID, SHOW_PERF, SHOW_MINIMAP) from getters when undefined, avoiding repeated localStorage reads in hot paths; buttons refreshed to reflect baseline.
+- Changed: core/town_runtime.js talk coalesces redraw on shop open — only requests draw if the Shop panel was previously closed; still requests draw when logging “closed” schedule messages.
+- Benefit: small performance wins (fewer redundant draws; reduced toggle state lookups).
+- Deployment: (pending)
+
 v1.35.15 — Phase 5: Perf overlay smoothing (EMA)
 - Changed: core/game.js now maintains an exponential moving average (EMA) for turn/draw times (PERF.avgTurnMs, PERF.avgDrawMs) and exposes smoothed values via getPerfStats().
 - UI: HUD shows smoothed timings automatically (still respects Perf toggle); DEV console prints last and avg values.
