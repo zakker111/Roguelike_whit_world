@@ -204,8 +204,7 @@ export function applyLeaveSync(ctx) {
   // Recompute FOV/UI and inform player (draw coalesced by orchestrator)
   try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-eturn to the overworld.", "notice"); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}
 
   return true;
 }
