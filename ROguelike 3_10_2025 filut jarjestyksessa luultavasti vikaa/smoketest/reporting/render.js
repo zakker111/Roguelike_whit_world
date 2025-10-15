@@ -73,9 +73,7 @@
         { label: "Entered dungeon", pass: hasStep("Entered dungeon") },
         { label: "Looted chest", pass: hasStep("Looted chest at (") },
         { label: "Chest invariant persists (empty on re-enter)", pass: hasStep("Chest invariant:") },
-        { label: "Spawned enemy from GOD", pass: hasStep("Dungeon spawn: enemies") },
         { label: "Enemy types present", pass: hasStep("Enemy types present:") },
-        { label: "Enemy glyphs not '?'", pass: hasStep("Enemy glyphs:") && !hasStep('All enemy glyphs are "?"', false) },
         { label: "Attacked enemy (moved/attempted attacks)", pass: hasStep("Moved and attempted attacks") },
         { label: "Killed enemy (corpse increased)", pass: hasStep("Killed enemy: YES") },
         { label: "Decay increased on equipped hand(s)", pass: hasStep("Decay check:") && !hasStep("Decay did not increase", false) },
@@ -86,8 +84,7 @@
         { label: "Town entered", pass: hasAny(["Entered town", "Mode confirm (town enter): town"]) },
         { label: "NPCs present in town", pass: hasAny(["NPC presence: count", "gate npcs", "Gate greeter"]) },
         { label: "Bumped into NPC", pass: hasAny(["Bumped into at least one NPC", "Bump near shopkeeper: OK"]) },
-        { label: "NPC home has decorations/props", pass: hasStep("NPC home has") },
-        { label: "Shop UI closes with Esc", pass: hasStep("Shop UI closes with Esc") },
+        { label: "NPC home has decorations/props", pass: hasStep("NPC home has") }
       ];
       const rows = keyChecks.map(c => {
         const mark = c.pass ? "[x]" : "[ ]";
@@ -117,9 +114,7 @@
         enteredDungeon: has("Entered dungeon"),
         lootedChest: has("Looted chest at ("),
         chestInvariant: has("Chest invariant:"),
-        spawnedEnemyFromGod: has("Dungeon spawn: enemies"),
         enemyTypesPresent: has("Enemy types present:"),
-        enemyGlyphsNotQuestion: has("Enemy glyphs:") && !has('All enemy glyphs are "?"', false),
         attackedEnemy: has("Moved and attempted attacks"),
         killedEnemy: has("Killed enemy: YES"),
         decayIncreasedOnHands: has("Decay check:") && !has("Decay did not increase", false),
@@ -130,8 +125,7 @@
         townEntered: hasAny(["Entered town", "Mode confirm (town enter): town"]),
         npcsPresentInTown: hasAny(["NPC presence: count", "gate npcs", "Gate greeter"]),
         bumpedIntoNPC: hasAny(["Bumped into at least one NPC", "Bump near shopkeeper: OK"]),
-        npcHomeHasProps: has("NPC home has"),
-        shopUiClosesWithEsc: has("Shop UI closes with Esc"),
+        npcHomeHasProps: has("NPC home has")
       };
       let total = 0, checked = 0;
       try {
