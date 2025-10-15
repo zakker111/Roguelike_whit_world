@@ -195,8 +195,7 @@ export function buyIndex(ctx, idx) {
     } catch (_) {}
     render(ctx);
     // Shop panel is DOM-only; no canvas redraw needed
-  } catch (_) {</}
-{}
+  } catch (_) {}
 }
 
 // Back-compat: attach to window
