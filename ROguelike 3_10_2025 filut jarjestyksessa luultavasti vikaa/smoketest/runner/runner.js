@@ -1259,88 +1259,86 @@
       // Run-level OK: if any real step passed in this run, consider the run OK (union-of successes per run)
       const ok = steps.some(s => s.ok && !s.skipped);
       let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = ""; let main = "";
-      try {
-        const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
-        // Suppress known failure counterparts if their success occurred within this run
-        const sawTownOkRun = steps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
-        const sawDungeonOkRun = steps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
-        // Detect combat success variants within this run
-        const sawCombatOkRun = steps.some(s => s.ok && !s.skipped && (
-          (s.scenario && s.scenario === "combat") ||
-          /moved and attempted attacks|combat effects:|killed enemy|attacked enemy/i.test(String(s.msg || ""))
-        ));
-        const shouldSuppressMsg = (msg) => {
-          const t = String(msg || "");
-          // Hide town failure counterparts if any town entry succeeded in this run
-          if (sawTownOkRun) {
-            if (/town entry not achieved/i.test(t)) return true;
-            if (/town overlays skipped/i.test(t)) return true;
-            if (/town diagnostics skipped/i.test(t)) return true;
-            if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return true;
-          }
-          // Hide dungeon failure counterparts if any dungeon entry succeeded in this run
-          if (sawDungeonOkRun) {
-            if (/dungeon entry failed/i.test(t)) return true;
-            if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return true;
-          }
-          // Hide combat skip noise if we saw any combat success in this run
-          if (sawCombatOkRun) {
-            if (/combat scenario skipped\s*\(not in dungeon\)/i.test(t)) return true;
-          }
-          return false;
-        };
-        const filteredSteps = steps.filter(s => !shouldSuppressMsg(s.msg));
-        sanitized = filteredSteps;
-        const passed = filteredSteps.filter(s => s.ok && !s.skipped);
-        const skipped = filteredSteps.filter(s => s.skipped);
-        const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
-        issuesHtml = failed.length ? (`<div style="margin-top:10px;"><strong>Issues</strong></div>` + R.renderStepsPretty(failed)) : "";
-        passedHtml = passed.length ? (`<div style="margin-top:10px;"><strong>Passed</strong></div>` + R.renderStepsPretty(passed)) : "";
-        skippedHtml = skipped.length ? (`<div style="margin-top:10px;"><strong>Skipped</strong></div>` + R.renderStepsPretty(skipped)) : "";
-        detailsHtml = R.renderStepsPretty(filteredSteps);
-        const headerHtml = R.renderHeader({ ok, stepCount: filteredSteps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(caps).filter(k => caps[k]) });
-        const keyChecklistHtml = R.buildKeyChecklistHtmlFromSteps(filteredSteps);
-        main = R.renderMainReport({
-          headerHtml,
-          keyChecklistHtml,
-          issuesHtml,
-          passedHtml,
-          skippedHtml,
-          detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
-          detailsHtml
-        });
-        // Render only if not in suppress/collect mode
-        if (!suppress) {
-          try {
-            // Ensure GOD panel is visible before writing the report
-            try { openGodPanel(); } catch (_) {}
-            var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-            if (B) {
-              if (stacking && typeof B.appendToPanel === "function") {
-                const title = (runIndex && runTotal) ? `<div style="margin-top:10px;"><strong>Run ${runIndex} / ${runTotal}</strong></div>` : `<div style="margin-top:10px;"><strong>Run</strong></div>`;
-                B.appendToPanel(title + main);
-              } else if (typeof B.panelReport === "function") {
-                B.panelReport(main);
-              } else {
-                panelReport(main);
-              }
+      const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+      // Suppress known failure counterparts if their success occurred within this run
+      const sawTownOkRun = steps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
+      const sawDungeonOkRun = steps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
+      // Detect combat success variants within this run
+      const sawCombatOkRun = steps.some(s => s.ok && !s.skipped && (
+        (s.scenario && s.scenario === "combat") ||
+        /moved and attempted attacks|combat effects:|killed enemy|attacked enemy/i.test(String(s.msg || ""))
+      ));
+      const shouldSuppressMsg = (msg) => {
+        const t = String(msg || "");
+        // Hide town failure counterparts if any town entry succeeded in this run
+        if (sawTownOkRun) {
+          if (/town entry not achieved/i.test(t)) return true;
+          if (/town overlays skipped/i.test(t)) return true;
+          if (/town diagnostics skipped/i.test(t)) return true;
+          if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return true;
+        }
+        // Hide dungeon failure counterparts if any dungeon entry succeeded in this run
+        if (sawDungeonOkRun) {
+          if (/dungeon entry failed/i.test(t)) return true;
+          if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return true;
+        }
+        // Hide combat skip noise if we saw any combat success in this run
+        if (sawCombatOkRun) {
+          if (/combat scenario skipped\s*\(not in dungeon\)/i.test(t)) return true;
+        }
+        return false;
+      };
+      const filteredSteps = steps.filter(s => !shouldSuppressMsg(s.msg));
+      sanitized = filteredSteps;
+      const passed = filteredSteps.filter(s => s.ok && !s.skipped);
+      const skipped = filteredSteps.filter(s => s.skipped);
+      const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
+      issuesHtml = failed.length ? (`<div style="margin-top:10px;"><strong>Issues</strong></div>` + R.renderStepsPretty(failed)) : "";
+      passedHtml = passed.length ? (`<div style="margin-top:10px;"><strong>Passed</strong></div>` + R.renderStepsPretty(passed)) : "";
+      skippedHtml = skipped.length ? (`<div style="margin-top:10px;"><strong>Skipped</strong></div>` + R.renderStepsPretty(skipped)) : "";
+      detailsHtml = R.renderStepsPretty(filteredSteps);
+      const headerHtml = R.renderHeader({ ok, stepCount: filteredSteps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(caps).filter(k => caps[k]) });
+      const keyChecklistHtml = R.buildKeyChecklistHtmlFromSteps(filteredSteps);
+      main = R.renderMainReport({
+        headerHtml,
+        keyChecklistHtml,
+        issuesHtml,
+        passedHtml,
+        skippedHtml,
+        detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
+        detailsHtml
+      });
+      // Render only if not in suppress/collect mode
+      if (!suppress) {
+        try {
+          // Ensure GOD panel is visible before writing the report
+          try { openGodPanel(); } catch (_) {}
+          var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+          if (B) {
+            if (stacking && typeof B.appendToPanel === "function") {
+              const title = (runIndex && runTotal) ? `<div style="margin-top:10px;"><strong>Run ${runIndex} / ${runTotal}</strong></div>` : `<div style="margin-top:10px;"><strong>Run</strong></div>`;
+              B.appendToPanel(title + main);
+            } else if (typeof B.panelReport === "function") {
+              B.panelReport(main);
             } else {
               panelReport(main);
             }
-          } catch (_) {}
-          // Export buttons only when actually rendering and non-stacking
-          try {
-            if (!stacking) {
-              var E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
-              if (E && typeof E.attachButtons === "function") {
-                const summaryText = steps.map(s => (s.skipped ? "[SKIP] " : (s.ok ? "[OK] " : "[FAIL] ")) + (s.msg || "")).join("\n");
-                const checklistText = (R.buildKeyChecklistHtmlFromSteps(steps) || "").replace(/<[^>]+>/g, "");
-                E.attachButtons({ ok, steps, caps, version: RUNNER_VERSION }, summaryText, checklistText);
-              }
+          } else {
+            panelReport(main);
+          }
+        } catch (_) {}
+        // Export buttons only when actually rendering and non-stacking
+        try {
+          if (!stacking) {
+            var E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
+            if (E && typeof E.attachButtons === "function") {
+              const summaryText = steps.map(s => (s.skipped ? "[SKIP] " : (s.ok ? "[OK] " : "[FAIL] ")) + (s.msg || "")).join("\n");
+              const checklistText = (R.buildKeyChecklistHtmlFromSteps(steps) || "").replace(/<[^>]+>/g, "");
+              E.attachButtons({ ok, steps, caps, version: RUNNER_VERSION }, summaryText, checklistText);
             }
-          } catch (_) {}
-        }
-      } catch (_) {}
+          }
+        } catch (_) {}
+      }
 
       // Build per-run Key Checklist object for JSON
       let keyChecklistRun = {};
