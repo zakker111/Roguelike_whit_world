@@ -1,11 +1,20 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.34 — Phase 5 completion: performance + UX polish consolidated
+- Summary of Phase 5 improvements:
+  - Rendering: offscreen base-layer caches (overworld/town/dungeon), cropped blits via RenderCore.blitViewport, OffscreenCanvas adoption, crisper tiles/glyphs (image smoothing disabled).
+  - UI: HUD performance overlay with EMA smoothing, smart defaults for Grid/Perf/Minimap on small/low-power devices, inventory render guard + caching, modal open/hide redraw coalescing.
+  - Engine: centralized draw scheduling in orchestrator, extensive draw coalescing across HUD/log-only flows (Actions/Town/GOD), world-mode FOV recompute skip on movement.
+  - Reliability: GameAPI routing/entry/exit hardening (modal-closing, adjacency and ring fallbacks).
+- Benefit: smoother frame pacing, fewer redundant draws/DOM updates, improved small-screen performance, and more reliable automated flows.
+- Deployment: https://v79o383y2y1z.cosine.page
+
 v1.35.33 — Phase 5: World-mode FOV recompute skip on movement
 - Changed: core/game.js
   - recomputeFOV(): in overworld, now skips recompute on movement; only recomputes when mode or map shape changes. Updates cache and returns early to avoid per-turn seen/visible refills.
 - Benefit: reduces per-turn overhead in world mode while keeping visuals identical.
-- Deployment: (pending)
+- Deployment: https://5kwm5umortdh.cosine.page
 
 v1.35.32 — Phase 5: Action-level DOM coalescing (inventory render only if open)
 - Changed: core/game.js
