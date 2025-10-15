@@ -253,6 +253,7 @@
       const sel = params.scenarios;
       const steps = [];
       let aborted = false;
+      let __curScenarioName = null;
 
       // Structured trace for deeper analysis in exported JSON
       const G = window.GameAPI || {};
@@ -264,6 +265,7 @@
         caps: Object.keys(caps).filter(k => caps[k]),
         startMode: (typeof G.getMode === "function") ? G.getMode() : null,
         scenarioTraces: [],
+        actions: [],
         timestamps: { start: Date.now() }
       };
 
@@ -275,10 +277,20 @@
       function record(ok, msg) {
         const text = String(msg || "");
         const lower = text.toLowerCase();
+        const G = window.GameAPI || {};
+        const ts = Date.now();
+        let modeSnap = null, posSnap = null;
+        try { if (typeof G.getMode === "function") modeSnap = G.getMode(); } catch (_) {}
+        try {
+          if (typeof G.getPlayer === "function") {
+            const p = G.getPlayer();
+            if (p && typeof p.x === "number" && typeof p.y === "number") posSnap = { x: p.x, y: p.y };
+          }
+        } catch (_) {}
 
         // Prior-run OK skipping
         if (!!ok && skipOk.has(text)) {
-          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "prior_ok" });
+          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "prior_ok", ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
           try {
             var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
             if (B && typeof B.log === "function") {
@@ -293,7 +305,7 @@
         // Treat immobile world movement checks as non-fatal skips even without abort flag
         const isWorldImmobile = (!ok && /^world movement test:\s*immobile/i.test(text));
         if (isWorldImmobile) {
-          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "immobile" });
+          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "immobile", ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
           try {
             var Bwi = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
             if (Bwi && typeof Bwi.log === "function") {
@@ -306,7 +318,7 @@
         // Immobile handling: mark step as skipped and abort run, do NOT count as a failure
         const isImmobile = (!ok && lower.includes("immobile"));
         if (isImmobile && params && params.abortonimmobile && !aborted) {
-          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "immobile" });
+          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "immobile", ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
           try {
             var B3 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
             if (B3 && typeof B3.log === "function") {
@@ -322,7 +334,7 @@
         }
 
         // Normal record path
-        steps.push({ ok: !!ok, msg: text });
+        steps.push({ ok: !!ok, msg: text, ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
         try {
           var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
           if (B && typeof B.log === "function") {
@@ -331,7 +343,17 @@
         } catch (_) {}
       }
       function recordSkip(msg) {
-        steps.push({ ok: true, msg: String(msg || ""), skipped: true });
+        const ts = Date.now();
+        const G = window.GameAPI || {};
+        let modeSnap = null, posSnap = null;
+        try { if (typeof G.getMode === "function") modeSnap = G.getMode(); } catch (_) {}
+        try {
+          if (typeof G.getPlayer === "function") {
+            const p = G.getPlayer();
+            if (p && typeof p.x === "number" && typeof p.y === "number") posSnap = { x: p.x, y: p.y };
+          }
+        } catch (_) {}
+        steps.push({ ok: true, msg: String(msg || ""), skipped: true, ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
         try {
           var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
           if (B && typeof B.log === "function") {
@@ -363,6 +385,8 @@
           // Proactively close any modals so movement/interaction isn't intercepted
           try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
           const modeNow = getMode();
+          // Action trace for JSON
+          let act = { type: "dungeonEnter", startMode: modeNow, target: null, routeExact: false, teleports: [], nudged: false, attempts: 0, endMode: null, success: false };
           // Initialize lock namespace
           try {
             window.SmokeTest = window.SmokeTest || {};
@@ -464,6 +488,7 @@
             try {
               if (target && MV && typeof MV.routeTo === "function") {
                 routedExact = await MV.routeTo(target.x, target.y, { timeoutMs: 9000, stepMs: 90 });
+                try { act.routeExact = !!routedExact; } catch (_) {}
               }
             } catch (_) {}
 
@@ -471,8 +496,11 @@
             if (target && TP && typeof TP.teleportTo === "function" && !routedExact) {
               // Try walkable teleport first; if blocked by NPCs, force-teleport
               let tpOk = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: true, fallbackScanRadius: 4 }));
+              try { act.teleports.push({ x: target.x, y: target.y, walkable: true, ok: !!tpOk }); } catch (_) {}
               if (!tpOk) {
-                tpOk = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }));
+                let tpOk2 = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }));
+                try { act.teleports.push({ x: target.x, y: target.y, walkable: false, ok: !!tpOk2 }); } catch (_) {}
+                tpOk = tpOk2;
               }
               // Single nudge if adjacent
               if (!tpOk) {
@@ -483,6 +511,7 @@
                     const dy = Math.sign(target.y - pl.y);
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                     await sleep(120);
+                    try { act.nudged = true; } catch (_) {}
                   }
                 } catch (_) {}
               }
@@ -521,6 +550,7 @@
 
             // Retry strategy: attempt up to 3 cycles of (teleport/route) + bump + 'g'
             for (let attempt = 0; attempt < 3 && (!target || !isOnEntrance()); attempt++) {
+              try { act.attempts += 1; } catch (_) {}
               // If no target yet, re-scan
               try { if (!target) target = findDungeonEntranceTile(); } catch (_) {}
               // Teleport to entrance (walkable first, then forced)
@@ -578,7 +608,7 @@
                 const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
                 for (let a = 0; a < adj.length && getMode() !== "dungeon"; a++) {
                   await TP2.teleportTo(nd.x + adj[a].dx, nd.y + adj[a].dy, { ensureWalkable: true, fallbackScanRadius: 3 });
-                  await sleep(160);
+                  try { act.teleports.push({ x: nd.x + adj[a].dx, y: nd.y + adj[a].dy, walkable: true, phase:0);
                   const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: nd.x, y: nd.y };
                   const dx = Math.sign(nd.x - pl.x);
                   const dy = Math.sign(nd.y - pl.y);
@@ -595,6 +625,7 @@
           }
 
           if (ok) { try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {} }
+          try { act.endMode = getMode(); act.success = !!ok; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
           return ok;
         } catch (_) { return false; }
       }
@@ -607,6 +638,8 @@
           // Proactively close any modals so movement/interaction isn't intercepted
           try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(4); } catch (_) {}
           const modeNow = getMode();
+          // Action trace for JSON
+          let act = { type: "townEnter", startMode: modeNow, target: null, routeExact: false, teleports: [], nudged: false, attempts: 0, endMode: null, success: false };
           // Initialize lock namespace
           try {
             window.SmokeTest = window.SmokeTest || {};
@@ -672,6 +705,7 @@
             }
 
             target = findTownTileOrGate();
+            try { act.target = target ? { x: target.x, y: target.y } : null; } catch (_) {}
 
             // New: prefer GameAPI.gotoNearestTown() if available (auto-walk to gate or town tile)
             if (typeof G.gotoNearestTown === "function") {
@@ -723,10 +757,17 @@
               // Retry up to 3 times: teleport to gate/town tile (walkable then forced), nudge if adjacent, then 'g'
               const TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
               for (let attempt = 0; attempt < 3 && !isOnTarget(); attempt++) {
+                try { act.attempts += 1; } catch (_) {}
                 // Teleport onto target if possible
                 if (TP && typeof TP.teleportTo === "function") {
-                  let okTp = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: true, fallbackScanRadius: 4 }));
-                  if (!okTp) okTp = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }));
+                  let okTp1 = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: true, fallbackScanRadius: 4 }));
+                  try { act.teleports.push({ x: target.x, y: target.y, walkable: true, ok: !!okTp1 }); } catch (_) {}
+                  let okTp = okTp1;
+                  if (!okTp) {
+                    let okTp2 = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }));
+                    try { act.teleports.push({ x: target.x, y: target.y, walkable: false, ok: !!okTp2 }); } catch (_) {}
+                    okTp = okTp2;
+                  }
                 }
                 // If adjacent, nudge once
                 try {
@@ -736,6 +777,7 @@
                     const dy = Math.sign(target.y - pl.y);
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                     await sleep(140);
+                    try { act.nudged = true; } catch (_) {}
                   }
                 } catch (_) {}
                 // Try entering
@@ -779,6 +821,7 @@
           }
 
           if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
+          try { act.endMode = getMode(); act.success = !!ok; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
           return ok;
         } catch (_) { return false; }
       }
@@ -887,11 +930,13 @@
         // Availability check
         if (typeof step.fn !== "function") { recordSkip("Scenario '" + step.name + "' not available"); continue; }
         const beforeCount = steps.length;
+        let __scenarioStartMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+        __curScenarioName = step.name;
+        const __scenarioStartTs = Date.now();
         try {
           const runLabel = (runIndex && runTotal) ? ("Run " + runIndex + " / " + runTotal) : "Run";
           if (Banner && typeof Banner.setStatus === "function") Banner.setStatus(runLabel + " • " + step.name);
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Running scenario: " + step.name, "info");
-          const __scenarioStartMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
           await step.fn(baseCtx);
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Scenario completed: " + step.name, "good");
           // Close the GOD panel after town diagnostics to avoid overlaying subsequent scenarios (robust)
@@ -956,6 +1001,16 @@
             const sFail = during.filter(s => !s.ok && !s.skipped).map(s => String(s.msg || ""));
             const sSkip = during.filter(s => s.skipped).map(s => String(s.msg || ""));
             const endMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            const endedAt = Date.now();
+            const modesSeen = (() => {
+              try {
+                const arr = during.map(s => s && s.mode).filter(Boolean);
+                const out = [];
+                const seen = new Set();
+                for (let k of arr) { if (!seen.has(k)) { seen.add(k); out.push(k); } }
+                return out;
+              } catch (_) { return []; }
+            })();
             const sTrace = {
               name: step.name,
               startedMode: __scenarioStartMode,
@@ -964,7 +1019,10 @@
               passes: sPass,
               fails: sFail,
               skipped: sSkip,
-              endedAt: Date.now()
+              startedAt: __scenarioStartTs,
+              endedAt: endedAt,
+              durationMs: Math.max(0, endedAt - __scenarioStartTs),
+              observedModes: modesSeen
             };
             trace.scenarioTraces.push(sTrace);
           } catch (_) {}
