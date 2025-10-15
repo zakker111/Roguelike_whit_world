@@ -133,6 +133,19 @@ Quick regression checklist
 - [ ] Tileset fallback: renders even if atlas missing
 
 Recent updates
+- Reporting fixes and clarifications (Oct 2025)
+  - Restored report visibility: runner now reopens the GOD panel before writing both per-run and aggregated reports.
+  - Suppression filters reduce misleading noise after successes:
+    - Town: hides “Town diagnostics skipped (not in town)” when any town entry succeeds in the run/series.
+    - Town/Dungeon: hides “Mode confirm (town enter): world” / “Mode confirm (dungeon enter): world” after corresponding successes; also hides re-enter counterparts.
+    - Combat: hides “Combat scenario skipped (not in dungeon)” when any combat success is present in the run/series.
+  - Consistent performance metrics:
+    - JSON export includes stepAvgTurnMs and stepAvgDrawMs (per-step averages across all steps and runs).
+    - Summary TXT shows “Avg PERF (per-step): turn X ms, draw Y ms,” and performance warnings evaluate these per-step averages against budgets.
+  - Checklist alignment:
+    - Recognizes “Mode confirm (town enter): town” and “Dungeon exit helper: final mode=world [forceWorld]” as valid success variants.
+  - Live Matchup scoreboard:
+    - Pinned, high-contrast panel prioritizing FAIL, then SKIP, then OK; filters failure counterparts after successes; shows OK/FAIL/SKIP plus IMMOBILE/DEAD counters.
 - Shop UI + GameAPI modularization:
   - ShopUI extracted to ui/shop_panel.js; core/game.js delegates open/hide/buy; GameAPI moved to core/game_api.js.
   - New GameAPI.forceWorld() for smoketest hard fallback to overworld.

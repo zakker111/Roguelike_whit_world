@@ -1,6 +1,15 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.39 — Reporting load fix + GOD panel render visibility
+- Fixed: smoketest/reporting/render.js
+  - Repaired a syntax error that prevented the reporting module from loading, which blocked the GOD-panel report.
+- Changed: smoketest/runner/runner.js
+  - Ensures the GOD panel is open before writing per-run and aggregated reports (panel reopen guard).
+  - Resolved a suppress flag shadowing bug (per-run filter renamed to shouldSuppressMsg) that prevented rendering.
+- Benefit: Restores the in-panel report and downloadable exports; prevents silent report drops when the reporting module fails to load or the panel is closed.
+- Deployment: https://ipf6aomi50fs.cosine.page
+
 v1.35.38 — Runner/reporting polish: diagnostics/combats suppression, per-step PERF in JSON, and forceWorld exit recognition
 - Changed: smoketest/runner/runner.js
   - Per-run suppression now hides “Town diagnostics skipped (not in town)” when any town entry succeeded in the run.
