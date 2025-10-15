@@ -1,6 +1,13 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.32 — Phase 5: Action-level DOM coalescing (inventory render only if open)
+- Changed: core/game.js
+  - drinkPotionByIndex(): now re-renders inventory only when the panel is open (rerenderInventoryIfOpen), avoiding unnecessary DOM work.
+  - equipItemByIndex/equipItemByIndexHand/unequipSlot (fallbacks): pass rerenderInventoryIfOpen to Player helpers instead of unconditional renderInventoryPanel.
+- Benefit: reduces redundant DOM updates during drink/equip/unequip actions when inventory is closed; small steady performance gain.
+- Deployment: (pending)
+
 v1.35.31 — Phase 5: Smoketest reliability — modal closing + immobile fallbacks
 - Changed: core/game_api.js
   - moveStep(): if the player doesn’t move in world mode, performs a minimal walkability fallback to step onto the target tile and coalesces camera/UI/draw.

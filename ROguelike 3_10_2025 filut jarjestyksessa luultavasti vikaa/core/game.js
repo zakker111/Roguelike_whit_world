@@ -636,7 +636,7 @@
       P.drinkPotionByIndex(player, idx, {
         log,
         updateUI,
-        renderInventory: () => renderInventoryPanel(),
+        renderInventory: () => rerenderInventoryIfOpen(),
       });
       return;
     }
@@ -660,7 +660,7 @@
       player.inventory.splice(idx, 1);
     }
     updateUI();
-    renderInventoryPanel();
+    rerenderInventoryIfOpen();
   }
 
   
@@ -1677,7 +1677,7 @@
       P.equipItemByIndex(player, idx, {
         log,
         updateUI,
-        renderInventory: () => renderInventoryPanel(),
+        renderInventory: () => rerenderInventoryIfOpen(),
         describeItem: (it) => describeItem(it),
       });
       return;
@@ -1697,7 +1697,7 @@
       P.equipItemByIndex(player, idx, {
         log,
         updateUI,
-        renderInventory: () => renderInventoryPanel(),
+        renderInventory: () => rerenderInventoryIfOpen(),
         describeItem: (it) => describeItem(it),
         preferredHand: hand,
       });
@@ -1717,7 +1717,7 @@
       P.unequipSlot(player, slot, {
         log,
         updateUI,
-        renderInventory: () => renderInventoryPanel(),
+        renderInventory: () => rerenderInventoryIfOpen(),
       });
       return;
     }
