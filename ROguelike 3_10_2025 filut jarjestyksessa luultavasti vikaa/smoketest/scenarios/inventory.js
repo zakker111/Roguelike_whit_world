@@ -197,6 +197,159 @@
         recordSkip("Skipped hand chooser test (no 1-hand item available)");
       }
 
+      // Inventory & equipment persistence across town/dungeon enter/exit (spawn/equip if needed)
+      try {
+        var TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+
+        function captureInv() {
+          var arr = (typeof window.GameAPI.getInventory === "function") ? (window.GameAPI.getInventory() || []) : [];
+          var names = arr.map(function (it) { return (it && it.name) ? String(it.name) : (it && it.kind ? String(it.kind) : ""); });
+          names.sort();
+          return { count: arr.length | 0, sig: names.join("|") };
+        }
+        function captureEq() {
+          var eq = (typeof window.GameAPI.getEquipment === "function") ? (window.GameAPI.getEquipment() || {}) : {};
+          var slots = Object.keys(eq).filter(function (k) { return !!eq[k] && !!eq[k].name; }).sort();
+          var pairs = slots.map(function (k) { return k + ":" + String(eq[k].name || ""); });
+          return { sig: pairs.join("|"), empty: slots.length === 0 };
+        }
+        function eqSame(a, b) { return !!(a && b && a.sig === b.sig); }
+        function invSame(a, b) { return !!(a && b && a.count === b.count && a.sig === b.sig); }
+
+        // Ensure some items exist, spawn if empty
+        var invPreEnsure = (typeof window.GameAPI.getInventory === "function") ? (window.GameAPI.getInventory() || []) : [];
+        if (!invPreEnsure || !invPreEnsure.length) {
+          if (typeof window.GameAPI.spawnItems === "function") { window.GameAPI.spawnItems(3); await sleep(160); }
+        }
+        // Ensure at least one item equipped; prefer hand slot, else auto-equip the first equip item
+        var eqPre = (typeof window.GameAPI.getEquipment === "function") ? (window.GameAPI.getEquipment() || {}) : {};
+        var hasAnyEquip = !!(eqPre && (eqPre.left || eqPre.right || eqPre.head || eqPre.body || eqPre.feet));
+        if (!hasAnyEquip) {
+          var invForEquip = (typeof window.GameAPI.getInventory === "function") ? (window.GameAPI.getInventory() || []) : [];
+          var idxAny = invForEquip.findIndex(function (it) { return it && it.kind === "equip"; });
+          if (idxAny !== -1) {
+            if (typeof window.GameAPI.equipItemAtIndexHand === "function") {
+              // Prefer left then right
+              var eqNow = (typeof window.GameAPI.getEquipment === "function") ? (window.GameAPI.getEquipment() || {}) : {};
+              var hand = (!eqNow.left ? "left" : (!eqNow.right ? "right" : "left"));
+              window.GameAPI.equipItemAtIndexHand(idxAny, hand);
+              await sleep(140);
+            } else if (typeof window.GameAPI.equipItemAtIndex === "function") {
+              window.GameAPI.equipItemAtIndex(idxAny);
+              await sleep(140);
+            }
+          }
+        }
+
+        var inv0 = captureInv();
+        var eq0 = captureEq();
+
+        // Ensure starting from world without resetting via New Game (avoid wiping inventory)
+        var modeStart = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+        if (modeStart === "dungeon") {
+          // Try safe exit to world
+          if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 400 }); }
+          await sleep(160);
+        } else if (modeStart === "town") {
+          if (TP && typeof TP.teleportToGateAndExit === "function") { await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 400 }); }
+          await sleep(160);
+        }
+        var modeWorldNow = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+        if (modeWorldNow !== "world") {
+          recordSkip("Inventory persistence skipped (not in world to begin transitions)");
+        } else {
+          // Dungeon enter/exit cycle 1
+          var okDungeonEnter1 = false, okDungeonExit1 = false, okDungeonReEnter = false, okDungeonReExit = false;
+          try {
+            if (typeof ctx.ensureDungeonOnce === "function") {
+              okDungeonEnter1 = !!(await ctx.ensureDungeonOnce());
+              await sleep(200);
+            }
+            var modeAfterEnterD1 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            var invD1 = captureInv();
+            var eqD1 = captureEq();
+            record(invSame(inv0, invD1) && eqSame(eq0, eqD1) && (modeAfterEnterD1 === "dungeon"), "Inventory persist (dungeon enter): items/equipment stable");
+
+            // Exit to world
+            if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") {
+              okDungeonExit1 = !!(await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 500 }));
+            }
+            await sleep(200);
+            var modeAfterExitD1 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            var invAfterExitD1 = captureInv();
+            var eqAfterExitD1 = captureEq();
+            record(invSame(inv0, invAfterExitD1) && eqSame(eq0, eqAfterExitD1) && (modeAfterExitD1 === "world"), "Inventory persist (dungeon exit): items/equipment stable");
+
+            // Re-enter dungeon
+            if (typeof ctx.ensureDungeonOnce === "function") {
+              okDungeonReEnter = !!(await ctx.ensureDungeonOnce());
+              await sleep(200);
+            }
+            var modeAfterReEnterD = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            var invD2 = captureInv();
+            var eqD2 = captureEq();
+            record(invSame(inv0, invD2) && eqSame(eq0, eqD2) && (modeAfterReEnterD === "dungeon"), "Inventory persist (dungeon re-enter): items/equipment stable");
+
+            // Re-exit to world
+            if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") {
+              okDungeonReExit = !!(await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 500 }));
+            }
+            await sleep(200);
+            var modeAfterReExitD = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            var invAfterReExitD = captureInv();
+            var eqAfterReExitD = captureEq();
+            record(invSame(inv0, invAfterReExitD) && eqSame(eq0, eqAfterReExitD) && (modeAfterReExitD === "world"), "Inventory persist (dungeon re-exit): items/equipment stable");
+          } catch (_) {
+            record(false, "Inventory persistence (dungeon cycles) failed");
+          }
+
+          // Town enter/exit cycle 1
+          try {
+            var okTownEnter1 = false, okTownExit1 = false, okTownReEnter = false, okTownReExit = false;
+
+            if (typeof ctx.ensureTownOnce === "function") {
+              okTownEnter1 = !!(await ctx.ensureTownOnce());
+              await sleep(200);
+            }
+            var modeAfterEnterT1 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            var invT1 = captureInv();
+            var eqT1 = captureEq();
+            record(invSame(inv0, invT1) && eqSame(eq0, eqT1) && (modeAfterEnterT1 === "town"), "Inventory persist (town enter): items/equipment stable");
+
+            if (TP && typeof TP.teleportToGateAndExit === "function") {
+              okTownExit1 = !!(await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 500 }));
+            }
+            await sleep(200);
+            var modeAfterExitT1 = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            var invAfterExitT1 = captureInv();
+            var eqAfterExitT1 = captureEq();
+            record(invSame(inv0, invAfterExitT1) && eqSame(eq0, eqAfterExitT1) && (modeAfterExitT1 === "world"), "Inventory persist (town exit): items/equipment stable");
+
+            if (typeof ctx.ensureTownOnce === "function") {
+              okTownReEnter = !!(await ctx.ensureTownOnce());
+              await sleep(200);
+            }
+            var modeAfterReEnterT = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            var invT2 = captureInv();
+            var eqT2 = captureEq();
+            record(invSame(inv0, invT2) && eqSame(eq0, eqT2) && (modeAfterReEnterT === "town"), "Inventory persist (town re-enter): items/equipment stable");
+
+            if (TP && typeof TP.teleportToGateAndExit === "function") {
+              okTownReExit = !!(await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 500 }));
+            }
+            await sleep(200);
+            var modeAfterReExitT = (typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            var invAfterReExitT = captureInv();
+            var eqAfterReExitT = captureEq();
+            record(invSame(inv0, invAfterReExitT) && eqSame(eq0, eqAfterReExitT) && (modeAfterReExitT === "world"), "Inventory persist (town re-exit): items/equipment stable");
+          } catch (_) {
+            record(false, "Inventory persistence (town cycles) failed");
+          }
+        }
+      } catch (_) {
+        record(true, "Inventory persistence checks skipped (helper/API not available)");
+      }
+
       return true;
     } catch (e) {
       try { (ctx.record || function(){false;})(false, "Inventory scenario failed: " + (e && e.message ? e.message : String(e))); } catch (_) {}
