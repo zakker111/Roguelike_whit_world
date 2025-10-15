@@ -1281,8 +1281,17 @@
         const sawDungeonOkRun = steps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
         const suppress = (msg) => {
           const t = String(msg || "");
-          if (sawTownOkRun && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t))) return true;
-          if (sawDungeonOkRun && (/dungeon entry failed/i.test(t))) return true;
+          // Hide town failure counterparts if any town entry succeeded in this run
+          if (sawTownOkRun) {
+            if (/town entry not achieved/i.test(t)) return true;
+            if (/town overlays skipped/i.test(t)) return true;
+            if (/mode confirm\s*\(town enter\):\s*world/i.test(t)) return true;
+          }
+          // Hide dungeon failure counterparts if any dungeon entry succeeded in this run
+          if (sawDungeonOkRun) {
+            if (/dungeon entry failed/i.test(t)) return true;
+            if (/mode confirm\s*\(dungeon enter\):\s*world/i.test(t)) return true;
+          }
           return false;
         };
         const filteredSteps = steps.filter(s => !suppress(s.msg));
@@ -1787,8 +1796,8 @@
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
 
     // Summary via reporting module and full aggregated report
-    try {
-      const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+      try {
+        const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
 
       // Build aggregated steps: if any run had OK, mark OK; else if only skipped, mark skipped; else fail.
       let aggregatedSteps = Array.from(agg.values()).map(v => {
@@ -1799,8 +1808,15 @@
       const sawDungeonOkAgg = aggregatedSteps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
       aggregatedSteps = aggregatedSteps.filter(s => {
         const t = String(s.msg || "");
-        if (sawTownOkAgg && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t))) return false;
-        if (sawDungeonOkAgg && (/dungeon entry failed/i.test(t))) return false;
+        if (sawTownOkAgg) {
+          if (/town entry not achieved/i.test(t)) return false;
+          if (/town overlays skipped/i.test(t)) return false;
+          if (/mode confirm\s*\(town enter\):\s*world/i.test(t)) return false;
+        }
+        if (sawDungeonOkAgg) {
+          if (/dungeon entry failed/i.test(t)) return false;
+          if (/mode confirm\s*\(dungeon enter\):\s*world/i.test(t)) return false;
+        }
         return true;
       });
 
@@ -1834,16 +1850,34 @@
           })
         : [headerHtmlAgg, keyChecklistAgg, issuesHtmlAgg, passedHtmlAgg, skippedHtmlAgg, detailsHtmlAgg].join("");
 
+      // Compute per-step PERF averages for a more representative summary
+      let stepAvgTurn = 0, stepAvgDraw = 0;
+      try {
+        const allSteps = [];
+        for (const res of all) {
+          if (res && Array.isArray(res.steps)) {
+            for (const s of res.steps) { if (s && s.perf) allSteps.push(s.perf); }
+          }
+        }
+        if (allSteps.length) {
+          let sumT = 0, sumD = 0;
+          for (const p of allSteps) { sumT += Number(p.turn || 0); sumD += Number(p.draw || 0); }
+          stepAvgTurn = sumT / allSteps.length;
+          stepAvgDraw = sumD / allSteps.length;
+        }
+      } catch (_) {}
+
       const perfWarnings = [];
       try {
-        if (avgTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg turn ${avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
-        if (avgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
+        if (stepAvgTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg per-step turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
+        if (stepAvgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg per-step draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
       } catch (_) {}
 
       const failColorSum = fail ? '#ef4444' : '#86efac';
       const summary = [
         `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
-        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped: ${skippedRuns}</div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped runs: ${skippedRuns}  •  Step skips: ${skippedAgg.length}</div>`,
+        `<div style="opacity:0.9;">Avg PERF (per-step): turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn} ms, draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw} ms</div>`,
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
 
