@@ -395,6 +395,19 @@
         }
       } catch (_) {}
 
+      // Always attempt to exit town at end of diagnostics (safety guard)
+      try {
+        if (window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "town" && TP && typeof TP.teleportToGateAndExit === "function") {
+          var exited2 = await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 500 });
+          record(!!exited2, exited2 ? "Post-diagnostics: exited town to overworld" : "Post-diagnostics: remained in town");
+          try {
+            if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+              window.SmokeTest.Runner.traceAction({ type: "townExitHelper", timeoutTriggered: false, success: !!exited2 });
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+
       return true;
     } catch (e) {
       try { (ctx.record || function(){}) (false, "Town diagnostics scenario failed: " + (e && e.message ? e.message : String(e))); } catch (_) {}
