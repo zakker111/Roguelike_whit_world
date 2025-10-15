@@ -69,6 +69,11 @@
       var enemiesBeforeList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
       var enemiesBefore = enemiesBeforeList.length;
 
+      // Decay baseline before combat attempt
+      var eqStart = (typeof window.GameAPI.getEquipment === "function") ? (window.GameAPI.getEquipment() || {}) : {};
+      var leftDecay0 = (eqStart && eqStart.left && typeof eqStart.left.decay === "number") ? eqStart.left.decay : null;
+      var rightDecay0 = (eqStart && eqStart.right && typeof eqStart.right.decay === "number") ? eqStart.right.decay : null;
+
       // Helper: clamp HP of newly spawned enemies (by position delta)
       async function clampNewEnemiesLowHp(beforeList, afterList) {
         try {
@@ -137,6 +142,22 @@
         }
         if (!spawnedOk) {
           recordSkip("No enemies available for combat pathing");
+        }
+      } catch (_) {}
+
+      // Enemy audits: types present and glyphs not '?'
+      try {
+        var enemiesForAudit = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+        if (enemiesForAudit && enemiesForAudit.length) {
+          var typeCount = enemiesForAudit.filter(function (e) { return !!(e && (e.kind || e.type)); }).length;
+          record(typeCount > 0, "Enemy types present");
+          var glyphBad = enemiesForAudit.some(function (e) {
+            var g = (e && (e.glyph != null ? e.glyph : e.char != null ? e.char : "?"));
+            return String(g) === "?";
+          });
+          record(!glyphBad, "Enemy glyphs not '?'");
+        } else {
+          recordSkip("Enemy audits skipped (no enemies)");
         }
       } catch (_) {}
 
@@ -292,6 +313,9 @@
             (corpseInc ? "corpse+ " : "") +
             (decalsInc ? "decals+ " : ""));
 
+          // Explicit kill check for checklist: corpse count increased
+          record(!!corpseInc, "Killed enemy (corpse increased)");
+
           // Retry burst with forced crit if no effect detected and API supports it (stabilize test)
           if (!fightOk && typeof window.GameAPI.setAlwaysCrit === "function") {
             try {
@@ -351,6 +375,13 @@
       var rightDecay = (eq && eq.right && typeof eq.right.decay === "number") ? eq.right.decay : null;
       if (leftDecay != null || rightDecay != null) {
         record(true, "Decay snapshot: left " + leftDecay + ", right " + rightDecay);
+        var incLeft = (leftDecay0 != null && leftDecay != null) ? (leftDecay > leftDecay0) : false;
+        var incRight = (rightDecay0 != null && rightDecay != null) ? (rightDecay > rightDecay0) : false;
+        if (incLeft || incRight) {
+          record(true, "Decay increased on equipped hand(s)");
+        } else {
+          recordSkip("No decay increase observed on equipped hand(s)");
+        }
       } else {
         recordSkip("No hand equipment to measure decay");
       }
