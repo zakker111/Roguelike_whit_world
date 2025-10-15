@@ -33,12 +33,18 @@
         const sleep = (ctx && ctx.sleep) || ((ms) => new Promise(r => setTimeout(r, ms | 0)));
         const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) ? ctx.ensureAllModalsClosed : async function(){};
         const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 500;
+        const record = (ctx && ctx.record) || function(){};
+        const trace = (act) => { try { if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") window.SmokeTest.Runner.traceAction(act); } catch (_) {} };
 
         if (!has(G.getMode) || G.getMode() !== "town") return false;
 
         let gate = has(G.getTownGate) ? G.getTownGate() : null;
         if (!gate && has(G.nearestTown)) gate = G.nearestTown();
         if (!gate) return false;
+
+        record(true, "Town exit helper: gate at " + gate.x + "," + gate.y);
+
+        const act = { type: "townExitHelper", startMode: "town", gate: { x: gate.x, y: gate.y }, teleports: [], nudged: false, routed: false, gPresses: 0, usedReturnToWorldIfAtExit: false, usedForceWorld: false, endMode: null, success: false };
 
         const isOnGate = () => {
           try {
@@ -58,10 +64,17 @@
         };
 
         // Close modals so 'g' isn't swallowed
-        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(1); } catch (_){}
+        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(2); } catch (_){}
 
         // Try to land exactly on gate, with walkable-guard first
         let tpOk = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: true, fallbackScanRadius: 4 });
+        act.teleports.push({ x: gate.x, y: gate.y, walkable: true, ok: !!tpOk });
+        if (!tpOk) {
+          // Force-teleport ignoring walkability (NPCs)
+          let tp2 = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+          act.teleports.push({ x: gate.x, y: gate.y, walkable: false, ok: !!tp2 });
+          tpOk = tp2;
+        }
         // If we teleported but did not end up exactly on gate (landed adjacent due to NPC block), try to step or force-teleport
         if (tpOk && !isOnGate()) {
           // If adjacent, nudge once toward gate
@@ -69,11 +82,15 @@
             const pl = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
             if (Math.abs(pl.x - gate.x) + Math.abs(pl.y - gate.y) === 1) {
               await stepTowardGateOnce();
+              act.nudged = true;
             }
           } catch(_) {}
           // If still not on gate, force-teleport ignoring walkability (NPCs)
           if (!isOnGate()) {
-            try { tpOk = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch(_) {}
+            try {
+              const tp3 = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+              act.teleports.push({ x: gate.x, y: gate.y, walkable: false, ok: !!tp3, phase: "retry" });
+            } catch(_) {}
           }
         }
 
@@ -81,6 +98,7 @@
         if (!tpOk) {
           let routed = false;
           try { if (MV && typeof MV.routeTo === "function") routed = await MV.routeTo(gate.x, gate.y, { timeoutMs: 2000, stepMs: 90 }); } catch (_){}
+          act.routed = !!routed;
           if (!routed && has(G.routeToDungeon)) {
             const path = G.routeToDungeon(gate.x, gate.y) || [];
             for (let i = 0; i < path.length; i++) {
@@ -98,20 +116,33 @@
 
         // Ensure we are exactly on gate before pressing 'g'. If not, one last force-teleport.
         if (!isOnGate()) {
-          try { await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch(_) {}
+          try {
+            const tp4 = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+            act.teleports.push({ x: gate.x, y: gate.y, walkable: false, ok: !!tp4, phase: "final" });
+          } catch(_) {}
         }
 
         // Press 'g' and use API fallback; then confirm world
-        try { key("g"); } catch (_) {}
+        try { key("g"); act.gPresses += 1; } catch (_) {}
         await sleep(waitMs);
-        try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
+        try {
+          if (has(G.returnToWorldIfAtExit)) { G.returnToWorldIfAtExit(); act.usedReturnToWorldIfAtExit = true; }
+        } catch (_){}
         await sleep(waitMs);
         let modeNow = has(G.getMode) ? G.getMode() : "";
-        if (modeNow === "world") return true;
+        record(true, "Town exit helper: post-'g' mode=" + modeNow);
+        if (modeNow === "world") {
+          act.endMode = "world"; act.success = true; trace(act);
+          return true;
+        }
 
         // Final fallback: force-overworld (hard escape hatch)
-        try { if (has(G.forceWorld)) { G.forceWorld(); await sleep(waitMs); } } catch (_) {}
+        try {
+          if (has(G.forceWorld)) { G.forceWorld(); act.usedForceWorld = true; await sleep(waitMs); }
+        } catch (_) {}
         modeNow = has(G.getMode) ? G.getMode() : "";
+        act.endMode = modeNow; act.success = (modeNow === "world"); trace(act);
+        record(act.success, "Town exit helper: final mode=" + modeNow + (act.usedForceWorld ? " [forceWorld]" : ""));
         return modeNow === "world";
       } catch (_) {
         return false;
@@ -128,11 +159,17 @@
         const sleep = (ctx && ctx.sleep) || ((ms) => new Promise(r => setTimeout(r, ms | 0)));
         const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) ? ctx.ensureAllModalsClosed : async function(){};
         const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 500;
+        const record = (ctx && ctx.record) || function(){};
+        const trace = (act) => { try { if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") window.SmokeTest.Runner.traceAction(act); } catch (_) {} };
 
         if (!has(G.getMode) || G.getMode() !== "dungeon") return false;
 
-        const exit = has(G.getDungeonExit) ? G.getDungeonExit() : null;
+        let exit = has(G.getDungeonExit) ? G.getDungeonExit() : null;
         if (!exit || typeof exit.x !== "number" || typeof exit.y !== "number") return false;
+
+        record(true, "Dungeon exit helper: exit at " + exit.x + "," + exit.y);
+
+        const act = { type: "dungeonExitHelper", startMode: "dungeon", exit: { x: exit.x, y: exit.y }, teleports: [], nudged: false, routed: false, gPresses: 0, usedReturnToWorldIfAtExit: false, usedForceWorld: false, endMode: null, success: false };
 
         const isOnExit = () => {
           try {
@@ -152,20 +189,33 @@
         };
 
         // Close modals so 'g' isn't swallowed
-        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(1); } catch (_){}
+        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(2); } catch (_){}
 
         // Try to land exactly on exit, with walkable-guard first
         let tpOk = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: true, fallbackScanRadius: 4 });
-        // If we teleported but did not end up exactly on exit, try to step or force-teleport
+        act.teleports.push({ x: exit.x, y: exit.y, walkable: true, ok: !!tpOk });
+        if (!tpOk) {
+          // Force-teleport ignoring walkability (NPCs)
+          let tp2 = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+          act.teleports.push({ x: exit.x, y: exit.y, walkable: false, ok: !!tp2 });
+          tpOk = tp2;
+        }
+        // If we teleported but did not end up exactly on exit (landed adjacent due to NPC block), try to step or force-teleport
         if (tpOk && !isOnExit()) {
+          // If adjacent, nudge once toward exit
           try {
             const pl = has(G.getPlayer) ? G.getPlayer() : { x: exit.x, y: exit.y };
             if (Math.abs(pl.x - exit.x) + Math.abs(pl.y - exit.y) === 1) {
               await stepTowardExitOnce();
+              act.nudged = true;
             }
           } catch(_) {}
+          // If still not on exit, force-teleport ignoring walkability (NPCs)
           if (!isOnExit()) {
-            try { tpOk = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch(_) {}
+            try {
+              const tp3 = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+              act.teleports.push({ x: exit.x, y: exit.y, walkable: false, ok: !!tp3, phase: "retry" });
+            } catch(_) {}
           }
         }
 
@@ -173,6 +223,7 @@
         if (!tpOk) {
           let routed = false;
           try { if (MV && typeof MV.routeTo === "function") routed = await MV.routeTo(exit.x, exit.y, { timeoutMs: 2000, stepMs: 90 }); } catch (_){}
+          act.routed = !!routed;
           if (!routed && has(G.routeToDungeon)) {
             const path = G.routeToDungeon(exit.x, exit.y) || [];
             for (let i = 0; i < path.length; i++) {
@@ -190,20 +241,33 @@
 
         // Ensure we are exactly on exit before pressing 'g'. If not, one last force-teleport.
         if (!isOnExit()) {
-          try { await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch(_) {}
+          try {
+            const tp4 = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+            act.teleports.push({ x: exit.x, y: exit.y, walkable: false, ok: !!tp4, phase: "final" });
+          } catch(_) {}
         }
 
         // Press 'g' and use API fallback; then confirm world
-        try { key("g"); } catch (_) {}
+        try { key("g"); act.gPresses += 1; } catch (_) {}
         await sleep(waitMs);
-        try { if (has(G.returnToWorldIfAtExit)) G.returnToWorldIfAtExit(); } catch (_){}
+        try {
+          if (has(G.returnToWorldIfAtExit)) { G.returnToWorldIfAtExit(); act.usedReturnToWorldIfAtExit = true; }
+        } catch (_){}
         await sleep(waitMs);
         let modeNow = has(G.getMode) ? G.getMode() : "";
-        if (modeNow === "world") return true;
+        record(true, "Dungeon exit helper: post-'g' mode=" + modeNow);
+        if (modeNow === "world") {
+          act.endMode = "world"; act.success = true; trace(act);
+          return true;
+        }
 
         // Final fallback: force-overworld (hard escape hatch)
-        try { if (has(G.forceWorld)) { G.forceWorld(); await sleep(waitMs); } } catch (_) {}
+        try {
+          if (has(G.forceWorld)) { G.forceWorld(); act.usedForceWorld = true; await sleep(waitMs); }
+        } catch (_) {}
         modeNow = has(G.getMode) ? G.getMode() : "";
+        act.endMode = modeNow; act.success = (modeNow === "world"); trace(act);
+        record(act.success, "Dungeon exit helper: final mode=" + modeNow + (act.usedForceWorld ? " [forceWorld]" : ""));
         return modeNow === "world";
       } catch (_) {
         return false;
