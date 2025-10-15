@@ -239,7 +239,6 @@
   }
 
   async function run(ctx) {
-    try {
       const runIndex = (ctx && ctx.index) ? (ctx.index | 0) : null;
       const runTotal = (ctx && ctx.total) ? (ctx.total | 0) : null;
       const stacking = !!(window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.STACK_LOGS);
@@ -252,6 +251,7 @@
       const params = parseParams();
       const sel = params.scenarios;
       const steps = [];
+      let sanitized = null;
       let aborted = false;
       let __curScenarioName = null;
 
@@ -952,6 +952,17 @@
             ok = (getMode() === "town");
           }
 
+          // Final fallback: teleport directly to nearest town tile and enter
+          if (!ok) {
+            try {
+              const TP3 = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+              if (TP3 && typeof TP3.teleportToTownGateAndEnter === "function") {
+                const entered = await TP3.teleportToTownGateAndEnter({ key, sleep, ensureAllModalsClosed }, { closeModals: true, waitMs: 500 });
+                ok = !!entered;
+              }
+            } catch (_) {}
+          }
+
           if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
           try { act.endMode = getMode(); act.success = !!ok; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
           return ok;
@@ -1132,229 +1143,201 @@
           }
         } catch (_) {}
 
-        // Per-scenario pass determination: pass if no failures recorded during this scenario block
-        try {
+        // Per-scenario pass determination:
+        // - passed only if there is at least one OK step and no failures
+        // - mark skippedOnly when there are only skips and no OK steps
+        {
           const during = steps.slice(beforeCount);
           const hasFail = during.some(s => !s.ok && !s.skipped);
-          scenarioResults.push({ name: step.name, passed: !hasFail });
+          const hasOk = during.some(s => s.ok && !s.skipped);
+          const hasSkip = during.some(s => s.skipped);
+          const passed = (!hasFail && hasOk);
+          const skippedOnly = (!hasOk && hasSkip);
+          scenarioResults.push({ name: step.name, passed, skippedOnly });
 
-          // Structured scenario trace for JSON export
-          try {
-            const sPass = during.filter(s => s.ok && !s.skipped).map(s => String(s.msg || ""));
-            const sFail = during.filter(s => !s.ok && !s.skipped).map(s => String(s.msg || ""));
-            const sSkip = during.filter(s => s.skipped).map(s => String(s.msg || ""));
-            const endMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
-            const endedAt = Date.now();
-            const modesSeen = (() => {
-              try {
-                const arr = during.map(s => s && s.mode).filter(Boolean);
-                const out = [];
-                const seen = new Set();
-                for (let k of arr) { if (!seen.has(k)) { seen.add(k); out.push(k); } }
-                return out;
-              } catch (_) { return []; }
-            })();
-            // Step timing breakdown
-            let tsFirst = null, tsLast = null, avgStepDeltaMs = 0, maxStepDeltaMs = 0;
-            try {
-              const tsList = during.map(s => s && typeof s.ts === "number" ? (s.ts | 0) : null).filter(v => v != null);
-              if (tsList.length) {
-                tsFirst = tsList[0];
-                tsLast = tsList[tsList.length - 1];
-                const deltas = [];
-                for (let k = 1; k < tsList.length; k++) {
-                  const d = Math.max(0, (tsList[k] - tsList[k - 1]));
-                  deltas.push(d);
-                }
-                if (deltas.length) {
-                  avgStepDeltaMs = (deltas.reduce((a,b) => a + b, 0) / deltas.length);
-                  maxStepDeltaMs = Math.max.apply(null, deltas);
-                }
-              }
-            } catch (_) {}
-            // Mode transitions seen in this scenario (with timestamps)
-            let modeTransitions = [];
-            try {
-              let prevMode = __scenarioStartMode;
-              for (const s of during) {
-                try {
-                  const m = s && s.mode;
-                  if (m && prevMode && m !== prevMode) {
-                    modeTransitions.push({ at: s.ts || 0, from: prevMode, to: m });
-                  }
-                  prevMode = m || prevMode;
-                } catch (_) {}
-              }
-            } catch (_) {}
+          // Structured scenario trace for JSON export (no nested try/catch needed)
+          const sPass = during.filter(s => s.ok && !s.skipped).map(s => String(s.msg || ""));
+          const sFail = during.filter(s => !s.ok && !s.skipped).map(s => String(s.msg || ""));
+          const sSkip = during.filter(s => s.skipped).map(s => String(s.msg || ""));
+          const observedModes = Array.from(new Set(during.map(s => String(s.mode || "")))).filter(Boolean);
+          const modeTransitions = [];
+          let lastMode = __scenarioStartMode;
+          during.forEach((s) => {
+            const m = String(s.mode || "");
+            if (m && m !== lastMode) {
+              modeTransitions.push({ at: s.ts || Date.now(), from: lastMode, to: m });
+              lastMode = m;
+            }
+          });
+          trace.scenarioTraces.push({
+            name: step.name,
+            startedMode: __scenarioStartMode,
+            endedMode: lastMode,
+            stepCount: during.length,
+            passes: sPass,
+            fails: sFail,
+            skipped: sSkip,
+            startedAt: during.length ? during[0].ts : __scenarioStartTs,
+            endedAt: during.length ? during[during.length - 1].ts : Date.now(),
+            durationMs: (during.length ? (during[during.length - 1].ts - during[0].ts) : 0) | 0,
+            observedModes,
+            tsFirst: (during.length ? during[0].ts - Date.now() : 0),
+            tsLast: (during.length ? during[during.length - 1].ts - Date.now() : 0),
+            avgStepDeltaMs: (() => {
+              if (during.length <= 1) return 0;
+              let sum = 0;
+              for (let i = 1; i < during.length; i++) sum += (during[i].ts - during[i - 1].ts);
+              return (sum / (during.length - 1));
+            })(),
+            maxStepDeltaMs: (() => {
+              if (during.length <= 1) return 0;
+              let mx = 0;
+              for (let i = 1; i < during.length; i++) mx = Math.max(mx, (during[i].ts - during[i - 1].ts));
+              return mx;
+            })(),
+            modeTransitions
+          });
 
-            const sTrace = {
-              name: step.name,
-              startedMode: __scenarioStartMode,
-              endedMode: endMode,
-              stepCount: during.length,
-              passes: sPass,
-              fails: sFail,
-              skipped: sSkip,
-              startedAt: __scenarioStartTs,
-              endedAt: endedAt,
-              durationMs: Math.max(0, endedAt - __scenarioStartTs),
-              observedModes: modesSeen,
-              tsFirst,
-              tsLast,
-              avgStepDeltaMs,
-              maxStepDeltaMs,
-              modeTransitions
-            };
-            trace.scenarioTraces.push(sTrace);
-          } catch (_) {}
-        } catch (_) {}
-      }
+          // Adjust scenario pass/fail based on union-of successes within the same run (remove false negatives)
+          const isOkStep = (s) => !!(s && s.ok && !s.skipped);
+          const sawDungeonOk = steps.some(s => isOkStep(s) && (/entered dungeon/i.test(String(s.msg || "")) || /inventory prep:\s*entered dungeon/i.test(String(s.msg || ""))));
+          const sawTownOk = steps.some(s => isOkStep(s) && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
+          const sawWorldOk = steps.some(s => isOkStep(s) && (/world movement test:\s*moved/i.test(String(s.msg || "")) || /world snapshot:/i.test(String(s.msg || ""))));
+          const sawInventoryOk = steps.some(s => isOkStep(s) && (/equip best from inventory/i.test(String(s.msg || "")) || /manual equip\/unequip/i.test(String(s.msg || "")) || /drank potion/i.test(String(s.msg || ""))));
+          const sawCombatOk = steps.some(s => isOkStep(s) && (/moved and attempted attacks/i.test(String(s.msg || "")) || /combat effects:/i.test(String(s.msg || ""))));
+          const sawOverlaysOk = steps.some(s => isOkStep(s) && (/overlay perf:/i.test(String(s.msg || "")) || /grid perf:/i.test(String(s.msg || ""))));
+          const sawDeterminismOk = steps.some(s => isOkStep(s) && /seed invariants:/i.test(String(s.msg || "")));
+          const sawDungeonPersistenceOk = steps.some(s => isOkStep(s) && (/persistence corpses:/i.test(String(s.msg || "")) || /persistence decals:/i.test(String(s.msg || "")) || /returned to overworld from dungeon/i.test(String(s.msg || ""))));
+          const sawTownDiagnosticsOk = steps.some(s => isOkStep(s) && (/gate npcs/i.test(String(s.msg || "")) || /gate greeter/i.test(String(s.msg || "")) || /gold ops/i.test(String(s.msg || "")) || /shop ui closes with esc/i.test(String(s.msg || "")) || /bump near shopkeeper: ok/i.test(String(s.msg || "")) || /interacted at shop by bump/i.test(String(s.msg || ""))));
 
-      // Adjust scenario pass/fail based on union-of successes within the same run (remove false negatives)
-      try {
-        const has = (rx) => (s) => { try { return rx.test(String(s.msg || "")); } catch (_) { return false; } };
-        const isOk = (s) => !!(s && s.ok && !s.skipped);
+          for (let i = 0; i < scenarioResults.length; i++) {
+            const sr = scenarioResults[i];
+            if (!sr || !sr.name) continue;
+            const name = sr.name;
 
-        const sawDungeonOk = steps.some(s => isOk(s) && (/entered dungeon/i.test(String(s.msg || "")) || /inventory prep:\s*entered dungeon/i.test(String(s.msg || ""))));
-        const sawTownOk = steps.some(s => isOk(s) && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
-
-        const sawWorldOk = steps.some(s => isOk(s) && (/world movement test:\s*moved/i.test(String(s.msg || "")) || /world snapshot:/i.test(String(s.msg || ""))));
-        const sawInventoryOk = steps.some(s => isOk(s) && (/equip best from inventory/i.test(String(s.msg || "")) || /manual equip\/unequip/i.test(String(s.msg || "")) || /drank potion/i.test(String(s.msg || ""))));
-        const sawCombatOk = steps.some(s => isOk(s) && (/moved and attempted attacks/i.test(String(s.msg || "")) || /combat effects:/i.test(String(s.msg || ""))));
-        const sawOverlaysOk = steps.some(s => isOk(s) && (/overlay perf:/i.test(String(s.msg || "")) || /grid perf:/i.test(String(s.msg || ""))));
-        const sawDeterminismOk = steps.some(s => isOk(s) && /seed invariants:/i.test(String(s.msg || "")));
-        const sawDungeonPersistenceOk = steps.some(s => isOk(s) && (/persistence corpses:/i.test(String(s.msg || "")) || /persistence decals:/i.test(String(s.msg || "")) || /returned to overworld from dungeon/i.test(String(s.msg || ""))));
-        const sawTownDiagnosticsOk = steps.some(s => isOk(s) && (/gate npcs/i.test(String(s.msg || "")) || /gate greeter/i.test(String(s.msg || "")) || /gold ops/i.test(String(s.msg || "")) || /shop ui closes with esc/i.test(String(s.msg || "")) || /bump near shopkeeper: ok/i.test(String(s.msg || "")) || /interacted at shop by bump/i.test(String(s.msg || ""))));
-
-        for (let i = 0; i < scenarioResults.length; i++) {
-          const sr = scenarioResults[i];
-          if (!sr || !sr.name) continue;
-          const name = sr.name;
-
-          if (name === "dungeon" && !sr.passed && sawDungeonOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "town" && !sr.passed && sawTownOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "world" && !sr.passed && sawWorldOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "inventory" && !sr.passed && sawInventoryOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "combat" && !sr.passed && sawCombatOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "overlays" && !sr.passed && sawOverlaysOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "determinism" && !sr.passed && sawDeterminismOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "dungeon_persistence" && !sr.passed && sawDungeonPersistenceOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "town_diagnostics" && !sr.passed && sawTownDiagnosticsOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
+            if (name === "dungeon" && !sr.passed && sawDungeonOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "town" && !sr.passed && sawTownOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "world" && !sr.passed && sawWorldOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "inventory" && !sr.passed && sawInventoryOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "combat" && !sr.passed && sawCombatOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "overlays" && !sr.passed && sawOverlaysOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "determinism" && !sr.passed && sawDeterminismOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "dungeon_persistence" && !sr.passed && sawDungeonPersistenceOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "town_diagnostics" && !sr.passed && sawTownDiagnosticsOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
           }
         }
-      } catch (_) {}
 
       // Build report via reporting renderer
       // Run-level OK: if any real step passed in this run, consider the run OK (union-of successes per run)
       const ok = steps.some(s => s.ok && !s.skipped);
       let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = ""; let main = "";
-      try {
-        const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
-        // Suppress known failure counterparts if their success occurred within this run
-        const sawTownOkRun = steps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
-        const sawDungeonOkRun = steps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
-        // Detect combat success variants within this run
-        const sawCombatOkRun = steps.some(s => s.ok && !s.skipped && (
-          (s.scenario && s.scenario === "combat") ||
-          /moved and attempted attacks|combat effects:|killed enemy|attacked enemy/i.test(String(s.msg || ""))
-        ));
-        const shouldSuppressMsg = (msg) => {
-          const t = String(msg || "");
-          // Hide town failure counterparts if any town entry succeeded in this run
-          if (sawTownOkRun) {
-            if (/town entry not achieved/i.test(t)) return true;
-            if (/town overlays skipped/i.test(t)) return true;
-            if (/town diagnostics skipped/i.test(t)) return true;
-            if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return true;
-          }
-          // Hide dungeon failure counterparts if any dungeon entry succeeded in this run
-          if (sawDungeonOkRun) {
-            if (/dungeon entry failed/i.test(t)) return true;
-            if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return true;
-          }
-          // Hide combat skip noise if we saw any combat success in this run
-          if (sawCombatOkRun) {
-            if (/combat scenario skipped\s*\(not in dungeon\)/i.test(t)) return true;
-          }
-          return false;
-        };
-        const filteredSteps = steps.filter(s => !shouldSuppressMsg(s.msg));
-        const passed = filteredSteps.filter(s => s.ok && !s.skipped);
-        const skipped = filteredSteps.filter(s => s.skipped);
-        const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
-        issuesHtml = failed.length ? (`<div style="margin-top:10px;"><strong>Issues</strong></div>` + R.renderStepsPretty(failed)) : "";
-        passedHtml = passed.length ? (`<div style="margin-top:10px;"><strong>Passed</strong></div>` + R.renderStepsPretty(passed)) : "";
-        skippedHtml = skipped.length ? (`<div style="margin-top:10px;"><strong>Skipped</strong></div>` + R.renderStepsPretty(skipped)) : "";
-        detailsHtml = R.renderStepsPretty(filteredSteps);
-        const headerHtml = R.renderHeader({ ok, stepCount: filteredSteps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(caps).filter(k => caps[k]) });
-        const keyChecklistHtml = R.buildKeyChecklistHtmlFromSteps(filteredSteps);
-        main = R.renderMainReport({
-          headerHtml,
-          keyChecklistHtml,
-          issuesHtml,
-          passedHtml,
-          skippedHtml,
-          detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
-          detailsHtml
-        });
-        // Render only if not in suppress/collect mode
-        if (!suppress) {
-          try {
-            // Ensure GOD panel is visible before writing the report
-            try { openGodPanel(); } catch (_) {}
-            var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
-            if (B) {
-              if (stacking && typeof B.appendToPanel === "function") {
-                const title = (runIndex && runTotal) ? `<div style="margin-top:10px;"><strong>Run ${runIndex} / ${runTotal}</strong></div>` : `<div style="margin-top:10px;"><strong>Run</strong></div>`;
-                B.appendToPanel(title + main);
-              } else if (typeof B.panelReport === "function") {
-                B.panelReport(main);
-              } else {
-                panelReport(main);
-              }
+      const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+      // Suppress known failure counterparts if their success occurred within this run
+      const sawTownOkRun = steps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
+      const sawDungeonOkRun = steps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
+      // Detect combat success variants within this run
+      const sawCombatOkRun = steps.some(s => s.ok && !s.skipped && (
+        (s.scenario && s.scenario === "combat") ||
+        /moved and attempted attacks|combat effects:|killed enemy|attacked enemy/i.test(String(s.msg || ""))
+      ));
+      const shouldSuppressMsg = (msg) => {
+        const t = String(msg || "");
+        // Hide town failure counterparts if any town entry succeeded in this run
+        if (sawTownOkRun) {
+          if (/town entry not achieved/i.test(t)) return true;
+          if (/town overlays skipped/i.test(t)) return true;
+          if (/town diagnostics skipped/i.test(t)) return true;
+          if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return true;
+        }
+        // Hide dungeon failure counterparts if any dungeon entry succeeded in this run
+        if (sawDungeonOkRun) {
+          if (/dungeon entry failed/i.test(t)) return true;
+          if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return true;
+        }
+        // Hide combat skip noise if we saw any combat success in this run
+        if (sawCombatOkRun) {
+          if (/combat scenario skipped\s*\(not in dungeon\)/i.test(t)) return true;
+        }
+        return false;
+      };
+      const filteredSteps = steps.filter(s => !shouldSuppressMsg(s.msg));
+      sanitized = filteredSteps;
+      const passed = filteredSteps.filter(s => s.ok && !s.skipped);
+      const skipped = filteredSteps.filter(s => s.skipped);
+      const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
+      issuesHtml = failed.length ? (`<div style="margin-top:10px;"><strong>Issues</strong></div>` + R.renderStepsPretty(failed)) : "";
+      passedHtml = passed.length ? (`<div style="margin-top:10px;"><strong>Passed</strong></div>` + R.renderStepsPretty(passed)) : "";
+      skippedHtml = skipped.length ? (`<div style="margin-top:10px;"><strong>Skipped</strong></div>` + R.renderStepsPretty(skipped)) : "";
+      detailsHtml = R.renderStepsPretty(filteredSteps);
+      const headerHtml = R.renderHeader({ ok, stepCount: filteredSteps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(caps).filter(k => caps[k]) });
+      const keyChecklistHtml = R.buildKeyChecklistHtmlFromSteps(filteredSteps);
+      main = R.renderMainReport({
+        headerHtml,
+        keyChecklistHtml,
+        issuesHtml,
+        passedHtml,
+        skippedHtml,
+        detailsTitle: `<div style="margin-top:10px;"><strong>Step Details</strong></div>`,
+        detailsHtml
+      });
+      // Render only if not in suppress/collect mode
+      if (!suppress) {
+        try {
+          // Ensure GOD panel is visible before writing the report
+          try { openGodPanel(); } catch (_) {}
+          var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
+          if (B) {
+            if (stacking && typeof B.appendToPanel === "function") {
+              const title = (runIndex && runTotal) ? `<div style="margin-top:10px;"><strong>Run ${runIndex} / ${runTotal}</strong></div>` : `<div style="margin-top:10px;"><strong>Run</strong></div>`;
+              B.appendToPanel(title + main);
+            } else if (typeof B.panelReport === "function") {
+              B.panelReport(main);
             } else {
               panelReport(main);
             }
-          } catch (_) {}
-          // Export buttons only when actually rendering and non-stacking
-          try {
-            if (!stacking) {
-              var E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
-              if (E && typeof E.attachButtons === "function") {
-                const summaryText = steps.map(s => (s.skipped ? "[SKIP] " : (s.ok ? "[OK] " : "[FAIL] ")) + (s.msg || "")).join("\n");
-                const checklistText = (R.buildKeyChecklistHtmlFromSteps(steps) || "").replace(/<[^>]+>/g, "");
-                E.attachButtons({ ok, steps, caps, version: RUNNER_VERSION }, summaryText, checklistText);
-              }
+          } else {
+            panelReport(main);
+          }
+        } catch (_) {}
+        // Export buttons only when actually rendering and non-stacking
+        try {
+          if (!stacking) {
+            var E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
+            if (E && typeof E.attachButtons === "function") {
+              const summaryText = steps.map(s => (s.skipped ? "[SKIP] " : (s.ok ? "[OK] " : "[FAIL] ")) + (s.msg || "")).join("\n");
+              const checklistText = (R.buildKeyChecklistHtmlFromSteps(steps) || "").replace(/<[^>]+>/g, "");
+              E.attachButtons({ ok, steps, caps, version: RUNNER_VERSION }, summaryText, checklistText);
             }
-          } catch (_) {}
-        }
-      } catch (_) {}
+          }
+        } catch (_) {}
+      }
 
       // Build per-run Key Checklist object for JSON
       let keyChecklistRun = {};
@@ -1395,12 +1378,8 @@
           trace.perf = { lastTurnMs: p.lastTurnMs || 0, lastDrawMs: p.lastDrawMs || 0 };
         }
       } catch (_) {}
-      return { ok, steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason, trace, keyChecklist: keyChecklistRun };
-    } catch (e) {
-      try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
-      return null;
+      return { ok, steps, sanitizedSteps: sanitized || steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason, trace, keyChecklist: keyChecklistRun };
     }
-  }
 
   async function runSeries(count) {
     const params = parseParams();
@@ -1810,7 +1789,7 @@
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
 
     // Summary via reporting module and full aggregated report
-      try {
+      {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
 
       // Build aggregated steps: if any run had OK, mark OK; else if only skipped, mark skipped; else fail.
@@ -1892,10 +1871,11 @@
         if (stepAvgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg per-step draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
       } catch (_) {}
 
+      const skippedOnlyCount = (() => { let c = 0; try { for (const res of all) { if (res && Array.isArray(res.scenarioResults)) { for (const sr of res.scenarioResults) { if (sr && sr.skippedOnly) c++; } } } } catch (_) {} return c; })();
       const failColorSum = fail ? '#ef4444' : '#86efac';
       const summary = [
         `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
-        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped runs: ${skippedRuns}  •  Step skips: ${skippedAgg.length}</div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped runs: ${skippedRuns}  •  Step skips: ${skippedAgg.length}  •  Skipped-only scenarios: ${skippedOnlyCount}</div>`,
         `<div style="opacity:0.9;">Avg PERF (per-step): turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn} ms, draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw} ms</div>`,
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
@@ -2056,6 +2036,7 @@
             stepAvgTurnMs: Number(stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn),
             stepAvgDrawMs: Number(stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw),
             results: all,
+            sanitizedPerRunSteps: all.map(r => (r && Array.isArray(r.sanitizedSteps)) ? r.sanitizedSteps : []),
             aggregatedSteps,
             seeds: usedSeedList,
             params,
@@ -2076,10 +2057,8 @@
           const checklistText = (R && typeof R.buildKeyChecklistHtmlFromSteps === "function" ? R.buildKeyChecklistHtmlFromSteps(aggregatedSteps) : "").replace(/<[^>]+>/g, "");
           E.attachButtons(rep, summaryText, checklistText);
         }
-      } catch (_) {}
-    } catch (_) {}
-
-    // Release run lock
+      }
+      // Release run lock
     try { if (window.SmokeTest && window.SmokeTest.Runner) window.SmokeTest.Runner.RUN_LOCK = false; } catch (_) {}
 
     return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
