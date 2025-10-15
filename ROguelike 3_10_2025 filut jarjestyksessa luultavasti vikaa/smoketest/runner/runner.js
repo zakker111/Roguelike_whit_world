@@ -903,6 +903,18 @@
               } catch (_) { closed = false; }
               if (closed) break;
             }
+
+            // After closing, attempt safe exit to overworld to avoid being stuck in town for subsequent scenarios
+            try {
+              const G = window.GameAPI || {};
+              if (typeof G.getMode === "function" && G.getMode() === "town") {
+                const TP = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport;
+                if (TP && typeof TP.teleportToGateAndExit === "function") {
+                  const exited = await TP.teleportToGateAndExit(baseCtx, { closeModals: true, waitMs: 500 });
+                  record(!!exited, exited ? "Post-diagnostics: exited town to overworld" : "Post-diagnostics: remained in town");
+                }
+              }
+            } catch (_) {}
           }
         } catch (e) {
           if (Banner && typeof Banner.log === "function") Banner.log("Scenario failed: " + step.name, "bad");
@@ -1089,6 +1101,9 @@
     // New: skip scenarios after they have passed this many runs (0 = disabled)
     const skipAfter = (Number(params.skipokafter || 0) | 0);
     const scenarioPassCounts = new Map();
+    // Guarantee: run certain scenarios at least once per series regardless of skipokafter
+    const ensureOnceScenarios = new Set(["town_diagnostics", "dungeon_persistence"]);
+    const ranOnceEnsure = new Set();
 
     // Guard: ensure only one runSeries executes at a time
     try {
@@ -1371,20 +1386,30 @@
 
       // Build skip list from scenarios that have already met the stable OK threshold
       let skipList = (skipAfter > 0)
-        ? Array.from(scenarioPassCounts.entries()).filter(([name, cnt]) => (cnt | 0) >= skipAfter).map(([name]) => name)
-        : [];
-      // Force dungeon_persistence to run only once by default:
-      // - "once" (default): run only in first run, skip thereafter
-      // - "always": run in all runs
-      // - "never": skip in all runs
-      try {
-        const pers = (params && params.persistence) ? params.persistence : "once";
-        if (pers !== "always") {
-          if (pers === "never" || i > 0) {
-            if (!skipList.includes("dungeon_persistence")) skipList.push("dungeon_persistence");
+          ? Array.from(scenarioPassCounts.entries())
+              .filter(([name, cnt]) => (cnt | 0) >= skipAfter)
+              .map(([name]) => name)
+          : [];
+
+        // Persistence scenario frequency control
+        try {
+          const pers = (params && params.persistence) ? params.persistence : "once";
+          if (pers !== "always") {
+            if (pers === "never" || i > 0) {
+              if (!skipList.includes("dungeon_persistence")) skipList.push("dungeon_persistence");
+            }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+
+        // Guarantee: run town_diagnostics at least once in the series regardless of skipokafter
+        skipList = skipList.filter(name => !(name === "town_diagnostics" && !ranOnceEnsure.has("town_diagnostics")));
+        // Guarantee: run dungeon_persistence at least once (unless persistence=never)
+        try {
+          const pers = (params && params.persistence) ? params.persistence : "once";
+          if (pers !== "never") {
+            skipList = skipList.filter(name => !(name === "dungeon_persistence" && !ranOnceEnsure.has("dungeon_persistence")));
+          }
+        } catch (_) {}
 
       const res = await run({ index: i + 1, total: n, suppressReport: false, skipScenarios: skipList, skipSteps: Array.from(okMsgs) });
       all.push(res);
@@ -1397,16 +1422,20 @@
       }
 
       // Update scenario pass counts
-      try {
-        if (res && Array.isArray(res.scenarioResults)) {
-          for (const sr of res.scenarioResults) {
-            if (!sr || !sr.name) continue;
-            if (sr.passed && !sr.skippedStable) {
-              scenarioPassCounts.set(sr.name, (scenarioPassCounts.get(sr.name) || 0) + 1);
+        try {
+          if (res && Array.isArray(res.scenarioResults)) {
+            for (const sr of res.scenarioResults) {
+              if (!sr || !sr.name) continue;
+              if (sr.passed && !sr.skippedStable) {
+                scenarioPassCounts.set(sr.name, (scenarioPassCounts.get(sr.name) || 0) + 1);
+              }
+              // Track that scenarios ran at least once (for ensure-once guarantees)
+              try {
+                if (ensureOnceScenarios.has(sr.name)) ranOnceEnsure.add(sr.name);
+              } catch (_) {}
             }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
 
       // Accumulate step results by message (and build set of messages that have passed before)
       try {
