@@ -1464,7 +1464,7 @@
           TR2.talk(getCtx());
         } else {
           log("Excuse me!", "info");
-          requestDraw();
+          // Pure log; no canvas redraw needed
         }
         return;
       }

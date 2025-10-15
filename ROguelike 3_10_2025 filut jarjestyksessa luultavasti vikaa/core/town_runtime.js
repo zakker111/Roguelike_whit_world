@@ -108,7 +108,7 @@ export function talk(ctx) {
         if (!wasOpen) { ctx.requestDraw && ctx.requestDraw(); }
       } else {
         ctx.log && ctx.log(`The ${doorShop.name || "shop"} is closed. ${sched}`, "warn");
-        ctx.requestDraw && ctx.requestDraw();
+        // Pure log; no canvas redraw needed
       }
     }
   } catch (_) {}

@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.21 — Phase 5: More draw coalescing (town bump-talk and closed-shop logs)
+- Changed: core/game.js
+  - tryMovePlayer (town mode): removed canvas redraw after bump-talk fallback (“Excuse me!”). Pure log only.
+- Changed: core/town_runtime.js
+  - talk(ctx): removed canvas redraw when shop is closed; logs schedule without forcing a frame.
+- Benefit: minor but frequent savings during town interactions that only produce HUD/log changes.
+- Deployment: (pending)
+
 v1.35.20 — Phase 5: Cleanup — remove redundant draws in HUD/log-only flows
 - Changed: core/game_api.js
   - addGold/removeGold no longer schedule a canvas redraw; they update HUD and rerender inventory panel only if open.
