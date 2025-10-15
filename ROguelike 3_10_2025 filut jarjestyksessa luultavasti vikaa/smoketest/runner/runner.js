@@ -382,6 +382,9 @@
           window.SmokeTest.Runner = window.SmokeTest.Runner || {};
           window.SmokeTest.Runner.CUR_RUN = runIndex || 1;
           window.SmokeTest.Runner.TOT_RUN = runTotal || 1;
+          // Reset per-run entry locks (prevent cross-run stale locks)
+          window.SmokeTest.Runner.DUNGEON_LOCK = false;
+          window.SmokeTest.Runner.TOWN_LOCK = false;
         } catch (_) {}
       } catch (_) {}
 
