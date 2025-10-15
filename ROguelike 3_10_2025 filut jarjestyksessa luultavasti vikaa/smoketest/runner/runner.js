@@ -299,17 +299,27 @@
         let tileSnap = "(unknown)";
         try {
           const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
-          const WT = (ctxG && ctxG.World && ctxG.World.TILES) ? ctxG.World.TILES : null;
-          const worldObj = (ctxG && ctxG.world) ? ctxG.world : null;
-          if (posSnap && WT && worldObj && worldObj.map && worldObj.map[posSnap.y] && typeof worldObj.map[posSnap.y][posSnap.x] !== "undefined") {
-            const t = worldObj.map[posSnap.y][posSnap.x];
-            if (t === WT.TOWN) tileSnap = "TOWN";
-            else if (t === WT.DUNGEON) tileSnap = "DUNGEON";
-            else {
-              try {
-                const isWalk = ctxG && ctxG.World && typeof ctxG.World.isWalkable === "function" ? ctxG.World.isWalkable(t) : true;
-                tileSnap = isWalk ? "walkable" : "blocked";
-              } catch (_) { tileSnap = "walkable"; }
+          const modeHere = (typeof G.getMode === "function") ? G.getMode() : null;
+          if (modeHere === "world") {
+            const WT = (ctxG && ctxG.World && ctxG.World.TILES) ? ctxG.World.TILES : null;
+            const worldObj = (ctxG && ctxG.world) ? ctxG.world : null;
+            if (posSnap && WT && worldObj && worldObj.map && worldObj.map[posSnap.y] && typeof worldObj.map[posSnap.y][posSnap.x] !== "undefined") {
+              const t = worldObj.map[posSnap.y][posSnap.x];
+              if (t === WT.TOWN) tileSnap = "TOWN";
+              else if (t === WT.DUNGEON) tileSnap = "DUNGEON";
+              else {
+                try {
+                  const isWalk = ctxG && ctxG.World && typeof ctxG.World.isWalkable === "function" ? ctxG.World.isWalkable(t) : true;
+                  tileSnap = isWalk ? "walkable" : "blocked";
+                } catch (_) { tileSnap = "walkable"; }
+              }
+            }
+          } else {
+            // Local map tile classification: use isWalkable/inBounds from ctx
+            const localMap = (ctxG && typeof ctxG.getMap === "function") ? ctxG.getMap() : (ctxG ? ctxG.map : null);
+            if (posSnap && Array.isArray(localMap) && localMap[posSnap.y] && typeof localMap[posSnap.y][posSnap.x] !== "undefined") {
+              const walk = (ctxG && typeof ctxG.isWalkable === "function") ? !!ctxG.isWalkable(posSnap.x, posSnap.y) : true;
+              tileSnap = walk ? "walkable" : "blocked";
             }
           }
         } catch (_) {}
@@ -395,17 +405,27 @@
         let tileSnap = "(unknown)";
         try {
           const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
-          const WT = (ctxG && ctxG.World && ctxG.World.TILES) ? ctxG.World.TILES : null;
-          const worldObj = (ctxG && ctxG.world) ? ctxG.world : null;
-          if (posSnap && WT && worldObj && worldObj.map && worldObj.map[posSnap.y] && typeof worldObj.map[posSnap.y][posSnap.x] !== "undefined") {
-            const t = worldObj.map[posSnap.y][posSnap.x];
-            if (t === WT.TOWN) tileSnap = "TOWN";
-            else if (t === WT.DUNGEON) tileSnap = "DUNGEON";
-            else {
-              try {
-                const isWalk = ctxG && ctxG.World && typeof ctxG.World.isWalkable === "function" ? ctxG.World.isWalkable(t) : true;
-                tileSnap = isWalk ? "walkable" : "blocked";
-              } catch (_) { tileSnap = "walkable"; }
+          const modeHere = (typeof G.getMode === "function") ? G.getMode() : null;
+          if (modeHere === "world") {
+            const WT = (ctxG && ctxG.World && ctxG.World.TILES) ? ctxG.World.TILES : null;
+            const worldObj = (ctxG && ctxG.world) ? ctxG.world : null;
+            if (posSnap && WT && worldObj && worldObj.map && worldObj.map[posSnap.y] && typeof worldObj.map[posSnap.y][posSnap.x] !== "undefined") {
+              const t = worldObj.map[posSnap.y][posSnap.x];
+              if (t === WT.TOWN) tileSnap = "TOWN";
+              else if (t === WT.DUNGEON) tileSnap = "DUNGEON";
+              else {
+                try {
+                  const isWalk = ctxG && ctxG.World && typeof ctxG.World.isWalkable === "function" ? ctxG.World.isWalkable(t) : true;
+                  tileSnap = isWalk ? "walkable" : "blocked";
+                } catch (_) { tileSnap = "walkable"; }
+              }
+            }
+          } else {
+            // Local map tile classification: use isWalkable/inBounds from ctx
+            const localMap = (ctxG && typeof ctxG.getMap === "function") ? ctxG.getMap() : (ctxG ? ctxG.map : null);
+            if (posSnap && Array.isArray(localMap) && localMap[posSnap.y] && typeof localMap[posSnap.y][posSnap.x] !== "undefined") {
+              const walk = (ctxG && typeof ctxG.isWalkable === "function") ? !!ctxG.isWalkable(posSnap.x, posSnap.y) : true;
+              tileSnap = walk ? "walkable" : "blocked";
             }
           }
         } catch (_) {}

@@ -32,7 +32,7 @@
         const key = (ctx && ctx.key) || (MV && MV.key) || function(){};
         const sleep = (ctx && ctx.sleep) || ((ms) => new Promise(r => setTimeout(r, ms | 0)));
         const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) ? ctx.ensureAllModalsClosed : async function(){};
-        const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 500;
+        const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 700;
         const record = (ctx && ctx.record) || function(){};
         const trace = (act) => { try { if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") window.SmokeTest.Runner.traceAction(act); } catch (_) {} };
 
@@ -64,7 +64,7 @@
         };
 
         // Close modals so 'g' isn't swallowed
-        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(2); } catch (_){}
+        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(4); } catch (_){}
 
         // Try to land exactly on gate, with walkable-guard first
         let tpOk = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: true, fallbackScanRadius: 4 });
@@ -125,13 +125,26 @@
         // Debug: report tile underfoot and onGate status before attempting exit
         try {
           const ctxG = has(G.getCtx) ? G.getCtx() : null;
-          const WT = (ctxG && ctxG.World && ctxG.World.TILES) ? ctxG.World.TILES : null;
           const plHere = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
           let tileStr = "(unknown)";
-          if (ctxG && WT && ctxG.world && ctxG.world.map && ctxG.world.map[plHere.y] && typeof ctxG.world.map[plHere.y][plHere.x] !== "undefined") {
-            const t = ctxG.world.map[plHere.y][plHere.x];
-            tileStr = (t === WT.TOWN ? "TOWN" : (t === WT.DUNGEON ? "DUNGEON" : "walkable"));
-          }
+          try {
+            const modeDbg = has(G.getMode) ? G.getMode() : "";
+            if (modeDbg === "world") {
+              const WT = (ctxG && ctxG.World && ctxG.World.TILES) ? ctxG.World.TILES : null;
+              const worldObj = (ctxG && ctxG.world) ? ctxG.world : null;
+              if (WT && worldObj && worldObj.map && worldObj.map[plHere.y] && typeof worldObj.map[plHere.y][plHere.x] !== "undefined") {
+                const t = worldObj.map[plHere.y][plHere.x];
+                const walk = (ctxG && ctxG.World && typeof ctxG.World.isWalkable === "function") ? ctxG.World.isWalkable(t) : true;
+                tileStr = (t === WT.TOWN ? "TOWN" : (t === WT.DUNGEON ? "DUNGEON" : (walk ? "walkable" : "blocked")));
+              }
+            } else {
+              const localMap = (typeof ctxG.getMap === "function") ? ctxG.getMap() : (ctxG && ctxG.map);
+              if (Array.isArray(localMap) && localMap[plHere.y] && typeof localMap[plHere.y][plHere.x] !== "undefined") {
+                const walk = (typeof ctxG.isWalkable === "function") ? !!ctxG.isWalkable(plHere.x, plHere.y) : true;
+                tileStr = walk ? "walkable" : "blocked";
+              }
+            }
+          } catch (_) {}
           record(true, "Town exit helper: onGate=" + (isOnGate() ? "YES" : "NO") + " tile=" + tileStr + " at " + plHere.x + "," + plHere.y);
         } catch (_) {}
 
@@ -139,7 +152,8 @@
         try { key("g"); act.gPresses += 1; } catch (_) {}
         await sleep(waitMs);
         try {
-          if (has(G.returnToWorldIfAtExit)) { G.returnToWorldIfAtExit(); act.usedReturnToWorldIfAtExit = true; }
+          if (has(G.getMode) && G.getMode() === "town" && has(G.returnToWorldFromTown)) { G.returnToWorldFromTown(); act.usedReturnToWorldIfAtExit = true; }
+          else if (has(G.returnToWorldIfAtExit)) { G.returnToWorldIfAtExit(); act.usedReturnToWorldIfAtExit = true; }
         } catch (_){}
         await sleep(waitMs);
         let modeNow = has(G.getMode) ? G.getMode() : "";
@@ -155,12 +169,10 @@
         } catch (_) {}
         modeNow = has(G.getMode) ? G.getMode() : "";
         if (modeNow !== "world") {
-          // As a last resort, call Modes.leaveTownNow on ctx directly (bypasses GameAPI)
+          // Last resort: use GameAPI wrapper to leave town and re-sync state
           try {
-            const ctxG = has(G.getCtx) ? G.getCtx() : null;
-            const Modes = (typeof window !== "undefined" && window.Modes) ? window.Modes : null;
-            if (ctxG && Modes && typeof Modes.leaveTownNow === "function") {
-              Modes.leaveTownNow(ctxG);
+            if (has(G.leaveTownNow)) {
+              G.leaveTownNow();
               await sleep(waitMs);
               modeNow = has(G.getMode) ? G.getMode() : modeNow;
             }
@@ -183,7 +195,7 @@
         const key = (ctx && ctx.key) || (MV && MV.key) || function(){};
         const sleep = (ctx && ctx.sleep) || ((ms) => new Promise(r => setTimeout(r, ms | 0)));
         const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) ? ctx.ensureAllModalsClosed : async function(){};
-        const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 500;
+        const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 700;
         const record = (ctx && ctx.record) || function(){};
         const trace = (act) => { try { if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") window.SmokeTest.Runner.traceAction(act); } catch (_) {} };
 
@@ -214,7 +226,7 @@
         };
 
         // Close modals so 'g' isn't swallowed
-        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(2); } catch (_){}
+        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(4); } catch (_){}
 
         // Try to land exactly on exit, with walkable-guard first
         let tpOk = await Teleport.teleportTo(exit.x, exit.y, { ensureWalkable: true, fallbackScanRadius: 4 });

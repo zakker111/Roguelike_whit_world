@@ -535,6 +535,10 @@ export function create(ctx) {
       try { const d = ctx.getDecals(); return Array.isArray(d) ? d.length : 0; } catch (_) { return 0; }
     },
     returnToWorldIfAtExit: () => { try { return !!ctx.returnToWorldIfAtExit(); } catch(_) { return false; } },
+    // Town exit helpers exposed for smoketest robustness
+    returnToWorldFromTown: () => { try { return !!ctx.returnToWorldFromTown(); } catch(_) { return false; } },
+    requestLeaveTown: () => { try { ctx.requestLeaveTown(); return true; } catch(_) { return false; } },
+    leaveTownNow: () => { try { ctx.leaveTownNow(); return true; } catch(_) { return false; } },
 
     // Crit/status helpers
     setAlwaysCrit: (v) => { try { ctx.setAlwaysCrit(!!v); return true; } catch(_) { return false; } },
