@@ -1284,7 +1284,7 @@
           (s.scenario && s.scenario === "combat") ||
           /moved and attempted attacks|combat effects:|killed enemy|attacked enemy/i.test(String(s.msg || ""))
         ));
-        const suppress = (msg) => {
+        const shouldSuppressMsg = (msg) => {
           const t = String(msg || "");
           // Hide town failure counterparts if any town entry succeeded in this run
           if (sawTownOkRun) {
@@ -1304,7 +1304,7 @@
           }
           return false;
         };
-        const filteredSteps = steps.filter(s => !suppress(s.msg));
+        const filteredSteps = steps.filter(s => !shouldSuppressMsg(s.msg));
         const passed = filteredSteps.filter(s => s.ok && !s.skipped);
         const skipped = filteredSteps.filter(s => s.skipped);
         const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
