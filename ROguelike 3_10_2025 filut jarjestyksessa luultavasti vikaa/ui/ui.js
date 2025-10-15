@@ -14,6 +14,7 @@
  * - GOD panel includes: Heal, spawn items/enemy, FOV slider, side log toggle, Always Crit toggle with body-part chooser.
  * - Persists user toggles in localStorage (LOG_MIRROR, ALWAYS_CRIT, ALWAYS_CRIT_PART).
  */
+import * as ClientAnalyzer from "/analysis/client_analyzer.js";
 
 export const UI = {
   els: {},
@@ -203,6 +204,76 @@ export const UI = {
       try { this.hideGod(); } catch (_) {}
       try { this.showSmoke(); } catch (_) {}
     });
+
+    // Analysis buttons (client-side report)
+    this.els.godRunAnalysisBtn = document.getElementById("god-run-analysis-btn");
+    this.els.godDownloadAnalysisBtn = document.getElementById("god-download-analysis-btn");
+    this.els.godAnalysisOutput = document.getElementById("god-analysis-output");
+    if (this.els.godRunAnalysisBtn) {
+      this.els.godRunAnalysisBtn.addEventListener("click", async () => {
+        if (!ClientAnalyzer || typeof ClientAnalyzer.runClientAnalysis !== "function") return;
+        try {
+          // Disable while running
+          const btn = this.els.godRunAnalysisBtn;
+          btn.disabled = true;
+          const prevText = btn.textContent;
+          btn.textContent = "Running…";
+          const { markdown, topFiles, duplicates, filesScanned } = await ClientAnalyzer.runClientAnalysis();
+          // Cache for download
+          this._lastAnalysisMD = markdown;
+          this._lastAnalysisURL = ClientAnalyzer.makeDownloadURL(markdown);
+          // Enable download button
+          if (this.els.godDownloadAnalysisBtn) {
+            this.els.godDownloadAnalysisBtn.disabled = !this._lastAnalysisURL;
+          }
+          // Render a short summary in GOD panel
+          if (this.els.godAnalysisOutput) {
+            const lines = [];
+            lines.push(`Files scanned: ${filesScanned}`);
+            lines.push("Top files:");
+            topFiles.slice(0, 8).forEach((m) => {
+              lines.push(`- ${m.file} — ${m.lines} lines`);
+            });
+            lines.push(`Duplication candidates: ${duplicates.length} (showing up to 8 below)`);
+            duplicates.slice(0, 8).forEach((d) => {
+              lines.push(`• ${d.files.length} files — ${d.files.slice(0, 3).join(", ")}${d.files.length > 3 ? ", …" : ""}`);
+            });
+            this.els.godAnalysisOutput.innerHTML = lines.map((s) => `<div>${s}</div>`).join("");
+          }
+          // Restore button
+          btn.textContent = prevText || "Run Analysis";
+          btn.disabled = false;
+        } catch (e) {
+          try { console.error(e); } catch (_) {}
+          if (this.els.godAnalysisOutput) {
+            this.els.godAnalysisOutput.innerHTML = `<div style="color:#f87171;">Analysis failed. See console for details.</div>`;
+          }
+          if (this.els.godRunAnalysisBtn) {
+            this.els.godRunAnalysisBtn.textContent = "Run Analysis";
+            this.els.godRunAnalysisBtn.disabled = false;
+          }
+        }
+      });
+    }
+    if (this.els.godDownloadAnalysisBtn) {
+      this.els.godDownloadAnalysisBtn.addEventListener("click", () => {
+        try {
+          if (!this._lastAnalysisURL && this._lastAnalysisMD) {
+            this._lastAnalysisURL = ClientAnalyzer.makeDownloadURL(this._lastAnalysisMD);
+          }
+          if (this._lastAnalysisURL) {
+            const a = document.createElement("a");
+            a.href = this._lastAnalysisURL;
+            a.download = "phase1_report_client.md";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }
+        } catch (_) {}
+      });
+      // Initially disabled until a report is generated
+      this.els.godDownloadAnalysisBtn.disabled = true;
+    }
     
     if (this.els.godFov) {
       const updateFov = () => {

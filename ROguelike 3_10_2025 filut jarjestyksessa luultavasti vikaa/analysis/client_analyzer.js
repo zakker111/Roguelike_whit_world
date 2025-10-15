@@ -1,0 +1,185 @@
+/**
+ * Client-side analyzer: size and duplication (3-line shingles) report generated in browser.
+ * Designed to be triggered from the GOD panel without Node.
+ *
+ * Exports (ESM + window.ClientAnalyzer):
+ * - runClientAnalysis(): Promise<{ markdown, topFiles, duplicates, filesScanned }>
+ * - makeDownloadURL(markdown): string (blob URL)
+ */
+const INCLUDE_EXT = new Set([".js", ".json", ".css", ".html"]);
+
+function extOf(url) {
+  try {
+    const u = new URL(url, window.location.origin);
+    const p = u.pathname || "";
+    const i = p.lastIndexOf(".");
+    return i >= 0 ? p.slice(i) : "";
+  } catch (_) {
+    // naive fallback
+    const i = url.lastIndexOf(".");
+    return i >= 0 ? url.slice(i) : "";
+  }
+}
+
+async function fetchText(url) {
+  try {
+    const res = await fetch(url, { cache: "no-cache" });
+    if (!res.ok) return "";
+    return await res.text();
+  } catch (_) {
+    return "";
+  }
+}
+
+function countLines(content) {
+  if (!content || content.length === 0) return 0;
+  return content.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").length;
+}
+
+// 3-line shingle duplication detection (approximate)
+function shingles(content, k = 3) {
+  const lines = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const out = [];
+  for (let i = 0; i + k <= lines.length; i++) {
+    const chunk = lines
+      .slice(i, i + k)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+      .join("\n");
+    if (chunk.length >= 30) out.push(chunk);
+  }
+  return out;
+}
+
+function hashStr(s) {
+  // Simple FNV-like hash; not cryptographic
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16);
+}
+
+function relFromURL(url) {
+  try {
+    const u = new URL(url, window.location.origin);
+    return u.pathname.replace(/^\//, "");
+  } catch (_) {
+    return url;
+  }
+}
+
+async function collectURLs() {
+  const urls = new Set();
+  // Module scripts present on the page
+  document
+    .querySelectorAll('script[type="module"]')
+    .forEach((s) => {
+      if (s.src) {
+        const e = extOf(s.src);
+        if (INCLUDE_EXT.has(e)) urls.add(s.src);
+      }
+    });
+  // Common JSON registries (best-effort)
+  ["/data/items.json", "/data/enemies.json", "/data/consumables.json", "/data/shops.json", "/data/npcs.json", "/data/town.json"].forEach((u) =>
+    urls.add(u)
+  );
+  // Core HTML + CSS
+  urls.add("/index.html");
+  urls.add("/ui/style.css");
+  return Array.from(urls);
+}
+
+export async function runClientAnalysis() {
+  const files = await collectURLs();
+  const metrics = [];
+  const shingleMap = new Map(); // hash -> { text, files:Set, count }
+
+  for (const url of files) {
+    const text = await fetchText(url);
+    if (!text) continue;
+    const lines = countLines(text);
+    metrics.push({ file: relFromURL(url), lines, ext: extOf(url) });
+
+    if (extOf(url) === ".js") {
+      const snips = shingles(text, 3);
+      const seen = new Set();
+      for (const s of snips) {
+        const h = hashStr(s);
+        if (seen.has(h)) continue;
+        seen.add(h);
+        let entry = shingleMap.get(h);
+        if (!entry) {
+          entry = { text: s, files: new Set(), count: 0 };
+          shingleMap.set(h, entry);
+        }
+        entry.files.add(relFromURL(url));
+        entry.count += 1;
+      }
+    }
+  }
+
+  metrics.sort((a, b) => b.lines - a.lines);
+  const topFiles = metrics.slice(0, 20);
+
+  const duplicates = [];
+  for (const [h, entry] of shingleMap.entries()) {
+    if (entry.files.size >= 2) {
+      duplicates.push({
+        hash: h,
+        count: entry.count,
+        files: Array.from(entry.files).sort(),
+        preview: entry.text.slice(0, 300),
+      });
+    }
+  }
+  duplicates.sort((a, b) => b.files.length - a.files.length || b.count - a.count);
+
+  const lines = [];
+  lines.push("# Phase 1 Report: Size and Duplication (GOD panel)");
+  lines.push("");
+  lines.push("Generated client-side in the browser; scope limited to modules and common JSON served on this page.");
+  lines.push("");
+  lines.push("## Top 20 largest files by line count");
+  lines.push("");
+  for (const m of topFiles) {
+    lines.push(`- ${m.file} — ${m.lines} lines`);
+  }
+  lines.push("");
+  lines.push("## Detected duplicated snippets (approximate, 3-line shingles)");
+  lines.push("");
+  lines.push("A snippet listed below appears in 2+ files. Use these to guide DRY refactors.");
+  lines.push("");
+  const maxDup = Math.min(50, duplicates.length);
+  for (let i = 0; i < maxDup; i++) {
+    const d = duplicates[i];
+    lines.push(`- Hash ${d.hash} — appears ${d.files.length} files (count=${d.count}):`);
+    lines.push(d.files.map((f) => `  - ${f}`).join("\n"));
+    lines.push("  Preview:");
+    const preview = d.preview.replace(/\n/g, " \\\n ");
+    lines.push(`  "${preview}"`);
+  }
+  lines.push("");
+  lines.push("## Notes");
+  lines.push("- This duplication detector is heuristic; it may over/under-report.");
+  lines.push("- For a full repo analysis, use the Node script: `node scripts/analyze.js`.");
+  lines.push("- Consider centralizing helpers and facades to reduce duplicated code paths.");
+
+  const markdown = lines.join("\n");
+  return { markdown, topFiles, duplicates, filesScanned: files.length };
+}
+
+export function makeDownloadURL(markdown) {
+  try {
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    return URL.createObjectURL(blob);
+  } catch (_) {
+    return "";
+  }
+}
+
+// Back-compat: attach to window
+if (typeof window !== "undefined") {
+  window.ClientAnalyzer = { runClientAnalysis, makeDownloadURL };
+}
