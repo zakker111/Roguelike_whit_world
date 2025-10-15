@@ -295,10 +295,41 @@
             if (p && typeof p.x === "number" && typeof p.y === "number") posSnap = { x: p.x, y: p.y };
           }
         } catch (_) {}
+        // Extra context: tile underfoot, modal states, perf snapshot
+        let tileSnap = "(unknown)";
+        try {
+          const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
+          const WT = (ctxG && ctxG.World && ctxG.World.TILES) ? ctxG.World.TILES : null;
+          const worldObj = (ctxG && ctxG.world) ? ctxG.world : null;
+          if (posSnap && WT && worldObj && worldObj.map && worldObj.map[posSnap.y] && typeof worldObj.map[posSnap.y][posSnap.x] !== "undefined") {
+            const t = worldObj.map[posSnap.y][posSnap.x];
+            if (t === WT.TOWN) tileSnap = "TOWN";
+            else if (t === WT.DUNGEON) tileSnap = "DUNGEON";
+            else {
+              try {
+                const isWalk = ctxG && ctxG.World && typeof ctxG.World.isWalkable === "function" ? ctxG.World.isWalkable(t) : true;
+                tileSnap = isWalk ? "walkable" : "blocked";
+              } catch (_) { tileSnap = "walkable"; }
+            }
+          }
+        } catch (_) {}
+        let modalsSnap = {};
+        try {
+          modalsSnap.god = !!(window.UIBridge && typeof window.UIBridge.isGodOpen === "function" ? window.UIBridge.isGodOpen() : null);
+          modalsSnap.shop = !!(window.UIBridge && typeof window.UIBridge.isShopOpen === "function" ? window.UIBridge.isShopOpen() : null);
+          modalsSnap.inventory = !!(window.UIBridge && typeof window.UIBridge.isInventoryOpen === "function" ? window.UIBridge.isInventoryOpen() : null);
+          modalsSnap.loot = !!(window.UIBridge && typeof window.UIBridge.isLootOpen === "function" ? window.UIBridge.isLootOpen() : null);
+          modalsSnap.smoke = !!(window.UIBridge && typeof window.UIBridge.isSmokeOpen === "function" ? window.UIBridge.isSmokeOpen() : null);
+        } catch (_) { modalsSnap = {}; }
+        let perfSnap = null;
+        try {
+          const p = (typeof G.getPerf === "function") ? (G.getPerf() || {}) : {};
+          perfSnap = { turn: p.lastTurnMs || 0, draw: p.lastDrawMs || 0 };
+        } catch (_) {}
 
         // Prior-run OK skipping
         if (!!ok && skipOk.has(text)) {
-          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "prior_ok", ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
+          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "prior_ok", ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap, tile: tileSnap, modals: modalsSnap, perf: perfSnap });
           try {
             var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
             if (B && typeof B.log === "function") {
@@ -313,7 +344,7 @@
         // Treat immobile world movement checks as non-fatal skips even without abort flag
         const isWorldImmobile = (!ok && /^world movement test:\s*immobile/i.test(text));
         if (isWorldImmobile) {
-          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "immobile", ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
+          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "immobile", ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap, tile: tileSnap, modals: modalsSnap, perf: perfSnap });
           try {
             var Bwi = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
             if (Bwi && typeof Bwi.log === "function") {
@@ -326,7 +357,7 @@
         // Immobile handling: mark step as skipped and abort run, do NOT count as a failure
         const isImmobile = (!ok && lower.includes("immobile"));
         if (isImmobile && params && params.abortonimmobile && !aborted) {
-          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "immobile", ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
+          steps.push({ ok: true, msg: text, skipped: true, skippedReason: "immobile", ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap, tile: tileSnap, modals: modalsSnap, perf: perfSnap });
           try {
             var B3 = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
             if (B3 && typeof B3.log === "function") {
@@ -342,7 +373,7 @@
         }
 
         // Normal record path
-        steps.push({ ok: !!ok, msg: text, ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
+        steps.push({ ok: !!ok, msg: text, ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap, tile: tileSnap, modals: modalsSnap, perf: perfSnap });
         try {
           var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
           if (B && typeof B.log === "function") {
@@ -361,7 +392,37 @@
             if (p && typeof p.x === "number" && typeof p.y === "number") posSnap = { x: p.x, y: p.y };
           }
         } catch (_) {}
-        steps.push({ ok: true, msg: String(msg || ""), skipped: true, ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap });
+        let tileSnap = "(unknown)";
+        try {
+          const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
+          const WT = (ctxG && ctxG.World && ctxG.World.TILES) ? ctxG.World.TILES : null;
+          const worldObj = (ctxG && ctxG.world) ? ctxG.world : null;
+          if (posSnap && WT && worldObj && worldObj.map && worldObj.map[posSnap.y] && typeof worldObj.map[posSnap.y][posSnap.x] !== "undefined") {
+            const t = worldObj.map[posSnap.y][posSnap.x];
+            if (t === WT.TOWN) tileSnap = "TOWN";
+            else if (t === WT.DUNGEON) tileSnap = "DUNGEON";
+            else {
+              try {
+                const isWalk = ctxG && ctxG.World && typeof ctxG.World.isWalkable === "function" ? ctxG.World.isWalkable(t) : true;
+                tileSnap = isWalk ? "walkable" : "blocked";
+              } catch (_) { tileSnap = "walkable"; }
+            }
+          }
+        } catch (_) {}
+        let modalsSnap = {};
+        try {
+          modalsSnap.god = !!(window.UIBridge && typeof window.UIBridge.isGodOpen === "function" ? window.UIBridge.isGodOpen() : null);
+          modalsSnap.shop = !!(window.UIBridge && typeof window.UIBridge.isShopOpen === "function" ? window.UIBridge.isShopOpen() : null);
+          modalsSnap.inventory = !!(window.UIBridge && typeof window.UIBridge.isInventoryOpen === "function" ? window.UIBridge.isInventoryOpen() : null);
+          modalsSnap.loot = !!(window.UIBridge && typeof window.UIBridge.isLootOpen === "function" ? window.UIBridge.isLootOpen() : null);
+          modalsSnap.smoke = !!(window.UIBridge && typeof window.UIBridge.isSmokeOpen === "function" ? window.UIBridge.isSmokeOpen() : null);
+        } catch (_) { modalsSnap = {}; }
+        let perfSnap = null;
+        try {
+          const p = (typeof G.getPerf === "function") ? (G.getPerf() || {}) : {};
+          perfSnap = { turn: p.lastTurnMs || 0, draw: p.lastDrawMs || 0 };
+        } catch (_) {}
+        steps.push({ ok: true, msg: String(msg || ""), skipped: true, ts, scenario: __curScenarioName, mode: modeSnap, pos: posSnap, tile: tileSnap, modals: modalsSnap, perf: perfSnap });
         try {
           var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
           if (B && typeof B.log === "function") {
@@ -1073,6 +1134,39 @@
                 return out;
               } catch (_) { return []; }
             })();
+            // Step timing breakdown
+            let tsFirst = null, tsLast = null, avgStepDeltaMs = 0, maxStepDeltaMs = 0;
+            try {
+              const tsList = during.map(s => s && typeof s.ts === "number" ? (s.ts | 0) : null).filter(v => v != null);
+              if (tsList.length) {
+                tsFirst = tsList[0];
+                tsLast = tsList[tsList.length - 1];
+                const deltas = [];
+                for (let k = 1; k < tsList.length; k++) {
+                  const d = Math.max(0, (tsList[k] - tsList[k - 1]));
+                  deltas.push(d);
+                }
+                if (deltas.length) {
+                  avgStepDeltaMs = (deltas.reduce((a,b) => a + b, 0) / deltas.length);
+                  maxStepDeltaMs = Math.max.apply(null, deltas);
+                }
+              }
+            } catch (_) {}
+            // Mode transitions seen in this scenario (with timestamps)
+            let modeTransitions = [];
+            try {
+              let prevMode = __scenarioStartMode;
+              for (const s of during) {
+                try {
+                  const m = s && s.mode;
+                  if (m && prevMode && m !== prevMode) {
+                    modeTransitions.push({ at: s.ts || 0, from: prevMode, to: m });
+                  }
+                  prevMode = m || prevMode;
+                } catch (_) {}
+              }
+            } catch (_) {}
+
             const sTrace = {
               name: step.name,
               startedMode: __scenarioStartMode,
@@ -1084,7 +1178,12 @@
               startedAt: __scenarioStartTs,
               endedAt: endedAt,
               durationMs: Math.max(0, endedAt - __scenarioStartTs),
-              observedModes: modesSeen
+              observedModes: modesSeen,
+              tsFirst,
+              tsLast,
+              avgStepDeltaMs,
+              maxStepDeltaMs,
+              modeTransitions
             };
             trace.scenarioTraces.push(sTrace);
           } catch (_) {}
@@ -1780,6 +1879,96 @@
             } catch (_) {}
             return sum;
           })();
+          // Scenario timing summary across runs
+          const scenariosSummary = (() => {
+            const m = {};
+            try {
+              for (const res of all) {
+                if (!res || !res.trace || !Array.isArray(res.trace.scenarioTraces)) continue;
+                // Build pass map for this run
+                const passMap = {};
+                try {
+                  if (Array.isArray(res.scenarioResults)) {
+                    for (const sr of res.scenarioResults) {
+                      if (sr && sr.name) passMap[sr.name] = !!sr.passed;
+                    }
+                  }
+                } catch (_) {}
+                for (const st of res.trace.scenarioTraces) {
+                  if (!st || !st.name) continue;
+                  const name = st.name;
+                  const dur = Math.max(0, st.durationMs | 0);
+                  const prev = m[name] || { runs: 0, passed: 0, sumDurationMs: 0, minDurationMs: null, maxDurationMs: null };
+                  prev.runs += 1;
+                  if (passMap[name]) prev.passed += 1;
+                  prev.sumDurationMs += dur;
+                  prev.minDurationMs = (prev.minDurationMs == null) ? dur : Math.min(prev.minDurationMs, dur);
+                  prev.maxDurationMs = (prev.maxDurationMs == null) ? dur : Math.max(prev.maxDurationMs, dur);
+                  m[name] = prev;
+                }
+              }
+              // finalize averages
+              Object.keys(m).forEach(k => {
+                const v = m[k];
+                v.avgDurationMs = v.runs ? (v.sumDurationMs / v.runs) : 0;
+                delete v.sumDurationMs;
+              });
+            } catch (_) {}
+            return m;
+          })();
+          // Step-level tile/modal/perf stats across the entire series
+          const allSteps = [];
+          try { for (const res of all) { if (res && Array.isArray(res.steps)) allSteps.push.apply(allSteps, res.steps); } } catch (_) {}
+          const stepTileStats = (() => {
+            const out = { TOWN: 0, DUNGEON: 0, walkable: 0, blocked: 0, unknown: 0 };
+            try {
+              for (const s of allSteps) {
+                const t = String((s && s.tile) || "(unknown)");
+                if (t === "TOWN") out.TOWN += 1;
+                else if (t === "DUNGEON") out.DUNGEON += 1;
+                else if (t === "walkable") out.walkable += 1;
+                else if (t === "blocked") out.blocked += 1;
+                else out.unknown += 1;
+              }
+            } catch (_) {}
+            return out;
+          })();
+          const stepModalStats = (() => {
+            const out = { samples: 0, god: 0, inventory: 0, loot: 0, shop: 0, smoke: 0 };
+            try {
+              for (const s of allSteps) {
+                if (!s || !s.modals) continue;
+                out.samples += 1;
+                if (s.modals.god === true) out.god += 1;
+                if (s.modals.inventory === true) out.inventory += 1;
+                if (s.modals.loot === true) out.loot += 1;
+                if (s.modals.shop === true) out.shop += 1;
+                if (s.modals.smoke === true) out.smoke += 1;
+              }
+            } catch (_) {}
+            return out;
+          })();
+          const stepPerfStats = (() => {
+            const out = { count: 0, avgTurnMs: 0, avgDrawMs: 0, minTurnMs: null, maxTurnMs: null, minDrawMs: null, maxDrawMs: null };
+            try {
+              let sumTurn = 0, sumDraw = 0;
+              for (const s of allSteps) {
+                if (!s || !s.perf) continue;
+                const t = Number(s.perf.turn || 0);
+                const d = Number(s.perf.draw || 0);
+                sumTurn += t;
+                sumDraw += d;
+                out.count += 1;
+                out.minTurnMs = (out.minTurnMs == null) ? t : Math.min(out.minTurnMs, t);
+                out.maxTurnMs = (out.maxTurnMs == null) ? t : Math.max(out.maxTurnMs, t);
+                out.minDrawMs = (out.minDrawMs == null) ? d : Math.min(out.minDrawMs, d);
+                out.maxDrawMs = (out.maxDrawMs == null) ? d : Math.max(out.maxDrawMs, d);
+              }
+              out.avgTurnMs = out.count ? (sumTurn / out.count) : 0;
+              out.avgDrawMs = out.count ? (sumDraw / out.count) : 0;
+            } catch (_) {}
+            return out;
+          })();
 
           const rep = {
             runnerVersion: RUNNER_VERSION,
@@ -1795,7 +1984,11 @@
             keyChecklist: aggregatedKeyChecklist,
             diagnostics,
             scenarioPassCounts: scenarioPassCountsObj,
-            actionsSummary
+            actionsSummary,
+            scenariosSummary,
+            stepTileStats,
+            stepModalStats,
+            stepPerfStats
           };
           const summaryText = [
             `Roguelike Smoke Test Summary (Runner v${rep.runnerVersion})`,
