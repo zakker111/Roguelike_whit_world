@@ -436,7 +436,7 @@
             let routedExact = false;
             try {
               if (target && MV && typeof MV.routeTo === "function") {
-                routedExact = await MV.routeTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
+                routedExact = await MV.routeTo(target.x, target.y, { timeoutMs: 9000, stepMs: 90 });
               }
             } catch (_) {}
 
@@ -517,7 +517,7 @@
               if (!isOnEntrance()) {
                 try {
                   if (MV && typeof MV.routeAdjTo === "function") {
-                    await MV.routeAdjTo(target.x, target.y, { timeoutMs: 2000, stepMs: 90 });
+                    await MV.routeAdjTo(target.x, target.y, { timeoutMs: 8000, stepMs: 90 });
                   }
                   const pl2 = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
                   const dx2 = Math.sign(target.x - pl2.x);
@@ -537,7 +537,11 @@
             }
           } catch (_) {}
 
-          // Confirm mode transition; if still not in dungeon, try adjacent teleports around target then 'g'
+          // Confirm mode transition; try a short settle wait first
+          try {
+            await waitUntilTrue(() => { try { return (typeof G.getMode === "function" && G.getMode() === "dungeon"); } catch(_) { return false; } }, 1200, 80);
+          } catch (_) {}
+          // If still not in dungeon, try adjacent teleports around target then 'g'
           let ok = (getMode() === "dungeon");
           if (!ok) {
             try {
@@ -718,9 +722,11 @@
             }
           } catch (_) {}
 
-          // Confirm mode transition; if still not in town, try adjacent teleports around target then 'g'
-          let ok = (getMode() === "town");
-          if (!ok) {
+          // Confirm mode transition; try a short settle wait first
+          try {
+            await waitUntilTrue(() => { try { return (typeof G.getMode === "function" && G.getMode() === "town"); } catch(_) { return false; } }, 1200, 80);
+          } catch (_) {}
+          // If still not in
             try {
               const TP2 = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
               if (TP2 && typeof TP2.teleportTo === "function" && target) {
