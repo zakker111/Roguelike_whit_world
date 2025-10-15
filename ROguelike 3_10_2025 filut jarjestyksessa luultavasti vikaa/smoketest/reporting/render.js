@@ -124,7 +124,7 @@
         killedEnemy: has("Killed enemy: YES"),
         decayIncreasedOnHands: has("Decay check:") && !has("Decay did not increase", false),
         stairGuardWorks: has("Stair guard: G on non-stair does not exit dungeon"),
-        returnedToOverworldFromDungeon: hasAny(["Returned to overworld from dungeon", "Dungeon exit helper: post-'g' mode=world", "Dungeon exit helper: final mode=world [forceWorld]", "Mode confirm (dungeon exit): world"]new)</,
+        returnedToOverworldFromDungeon: hasAny(["Returned to overworld from dungeon", "Dungeon exit helper: post-'g' mode=world", "Dungeon exit helper: final mode=world [forceWorld]", "Mode confirm (dungeon exit): world"]),
         dungeonCorpsesPersisted: has("Persistence corpses:"),
         dungeonDecalsPersisted: has("Persistence decals:"),
         townEntered: hasAny(["Entered town", "Mode confirm (town enter): town"]),
