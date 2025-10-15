@@ -170,19 +170,15 @@ export function create(ctx) {
         const w = ctx.getWorld();
         if (!w || !w.map || !Array.isArray(w.towns) || w.towns.length === 0) return false;
         const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
-        const isWalk = (x, y) => {
-          try {
-            const t = w.map[y] && w.map[y][x];
-            return (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function")
-              ? window.World.isWalkable(t)
-              : true;
-          } catch (_) { return true; }
-        };
         const start = ctx.getPlayer();
-        // If already on town or adjacent to one, retry enter
+
+        // If already on town or adjacent (including diagonals), retry enter
         if (WT) {
           const tHere = w.map[start.y] && w.map[start.y][start.x];
-          const adjDirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+          const adjDirs = [
+            {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+            {dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}
+          ];
           const onOrAdjTown = (tHere === WT.TOWN) || adjDirs.some(d => {
             const nx = start.x + d.dx, ny = start.y + d.dy;
             return w.map[ny] && w.map[ny][nx] === WT.TOWN;
@@ -191,62 +187,18 @@ export function create(ctx) {
             try { return !!ctx.enterTownIfOnTile(); } catch (_) { return false; }
           }
         }
-        // Find nearest town
+
+        // Find nearest town and route using shared helper (includes adjacency fallback)
         let best = null, bestD = Infinity;
         for (const t of w.towns) {
           const d = Math.abs(t.x - start.x) + Math.abs(t.y - start.y);
           if (d < bestD) { bestD = d; best = { x: t.x, y: t.y }; }
         }
         if (!best) return false;
-        // Choose goal: if target tile non-walkable, pick a walkable adjacent
-        let goal = { x: best.x, y: best.y };
-        if (!isWalk(goal.x, goal.y)) {
-          const adj = [
-            { x: goal.x + 1, y: goal.y },
-            { x: goal.x - 1, y: goal.y },
-            { x: goal.x,     y: goal.y + 1 },
-            { x: goal.x,     y: goal.y - 1 },
-          ];
-          let picked = null;
-          for (const a of adj) {
-            if (a.x < 0 || a.y < 0 || a.x >= w.width || a.y >= w.height) continue;
-            if (isWalk(a.x, a.y)) { picked = a; break; }
-          }
-          if (picked) goal = picked;
-        }
-        // BFS route to goal
-        const q = [start];
-        const prev = new Map();
-        const seen = new Set([`${start.x},${start.y}`]);
-        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-        while (q.length) {
-          const cur = q.shift();
-          if (cur.x === goal.x && cur.y === goal.y) break;
-          for (const d of dirs) {
-            const nx = cur.x + d.dx, ny = cur.y + d.dy;
-            const key = `${nx},${ny}`;
-            if (nx < 0 || ny < 0 || nx >= w.width || ny >= w.height) continue;
-            if (seen.has(key)) continue;
-            if (!isWalk(nx, ny)) continue;
-            seen.add(key);
-            prev.set(key, cur);
-            q.push({ x: nx, y: ny });
-          }
-        }
-        const curKey = `${goal.x},${goal.y}`;
-        if (!prev.has(curKey) && !(start.x === goal.x && start.y === goal.y)) {
-          // No path; give up
-          return false;
-        }
-        const path = [];
-        let cur = { x: goal.x, y: goal.y };
-        while (!(cur.x === start.x && cur.y === start.y)) {
-          path.push(cur);
-          const p = prev.get(`${cur.x},${cur.y}`);
-          if (!p) break;
-          cur = p;
-        }
-        path.reverse();
+
+        const path = window.GameAPI.routeTo(best.x, best.y);
+        if (!path || !path.length) return false;
+
         // Walk the path quickly (synchronous)
         for (const step of path) {
           const p = ctx.getPlayer();
@@ -267,19 +219,15 @@ export function create(ctx) {
         const w = ctx.getWorld();
         if (!w || !w.map || !Array.isArray(w.dungeons) || w.dungeons.length === 0) return false;
         const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
-        const isWalk = (x, y) => {
-          try {
-            const t = w.map[y] && w.map[y][x];
-            return (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function")
-              ? window.World.isWalkable(t)
-              : true;
-          } catch (_) { return true; }
-        };
         const start = ctx.getPlayer();
-        // If already on dungeon or adjacent to one, retry enter
+
+        // If already on dungeon or adjacent (including diagonals), retry enter
         if (WT) {
           const tHere = w.map[start.y] && w.map[start.y][start.x];
-          const adjDirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+          const adjDirs = [
+            {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+            {dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}
+          ];
           const onOrAdjDungeon = (tHere === WT.DUNGEON) || adjDirs.some(d => {
             const nx = start.x + d.dx, ny = start.y + d.dy;
             return w.map[ny] && w.map[ny][nx] === WT.DUNGEON;
@@ -288,61 +236,19 @@ export function create(ctx) {
             try { return !!ctx.enterDungeonIfOnEntrance(); } catch (_) { return false; }
           }
         }
-        // Find nearest dungeon
+
+        // Find nearest dungeon and route using shared helper (includes adjacency fallback)
         let best = null, bestD = Infinity;
         for (const d of w.dungeons) {
           const dist = Math.abs(d.x - start.x) + Math.abs(d.y - start.y);
           if (dist < bestD) { bestD = dist; best = { x: d.x, y: d.y }; }
         }
         if (!best) return false;
-        // Choose goal: if target tile non-walkable, pick a walkable adjacent
-        let goal = { x: best.x, y: best.y };
-        if (!isWalk(goal.x, goal.y)) {
-          const adj = [
-            { x: goal.x + 1, y: goal.y },
-            { x: goal.x - 1, y: goal.y },
-            { x: goal.x,     y: goal.y + 1 },
-            { x: goal.x,     y: goal.y - 1 },
-          ];
-          let picked = null;
-          for (const a of adj) {
-            if (a.x < 0 || a.y < 0 || a.x >= w.width || a.y >= w.height) continue;
-            if (isWalk(a.x, a.y)) { picked = a; break; }
-          }
-          if (picked) goal = picked;
-        }
-        // BFS route to goal
-        const q = [start];
-        const prev = new Map();
-        const seen = new Set([`${start.x},${start.y}`]);
-        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-        while (q.length) {
-          const cur = q.shift();
-          if (cur.x === goal.x && cur.y === goal.y) break;
-          for (const d of dirs) {
-            const nx = cur.x + d.dx, ny = cur.y + d.dy;
-            const key = `${nx},${ny}`;
-            if (nx < 0 || ny < 0 || nx >= w.width || ny >= w.height) continue;
-            if (seen.has(key)) continue;
-            if (!isWalk(nx, ny)) continue;
-            seen.add(key);
-            prev.set(key, cur);
-            q.push({ x: nx, y: ny });
-          }
-        }
-        const curKey = `${goal.x},${goal.y}`;
-        if (!prev.has(curKey) && !(start.x === goal.x && start.y === goal.y)) {
-          return false;
-        }
-        const path = [];
-        let cur = { x: goal.x, y: goal.y };
-        while (!(cur.x === start.x && cur.y === start.y)) {
-          path.push(cur);
-          const p = prev.get(`${cur.x},${cur.y}`);
-          if (!p) break;
-          cur = p;
-        }
-        path.reverse();
+
+        const path = window.GameAPI.routeTo(best.x, best.y);
+        if (!path || !path.length) return false;
+
+        // Walk the path quickly (synchronous)
         for (const step of path) {
           const p = ctx.getPlayer();
           const dx = Math.sign(step.x - p.x);

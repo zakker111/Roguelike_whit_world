@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.29 — Phase 5: Entry/Exit robustness (diagonals + near-exit)
+- Changed: core/modes.js
+  - enterTownIfOnTile/enterDungeonIfOnEntrance now consider diagonal adjacency when stepping onto town/dungeon markers before entering. Improves reliability when markers are placed with limited cardinal access.
+- Changed: core/dungeon_runtime.js
+  - returnToWorldIfAtExit treats adjacency (Δ1) to the exit tile as valid; nudges the player onto the exact stairs before returning to the overworld. Aligns with runner’s “teleport near exit” guard.
+- Benefit: Further reductions in “Dungeon entry failed (mode=world)”, “Town entry not achieved”, and occasional “Attempted return to overworld (mode=dungeon)” failures in smoketests.
+- Deployment: (pending)
+
 v1.35.28 — Phase 5: Smoketest pass-rate improvements (robust entry + near spawns)
 - Changed: core/game_api.js
   - enterTownIfOnTile/enterDungeonIfOnEntrance now auto-route to the nearest town/dungeon when not already on/adjacent, then attempt entry. Synchronous BFS walk; preserves ctx-first semantics.

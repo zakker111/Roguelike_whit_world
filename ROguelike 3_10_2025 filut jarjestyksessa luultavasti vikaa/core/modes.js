@@ -82,11 +82,16 @@ export function enterTownIfOnTile(ctx) {
 
   // Try to move one step into a target tile and capture approach direction
   function tryEnterAdjacent(kindTile) {
+    // Include diagonals to improve robustness near markers placed in tight terrain
     const dirs = [
       { dx: 1, dy: 0, dir: "E" },
       { dx: -1, dy: 0, dir: "W" },
       { dx: 0, dy: 1, dir: "S" },
       { dx: 0, dy: -1, dir: "N" },
+      { dx: 1, dy: 1, dir: "SE" },
+      { dx: 1, dy: -1, dir: "NE" },
+      { dx: -1, dy: 1, dir: "SW" },
+      { dx: -1, dy: -1, dir: "NW" },
     ];
     for (const d of dirs) {
       const nx = ctx.player.x + d.dx, ny = ctx.player.y + d.dy;
@@ -94,6 +99,7 @@ export function enterTownIfOnTile(ctx) {
       if (ctx.world.map[ny][nx] === kindTile) {
         // Record the direction of movement (the side we approached from)
         ctx.enterFromDir = d.dir;
+        // Step onto the marker tile to trigger generation
         ctx.player.x = nx; ctx.player.y = ny;
         return true;
       }
@@ -204,11 +210,16 @@ export function enterDungeonIfOnEntrance(ctx) {
   const t = ctx.world.map[ctx.player.y][ctx.player.x];
 
   function tryEnterAdjacent(kindTile) {
-    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+    // Include diagonals to be robust near markers placed with limited cardinal access
+    const dirs = [
+      { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+      { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
+    ];
     for (const d of dirs) {
       const nx = ctx.player.x + d.dx, ny = ctx.player.y + d.dy;
       if (!inBounds(ctx, nx, ny)) continue;
       if (ctx.world.map[ny][nx] === kindTile) {
+        // Step directly onto the marker tile
         ctx.player.x = nx; ctx.player.y = ny;
         return true;
       }
