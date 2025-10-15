@@ -14,7 +14,29 @@ export function create(ctx) {
     getPlayer: () => {
       try { const p = ctx.getPlayer(); return { x: p.x, y: p.y }; } catch (_) { return { x: 0, y: 0 }; }
     },
-    moveStep: (dx, dy) => { try { ctx.tryMovePlayer(dx, dy); } catch (_) {} },
+    moveStep: (dx, dy) => {
+      try {
+        const before = ctx.getPlayer();
+        const bx = before.x, by = before.y;
+        ctx.tryMovePlayer(dx, dy);
+        const after = ctx.getPlayer();
+        if (after.x === bx && after.y === by && window.GameAPI.getMode() === "world") {
+          // Minimal world fallback: step if tile is walkable
+          const nx = bx + ((dx|0) || 0);
+          const ny = by + ((dy|0) || 0);
+          const w = ctx.getWorld();
+          if (w && w.map && nx >= 0 && ny >= 0 && nx < w.width && ny < w.height) {
+            const t = w.map[ny][nx];
+            const walk = (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
+            if (walk) {
+              const p = ctx.getPlayer();
+              p.x = nx; p.y = ny;
+              try { ctx.updateCamera(); ctx.updateUI(); ctx.requestDraw(); } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+    },
 
     // Overworld helpers
     isWalkableOverworld: (x, y) => {
@@ -131,14 +153,31 @@ export function create(ctx) {
       try {
         const target = window.GameAPI.nearestDungeon();
         if (!target) return true;
+
+        // Ensure modals are closed to avoid movement gating
+        try {
+          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
+            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
+            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
+            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
+            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
+            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          }
+        } catch (_) {}
+
         const path = window.GameAPI.routeTo(target.x, target.y);
         if (!path || !path.length) return false;
         for (const step of path) {
-          const p = ctx.getPlayer();
-          const dx = Math.sign(step.x - p.x);
-          const dy = Math.sign(step.y - p.y);
+          const before = ctx.getPlayer();
+          const dx = Math.sign(step.x - before.x);
+          const dy = Math.sign(step.y - before.y);
           try { ctx.tryMovePlayer(dx, dy); } catch (_) {}
           await new Promise(r => setTimeout(r, 60));
+          const after = ctx.getPlayer();
+          if (after.x === before.x && after.y === before.y && window.GameAPI.getMode() === "world") {
+            // Movement likely gated; force-teleport to next step (walkable ring fallback inside teleportTo)
+            try { window.GameAPI.teleportTo(step.x, step.y, { ensureWalkable: true, fallbackScanRadius: 2 }); } catch (_) {}
+          }
         }
         return true;
       } catch (_) { return false; }
@@ -147,14 +186,31 @@ export function create(ctx) {
       try {
         const target = window.GameAPI.nearestTown();
         if (!target) return true;
+
+        // Ensure modals are closed to avoid movement gating
+        try {
+          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
+            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
+            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
+            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
+            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
+            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          }
+        } catch (_) {}
+
         const path = window.GameAPI.routeTo(target.x, target.y);
         if (!path || !path.length) return false;
         for (const step of path) {
-          const p = ctx.getPlayer();
-          const dx = Math.sign(step.x - p.x);
-          const dy = Math.sign(step.y - p.y);
+          const before = ctx.getPlayer();
+          const dx = Math.sign(step.x - before.x);
+          const dy = Math.sign(step.y - before.y);
           try { ctx.tryMovePlayer(dx, dy); } catch (_) {}
           await new Promise(r => setTimeout(r, 60));
+          const after = ctx.getPlayer();
+          if (after.x === before.x && after.y === before.y && window.GameAPI.getMode() === "world") {
+            // Movement likely gated; force-teleport to next step (walkable ring fallback inside teleportTo)
+            try { window.GameAPI.teleportTo(step.x, step.y, { ensureWalkable: true, fallbackScanRadius: 2 }); } catch (_) {}
+          }
         }
         return true;
       } catch (_) { return false; }
@@ -163,6 +219,16 @@ export function create(ctx) {
     // Context actions (robust): if not already on/adjacent, auto-route to nearest POI first
     enterTownIfOnTile: () => {
       try {
+        // Ensure modals are closed to avoid movement gating
+        try {
+          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
+            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
+            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
+            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
+            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
+            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          }
+        } catch (_) {}
         // Fast path
         if (ctx.enterTownIfOnTile && ctx.enterTownIfOnTile()) return true;
         // Only attempt routing in overworld
@@ -212,6 +278,16 @@ export function create(ctx) {
     },
     enterDungeonIfOnEntrance: () => {
       try {
+        // Ensure modals are closed to avoid movement gating
+        try {
+          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
+            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
+            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
+            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
+            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
+            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          }
+        } catch (_) {}
         // Fast path
         if (ctx.enterDungeonIfOnEntrance && ctx.enterDungeonIfOnEntrance()) return true;
         // Only attempt routing in overworld

@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.31 — Phase 5: Smoketest reliability — modal closing + immobile fallbacks
+- Changed: core/game_api.js
+  - moveStep(): if the player doesn’t move in world mode, performs a minimal walkability fallback to step onto the target tile and coalesces camera/UI/draw.
+  - gotoNearestTown/gotoNearestDungeon(): proactively close modals via UIBridge before routing; on each step, if movement is gated, force-teleport to the next step (walkable with small ring fallback).
+  - enterTownIfOnTile/enterDungeonIfOnEntrance(): proactively close modals via UIBridge before attempting fast-path entry or routing.
+- Benefit: Reduces “World movement test: immobile” flakes and further improves town/dungeon entry reliability in automation.
+- Deployment: (pending)
+
 v1.35.29 — Phase 5: Entry/Exit robustness (diagonals + near-exit)
 - Changed: core/modes.js
   - enterTownIfOnTile/enterDungeonIfOnEntrance now consider diagonal adjacency when stepping onto town/dungeon markers before entering. Improves reliability when markers are placed with limited cardinal access.
