@@ -100,6 +100,7 @@
           const prev = ctx.player.hp;
           ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal);
           ctx.log(`You rest until morning (${(ctx.time && ctx.time.hhmm) || "06:00"}). HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+          if (typeof ctx.updateUI === "function") ctx.updateUI();
         } else {
           ctx.log("You sit on the bench and rest a moment.", "info");
         }
@@ -171,7 +172,7 @@
       default:
         ctx.log("There's nothing special here.");
     }
-    ctx.requestDraw();
+    // No visual change; rely on HUD/log updates without forcing a draw
     return true;
   }
 

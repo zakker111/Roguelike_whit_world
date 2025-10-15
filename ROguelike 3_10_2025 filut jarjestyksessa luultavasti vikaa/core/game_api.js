@@ -353,7 +353,7 @@ export function create(ctx) {
     getClock: () => {
       try { return ctx.getClock(); } catch (_) { return { hhmm: "00:00", phase: "day", hours: 0, minutes: 0 }; }
     },
-    advanceMinutes: (mins) => { try { ctx.advanceTimeMinutes((Number(mins)||0)|0); ctx.updateUI(); ctx.requestDraw(); return true; } catch (_) { return false; } },
+    advanceMinutes: (mins) => { try { ctx.advanceTimeMinutes((Number(mins)||0)|0); ctx.updateUI(); return true; } catch (_) { return false; } },
     
     getPerf: () => {
       try {
@@ -382,8 +382,8 @@ export function create(ctx) {
         const e = enemies.find(en => (en.x|0) === nx && (en.y|0) === ny);
         if (!e || typeof e.hp !== "number") return false;
         e.hp = val;
-        ctx.updateUI(); ctx.requestDraw();
         return true;
+      } catch(_) { return false;turn true;
       } catch(_) { return false; }
     },
 

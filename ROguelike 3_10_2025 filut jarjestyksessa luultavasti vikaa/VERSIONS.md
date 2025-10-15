@@ -1,6 +1,16 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
+v1.35.19 — Phase 5: Coalesced HUD-only updates (GameAPI/Town props)
+- Changed: core/game_api.js
+  - advanceMinutes(mins) now updates HUD without forcing a redraw (canvas unchanged).
+  - setEnemyHpAt(x,y,hp) no longer triggers an immediate draw; reserved for visual changes.
+- Changed: worldgen/town_gen.js
+  - interactProps(ctx) no longer requests a draw after pure log messages.
+  - Bench rest now calls ctx.updateUI() after advancing time and healing to reflect HP/clock changes without forcing a redraw.
+- Benefit: fewer redundant frames during HUD-only changes; smoother logs and interactions.
+- Deployment: (pending)
+
 v1.35.18 — Phase 5: Draw coalescing for Actions/GOD logs
 - Changed: core/actions.js now avoids scheduling canvas redraws for pure log-only interactions (signs, props, tavern/shop messages, guidance) and reserves draws for actual visual changes (e.g., time advancement via Inn rest).
 - Changed: data/god.js coalesces UI updates:
