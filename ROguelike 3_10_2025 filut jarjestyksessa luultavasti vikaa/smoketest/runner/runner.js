@@ -544,6 +544,16 @@
               target = G.nearestTown();
             }
 
+            // New: prefer GameAPI.gotoNearestTown() if available (auto-walk to gate or town tile)
+            if (typeof G.gotoNearestTown === "function") {
+              try { await G.gotoNearestTown(); } catch (_) {}
+              // Refresh target after auto-walk
+              try {
+                if (typeof G.getTownGate === "function") target = G.getTownGate() || target;
+                else if (typeof G.nearestTown === "function") target = G.nearestTown() || target;
+              } catch (_) {}
+            }
+
             if (target) {
               // Prefer precise pathing to the exact tile (no bump travel)
               let routedExact = false;
