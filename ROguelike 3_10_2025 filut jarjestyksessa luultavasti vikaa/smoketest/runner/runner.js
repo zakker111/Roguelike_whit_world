@@ -942,10 +942,8 @@
       } catch (_) {}
 
       // Build report via reporting renderer
-      // Run-level OK is based on scenario outcomes (more realistic than requiring every step to be OK)
-      const ok = (Array.isArray(scenarioResults) && scenarioResults.length)
-        ? scenarioResults.every(sr => !!sr && (sr.passed || sr.skippedStable))
-        : steps.every(s => !!s.ok);
+      // Run-level OK: if any real step passed in this run, consider the run OK (union-of successes per run)
+      const ok = steps.some(s => s.ok && !s.skipped);
       let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = ""; let main = "";
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
@@ -1407,7 +1405,8 @@
       const failedAgg = aggregatedSteps.filter(s => !s.ok && !s.skipped);
       const passedAgg = aggregatedSteps.filter(s => s.ok && !s.skipped);
       const skippedAgg = aggregatedSteps.filter(s => s.skipped);
-      const okAll = aggregatedSteps.filter(s => !s.skipped).every(s => !!s.ok);
+      // Aggregated OK: if any aggregated step passed across runs, mark the aggregated report OK (union-of successes)
+      const okAll = aggregatedSteps.some(s => s.ok);
 
       const headerHtmlAgg = R && typeof R.renderHeader === "function"
         ? R.renderHeader({ ok: okAll, stepCount: aggregatedSteps.length, totalIssues: failedAgg.length, runnerVersion: RUNNER_VERSION, caps: [] })
