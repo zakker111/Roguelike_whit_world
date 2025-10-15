@@ -389,14 +389,40 @@
             const TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
             let target = null;
 
-            if (typeof G.nearestDungeon === "function") {
-              target = G.nearestDungeon();
+            function findDungeonEntranceTile() {
+              try {
+                // Prefer API
+                if (typeof G.nearestDungeon === "function") {
+                  const nd = G.nearestDungeon();
+                  if (nd && typeof nd.x === "number" && typeof nd.y === "number") return nd;
+                }
+                // Fallback: scan world map for DUNGEON tile
+                const worldObj = (typeof G.getWorld === "function") ? G.getWorld() : null;
+                const tiles = (window.World && window.World.TILES) ? window.World.TILES : (G.TILES || null);
+                if (worldObj && tiles && worldObj.map && worldObj.map.length) {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: 0, y: 0 };
+                  let best = null, bestD = Infinity;
+                  for (let y = 0; y < worldObj.map.length; y++) {
+                    const row = worldObj.map[y] || [];
+                    for (let x = 0; x < row.length; x++) {
+                      if (row[x] === tiles.DUNGEON) {
+                        const d = Math.abs(x - pl.x) + Math.abs(y - pl.y);
+                        if (d < bestD) { bestD = d; best = { x, y }; }
+                      }
+                    }
+                  }
+                  return best;
+                }
+              } catch (_) {}
+              return null;
             }
+
+            target = findDungeonEntranceTile();
 
             // Prefer auto-walk if available
             if (typeof G.gotoNearestDungeon === "function") {
               try { await G.gotoNearestDungeon(); } catch (_) {}
-              try { if (typeof G.nearestDungeon === "function") target = G.nearestDungeon() || target; } catch (_) {}
+              try { target = findDungeonEntranceTile() || target; } catch (_) {}
             }
 
             // If we have a target, try precise routing to the exact entrance first
@@ -533,22 +559,46 @@
             const MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
             const modeEnter = getMode();
             // In world, use nearestTown (gate tile on overworld). In other modes, use getTownGate if available.
-            if (modeEnter === "world" && typeof G.nearestTown === "function") {
-              target = G.nearestTown();
-            } else if (typeof G.getTownGate === "function") {
-              target = G.getTownGate();
+            function findTownTileOrGate() {
+              try {
+                // Prefer explicit gate
+                if (typeof G.getTownGate === "function") {
+                  const gt = G.getTownGate();
+                  if (gt && typeof gt.x === "number" && typeof gt.y === "number") return gt;
+                }
+                if (typeof G.nearestTown === "function") {
+                  const nt = G.nearestTown();
+                  if (nt && typeof nt.x === "number" && typeof nt.y === "number") return nt;
+                }
+                // Fallback: scan world map for TOWN tile
+                const worldObj = (typeof G.getWorld === "function") ? G.getWorld() : null;
+                const tiles = (window.World && window.World.TILES) ? window.World.TILES : (G.TILES || null);
+                if (worldObj && tiles && worldObj.map && worldObj.map.length) {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: 0, y: 0 };
+                  let best = null, bestD = Infinity;
+                  for (let y = 0; y < worldObj.map.length; y++) {
+                    const row = worldObj.map[y] || [];
+                    for (let x = 0; x < row.length; x++) {
+                      if (row[x] === tiles.TOWN) {
+                        const d = Math.abs(x - pl.x) + Math.abs(y - pl.y);
+                        if (d < bestD) { bestD = d; best = { x, y }; }
+                      }
+                    }
+                  }
+                  return best;
+                }
+              } catch (_) {}
+              return null;
             }
-            if (!target && typeof G.nearestTown === "function") {
-              target = G.nearestTown();
-            }
+
+            target = findTownTileOrGate();
 
             // New: prefer GameAPI.gotoNearestTown() if available (auto-walk to gate or town tile)
             if (typeof G.gotoNearestTown === "function") {
               try { await G.gotoNearestTown(); } catch (_) {}
               // Refresh target after auto-walk
               try {
-                if (typeof G.getTownGate === "function") target = G.getTownGate() || target;
-                else if (typeof G.nearestTown === "function") target = G.nearestTown() || target;
+                target = findTownTileOrGate() || target;
               } catch (_) {}
             }
 
