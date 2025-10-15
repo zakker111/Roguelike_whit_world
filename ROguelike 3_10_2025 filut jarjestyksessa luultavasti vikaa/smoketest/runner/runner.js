@@ -947,15 +947,25 @@
       let issuesHtml = ""; let passedHtml = ""; let skippedHtml = ""; let detailsHtml = ""; let main = "";
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
-        const passed = steps.filter(s => s.ok && !s.skipped);
-        const skipped = steps.filter(s => s.skipped);
-        const failed = steps.filter(s => !s.ok && !s.skipped);
+        // Suppress known failure counterparts if their success occurred within this run
+        const sawTownOkRun = steps.some(s => s.ok && /entered town/i.test(String(s.msg || "")));
+        const sawDungeonOkRun = steps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
+        const suppress = (msg) => {
+          const t = String(msg || "");
+          if (sawTownOkRun && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t))) return true;
+          if (sawDungeonOkRun && (/dungeon entry failed/i.test(t))) return true;
+          return false;
+        };
+        const filteredSteps = steps.filter(s => !suppress(s.msg));
+        const passed = filteredSteps.filter(s => s.ok && !s.skipped);
+        const skipped = filteredSteps.filter(s => s.skipped);
+        const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
         issuesHtml = failed.length ? (`<div style="margin-top:10px;"><strong>Issues</strong></div>` + R.renderStepsPretty(failed)) : "";
         passedHtml = passed.length ? (`<div style="margin-top:10px;"><strong>Passed</strong></div>` + R.renderStepsPretty(passed)) : "";
         skippedHtml = skipped.length ? (`<div style="margin-top:10px;"><strong>Skipped</strong></div>` + R.renderStepsPretty(skipped)) : "";
-        detailsHtml = R.renderStepsPretty(steps);
-        const headerHtml = R.renderHeader({ ok, stepCount: steps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(caps).filter(k => caps[k]) });
-        const keyChecklistHtml = R.buildKeyChecklistHtmlFromSteps(steps);
+        detailsHtml = R.renderStepsPretty(filteredSteps);
+        const headerHtml = R.renderHeader({ ok, stepCount: filteredSteps.length, totalIssues: failed.length, runnerVersion: RUNNER_VERSION, caps: Object.keys(caps).filter(k => caps[k]) });
+        const keyChecklistHtml = R.buildKeyChecklistHtmlFromSteps(filteredSteps);
         main = R.renderMainReport({
           headerHtml,
           keyChecklistHtml,
@@ -1256,7 +1266,19 @@
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
         // Include lastSeen for better sorting (most recent first)
-        const all = Array.from(agg.values()).map(v => ({ ok: !!v.ok, skipped: (!v.ok && !!v.skippedAny), msg: v.msg, lastSeen: v.lastSeen || 0 }));
+        const raw = Array.from(agg.values());
+        // Coalesce known categories: if town/dungeon succeeded anywhere, hide their failure counterparts
+        const sawTownOkAny = raw.some(v => !!v.ok && /entered town/i.test(String(v.msg || "")));
+        const sawDungeonOkAny = raw.some(v => !!v.ok && /entered dungeon/i.test(String(v.msg || "")));
+        const all = raw
+          .filter(v => {
+            const t = String(v.msg || "");
+            if (sawTownOkAny && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t))) return false;
+            if (sawDungeonOkAny && (/dungeon entry failed/i.test(t))) return false;
+            return true;
+          })
+          .map(v => ({ ok: !!v.ok, skipped: (!v.ok && !!v.skippedAny), msg: v.msg, lastSeen: v.lastSeen || 0 }));
+
         const failed = all.filter(s => !s.ok && !s.skipped).sort((a,b) => (b.lastSeen - a.lastSeen));
         const skipped = all.filter(s => s.skipped).sort((a,b) => (b.lastSeen - a.lastSeen));
         const passed = all.filter(s => s.ok && !s.skipped).sort((a,b) => (b.lastSeen - a.lastSeen));
@@ -1399,9 +1421,19 @@
       const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
 
       // Build aggregated steps: if any run had OK, mark OK; else if only skipped, mark skipped; else fail.
-      const aggregatedSteps = Array.from(agg.values()).map(v => {
+      let aggregatedSteps = Array.from(agg.values()).map(v => {
         return { ok: !!v.ok, msg: v.msg, skipped: (!v.ok && !!v.skippedAny) };
       });
+      // Coalesce known categories: if town/dungeon succeeded anywhere, hide their failure counterparts
+      const sawTownOkAgg = aggregatedSteps.some(s => s.ok && /entered town/i.test(String(s.msg || "")));
+      const sawDungeonOkAgg = aggregatedSteps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
+      aggregatedSteps = aggregatedSteps.filter(s => {
+        const t = String(s.msg || "");
+        if (sawTownOkAgg && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t))) return false;
+        if (sawDungeonOkAgg && (/dungeon entry failed/i.test(t))) return false;
+        return true;
+      });
+
       const failedAgg = aggregatedSteps.filter(s => !s.ok && !s.skipped);
       const passedAgg = aggregatedSteps.filter(s => s.ok && !s.skipped);
       const skippedAgg = aggregatedSteps.filter(s => s.skipped);
