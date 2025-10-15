@@ -1,6 +1,16 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.22 — Phase 5: Renderer micro-optimizations and responsive minimap
+- Changed: ui/render_town.js
+  - Introduced SHOP_GLYPHS cache keyed by shops reference; rebuild only when shops array changes.
+  - Avoids per-frame glyph map recomputation; maintains O(1) glyph lookup during draw.
+- Changed: ui/render_overworld.js
+  - Added TOWN_GLYPHS cache keyed by towns reference; rebuild only when towns list changes.
+  - Minimap now uses responsive size clamps (smaller max width/height on narrow screens) to reduce draw cost on mobile.
+- Benefit: Reduced CPU in hot draw paths by removing repeated map/glyph precomputations; improved small-screen performance for minimap.
+- Deployment: (pending)
+
 v1.35.21 — Phase 5: More draw coalescing (town bump-talk and closed-shop logs)
 - Changed: core/game.js
   - tryMovePlayer (town mode): removed canvas redraw after bump-talk fallback (“Excuse me!”). Pure log only.

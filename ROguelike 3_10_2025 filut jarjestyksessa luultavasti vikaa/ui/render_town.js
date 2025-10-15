@@ -9,6 +9,26 @@ import * as RenderOverlays from "./render_overlays.js";
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
 let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
+// Shop glyphs cache keyed by shops array reference
+let SHOP_GLYPHS_CACHE = { ref: null, map: {} };
+
+function rebuildShopGlyphs(shops) {
+  const out = {};
+  try {
+    if (Array.isArray(shops)) {
+      for (const s of shops) {
+        const nm = (s.name || "").toLowerCase();
+        const glyph = nm.includes("tavern") ? "T" : (nm.includes("inn") ? "I" : "S");
+        out[`${
+          s.x
+        },${
+          s.y
+        }`] = glyph;
+      }
+    }
+  } catch (_) {}
+  SHOP_GLYPHS_CACHE = { ref: shops, map: out };
+}
 
 export function draw(ctx, view) {
   const {
@@ -27,17 +47,11 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
-  // Precompute shop door glyphs (T/I/S) by coordinate for O(1) lookup
-  const SHOP_GLYPHS = {};
-  try {
-    if (Array.isArray(shops)) {
-      for (const s of shops) {
-        const nm = (s.name || "").toLowerCase();
-        const glyph = nm.includes("tavern") ? "T" : (nm.includes("inn") ? "I" : "S");
-        SHOP_GLYPHS[`${s.x},${s.y}`] = glyph;
-      }
-    }
-  } catch (_) {}
+  // Ensure shop glyphs cache is up to date
+  if (shops !== SHOP_GLYPHS_CACHE.ref) {
+    rebuildShopGlyphs(shops);
+  }
+  const SHOP_GLYPHS = SHOP_GLYPHS_CACHE.map;
 
   // Build base offscreen once per map/TILE change
   try {

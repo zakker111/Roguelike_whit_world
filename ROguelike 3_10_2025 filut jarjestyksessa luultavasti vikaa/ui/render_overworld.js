@@ -11,6 +11,28 @@ import * as World from "../world/world.js";
 let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0 };
 // World base layer offscreen cache (full map at TILE resolution)
 let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
+// Town glyphs cache keyed by towns array reference
+let TOWN_GLYPHS_CACHE = { ref: null, map: {} };
+
+function rebuildTownGlyphs(towns) {
+  const out = {};
+  try {
+    if (Array.isArray(towns)) {
+      for (const info of towns) {
+        let glyph = "T";
+        const sz = (info.size || "").toLowerCase();
+        if (sz === "small") glyph = "t";
+        else if (sz === "city") glyph = "C";
+        out[`${
+          info.x
+        },${
+          info.y
+        }`] = glyph;
+      }
+    }
+  } catch (_) {}
+  TOWN_GLYPHS_CACHE = { ref: towns, map: out };
+}
 
 export function draw(ctx, view) {
   const {
@@ -39,19 +61,12 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
-  // Precompute town glyphs lookup to avoid per-tile array scans
-  const TOWN_GLYPHS = {};
-  try {
-    if (ctx.world && Array.isArray(ctx.world.towns)) {
-      for (const info of ctx.world.towns) {
-        let glyph = "T";
-        const sz = (info.size || "").toLowerCase();
-        if (sz === "small") glyph = "t";
-        else if (sz === "city") glyph = "C";
-        TOWN_GLYPHS[`${info.x},${info.y}`] = glyph;
-      }
-    }
-  } catch (_) {}
+  // Ensure town glyphs cache is up to date
+  const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
+  if (towns !== TOWN_GLYPHS_CACHE.ref) {
+    rebuildTownGlyphs(towns);
+  }
+  const TOWN_GLYPHS = TOWN_GLYPHS_CACHE.map;
 
   // Build world base offscreen once per map/TILE change
   try {
@@ -184,7 +199,13 @@ export function draw(ctx, view) {
       const mw = ctx.world && ctx.world.width ? ctx.world.width : (map[0] ? map[0].length : 0);
       const mh = ctx.world && ctx.world.height ? ctx.world.height : map.length;
       if (mw && mh) {
-        const maxW = 200, maxH = 150;
+        // Responsive clamp for small screens
+        let maxW = 200, maxH = 150;
+        try {
+          if (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700) {
+            maxW = 120; maxH = 90;
+          }
+        } catch (_) {}
         const scale = Math.max(1, Math.floor(Math.min(maxW / mw, maxH / mh)));
         const wpx = mw * scale, hpx = mh * scale;
         const pad = 8;
