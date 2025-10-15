@@ -2067,7 +2067,6 @@
       } catch (_) {}
 
     // Release run lock
-    tryse run lock
     try { if (window.SmokeTest && window.SmokeTest.Runner) window.SmokeTest.Runner.RUN_LOCK = false; } catch (_) {}
 
     return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
