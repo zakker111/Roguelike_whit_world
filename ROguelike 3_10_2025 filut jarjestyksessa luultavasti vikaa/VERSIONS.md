@@ -14,7 +14,7 @@ v1.35.20 — Phase 5: Cleanup — remove redundant draws in HUD/log-only flows
 - Changed: data/god.js
   - spawnItems(ctx): removed requestDraw (HUD/inventory-only changes).
 - Benefit: fewer unnecessary frames; improved responsiveness during town/dungeon interactions that affect only HUD/logs.
-- Deployment: (pending)
+- Deployment: https://hs7fswoccl6i.cosine.page
 
 v1.35.19 — Phase 5: Coalesced HUD-only updates (GameAPI/Town props)
 - Changed: core/game_api.js
