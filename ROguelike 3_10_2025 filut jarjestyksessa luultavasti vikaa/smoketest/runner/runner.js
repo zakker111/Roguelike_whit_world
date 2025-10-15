@@ -268,6 +268,14 @@
         actions: [],
         timestamps: { start: Date.now() }
       };
+      try {
+        window.SmokeTest = window.SmokeTest || {};
+        window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+        window.SmokeTest.Runner.CUR_TRACE = trace;
+        window.SmokeTest.Runner.traceAction = function (act) {
+          try { if (act && trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
+        };
+      } catch (_) {}
 
       const skipOk = new Set((ctx && ctx.skipSteps) ? ctx.skipSteps : []);
       // Abort controls: if a critical condition like "immobile" occurs, abort this run early
@@ -608,7 +616,7 @@
                 const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
                 for (let a = 0; a < adj.length && getMode() !== "dungeon"; a++) {
                   await TP2.teleportTo(nd.x + adj[a].dx, nd.y + adj[a].dy, { ensureWalkable: true, fallbackScanRadius: 3 });
-                  try { act.teleports.push({ x: nd.x + adj[a].dx, y: nd.y + adj[a].dy, walkable: true, phase:0);
+                  try { act.teleports.push({ x: nd.x + adj[a].dx, y: nd.y + adj[a].dy, walkable: true, phase: "adj" }); } catch (_) {}
                   const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: nd.x, y: nd.y };
                   const dx = Math.sign(nd.x - pl.x);
                   const dy = Math.sign(nd.y - pl.y);

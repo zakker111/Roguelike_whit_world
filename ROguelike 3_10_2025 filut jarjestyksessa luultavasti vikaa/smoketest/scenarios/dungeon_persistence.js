@@ -226,9 +226,17 @@
           // Fallback: if still in dungeon, attempt a safe teleport-to-exit and leave with a short settle wait
           try {
             var TP = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport;
+            var exitTrace = { type: "dungeonExitHelper", attempted: false, success: false };
             if (has(window.GameAPI.getMode) && window.GameAPI.getMode() !== "world" && TP && typeof TP.teleportToDungeonExitAndLeave === "function") {
-              await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 500 });
+              exitTrace.attempted = true;
+              var okExit = await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 500 });
+              exitTrace.success = !!okExit;
             }
+            try {
+              if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+                window.SmokeTest.Runner.traceAction(exitTrace);
+              }
+            } catch (_) {}
           } catch (_) {}
 
           var m1 = has(window.GameAPI.getMode) ? window.GameAPI.getMode() : "";

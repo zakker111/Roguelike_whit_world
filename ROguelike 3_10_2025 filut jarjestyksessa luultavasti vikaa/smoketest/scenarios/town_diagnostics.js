@@ -387,6 +387,11 @@
         if (hadTimeout && window.GameAPI && has(window.GameAPI.getMode) && window.GameAPI.getMode() === "town" && TP && typeof TP.teleportToGateAndExit === "function") {
           var exited = await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 500 });
           record(exited, exited ? "Diagnostics timeout: exited town via teleport" : "Diagnostics timeout: failed to exit town");
+          try {
+            if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+              window.SmokeTest.Runner.traceAction({ type: "townExitHelper", timeoutTriggered: true, success: !!exited });
+            }
+          } catch (_) {}
         }
       } catch (_) {}
 
