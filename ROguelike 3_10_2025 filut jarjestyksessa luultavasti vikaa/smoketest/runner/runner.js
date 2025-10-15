@@ -607,7 +607,7 @@
 
           // Confirm mode transition; try a short settle wait first
           try {
-            await waitUntilTrue(() => { try { return (typeof G.getMode === "function" && G.getMode() === "dungeon"); } catch(_) { return false; } }, 1200, 80);
+            await waitUntilTrue(() => { try { return (typeof G.getMode === "function" && G.getMode() === "dungeon"); } catch(_) { return false; } }, 1800, 80);
           } catch (_) {}
           // If still not in dungeon, try adjacent teleports around target then 'g'
           let ok = (getMode() === "dungeon");
@@ -618,8 +618,14 @@
               if (nd && TP2 && typeof TP2.teleportTo === "function") {
                 const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
                 for (let a = 0; a < adj.length && getMode() !== "dungeon"; a++) {
-                  await TP2.teleportTo(nd.x + adj[a].dx, nd.y + adj[a].dy, { ensureWalkable: true, fallbackScanRadius: 3 });
-                  try { act.teleports.push({ x: nd.x + adj[a].dx, y: nd.y + adj[a].dy, walkable: true, phase: "adj" }); } catch (_) {}
+                  const ax = nd.x + adj[a].dx, ay = nd.y + adj[a].dy;
+                  let okAdj1 = !!(await TP2.teleportTo(ax, ay, { ensureWalkable: true, fallbackScanRadius: 3 }));
+                  try { act.teleports.push({ x: ax, y: ay, walkable: true, ok: !!okAdj1, phase: "adj" }); } catch (_) {}
+                  if (!okAdj1) {
+                    // Force-teleport ignoring walkability (e.g., NPC block)
+                    let okAdj2 = !!(await TP2.teleportTo(ax, ay, { ensureWalkable: false, fallbackScanRadius: 0 }));
+                    try { act.teleports.push({ x: ax, y: ay, walkable: false, ok: !!okAdj2, phase: "adj" }); } catch (_) {}
+                  }
                   const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: nd.x, y: nd.y };
                   const dx = Math.sign(nd.x - pl.x);
                   const dy = Math.sign(nd.y - pl.y);
@@ -804,7 +810,7 @@
 
           // Confirm mode transition; try a short settle wait first
           try {
-            await waitUntilTrue(() => { try { return (typeof G.getMode === "function" && G.getMode() === "town"); } catch(_) { return false; } }, 1200, 80);
+            await waitUntilTrue(() => { try { return (typeof G.getMode === "function" && G.getMode() === "town"); } catch(_) { return false; } }, 1800, 80);
           } catch (_) {}
           // If still not in town, try adjacent teleports around target then 'g'
           let ok = (getMode() === "town");
@@ -814,7 +820,14 @@
               if (TP2 && typeof TP2.teleportTo === "function" && target) {
                 const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
                 for (let a = 0; a < adj.length && getMode() !== "town"; a++) {
-                  await TP2.teleportTo(target.x + adj[a].dx, target.y + adj[a].dy, { ensureWalkable: true, fallbackScanRadius: 3 });
+                  const ax = target.x + adj[a].dx, ay = target.y + adj[a].dy;
+                  let okAdj1 = !!(await TP2.teleportTo(ax, ay, { ensureWalkable: true, fallbackScanRadius: 3 }));
+                  try { act.teleports.push({ x: ax, y: ay, walkable: true, ok: !!okAdj1, phase: "adj" }); } catch (_) {}
+                  if (!okAdj1) {
+                    // Force-teleport ignoring walkability (e.g., NPC block)
+                    let okAdj2 = !!(await TP2.teleportTo(ax, ay, { ensureWalkable: false, fallbackScanRadius: 0 }));
+                    try { act.teleports.push({ x: ax, y: ay, walkable: false, ok: !!okAdj2, phase: "adj" }); } catch (_) {}
+                  }
                   await sleep(160);
                   const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
                   const dx = Math.sign(target.x - pl.x);
@@ -886,6 +899,17 @@
           { name: "determinism", fn: avail.determinism },
         ];
       }
+      // Ensure diagnostics/persistence are included at least once even if not explicitly selected
+      try {
+        const names = new Set(pipeline.map(p => p.name));
+        const pers = (params && params.persistence) ? params.persistence : "once";
+        if (!names.has("town_diagnostics") && typeof avail.town_diagnostics === "function") {
+          pipeline.push({ name: "town_diagnostics", fn: avail.town_diagnostics });
+        }
+        if (pers !== "never" && !names.has("dungeon_persistence") && typeof avail.dungeon_persistence === "function") {
+          pipeline.push({ name: "dungeon_persistence", fn: avail.dungeon_persistence });
+        }
+      } catch (_) {}
 
       // Stream progress into GOD panel/status
       let Banner = null;
