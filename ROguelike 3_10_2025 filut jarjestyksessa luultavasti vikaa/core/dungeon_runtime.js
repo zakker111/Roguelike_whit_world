@@ -69,7 +69,6 @@ export function load(ctx, x, y) {
       ctx.updateCamera && ctx.updateCamera();
       ctx.recomputeFOV && ctx.recomputeFOV();
       ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
     return ok;
   }
@@ -79,7 +78,6 @@ export function load(ctx, x, y) {
       ctx.updateCamera && ctx.updateCamera();
       ctx.recomputeFOV && ctx.recomputeFOV();
       ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
     return ok;
   }
@@ -113,7 +111,6 @@ export function load(ctx, x, y) {
   ctx.recomputeFOV && ctx.recomputeFOV();
   ctx.updateCamera && ctx.updateCamera();
   ctx.updateUI && ctx.updateUI();
-  ctx.requestDraw && ctx.requestDraw();
   return true;
 }
 
@@ -157,7 +154,6 @@ export function generate(ctx, depth) {
     ctx.updateUI && ctx.updateUI();
     ctx.log && ctx.log("You explore the dungeon.");
     save(ctx, true);
-    ctx.requestDraw && ctx.requestDraw();
     return true;
   }
   // Fallback: flat-floor
@@ -177,7 +173,6 @@ export function generate(ctx, depth) {
   ctx.updateUI && ctx.updateUI();
   ctx.log && ctx.log("You explore the dungeon.");
   save(ctx, true);
-  ctx.requestDraw && ctx.requestDraw();
   return true;
 }
 
@@ -248,7 +243,6 @@ export function returnToWorldIfAtExit(ctx) {
   } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
   try { ctx.log && ctx.log("You climb back to the overworld.", "notice"); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 
   return true;
 }
@@ -446,7 +440,6 @@ export function enter(ctx, info) {
   try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
   try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 
   return true;
 }

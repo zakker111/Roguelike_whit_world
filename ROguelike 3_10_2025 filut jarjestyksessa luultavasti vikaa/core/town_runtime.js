@@ -19,11 +19,10 @@ export function generate(ctx) {
       if (typeof Tn.spawnGateGreeters === "function") {
         try { Tn.spawnGateGreeters(ctx, 0); } catch (_) {}
       }
-      // Post-gen camera/FOV/UI
+      // Post-gen camera/FOV/UI (draw coalesced by orchestrator)
       try { ctx.updateCamera(); } catch (_) {}
       try { ctx.recomputeFOV(); } catch (_) {}
       try { ctx.updateUI(); } catch (_) {}
-      try { ctx.requestDraw(); } catch (_) {}
       return true;
     }
   }
@@ -202,10 +201,10 @@ export function applyLeaveSync(ctx) {
     else centerCamera(ctx);
   } catch (_) { centerCamera(ctx); }
 
-  // Recompute FOV/UI and inform player
+  // Recompute FOV/UI and inform player (draw coalesced by orchestrator)
   try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}
+eturn to the overworld.", "notice"); } catch (_) {}
   try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 
   return true;

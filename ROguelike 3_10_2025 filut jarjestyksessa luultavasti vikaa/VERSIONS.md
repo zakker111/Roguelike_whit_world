@@ -1,6 +1,15 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.24 — Phase 5: Coalesced draws in runtimes (Dungeon/Town)
+- Changed: core/dungeon_runtime.js
+  - Removed requestDraw from load(), generate() (including fallback), returnToWorldIfAtExit(), and enter().
+  - Draw scheduling now centralized in core/game.js (applyCtxSyncAndRefresh and mode transitions).
+- Changed: core/town_runtime.js
+  - Removed requestDraw from generate() and applyLeaveSync(); orchestrator handles draw after sync.
+- Benefit: avoids redundant frames and keeps draw orchestration in one place for transitions and generation flows.
+- Deployment: (pending)
+
 v1.35.23 — Phase 5: More draw coalescing in dungeon guidance
 - Changed: core/game.js
   - lootCorpse() dungeon fallback removes requestDraw for guidance-only message (“Return to the entrance …”); canvas unchanged.
