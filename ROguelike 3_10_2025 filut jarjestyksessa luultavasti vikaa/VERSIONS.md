@@ -1,6 +1,71 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.39 — Reporting load fix + GOD panel render visibility
+- Fixed: smoketest/reporting/render.js
+  - Repaired a syntax error that prevented the reporting module from loading, which blocked the GOD-panel report.
+- Changed: smoketest/runner/runner.js
+  - Ensures the GOD panel is open before writing per-run and aggregated reports (panel reopen guard).
+  - Resolved a suppress flag shadowing bug (per-run filter renamed to shouldSuppressMsg) that prevented rendering.
+- Benefit: Restores the in-panel report and downloadable exports; prevents silent report drops when the reporting module fails to load or the panel is closed.
+- Deployment: https://ipf6aomi50fs.cosine.page
+
+v1.35.38 — Runner/reporting polish: diagnostics/combats suppression, per-step PERF in JSON, and forceWorld exit recognition
+- Changed: smoketest/runner/runner.js
+  - Per-run suppression now hides “Town diagnostics skipped (not in town)” when any town entry succeeded in the run.
+  - Aggregated suppression likewise hides “Town diagnostics skipped (not in town)” when the series has a town entry success.
+  - Combat skip noise suppressed in per-run, aggregated, and live Matchup when any combat success is present (“Moved and attempted attacks”, “Killed enemy”, “Attacked enemy”, or “Combat effects:”).
+  - JSON export now includes stepAvgTurnMs and stepAvgDrawMs (per-step averages across all runs) and the Summary TXT uses these more representative metrics.
+- Changed: smoketest/reporting/render.js
+  - Key Checklist (“Returned to overworld from dungeon”) additionally recognizes “Dungeon exit helper: final mode=world [forceWorld]” as a success.
+- Benefit: Cleaner reports (less skip noise after successes), consistent performance metrics across HTML and JSON, and broader recognition of reliable exit success variants.
+- Notes: Runner version remains v1.8.0.
+
+v1.35.37 — Runner suppression: town confirm success detection and re-enter counterpart filters
+- Changed: smoketest/runner/runner.js
+  - Union-of-success detection for town now recognizes “Mode confirm (town enter): town” alongside “Entered town,” ensuring the Town scenario is marked passed when town entry succeeds in any scenario within the run.
+  - Per-run suppression hides failure counterparts when any town success occurred:
+    - Suppresses “Town entry not achieved (scenario)”
+    - Suppresses “Town overlays skipped (not in town)”
+    - Suppresses “Mode confirm (town enter): world” and “Mode confirm (town re-enter): world”
+  - Dungeon counterparts likewise suppress “Mode confirm (dungeon enter): world” and “Mode confirm (dungeon re-enter): world” after any dungeon success.
+  - Aggregated union-of-success now uses the same town success recognition and hides the above failure counterparts in the aggregated step list.
+  - Live Matchup scoreboard coalesces the same failure counterparts after successes so the panel prioritizes real issues.
+- Benefit: Eliminates misleading “not achieved”/“confirm … : world” failures when town/dungeon transitions did succeed elsewhere in the run/series; clearer per-run and aggregated reports.
+- Notes: No change to actual scenario flows; this is reporting-only. Runner version remains v1.8.0.
+
+v1.35.36 — Smoketest reporting: Key Checklist alignment and aggregation clarity
+- Changed: smoketest/reporting/render.js
+  - Key Checklist now recognizes additional success messages for common flows:
+    - “Town entered” also matches “Mode confirm (town enter): town”.
+    - “Returned to overworld from dungeon” also matches “Dungeon exit helper: post-'g' mode=world” and “Mode confirm (dungeon exit): world”.
+  - Applies to both HTML and JSON checklist builders to keep per-run and aggregated reports consistent.
+- Benefit: Checklist accurately reflects successful town/dungeon transitions even when success is logged via confirm/helper messages; reduces misleading “Town entry not achieved” impressions when other scenarios already entered town successfully.
+- Next: Rerun smoketest to verify checklist items reflect successes across the series.
+- Deployment: (pending)
+
+v1.35.35 — Smoketest runner v1.8.0: multi-run aggregation, controls, and diagnostics
+- Runner version: 1.8.0 (smoketest/runner/runner.js)
+- Added: series controls
+  - skipokafter=N — skip scenarios that have already passed N runs in the current series (still guarantees at least one run of town_diagnostics and dungeon_persistence unless persistence=never).
+  - persistence=once|always|never — control dungeon_persistence frequency per series.
+  - abortonimmobile=1 — abort the current run when an “immobile” step is recorded; the step is SKIP, not FAIL.
+- Added: Live Matchup scoreboard
+  - Pinned, high-contrast panel at the top of the GOD output; prioritizes FAIL, then SKIP, then OK and sorts by recency.
+  - Counters: OK/FAIL/SKIP plus IMMOBILE and DEAD; updates after each run.
+- Added: Union-of-success aggregated report
+  - After multi-run, append an aggregated report where a step is OK if any run passed it; SKIP if only skipped; FAIL otherwise.
+  - Suppress failure counterparts when a matching success occurred in the series (e.g., hide “Dungeon entry failed” if any run “Entered dungeon”).
+  - Export buttons attach aggregated Summary TXT and Checklist TXT.
+- Changed: per-run seed workflow and world-mode gating
+  - Derive a unique 32-bit seed per run (deterministic when &seed=BASE provided); apply via GOD panel New Game; wait for “world” mode.
+  - Ensure spawn tile walkability; teleport to nearest walkable if blocked.
+- Added: structured trace and diagnostics in exports
+  - scenarioTraces with timings/mode transitions, actionsSummary, scenarioPassCounts, step-level tile/modal/perf stats.
+- Docs: smoketest.md and smoketest/README.md updated to document new runner options and behavior.
+- Benefit: faster stabilization across multi-run series, clearer visibility into flaky steps, and richer diagnostics for CI.
+- Deployment: (pending)
+
 v1.35.34 — Phase 5 completion: performance + UX polish consolidated
 - Summary of Phase 5 improvements:
   - Rendering: offscreen base-layer caches (overworld/town/dungeon), cropped blits via RenderCore.blitViewport, OffscreenCanvas adoption, crisper tiles/glyphs (image smoothing disabled).

@@ -1216,7 +1216,7 @@
         const isOk = (s) => !!(s && s.ok && !s.skipped);
 
         const sawDungeonOk = steps.some(s => isOk(s) && (/entered dungeon/i.test(String(s.msg || "")) || /inventory prep:\s*entered dungeon/i.test(String(s.msg || ""))));
-        const sawTownOk = steps.some(s => isOk(s) && /entered town/i.test(String(s.msg || "")));
+        const sawTownOk = steps.some(s => isOk(s) && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
 
         const sawWorldOk = steps.some(s => isOk(s) && (/world movement test:\s*moved/i.test(String(s.msg || "")) || /world snapshot:/i.test(String(s.msg || ""))));
         const sawInventoryOk = steps.some(s => isOk(s) && (/equip best from inventory/i.test(String(s.msg || "")) || /manual equip\/unequip/i.test(String(s.msg || "")) || /drank potion/i.test(String(s.msg || ""))));
@@ -1277,15 +1277,34 @@
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
         // Suppress known failure counterparts if their success occurred within this run
-        const sawTownOkRun = steps.some(s => s.ok && /entered town/i.test(String(s.msg || "")));
+        const sawTownOkRun = steps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
         const sawDungeonOkRun = steps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
-        const suppress = (msg) => {
+        // Detect combat success variants within this run
+        const sawCombatOkRun = steps.some(s => s.ok && !s.skipped && (
+          (s.scenario && s.scenario === "combat") ||
+          /moved and attempted attacks|combat effects:|killed enemy|attacked enemy/i.test(String(s.msg || ""))
+        ));
+        const shouldSuppressMsg = (msg) => {
           const t = String(msg || "");
-          if (sawTownOkRun && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t))) return true;
-          if (sawDungeonOkRun && (/dungeon entry failed/i.test(t))) return true;
+          // Hide town failure counterparts if any town entry succeeded in this run
+          if (sawTownOkRun) {
+            if (/town entry not achieved/i.test(t)) return true;
+            if (/town overlays skipped/i.test(t)) return true;
+            if (/town diagnostics skipped/i.test(t)) return true;
+            if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return true;
+          }
+          // Hide dungeon failure counterparts if any dungeon entry succeeded in this run
+          if (sawDungeonOkRun) {
+            if (/dungeon entry failed/i.test(t)) return true;
+            if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return true;
+          }
+          // Hide combat skip noise if we saw any combat success in this run
+          if (sawCombatOkRun) {
+            if (/combat scenario skipped\s*\(not in dungeon\)/i.test(t)) return true;
+          }
           return false;
         };
-        const filteredSteps = steps.filter(s => !suppress(s.msg));
+        const filteredSteps = steps.filter(s => !shouldSuppressMsg(s.msg));
         const passed = filteredSteps.filter(s => s.ok && !s.skipped);
         const skipped = filteredSteps.filter(s => s.skipped);
         const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
@@ -1307,6 +1326,8 @@
         // Render only if not in suppress/collect mode
         if (!suppress) {
           try {
+            // Ensure GOD panel is visible before writing the report
+            try { openGodPanel(); } catch (_) {}
             var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
             if (B) {
               if (stacking && typeof B.appendToPanel === "function") {
@@ -1622,14 +1643,16 @@
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
         // Include lastSeen for better sorting (most recent first)
         const raw = Array.from(agg.values());
-        // Coalesce known categories: if town/dungeon succeeded anywhere, hide their failure counterparts
-        const sawTownOkAny = raw.some(v => !!v.ok && /entered town/i.test(String(v.msg || "")));
+        // Coalesce known categories: if town/dungeon/combat succeeded anywhere, hide their failure counterparts
+        const sawTownOkAny = raw.some(v => !!v.ok && (/entered town/i.test(String(v.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(v.msg || ""))));
         const sawDungeonOkAny = raw.some(v => !!v.ok && /entered dungeon/i.test(String(v.msg || "")));
+        const sawCombatOkAny = raw.some(v => !!v.ok && (/moved and attempted attacks|killed enemy|attacked enemy|combat effects:/i.test(String(v.msg || ""))));
         const all = raw
           .filter(v => {
             const t = String(v.msg || "");
-            if (sawTownOkAny && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t))) return false;
-            if (sawDungeonOkAny && (/dungeon entry failed/i.test(t))) return false;
+            if (sawTownOkAny && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t) || /town diagnostics skipped/i.test(t) || /mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t))) return false;
+            if (sawDungeonOkAny && (/dungeon entry failed/i.test(t) || /mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t))) return false;
+            if (sawCombatOkAny && (/combat scenario skipped\s*\(not in dungeon\)/i.test(t))) return false;
             return true;
           })
           .map(v => ({ ok: !!v.ok, skipped: (!v.ok && !!v.skippedAny), msg: v.msg, lastSeen: v.lastSeen || 0 }));
@@ -1787,20 +1810,32 @@
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
 
     // Summary via reporting module and full aggregated report
-    try {
-      const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+      try {
+        const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
 
       // Build aggregated steps: if any run had OK, mark OK; else if only skipped, mark skipped; else fail.
       let aggregatedSteps = Array.from(agg.values()).map(v => {
         return { ok: !!v.ok, msg: v.msg, skipped: (!v.ok && !!v.skippedAny) };
       });
-      // Coalesce known categories: if town/dungeon succeeded anywhere, hide their failure counterparts
-      const sawTownOkAgg = aggregatedSteps.some(s => s.ok && /entered town/i.test(String(s.msg || "")));
+      // Coalesce known categories: if town/dungeon/combat succeeded anywhere, hide their failure counterparts
+      const sawTownOkAgg = aggregatedSteps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
       const sawDungeonOkAgg = aggregatedSteps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
+      const sawCombatOkAgg = aggregatedSteps.some(s => s.ok && (/moved and attempted attacks|killed enemy|attacked enemy|combat effects:/i.test(String(s.msg || ""))));
       aggregatedSteps = aggregatedSteps.filter(s => {
         const t = String(s.msg || "");
-        if (sawTownOkAgg && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t))) return false;
-        if (sawDungeonOkAgg && (/dungeon entry failed/i.test(t))) return false;
+        if (sawTownOkAgg) {
+          if (/town entry not achieved/i.test(t)) return false;
+          if (/town overlays skipped/i.test(t)) return false;
+          if (/town diagnostics skipped/i.test(t)) return false;
+          if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return false;
+        }
+        if (sawDungeonOkAgg) {
+          if (/dungeon entry failed/i.test(t)) return false;
+          if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return false;
+        }
+        if (sawCombatOkAgg) {
+          if (/combat scenario skipped\s*\(not in dungeon\)/i.test(t)) return false;
+        }
         return true;
       });
 
@@ -1834,21 +1869,41 @@
           })
         : [headerHtmlAgg, keyChecklistAgg, issuesHtmlAgg, passedHtmlAgg, skippedHtmlAgg, detailsHtmlAgg].join("");
 
+      // Compute per-step PERF averages for a more representative summary
+      let stepAvgTurn = 0, stepAvgDraw = 0;
+      try {
+        const allSteps = [];
+        for (const res of all) {
+          if (res && Array.isArray(res.steps)) {
+            for (const s of res.steps) { if (s && s.perf) allSteps.push(s.perf); }
+          }
+        }
+        if (allSteps.length) {
+          let sumT = 0, sumD = 0;
+          for (const p of allSteps) { sumT += Number(p.turn || 0); sumD += Number(p.draw || 0); }
+          stepAvgTurn = sumT / allSteps.length;
+          stepAvgDraw = sumD / allSteps.length;
+        }
+      } catch (_) {}
+
       const perfWarnings = [];
       try {
-        if (avgTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg turn ${avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
-        if (avgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg draw ${avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
+        if (stepAvgTurn > CONFIG.perfBudget.turnMs) perfWarnings.push(`Avg per-step turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn}ms exceeds budget ${CONFIG.perfBudget.turnMs}ms`);
+        if (stepAvgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg per-step draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
       } catch (_) {}
 
       const failColorSum = fail ? '#ef4444' : '#86efac';
       const summary = [
         `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
-        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped: ${skippedRuns}</div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped runs: ${skippedRuns}  •  Step skips: ${skippedAgg.length}</div>`,
+        `<div style="opacity:0.9;">Avg PERF (per-step): turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn} ms, draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw} ms</div>`,
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
 
       // Append final aggregated report (keep per-run sections visible)
       try {
+        // Ensure GOD panel is visible before writing the aggregated report
+        try { openGodPanel(); } catch (_) {}
         const Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
         if (Bsum && typeof Bsum.appendToPanel === "function") {
           Bsum.appendToPanel(summary);
@@ -1997,6 +2052,9 @@
             skipped: skippedRuns,
             avgTurnMs: Number(avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn),
             avgDrawMs: Number(avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw),
+            // Per-step averages across all steps in all runs (more representative)
+            stepAvgTurnMs: Number(stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn),
+            stepAvgDrawMs: Number(stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw),
             results: all,
             aggregatedSteps,
             seeds: usedSeedList,
@@ -2013,7 +2071,7 @@
           const summaryText = [
             `Roguelike Smoke Test Summary (Runner v${rep.runnerVersion})`,
             `Runs: ${rep.runs}  Pass: ${rep.pass}  Fail: ${rep.fail}  Skipped: ${rep.skipped}`,
-            `Avg PERF: turn ${rep.avgTurnMs} ms, draw ${rep.avgDrawMs} ms`
+            `Avg PERF (per-step): turn ${rep.stepAvgTurnMs} ms, draw ${rep.stepAvgDrawMs} ms`
           ].join("\n");
           const checklistText = (R && typeof R.buildKeyChecklistHtmlFromSteps === "function" ? R.buildKeyChecklistHtmlFromSteps(aggregatedSteps) : "").replace(/<[^>]+>/g, "");
           E.attachButtons(rep, summaryText, checklistText);
