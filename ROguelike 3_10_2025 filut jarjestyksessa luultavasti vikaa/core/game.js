@@ -856,8 +856,15 @@
     const modeChanged = (mode !== _lastMode);
     const mapChanged = (rows !== _lastMapRows) || (cols !== _lastMapCols);
 
-    // Skip recompute when nothing relevant changed (applies to all modes, including world).
-    // World mode keeps entire map visible; avoid re-filling arrays every turn when unchanged.
+    // In overworld, visible/seen are fully true; only recompute when mode or map shape changed.
+    // This avoids re-filling arrays on every movement turn.
+    if (mode === "world" && !modeChanged && !mapChanged) {
+      _lastPlayerX = player.x; _lastPlayerY = player.y;
+      _lastFovRadius = fovRadius; _lastMode = mode;
+      _lastMapCols = cols; _lastMapRows = rows;
+      return;
+    }
+    // Non-world: skip recompute when nothing relevant changed.
     if (!modeChanged && !mapChanged && !fovChanged && !moved) {
       return;
     }

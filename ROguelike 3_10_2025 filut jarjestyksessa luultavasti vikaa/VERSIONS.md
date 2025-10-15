@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.33 — Phase 5: World-mode FOV recompute skip on movement
+- Changed: core/game.js
+  - recomputeFOV(): in overworld, now skips recompute on movement; only recomputes when mode or map shape changes. Updates cache and returns early to avoid per-turn seen/visible refills.
+- Benefit: reduces per-turn overhead in world mode while keeping visuals identical.
+- Deployment: (pending)
+
 v1.35.32 — Phase 5: Action-level DOM coalescing (inventory render only if open)
 - Changed: core/game.js
   - drinkPotionByIndex(): now re-renders inventory only when the panel is open (rerenderInventoryIfOpen), avoiding unnecessary DOM work.
