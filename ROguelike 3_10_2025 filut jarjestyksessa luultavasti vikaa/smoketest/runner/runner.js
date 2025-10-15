@@ -803,6 +803,20 @@
                 await sleep(280);
                 try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
                 await sleep(280);
+                // Fallback: if still not in town, call Modes.enterTownIfOnTile directly with ctx
+                if (getMode() !== "town") {
+                  try {
+                    const Modes = (typeof window !== "undefined" && window.Modes) ? window.Modes : null;
+                    const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
+                    if (Modes && typeof Modes.enterTownIfOnTile === "function" && ctxG) {
+                      const okModes = !!Modes.enterTownIfOnTile(ctxG);
+                      if (okModes) {
+                        // Refresh camera/UI immediately after mode change
+                        try { G.updateCamera && G.updateCamera(); G.recomputeFOV && G.recomputeFOV(); G.updateUI && G.updateUI(); G.requestDraw && G.requestDraw(); } catch (_) {}
+                      }
+                    }
+                  } catch (_) {}
+                }
                 if (getMode() === "town") break;
               }
             }
@@ -838,6 +852,19 @@
                   await sleep(240);
                   try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
                   await sleep(240);
+                  // Fallback via Modes if still not in town
+                  if (getMode() !== "town") {
+                    try {
+                      const Modes = (typeof window !== "undefined" && window.Modes) ? window.Modes : null;
+                      const ctxG = (typeof G.getCtx === "function") ? G.getCtx() : null;
+                      if (Modes && typeof Modes.enterTownIfOnTile === "function" && ctxG) {
+                        const okModesAdj = !!Modes.enterTownIfOnTile(ctxG);
+                        if (okModesAdj) {
+                          try { G.updateCamera && G.updateCamera(); G.recomputeFOV && G.recomputeFOV(); G.updateUI && G.updateUI(); G.requestDraw && G.requestDraw(); } catch (_) {}
+                        }
+                      }
+                    } catch (_) {}
+                  }
                 }
               }
             } catch (_) {}

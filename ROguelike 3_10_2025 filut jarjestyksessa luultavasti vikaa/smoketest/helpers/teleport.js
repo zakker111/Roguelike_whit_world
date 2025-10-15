@@ -122,6 +122,19 @@
           } catch(_) {}
         }
 
+        // Debug: report tile underfoot and onGate status before attempting exit
+        try {
+          const ctxG = has(G.getCtx) ? G.getCtx() : null;
+          const WT = (ctxG && ctxG.World && ctxG.World.TILES) ? ctxG.World.TILES : null;
+          const plHere = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
+          let tileStr = "(unknown)";
+          if (ctxG && WT && ctxG.world && ctxG.world.map && ctxG.world.map[plHere.y] && typeof ctxG.world.map[plHere.y][plHere.x] !== "undefined") {
+            const t = ctxG.world.map[plHere.y][plHere.x];
+            tileStr = (t === WT.TOWN ? "TOWN" : (t === WT.DUNGEON ? "DUNGEON" : "walkable"));
+          }
+          record(true, "Town exit helper: onGate=" + (isOnGate() ? "YES" : "NO") + " tile=" + tileStr + " at " + plHere.x + "," + plHere.y);
+        } catch (_) {}
+
         // Press 'g' and use API fallback; then confirm world
         try { key("g"); act.gPresses += 1; } catch (_) {}
         await sleep(waitMs);
@@ -141,6 +154,18 @@
           if (has(G.forceWorld)) { G.forceWorld(); act.usedForceWorld = true; await sleep(waitMs); }
         } catch (_) {}
         modeNow = has(G.getMode) ? G.getMode() : "";
+        if (modeNow !== "world") {
+          // As a last resort, call Modes.leaveTownNow on ctx directly (bypasses GameAPI)
+          try {
+            const ctxG = has(G.getCtx) ? G.getCtx() : null;
+            const Modes = (typeof window !== "undefined" && window.Modes) ? window.Modes : null;
+            if (ctxG && Modes && typeof Modes.leaveTownNow === "function") {
+              Modes.leaveTownNow(ctxG);
+              await sleep(waitMs);
+              modeNow = has(G.getMode) ? G.getMode() : modeNow;
+            }
+          } catch (_) {}
+        }
         act.endMode = modeNow; act.success = (modeNow === "world"); trace(act);
         record(act.success, "Town exit helper: final mode=" + modeNow + (act.usedForceWorld ? " [forceWorld]" : ""));
         return modeNow === "world";
