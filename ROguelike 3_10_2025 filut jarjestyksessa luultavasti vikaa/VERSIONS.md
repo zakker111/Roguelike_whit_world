@@ -1,6 +1,17 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.38 — Runner/reporting polish: diagnostics/combats suppression, per-step PERF in JSON, and forceWorld exit recognition
+- Changed: smoketest/runner/runner.js
+  - Per-run suppression now hides “Town diagnostics skipped (not in town)” when any town entry succeeded in the run.
+  - Aggregated suppression likewise hides “Town diagnostics skipped (not in town)” when the series has a town entry success.
+  - Combat skip noise suppressed in per-run, aggregated, and live Matchup when any combat success is present (“Moved and attempted attacks”, “Killed enemy”, “Attacked enemy”, or “Combat effects:”).
+  - JSON export now includes stepAvgTurnMs and stepAvgDrawMs (per-step averages across all runs) and the Summary TXT uses these more representative metrics.
+- Changed: smoketest/reporting/render.js
+  - Key Checklist (“Returned to overworld from dungeon”) additionally recognizes “Dungeon exit helper: final mode=world [forceWorld]” as a success.
+- Benefit: Cleaner reports (less skip noise after successes), consistent performance metrics across HTML and JSON, and broader recognition of reliable exit success variants.
+- Notes: Runner version remains v1.8.0.
+
 v1.35.37 — Runner suppression: town confirm success detection and re-enter counterpart filters
 - Changed: smoketest/runner/runner.js
   - Union-of-success detection for town now recognizes “Mode confirm (town enter): town” alongside “Entered town,” ensuring the Town scenario is marked passed when town entry succeeds in any scenario within the run.
