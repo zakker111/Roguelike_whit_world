@@ -1163,7 +1163,7 @@
             const sSkip = during.filter(s => s.skipped).map(s => String(s.msg || ""));
             const observedModes = Array.from(new Set(during.map(s => String(s.mode || "")))).filter(Boolean);
             const modeTransitions = [];
-            let lastMode = startMode;
+            let lastMode = __scenarioStartMode;
             during.forEach((s) => {
               const m = String(s.mode || "");
               if (m && m !== lastMode) {
@@ -1171,15 +1171,15 @@
                 lastMode = m;
               }
             });
-            scenarioTraces.push({
+            trace.scenarioTraces.push({
               name: step.name,
-              startedMode: startMode,
+              startedMode: __scenarioStartMode,
               endedMode: lastMode,
               stepCount: during.length,
               passes: sPass,
               fails: sFail,
               skipped: sSkip,
-              startedAt: during.length ? during[0].ts : trace.timestamps.start,
+              startedAt: during.length ? during[0].ts : __scenarioStartTs,
               endedAt: during.length ? during[during.length - 1].ts : Date.now(),
               durationMs: (during.length ? (during[during.length - 1].ts - during[0].ts) : 0) | 0,
               observedModes,
@@ -1201,34 +1201,9 @@
             });
           } catch (_) {}
         } catch (_) {}
-              }
-            } catch (_) {}
-
-            const sTrace = {
-              name: step.name,
-              startedMode: __scenarioStartMode,
-              endedMode: endMode,
-              stepCount: during.length,
-              passes: sPass,
-              fails: sFail,
-              skipped: sSkip,
-              startedAt: __scenarioStartTs,
-              endedAt: endedAt,
-              durationMs: Math.max(0, endedAt - __scenarioStartTs),
-              observedModes: modesSeen,
-              tsFirst,
-              tsLast,
-              avgStepDeltaMs,
-              maxStepDeltaMs,
-              modeTransitions
-            };
-            trace.scenarioTraces.push(sTrace);
-          } catch (_) {}
-        } catch (_) {}
-      }
-
-      // Adjust scenario pass/fail based on union-of successes within the same run (remove false negatives)
-      try {
+      
+      // Adjust scenario pass/fail based on union-of successes within the same run (remove false negatives</)
+  try {
         const has = (rx) => (s) => { try { return rx.test(String(s.msg || "")); } catch (_) { return false; } };
         const isOk = (s) => !!(s && s.ok && !s.skipped);
 
