@@ -11,6 +11,9 @@ export function create(ctx) {
     getWorld: () => {
       try { return ctx.getWorld(); } catch (_) { return null; }
     },
+    getCtx: () => {
+      try { return (typeof ctx.getCtx === "function") ? ctx.getCtx() : ctx; } catch (_) { return null; }
+    },
     getPlayer: () => {
       try { const p = ctx.getPlayer(); return { x: p.x, y: p.y }; } catch (_) { return { x: 0, y: 0 }; }
     },
