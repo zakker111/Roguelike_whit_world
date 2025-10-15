@@ -383,113 +383,111 @@
             }
           }
 
-          // Route to a tile adjacent to the dungeon entrance
+          // Route to or teleport onto the dungeon entrance, then enter
           try {
             const MV = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement) || null;
+            const TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
             let target = null;
 
             if (typeof G.nearestDungeon === "function") {
               target = G.nearestDungeon();
             }
+
+            // Prefer auto-walk if available
             if (typeof G.gotoNearestDungeon === "function") {
-              // Some implementations auto-walk and land the player onto/near the entrance
-              await G.gotoNearestDungeon();
-            } else if (target && MV && typeof MV.routeAdjTo === "function") {
-              await MV.routeAdjTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
-            } else if (target && typeof G.routeTo === "function") {
-              // Fallback: compute an adjacent target and key-walk
-              const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-              for (const d of adj) {
-                const ax = target.x + d.dx, ay = target.y + d.dy;
-                const path = G.routeTo(ax, ay) || [];
-                for (const st of path) {
-                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
-                  const dx = Math.sign(st.x - pl.x);
-                  const dy = Math.sign(st.y - pl.y);
-                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                  await sleep(80);
-                }
-                if (path && path.length) break;
-              }
+              try { await G.gotoNearestDungeon(); } catch (_) {}
+              try { if (typeof G.nearestDungeon === "function") target = G.nearestDungeon() || target; } catch (_) {}
             }
 
-            // Final bump to step onto the entrance tile; verify tile underfoot/adjacent
-            if (target) {
-              try {
-                const tiles = (window.World && window.World.TILES) ? window.World.TILES : null;
-                const worldObj = (typeof G.getWorld === "function") ? G.getWorld() : null;
-                const isOnTarget = () => {
-                  try {
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
-                    return !!(pl && pl.x === target.x && pl.y === target.y);
-                  } catch (_) { return false; }
-                };
-                const onDungeonTileOrAdj = () => {
-                  try {
-                    if (!worldObj || !tiles) return false;
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
-                    if (!pl) return false;
-                    const tileHere = (worldObj.map && worldObj.map[pl.y]) ? worldObj.map[pl.y][pl.x] : null;
-                    if (tileHere === tiles.DUNGEON) return true;
-                    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-                    for (const d of dirs) {
-                      const nx = pl.x + d.dx, ny = pl.y + d.dy;
-                      const t = (worldObj.map && worldObj.map[ny]) ? worldObj.map[ny][nx] : null;
-                      if (t === tiles.DUNGEON) return true;
-                    }
-                    return false;
-                  } catch (_) { return false; }
-                };
+            // If we have a target, try precise routing to the exact entrance first
+            let routedExact = false;
+            try {
+              if (target && MV && typeof MV.routeTo === "function") {
+                routedExact = await MV.routeTo(target.x, target.y, { timeoutMs: 5000, stepMs: 90 });
+              }
+            } catch (_) {}
 
-                if (!isOnTarget()) {
-                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
-                  else {
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+            // If routing didn’t land us on entrance, use teleport helpers to land exactly there
+            if (target && TP && typeof TP.teleportTo === "function" && !routedExact) {
+              // Try walkable teleport first; if blocked by NPCs, force-teleport
+              let tpOk = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: true, fallbackScanRadius: 4 }));
+              if (!tpOk) {
+                tpOk = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }));
+              }
+              // Single nudge if adjacent
+              if (!tpOk) {
+                try {
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                  if (Math.abs(pl.x - target.x) + Math.abs(pl.y - target.y) === 1) {
                     const dx = Math.sign(target.x - pl.x);
                     const dy = Math.sign(target.y - pl.y);
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                    await sleep(120);
                   }
-                  await sleep(120);
-                }
+                } catch (_) {}
+              }
+            }
 
-                if (!isOnTarget() && !onDungeonTileOrAdj()) {
-                  if (MV && typeof MV.routeTo === "function") {
-                    await MV.routeTo(target.x, target.y, { timeoutMs: 1600, stepMs: 80 });
-                  } else if (typeof G.routeTo === "function") {
-                    const pathExact = G.routeTo(target.x, target.y) || [];
-                    for (const st of pathExact) {
+            // Final fallback: route adjacent if exact landing isn’t achieved
+            if (target && !routedExact) {
+              try {
+                if (MV && typeof MV.routeAdjTo === "function") {
+                  await MV.routeAdjTo(target.x, target.y, { timeoutMs: 2000, stepMs: 90 });
+                } else if (typeof G.routeTo === "function") {
+                  const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                  for (const d of adj) {
+                    const ax = target.x + d.dx, ay = target.y + d.dy;
+                    const path = G.routeTo(ax, ay) || [];
+                    for (const st of path) {
                       const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : st;
                       const dx = Math.sign(st.x - pl.x);
                       const dy = Math.sign(st.y - pl.y);
                       key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
                       await sleep(80);
                     }
+                    if (path && path.length) break;
                   }
-                }
-
-                for (let t = 0; t < 2 && !isOnTarget() && !onDungeonTileOrAdj(); t++) {
-                  if (MV && typeof MV.bumpToward === "function") MV.bumpToward(target.x, target.y);
-                  else {
-                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
-                    const dx = Math.sign(target.x - pl.x);
-                    const dy = Math.sign(target.y - pl.y);
-                    key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                  }
-                  await sleep(100);
                 }
               } catch (_) {}
             }
+
+            // Ensure we are exactly on the entrance before pressing 'g'
+            const isOnEntrance = () => {
+              try {
+                const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
+                return !!(pl && target && pl.x === target.x && pl.y === target.y);
+              } catch (_) { return false; }
+            };
+            if (target && !isOnEntrance() && TP && typeof TP.teleportTo === "function") {
+              try { await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch (_) {}
+            }
           } catch (_) {}
 
-          // Ensure no modals are intercepting the action, then attempt entry (normalized 'g')
+          // Ensure no modals are intercepting the action, then attempt entry (normalized 'g' + API)
           try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
           try { key("g"); } catch (_) {}
           await sleep(300);
           try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
           await sleep(300);
 
-          // Confirm mode transition
-          const ok = (getMode() === "dungeon");
+          // Confirm mode transition; if still not in dungeon, one last forced attempt via teleport nearestDungeon + 'g'
+          let ok = (getMode() === "dungeon");
+          if (!ok) {
+            try {
+              const nd = (typeof G.nearestDungeon === "function") ? G.nearestDungeon() : null;
+              const TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+              if (nd && TP && typeof TP.teleportTo === "function") {
+                await TP.teleportTo(nd.x, nd.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+                await sleep(200);
+                try { key("g"); } catch (_) {}
+                await sleep(280);
+                try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
+                await sleep(280);
+              }
+            } catch (_) {}
+            ok = (getMode() === "dungeon");
+          }
+
           if (ok) { try { window.SmokeTest.Runner.DUNGEON_LOCK = true; } catch (_) {} }
           return ok;
         } catch (_) { return false; }
