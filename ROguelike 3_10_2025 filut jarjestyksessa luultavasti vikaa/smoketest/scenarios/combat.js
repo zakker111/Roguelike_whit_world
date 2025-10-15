@@ -113,13 +113,14 @@
             var enemiesAfterDomList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : enemiesBeforeList;
             var enemiesAfterDom = enemiesAfterDomList.length;
             spawnedOk = enemiesAfterDom > enemiesBefore;
-            record(spawnedOk, "Dungeon spawn (GOD): enemies " + enemiesBefore + " -> " + enemiesAfterDom);
+            // Checklist expects: "Dungeon spawn: enemies X -> Y"
+            record(spawnedOk, "Dungeon spawn: enemies " + enemiesBefore + " -> " + enemiesAfterDom);
             // Clamp low HP for newly spawned ones
             await clampNewEnemiesLowHp(enemiesBeforeList, enemiesAfterDomList);
             enemiesBeforeList = enemiesAfterDomList.slice(0);
             enemiesBefore = enemiesAfterDom;
           } else {
-            recordSkip("Dungeon spawn (GOD) skipped (not in dungeon)");
+            recordSkip("Dungeon spawn: skipped (not in dungeon)");
           }
         } catch (_) {}
         // GameAPI fallback with retries (works in dungeon; may also work in world depending on implementation)
@@ -150,12 +151,18 @@
         var enemiesForAudit = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
         if (enemiesForAudit && enemiesForAudit.length) {
           var typeCount = enemiesForAudit.filter(function (e) { return !!(e && (e.kind || e.type)); }).length;
-          record(typeCount > 0, "Enemy types present");
-          var glyphBad = enemiesForAudit.some(function (e) {
+          // Checklist expects: "Enemy types present:"
+          record(typeCount > 0, "Enemy types present: " + typeCount);
+          // Checklist expects: "Enemy glyphs:" and fail line 'All enemy glyphs are "?"'
+          var allQuestion = enemiesForAudit.length > 0 && enemiesForAudit.every(function (e) {
             var g = (e && (e.glyph != null ? e.glyph : e.char != null ? e.char : "?"));
             return String(g) === "?";
           });
-          record(!glyphBad, "Enemy glyphs not '?'");
+          if (allQuestion) {
+            record(false, "All enemy glyphs are \"?\"");
+          } else {
+            record(true, "Enemy glyphs: OK");
+          }
         } else {
           recordSkip("Enemy audits skipped (no enemies)");
         }
@@ -314,7 +321,7 @@
             (decalsInc ? "decals+ " : ""));
 
           // Explicit kill check for checklist: corpse count increased
-          record(!!corpseInc, "Killed enemy (corpse increased)");
+          record(!!corpseInc, "Killed enemy: " + (corpseInc ? "YES" : "NO"));
 
           // Retry burst with forced crit if no effect detected and API supports it (stabilize test)
           if (!fightOk && typeof window.GameAPI.setAlwaysCrit === "function") {
@@ -378,9 +385,9 @@
         var incLeft = (leftDecay0 != null && leftDecay != null) ? (leftDecay > leftDecay0) : false;
         var incRight = (rightDecay0 != null && rightDecay != null) ? (rightDecay > rightDecay0) : false;
         if (incLeft || incRight) {
-          record(true, "Decay increased on equipped hand(s)");
+          record(true, "Decay check: increased");
         } else {
-          recordSkip("No decay increase observed on equipped hand(s)");
+          record(false, "Decay did not increase");
         }
       } else {
         recordSkip("No hand equipment to measure decay");

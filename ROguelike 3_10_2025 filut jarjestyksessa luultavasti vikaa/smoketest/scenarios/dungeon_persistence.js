@@ -149,7 +149,8 @@
           var inventoryChanged = (invBefore != null && invAfter != null) ? (invAfter > invBefore) : false;
 
           var okLoot = lootedFlag || lootCountReduced || inventoryChanged;
-          record(okLoot, "Chest loot: " + (okLoot ? "OK" : "NO-OP") + " at (" + chest.x + "," + chest.y + ")" + (lootCountReduced ? " (loot--)" : "") + (inventoryChanged ? " (inv++)" : ""));
+          // Checklist expects: "Looted chest at (x,y)"
+          record(okLoot, "Looted chest at (" + chest.x + "," + chest.y + ")" + (lootCountReduced ? " (loot--)" : "") + (inventoryChanged ? " (inv++)" : ""));
         } else {
           recordSkip("No chest found in dungeon (skipping chest loot)");
         }
@@ -257,7 +258,8 @@
                   var corpsesRe = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
                   var chestRe = corpsesRe.find(function (c) { return c && c.kind === "chest" && c.x === chestCoord.x && c.y === chestCoord.y; }) || null;
                   var emptyOrLooted = !!(chestRe ? (chestRe.looted || (typeof chestRe.lootCount === "number" && chestRe.lootCount <= 0)) : true);
-                  record(emptyOrLooted, "Chest invariant persists (empty on re-enter)");
+                  // Checklist expects: "Chest invariant: ...", with okOnly
+                  record(emptyOrLooted, "Chest invariant: empty on re-enter");
                 } else {
                   record(true, "Chest invariant check skipped (no chest interacted earlier)");
                 }
