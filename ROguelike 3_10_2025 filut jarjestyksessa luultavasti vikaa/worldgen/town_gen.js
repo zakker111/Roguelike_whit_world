@@ -25,7 +25,7 @@
   function inBounds(ctx, x, y) {
     try {
       if (ctx && ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
-      if (typeof window !== "undefined" && window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
+      if (typeof window !== "undefined" && window.Utils && typeof window.Utils.inBounds === "function") return window.Utils.inBounds(ctx, x, y);
     } catch (_) {}
     const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
     return x >= 0 && y >= 0 && x < cols && y < rows;
@@ -36,7 +36,7 @@
       if (ctx && ctx.Utils && typeof ctx.Utils.manhattan === "function") return ctx.Utils.manhattan(ax, ay, bx, by);
     } catch (_) {}
     try {
-      if (typeof window !== "undefined" && window.Utils && typeof Utils.manhattan === "function") return Utils.manhattan(ax, ay, bx, by);
+      if (typeof window !== "undefined" && window.Utils && typeof window.Utils.manhattan === "function") return window.Utils.manhattan(ax, ay, bx, by);
     } catch (_) {}
     return Math.abs(ax - bx) + Math.abs(ay - by);
   }
@@ -46,7 +46,7 @@
       if (ctx && ctx.Utils && typeof ctx.Utils.isFreeTownFloor === "function") return ctx.Utils.isFreeTownFloor(ctx, x, y);
     } catch (_) {}
     try {
-      if (typeof window !== "undefined" && window.Utils && typeof Utils.isFreeTownFloor === "function") return Utils.isFreeTownFloor(ctx, x, y);
+      if (typeof window !== "undefined" && window.Utils && typeof window.Utils.isFreeTownFloor === "function") return window.Utils.isFreeTownFloor(ctx, x, y);
     } catch (_) {}
     if (!inBounds(ctx, x, y)) return false;
     const t = ctx.map[y][x];
@@ -100,6 +100,7 @@
           const prev = ctx.player.hp;
           ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal);
           ctx.log(`You rest until morning (${(ctx.time && ctx.time.hhmm) || "06:00"}). HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+          if (typeof ctx.updateUI === "function") ctx.updateUI();
         } else {
           ctx.log("You sit on the bench and rest a moment.", "info");
         }
@@ -171,7 +172,7 @@
       default:
         ctx.log("There's nothing special here.");
     }
-    ctx.requestDraw();
+    // No visual change; rely on HUD/log updates without forcing a draw
     return true;
   }
 
@@ -300,7 +301,7 @@
     } catch (_) { info = null; }
 
     // Size the town map from data/town.json (fallback to previous values)
-    const TOWNCFG = (window.GameData && GameData.town) || null;
+    const TOWNCFG = (typeof window !== "undefined" && window.GameData && window.GameData.town) || null;
     function cfgSize(sizeKey) {
       const d = (TOWNCFG && TOWNCFG.sizes && TOWNCFG.sizes[sizeKey]) || null;
       if (d) return { W: Math.min(ctx.MAP_COLS, d.W | 0), H: Math.min(ctx.MAP_ROWS, d.H | 0) };
@@ -493,7 +494,7 @@
       return { openMin: o, closeMin: c, alwaysOpen: false };
     }
 
-    const shopDefs = (window.GameData && Array.isArray(GameData.shops)) ? GameData.shops.slice(0) : [
+    const shopDefs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops.slice(0) : [
       { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
       { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
       { type: "armorer", name: "Armorer", open: "08:00", close: "17:00" },
@@ -793,13 +794,13 @@
     try {
       if (ctx && ctx.TownAI && typeof ctx.TownAI.populateTown === "function") {
         ctx.TownAI.populateTown(ctx);
-      } else if (typeof window !== "undefined" && window.TownAI && typeof TownAI.populateTown === "function") {
-        TownAI.populateTown(ctx);
+      } else if (typeof window !== "undefined" && window.TownAI && typeof window.TownAI.populateTown === "function") {
+        window.TownAI.populateTown(ctx);
       }
     } catch (_) {}
 
     // Roaming villagers near plaza
-    const ND = (window.GameData && GameData.npcs) ? GameData.npcs : null;
+    const ND = (typeof window !== "undefined" && window.GameData && window.GameData.npcs) ? window.GameData.npcs : null;
     const baseLines = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length)
       ? ND.residentLines
       : [
@@ -867,71 +868,43 @@
 
     // Finish
     if (ctx.updateUI) ctx.updateUI();
-    if (ctx.requestDraw) ctx.requestDraw();
+    // Draw is handled by orchestrator after generation; avoid redundant frame
     return true;
   }
 
-  // ---- Shop helpers for interactProps ----
-  function minutesOfDayLocal(h, m = 0) {
-    try {
-      if (typeof window !== "undefined" && window.Ctx && typeof Ctx.create === "function") {
-        // If a ctx is available via create, prefer its ShopService
-        const ctx = Ctx.create({});
-        if (ctx.ShopService && typeof ctx.ShopService.minutesOfDay === "function") {
-          return ctx.ShopService.minutesOfDay(h, m, 24 * 60);
-        }
-      }
-      if (typeof window !== "undefined" && window.ShopService && typeof ShopService.minutesOfDay === "function") {
-        return ShopService.minutesOfDay(h, m, 24 * 60);
-      }
-    } catch (_){}
-    return ((h | 0) * 60 + (m | 0)) % (24 * 60);
-  }
-  function isOpenAt(ctx, shop, minutes) {
-    try {
-      if (ctx && ctx.ShopService && typeof ctx.ShopService.isOpenAt === "function") {
-        return ctx.ShopService.isOpenAt(shop, minutes);
-      }
-    } catch (_){}
-    if (!shop) return false;
-    if (shop.alwaysOpen) return true;
-    if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
-    const o = shop.openMin, c = shop.closeMin;
-    if (o === c) return false;
-    return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
-  }
+  // ---- Shop helpers for interactProps (delegate to ShopService) ----
   function isShopOpenNow(ctx, shop = null) {
     try {
       if (ctx && ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") {
         return ctx.ShopService.isShopOpenNow(ctx, shop);
       }
+      if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.isShopOpenNow === "function") {
+        return window.ShopService.isShopOpenNow(ctx, shop);
+      }
     } catch (_){}
-    const t = ctx.time;
-    const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
-    if (!shop) return t && t.phase === "day";
-    return isOpenAt(ctx, shop, minutes);
+    return false;
   }
   function shopScheduleStr(ctx, shop) {
     try {
       if (ctx && ctx.ShopService && typeof ctx.ShopService.shopScheduleStr === "function") {
         return ctx.ShopService.shopScheduleStr(shop);
       }
+      if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.shopScheduleStr === "function") {
+        return window.ShopService.shopScheduleStr(shop);
+      }
     } catch (_){}
-    if (!shop) return "";
-    const h2 = (min) => {
-      const hh = ((min / 60) | 0) % 24;
-      return String(hh).padStart(2, "0");
-    };
-    return `Opens ${h2(shop.openMin)}:00, closes ${h2(shop.closeMin)}:00`;
+    return "";
   }
   function shopAt(ctx, x, y) {
     try {
       if (ctx && ctx.ShopService && typeof ctx.ShopService.shopAt === "function") {
         return ctx.ShopService.shopAt(ctx, x, y);
       }
+      if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.shopAt === "function") {
+        return window.ShopService.shopAt(ctx, x, y);
+      }
     } catch (_){}
-    const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-    return shops.find(s => s.x === x && s.y === y) || null;
+    return null;
   }
 
   // Back-compat: attach to window and export for ESM

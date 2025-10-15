@@ -14,6 +14,7 @@
  * - GOD panel includes: Heal, spawn items/enemy, FOV slider, side log toggle, Always Crit toggle with body-part chooser.
  * - Persists user toggles in localStorage (LOG_MIRROR, ALWAYS_CRIT, ALWAYS_CRIT_PART).
  */
+import * as ClientAnalyzer from "/analysis/client_analyzer.js";
 
 export const UI = {
   els: {},
@@ -203,6 +204,76 @@ export const UI = {
       try { this.hideGod(); } catch (_) {}
       try { this.showSmoke(); } catch (_) {}
     });
+
+    // Analysis buttons (client-side report)
+    this.els.godRunAnalysisBtn = document.getElementById("god-run-analysis-btn");
+    this.els.godDownloadAnalysisBtn = document.getElementById("god-download-analysis-btn");
+    this.els.godAnalysisOutput = document.getElementById("god-analysis-output");
+    if (this.els.godRunAnalysisBtn) {
+      this.els.godRunAnalysisBtn.addEventListener("click", async () => {
+        if (!ClientAnalyzer || typeof ClientAnalyzer.runClientAnalysis !== "function") return;
+        try {
+          // Disable while running
+          const btn = this.els.godRunAnalysisBtn;
+          btn.disabled = true;
+          const prevText = btn.textContent;
+          btn.textContent = "Running…";
+          const { markdown, topFiles, duplicates, filesScanned } = await ClientAnalyzer.runClientAnalysis();
+          // Cache for download
+          this._lastAnalysisMD = markdown;
+          this._lastAnalysisURL = ClientAnalyzer.makeDownloadURL(markdown);
+          // Enable download button
+          if (this.els.godDownloadAnalysisBtn) {
+            this.els.godDownloadAnalysisBtn.disabled = !this._lastAnalysisURL;
+          }
+          // Render a short summary in GOD panel
+          if (this.els.godAnalysisOutput) {
+            const lines = [];
+            lines.push(`Files scanned: ${filesScanned}`);
+            lines.push("Top files:");
+            topFiles.slice(0, 8).forEach((m) => {
+              lines.push(`- ${m.file} — ${m.lines} lines`);
+            });
+            lines.push(`Duplication candidates: ${duplicates.length} (showing up to 8 below)`);
+            duplicates.slice(0, 8).forEach((d) => {
+              lines.push(`• ${d.files.length} files — ${d.files.slice(0, 3).join(", ")}${d.files.length > 3 ? ", …" : ""}`);
+            });
+            this.els.godAnalysisOutput.innerHTML = lines.map((s) => `<div>${s}</div>`).join("");
+          }
+          // Restore button
+          btn.textContent = prevText || "Run Analysis";
+          btn.disabled = false;
+        } catch (e) {
+          try { console.error(e); } catch (_) {}
+          if (this.els.godAnalysisOutput) {
+            this.els.godAnalysisOutput.innerHTML = `<div style="color:#f87171;">Analysis failed. See console for details.</div>`;
+          }
+          if (this.els.godRunAnalysisBtn) {
+            this.els.godRunAnalysisBtn.textContent = "Run Analysis";
+            this.els.godRunAnalysisBtn.disabled = false;
+          }
+        }
+      });
+    }
+    if (this.els.godDownloadAnalysisBtn) {
+      this.els.godDownloadAnalysisBtn.addEventListener("click", () => {
+        try {
+          if (!this._lastAnalysisURL && this._lastAnalysisMD) {
+            this._lastAnalysisURL = ClientAnalyzer.makeDownloadURL(this._lastAnalysisMD);
+          }
+          if (this._lastAnalysisURL) {
+            const a = document.createElement("a");
+            a.href = this._lastAnalysisURL;
+            a.download = "phase1_report_client.md";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }
+        } catch (_) {}
+      });
+      // Initially disabled until a report is generated
+      this.els.godDownloadAnalysisBtn.disabled = true;
+    }
     
     if (this.els.godFov) {
       const updateFov = () => {
@@ -296,6 +367,26 @@ export const UI = {
         this.updateRoutePathsButton();
       });
       this.updateRoutePathsButton();
+    }
+    // Perf overlay toggle
+    this.els.godTogglePerfBtn = document.getElementById("god-toggle-perf-btn");
+    if (this.els.godTogglePerfBtn) {
+      this.els.godTogglePerfBtn.addEventListener("click", () => {
+        const next = !this.getPerfState();
+        this.setPerfState(next);
+        this.updatePerfButton();
+      });
+      this.updatePerfButton();
+    }
+    // Minimap toggle
+    this.els.godToggleMinimapBtn = document.getElementById("god-toggle-minimap-btn");
+    if (this.els.godToggleMinimapBtn) {
+      this.els.godToggleMinimapBtn.addEventListener("click", () => {
+        const next = !this.getMinimapState();
+        this.setMinimapState(next);
+        this.updateMinimapButton();
+      });
+      this.updateMinimapButton();
     }
     // RNG seed controls
     if (this.els.godApplySeedBtn) {
@@ -505,6 +596,17 @@ export const UI = {
       }
     });
 
+    // Establish baseline render toggles early to avoid repeated localStorage reads in hot paths.
+    try {
+      if (typeof window.DRAW_GRID !== "boolean") window.DRAW_GRID = this.getGridState();
+      if (typeof window.SHOW_PERF !== "boolean") window.SHOW_PERF = this.getPerfState();
+      if (typeof window.SHOW_MINIMAP !== "boolean") window.SHOW_MINIMAP = this.getMinimapState();
+      // Ensure buttons reflect baseline state
+      this.updateGridButton();
+      this.updatePerfButton();
+      this.updateMinimapButton();
+    } catch (_) {}
+
     return true;
   },
 
@@ -571,25 +673,43 @@ export const UI = {
     if (typeof onGodToggleGrid === "function") this.handlers.onGodToggleGrid = onGodToggleGrid;
   },
 
-  updateStats(player, floor, getAtk, getDef, time) {
+  updateStats(player, floor, getAtk, getDef, time, perf) {
+    // HP + statuses
     if (this.els.hpEl) {
       const parts = [`HP: ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}`];
       const statuses = [];
       if (player.bleedTurns && player.bleedTurns > 0) statuses.push(`Bleeding (${player.bleedTurns})`);
       if (player.dazedTurns && player.dazedTurns > 0) statuses.push(`Dazed (${player.dazedTurns})`);
       parts.push(`  Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`);
-      this.els.hpEl.textContent = parts.join("");
+      const hpStr = parts.join("");
+      if (hpStr !== this._lastHpText) {
+        this.els.hpEl.textContent = hpStr;
+        this._lastHpText = hpStr;
+      }
     }
+    // Floor + level + XP + time + perf
     if (this.els.floorEl) {
-      // Shorter labels to fit better on small screens; include time
       const t = time || {};
       const hhmm = t.hhmm || "";
       const phase = t.phase ? t.phase : "";
       const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
-      this.els.floorEl.textContent = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}`;
+      let perfStr = "";
+      if (this.getPerfState() && perf && (typeof perf.lastTurnMs === "number" || typeof perf.lastDrawMs === "number")) {
+        perfStr = `  Perf: T ${(perf.lastTurnMs || 0).toFixed(1)}ms  D ${(perf.lastDrawMs || 0).toFixed(1)}ms`;
+      }
+      const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${perfStr}`;
+      if (floorStr !== this._lastFloorText) {
+        this.els.floorEl.textContent = floorStr;
+        this._lastFloorText = floorStr;
+      }
     }
+    // Inventory stats summary
     if (this.els.invStatsEl && typeof getAtk === "function" && typeof getDef === "function") {
-      this.els.invStatsEl.textContent = `Attack: ${getAtk().toFixed(1)}   Defense: ${getDef().toFixed(1)}`;
+      const invStr = `Attack: ${getAtk().toFixed(1)}   Defense: ${getDef().toFixed(1)}`;
+      if (invStr !== this._lastInvStatsText) {
+        this.els.invStatsEl.textContent = invStr;
+        this._lastInvStatsText = invStr;
+      }
     }
   },
 
@@ -600,7 +720,7 @@ export const UI = {
       rightEmpty: !(player.equipment && player.equipment.right),
     };
 
-    // Equipment slots
+    // Equipment slots (cache HTML to avoid unnecessary DOM writes)
     if (this.els.equipSlotsEl) {
       const slots = [
         ["left", "Left hand"],
@@ -621,65 +741,83 @@ export const UI = {
           return `<div class="slot"><strong>${label}:</strong> <span class="name"><span class='empty'>(empty)</span></span></div>`;
         }
       }).join("");
-      this.els.equipSlotsEl.innerHTML = html;
+      if (html !== this._lastEquipHTML) {
+        this.els.equipSlotsEl.innerHTML = html;
+        this._lastEquipHTML = html;
+      }
     }
-    // Inventory list
+    // Inventory list (skip rebuild when unchanged)
     if (this.els.invList) {
-      this.els.invList.innerHTML = "";
-      player.inventory.forEach((it, idx) => {
-        const li = document.createElement("li");
-        li.dataset.index = String(idx);
-        li.dataset.kind = it.kind || "misc";
+      const key = Array.isArray(player.inventory)
+        ? player.inventory.map(it => [
+            it.kind || "misc",
+            it.slot || "",
+            it.name || "",
+            (typeof it.atk === "number" ? it.atk : ""),
+            (typeof it.def === "number" ? it.def : ""),
+            (typeof it.decay === "number" ? it.decay : ""),
+            (typeof it.count === "number" ? it.count : ""),
+            (typeof it.amount === "number" ? it.amount : "")
+          ].join("|")).join(";;")
+        : "";
+      if (key !== this._lastInvListKey) {
+        this.els.invList.innerHTML = "";
+        player.inventory.forEach((it, idx) => {
+          const li = document.createElement("li");
+          li.dataset.index = String(idx);
+          li.dataset.kind = it.kind || "misc";
 
-        // Build display label with counts/stats where helpful
-        const baseLabel = (typeof describeItem === "function") ? describeItem(it) : (it.name || "item");
-        let label = baseLabel;
+          // Build display label with counts/stats where helpful
+          const baseLabel = (typeof describeItem === "function") ? describeItem(it) : (it.name || "item");
+          let label = baseLabel;
 
-        if (it.kind === "potion") {
-          const count = (it.count && it.count > 1) ? ` x${it.count}` : "";
-          label = `${baseLabel}${count}`;
-        } else if (it.kind === "gold") {
-          const amount = Number(it.amount || 0);
-          label = `${baseLabel}: ${amount}`;
-        } else if (it.kind === "equip") {
-          const stats = [];
-          if (typeof it.atk === "number") stats.push(`+${Number(it.atk).toFixed(1)} atk`);
-          if (typeof it.def === "number") stats.push(`+${Number(it.def).toFixed(1)} def`);
-          if (stats.length) label = `${baseLabel} (${stats.join(", ")})`;
-        }
-
-        if (it.kind === "equip" && it.slot === "hand") {
-          li.dataset.slot = "hand";
-          const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-          if (it.twoHanded) {
-            li.dataset.twohanded = "true";
-            li.title = `Two-handed • Decay: ${dec.toFixed(0)}%`;
-          } else {
-            // If exactly one hand is empty, hint which one will be used automatically
-            let autoHint = "";
-            if (this._equipState) {
-              if (this._equipState.leftEmpty && !this._equipState.rightEmpty) autoHint = " (Left is empty)";
-              else if (this._equipState.rightEmpty && !this._equipState.leftEmpty) autoHint = " (Right is empty)";
-            }
-            li.title = `Click to equip${autoHint ? autoHint : " (choose hand)"} • Decay: ${dec.toFixed(0)}%`;
+          if (it.kind === "potion") {
+            const count = (it.count && it.count > 1) ? ` x${it.count}` : "";
+            label = `${baseLabel}${count}`;
+          } else if (it.kind === "gold") {
+            const amount = Number(it.amount || 0);
+            label = `${baseLabel}: ${amount}`;
+          } else if (it.kind === "equip") {
+            const stats = [];
+            if (typeof it.atk === "number") stats.push(`+${Number(it.atk).toFixed(1)} atk`);
+            if (typeof it.def === "number") stats.push(`+${Number(it.def).toFixed(1)} def`);
+            if (stats.length) label = `${baseLabel} (${stats.join(", ")})`;
           }
-          li.style.cursor = "pointer";
-        } else if (it.kind === "equip") {
-          li.dataset.slot = it.slot || "";
-          const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-          li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
-          li.style.cursor = "pointer";
-        } else if (it.kind === "potion") {
-          li.style.cursor = "pointer";
-          li.title = "Click to drink";
-        } else {
-          li.style.opacity = "0.7";
-          li.style.cursor = "default";
-        }
 
-        li.textContent = label;
-        this.els.invList.appendChild(li);
-      });
+          if (it.kind === "equip" && it.slot === "hand") {
+            li.dataset.slot = "hand";
+            const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
+            if (it.twoHanded) {
+              li.dataset.twohanded = "true";
+              li.title = `Two-handed • Decay: ${dec.toFixed(0)}%`;
+            } else {
+              // If exactly one hand is empty, hint which one will be used automatically
+              let autoHint = "";
+              if (this._equipState) {
+                if (this._equipState.leftEmpty && !this._equipState.rightEmpty) autoHint = " (Left is empty)";
+                else if (this._equipState.rightEmpty && !this._equipState.leftEmpty) autoHint = " (Right is empty)";
+              }
+              li.title = `Click to equip${autoHint ? autoHint : " (choose hand)"} • Decay: ${dec.toFixed(0)}%`;
+            }
+            li.style.cursor = "pointer";
+          } else if (it.kind === "equip") {
+            li.dataset.slot = it.slot || "";
+            const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
+            li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
+            li.style.cursor = "pointer";
+          } else if (it.kind === "potion") {
+            li.style.cursor = "pointer";
+            li.title = "Click to drink";
+          } else {
+            li.style.opacity = "0.7";
+            li.style.cursor = "default";
+          }
+
+          li.textContent = label;
+          this.els.invList.appendChild(li);
+        });
+        this._lastInvListKey = key;
+      }
     }
   },
 
@@ -827,8 +965,8 @@ export const UI = {
     } catch (_) {}
     // Apply immediately
     try {
-      if (window.Logger && typeof Logger.init === "function") {
-        Logger.init();
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.init === "function") {
+        window.Logger.init();
       }
     } catch (_) {}
     // Ensure DOM reflects the state even without reinit
@@ -859,7 +997,14 @@ export const UI = {
       if (v === "1") return true;
       if (v === "0") return false;
     } catch (_) {}
-    return true; // default on
+    // Default OFF on small screens/low-power devices to reduce draw overhead
+    try {
+      const smallScreen = (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700);
+      const hc = (typeof navigator !== "undefined" && typeof navigator.hardwareConcurrency === "number") ? navigator.hardwareConcurrency : 4;
+      const dm = (typeof navigator !== "undefined" && typeof navigator.deviceMemory === "number") ? navigator.deviceMemory : 4;
+      return !(smallScreen || hc <= 4 || dm <= 4) ? true : false;
+    } catch (_) {}
+    return false;
   },
 
   setGridState(enabled) {
@@ -874,6 +1019,80 @@ export const UI = {
     if (!this.els.godToggleGridBtn) return;
     const on = this.getGridState();
     this.els.godToggleGridBtn.textContent = `Grid: ${on ? "On" : "Off"}`;
+  },
+
+  // --- Perf overlay controls ---
+  getPerfState() {
+    try {
+      if (typeof window.SHOW_PERF === "boolean") return window.SHOW_PERF;
+      const v = localStorage.getItem("SHOW_PERF");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (_) {}
+    // Default OFF on small screens/low-power devices to keep HUD lean
+    try {
+      const smallScreen = (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700);
+      const hc = (typeof navigator !== "undefined" && typeof navigator.hardwareConcurrency === "number") ? navigator.hardwareConcurrency : 4;
+      const dm = (typeof navigator !== "undefined" && typeof navigator.deviceMemory === "number") ? navigator.deviceMemory : 4;
+      return !(smallScreen || hc <= 4 || dm <= 4) ? true : false;
+    } catch (_) {}
+    return false;
+  },
+
+  setPerfState(enabled) {
+    try {
+      window.SHOW_PERF = !!enabled;
+      localStorage.setItem("SHOW_PERF", enabled ? "1" : "0");
+    } catch (_) {}
+    this.updatePerfButton();
+    try {
+      if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
+        window.GameAPI.requestDraw();
+      }
+    } catch (_) {}
+  },
+
+  updatePerfButton() {
+    if (!this.els.godTogglePerfBtn) return;
+    const on = this.getPerfState();
+    this.els.godTogglePerfBtn.textContent = `Perf: ${on ? "On" : "Off"}`;
+    this.els.godTogglePerfBtn.title = on ? "Hide performance timings in HUD" : "Show performance timings in HUD";
+  },
+
+  // --- Minimap controls ---
+  getMinimapState() {
+    try {
+      if (typeof window.SHOW_MINIMAP === "boolean") return window.SHOW_MINIMAP;
+      const v = localStorage.getItem("SHOW_MINIMAP");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (_) {}
+    // Default OFF on small screens to keep UI uncluttered and reduce draw work
+    try {
+      const smallScreen = (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700);
+      return smallScreen ? false : true;
+    } catch (_) {}
+    return true;
+  },
+
+  setMinimapState(enabled) {
+    try {
+      window.SHOW_MINIMAP = !!enabled;
+      localStorage.setItem("SHOW_MINIMAP", enabled ? "1" : "0");
+    } catch (_) {}
+    this.updateMinimapButton();
+    try {
+      if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
+        window.GameAPI.requestDraw();
+      }
+    } catch (_) {}
+  },
+
+  updateMinimapButton() {
+    if (!this.els.godToggleMinimapBtn) return;
+    const on = this.getMinimapState();
+    this.els.godToggleMinimapBtn.textContent = `Minimap: ${on ? "On" : "Off"}`;
+    this.els.godToggleMinimapBtn.title = on ? "Hide overworld minimap" : "Show overworld minimap";
   },
 
   // --- Town debug overlay controls ---

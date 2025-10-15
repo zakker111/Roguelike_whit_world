@@ -7,6 +7,33 @@
 import * as RenderCore from "./render_core.js";
 import * as World from "../world/world.js";
 
+// Minimap offscreen cache to avoid redrawing every frame
+let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0 };
+// World base layer offscreen cache (full map at TILE resolution)
+let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
+// Town glyphs cache keyed by towns array reference
+let TOWN_GLYPHS_CACHE = { ref: null, map: {} };
+
+function rebuildTownGlyphs(towns) {
+  const out = {};
+  try {
+    if (Array.isArray(towns)) {
+      for (const info of towns) {
+        let glyph = "T";
+        const sz = (info.size || "").toLowerCase();
+        if (sz === "small") glyph = "t";
+        else if (sz === "city") glyph = "C";
+        out[`${
+          info.x
+        },${
+          info.y
+        }`] = glyph;
+      }
+    }
+  } catch (_) {}
+  TOWN_GLYPHS_CACHE = { ref: towns, map: out };
+}
+
 export function draw(ctx, view) {
   const {
     ctx2d, TILE, COLORS, map, player, camera: camMaybe, TS, tilesetReady,
@@ -34,56 +61,112 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
-  for (let y = startY; y <= endY; y++) {
-    const yIn = y >= 0 && y < mapRows;
-    const row = yIn ? map[y] : null;
-    for (let x = startX; x <= endX; x++) {
-      const screenX = (x - startX) * TILE - tileOffsetX;
-      const screenY = (y - startY) * TILE - tileOffsetY;
+  // Ensure town glyphs cache is up to date
+  const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
+  if (towns !== TOWN_GLYPHS_CACHE.ref) {
+    rebuildTownGlyphs(towns);
+  }
+  const TOWN_GLYPHS = TOWN_GLYPHS_CACHE.map;
 
-      // Off-map: draw canvas background color tile
-      if (!yIn || x < 0 || x >= mapCols) {
-        ctx2d.fillStyle = "#0b0c10";
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-        continue;
-      }
-
-      const t = row[x];
-      let fill = WCOL.grass;
-      if (WT) {
-        if (t === WT.WATER) fill = WCOL.water;
-        else if (t === WT.RIVER) fill = WCOL.river;
-        else if (t === WT.SWAMP) fill = WCOL.swamp;
-        else if (t === WT.BEACH) fill = WCOL.beach;
-        else if (t === WT.DESERT) fill = WCOL.desert;
-        else if (t === WT.SNOW) fill = WCOL.snow;
-        else if (t === WT.GRASS) fill = WCOL.grass;
-        else if (t === WT.FOREST) fill = WCOL.forest;
-        else if (t === WT.MOUNTAIN) fill = WCOL.mountain;
-        else if (t === WT.TOWN) fill = WCOL.town;
-        else if (t === WT.DUNGEON) fill = WCOL.dungeon;
-      }
-      ctx2d.fillStyle = fill;
-      ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      // optional grid stroke set by RenderCore
-
-      // Overlay glyphs for special overworld tiles
-      if (WT && t === WT.TOWN) {
-        // Use town size to vary glyph: small 't', big 'T', city 'C'
-        let glyph = "T";
+  // Build world base offscreen once per map/TILE change
+  try {
+    const mw = mapCols;
+    const mh = mapRows;
+    if (mw && mh) {
+      const wpx = mw * TILE;
+      const hpx = mh * TILE;
+      const needsWorldRebuild = (!WORLD.canvas) || WORLD.mapRef !== map || WORLD.wpx !== wpx || WORLD.hpx !== hpx || WORLD.TILE !== TILE;
+      if (needsWorldRebuild) {
+        WORLD.mapRef = map;
+        WORLD.wpx = wpx;
+        WORLD.hpx = hpx;
+        WORLD.TILE = TILE;
+        const off = RenderCore.createOffscreen(wpx, hpx);
+        const oc = off.getContext("2d");
+        // Set font/align once for glyphs
         try {
-          if (ctx.world && Array.isArray(ctx.world.towns)) {
-            const info = ctx.world.towns.find(tt => tt.x === x && tt.y === y);
-            if (info && info.size) {
-              if (info.size === "small") glyph = "t";
-              else if (info.size === "city") glyph = "C";
-              else glyph = "T";
+          oc.font = "bold 20px JetBrains Mono, monospace";
+          oc.textAlign = "center";
+          oc.textBaseline = "middle";
+        } catch (_) {}
+        for (let yy = 0; yy < mh; yy++) {
+          const rowM = map[yy];
+          for (let xx = 0; xx < mw; xx++) {
+            const t = rowM[xx];
+            let c = WCOL.grass;
+            if (WT) {
+              if (t === WT.WATER) c = WCOL.water;
+              else if (t === WT.RIVER) c = WCOL.river;
+              else if (t === WT.SWAMP) c = WCOL.swamp;
+              else if (t === WT.BEACH) c = WCOL.beach;
+              else if (t === WT.DESERT) c = WCOL.desert;
+              else if (t === WT.SNOW) c = WCOL.snow;
+              else if (t === WT.FOREST) c = WCOL.forest;
+              else if (t === WT.MOUNTAIN) c = WCOL.mountain;
+              else if (t === WT.DUNGEON) c = WCOL.dungeon;
+              else if (t === WT.TOWN) c = WCOL.town;
+            }
+            oc.fillStyle = c;
+            oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
+            // Overlay static glyphs directly onto the base
+            if (WT && t === WT.TOWN) {
+              const glyph = TOWN_GLYPHS[`${xx},${yy}`] || "T";
+              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, glyph, "#d7ba7d", TILE);
+            } else if (WT && t === WT.DUNGEON) {
+              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, "D", "#c586c0", TILE);
             }
           }
-        } catch (_) {}
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, "#d7ba7d", TILE);
-      } else if (WT && t === WT.DUNGEON) {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "D", "#c586c0", TILE);
+        }
+        WORLD.canvas = off;
+      }
+    }
+  } catch (_) {}
+
+  // Draw world base: offscreen blit if available, otherwise fallback per-tile loop
+  if (WORLD.canvas) {
+    try {
+      RenderCore.blitViewport(ctx2d, WORLD.canvas, cam, WORLD.wpx, WORLD.hpx);
+    } catch (_) {}
+  } else {
+    for (let y = startY; y <= endY; y++) {
+      const yIn = y >= 0 && y < mapRows;
+      const row = yIn ? map[y] : null;
+      for (let x = startX; x <= endX; x++) {
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+
+        // Off-map: draw canvas background color tile
+        if (!yIn || x < 0 || x >= mapCols) {
+          ctx2d.fillStyle = "#0b0c10";
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          continue;
+        }
+
+        const t = row[x];
+        let fill = WCOL.grass;
+        if (WT) {
+          if (t === WT.WATER) fill = WCOL.water;
+          else if (t === WT.RIVER) fill = WCOL.river;
+          else if (t === WT.SWAMP) fill = WCOL.swamp;
+          else if (t === WT.BEACH) fill = WCOL.beach;
+          else if (t === WT.DESERT) fill = WCOL.desert;
+          else if (t === WT.SNOW) fill = WCOL.snow;
+          else if (t === WT.GRASS) fill = WCOL.grass;
+          else if (t === WT.FOREST) fill = WCOL.forest;
+          else if (t === WT.MOUNTAIN) fill = WCOL.mountain;
+          else if (t === WT.TOWN) fill = WCOL.town;
+          else if (t === WT.DUNGEON) fill = WCOL.dungeon;
+        }
+        ctx2d.fillStyle = fill;
+        ctx2d.fillRect(screenX, screenY, TILE, TILE);
+
+        // Overlay glyphs for special overworld tiles
+        if (WT && t === WT.TOWN) {
+          const glyph = TOWN_GLYPHS[`${x},${y}`] || "T";
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, "#d7ba7d", TILE);
+        } else if (WT && t === WT.DUNGEON) {
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, "D", "#c586c0", TILE);
+        }
       }
     }
   }
@@ -109,62 +192,100 @@ export function draw(ctx, view) {
     ctx2d.textAlign = "center";
   } catch (_) {}
 
-  // Minimap (top-right)
+  // Minimap (top-right) with offscreen cache (toggleable)
   try {
-    const mw = ctx.world && ctx.world.width ? ctx.world.width : (map[0] ? map[0].length : 0);
-    const mh = ctx.world && ctx.world.height ? ctx.world.height : map.length;
-    if (mw && mh) {
-      const maxW = 200, maxH = 150;
-      const scale = Math.max(1, Math.floor(Math.min(maxW / mw, maxH / mh)));
-      const wpx = mw * scale, hpx = mh * scale;
-      const pad = 8;
-      const bx = cam.width - wpx - pad;
-      const by = pad;
-
-      // background
-      ctx2d.fillStyle = "rgba(13,16,24,0.6)";
-      ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
-
-      // draw tiles
-      for (let yy = 0; yy < mh; yy++) {
-        const rowM = map[yy];
-        for (let xx = 0; xx < mw; xx++) {
-          const t = rowM[xx];
-          let c = WCOL.grass;
-          if (WT) {
-            if (t === WT.WATER) c = WCOL.water;
-            else if (t === WT.RIVER) c = WCOL.river;
-            else if (t === WT.SWAMP) c = WCOL.swamp;
-            else if (t === WT.BEACH) c = WCOL.beach;
-            else if (t === WT.DESERT) c = WCOL.desert;
-            else if (t === WT.SNOW) c = WCOL.snow;
-            else if (t === WT.FOREST) c = WCOL.forest;
-            else if (t === WT.MOUNTAIN) c = WCOL.mountain;
-            else if (t === WT.DUNGEON) c = WCOL.dungeon;
-            else if (t === WT.TOWN) c = WCOL.town;
+    const showMini = (typeof window !== "undefined" && typeof window.SHOW_MINIMAP === "boolean") ? window.SHOW_MINIMAP : true;
+    if (showMini) {
+      const mw = ctx.world && ctx.world.width ? ctx.world.width : (map[0] ? map[0].length : 0);
+      const mh = ctx.world && ctx.world.height ? ctx.world.height : map.length;
+      if (mw && mh) {
+        // Responsive clamp for small screens
+        let maxW = 200, maxH = 150;
+        try {
+          if (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700) {
+            maxW = 120; maxH = 90;
           }
-          ctx2d.fillStyle = c;
-          ctx2d.fillRect(bx + xx * scale, by + yy * scale, scale, scale);
-        }
-      }
+        } catch (_) {}
+        const scale = Math.max(1, Math.floor(Math.min(maxW / mw, maxH / mh)));
+        const wpx = mw * scale, hpx = mh * scale;
+        const pad = 8;
+        const bx = cam.width - wpx - pad;
+        const by = pad;
 
-      // overlay towns and dungeons if available
-      if (ctx.world && Array.isArray(ctx.world.towns)) {
-        ctx2d.fillStyle = "#ffcc66";
-        for (const t of ctx.world.towns) {
-          ctx2d.fillRect(bx + t.x * scale, by + t.y * scale, Math.max(1, scale), Math.max(1, scale));
+        // Build offscreen once per world map reference or dimension change
+        const mapRef = map;
+        const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale;
+        if (needsRebuild) {
+          MINI.mapRef = mapRef;
+          MINI.wpx = wpx;
+          MINI.hpx = hpx;
+          MINI.scale = scale;
+          const off = RenderCore.createOffscreen(wpx, hpx);
+          const oc = off.getContext("2d");
+          // tiles
+          for (let yy = 0; yy < mh; yy++) {
+            const rowM = map[yy];
+            for (let xx = 0; xx < mw; xx++) {
+              const t = rowM[xx];
+              let c = WCOL.grass;
+              if (WT) {
+                if (t === WT.WATER) c = WCOL.water;
+                else if (t === WT.RIVER) c = WCOL.river;
+                else if (t === WT.SWAMP) c = WCOL.swamp;
+                else if (t === WT.BEACH) c = WCOL.beach;
+                else if (t === WT.DESERT) c = WCOL.desert;
+                else if (t === WT.SNOW) c = WCOL.snow;
+                else if (t === WT.FOREST) c = WCOL.forest;
+                else if (t === WT.MOUNTAIN) c = WCOL.mountain;
+                else if (t === WT.DUNGEON) c = WCOL.dungeon;
+                else if (t === WT.TOWN) c = WCOL.town;
+              }
+              oc.fillStyle = c;
+              oc.fillRect(xx * scale, yy * scale, scale, scale);
+            }
+          }
+          // overlay towns and dungeons
+          if (ctx.world && Array.isArray(ctx.world.towns)) {
+            oc.fillStyle = "#ffcc66";
+            for (const t of ctx.world.towns) {
+              oc.fillRect(t.x * scale, t.y * scale, Math.max(1, scale), Math.max(1, scale));
+            }
+          }
+          if (ctx.world && Array.isArray(ctx.world.dungeons)) {
+            oc.fillStyle = "#c586c0";
+            for (const d of ctx.world.dungeons) {
+              oc.fillRect(d.x * scale, d.y * scale, Math.max(1, scale), Math.max(1, scale));
+            }
+          }
+          MINI.canvas = off;
         }
-      }
-      if (ctx.world && Array.isArray(ctx.world.dungeons)) {
-        ctx2d.fillStyle = "#c586c0";
-        for (const d of ctx.world.dungeons) {
-          ctx2d.fillRect(bx + d.x * scale, by + d.y * scale, Math.max(1, scale), Math.max(1, scale));
-        }
-      }
 
-      // player marker
-      ctx2d.fillStyle = "#ffffff";
-      ctx2d.fillRect(bx + player.x * scale, by + player.y * scale, Math.max(1, scale), Math.max(1, scale));
+        // background + border + label
+        ctx2d.fillStyle = "rgba(13,16,24,0.70)";
+        ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
+        ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+        ctx2d.lineWidth = 1;
+        ctx2d.strokeRect(bx - 6.5, by - 6.5, wpx + 13, hpx + 13);
+        try {
+          const prevAlign = ctx2d.textAlign;
+          const prevBaseline = ctx2d.textBaseline;
+          ctx2d.textAlign = "left";
+          ctx2d.textBaseline = "top";
+          ctx2d.fillStyle = "#cbd5e1";
+          ctx2d.fillText("Minimap", bx - 4, by - 22);
+          ctx2d.textAlign = prevAlign;
+          ctx2d.textBaseline = prevBaseline;
+        } catch (_) {}
+
+        // blit cached minimap
+        if (MINI.canvas) {
+          ctx2d.drawImage(MINI.canvas, bx, by);
+        }
+
+        // player marker
+        ctx2d.fillStyle = "#ffffff";
+        ctx2d.fillRect(bx + player.x * scale, by + player.y * scale, Math.max(1, scale), Math.max(1, scale));
+      }
     }
   } catch (_) {}
 
@@ -190,7 +311,6 @@ export function draw(ctx, view) {
     ctx2d.lineWidth = 1;
     ctx2d.strokeRect(screenX + 4.5, screenY + 4.5, TILE - 9, TILE - 9);
 
-    // outlined glyph
     const half = TILE / 2;
     ctx2d.lineWidth = 2;
     ctx2d.strokeStyle = "#0b0f16";

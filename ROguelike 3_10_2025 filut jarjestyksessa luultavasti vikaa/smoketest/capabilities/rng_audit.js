@@ -27,7 +27,7 @@
       // RNG source snapshot
       var src = "unknown";
       try {
-        src = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
+        src = (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
         record(true, "RNG source: " + src);
       } catch (_) {}
 

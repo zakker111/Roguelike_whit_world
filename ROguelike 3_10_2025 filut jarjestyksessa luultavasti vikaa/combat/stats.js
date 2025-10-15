@@ -18,8 +18,8 @@ function round1(ctx, n) {
 
 export function getPlayerAttack(ctx) {
   // Prefer Player module
-  if (typeof window !== "undefined" && window.Player && typeof Player.getAttack === "function") {
-    return Player.getAttack(ctx.player);
+  if (typeof window !== "undefined" && window.Player && typeof window.Player.getAttack === "function") {
+    return window.Player.getAttack(ctx.player);
   }
   // Fallback: mirror game.js logic
   const p = ctx.player || {};
@@ -34,8 +34,8 @@ export function getPlayerAttack(ctx) {
 
 export function getPlayerDefense(ctx) {
   // Prefer Player module
-  if (typeof window !== "undefined" && window.Player && typeof Player.getDefense === "function") {
-    return Player.getDefense(ctx.player);
+  if (typeof window !== "undefined" && window.Player && typeof window.Player.getDefense === "function") {
+    return window.Player.getDefense(ctx.player);
   }
   // Fallback: mirror game.js logic
   const p = ctx.player || {};

@@ -103,6 +103,8 @@
       <button id="god-toggle-town-paths-btn" class="btn" title="Draw NPC planned paths (town only)">Paths: Off</button>
       <button id="god-toggle-home-paths-btn" class="btn" title="Draw full home paths in blue (NPCs to their homes/beds)">Home Paths: Off</button>
       <button id="god-toggle-route-paths-btn" class="btn" title="Draw blue line to current destination for each NPC">Routes: Off</button>
+      <button id="god-toggle-perf-btn" class="btn" title="Show turn/draw perf timings in HUD top bar">Perf: On</button>
+      <button id="god-toggle-minimap-btn" class="btn" title="Show or hide the overworld minimap">Minimap: On</button>
       <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
       <button id="god-check-inn-tavern-btn" class="btn" title="Report if this town has an Inn/Tavern and where">Check Inn/Tavern</button>
       <button id="god-diagnostics-btn" class="btn" title="Show system diagnostics (determinism source, seed, module handles) in log">Diagnostics</button>
@@ -114,6 +116,14 @@
       </div>
     </div>
     <div id="god-check-output" class="help" style="font-size:12px; color:#cbd5e1; margin:6px 0 12px 0;"></div>
+
+    <div class="inv-subtitle">Analysis</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+      <button id="god-run-analysis-btn" class="btn" title="Generate size & duplication report (client-side)">Run Analysis</button>
+      <button id="god-download-analysis-btn" class="btn" title="Download last analysis report (Markdown)">Download Report</button>
+    </div>
+    <div id="god-analysis-output" class="help" style="font-size:12px; color:#cbd5e1; margin:6px 0 12px 0;"></div>
+
     <div class="inv-subtitle">RNG</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
       <input id="god-seed-input" type="number" min="0" step="1" placeholder="Enter seed (uint32)" style="width:190px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;" />
@@ -181,10 +191,10 @@
   <script>
     (function () {
       try {
-        var src = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
+        var src = (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
         var seed = "(random)";
-        if (typeof window !== "undefined" && window.RNG && typeof RNG.getSeed === "function") {
-          var s = RNG.getSeed();
+        if (typeof window !== "undefined" && window.RNG && typeof window.RNG.getSeed === "function") {
+          var s = window.RNG.getSeed();
           if (s != null) seed = String((Number(s) >>> 0));
         } else {
           try {
@@ -192,9 +202,9 @@
             if (sRaw != null) seed = String((Number(sRaw) >>> 0));
           } catch (_) {}
         }
-        if (window.Logger && typeof Logger.log === "function") {
-          Logger.log("Boot: RNG=" + src + "  Seed=" + seed, "notice");
-        } else if (window.DEV) {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+          window.Logger.log("Boot: RNG=" + src + "  Seed=" + seed, "notice");
+        } else if (typeof window !== "undefined" && window.DEV) {
           console.debug("[BOOT] RNG=" + src + "  Seed=" + seed);
         }
       } catch (_) {}
@@ -239,8 +249,8 @@
     // Initialize Logger once DOM is ready; deferred scripts will have loaded by then
     document.addEventListener('DOMContentLoaded', function () {
       try {
-        if (window.Logger && typeof Logger.init === 'function') {
-          Logger.init(undefined, 80);
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.init === 'function') {
+          window.Logger.init(undefined, 80);
         }
       } catch (e) {}
     });

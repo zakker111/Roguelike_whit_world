@@ -58,7 +58,7 @@
   let townBuildings = [];    // town buildings: [{x,y,w,h,door:{x,y}}]
   let townPlaza = null;      // central plaza coordinates {x,y}
   let tavern = null;         // tavern info: { building:{x,y,w,h,door}, door:{x,y} }
-  let townTick = 0;          // simple turn counter for town routines
+  
   let townName = null;       // current town's generated name
 
   // World/town/dungeon transition anchors
@@ -72,8 +72,8 @@
 
   // Global time-of-day cycle (shared across modes)
   // Centralized via TimeService to avoid duplication and keep math consistent.
-  const TS = (window.TimeService && typeof TimeService.create === "function")
-    ? TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
+  const TS = (typeof window !== "undefined" && window.TimeService && typeof window.TimeService.create === "function")
+    ? window.TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
     : (function () {
         const DAY_MINUTES = 24 * 60;
         const CYCLE_TURNS = 360;
@@ -161,28 +161,22 @@
   let map = [];
   let seen = [];
   let visible = [];
-  let player = (window.Player && typeof Player.createInitial === "function")
-    ? Player.createInitial()
-    : { x: 0, y: 0, hp: 20, maxHp: 40, inventory: [], atk: 1, xp: 0, level: 1, xpNext: 20, equipment: { left: null, right: null, head: null, torso: null, legs: null, hands: null } };
+  let player = ((typeof window !== "undefined" && window.Player && typeof window.Player.createInitial === "function")
+    ? window.Player.createInitial()
+    : { x: 0, y: 0, hp: 20, maxHp: 40, inventory: [], atk: 1, xp: 0, level: 1, xpNext: 20, equipment: { left: null, right: null, head: null, torso: null, legs: null, hands: null } });
   let enemies = [];
   let corpses = [];
   // Visual decals like blood stains on the floor; array of { x, y, a (alpha 0..1), r (radius px) }
   let decals = [];
   // Occupancy Grid (entities on tiles)
   let occupancy = null;
-  function rebuildOccupancy() {
-    const OG = modHandle("OccupancyGrid");
-    if (OG && typeof OG.build === "function") {
-      occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
-    }
-  }
+  
   let floor = 1;
-  window.floor = floor;
   // RNG: centralized via RNG service; allow persisted seed for reproducibility
   let currentSeed = null;
-  if (typeof window !== "undefined" && window.RNG && typeof RNG.autoInit === "function") {
+  if (typeof window !== "undefined" && window.RNG && typeof window.RNG.autoInit === "function") {
     try {
-      currentSeed = RNG.autoInit();
+      currentSeed = window.RNG.autoInit();
       // RNG.autoInit returns the seed value
     } catch (_) {
       try {
@@ -196,18 +190,18 @@
       currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
     } catch (_) { currentSeed = null; }
   }
-  let rng = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-    ? RNG.rng
+  let rng = ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+    ? window.RNG.rng
     : (function () {
         // Shared centralized fallback (deterministic) if RNG service not available
         try {
-          if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
-            return RNGFallback.getRng(currentSeed);
+          if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
+            return window.RNGFallback.getRng(currentSeed);
           }
         } catch (_) {}
         // Ultimate fallback: non-deterministic
         return Math.random;
-      })();
+      })());
   let isDead = false;
   let startRoomRect = null;
   // GOD toggles
@@ -245,6 +239,11 @@
       // persistence (in-memory)
       _dungeonStates: dungeonStates,
       time: getClock(),
+      // Perf stats for HUD overlay (smoothed via EMA when available)
+      getPerfStats: () => ({
+        lastTurnMs: (typeof PERF.avgTurnMs === "number" ? PERF.avgTurnMs : (PERF.lastTurnMs || 0)),
+        lastDrawMs: (typeof PERF.avgDrawMs === "number" ? PERF.avgDrawMs : (PERF.lastDrawMs || 0))
+      }),
       requestDraw,
       log,
       isWalkable, inBounds,
@@ -289,8 +288,8 @@
       onEnemyDied: (enemy) => killEnemy(enemy),
     };
 
-    if (window.Ctx && typeof Ctx.create === "function") {
-      const ctx = Ctx.create(base);
+    if (typeof window !== "undefined" && window.Ctx && typeof window.Ctx.create === "function") {
+      const ctx = window.Ctx.create(base);
       // enemy factory prefers ctx.Enemies handle, falling back gracefully
       ctx.enemyFactory = (x, y, depth) => {
         const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
@@ -340,16 +339,16 @@
 
   // Use RNG service if available for helpers
   const randInt = (min, max) => {
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.int === "function") return RNG.int(min, max);
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.int === "function") return window.RNG.int(min, max);
     return Math.floor(rng() * (max - min + 1)) + min;
   };
   const chance = (p) => {
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.chance === "function") return RNG.chance(p);
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.chance === "function") return window.RNG.chance(p);
     return rng() < p;
   };
-  const capitalize = (window.PlayerUtils && typeof PlayerUtils.capitalize === "function")
-    ? PlayerUtils.capitalize
-    : (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const capitalize = ((typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.capitalize === "function")
+    ? window.PlayerUtils.capitalize
+    : (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
   const enemyColor = (type) => {
     const EM = modHandle("Enemies");
     if (EM && typeof EM.colorFor === "function") {
@@ -358,7 +357,7 @@
     return COLORS.enemy;
   };
   const randFloat = (min, max, decimals = 1) => {
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.float === "function") return RNG.float(min, max, decimals);
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.float === "function") return window.RNG.float(min, max, decimals);
     const v = min + rng() * (max - min);
     const p = Math.pow(10, decimals);
     return Math.round(v * p) / p;
@@ -485,6 +484,10 @@
     if (C && typeof C.rollHitLocation === "function") {
       return C.rollHitLocation(rng);
     }
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.rollHitLocation === "function") {
+      return FB.rollHitLocation(rng);
+    }
     const r = rng();
     if (r < 0.50) return { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 };
     if (r < 0.65) return { part: "head",  mult: 1.1, blockMod: 0.85, critBonus: 0.15 };
@@ -497,18 +500,22 @@
     if (C && typeof C.critMultiplier === "function") {
       return C.critMultiplier(rng);
     }
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.critMultiplier === "function") {
+      return FB.critMultiplier(rng);
+    }
     return 1.6 + rng() * 0.4;
   }
 
   function getEnemyBlockChance(enemy, loc) {
-    // Phase 1: centralize combat math in Combat; fall back to Enemies for compatibility
+    // Prefer Combat math; then fall back to Fallbacks; minimal local last-resort
     const C = modHandle("Combat");
     if (C && typeof C.getEnemyBlockChance === "function") {
       return C.getEnemyBlockChance(getCtx(), enemy, loc);
     }
-    const EM = modHandle("Enemies");
-    if (EM && typeof EM.enemyBlockChance === "function") {
-      return EM.enemyBlockChance(enemy, loc);
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.enemyBlockChance === "function") {
+      return FB.enemyBlockChance(getCtx(), enemy, loc);
     }
     const base = enemy.type === "ogre" ? 0.10 : enemy.type === "troll" ? 0.08 : 0.06;
     return Math.max(0, Math.min(0.35, base * (loc?.blockMod || 1.0)));
@@ -519,12 +526,17 @@
     if (C && typeof C.getPlayerBlockChance === "function") {
       return C.getPlayerBlockChance(getCtx(), loc);
     }
-    const eq = player.equipment || {};
+    // Minimal fallback aligned with Combat module (includes brace bonus)
+    const p = player || {};
+    const eq = p.equipment || {};
     const leftDef = (eq.left && typeof eq.left.def === "number") ? eq.left.def : 0;
     const rightDef = (eq.right && typeof eq.right.def === "number") ? eq.right.def : 0;
     const handDef = Math.max(leftDef, rightDef);
     const base = 0.08 + handDef * 0.06;
-    return Math.max(0, Math.min(0.6, base * (loc?.blockMod || 1.0)));
+    const mod = (loc && typeof loc.blockMod === "number") ? loc.blockMod : 1.0;
+    const braceBonus = (p && typeof p.braceTurns === "number" && p.braceTurns > 0) ? 1.5 : 1.0;
+    const clampMax = (braceBonus > 1.0) ? 0.75 : 0.6;
+    return Math.max(0, Math.min(clampMax, base * mod * braceBonus));
   }
 
   // Enemy damage after applying player's defense with diminishing returns and a chip-damage floor
@@ -532,6 +544,10 @@
     const C = modHandle("Combat");
     if (C && typeof C.enemyDamageAfterDefense === "function") {
       return C.enemyDamageAfterDefense(getCtx(), raw);
+    }
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.enemyDamageAfterDefense === "function") {
+      return FB.enemyDamageAfterDefense(getCtx(), raw);
     }
     const def = getPlayerDefense();
     const DR = Math.max(0, Math.min(0.85, def / (def + 6)));
@@ -551,14 +567,13 @@
   }
 
   function enemyDamageMultiplier(level) {
-    // Phase 1: centralize in Combat; fall back to Enemies.* for compatibility
     const C = modHandle("Combat");
     if (C && typeof C.enemyDamageMultiplier === "function") {
       return C.enemyDamageMultiplier(level);
     }
-    const EM = modHandle("Enemies");
-    if (EM && typeof EM.damageMultiplier === "function") {
-      return EM.damageMultiplier(level);
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.enemyDamageMultiplier === "function") {
+      return FB.enemyDamageMultiplier(level);
     }
     return 1 + 0.15 * Math.max(0, (level || 1) - 1);
   }
@@ -621,7 +636,7 @@
       P.drinkPotionByIndex(player, idx, {
         log,
         updateUI,
-        renderInventory: () => renderInventoryPanel(),
+        renderInventory: () => rerenderInventoryIfOpen(),
       });
       return;
     }
@@ -645,7 +660,7 @@
       player.inventory.splice(idx, 1);
     }
     updateUI();
-    renderInventoryPanel();
+    rerenderInventoryIfOpen();
   }
 
   
@@ -723,8 +738,18 @@
           seen[player.y][player.x] = true;
         }
       }
-      // Rebuild occupancy using ctx-first handle; module will no-op if unavailable.
-      rebuildOccupancy();
+      // Rebuild occupancy using TownRuntime helper or direct OccupancyGrid
+      {
+        const TR = modHandle("TownRuntime");
+        if (TR && typeof TR.rebuildOccupancy === "function") {
+          TR.rebuildOccupancy(getCtx());
+        } else {
+          const OG = modHandle("OccupancyGrid");
+          if (OG && typeof OG.build === "function") {
+            occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
+          }
+        }
+      }
       if (window.DEV) {
         try {
           const visCount = enemies.filter(e => inBounds(e.x, e.y) && visible[e.y][e.x]).length;
@@ -733,7 +758,17 @@
       }
       updateUI();
       log("You explore the dungeon.");
-      saveCurrentDungeonState(true);
+      try {
+        const DR2 = modHandle("DungeonRuntime");
+        if (DR2 && typeof DR2.save === "function") {
+          DR2.save(ctx, true);
+        } else {
+          const DS = modHandle("DungeonState");
+          if (DS && typeof DS.save === "function") {
+            DS.save(ctx);
+          }
+        }
+      } catch (_) {}
       requestDraw();
       return;
     }
@@ -751,118 +786,42 @@
     updateCamera();
     updateUI();
     log("You explore the dungeon.");
-    saveCurrentDungeonState(true);
+    try {
+      const DR2 = modHandle("DungeonRuntime");
+      if (DR2 && typeof DR2.save === "function") {
+        DR2.save(getCtx(), true);
+      } else {
+        const DS = modHandle("DungeonState");
+        if (DS && typeof DS.save === "function") {
+          DS.save(getCtx());
+        }
+      }
+    } catch (_) {}
+    requestDraw();
+    return;
   }
 
   function inBounds(x, y) {
-    // Prefer ctx-first Utils.inBounds to avoid duplication
+    // Centralize via Utils.inBounds; no local fallback
     const U = modHandle("Utils");
     if (U && typeof U.inBounds === "function") {
-      try { return !!U.inBounds(getCtx(), x, y); } catch (_) {}
+      return !!U.inBounds(getCtx(), x, y);
     }
-    const mh = map.length || MAP_ROWS;
-    const mw = map[0] ? map[0].length : MAP_COLS;
-    return x >= 0 && y >= 0 && x < mw && y < mh;
+    return false;
   }
 
-  // --------- Dungeon persistence helpers ---------
-  function dungeonKeyFromWorldPos(x, y) {
-    const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.keyFromWorldPos === "function") {
-      return DR.keyFromWorldPos(x, y);
-    }
-    return `${x},${y}`;
-  }
+  
+  
 
-  function saveCurrentDungeonState(logOnce = false) {
-    const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.save === "function") {
-      return DR.save(getCtx(), logOnce);
-    }
-    if (mode !== "dungeon" || !currentDungeon || !dungeonExitAt) return;
-    const key = dungeonKeyFromWorldPos(currentDungeon.x, currentDungeon.y);
-    dungeonStates[key] = {
-      map,
-      seen,
-      visible,
-      enemies,
-      corpses,
-      decals,
-      dungeonExitAt: { x: dungeonExitAt.x, y: dungeonExitAt.y },
-      info: currentDungeon,
-      level: floor
-    };
-    if (logOnce) {
-      try {
-        const totalEnemies = Array.isArray(enemies) ? enemies.length : 0;
-        const typeCounts = (() => {
-          try {
-            if (!Array.isArray(enemies) || enemies.length === 0) return "";
-            const mapCounts = {};
-            for (const e of enemies) {
-              const t = (e && e.type) ? String(e.type) : "(unknown)";
-              mapCounts[t] = (mapCounts[t] || 0) + 1;
-            }
-            const parts = Object.keys(mapCounts).sort().map(k => `${k}:${mapCounts[k]}`);
-            return parts.join(", ");
-          } catch (_) { return ""; }
-        })();
-        const msg = `Dungeon snapshot: enemies=${totalEnemies}${typeCounts ? ` [${typeCounts}]` : ""}, corpses=${Array.isArray(corpses)?corpses.length:0}`;
-        log(msg, "notice");
-      } catch (_) {}
-    }
-  }
-
-  function loadDungeonStateFor(x, y) {
-    const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.load === "function") {
-      const ctx = getCtx();
-      const ok = DR.load(ctx, x, y);
-      if (ok) syncFromCtx(ctx);
-      return ok;
-    }
-    const key = dungeonKeyFromWorldPos(x, y);
-    const st = dungeonStates[key];
-    if (!st) return false;
-
-    mode = "dungeon";
-    currentDungeon = st.info || { x, y, level: st.level || 1, size: "medium" };
-    floor = st.level || 1;
-    window.floor = floor;
-
-    map = st.map;
-    seen = st.seen;
-    visible = st.visible;
-    enemies = st.enemies;
-    corpses = st.corpses;
-    decals = st.decals || [];
-    dungeonExitAt = st.dungeonExitAt || { x, y };
-
-    player.x = dungeonExitAt.x;
-    player.y = dungeonExitAt.y;
-
-    if (inBounds(dungeonExitAt.x, dungeonExitAt.y)) {
-      map[dungeonExitAt.y][dungeonExitAt.x] = TILES.STAIRS;
-      if (visible[dungeonExitAt.y]) visible[dungeonExitAt.y][dungeonExitAt.x] = true;
-      if (seen[dungeonExitAt.y]) seen[dungeonExitAt.y][dungeonExitAt.x] = true;
-    }
-
-    recomputeFOV();
-    updateCamera();
-    updateUI();
-    requestDraw();
-    return true;
-  }
+  
 
   function isWalkable(x, y) {
-    // Prefer ctx-first Utils.isWalkableTile to unify tile semantics (ignore occupancy)
+    // Centralize via Utils.isWalkableTile; no local fallback
     const U = modHandle("Utils");
     if (U && typeof U.isWalkableTile === "function") {
-      try { return !!U.isWalkableTile(getCtx(), x, y); } catch (_) {}
+      return !!U.isWalkableTile(getCtx(), x, y);
     }
-    if (!inBounds(x, y)) return false;
-    const t = map[y][x];
-    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS;
+    return false;
   }
 
   
@@ -897,8 +856,16 @@
     const modeChanged = (mode !== _lastMode);
     const mapChanged = (rows !== _lastMapRows) || (cols !== _lastMapCols);
 
-    if (!modeChanged && !mapChanged && !fovChanged && !moved && mode !== "world") {
-      // No change affecting FOV; skip recompute in dungeon/town
+    // In overworld, visible/seen are fully true; only recompute when mode or map shape changed.
+    // This avoids re-filling arrays on every movement turn.
+    if (mode === "world" && !modeChanged && !mapChanged) {
+      _lastPlayerX = player.x; _lastPlayerY = player.y;
+      _lastFovRadius = fovRadius; _lastMode = mode;
+      _lastMapCols = cols; _lastMapRows = rows;
+      return;
+    }
+    // Non-world: skip recompute when nothing relevant changed.
+    if (!modeChanged && !mapChanged && !fovChanged && !moved) {
       return;
     }
 
@@ -993,16 +960,17 @@
       townExitAt,
       enemyColor: (t) => enemyColor(t),
       time: getClock(),
+      // GameLoop can measure draw time and report via this sink
+      onDrawMeasured: (ms) => { PERF.lastDrawMs = ms; },
     };
   }
 
-  
   // Batch multiple draw requests within a frame to avoid redundant renders.
   let _drawQueued = false;
   let _rafId = null;
 
-  // Simple perf counters (DEV-only visible in console)
-  const PERF = { lastTurnMs: 0, lastDrawMs: 0 };
+  // Simple perf counters (DEV-only visible in console) + EMA smoothing
+  const PERF = { lastTurnMs: 0, lastDrawMs: 0, avgTurnMs: 0, avgDrawMs: 0 };
 
   function requestDraw() {
     const GL = modHandle("GameLoop");
@@ -1011,37 +979,18 @@
       return;
     }
     const R = modHandle("Render");
-    if (!(R && typeof R.draw === "function")) return;
-
-    if (_drawQueued) return;
-    _drawQueued = true;
-    try {
-      _rafId = (typeof window !== "undefined" && window.requestAnimationFrame)
-        ? window.requestAnimationFrame(() => {
-            const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-            _drawQueued = false;
-            R.draw(getRenderCtx());
-            const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-            PERF.lastDrawMs = t1 - t0;
-            try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
-          })
-        : null;
-      if (_rafId == null) {
-        // Fallback: if RAF not available, draw immediately
-        const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-        _drawQueued = false;
-        R.draw(getRenderCtx());
-        const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-        PERF.lastDrawMs = t1 - t0;
-        try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
-      }
-    } catch (_) {
+    if (R && typeof R.draw === "function") {
       const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-      _drawQueued = false;
       R.draw(getRenderCtx());
       const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
       PERF.lastDrawMs = t1 - t0;
-      try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms`); } catch (_) {}
+      // EMA smoothing for draw time
+      try {
+        const a = 0.35; // smoothing factor
+        if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = PERF.lastDrawMs;
+        else PERF.avgDrawMs = (a * PERF.lastDrawMs) + ((1 - a) * PERF.avgDrawMs);
+      } catch (_) {}
+      try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms (avg ${PERF.avgDrawMs.toFixed(2)}ms)`); } catch (_) {}
     }
   }
 
@@ -1050,6 +999,22 @@
   
 
   function initWorld() {
+    // Prefer WorldRuntime.generate to centralize world setup
+    const WR = modHandle("WorldRuntime");
+    if (WR && typeof WR.generate === "function") {
+      const ctx = getCtx();
+      const ok = WR.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
+      if (ok) {
+        // Sync back any mutated references from ctx
+        syncFromCtx(ctx);
+        // Orchestrator schedules a single draw after world init
+        requestDraw();
+        return;
+      }
+      // Fall through to legacy path if WorldRuntime signaled failure
+    }
+
+    // Legacy path
     const W = modHandle("World");
     if (!(W && typeof W.generate === "function")) {
       log("World module missing; generating dungeon instead.", "warn");
@@ -1076,8 +1041,9 @@
     updateUI();
     log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
     {
-      const UB = modHandle("UIBridge");
-      if (UB && typeof UB.hideTownExitButton === "function") UB.hideTownExitButton(getCtx());
+      // Delegate town exit button visibility via TownRuntime
+      const TR = modHandle("TownRuntime");
+      if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(getCtx());
     }
     requestDraw();
   }
@@ -1086,32 +1052,20 @@
 
   
 
-  // Town shops helpers routed via ShopService
+  // Town shops helpers routed via ShopService (delegated)
   function isShopOpenNow(shop = null) {
     const SS = modHandle("ShopService");
     if (SS && typeof SS.isShopOpenNow === "function") {
       return SS.isShopOpenNow(getCtx(), shop || null);
     }
-    const t = getClock();
-    const minutes = t.hours * 60 + t.minutes;
-    if (!shop) return t.phase === "day";
-    if (shop.alwaysOpen) return true;
-    const o = shop.openMin, c = shop.closeMin;
-    if (typeof o !== "number" || typeof c !== "number") return false;
-    if (o === c) return false;
-    return c > o ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
+    return false;
   }
   function shopScheduleStr(shop) {
     const SS = modHandle("ShopService");
     if (SS && typeof SS.shopScheduleStr === "function") {
       return SS.shopScheduleStr(shop);
     }
-    if (!shop) return "";
-    const h2 = (min) => {
-      const hh = ((min / 60) | 0) % 24;
-      return String(hh).padStart(2, "0");
-    };
-    return `Opens ${h2(shop.openMin)}:00, closes ${h2(shop.closeMin)}:00`;
+    return "";
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
     return TS.minutesUntil(turnCounter, hourTarget, minuteTarget);
@@ -1144,8 +1098,19 @@
     townExitAt = ctx.townExitAt || townExitAt;
     dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
     currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-    if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
+    if (typeof ctx.floor === "number") { floor = (ctx.floor | 0); }
   }
+
+  // Helper: apply ctx sync and refresh visuals/UI in one place
+  function applyCtxSyncAndRefresh(ctx) {
+    syncFromCtx(ctx);
+    updateCamera();
+    recomputeFOV();
+    updateUI();
+    requestDraw();
+  }
+
+  
 
   function enterTownIfOnTile() {
     const M = modHandle("Modes");
@@ -1153,14 +1118,14 @@
       const ctx = getCtx();
       const ok = !!M.enterTownIfOnTile(ctx);
       if (ok) {
-        // Sync mutated ctx back into local state
-        syncFromCtx(ctx);
-        updateCamera();
-        // Invalidate FOV cache and recompute
+        // Invalidate cache then centralize sync/refresh
         _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-        recomputeFOV();
-        updateUI();
-        requestDraw();
+        applyCtxSyncAndRefresh(ctx);
+        // Show Town Exit button via TownRuntime
+        try {
+          const TR = modHandle("TownRuntime");
+          if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
+        } catch (_) {}
       }
       return ok;
     }
@@ -1173,12 +1138,8 @@
       const ctx = getCtx();
       const ok = !!M.enterDungeonIfOnEntrance(ctx);
       if (ok) {
-        syncFromCtx(ctx);
-        updateCamera();
         _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-        recomputeFOV();
-        updateUI();
-        requestDraw();
+        applyCtxSyncAndRefresh(ctx);
       }
       return ok;
     }
@@ -1190,27 +1151,10 @@
     if (M && typeof M.leaveTownNow === "function") {
       const ctx = getCtx();
       M.leaveTownNow(ctx);
-      // Sync mutated ctx back into local state
-      mode = ctx.mode || mode;
-      map = ctx.map || map;
-      seen = ctx.seen || seen;
-      visible = ctx.visible || visible;
-      enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-      corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-      decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-      npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
-      shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-      townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
-      townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
-      townPlaza = null;
-      tavern = null;
-      worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-      townExitAt = null;
-      dungeonExitAt = null;
-      currentDungeon = ctx.dungeon || ctx.dungeonInfo || null;
-      if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
-      recomputeFOV();
+      // Sync mutated ctx back into local state, then center camera and refresh
+      syncFromCtx(ctx);
       updateCamera();
+      recomputeFOV();
       updateUI();
       requestDraw();
       return;
@@ -1221,37 +1165,38 @@
     const M = modHandle("Modes");
     if (M && typeof M.requestLeaveTown === "function") {
       M.requestLeaveTown(getCtx());
-      return;
     }
-    // Centralized confirm via UIBridge; if unavailable, proceed to leave to avoid getting stuck
-    const doLeave = () => leaveTownNow();
-    const pos = { x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60 };
-    try {
-      const UB = modHandle("UIBridge");
-      if (UB && typeof UB.showConfirm === "function") {
-        UB.showConfirm(getCtx(), "Do you want to leave the town?", pos, () => doLeave(), () => {});
-        return;
-      }
-    } catch (_) {}
-    doLeave();
   }
 
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
-    // Prefer TownRuntime centralization
+    const ctx = getCtx();
     const TR = modHandle("TownRuntime");
     if (TR && typeof TR.returnToWorldIfAtGate === "function") {
-      const ctx = getCtx();
       const ok = !!TR.returnToWorldIfAtGate(ctx);
       if (ok) {
+        // Sync mutated ctx references into local state, then center camera on player
         syncFromCtx(ctx);
+        updateCamera();
+        recomputeFOV();
+        updateUI();
+        requestDraw();
         return true;
       }
     }
+    // Fallback: if standing at the gate, leave via TownRuntime/Modes
     if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      // Immediate exit on gate when pressing G (disable confirm UI)
-      leaveTownNow();
-      return true;
+      // Prefer TownRuntime.applyLeaveSync to ensure camera centering under ctx state
+      if (TR && typeof TR.applyLeaveSync === "function") {
+        TR.applyLeaveSync(ctx);
+        // Sync mutated ctx and refresh camera/FOV/UI against new world map
+        syncFromCtx(ctx);
+        updateCamera();
+        recomputeFOV();
+        updateUI();
+        requestDraw();
+        return true;
+      }
     }
     log("Return to the town gate to exit to the overworld.", "info");
     return false;
@@ -1263,23 +1208,7 @@
       const ctx = getCtx();
       const ok = M.returnToWorldIfAtExit(ctx);
       if (ok) {
-        // Sync mutated ctx back into local state
-        mode = ctx.mode || mode;
-        map = ctx.map || map;
-        seen = ctx.seen || seen;
-        visible = ctx.visible || visible;
-        enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-        corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-        decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-        worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-        townExitAt = ctx.townExitAt || townExitAt;
-        dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
-        currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-        if (typeof ctx.floor === "number") { floor = ctx.floor | 0; window.floor = floor; }
-        recomputeFOV();
-        updateCamera();
-        updateUI();
-        requestDraw();
+        applyCtxSyncAndRefresh(ctx);
       }
       return ok;
     }
@@ -1302,31 +1231,7 @@
         const ctxMod = getCtx();
         const handled = A.doAction(ctxMod);
         if (handled) {
-          // Sync mutated ctx back into local state to ensure mode/map changes take effect
-          mode = ctxMod.mode || mode;
-          map = ctxMod.map || map;
-          seen = ctxMod.seen || seen;
-          visible = ctxMod.visible || visible;
-          enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
-          corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
-          decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
-          // Town-specific state
-          npcs = Array.isArray(ctxMod.npcs) ? ctxMod.npcs : npcs;
-          shops = Array.isArray(ctxMod.shops) ? ctxMod.shops : shops;
-          townProps = Array.isArray(ctxMod.townProps) ? ctxMod.townProps : townProps;
-          townBuildings = Array.isArray(ctxMod.townBuildings) ? ctxMod.townBuildings : townBuildings;
-          townPlaza = ctxMod.townPlaza || townPlaza;
-          tavern = ctxMod.tavern || tavern;
-          // Anchors/persistence
-          worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
-          townExitAt = ctxMod.townExitAt || townExitAt;
-          dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
-          currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
-          if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
-          updateCamera();
-          recomputeFOV();
-          updateUI();
-          requestDraw();
+          applyCtxSyncAndRefresh(ctxMod);
           return;
         }
       }
@@ -1448,27 +1353,49 @@
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => {
           const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isGodOpen === "function") wasOpen = !!UB.isGodOpen();
+          } catch (_) {}
           try {
             if (UB && typeof UB.hideGod === "function") UB.hideGod(getCtx());
           } catch (_) {}
-          requestDraw();
+          if (wasOpen) requestDraw();
         },
-        onHideShop: () => hideShopPanel(),
+        onHideShop: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isShopOpen === "function") wasOpen = !!UB.isShopOpen();
+          } catch (_) {}
+          if (UB && typeof UB.hideShop === "function") {
+            UB.hideShop(getCtx());
+            if (wasOpen) requestDraw();
+          }
+        },
         onHideSmoke: () => {
           const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isSmokeOpen === "function") wasOpen = !!UB.isSmokeOpen();
+          } catch (_) {}
           try {
             if (UB && typeof UB.hideSmoke === "function") UB.hideSmoke(getCtx());
           } catch (_) {}
-          requestDraw();
+          if (wasOpen) requestDraw();
         },
         onShowGod: () => {
           const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isGodOpen === "function") wasOpen = !!UB.isGodOpen();
+          } catch (_) {}
           try {
             if (UB && typeof UB.showGod === "function") UB.showGod(getCtx());
           } catch (_) {}
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
-          requestDraw();
+          if (!wasOpen) requestDraw();
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
@@ -1505,63 +1432,49 @@
   function tryMovePlayer(dx, dy) {
     if (isDead) return;
 
-    // WORLD MODE: move over overworld tiles (no NPCs here)
+    // WORLD MODE
     if (mode === "world") {
+      const WR = modHandle("WorldRuntime");
+      if (WR && typeof WR.tryMovePlayerWorld === "function") {
+        const ok = !!WR.tryMovePlayerWorld(getCtx(), dx, dy);
+        if (ok) return;
+      }
+      // Fallback: direct world map walk if runtime didn't handle
       const nx = player.x + dx;
       const ny = player.y + dy;
       const wmap = world && world.map ? world.map : null;
       if (!wmap) return;
       const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
       if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return;
-      {
-        const W = modHandle("World");
-        if (W && typeof W.isWalkable === "function" && W.isWalkable(wmap[ny][nx])) {
-          player.x = nx; player.y = ny;
-          updateCamera();
-          turn();
-        }
+      const W = modHandle("World");
+      const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(wmap[ny][nx]) : true;
+      if (walkable) {
+        player.x = nx; player.y = ny;
+        updateCamera();
+        turn();
       }
       return;
     }
 
-    // TOWN MODE: block NPC tiles, use local isWalkable
+    // TOWN MODE
     if (mode === "town") {
+      const TR = modHandle("TownRuntime");
+      if (TR && typeof TR.tryMoveTown === "function") {
+        const ok = !!TR.tryMoveTown(getCtx(), dx, dy);
+        if (ok) return;
+      }
+      // Fallback: minimal town movement and bump-talk
       const nx = player.x + dx;
       const ny = player.y + dy;
       if (!inBounds(nx, ny)) return;
       const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(nx, ny) : npcs.some(n => n.x === nx && n.y === ny);
       if (npcBlocked) {
-        // Treat bumping into an NPC as a "hit"/interaction: they respond with a line
-        const npc = npcs.find(n => n.x === nx && n.y === ny);
-        if (npc) {
-          const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
-          const li = randInt(0, lines.length - 1);
-          log(`${npc.name || "Villager"}: ${lines[li]}`, "info");
-
-          // Heuristic: if NPC is at/near a shop door, open a simple shop UI to buy potions and gear
-          try {
-            // If this NPC is at or adjacent to a shop door, gate opening by schedule
-            let doorShop = null;
-            if (Array.isArray(shops)) {
-              for (const s of shops) {
-                const d = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
-                if (d <= 1) { doorShop = s; break; }
-              }
-            }
-            if (doorShop) {
-              const openNow = isShopOpenNow(doorShop);
-              const sched = shopScheduleStr(doorShop);
-              if (openNow) {
-                openShopFor(npc);
-              } else {
-                log(`The ${doorShop.name || "shop"} is closed. ${sched}`, "warn");
-              }
-            }
-          } catch (_) {}
-
-          requestDraw();
+        const TR2 = modHandle("TownRuntime");
+        if (TR2 && typeof TR2.talk === "function") {
+          TR2.talk(getCtx());
         } else {
           log("Excuse me!", "info");
+          // Pure log; no canvas redraw needed
         }
         return;
       }
@@ -1573,88 +1486,18 @@
       return;
     }
 
-    // DUNGEON MODE:
-    // Dazed: skip action if dazedTurns > 0
-    if (player.dazedTurns && player.dazedTurns > 0) {
-      player.dazedTurns -= 1;
-      log("You are dazed and lose your action this turn.", "warn");
-      turn();
-      return;
+    // DUNGEON MODE
+    {
+      const DR = modHandle("DungeonRuntime");
+      if (DR && typeof DR.tryMoveDungeon === "function") {
+        const ok = !!DR.tryMoveDungeon(getCtx(), dx, dy);
+        if (ok) return;
+      }
     }
+    // Fallback: minimal dungeon movement into walkable, empty tiles
     const nx = player.x + dx;
     const ny = player.y + dy;
     if (!inBounds(nx, ny)) return;
-
-    const enemy = enemies.find(e => e.x === nx && e.y === ny);
-    if (enemy) {
-      let loc = rollHitLocation();
-      if (alwaysCrit && forcedCritPart) {
-        const profiles = {
-          torso: { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 },
-          head:  { part: "head",  mult: 1.1, blockMod: 0.85, critBonus: 0.15 },
-          hands: { part: "hands", mult: 0.9, blockMod: 0.75, critBonus: -0.05 },
-          legs:  { part: "legs",  mult: 0.95, blockMod: 0.75, critBonus: -0.03 },
-        };
-        if (profiles[forcedCritPart]) loc = profiles[forcedCritPart];
-      }
-
-      if (rng() < getEnemyBlockChance(enemy, loc)) {
-        log(`${capitalize(enemy.type || "enemy")} blocks your attack to the ${loc.part}.`, "block");
-        decayAttackHands(true);
-        decayEquipped("hands", randFloat(0.2, 0.7, 1));
-        turn();
-        return;
-      }
-
-      let dmg = getPlayerAttack() * loc.mult;
-      let isCrit = false;
-      const critChance = Math.max(0, Math.min(0.6, 0.12 + loc.critBonus));
-      if (alwaysCrit || rng() < critChance) {
-        isCrit = true;
-        dmg *= critMultiplier();
-      }
-      dmg = Math.max(0, round1(dmg));
-      enemy.hp -= dmg;
-
-      if (dmg > 0) {
-        addBloodDecal(enemy.x, enemy.y, isCrit ? 1.6 : 1.0);
-      }
-
-      if (isCrit) {
-        log(`Critical! You hit the ${enemy.type || "enemy"}'s ${loc.part} for ${dmg}.`, "crit");
-      } else {
-        log(`You hit the ${enemy.type || "enemy"}'s ${loc.part} for ${dmg}.`);
-      }
-      { const ctx = getCtx(); if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg }); }
-      if (isCrit && loc.part === "legs" && enemy.hp > 0) {
-        {
-          const ST = modHandle("Status");
-          if (ST && typeof ST.applyLimpToEnemy === "function") {
-            ST.applyLimpToEnemy(getCtx(), enemy, 2);
-          } else {
-            enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2);
-            log(`${capitalize(enemy.type || "enemy")} staggers; its legs are crippled and it can't move for 2 turns.`, "notice");
-          }
-        }
-      }
-      if (isCrit && enemy.hp > 0) {
-        const ST = modHandle("Status");
-        if (ST && typeof ST.applyBleedToEnemy === "function") {
-          ST.applyBleedToEnemy(getCtx(), enemy, 2);
-        }
-      }
-
-      if (enemy.hp <= 0) {
-        killEnemy(enemy);
-      }
-
-      decayAttackHands();
-      decayEquipped("hands", randFloat(0.3, 1.0, 1));
-      turn();
-      return;
-    }
-
-    // Prefer occupancy grid if available to avoid linear scans
     const blockedByEnemy = (occupancy && typeof occupancy.hasEnemy === "function") ? occupancy.hasEnemy(nx, ny) : enemies.some(e => e.x === nx && e.y === ny);
     if (isWalkable(nx, ny) && !blockedByEnemy) {
       player.x = nx;
@@ -1662,6 +1505,7 @@
       updateCamera();
       turn();
     }
+    
   }
 
   
@@ -1678,13 +1522,7 @@
   }
 
   
-  function interactTownProps() {
-    const Tn = modHandle("Town");
-    if (Tn && typeof Tn.interactProps === "function") {
-      return !!Tn.interactProps(getCtx());
-    }
-    return false;
-  }
+  
 
   function lootCorpse() {
     if (isDead) return;
@@ -1696,23 +1534,7 @@
         const ctxMod = getCtx();
         const handled = A.loot(ctxMod);
         if (handled) {
-          // Sync mutated ctx back into local state
-          mode = ctxMod.mode || mode;
-          map = ctxMod.map || map;
-          seen = ctxMod.seen || seen;
-          visible = ctxMod.visible || visible;
-          enemies = Array.isArray(ctxMod.enemies) ? ctxMod.enemies : enemies;
-          corpses = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : corpses;
-          decals = Array.isArray(ctxMod.decals) ? ctxMod.decals : decals;
-          worldReturnPos = ctxMod.worldReturnPos || worldReturnPos;
-          townExitAt = ctxMod.townExitAt || townExitAt;
-          dungeonExitAt = ctxMod.dungeonExitAt || dungeonExitAt;
-          currentDungeon = ctxMod.dungeon || ctxMod.dungeonInfo || currentDungeon;
-          if (typeof ctxMod.floor === "number") { floor = ctxMod.floor | 0; window.floor = floor; }
-          updateCamera();
-          recomputeFOV();
-          updateUI();
-          requestDraw();
+          applyCtxSyncAndRefresh(ctxMod);
           return;
         }
       }
@@ -1725,12 +1547,15 @@
         DR.lootHere(getCtx());
         return;
       }
-      if (window.Loot && typeof Loot.lootHere === "function") {
-        Loot.lootHere(getCtx());
-        return;
+      {
+        const L = modHandle("Loot");
+        if (L && typeof L.lootHere === "function") {
+          L.lootHere(getCtx());
+          return;
+        }
       }
       log("Return to the entrance (the hole '>') and press G to leave.", "info");
-      requestDraw();
+      // Pure guidance; canvas unchanged -> no redraw
       return;
     }
 
@@ -1740,9 +1565,13 @@
 
   function showLootPanel(list) {
     const UB = modHandle("UIBridge");
+    let wasOpen = false;
+    try {
+      if (UB && typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen();
+    } catch (_) {}
     if (UB && typeof UB.showLoot === "function") {
       UB.showLoot(getCtx(), list);
-      requestDraw();
+      if (!wasOpen) requestDraw();
     }
   }
 
@@ -1756,60 +1585,35 @@
     }
   }
 
-  // Shop UI routed via UIBridge only
-  function hideShopPanel() {
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.hideShop === "function") {
-      UB.hideShop(getCtx());
-      requestDraw();
-      return;
-    }
-    try { log("Shop UI not available.", "warn"); } catch (_) {}
-    requestDraw();
-  }
-  function openShopFor(npc) {
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.showShop === "function") {
-      try { UB.showShop(getCtx(), npc); } catch (_) {}
-      return;
-    }
-    try { log("Shop UI not available.", "warn"); } catch (_) {}
-  }
-  function shopBuyIndex(idx) {
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.buyShopIndex === "function") {
-      try { UB.buyShopIndex(getCtx(), idx); } catch (_) {}
-      return;
-    }
-    try { log("Shop UI not available.", "warn"); } catch (_) {}
-  }
-
-  // GOD mode actions
+  
+  // GOD mode actions (delegated to GodControls)
   function godHeal() {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.heal === "function") { GC.heal(() => getCtx()); return; }
     const G = modHandle("God");
     if (G && typeof G.heal === "function") { G.heal(getCtx()); return; }
     log("GOD: heal not available.", "warn");
   }
 
   function godSpawnStairsHere() {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.spawnStairsHere === "function") { GC.spawnStairsHere(() => getCtx()); return; }
     const G = modHandle("God");
     if (G && typeof G.spawnStairsHere === "function") { G.spawnStairsHere(getCtx()); return; }
     log("GOD: spawnStairsHere not available.", "warn");
   }
 
   function godSpawnItems(count = 3) {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.spawnItems === "function") { GC.spawnItems(() => getCtx(), count); return; }
     const G = modHandle("God");
     if (G && typeof G.spawnItems === "function") { G.spawnItems(getCtx(), count); return; }
     log("GOD: spawnItems not available.", "warn");
   }
 
-  /**
-   * Spawn one or more enemies near the player (debug/GOD).
-   * - Chooses a free FLOOR tile within a small radius; falls back to any free floor tile.
-   * - Creates enemy via ctx.enemyFactory or Enemies.createEnemyAt.
-   * - Applies small randomized jitters to hp/atk for variety (deterministic via rng).
-   */
   function godSpawnEnemyNearby(count = 1) {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.spawnEnemyNearby === "function") { GC.spawnEnemyNearby(() => getCtx(), count); return; }
     const G = modHandle("God");
     if (G && typeof G.spawnEnemyNearby === "function") { G.spawnEnemyNearby(getCtx(), count); return; }
     log("GOD: spawnEnemyNearby not available.", "warn");
@@ -1817,8 +1621,6 @@
 
   
   function renderInventoryPanel() {
-    // Keep totals in sync
-    updateUI();
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.render === "function") {
       IC.render(getCtx());
@@ -1833,34 +1635,41 @@
   }
 
   function showInventoryPanel() {
+    const UB = modHandle("UIBridge");
+    let wasOpen = false;
+    try {
+      if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+    } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.show === "function") {
       IC.show(getCtx());
     } else {
       renderInventoryPanel();
-      const UB = modHandle("UIBridge");
       if (UB && typeof UB.showInventory === "function") {
         UB.showInventory(getCtx());
       }
     }
-    requestDraw();
+    if (!wasOpen) requestDraw();
   }
 
   function hideInventoryPanel() {
+    const UB = modHandle("UIBridge");
+    let wasOpen = false;
+    try {
+      if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+    } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.hide === "function") {
       IC.hide(getCtx());
-      requestDraw();
+      if (wasOpen) requestDraw();
       return;
     }
-    const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideInventory === "function") {
       UB.hideInventory(getCtx());
-      requestDraw();
+      if (wasOpen) requestDraw();
       return;
     }
-    // No DOM fallback; rely on UIBridge/InventoryController
-    requestDraw();
+    if (wasOpen) requestDraw();
   }
 
   function equipItemByIndex(idx) {
@@ -1875,7 +1684,7 @@
       P.equipItemByIndex(player, idx, {
         log,
         updateUI,
-        renderInventory: () => renderInventoryPanel(),
+        renderInventory: () => rerenderInventoryIfOpen(),
         describeItem: (it) => describeItem(it),
       });
       return;
@@ -1895,7 +1704,7 @@
       P.equipItemByIndex(player, idx, {
         log,
         updateUI,
-        renderInventory: () => renderInventoryPanel(),
+        renderInventory: () => rerenderInventoryIfOpen(),
         describeItem: (it) => describeItem(it),
         preferredHand: hand,
       });
@@ -1915,7 +1724,7 @@
       P.unequipSlot(player, slot, {
         log,
         updateUI,
-        renderInventory: () => renderInventoryPanel(),
+        renderInventory: () => rerenderInventoryIfOpen(),
       });
       return;
     }
@@ -1932,38 +1741,30 @@
     }
   }
 
-  // GOD: always-crit toggle
+  // GOD: always-crit toggle (delegated)
   function setAlwaysCrit(v) {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.setAlwaysCrit === "function") { GC.setAlwaysCrit(() => getCtx(), v); alwaysCrit = !!v; return; }
     const G = modHandle("God");
     if (G && typeof G.setAlwaysCrit === "function") { G.setAlwaysCrit(getCtx(), v); alwaysCrit = !!v; return; }
-    alwaysCrit = !!v;
-    try { window.ALWAYS_CRIT = alwaysCrit; localStorage.setItem("ALWAYS_CRIT", alwaysCrit ? "1" : "0"); } catch (_) {}
-    log(`GOD: Always Crit ${alwaysCrit ? "enabled" : "disabled"}.`, alwaysCrit ? "good" : "warn");
+    log("GOD: setAlwaysCrit not available.", "warn");
   }
 
-  // GOD: set forced crit body part for player attacks
+  // GOD: set forced crit body part for player attacks (delegated)
   function setCritPart(part) {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.setCritPart === "function") { GC.setCritPart(() => getCtx(), part); forcedCritPart = part; return; }
     const G = modHandle("God");
     if (G && typeof G.setCritPart === "function") { G.setCritPart(getCtx(), part); forcedCritPart = part; return; }
-    const valid = new Set(["torso","head","hands","legs",""]);
-    const p = valid.has(part) ? part : "";
-    forcedCritPart = p;
-    try {
-      window.ALWAYS_CRIT_PART = p;
-      if (p) localStorage.setItem("ALWAYS_CRIT_PART", p);
-      else localStorage.removeItem("ALWAYS_CRIT_PART");
-    } catch (_) {}
-    if (p) log(`GOD: Forcing crit hit location: ${p}.`, "notice");
-    else log("GOD: Cleared forced crit hit location.", "notice");
+    log("GOD: setCritPart not available.", "warn");
   }
 
-  // GOD: apply a deterministic RNG seed and regenerate current map
+  // GOD: apply a deterministic RNG seed and regenerate current map (delegated)
   function applySeed(seedUint32) {
-    const G = modHandle("God");
-    if (G && typeof G.applySeed === "function") {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.applySeed === "function") {
       const ctx = getCtx();
-      G.applySeed(ctx, seedUint32);
-      // Sync RNG and any regenerated state back into local variables
+      GC.applySeed(() => getCtx(), seedUint32);
       rng = ctx.rng || rng;
       syncFromCtx(ctx);
       updateCamera();
@@ -1972,42 +1773,35 @@
       requestDraw();
       return;
     }
-    // Minimal fallback
-    const s = (Number(seedUint32) >>> 0);
-    currentSeed = s;
-    try { localStorage.setItem("SEED", String(s)); } catch (_) {}
-    if (typeof window !== "undefined" && window.RNG && typeof RNG.applySeed === "function") {
-      RNG.applySeed(s);
-      rng = RNG.rng;
-    } else {
-      try {
-        if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
-          rng = RNGFallback.getRng(s);
-        } else {
-          rng = Math.random;
-        }
-      } catch (_) {
-        rng = Math.random;
-      }
+    const G = modHandle("God");
+    if (G && typeof G.applySeed === "function") {
+      const ctx = getCtx();
+      G.applySeed(ctx, seedUint32);
+      rng = ctx.rng || rng;
+      syncFromCtx(ctx);
+      updateCamera();
+      recomputeFOV();
+      updateUI();
+      requestDraw();
+      return;
     }
-    if (mode === "world") {
-      log(`GOD: Applied seed ${s}. Regenerating overworld...`, "notice");
-      initWorld();
-    } else {
-      log(`GOD: Applied seed ${s}. Regenerating floor ${floor}...`, "notice");
-      generateLevel(floor);
-    }
-    requestDraw();
-    try {
-      const el = document.getElementById("god-seed-help");
-      if (el) el.textContent = `Current seed: ${s}`;
-      const input = document.getElementById("god-seed-input");
-      if (input) input.value = String(s);
-    } catch (_) {}
+    log("GOD: applySeed not available.", "warn");
   }
 
-  // GOD: reroll seed using current time
+  // GOD: reroll seed using current time (delegated)
   function rerollSeed() {
+    const GC = modHandle("GodControls");
+    if (GC && typeof GC.rerollSeed === "function") {
+      const ctx = getCtx();
+      GC.rerollSeed(() => getCtx());
+      rng = ctx.rng || rng;
+      syncFromCtx(ctx);
+      updateCamera();
+      recomputeFOV();
+      updateUI();
+      requestDraw();
+      return;
+    }
     const G = modHandle("God");
     if (G && typeof G.rerollSeed === "function") {
       const ctx = getCtx();
@@ -2020,8 +1814,7 @@
       requestDraw();
       return;
     }
-    const s = (Date.now() % 0xffffffff) >>> 0;
-    applySeed(s);
+    log("GOD: rerollSeed not available.", "warn");
   }
 
   function hideGameOver() {
@@ -2034,7 +1827,6 @@
   function restartGame() {
     hideGameOver();
     floor = 1;
-    window.floor = floor;
     isDead = false;
     // Reset player using Player defaults when available; clear transient effects
     try {
@@ -2070,20 +1862,18 @@
   }
 
   function killEnemy(enemy) {
-    // Delegate to DungeonRuntime first
+    // Prefer centralized DungeonRuntime to handle loot, occupancy, XP, and persistence
     const DR = modHandle("DungeonRuntime");
     if (DR && typeof DR.killEnemy === "function") {
       const ctx = getCtx();
       DR.killEnemy(ctx, enemy);
-      // Sync mutated ctx (enemies, corpses, occupancy, player xp)
       syncFromCtx(ctx);
       return;
     }
-    // Fallback local behavior
+    // Minimal fallback: announce death, add corpse without loot, clear enemy, award XP
     const name = capitalize(enemy.type || "enemy");
     log(`${name} dies.`, "bad");
-    const loot = generateLoot(enemy);
-    corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
+    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
     enemies = enemies.filter(e => e !== enemy);
     try {
       if (occupancy && typeof occupancy.clearEnemy === "function") {
@@ -2091,47 +1881,23 @@
       }
     } catch (_) {}
     gainXP(enemy.xp || 5);
-    try {
-      const DR = modHandle("DungeonRuntime");
-      if (DR && typeof DR.save === "function") {
-        DR.save(getCtx(), false);
-      }
-    } catch (_) {}
   }
 
   
   function updateUI() {
-    // Prefer UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.updateStats === "function") {
       UB.updateStats(getCtx());
-      return;
     }
-    // Fallback if UI module not loaded
-    const hpEl = document.getElementById("health");
-    const floorEl = document.getElementById("floor");
-    const gold = (player.inventory.find(i => i.kind === "gold")?.amount) || 0;
-    if (hpEl) hpEl.textContent = `HP: ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}  Gold: ${gold}`;
-    const t = getClock();
-    if (floorEl) floorEl.textContent = `Floor: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}  Time: ${t.hhmm} (${t.phase})`;
   }
+
 
   
-  function enemiesAct() {
-    const AIH = modHandle("AI");
-    if (AIH && typeof AIH.enemiesAct === "function") {
-      AIH.enemiesAct(getCtx());
-    }
-    // No fallback here: AI behavior is defined in ai.js
-  }
+  
 
-  function townNPCsAct() {
-    if (mode !== "town") return;
-    const TAI = modHandle("TownAI");
-    if (TAI && typeof TAI.townNPCsAct === "function") {
-      TAI.townNPCsAct(getCtx());
-    }
-  }
+  
+
+  
 
   
   
@@ -2148,44 +1914,19 @@
 
 
     if (mode === "dungeon") {
-      enemiesAct();
-      // Ensure occupancy reflects enemy movement/deaths this turn to avoid stale blocking
-      rebuildOccupancy();
-      // Status effects tick (bleed, dazed, etc.)
-      try {
-        const ST = modHandle("Status");
-        if (ST && typeof ST.tick === "function") {
-          ST.tick(getCtx());
-        }
-      } catch (_) {}
-      // Visual: decals fade each turn
-      {
-        const DC = modHandle("Decals");
-        if (DC && typeof DC.tick === "function") {
-          DC.tick(getCtx());
-        } else if (decals && decals.length) {
-          for (let i = 0; i < decals.length; i++) {
-            decals[i].a *= 0.92;
-          }
-          decals = decals.filter(d => d.a > 0.04);
-        }
+      const DR = modHandle("DungeonRuntime");
+      if (DR && typeof DR.tick === "function") {
+        DR.tick(getCtx());
       }
-      // End of turn: brace stance lasts only for this enemy round
-      if (player && typeof player.braceTurns === "number" && player.braceTurns > 0) {
-        player.braceTurns = 0;
-      }
-      // clamp corpse list length
-      if (corpses.length > 50) corpses = corpses.slice(-50);
-
-      // Persistence snapshot logging removed from per-turn to avoid noise.
-      // DungeonState.save is still called on key events (entry, kills, explicit saves).
     } else if (mode === "town") {
-      townTick = (townTick + 1) | 0;
-      townNPCsAct();
-      // Rebuild occupancy at a modest stride to avoid ghost-blocking after NPC bursts
-      const TOWN_OCC_STRIDE = 2;
-      if ((townTick % TOWN_OCC_STRIDE) === 0) {
-        rebuildOccupancy();
+      const TR = modHandle("TownRuntime");
+      if (TR && typeof TR.tick === "function") {
+        TR.tick(getCtx());
+      }
+    } else if (mode === "world") {
+      const WR = modHandle("WorldRuntime");
+      if (WR && typeof WR.tick === "function") {
+        WR.tick(getCtx());
       }
     }
 
@@ -2195,7 +1936,13 @@
 
     const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
     PERF.lastTurnMs = t1 - t0;
-    try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms`); } catch (_) {}
+    // EMA smoothing for turn time
+    try {
+      const a = 0.35; // smoothing factor
+      if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
+      else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
+    } catch (_) {}
+    try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms (avg ${PERF.avgTurnMs.toFixed(2)}ms)`); } catch (_) {}
   }
   
   
@@ -2232,7 +1979,17 @@
             } catch (_) {}
             return false;
           },
-          onHideShop: () => hideShopPanel(),
+          onHideShop: () => {
+            const UB = modHandle("UIBridge");
+            let wasOpen = false;
+            try {
+              if (UB && typeof UB.isShopOpen === "function") wasOpen = !!UB.isShopOpen();
+            } catch (_) {}
+            if (UB && typeof UB.hideShop === "function") {
+              UB.hideShop(getCtx());
+              if (wasOpen) requestDraw();
+            }
+          },
           onGodCheckHomes: () => {
             const ctx = getCtx();
             if (ctx.mode !== "town") {
@@ -2242,64 +1999,78 @@
             }
             // Ensure town NPCs are populated before running the check
             try {
-              if ((!Array.isArray(ctx.npcs) || ctx.npcs.length === 0) && window.TownAI && typeof TownAI.populateTown === "function") {
-                TownAI.populateTown(ctx);
+              const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
+              if ((!Array.isArray(ctx.npcs) || ctx.npcs.length === 0) && TAI && typeof TAI.populateTown === "function") {
+                TAI.populateTown(ctx);
                 // Sync back any mutations
                 syncFromCtx(ctx);
-                rebuildOccupancy();
+                {
+                  const TR = modHandle("TownRuntime");
+                  if (TR && typeof TR.rebuildOccupancy === "function") {
+                    TR.rebuildOccupancy(getCtx());
+                  } else {
+                    const OG = modHandle("OccupancyGrid");
+                    if (OG && typeof OG.build === "function") {
+                      occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
+                    }
+                  }
+                }
               }
             } catch (_) {}
 
-            if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
-              const res = TownAI.checkHomeRoutes(ctx) || {};
-              const totalChecked = (typeof res.total === "number")
-                ? res.total
-                : ((res.reachable || 0) + (res.unreachable || 0));
-              const skippedStr = res.skipped ? `, ${res.skipped} skipped` : "";
-              const summaryLine = `Home route check: ${(res.reachable || 0)}/${totalChecked} reachable, ${(res.unreachable || 0)} unreachable${skippedStr}.`;
-              log(summaryLine, (res.unreachable || 0) ? "warn" : "good");
-              let extraLines = [];
-              if (res.residents && typeof res.residents.total === "number") {
-                const r = res.residents;
-                // TownAI returns atTavern; display as "inn" for consistency
-                extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
+            {
+              const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
+              if (TAI && typeof TAI.checkHomeRoutes === "function") {
+                const res = TAI.checkHomeRoutes(ctx) || {};
+                const totalChecked = (typeof res.total === "number")
+                  ? res.total
+                  : ((res.reachable || 0) + (res.unreachable || 0));
+                const skippedStr = res.skipped ? `, ${res.skipped} skipped` : "";
+                const summaryLine = `Home route check: ${(res.reachable || 0)}/${totalChecked} reachable, ${(res.unreachable || 0)} unreachable${skippedStr}.`;
+                log(summaryLine, (res.unreachable || 0) ? "warn" : "good");
+                let extraLines = [];
+                if (res.residents && typeof res.residents.total === "number") {
+                  const r = res.residents;
+                  // TownAI returns atTavern; display as "inn" for consistency
+                  extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
+                } else {
+                  // Provide a hint if no residents were counted
+                  extraLines.push("No residents were counted; ensure town NPCs are populated.");
+                }
+                // Per-resident list of late-night away residents
+                if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
+                  extraLines.push(`Late-night (02:00–05:00): ${res.residentsAwayLate.length} resident(s) away from home and inn:`);
+                  res.residentsAwayLate.slice(0, 10).forEach(d => {
+                    extraLines.push(`- ${d.name} at (${d.x},${d.y})`);
+                  });
+                  if (res.residentsAwayLate.length > 10) {
+                    extraLines.push(`...and ${res.residentsAwayLate.length - 10} more.`);
+                  }
+                }
+                if (res.skipped) {
+                  extraLines.push(`Skipped ${res.skipped} NPCs not expected to have homes (e.g., pets).`);
+                }
+                if (res.unreachable && Array.isArray(res.details)) {
+                  res.details.slice(0, 8).forEach(d => {
+                    extraLines.push(`- ${d.name}: ${d.reason}`);
+                  });
+                  if (res.details.length > 8) extraLines.push(`...and ${res.details.length - 8} more.`);
+                }
+                // Mirror summary inside GOD panel output area for visibility while modal is open
+                try {
+                  const el = document.getElementById("god-check-output");
+                  if (el) {
+                    const html = [summaryLine].concat(extraLines).map(s => `<div>${s}</div>`).join("");
+                    el.innerHTML = html;
+                  }
+                } catch (_) {}
+                // Also write all extra lines to the main log
+                extraLines.forEach(line => log(line, "info"));
+                // Request draw to show updated debug paths (if enabled)
+                requestDraw();
               } else {
-                // Provide a hint if no residents were counted
-                extraLines.push("No residents were counted; ensure town NPCs are populated.");
+                log("TownAI.checkHomeRoutes not available.", "warn");
               }
-              // Per-resident list of late-night away residents
-              if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
-                extraLines.push(`Late-night (02:00–05:00): ${res.residentsAwayLate.length} resident(s) away from home and inn:`);
-                res.residentsAwayLate.slice(0, 10).forEach(d => {
-                  extraLines.push(`- ${d.name} at (${d.x},${d.y})`);
-                });
-                if (res.residentsAwayLate.length > 10) {
-                  extraLines.push(`...and ${res.residentsAwayLate.length - 10} more.`);
-                }
-              }
-              if (res.skipped) {
-                extraLines.push(`Skipped ${res.skipped} NPCs not expected to have homes (e.g., pets).`);
-              }
-              if (res.unreachable && Array.isArray(res.details)) {
-                res.details.slice(0, 8).forEach(d => {
-                  extraLines.push(`- ${d.name}: ${d.reason}`);
-                });
-                if (res.details.length > 8) extraLines.push(`...and ${res.details.length - 8} more.`);
-              }
-              // Mirror summary inside GOD panel output area for visibility while modal is open
-              try {
-                const el = document.getElementById("god-check-output");
-                if (el) {
-                  const html = [summaryLine].concat(extraLines).map(s => `<div>${s}</div>`).join("");
-                  el.innerHTML = html;
-                }
-              } catch (_) {}
-              // Also write all extra lines to the main log
-              extraLines.forEach(line => log(line, "info"));
-              // Request draw to show updated debug paths (if enabled)
-              requestDraw();
-            } else {
-              log("TownAI.checkHomeRoutes not available.", "warn");
             }
           },
           onGodCheckInnTavern: () => {
@@ -2338,7 +2109,7 @@
               World: !!ctx.World, Town: !!ctx.Town, TownAI: !!ctx.TownAI,
               DungeonState: !!ctx.DungeonState
             };
-            const rngSrc = (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
+            const rngSrc = (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
             const seedStr = (typeof currentSeed === "number") ? String(currentSeed >>> 0) : "(random)";
             log("Diagnostics:", "notice");
             log(`- Determinism: ${rngSrc}  Seed: ${seedStr}`, "info");
@@ -2489,8 +2260,8 @@
 
   // Expose GameAPI via builder
   try {
-    if (window.GameAPIBuilder && typeof GameAPIBuilder.create === "function") {
-      window.GameAPI = GameAPIBuilder.create({
+    if (typeof window !== "undefined" && window.GameAPIBuilder && typeof window.GameAPIBuilder.create === "function") {
+      window.GameAPI = window.GameAPIBuilder.create({
         getMode: () => mode,
         getWorld: () => world,
         getPlayer: () => player,
@@ -2541,22 +2312,7 @@
     }
   } catch (_) {}
 
-// Back-compat: attach selected helpers to window.Game (classic scripts)
-if (typeof window !== "undefined") {
-  window.Game = {
-    getCtx,
-    requestDraw,
-    initWorld,
-    generateLevel,
-    tryMovePlayer,
-    doAction,
-    descendIfPossible,
-    applySeed,
-    rerollSeed,
-    setFovRadius,
-    updateUI
-  };
-}
+
 
 // ESM exports for module consumers
 export {

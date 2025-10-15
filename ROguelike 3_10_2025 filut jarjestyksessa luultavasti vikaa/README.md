@@ -59,6 +59,7 @@ Bundling (optional, Vite)
 Key features at a glance
 - Single-floor dungeons with connected rooms, guaranteed stairs, and data-driven enemies.
 - Interaction-first gameplay: bump-to-attack, G to loot/interact/enter/exit.
+- HUD perf overlay: shows last turn and draw timings (ms) next to the clock for optimization visibility.
 - Inventory/equipment:
   - Two-handed items occupy both hands; unequipping one removes both.
   - One-handed items auto-equip to the empty hand or can be equipped explicitly left/right.
@@ -90,6 +91,25 @@ Development
 - Lint: npx eslint .
 - Format: npx prettier -c . / -w .
 - See VERSIONS.md for a concise changelog and recent improvements.
+
+Cleanup and pre‑merge checklist (Phase 5)
+- Duplicate/dead code policy:
+  - Prefer ctx.* handles over window.*; facades centralize UI (UIBridge) and mode lifecycles (WorldRuntime/TownRuntime/DungeonRuntime).
+  - Draw scheduling is centralized; individual modules avoid requestDraw, relying on orchestrator paths.
+  - Inventory rendering occurs only when the panel is open; DOM work is coalesced across actions.
+- How to generate the duplication/size report:
+  - node scripts/analyze.js
+  - Output written to analysis/phase1_report.md (top 20 largest files and approximate duplicated 3‑line shingles across JS).
+- Recommended pre‑merge steps:
+  - Run lint and formatter (see above).
+  - Regenerate analysis/phase1_report.md and skim duplicates for potential DRY refactors.
+  - Run smoketest (?smoketest=1) and confirm 0 FAIL steps; small SKIPs are acceptable.
+  - Verify GOD toggles for Grid/Perf/Minimap and debug overlays behave as expected.
+- Known cleanup outcomes from Phase 5:
+  - Removed redundant requestDraw calls in Actions/Town/GOD/UI; draw orchestration consolidated.
+  - Removed direct ShopUI/DOM fallbacks in core; UIBridge is the single UI path.
+  - World-mode FOV recompute guard avoids re-filling arrays on movement.
+  - Renderer hot paths cache base layers and glyph lookups; minimap uses an offscreen cache and responsive sizing.
 
 Notes
 - Prefer ctx.* over window.* in modules.

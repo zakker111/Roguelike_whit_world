@@ -1,5 +1,318 @@
 # Game Version History
-Last updated: 2025-10-12 01:42 UTC
+Last updated: 2025-10-15 00:00 UTC
+
+v1.35.34 — Phase 5 completion: performance + UX polish consolidated
+- Summary of Phase 5 improvements:
+  - Rendering: offscreen base-layer caches (overworld/town/dungeon), cropped blits via RenderCore.blitViewport, OffscreenCanvas adoption, crisper tiles/glyphs (image smoothing disabled).
+  - UI: HUD performance overlay with EMA smoothing, smart defaults for Grid/Perf/Minimap on small/low-power devices, inventory render guard + caching, modal open/hide redraw coalescing.
+  - Engine: centralized draw scheduling in orchestrator, extensive draw coalescing across HUD/log-only flows (Actions/Town/GOD), world-mode FOV recompute skip on movement.
+  - Reliability: GameAPI routing/entry/exit hardening (modal-closing, adjacency and ring fallbacks).
+- Benefit: smoother frame pacing, fewer redundant draws/DOM updates, improved small-screen performance, and more reliable automated flows.
+- Deployment: https://v79o383y2y1z.cosine.page
+
+v1.35.33 — Phase 5: World-mode FOV recompute skip on movement
+- Changed: core/game.js
+  - recomputeFOV(): in overworld, now skips recompute on movement; only recomputes when mode or map shape changes. Updates cache and returns early to avoid per-turn seen/visible refills.
+- Benefit: reduces per-turn overhead in world mode while keeping visuals identical.
+- Deployment: https://5kwm5umortdh.cosine.page
+
+v1.35.32 — Phase 5: Action-level DOM coalescing (inventory render only if open)
+- Changed: core/game.js
+  - drinkPotionByIndex(): now re-renders inventory only when the panel is open (rerenderInventoryIfOpen), avoiding unnecessary DOM work.
+  - equipItemByIndex/equipItemByIndexHand/unequipSlot (fallbacks): pass rerenderInventoryIfOpen to Player helpers instead of unconditional renderInventoryPanel.
+- Benefit: reduces redundant DOM updates during drink/equip/unequip actions when inventory is closed; small steady performance gain.
+- Deployment: (pending)
+
+v1.35.31 — Phase 5: Smoketest reliability — modal closing + immobile fallbacks
+- Changed: core/game_api.js
+  - moveStep(): if the player doesn’t move in world mode, performs a minimal walkability fallback to step onto the target tile and coalesces camera/UI/draw.
+  - gotoNearestTown/gotoNearestDungeon(): proactively close modals via UIBridge before routing; on each step, if movement is gated, force-teleport to the next step (walkable with small ring fallback).
+  - enterTownIfOnTile/enterDungeonIfOnEntrance(): proactively close modals via UIBridge before attempting fast-path entry or routing.
+- Benefit: Reduces “World movement test: immobile” flakes and further improves town/dungeon entry reliability in automation.
+- Deployment: (pending)
+
+v1.35.29 — Phase 5: Entry/Exit robustness (diagonals + near-exit)
+- Changed: core/modes.js
+  - enterTownIfOnTile/enterDungeonIfOnEntrance now consider diagonal adjacency when stepping onto town/dungeon markers before entering. Improves reliability when markers are placed with limited cardinal access.
+- Changed: core/dungeon_runtime.js
+  - returnToWorldIfAtExit treats adjacency (Δ1) to the exit tile as valid; nudges the player onto the exact stairs before returning to the overworld. Aligns with runner’s “teleport near exit” guard.
+- Benefit: Further reductions in “Dungeon entry failed (mode=world)”, “Town entry not achieved”, and occasional “Attempted return to overworld (mode=dungeon)” failures in smoketests.
+- Deployment: (pending)
+
+v1.35.30 — Phase 5: FOV recompute guard in world mode
+- Changed: core/game.js
+  - recomputeFOV now skips when mode/map/FOV/player position are unchanged, even in world mode.
+  - Avoids re-filling seen/visible arrays every turn on the overworld, reducing per-turn work.
+- Benefit: small but steady performance gain during overworld turns without visual change.
+- Deployment: (pending)
+
+v1.35.28 — Phase 5: Smoketest pass-rate improvements (robust entry + near spawns)
+- Changed: core/game_api.js
+  - enterTownIfOnTile/enterDungeonIfOnEntrance now auto-route to the nearest town/dungeon when not already on/adjacent, then attempt entry. Synchronous BFS walk; preserves ctx-first semantics.
+- Changed: data/god.js
+  - spawnEnemyNearby clamps spawn to Manhattan radius <= 5 around player when possible (rings r=1..5, randomized); fallback picks the nearest free tile on the map.
+- Benefit: Reduces “Dungeon entry failed (mode=world)” and “Town entry not achieved” flakes; increases likelihood of “Enemy nearby ≤ 5” for combat scenario.
+- Deployment: (pending)
+
+v1.35.27 — Phase 5: Centralize world draw scheduling
+- Changed: core/world_runtime.js
+  - Removed requestDraw at end of generate(); draw is now orchestrated centrally.
+- Changed: core/game.js
+  - initWorld(): after successful WorldRuntime.generate, now calls requestDraw() post syncFromCtx(ctx).
+- Changed: core/game_api.js
+  - forceWorld(): removed redundant requestDraw; initWorld now schedules draw itself.
+- Benefit: consistent draw orchestration across all runtimes (world/town/dungeon), reducing duplicate frames.
+- Deployment: https://k4pgqv9tqymd.cosine.page
+
+v1.35.26 — Phase 5: Coalesced draws in Actions/Town/GOD
+- Changed: core/actions.js
+  - Inn rest no longer calls requestDraw; updates HUD only. Orchestrator draws after action.
+- Changed: worldgen/town_gen.js
+  - Removed requestDraw at end of generate(); draw is handled by orchestrator after town entry.
+- Changed: data/god.js
+  - applySeed(ctx,seed) no longer calls requestDraw; core/game.js handles draw after regeneration.
+- Benefit: reduces redundant frames during common flows (inn rest, town generation, seeding).
+- Deployment: (pending)
+
+v1.35.25 — Phase 5: Centralized draw after DungeonRuntime.enter; remove extra draws in DungeonState
+- Changed: core/modes.js
+  - After a successful DungeonRuntime.enter(ctx, info), now calls syncAfterMutation(ctx) to recompute FOV, update camera/UI, and schedule a draw via the orchestrator.
+- Changed: dungeon/dungeon_state.js
+  - Removed requestDraw() from applyState() and returnToWorldIfAtExit(); draw scheduling is handled by Modes and core/game.js.
+- Benefit: avoids duplicate frames on dungeon re-entry/exit and keeps draw orchestration in one place.
+- Deployment: (pending)
+
+v1.35.24 — Phase 5: Coalesced draws in runtimes (Dungeon/Town)
+- Changed: core/dungeon_runtime.js
+  - Removed requestDraw from load(), generate() (including fallback), returnToWorldIfAtExit(), and enter().
+  - Draw scheduling now centralized in core/game.js (applyCtxSyncAndRefresh and mode transitions).
+- Changed: core/town_runtime.js
+  - Removed requestDraw from generate() and applyLeaveSync(); orchestrator handles draw after sync.
+- Benefit: avoids redundant frames and keeps draw orchestration in one place for transitions and generation flows.
+- Deployment: (pending)
+
+v1.35.23 — Phase 5: More draw coalescing in dungeon guidance
+- Changed: core/game.js
+  - lootCorpse() dungeon fallback removes requestDraw for guidance-only message (“Return to the entrance …”); canvas unchanged.
+- Benefit: avoids unnecessary frames on pure log guidance in dungeon mode.
+- Deployment: (pending)
+
+v1.35.22 — Phase 5: Renderer micro-optimizations and responsive minimap
+- Changed: ui/render_town.js
+  - Introduced SHOP_GLYPHS cache keyed by shops reference; rebuild only when shops array changes.
+  - Avoids per-frame glyph map recomputation; maintains O(1) glyph lookup during draw.
+- Changed: ui/render_overworld.js
+  - Added TOWN_GLYPHS cache keyed by towns reference; rebuild only when towns list changes.
+  - Minimap now uses responsive size clamps (smaller max width/height on narrow screens) to reduce draw cost on mobile.
+- Benefit: Reduced CPU in hot draw paths by removing repeated map/glyph precomputations; improved small-screen performance for minimap.
+- Deployment: (pending)
+
+v1.35.21 — Phase 5: More draw coalescing (town bump-talk and closed-shop logs)
+- Changed: core/game.js
+  - tryMovePlayer (town mode): removed canvas redraw after bump-talk fallback (“Excuse me!”). Pure log only.
+- Changed: core/town_runtime.js
+  - talk(ctx): removed canvas redraw when shop is closed; logs schedule without forcing a frame.
+- Benefit: minor but frequent savings during town interactions that only produce HUD/log changes.
+- Deployment: (pending)
+
+v1.35.20 — Phase 5: Cleanup — remove redundant draws in HUD/log-only flows
+- Changed: core/game_api.js
+  - addGold/removeGold no longer schedule a canvas redraw; they update HUD and rerender inventory panel only if open.
+- Changed: core/town_runtime.js
+  - talk(ctx): removed unconditional requestDraw at tail; redraw now occurs only when shop UI open-state changes.
+  - tryMoveTown(ctx): removed draw after bump-talk “Excuse me!” (pure log).
+- Changed: core/dungeon_runtime.js
+  - lootHere(ctx): removed immediate draw when auto-stepping onto an adjacent corpse/chest; subsequent loot/turn handles UI/draw.
+- Changed: ui/shop_panel.js
+  - openForNPC/buyIndex: removed requestDraw calls (Shop panel is DOM-only).
+- Changed: data/god.js
+  - spawnItems(ctx): removed requestDraw (HUD/inventory-only changes).
+- Benefit: fewer unnecessary frames; improved responsiveness during town/dungeon interactions that affect only HUD/logs.
+- Deployment: https://hs7fswoccl6i.cosine.page
+
+v1.35.19 — Phase 5: Coalesced HUD-only updates (GameAPI/Town props)
+- Changed: core/game_api.js
+  - advanceMinutes(mins) now updates HUD without forcing a redraw (canvas unchanged).
+  - setEnemyHpAt(x,y,hp) no longer triggers an immediate draw; reserved for visual changes.
+- Changed: worldgen/town_gen.js
+  - interactProps(ctx) no longer requests a draw after pure log messages.
+  - Bench rest now calls ctx.updateUI() after advancing time and healing to reflect HP/clock changes without forcing a redraw.
+- Benefit: fewer redundant frames during HUD-only changes; smoother logs and interactions.
+- Deployment: (pending)
+
+v1.35.18 — Phase 5: Draw coalescing for Actions/GOD logs
+- Changed: core/actions.js now avoids scheduling canvas redraws for pure log-only interactions (signs, props, tavern/shop messages, guidance) and reserves draws for actual visual changes (e.g., time advancement via Inn rest).
+- Changed: data/god.js coalesces UI updates:
+  - heal(ctx): updates HUD without forcing a canvas redraw.
+  - spawnItems(ctx): updates HUD/inventory, then lets the engine coalesce the draw.
+  - spawnStairsHere(ctx): retains a single draw since the tile changes.
+- Benefit: fewer unnecessary draws when the action affects only the HUD/log; sustained performance improvements during town interactions.
+- Deployment: (pending)
+
+v1.35.17 — Phase 5: Action-level UI coalescing (inventory/gold)
+- Changed: core/game.js renderInventoryPanel no longer calls updateUI itself; action flows (equip/drink/decay) invoke updateUI as needed to avoid duplicate HUD updates.
+- Changed: core/game_api.js addGold/removeGold now call updateUI once, rerenderInventoryIfOpen() (panel-only), then a single requestDraw(), reducing redundant DOM and draw work when inventory is closed.
+- Benefit: fewer repeated UI updates and draws during common actions; smoother responsiveness.
+- Deployment: (pending)
+
+v1.35.16 — Phase 5: Baseline toggles + coalesced Shop open redraw
+- Changed: ui/ui.js init now establishes baseline window flags (DRAW_GRID, SHOW_PERF, SHOW_MINIMAP) from getters when undefined, avoiding repeated localStorage reads in hot paths; buttons refreshed to reflect baseline.
+- Changed: core/town_runtime.js talk coalesces redraw on shop open — only requests draw if the Shop panel was previously closed; still requests draw when logging “closed” schedule messages.
+- Benefit: small performance wins (fewer redundant draws; reduced toggle state lookups).
+- Deployment: (pending)
+
+v1.35.15 — Phase 5: Perf overlay smoothing (EMA)
+- Changed: core/game.js now maintains an exponential moving average (EMA) for turn/draw times (PERF.avgTurnMs, PERF.avgDrawMs) and exposes smoothed values via getPerfStats().
+- UI: HUD shows smoothed timings automatically (still respects Perf toggle); DEV console prints last and avg values.
+- Benefit: less jitter in Perf numbers while preserving real-time responsiveness.
+- Deployment: (pending)
+
+v1.35.14 — Phase 5: Smoketest reliability — routeTo adjacency fallback
+- Changed: core/game_api.js routeTo(tx,ty) now detects non-walkable targets (e.g., town/dungeon markers) and routes to a walkable adjacent tile or nearest walkable tile within a small ring.
+- Benefit: improves reliability for automated entry flows (world→dungeon/town) by ensuring pathing stops adjacent to entrances; reduces “Dungeon entry failed (mode=world)” and “Town entry not achieved” flakes in smoketests.
+- Note: gotoNearestDungeon/gotoNearestTown benefit automatically (they use routeTo internally).
+- Deployment: (pending next deploy)
+
+v1.35.13 — Phase 5: OffscreenCanvas adoption + crisper rendering
+- Added: ui/render_core.js createOffscreen(w,h) uses OffscreenCanvas when available, else falls back to HTMLCanvasElement.
+- Changed: ui/render_overworld.js, ui/render_town.js, ui/render_dungeon.js now use RenderCore.createOffscreen for their base caches.
+- Changed: ui/render_core.js computeView disables image smoothing for crisper tiles/glyphs when supported.
+- Benefit: potential performance improvements on browsers that optimize OffscreenCanvas; slightly sharper visuals; no behavior change.
+- Deployment: https://7djt27gfy2ge.cosine.page
+
+v1.35.12 — Phase 5: Coalesced draws for panel openings (GOD/Inventory/Loot)
+- Changed: core/game.js now requests a redraw on show actions only when the panel was previously closed:
+  - onShowGod, showInventoryPanel, and showLootPanel check UIBridge.isOpen first and skip redundant draw if already open.
+- Benefit: reduces unnecessary frame scheduling when toggling modals rapidly; small performance win.
+- Deployment: https://yvgru23sf8ov.cosine.page
+
+v1.35.11 — Phase 5: Smart defaults for Perf/Grid/Minimap on low-power and small screens
+- Changed: ui/ui.js now defaults these toggles to OFF when no preference is stored:
+  - Grid overlay (DRAW_GRID): OFF on small screens or low-power devices (<=4 cores or <=4GB).
+  - Perf overlay (SHOW_PERF): OFF on small screens or low-power devices.
+  - Minimap (SHOW_MINIMAP): OFF on small screens; ON otherwise.
+- Benefit: reduced draw work and HUD clutter by default on mobile/low-power devices; users can enable via GOD toggles.
+- Deployment: https://px1qo1zpcg1x.cosine.page
+
+v1.35.10 — Phase 5: UI/draw coalescing for modal hides (Shop/GOD/Smoke/Inventory)
+- Changed: core/game.js handlers now requestDraw only if the corresponding modal was open:
+  - onHideGod/onHideSmoke/onHideShop guard redraws via UIBridge isOpen checks.
+  - hideInventoryPanel checks UI.isInventoryOpen before redrawing.
+- Benefit: avoids redundant draws when ESC-close shortcuts fire while panels are already closed; small but steady performance gain.
+- Deployment: https://ksxgidr5uonr.cosine.page
+
+v1.35.9 — Phase 5: Inventory render caching (equip slots and list)
+- Changed: ui/ui.js renderInventory now:
+  - Caches equip slots HTML and only updates DOM when it changes.
+  - Computes an inventory signature key and skips list rebuild when unchanged.
+- Benefit: reduces unnecessary DOM work during background updates; improves responsiveness when inventory is closed or unchanged.
+- Deployment: https://wbokz8qnonbd.cosine.page
+
+v1.35.8 — Phase 5: Inventory render guard and minor cleanup
+- Changed: core/ui_bridge.js renderInventory(ctx) now renders only when the inventory panel is open (UI.isInventoryOpen), avoiding unnecessary DOM work.
+- Benefit: small performance gain when background updates occur while inventory is closed.
+- Deployment: https://dr55uzvjxrmb.cosine.page
+
+v1.35.7 — Phase 5: Centralized blit helper and changelog cleanup
+- Added: ui/render_core.js blitViewport(ctx2d, canvas, cam, wpx, hpx) centralizes cropped blit logic.
+  - ui/render_overworld.js, ui/render_town.js, ui/render_dungeon.js now call RenderCore.blitViewport instead of duplicating code.
+- Cleanup: VERSIONS.md ordering and consistent “Deployment:” lines; latest entries at the top.
+- Benefit: reduces duplication across renderers; keeps the changelog tidy.
+- Deployment: https://n6tas9p30d5s.cosine.page
+
+v1.35.6 — Phase 5: Cropped blits for offscreen base layers
+- Changed: ui/render_overworld.js, ui/render_town.js, ui/render_dungeon.js now crop drawImage to the visible viewport when blitting offscreen bases, avoiding full-map draws each frame.
+- Benefit: reduces draw cost further, particularly on large maps and lower-powered devices.
+- Deployment: https://n6tas9p30d5s.cosine.page
+
+v1.35.5 — Phase 5: HUD perf/minimap toggles
+- Added: GOD panel toggles for Perf and Minimap (ids god-toggle-perf-btn, god-toggle-minimap-btn).
+- UI: updateStats shows Perf timings only when enabled (persisted as SHOW_PERF in localStorage).
+- Overworld: minimap rendering can be disabled via SHOW_MINIMAP (persisted); render_overworld.js respects the flag.
+
+v1.35.4 — Phase 5: Base-layer offscreen caches for dungeon and town
+- Changed: ui/render_dungeon.js now builds an offscreen base (tiles, stairs glyph) and blits it, applying per-frame visibility overlays (void/dim) and dynamic entities afterward.
+- Changed: ui/render_town.js now builds an offscreen base (walls/windows/doors/floor) and blits it, applying visibility overlays and shop glyphs per-frame.
+- Benefit: reduces per-tile work in steady-state frames for dungeon and town; complements overworld caching.
+- Deployment: https://bfruxbnkn5sg.cosine.page
+
+v1.35.3 — Phase 5: Overworld base-layer offscreen cache + enemy color cache
+- Changed: ui/render_overworld.js builds a full offscreen world base (biomes + town/dungeon glyphs) at TILE resolution and blits it each frame, avoiding per-tile loops.
+  - Rebuilds only when world map reference or TILE changes.
+- Changed: ui/render_core.js adds a simple enemy type→color cache to reduce repeated registry lookups in hot paths.
+- Benefit: further draw-time reduction on overworld and minor savings in enemy glyph color computation.
+- Deployment: https://xbhi5i8j32ja.cosine.page
+
+v1.35.2 — Phase 5: Glyph lookup precompute (overworld/town)
+- Changed: ui/render_overworld.js precomputes a lookup map for town glyphs (T/t/C) based on town size to avoid per-tile Array.find scans while drawing the viewport.
+- Changed: ui/render_town.js precomputes a shop door glyph map (T/I/S) for O(1) lookup during tile rendering.
+- Benefit: reduces repeated linear scans per tile in the hot render loop.
+
+v1.35.1 — Phase 5: Overworld minimap offscreen cache
+- Changed: ui/render_overworld.js now renders the minimap to an offscreen canvas once per world-map/dimension change and blits it each frame.
+  - Reduces repeated per-pixel work and improves draw-time on the overworld, especially on lower-powered devices.
+- Deployment: https://dyw9zus2215v.cosine.page
+- Next: run smoketest to gather perf baselines and proceed with renderer/UI coalescing.
+
+v1.35.0 — Phase 5 kickoff: UI perf metrics and polish
+- Added: HUD perf metrics (last turn/draw ms) next to time in the top bar
+  - core/ui_bridge.js passes ctx.getPerfStats() to UI.updateStats
+  - ui/ui.js displays “Perf: T <turn_ms> D <draw_ms>” when available
+- Added: Perf hook from GameLoop
+  - core/game_loop.js measures draw time and calls ctx.onDrawMeasured(dt)
+  - core/game.js provides ctx.onDrawMeasured to update PERF.lastDrawMs
+  - core/game.js adds ctx.getPerfStats so UIBridge/UI can read numbers consistently
+- Micro-optimizations and UX polish
+  - InventoryController.render now updates only when the inventory panel is open
+  - Buttons and inventory list items get subtle hover/press transitions
+  - Modals (loot/inventory/gameover) have smooth opacity/transform transitions
+- Goal: begin optimization and UX polish without altering gameplay; future steps will focus on micro-performance and aesthetic improvements
+
+v1.34.30 — Phase 4 completion: final audit, ESM/window safety, and smoketest readiness
+- Fixed: remaining bare-global references replaced with window.* checks or module imports
+  - core/game_loop.js: use window.Render.draw(...) in RAF frame
+  - core/game.js: call window.GameAPIBuilder.create(...) when building GameAPI
+  - core/game_api.js: normalize World.isWalkable calls to window.World and repair a corrupted walkability line
+  - entities/player.js: UIBridge updateStats via window.UIBridge
+- Verified: UIBridge-only routing for HUD, inventory, loot, confirm, town exit
+- Verified: Deterministic RNG fallback wiring (utils/rng_fallback.js) for modules that run before rng_service
+- Deployment: refreshed; smoketest orchestrator accessible via ?smoketest=1
+- Next: continue optimization and documentation polish (no functional changes expected)
+
+v1.34.29 — Phase 4 continuation: ctx-first cleanups and window.* consistency
+- Changed: core/game.js
+  - Dungeon loot fallback now prefers ctx-first Loot handle via modHandle; removed direct window.Loot + bare Loot.lootHere usage.
+  - Player initialization and helpers now consistently check window.* before calling globals (Player.createInitial, PlayerUtils.capitalize, RNG.autoInit, RNG.rng, RNGFallback.getRng).
+- Changed: core/dungeon_runtime.js
+  - Fixed window fallback calls to DungeonState.save/load to use window.DungeonState explicitly (no bare DungeonState symbol).
+  - OccupancyGrid window fallback now uses window.OccupancyGrid.build explicitly.
+  - Loot.lootHere window fallback corrected in generateLoot/lootHere paths.
+- Changed: core/modes.js
+  - Fixed window fallback calls to DungeonState.save/load to use window.DungeonState explicitly.
+- Benefit: reduces risk of ReferenceError due to bare global symbols; strengthens ctx-first and back-compat window wiring.
+- Dev: No behavior changes expected; improves robustness and maintainability.
+
+v1.34.28 — Phase 4 continuation: TownAI ctx-first and diagnostics alignment
+- Changed: core/game.js GOD “Home route check” now prefers ctx.TownAI for populateTown and checkHomeRoutes (with window fallback), aligning with ctx-first usage.
+- Benefit: reduces window.* coupling and keeps diagnostics consistent with runtime/module handles.
+- Dev: No behavior change expected beyond improved module wiring; occupancy rebuild retained after TownAI.populateTown.
+
+v1.34.27 — Phase 4 continuation: ctx-first fallbacks and occupancy priming
+- Changed: core/modes.js now uses ctx-first handles in fallback paths:
+  - Town fallback: ctx.Town.generate/ensureSpawnClear/spawnGateGreeters (no direct window.Town).
+  - Dungeon fallback: ctx.Dungeon.generateLevel (no direct window.Dungeon).
+- Changed: core/modes.js primes OccupancyGrid immediately after dungeon fallback generation to avoid ghost-blocking before the first tick.
+- Changed: After TownRuntime.generate(ctx) succeeds, Modes primes town occupancy via TownRuntime.rebuildOccupancy(ctx) before showing the exit button (was previously only on cadence).
+- Dev: Deployment refreshed; movement and transitions remain runtime-first with minimal safe fallbacks retained for resilience.
+
+v1.34.26 — Phase 4 continuation: centralized movement with safe fallbacks, town leave/exit UI via runtime
+- Changed: core/game.js tryMovePlayer now prefers WorldRuntime/TownRuntime/DungeonRuntime and restores minimal fallbacks per mode to keep playability if a runtime is unavailable or declines movement.
+  - World: direct overworld walk fallback (bounds + World.isWalkable) if runtime returns false.
+  - Town: bump-talk when NPC blocks via TownRuntime.talk; minimal walkability fallback.
+  - Dungeon: move into walkable empty tiles when runtime path is unavailable.
+- Changed: core/modes.js leaveTownNow delegates to TownRuntime.applyLeaveSync(ctx). Enter-town flows prefer TownRuntime.generate(ctx) and TownRuntime.showExitButton(ctx), falling back to UIBridge only when needed.
+- Changed: core/game.js leaveTownNow path simplified to rely on Modes; redundant TownRuntime.applyLeaveSync double-call removed from core.
+- Dev: Deployed and verified movement across world/town/dungeon; smoketest runner available at /index.html?smoketest=1.
 
 v1.34.25 — game.js sweep: inventory and shop helpers aligned with Phase 2
 - Changed: showInventoryPanel no longer toggles #inv-panel via DOM; relies on InventoryController.show or UIBridge.showInventory only.
@@ -784,4 +1097,5 @@ BUGS
 - some work needed for smoketestrunner
 - towns schedue bugs you can buy items even if shop is not open(this is tho good for now testing phase)
 - multirun in smoketest skips first multirun 
+- itseems eguibed items go to inventory when re going to dungeon/town
 

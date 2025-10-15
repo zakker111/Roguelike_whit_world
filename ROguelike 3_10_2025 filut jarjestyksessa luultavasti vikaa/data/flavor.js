@@ -18,10 +18,10 @@ function pickFrom(arr, ctx) {
   }
   const r = (ctx && typeof ctx.rng === "function")
     ? ctx.rng
-    : (typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function"
-      ? RNG.rng
-      : (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function"
-          ? RNGFallback.getRng()
+    : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function"
+      ? window.RNG.rng
+      : (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function"
+          ? window.RNGFallback.getRng()
           : Math.random));
   return arr[Math.floor(r() * arr.length)];
 }
@@ -33,8 +33,8 @@ function tmpl(str, vars) {
 
 function pools() {
   try {
-    if (typeof window !== "undefined" && window.GameData && GameData.flavor && typeof GameData.flavor === "object") {
-      return GameData.flavor;
+    if (typeof window !== "undefined" && window.GameData && window.GameData.flavor && typeof window.GameData.flavor === "object") {
+      return window.GameData.flavor;
     }
   } catch (_) {}
   return null;

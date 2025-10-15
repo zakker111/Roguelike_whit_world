@@ -51,9 +51,9 @@ export const GameData = {
 
 function logNotice(msg) {
   try {
-    if (window.Logger && typeof Logger.log === "function") {
-      Logger.log(msg, "notice");
-    } else if (window.DEV && typeof console !== "undefined") {
+    if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+      window.Logger.log(msg, "notice");
+    } else if (typeof window !== "undefined" && window.DEV && typeof console !== "undefined") {
       console.debug("[GameData] " + msg);
     }
   } catch (_) {}

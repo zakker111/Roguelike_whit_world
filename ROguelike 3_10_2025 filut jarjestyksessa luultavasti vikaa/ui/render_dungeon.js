@@ -6,6 +6,9 @@
  */
 import * as RenderCore from "./render_core.js";
 
+// Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
+let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
+
 export function draw(ctx, view) {
   const {
     ctx2d, TILE, COLORS, TILES, TS, tilesetReady,
@@ -16,60 +19,121 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
-  // tiles within viewport range
+  // Build base offscreen once per map/TILE change
+  try {
+    if (mapRows && mapCols) {
+      const wpx = mapCols * TILE;
+      const hpx = mapRows * TILE;
+      const needsRebuild = (!DUN.canvas) || DUN.mapRef !== map || DUN.wpx !== wpx || DUN.hpx !== hpx || DUN.TILE !== TILE;
+      if (needsRebuild) {
+        DUN.mapRef = map;
+        DUN.wpx = wpx;
+        DUN.hpx = hpx;
+        DUN.TILE = TILE;
+        const off = RenderCore.createOffscreen(wpx, hpx);
+        const oc = off.getContext("2d");
+        // Set font/align once for glyphs
+        try {
+          oc.font = "bold 20px JetBrains Mono, monospace";
+          oc.textAlign = "center";
+          oc.textBaseline = "middle";
+        } catch (_) {}
+        for (let yy = 0; yy < mapRows; yy++) {
+          const rowMap = map[yy];
+          for (let xx = 0; xx < mapCols; xx++) {
+            const type = rowMap[xx];
+            const sx = xx * TILE, sy = yy * TILE;
+            let key = "floor";
+            if (type === TILES.WALL) key = "wall";
+            else if (type === TILES.STAIRS) key = "stairs";
+            else if (type === TILES.DOOR) key = "door";
+            let drawn = false;
+            if (tilesetReady && TS && typeof TS.draw === "function") {
+              drawn = TS.draw(oc, key, sx, sy, TILE);
+            }
+            if (!drawn) {
+              let fill;
+              if (type === TILES.WALL) fill = COLORS.wall;
+              else if (type === TILES.STAIRS) fill = "#3a2f1b";
+              else if (type === TILES.DOOR) fill = "#3a2f1b";
+              else fill = COLORS.floorLit;
+              oc.fillStyle = fill;
+              oc.fillRect(sx, sy, TILE, TILE);
+              if (type === TILES.STAIRS && !tilesetReady) {
+                RenderCore.drawGlyph(oc, sx, sy, ">", "#d7ba7d", TILE);
+              }
+            }
+          }
+        }
+        DUN.canvas = off;
+      }
+    }
+  } catch (_) {}
+
+  // Blit base layer if available
+  if (DUN.canvas) {
+    try {
+      RenderCore.blitViewport(ctx2d, DUN.canvas, cam, DUN.wpx, DUN.hpx);
+    } catch (_) {}
+  } else {
+    // Fallback: draw base tiles within viewport
+    for (let y = startY; y <= endY; y++) {
+      const yIn = y >= 0 && y < mapRows;
+      const rowMap = yIn ? map[y] : null;
+      for (let x = startX; x <= endX; x++) {
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+        if (!yIn || x < 0 || x >= mapCols) {
+          ctx2d.fillStyle = COLORS.wallDark;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          continue;
+        }
+        const type = rowMap[x];
+        let key = "floor";
+        if (type === TILES.WALL) key = "wall";
+        else if (type === TILES.STAIRS) key = "stairs";
+        else if (type === TILES.DOOR) key = "door";
+        let drawn = false;
+        if (tilesetReady && typeof TS.draw === "function") {
+          drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
+        }
+        if (!drawn) {
+          let fill;
+          if (type === TILES.WALL) fill = COLORS.wall;
+          else if (type === TILES.STAIRS) fill = "#3a2f1b";
+          else if (type === TILES.DOOR) fill = "#3a2f1b";
+          else fill = COLORS.floorLit;
+          ctx2d.fillStyle = fill;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          if (type === TILES.STAIRS && !tilesetReady) {
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          }
+        }
+      }
+    }
+  }
+
+  // Visibility overlays within viewport (void for unseen, dim for seen-but-not-visible)
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
-    const rowMap = yIn ? map[y] : null;
     const rowSeen = yIn ? (seen[y] || []) : [];
     const rowVis = yIn ? (visible[y] || []) : [];
     for (let x = startX; x <= endX; x++) {
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
-
-      // Off-map space: draw void
       if (!yIn || x < 0 || x >= mapCols) {
         ctx2d.fillStyle = COLORS.wallDark;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
         continue;
       }
-
       const vis = !!rowVis[x];
       const everSeen = !!rowSeen[x];
-
       if (!everSeen) {
         ctx2d.fillStyle = COLORS.wallDark;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
-        continue;
-      }
-
-      const type = rowMap[x];
-      let key = "floor";
-      if (type === TILES.WALL) key = "wall";
-      else if (type === TILES.STAIRS) key = "stairs";
-      else if (type === TILES.DOOR) key = "door";
-      else key = "floor";
-
-      let drawn = false;
-      if (tilesetReady && typeof TS.draw === "function") {
-        drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
-      }
-      if (!drawn) {
-        let fill;
-        if (type === TILES.WALL) fill = vis ? COLORS.wall : COLORS.wallDark;
-        else if (type === TILES.STAIRS) fill = vis ? "#3a2f1b" : "#241e14";
-        else if (type === TILES.DOOR) fill = vis ? "#3a2f1b" : "#241e14";
-        else fill = vis ? COLORS.floorLit : COLORS.floor;
-        ctx2d.fillStyle = fill;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      }
-
-      if (!vis && everSeen) {
+      } else if (!vis) {
         ctx2d.fillStyle = COLORS.dim;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      }
-
-      if (vis && type === TILES.STAIRS && !tilesetReady) {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
       }
     }
   }

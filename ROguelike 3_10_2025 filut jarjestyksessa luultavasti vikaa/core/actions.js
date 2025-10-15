@@ -15,7 +15,7 @@
 function inBounds(ctx, x, y) {
   try {
     if (ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
-    if (typeof window !== "undefined" && window.Utils && typeof Utils.inBounds === "function") return Utils.inBounds(ctx, x, y);
+    if (typeof window !== "undefined" && window.Utils && typeof window.Utils.inBounds === "function") return window.Utils.inBounds(ctx, x, y);
   } catch (_) {}
   const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
   return x >= 0 && y >= 0 && x < cols && y < rows;
@@ -140,7 +140,7 @@ function restAtInn(ctx) {
   ctx.player.hp = ctx.player.maxHp;
   ctx.log(`You spend the night at the inn. You wake up fully rested at ${(ctx.time && ctx.time.hhmm) || "06:00"}.`, "good");
   if (typeof ctx.updateUI === "function") ctx.updateUI();
-  ctx.requestDraw();
+  // Pure HUD/time update; canvas unchanged — orchestrator will coalesce draw if needed
 }
 
 // Public API
@@ -218,12 +218,12 @@ export function loot(ctx) {
         if (phase === "night" || phase === "dusk") ctx.log("You step into the tavern. It's lively inside.", "notice");
         else if (phase === "day") ctx.log("You enter the tavern. A few patrons sit quietly.", "info");
         else ctx.log("You enter the tavern.", "info");
-        ctx.requestDraw();
+        // Pure log messaging; no visual change -> no draw
         return true;
       }
       if (openNow) ctx.log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "notice");
       else ctx.log(`The ${s.name || "shop"} is closed.${sched ? " " + sched : ""}`, "warn");
-      ctx.requestDraw();
+      // Pure schedule/log messaging; no visual change -> no draw
       return true;
     }
     // Prefer props interaction; if not handled, describe underfoot prop explicitly.
@@ -234,13 +234,13 @@ export function loot(ctx) {
     const p = propAt(ctx, ctx.player.x, ctx.player.y);
     if (p) {
       describeProp(ctx, p);
-      ctx.requestDraw();
+      // Pure log; do not force a draw
       return true;
     }
     // If standing on a blood decal, describe it
     if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
       ctx.log("The floor here is stained with blood.", "info");
-      ctx.requestDraw();
+      // Pure log; do not force a draw
       return true;
     }
     // Nothing to loot in town
@@ -250,6 +250,7 @@ export function loot(ctx) {
 
   if (ctx.mode === "world") {
     ctx.log("Nothing to loot here.");
+    // Pure log; do not force a draw
     return true;
   }
 
@@ -277,11 +278,12 @@ export function loot(ctx) {
     // If standing on a blood decal, describe it
     if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
       ctx.log("The floor here is stained with blood.", "info");
-      ctx.requestDraw();
+      // Pure log; do not force a draw
       return true;
     }
     // Guidance if not handled
     ctx.log("Return to the entrance (the hole '>') and press G to leave.", "info");
+    // Pure guidance; do not force a draw
     return true;
   }
 

@@ -3,9 +3,11 @@
  * Minimal centralized fallback RNG for modules if RNG.service is unavailable.
  *
  * Usage:
- *   const r = (window.RNG && typeof RNG.rng === 'function')
- *     ? RNG.rng
- *     : RNGFallback.getRng(seedOptional);
+ *   const r = (typeof window !== 'undefined' && window.RNG && typeof window.RNG.rng === 'function')
+ *     ? window.RNG.rng
+ *     : (typeof window !== 'undefined' && window.RNGFallback && typeof window.RNGFallback.getRng === 'function'
+ *         ? window.RNGFallback.getRng(seedOptional)
+ *         : Math.random);
  *
  * - If a seed is provided, uses it; otherwise tries localStorage SEED; else time-based.
  * - Deterministic across a session; not persisted unless seed is applied via RNG.service.

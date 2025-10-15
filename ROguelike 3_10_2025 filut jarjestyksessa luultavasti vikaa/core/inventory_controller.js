@@ -15,20 +15,25 @@
 export function render(ctx) {
   try {
     if (ctx.UI && typeof ctx.UI.renderInventory === "function") {
-      ctx.UI.renderInventory(ctx.player, ctx.describeItem);
+      // Only render when the panel is open to avoid unnecessary DOM work
+      const open = (typeof ctx.UI.isInventoryOpen === "function") ? ctx.UI.isInventoryOpen() : true;
+      if (open) {
+        ctx.UI.renderInventory(ctx.player, ctx.describeItem);
+      }
     }
   } catch (_) {}
 }
 
 export function show(ctx) {
   try {
-    render(ctx);
+    // Open panel first so render() can populate content when checking open-state
     if (ctx.UI && typeof ctx.UI.showInventory === "function") {
       ctx.UI.showInventory();
     } else {
       const panel = document.getElementById("inv-panel");
       if (panel) panel.hidden = false;
     }
+    render(ctx);
   } catch (_) {}
 }
 

@@ -13,8 +13,8 @@
  * - round1 and other helpers prefer PlayerUtils where present.
  */
 
-const round1 = (typeof window !== "undefined" && window.PlayerUtils && typeof PlayerUtils.round1 === "function")
-  ? PlayerUtils.round1
+const round1 = (typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.round1 === "function")
+  ? window.PlayerUtils.round1
   : (n) => Math.round(n * 10) / 10;
 
 // Editable defaults for new game. Change these to customize starting attributes.
@@ -74,11 +74,11 @@ export function createInitial() {
     const hasStick = Array.isArray(p.inventory) && p.inventory.some(it => it && it.kind === "equip" && String(it.name || "").toLowerCase() === "stick");
     if (!hasStick) {
       let stick = null;
-      if (typeof window !== "undefined" && window.Items && typeof Items.createByKey === "function") {
-        stick = Items.createByKey("stick", 1);
+      if (typeof window !== "undefined" && window.Items && typeof window.Items.createByKey === "function") {
+        stick = window.Items.createByKey("stick", 1);
       }
-      if (!stick && typeof window !== "undefined" && window.Items && typeof Items.createNamed === "function") {
-        stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
+      if (!stick && typeof window !== "undefined" && window.Items && typeof window.Items.createNamed === "function") {
+        stick = window.Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
       }
       if (!stick) {
         stick = { kind: "equip", slot: "hand", name: "stick", atk: 1.0, tier: 1 };
@@ -115,8 +115,8 @@ export function getDefense(player) {
 
 export function describeItem(item) {
   // Prefer centralized description from Items module if available
-  if (typeof window !== "undefined" && window.Items && typeof Items.describe === "function") {
-    return Items.describe(item);
+  if (typeof window !== "undefined" && window.Items && typeof window.Items.describe === "function") {
+    return window.Items.describe(item);
   }
   if (!item) return "";
   if (item.kind === "equip") {
@@ -167,15 +167,15 @@ export function drinkPotionByIndex(player, idx, hooks = {}) {
 }
 
 export function equipIfBetter(player, item, hooks = {}) {
-  if (typeof window !== "undefined" && window.PlayerEquip && typeof PlayerEquip.equipIfBetter === "function") {
-    return PlayerEquip.equipIfBetter(player, item, hooks);
+  if (typeof window !== "undefined" && window.PlayerEquip && typeof window.PlayerEquip.equipIfBetter === "function") {
+    return window.PlayerEquip.equipIfBetter(player, item, hooks);
   }
   throw new Error("PlayerEquip module is required: PlayerEquip.equipIfBetter not found");
 }
 
 export function equipItemByIndex(player, idx, hooks = {}) {
-  if (typeof window !== "undefined" && window.PlayerEquip && typeof PlayerEquip.equipItemByIndex === "function") {
-    return PlayerEquip.equipItemByIndex(player, idx, hooks);
+  if (typeof window !== "undefined" && window.PlayerEquip && typeof window.PlayerEquip.equipItemByIndex === "function") {
+    return window.PlayerEquip.equipItemByIndex(player, idx, hooks);
   }
   throw new Error("PlayerEquip module is required: PlayerEquip.equipItemByIndex not found");
 }
@@ -211,8 +211,8 @@ export function gainXP(player, amount, hooks = {}) {
 }
 
 export function unequipSlot(player, slot, hooks = {}) {
-  if (typeof window !== "undefined" && window.PlayerEquip && typeof PlayerEquip.unequipSlot === "function") {
-    return PlayerEquip.unequipSlot(player, slot, hooks);
+  if (typeof window !== "undefined" && window.PlayerEquip && typeof window.PlayerEquip.unequipSlot === "function") {
+    return window.PlayerEquip.unequipSlot(player, slot, hooks);
   }
   throw new Error("PlayerEquip module is required: PlayerEquip.unequipSlot not found");
 }
@@ -240,11 +240,11 @@ export function resetFromDefaults(player) {
     const hasStick = Array.isArray(player.inventory) && player.inventory.some(it => it && it.kind === "equip" && String(it.name || "").toLowerCase() === "stick");
     if (!hasStick) {
       let stick = null;
-      if (typeof window !== "undefined" && window.Items && typeof Items.createByKey === "function") {
-        stick = Items.createByKey("stick", 1);
+      if (typeof window !== "undefined" && window.Items && typeof window.Items.createByKey === "function") {
+        stick = window.Items.createByKey("stick", 1);
       }
-      if (!stick && typeof window !== "undefined" && window.Items && typeof Items.createNamed === "function") {
-        stick = Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
+      if (!stick && typeof window !== "undefined" && window.Items && typeof window.Items.createNamed === "function") {
+        stick = window.Items.createNamed({ slot: "hand", tier: 1, name: "stick", atk: 1.0 });
       }
       if (!stick) {
         stick = { kind: "equip", slot: "hand", name: "stick", atk: 1.0, tier: 1 };
@@ -260,20 +260,49 @@ export function resetFromDefaults(player) {
 // Force HUD refresh and broadcast a change event
 export function forceUpdate(player) {
   try {
-    if (typeof window !== "undefined" && window.UIBridge && typeof UIBridge.updateStats === "function") {
-      const ctx = {
-        player,
-        floor: (typeof window !== "undefined" && typeof window.floor === "number") ? window.floor : 1,
-        getPlayerAttack: () => getAttack(player),
-        getPlayerDefense: () => getDefense(player),
-        time: null
-      };
-      UIBridge.updateStats(ctx);
-    } else if (typeof window !== "undefined" && window.UI && typeof UI.updateStats === "function") {
-      UI.updateStats(player, window.floor || 1, getAttack.bind(null, player), getDefense.bind(null, player));
+    if (typeof window !== "undefined" && window.UIBridge && typeof window.UIBridge.updateStats === "function") {
+      // Prefer ctx from GameAPI/Game for accurate floor/time/stats wiring
+      let ctx = null;
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getCtx === "function") {
+          ctx = window.GameAPI.getCtx();
+        }
+      } catch (_) {}
+      if (ctx) {
+        // Ensure player reference reflects current object
+        try { ctx.player = player; } catch (_) {}
+        window.UIBridge.updateStats(ctx);
+      } else {
+        // Minimal fallback context
+        const minimal = {
+          player,
+          floor: 1,
+          getPlayerAttack: () => getAttack(player),
+          getPlayerDefense: () => getDefense(player),
+          time: null
+        };
+        try {
+          if (window.GameAPI && typeof window.GameAPI.getClock === "function") {
+            minimal.time = window.GameAPI.getClock();
+          }
+        } catch (_) {}
+        window.UIBridge.updateStats(minimal);
+      }
+    } else if (typeof window !== "undefined" && window.UI && typeof window.UI.updateStats === "function") {
+      // Fallback directly to UI with a derived floor (prefer GameAPI ctx)
+      let floor = 1;
+      try {
+        if (window.GameAPI && typeof window.GameAPI.getCtx === "function") {
+          const c = window.GameAPI.getCtx();
+          if (c && typeof c.floor === "number") floor = c.floor;
+        }
+      } catch (_) {}
+      window.UI.updateStats(player, floor, getAttack.bind(null, player), getDefense.bind(null, player));
     }
   } catch (_) {}
-  window.dispatchEvent(new CustomEvent("player:changed", { detail: { player } }));
+  try {
+    window.dispatchEvent(new CustomEvent("player:changed", { detail: { player } }));
+  } catch (_) {}
 }
 
 // Update defaults at runtime (e.g., Player.setDefaults({ hp: 30, maxHp: 30 }))

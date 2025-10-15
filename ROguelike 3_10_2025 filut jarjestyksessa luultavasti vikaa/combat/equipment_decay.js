@@ -12,17 +12,17 @@ function round1(n) { return Math.round(n * 10) / 10; }
 
 export function initialDecay(tier, rng) {
   try {
-    if (typeof window !== "undefined" && window.Items && typeof Items.initialDecay === "function") {
-      return Items.initialDecay(tier, rng);
+    if (typeof window !== "undefined" && window.Items && typeof window.Items.initialDecay === "function") {
+      return window.Items.initialDecay(tier, rng);
     }
   } catch (_) {}
   // Fallback (mirrors game.js/items.js behavior)
   const r = (typeof rng === "function")
     ? rng
-    : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-        ? RNG.rng
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
-            ? RNGFallback.getRng()
+    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+        ? window.RNG.rng
+        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+            ? window.RNGFallback.getRng()
             : Math.random));
   const float = (min, max, decimals = 0) => {
     const v = min + r() * (max - min);
@@ -36,14 +36,14 @@ export function initialDecay(tier, rng) {
 
 export function decayEquipped(player, slot, amount, hooks) {
   hooks = hooks || {};
-  const log = hooks.log || (typeof window !== "undefined" && window.Logger && Logger.log ? Logger.log : (() => {}));
+  const log = hooks.log || (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function" ? window.Logger.log : (() => {}));
   const updateUI = hooks.updateUI || (() => {});
   const onInventoryChange = hooks.onInventoryChange || (() => {});
   const Flavor = (typeof window !== "undefined") ? window.Flavor : null;
 
   try {
-    if (typeof window !== "undefined" && window.Player && typeof Player.decayEquipped === "function") {
-      Player.decayEquipped(player, slot, amount, { log, updateUI, onInventoryChange });
+    if (typeof window !== "undefined" && window.Player && typeof window.Player.decayEquipped === "function") {
+      window.Player.decayEquipped(player, slot, amount, { log, updateUI, onInventoryChange });
       return;
     }
   } catch (_) {}
@@ -78,10 +78,10 @@ export function decayAttackHands(player, rng, opts, hooks) {
   const float = (min, max) => {
     const rv = (typeof rng === "function")
       ? rng()
-      : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-          ? RNG.rng()
-          : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
-              ? RNGFallback.getRng()()
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+          ? window.RNG.rng()
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+              ? window.RNGFallback.getRng()()
               : Math.random()));
     const v = min + rv * (max - min);
     return Math.round(v * 10) / 10;
@@ -115,10 +115,10 @@ export function decayBlockingHands(player, rng, opts, hooks) {
   const float = (min, max) => {
     const r = (typeof rng === "function")
       ? rng()
-      : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-          ? RNG.rng()
-          : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
-              ? RNGFallback.getRng()()
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+          ? window.RNG.rng()
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+              ? window.RNGFallback.getRng()()
               : (function () {
                   // deterministic last resort
                   const seed = ((Date.now() % 0xffffffff) >>> 0);

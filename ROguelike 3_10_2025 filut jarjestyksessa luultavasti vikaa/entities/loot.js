@@ -26,7 +26,7 @@
  */
 function pickPotion(ctx, source) {
   // Prefer JSON-driven consumables when available; fallback to enemy-weighted defaults
-  const CD = (typeof window !== "undefined" && window.GameData && GameData.consumables) ? GameData.consumables : null;
+  const CD = (typeof window !== "undefined" && window.GameData && window.GameData.consumables) ? window.GameData.consumables : null;
   const potions = (CD && Array.isArray(CD.potions)) ? CD.potions : null;
   const r = ctx.rng();
 

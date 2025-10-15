@@ -50,8 +50,8 @@ function applyJsonEnemies(json) {
       window.ValidationLog.warnings.push(`[Enemies] ${msg}`);
     } catch (_) {}
     try {
-      if (window.Logger && typeof Logger.log === "function") Logger.log(`[Enemies] ${msg}`, "warn");
-      else if (window.DEV && typeof console !== "undefined") console.warn("[Enemies] " + msg, row);
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(`[Enemies] ${msg}`, "warn");
+      else if (typeof window !== "undefined" && window.DEV && typeof console !== "undefined") console.warn("[Enemies] " + msg, row);
     } catch (_) {}
   };
   for (const row of json) {
@@ -127,10 +127,10 @@ export function pickType(depth, rng) {
   const total = entries.reduce((s, e) => s + e.w, 0);
   const roll = ((typeof rng === "function")
     ? rng()
-    : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-        ? RNG.rng()
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
-            ? RNGFallback.getRng()()
+    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+        ? window.RNG.rng()
+        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+            ? window.RNGFallback.getRng()()
             : Math.random())));
   if (total <= 0) {
     // choose first when all weights are zero; indicates data issue
@@ -184,12 +184,12 @@ export function createEnemyAt(x, y, depth, rng) {
 
 // Apply JSON enemies when ready; no defaults baked in
 try {
-  if (window.GameData && GameData.ready && typeof GameData.ready.then === "function") {
-    GameData.ready.then(() => {
-      try { applyJsonEnemies(GameData.enemies); } catch (_) {}
+  if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
+    window.GameData.ready.then(() => {
+      try { applyJsonEnemies(window.GameData.enemies); } catch (_) {}
     });
-  } else if (window.GameData && Array.isArray(GameData.enemies)) {
-    applyJsonEnemies(GameData.enemies);
+  } else if (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies)) {
+    applyJsonEnemies(window.GameData.enemies);
   }
 } catch (_) {}
 

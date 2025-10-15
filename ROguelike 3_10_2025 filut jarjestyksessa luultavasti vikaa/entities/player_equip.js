@@ -11,8 +11,8 @@
  * - UI-agnostic: only uses hooks for side effects.
  */
 
-const round1 = (typeof window !== "undefined" && window.PlayerUtils && typeof PlayerUtils.round1 === "function")
-  ? PlayerUtils.round1
+const round1 = (typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.round1 === "function")
+  ? window.PlayerUtils.round1
   : (n) => Math.round(n * 10) / 10;
 
 function defaultDescribe(item) {
@@ -35,7 +35,7 @@ function defaultDescribe(item) {
 export function equipIfBetter(player, item, hooks = {}) {
   if (!item || item.kind !== "equip") return false;
 
-  const describe = hooks.describeItem || (typeof window !== "undefined" && window.Player && Player.describeItem) || defaultDescribe;
+  const describe = hooks.describeItem || (typeof window !== "undefined" && window.Player && typeof window.Player.describeItem === "function" ? window.Player.describeItem : null) || defaultDescribe;
 
   // Two-handed constraint
   const twoH = !!item.twoHanded;
@@ -208,7 +208,7 @@ export function unequipSlot(player, slot, hooks = {}) {
   const valid = ["left","right","head","torso","legs","hands"];
   if (!valid.includes(slot)) return;
 
-  const describe = hooks.describeItem || (typeof window !== "undefined" && window.Player && Player.describeItem) || defaultDescribe;
+  const describe = hooks.describeItem || (typeof window !== "undefined" && window.Player && typeof window.Player.describeItem === "function" ? window.Player.describeItem : null) || defaultDescribe;
 
   // Handle two-handed case if unequipping either hand and both reference same item
   if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right && eq.left.twoHanded) {

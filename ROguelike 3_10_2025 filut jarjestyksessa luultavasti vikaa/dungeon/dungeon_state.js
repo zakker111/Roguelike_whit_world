@@ -123,7 +123,6 @@ function applyState(ctx, st, x, y) {
   ctx.mode = "dungeon";
   ctx.dungeonInfo = st.info || { x, y, level: st.level || 1, size: "medium" };
   ctx.floor = st.level || 1;
-  if (typeof window !== "undefined") window.floor = ctx.floor;
 
   // Deep references
   ctx.map = st.map;
@@ -175,7 +174,6 @@ function applyState(ctx, st, x, y) {
   ctx.updateCamera();
   ctx.updateUI();
   ctx.log(`You re-enter the dungeon (Difficulty ${ctx.floor}${ctx.dungeonInfo.size ? ", " + ctx.dungeonInfo.size : ""}).`, "notice");
-  ctx.requestDraw();
 }
 
 export function load(ctx, x, y) {
@@ -234,7 +232,6 @@ export function returnToWorldIfAtExit(ctx) {
     ctx.updateCamera();
     ctx.updateUI();
     ctx.log("You return to the overworld.", "notice");
-    ctx.requestDraw();
     return true;
   }
   ctx.log("Return to the dungeon entrance to go back to the overworld.", "info");

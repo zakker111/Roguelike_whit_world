@@ -44,8 +44,8 @@ export function generateLevel(ctx, depth) {
   const { ROWS, COLS, MAP_ROWS, MAP_COLS, TILES, player } = ctx;
 
   // Determine per-dungeon seed from root RNG + entrance/level/size
-  const rootSeed = (typeof window !== "undefined" && window.RNG && typeof RNG.getSeed === "function")
-    ? (RNG.getSeed() || 0)
+  const rootSeed = (typeof window !== "undefined" && window.RNG && typeof window.RNG.getSeed === "function")
+    ? (window.RNG.getSeed() || 0)
     : 0;
   const dinfo = ctx.dungeonInfo || ctx.dungeon || { x: player.x, y: player.y, level: depth, size: "medium" };
   const dseed = deriveDungeonSeed(rootSeed, dinfo.x | 0, dinfo.y | 0, (depth | 0) || (dinfo.level | 0) || 1, dinfo.size);

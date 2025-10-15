@@ -16,10 +16,10 @@ export const profiles = {
 export function rollHitLocation(rng) {
   const r = (typeof rng === "function")
     ? rng()
-    : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-        ? RNG.rng()
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
-            ? RNGFallback.getRng()()
+    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+        ? window.RNG.rng()
+        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+            ? window.RNGFallback.getRng()()
             : Math.random()));
   if (r < 0.50) return profiles.torso;
   if (r < 0.65) return profiles.head;
@@ -30,10 +30,10 @@ export function rollHitLocation(rng) {
 export function critMultiplier(rng) {
   const r = (typeof rng === "function")
     ? rng()
-    : ((typeof window !== "undefined" && window.RNG && typeof RNG.rng === "function")
-        ? RNG.rng()
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function")
-            ? RNGFallback.getRng()()
+    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+        ? window.RNG.rng()
+        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+            ? window.RNGFallback.getRng()()
             : Math.random()));
   return 1.6 + r * 0.4;
 }

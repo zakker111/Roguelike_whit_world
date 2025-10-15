@@ -148,7 +148,7 @@ export function openForNPC(ctx, npc) {
 
     _stock = stock;
     render(ctx);
-    try { ctx.requestDraw(); } catch (_) {}
+    // Shop panel is DOM-only; no canvas redraw needed
   } catch (_) {}
 }
 
@@ -194,7 +194,7 @@ export function buyIndex(ctx, idx) {
       ctx.log("You bought " + name + " for " + cost + " gold.", "good");
     } catch (_) {}
     render(ctx);
-    try { ctx.requestDraw(); } catch (_) {}
+    // Shop panel is DOM-only; no canvas redraw needed
   } catch (_) {}
 }
 

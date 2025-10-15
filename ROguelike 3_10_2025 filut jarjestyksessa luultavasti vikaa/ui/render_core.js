@@ -8,14 +8,24 @@
  * - drawGridOverlay(view): draws a light grid aligned to tile boundaries when enabled
  */
 
+// Simple cache for enemy type → color lookups to avoid repeated registry calls in hot paths
+const ENEMY_COLOR_CACHE = Object.create(null);
+
 export function enemyColor(ctx, type, COLORS) {
+  const key = (type != null) ? String(type) : "";
+  if (key && ENEMY_COLOR_CACHE[key]) return ENEMY_COLOR_CACHE[key];
+
+  let color = null;
   if (ctx && typeof ctx.enemyColor === "function") {
-    try { return ctx.enemyColor(type); } catch (_) {}
+    try { color = ctx.enemyColor(type); } catch (_) {}
   }
-  if (typeof window !== "undefined" && window.Enemies && typeof Enemies.colorFor === "function") {
-    return Enemies.colorFor(type);
+  if (!color && typeof window !== "undefined" && window.Enemies && typeof Enemies.colorFor === "function") {
+    try { color = Enemies.colorFor(type); } catch (_) {}
   }
-  return (COLORS && COLORS.enemy) || "#f7768e";
+  if (!color) color = (COLORS && COLORS.enemy) || "#f7768e";
+
+  if (key) ENEMY_COLOR_CACHE[key] = color;
+  return color;
 }
 
 export function drawGlyph(ctx2d, x, y, ch, color, TILE) {
@@ -47,6 +57,8 @@ export function computeView(ctx) {
 
   // Clear and set text properties once per frame
   ctx2d.clearRect(0, 0, cam.width, cam.height);
+  // Prefer crisp pixel rendering for tiles/glyphs
+  try { if ("imageSmoothingEnabled" in ctx2d) ctx2d.imageSmoothingEnabled = false; } catch (_) {}
   ctx2d.font = "bold 20px JetBrains Mono, monospace";
   ctx2d.textAlign = "center";
   ctx2d.textBaseline = "middle";
@@ -95,7 +107,40 @@ export function drawGridOverlay(view) {
   } catch (_) {}
 }
 
+// Cropped blit helper: draw only the visible viewport from an offscreen base layer
+export function blitViewport(ctx2d, offscreenCanvas, cam, wpx, hpx) {
+  if (!ctx2d || !offscreenCanvas || !cam || !wpx || !hpx) return false;
+  try {
+    const camX = Math.floor(cam.x);
+    const camY = Math.floor(cam.y);
+    const sx = Math.max(0, camX);
+    const sy = Math.max(0, camY);
+    const dx = sx - camX;
+    const dy = sy - camY;
+    const sw = Math.min(wpx - sx, cam.width - dx);
+    const sh = Math.min(hpx - sy, cam.height - dy);
+    if (sw > 0 && sh > 0) {
+      ctx2d.drawImage(offscreenCanvas, sx, sy, sw, sh, dx, dy, sw, sh);
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+export function createOffscreen(width, height) {
+  try {
+    if (typeof OffscreenCanvas !== "undefined") {
+      const off = new OffscreenCanvas(width, height);
+      return off;
+    }
+  } catch (_) {}
+  const el = document.createElement("canvas");
+  el.width = width;
+  el.height = height;
+  return el;
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
-  window.RenderCore = { computeView, drawGlyph, enemyColor, drawGridOverlay };
+  window.RenderCore = { computeView, drawGlyph, enemyColor, drawGridOverlay, blitViewport, createOffscreen };
 }

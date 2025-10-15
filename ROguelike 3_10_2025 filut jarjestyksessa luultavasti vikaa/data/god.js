@@ -18,7 +18,7 @@ export function heal(ctx) {
   if (ctx.player.hp > prev) ctx.log(`GOD: You are fully healed (${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)} HP).`, "good");
   else ctx.log(`GOD: HP already full (${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)}).`, "warn");
   ctx.updateUI();
-  ctx.requestDraw();
+  // Pure HUD update; no canvas change -> no draw
 }
 
 export function spawnStairsHere(ctx) {
@@ -28,7 +28,8 @@ export function spawnStairsHere(ctx) {
   ctx.seen[y][x] = true;
   ctx.visible[y][x] = true;
   ctx.log("GOD: Stairs appear beneath your feet.", "notice");
-  ctx.requestDraw();
+  // Visual change (tile underfoot) will be drawn on next scheduled frame; defer draw to engine coalescer
+  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 }
 
 export function spawnItems(ctx, count = 3) {
@@ -57,7 +58,8 @@ export function spawnItems(ctx, count = 3) {
     created.forEach(n => ctx.log(`- ${n}`));
     ctx.updateUI();
     if (ctx.renderInventory) ctx.renderInventory();
-    ctx.requestDraw();
+    // Inventory/UI changes only; let engine coalesce draw if needed
+    try { ctx.rerenderInventoryIfOpen && ctx.rerenderInventoryIfOpen(); } catch (_) {}
   }
 }
 
@@ -118,24 +120,45 @@ export function spawnEnemyNearby(ctx, count = 1) {
   };
 
   const pickNearby = () => {
-    const maxAttempts = 100;
-    for (let i = 0; i < maxAttempts; i++) {
-      const dx = Math.floor(ctx.rng() * 17) - 8; // wider search radius
-      const dy = Math.floor(ctx.rng() * 17) - 8;
-      const x = ctx.player.x + dx;
-      const y = ctx.player.y + dy;
-      if (isFreeFloor(x, y)) return { x, y };
+    // Prefer spawning within radius <= 5 around player when possible
+    const maxR = 5;
+    const px = ctx.player.x | 0;
+    const py = ctx.player.y | 0;
+
+    // Scan rings from r=1..maxR; randomize order per ring
+    for (let r = 1; r <= maxR; r++) {
+      const candidates = [];
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) + Math.abs(dy) !== r) continue; // perimeter of Manhattan ring
+          const x = px + dx;
+          const y = py + dy;
+          if (isFreeFloor(x, y)) candidates.push({ x, y });
+        }
+      }
+      if (candidates.length) {
+        // Deterministic shuffle using ctx.rng
+        for (let i = candidates.length - 1; i > 0; i--) {
+          const j = Math.floor(ctx.rng() * (i + 1));
+          const tmp = candidates[i]; candidates[i] = candidates[j]; candidates[j] = tmp;
+        }
+        return candidates[0];
+      }
     }
-    const free = [];
+
+    // Fallback: choose nearest free tile on the entire map
+    let best = null;
+    let bestD = Infinity;
     const rows = ctx.map.length;
     const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
-        if (isFreeFloor(x, y)) free.push({ x, y });
+        if (!isFreeFloor(x, y)) continue;
+        const md = Math.abs(x - px) + Math.abs(y - py);
+        if (md < bestD) { bestD = md; best = { x, y }; }
       }
     }
-    if (!free.length) return null;
-    return free[Math.floor(ctx.rng() * free.length)];
+    return best;
   };
 
   function linearAt(arr, depth, fallback = 1) {
@@ -236,17 +259,17 @@ export function setCritPart(ctx, part) {
 export function applySeed(ctx, seedUint32) {
   const s = (Number(seedUint32) >>> 0);
   try { localStorage.setItem("SEED", String(s)); } catch (_) {}
-  if (typeof window !== "undefined" && window.RNG && typeof RNG.applySeed === "function") {
-    RNG.applySeed(s);
-    ctx.rng = RNG.rng;
+  if (typeof window !== "undefined" && window.RNG && typeof window.RNG.applySeed === "function") {
+    window.RNG.applySeed(s);
+    ctx.rng = window.RNG.rng;
   } else {
     try {
-      if (typeof window !== "undefined" && window.RNGFallback && typeof RNGFallback.getRng === "function") {
-        ctx.rng = RNGFallback.getRng(s);
+      if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
+        ctx.rng = window.RNGFallback.getRng(s);
       } else {
         // As a last resort, use a time-seeded deterministic fallback
         ctx.rng = (function () {
-          try { return RNGFallback.getRng(s); } catch (_) {}
+          try { return window.RNGFallback.getRng(s); } catch (_) {}
           const seed = ((Date.now() % 0xffffffff) >>> 0);
           function mulberry32(a) {
             return function () {
@@ -282,7 +305,7 @@ export function applySeed(ctx, seedUint32) {
     ctx.log(`GOD: Applied seed ${s}. Regenerating floor ${ctx.floor}...`, "notice");
     ctx.generateLevel(ctx.floor);
   }
-  ctx.requestDraw();
+  // Draw will be scheduled by orchestrator (core/game.js) after regeneration
   try {
     const el = document.getElementById("god-seed-help");
     if (el) el.textContent = `Current seed: ${s}`;

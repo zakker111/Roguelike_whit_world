@@ -23,9 +23,9 @@ export function save(ctx, logOnce) {
     ctx.DungeonState.save(ctx);
     return;
   }
-  if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") {
+  if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") {
     try { if (window.DEV && logOnce) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
-    DungeonState.save(ctx);
+    window.DungeonState.save(ctx);
     return;
   }
   if (ctx.mode !== "dungeon" || !ctx.dungeonInfo || !ctx.dungeonExitAt) return;
@@ -69,17 +69,15 @@ export function load(ctx, x, y) {
       ctx.updateCamera && ctx.updateCamera();
       ctx.recomputeFOV && ctx.recomputeFOV();
       ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
     return ok;
   }
-  if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.load === "function") {
-    const ok = DungeonState.load(ctx, x, y);
+  if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.load === "function") {
+    const ok = window.DungeonState.load(ctx, x, y);
     if (ok) {
       ctx.updateCamera && ctx.updateCamera();
       ctx.recomputeFOV && ctx.recomputeFOV();
       ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
     return ok;
   }
@@ -113,7 +111,6 @@ export function load(ctx, x, y) {
   ctx.recomputeFOV && ctx.recomputeFOV();
   ctx.updateCamera && ctx.updateCamera();
   ctx.updateUI && ctx.updateUI();
-  ctx.requestDraw && ctx.requestDraw();
   return true;
 }
 
@@ -142,8 +139,8 @@ export function generate(ctx, depth) {
     try {
       if (ctx.OccupancyGrid && typeof ctx.OccupancyGrid.build === "function") {
         ctx.occupancy = ctx.OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-      } else if (typeof window !== "undefined" && window.OccupancyGrid && typeof OccupancyGrid.build === "function") {
-        ctx.occupancy = OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      } else if (typeof window !== "undefined" && window.OccupancyGrid && typeof window.OccupancyGrid.build === "function") {
+        ctx.occupancy = window.OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
       }
     } catch (_) {}
     // Dev counts
@@ -157,7 +154,6 @@ export function generate(ctx, depth) {
     ctx.updateUI && ctx.updateUI();
     ctx.log && ctx.log("You explore the dungeon.");
     save(ctx, true);
-    ctx.requestDraw && ctx.requestDraw();
     return true;
   }
   // Fallback: flat-floor
@@ -177,7 +173,6 @@ export function generate(ctx, depth) {
   ctx.updateUI && ctx.updateUI();
   ctx.log && ctx.log("You explore the dungeon.");
   save(ctx, true);
-  ctx.requestDraw && ctx.requestDraw();
   return true;
 }
 
@@ -195,7 +190,8 @@ export function generateLoot(ctx, source) {
 
 export function returnToWorldIfAtExit(ctx) {
   if (!ctx || ctx.mode !== "dungeon" || !ctx.world) return false;
-  const onExit =
+  // Consider adjacency to exit tile as valid; step onto exit if adjacent
+  let onExit =
     (ctx.dungeonExitAt &&
       ctx.player.x === ctx.dungeonExitAt.x &&
       ctx.player.y === ctx.dungeonExitAt.y) ||
@@ -203,12 +199,24 @@ export function returnToWorldIfAtExit(ctx) {
       ctx.map && ctx.map[ctx.player.y] &&
       ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
 
+  if (!onExit && ctx.dungeonExitAt) {
+    const dx = Math.abs(ctx.player.x - ctx.dungeonExitAt.x);
+    const dy = Math.abs(ctx.player.y - ctx.dungeonExitAt.y);
+    const md = dx + dy;
+    if (md === 1) {
+      // Step onto exact exit tile to satisfy strict checks
+      ctx.player.x = ctx.dungeonExitAt.x;
+      ctx.player.y = ctx.dungeonExitAt.y;
+      onExit = true;
+    }
+  }
+
   if (!onExit) return false;
 
   // Save state first
   try { save(ctx, false); } catch (_) {
     try { if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") ctx.DungeonState.save(ctx); } catch (_) {}
-    try { if (typeof window !== "undefined" && window.DungeonState && typeof DungeonState.save === "function") DungeonState.save(ctx); } catch (_) {}
+    try { if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") window.DungeonState.save(ctx); } catch (_) {}
   }
 
   // Switch to world and clear dungeon-only entities
@@ -248,7 +256,6 @@ export function returnToWorldIfAtExit(ctx) {
   } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
   try { ctx.log && ctx.log("You climb back to the overworld.", "notice"); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 
   return true;
 }
@@ -283,7 +290,6 @@ export function lootHere(ctx) {
         const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
         if (walkable && !enemyBlocks) {
           ctx.player.x = target.x; ctx.player.y = target.y;
-          ctx.requestDraw && ctx.requestDraw();
         }
       }
     }
@@ -295,8 +301,8 @@ export function lootHere(ctx) {
       ctx.Loot.lootHere(ctx);
       return true;
     }
-    if (typeof window !== "undefined" && window.Loot && typeof Loot.lootHere === "function") {
-      Loot.lootHere(ctx);
+    if (typeof window !== "undefined" && window.Loot && typeof window.Loot.lootHere === "function") {
+      window.Loot.lootHere(ctx);
       return true;
     }
   } catch (_) {}
@@ -390,8 +396,8 @@ export function killEnemy(ctx, enemy) {
   try {
     if (ctx.Player && typeof ctx.Player.gainXP === "function") {
       ctx.Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
-    } else if (typeof window !== "undefined" && window.Player && typeof Player.gainXP === "function") {
-      Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
+    } else if (typeof window !== "undefined" && window.Player && typeof window.Player.gainXP === "function") {
+      window.Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
     } else {
       ctx.player.xp = (ctx.player.xp || 0) + xp;
       ctx.log && ctx.log(`You gain ${xp} XP.`);
@@ -447,12 +453,217 @@ export function enter(ctx, info) {
   try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
   try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 
+  return true;
+}
+
+export function tryMoveDungeon(ctx, dx, dy) {
+  if (!ctx || ctx.mode !== "dungeon") return false;
+
+  // Dazed: skip action if dazedTurns > 0
+  try {
+    if (ctx.player && ctx.player.dazedTurns && ctx.player.dazedTurns > 0) {
+      ctx.player.dazedTurns -= 1;
+      ctx.log && ctx.log("You are dazed and lose your action this turn.", "warn");
+      ctx.turn && ctx.turn();
+      return true;
+    }
+  } catch (_) {}
+
+  const nx = ctx.player.x + (dx | 0);
+  const ny = ctx.player.y + (dy | 0);
+  if (!ctx.inBounds(nx, ny)) return false;
+
+  // Is there an enemy at target tile?
+  let enemy = null;
+  try {
+    const enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
+    enemy = enemies.find(e => e && e.x === nx && e.y === ny) || null;
+  } catch (_) { enemy = null; }
+
+  if (enemy) {
+    // Hit location
+    const C = (ctx && ctx.Combat) || (typeof window !== "undefined" ? window.Combat : null);
+    const rollLoc = (C && typeof C.rollHitLocation === "function")
+      ? () => C.rollHitLocation(ctx.rng)
+      : (typeof ctx.rollHitLocation === "function" ? () => ctx.rollHitLocation() : null);
+    let loc = rollLoc ? rollLoc() : { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 };
+
+    // GOD forced part (best-effort)
+    try {
+      const forcedPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string")
+        ? window.ALWAYS_CRIT_PART
+        : (typeof localStorage !== "undefined" ? (localStorage.getItem("ALWAYS_CRIT_PART") || "") : "");
+      if (forcedPart) {
+        const profs = (C && C.profiles) ? C.profiles : {
+          torso: { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 },
+          head:  { part: "head",  mult: 1.1, blockMod: 0.85, critBonus: 0.15 },
+          hands: { part: "hands", mult: 0.9, blockMod: 0.75, critBonus: -0.05 },
+          legs:  { part: "legs",  mult: 0.95, blockMod: 0.75, critBonus: -0.03 },
+        };
+        if (profs[forcedPart]) loc = profs[forcedPart];
+      }
+    } catch (_) {}
+
+    // Block chance
+    const blockChance = (C && typeof C.getEnemyBlockChance === "function")
+      ? C.getEnemyBlockChance(ctx, enemy, loc)
+      : (typeof ctx.getEnemyBlockChance === "function" ? ctx.getEnemyBlockChance(enemy, loc) : 0);
+    const rBlock = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+
+    if (rBlock < blockChance) {
+      try {
+        const name = (enemy.type || "enemy");
+        ctx.log && ctx.log(`${name.charAt(0).toUpperCase()}${name.slice(1)} blocks your attack to the ${loc.part}.`, "block");
+      } catch (_) {}
+      // Decay hands (light) on block
+      try {
+        const ED = (typeof window !== "undefined") ? window.EquipmentDecay : null;
+        const twoHanded = !!(ctx.player.equipment && ctx.player.equipment.left && ctx.player.equipment.right && ctx.player.equipment.left === ctx.player.equipment.right && ctx.player.equipment.left.twoHanded);
+        if (ED && typeof ED.decayAttackHands === "function") {
+          ED.decayAttackHands(ctx.player, ctx.rng, { twoHanded, light: true }, { log: ctx.log, updateUI: ctx.updateUI, onInventoryChange: ctx.rerenderInventoryIfOpen });
+        } else if (typeof ctx.decayEquipped === "function") {
+          const rf = (typeof ctx.randFloat === "function") ? ctx.randFloat : ((min, max) => (min + (Math.random() * (max - min))));
+          ctx.decayEquipped("hands", rf(0.2, 0.7));
+        }
+      } catch (_) {}
+      ctx.turn && ctx.turn();
+      return true;
+    }
+
+    // Damage calculation
+    const S = (typeof window !== "undefined") ? window.Stats : null;
+    const atk = (typeof ctx.getPlayerAttack === "function")
+      ? ctx.getPlayerAttack()
+      : (S && typeof S.getPlayerAttack === "function" ? S.getPlayerAttack(ctx) : 1);
+    let dmg = (atk || 1) * (loc.mult || 1.0);
+    let isCrit = false;
+    const alwaysCrit = !!((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false);
+    const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
+    const critMult = (C && typeof C.critMultiplier === "function")
+      ? C.critMultiplier(ctx.rng)
+      : (typeof ctx.critMultiplier === "function" ? ctx.critMultiplier() : (1.6 + ((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) * 0.4));
+    const rCrit = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+    if (alwaysCrit || rCrit < critChance) {
+      isCrit = true;
+      dmg *= critMult;
+    }
+    const round1 = (ctx.utils && typeof ctx.utils.round1 === "function") ? ctx.utils.round1 : ((n) => Math.round(n * 10) / 10);
+    dmg = Math.max(0, round1(dmg));
+    enemy.hp -= dmg;
+
+    // Visual: blood decal
+    try { if (typeof ctx.addBloodDecal === "function" && dmg > 0) ctx.addBloodDecal(enemy.x, enemy.y, isCrit ? 1.6 : 1.0); } catch (_) {}
+
+    // Log
+    try {
+      const name = (enemy.type || "enemy");
+      if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit");
+      else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`);
+      if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
+    } catch (_) {}
+
+    // Status effects on crit
+    try {
+      const ST = (typeof window !== "undefined") ? window.Status : null;
+      if (isCrit && loc.part === "legs" && enemy.hp > 0) {
+        if (ST && typeof ST.applyLimpToEnemy === "function") ST.applyLimpToEnemy(ctx, enemy, 2);
+        else { enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2); ctx.log && ctx.log(`${(enemy.type || "enemy")[0].toUpperCase()}${(enemy.type || "enemy").slice(1)} staggers; its legs are crippled and it can't move for 2 turns.`, "notice"); }
+      }
+      if (isCrit && enemy.hp > 0) {
+        if (ST && typeof ST.applyBleedToEnemy === "function") ST.applyBleedToEnemy(ctx, enemy, 2);
+      }
+    } catch (_) {}
+
+    // Death
+    try {
+      if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") {
+        ctx.onEnemyDied(enemy);
+      }
+    } catch (_) {}
+
+    // Decay hands after attack
+    try {
+      const ED = (typeof window !== "undefined") ? window.EquipmentDecay : null;
+      const twoHanded = !!(ctx.player.equipment && ctx.player.equipment.left && ctx.player.equipment.right && ctx.player.equipment.left === ctx.player.equipment.right && ctx.player.equipment.left.twoHanded);
+      if (ED && typeof ED.decayAttackHands === "function") {
+        ED.decayAttackHands(ctx.player, ctx.rng, { twoHanded }, { log: ctx.log, updateUI: ctx.updateUI, onInventoryChange: ctx.rerenderInventoryIfOpen });
+      } else if (typeof ctx.decayEquipped === "function") {
+        const rf = (typeof ctx.randFloat === "function") ? ctx.randFloat : ((min, max) => (min + (Math.random() * (max - min))));
+        ctx.decayEquipped("hands", rf(0.3, 1.0));
+      }
+    } catch (_) {}
+
+    ctx.turn && ctx.turn();
+    return true;
+  }
+
+  // Movement into empty tile
+  try {
+    const blockedByEnemy = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny);
+    const walkable = ctx.inBounds(nx, ny) && (ctx.map[ny][nx] === ctx.TILES.FLOOR || ctx.map[ny][nx] === ctx.TILES.DOOR || ctx.map[ny][nx] === ctx.TILES.STAIRS);
+    if (walkable && !blockedByEnemy) {
+      ctx.player.x = nx; ctx.player.y = ny;
+      ctx.updateCamera && ctx.updateCamera();
+      ctx.turn && ctx.turn();
+      return true;
+    }
+  } catch (_) {}
+
+  return false;
+}
+
+export function tick(ctx) {
+  if (!ctx || ctx.mode !== "dungeon") return false;
+  // Enemies act via AI
+  try {
+    const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);
+    if (AIH && typeof AIH.enemiesAct === "function") {
+      AIH.enemiesAct(ctx);
+    }
+  } catch (_) {}
+  // Ensure occupancy reflects enemy movement/deaths this turn
+  try {
+    const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+    if (OG && typeof OG.build === "function") {
+      ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+    }
+  } catch (_) {}
+  // Status effects tick (bleed, dazed, etc.)
+  try {
+    const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
+    if (ST && typeof ST.tick === "function") {
+      ST.tick(ctx);
+    }
+  } catch (_) {}
+  // Visual: decals fade each turn
+  try {
+    const DC = ctx.Decals || (typeof window !== "undefined" ? window.Decals : null);
+    if (DC && typeof DC.tick === "function") {
+      DC.tick(ctx);
+    } else if (Array.isArray(ctx.decals) && ctx.decals.length) {
+      for (let i = 0; i < ctx.decals.length; i++) {
+        ctx.decals[i].a *= 0.92;
+      }
+      ctx.decals = ctx.decals.filter(d => d.a > 0.04);
+    }
+  } catch (_) {}
+  // End of turn: brace stance lasts only for this enemy round
+  try {
+    if (ctx.player && typeof ctx.player.braceTurns === "number" && ctx.player.braceTurns > 0) {
+      ctx.player.braceTurns = 0;
+    }
+  } catch (_) {}
+  // Clamp corpse list length
+  try {
+    if (Array.isArray(ctx.corpses) && ctx.corpses.length > 50) {
+      ctx.corpses = ctx.corpses.slice(-50);
+    }
+  } catch (_) {}
   return true;
 }
 
 // Back-compat: attach to window for classic scripts
 if (typeof window !== "undefined") {
-  window.DungeonRuntime = { keyFromWorldPos, save, load, generate, generateLoot, returnToWorldIfAtExit, lootHere, killEnemy, enter };
+  window.DungeonRuntime = { keyFromWorldPos, save, load, generate, generateLoot, returnToWorldIfAtExit, lootHere, killEnemy, enter, tryMoveDungeon, tick };
 }

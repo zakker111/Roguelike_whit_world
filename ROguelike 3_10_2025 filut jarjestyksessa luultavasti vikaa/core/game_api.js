@@ -14,7 +14,29 @@ export function create(ctx) {
     getPlayer: () => {
       try { const p = ctx.getPlayer(); return { x: p.x, y: p.y }; } catch (_) { return { x: 0, y: 0 }; }
     },
-    moveStep: (dx, dy) => { try { ctx.tryMovePlayer(dx, dy); } catch (_) {} },
+    moveStep: (dx, dy) => {
+      try {
+        const before = ctx.getPlayer();
+        const bx = before.x, by = before.y;
+        ctx.tryMovePlayer(dx, dy);
+        const after = ctx.getPlayer();
+        if (after.x === bx && after.y === by && window.GameAPI.getMode() === "world") {
+          // Minimal world fallback: step if tile is walkable
+          const nx = bx + ((dx|0) || 0);
+          const ny = by + ((dy|0) || 0);
+          const w = ctx.getWorld();
+          if (w && w.map && nx >= 0 && ny >= 0 && nx < w.width && ny < w.height) {
+            const t = w.map[ny][nx];
+            const walk = (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
+            if (walk) {
+              const p = ctx.getPlayer();
+              p.x = nx; p.y = ny;
+              try { ctx.updateCamera(); ctx.updateUI(); ctx.requestDraw(); } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
+    },
 
     // Overworld helpers
     isWalkableOverworld: (x, y) => {
@@ -22,7 +44,7 @@ export function create(ctx) {
         const w = ctx.getWorld();
         if (!w || !w.map) return false;
         const t = w.map[y] && w.map[y][x];
-        return (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
+        return (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
       } catch (_) { return false; }
     },
     nearestDungeon: () => {
@@ -57,28 +79,66 @@ export function create(ctx) {
         if (!w || !w.map) return [];
         const width = w.width, height = w.height;
         const start = { x: ctx.getPlayer().x, y: ctx.getPlayer().y };
+        const isWalk = (x, y) => {
+          try { return !!window.GameAPI.isWalkableOverworld(x, y); } catch (_) { return true; }
+        };
+
+        // If target tile itself is not walkable (e.g., town/dungeon marker),
+        // choose a walkable adjacent tile as the routing goal.
+        let goal = { x: (tx|0), y: (ty|0) };
+        if (!isWalk(goal.x, goal.y)) {
+          const adj = [
+            { x: goal.x + 1, y: goal.y },
+            { x: goal.x - 1, y: goal.y },
+            { x: goal.x,     y: goal.y + 1 },
+            { x: goal.x,     y: goal.y - 1 },
+          ];
+          let picked = null;
+          for (const a of adj) {
+            if (a.x < 0 || a.y < 0 || a.x >= width || a.y >= height) continue;
+            if (isWalk(a.x, a.y)) { picked = a; break; }
+          }
+          // Fallback: search small ring around target for any walkable tile
+          if (!picked) {
+            let best = null, bestD = Infinity;
+            for (let dy = -2; dy <= 2; dy++) {
+              for (let dx = -2; dx <= 2; dx++) {
+                const nx = goal.x + dx, ny = goal.y + dy;
+                const md = Math.abs(dx) + Math.abs(dy);
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                if (!isWalk(nx, ny)) continue;
+                if (md < bestD) { best = { x: nx, y: ny }; bestD = md; }
+              }
+            }
+            if (best) picked = best;
+          }
+          if (picked) goal = picked;
+        }
+
+        // BFS to goal (walkable tile)
         const q = [start];
         const prev = new Map();
         const seen = new Set([`${start.x},${start.y}`]);
         const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
         while (q.length) {
           const cur = q.shift();
-          if (cur.x === tx && cur.y === ty) break;
+          if (cur.x === goal.x && cur.y === goal.y) break;
           for (const d of dirs) {
             const nx = cur.x + d.dx, ny = cur.y + d.dy;
             const key = `${nx},${ny}`;
             if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
             if (seen.has(key)) continue;
-            if (!window.GameAPI.isWalkableOverworld(nx, ny)) continue;
+            if (!isWalk(nx, ny)) continue;
             seen.add(key);
             prev.set(key, cur);
             q.push({ x: nx, y: ny });
           }
         }
+
         const path = [];
-        const curKey = `${tx},${ty}`;
-        if (!prev.has(curKey) && !(start.x === tx && start.y === ty)) return [];
-        let cur = { x: tx, y: ty };
+        const curKey = `${goal.x},${goal.y}`;
+        if (!prev.has(curKey) && !(start.x === goal.x && start.y === goal.y)) return [];
+        let cur = { x: goal.x, y: goal.y };
         while (!(cur.x === start.x && cur.y === start.y)) {
           path.push(cur);
           const p = prev.get(`${cur.x},${cur.y}`);
@@ -93,14 +153,31 @@ export function create(ctx) {
       try {
         const target = window.GameAPI.nearestDungeon();
         if (!target) return true;
+
+        // Ensure modals are closed to avoid movement gating
+        try {
+          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
+            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
+            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
+            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
+            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
+            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          }
+        } catch (_) {}
+
         const path = window.GameAPI.routeTo(target.x, target.y);
         if (!path || !path.length) return false;
         for (const step of path) {
-          const p = ctx.getPlayer();
-          const dx = Math.sign(step.x - p.x);
-          const dy = Math.sign(step.y - p.y);
+          const before = ctx.getPlayer();
+          const dx = Math.sign(step.x - before.x);
+          const dy = Math.sign(step.y - before.y);
           try { ctx.tryMovePlayer(dx, dy); } catch (_) {}
           await new Promise(r => setTimeout(r, 60));
+          const after = ctx.getPlayer();
+          if (after.x === before.x && after.y === before.y && window.GameAPI.getMode() === "world") {
+            // Movement likely gated; force-teleport to next step (walkable ring fallback inside teleportTo)
+            try { window.GameAPI.teleportTo(step.x, step.y, { ensureWalkable: true, fallbackScanRadius: 2 }); } catch (_) {}
+          }
         }
         return true;
       } catch (_) { return false; }
@@ -109,22 +186,155 @@ export function create(ctx) {
       try {
         const target = window.GameAPI.nearestTown();
         if (!target) return true;
+
+        // Ensure modals are closed to avoid movement gating
+        try {
+          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
+            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
+            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
+            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
+            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
+            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          }
+        } catch (_) {}
+
         const path = window.GameAPI.routeTo(target.x, target.y);
         if (!path || !path.length) return false;
         for (const step of path) {
-          const p = ctx.getPlayer();
-          const dx = Math.sign(step.x - p.x);
-          const dy = Math.sign(step.y - p.y);
+          const before = ctx.getPlayer();
+          const dx = Math.sign(step.x - before.x);
+          const dy = Math.sign(step.y - before.y);
           try { ctx.tryMovePlayer(dx, dy); } catch (_) {}
           await new Promise(r => setTimeout(r, 60));
+          const after = ctx.getPlayer();
+          if (after.x === before.x && after.y === before.y && window.GameAPI.getMode() === "world") {
+            // Movement likely gated; force-teleport to next step (walkable ring fallback inside teleportTo)
+            try { window.GameAPI.teleportTo(step.x, step.y, { ensureWalkable: true, fallbackScanRadius: 2 }); } catch (_) {}
+          }
         }
         return true;
       } catch (_) { return false; }
     },
 
-    // Context actions
-    enterTownIfOnTile: () => { try { return !!ctx.enterTownIfOnTile(); } catch (_) { return false; } },
-    enterDungeonIfOnEntrance: () => { try { return !!ctx.enterDungeonIfOnEntrance(); } catch (_) { return false; } },
+    // Context actions (robust): if not already on/adjacent, auto-route to nearest POI first
+    enterTownIfOnTile: () => {
+      try {
+        // Ensure modals are closed to avoid movement gating
+        try {
+          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
+            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
+            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
+            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
+            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
+            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          }
+        } catch (_) {}
+        // Fast path
+        if (ctx.enterTownIfOnTile && ctx.enterTownIfOnTile()) return true;
+        // Only attempt routing in overworld
+        if (ctx.getMode() !== "world") return false;
+        const w = ctx.getWorld();
+        if (!w || !w.map || !Array.isArray(w.towns) || w.towns.length === 0) return false;
+        const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
+        const start = ctx.getPlayer();
+
+        // If already on town or adjacent (including diagonals), retry enter
+        if (WT) {
+          const tHere = w.map[start.y] && w.map[start.y][start.x];
+          const adjDirs = [
+            {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+            {dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}
+          ];
+          const onOrAdjTown = (tHere === WT.TOWN) || adjDirs.some(d => {
+            const nx = start.x + d.dx, ny = start.y + d.dy;
+            return w.map[ny] && w.map[ny][nx] === WT.TOWN;
+          });
+          if (onOrAdjTown) {
+            try { return !!ctx.enterTownIfOnTile(); } catch (_) { return false; }
+          }
+        }
+
+        // Find nearest town and route using shared helper (includes adjacency fallback)
+        let best = null, bestD = Infinity;
+        for (const t of w.towns) {
+          const d = Math.abs(t.x - start.x) + Math.abs(t.y - start.y);
+          if (d < bestD) { bestD = d; best = { x: t.x, y: t.y }; }
+        }
+        if (!best) return false;
+
+        const path = window.GameAPI.routeTo(best.x, best.y);
+        if (!path || !path.length) return false;
+
+        // Walk the path quickly (synchronous)
+        for (const step of path) {
+          const p = ctx.getPlayer();
+          const dx = Math.sign(step.x - p.x);
+          const dy = Math.sign(step.y - p.y);
+          try { ctx.tryMovePlayer(dx, dy); } catch (_) {}
+        }
+        // Attempt entry now
+        try { return !!ctx.enterTownIfOnTile(); } catch (_) { return false; }
+      } catch (_) { return false; }
+    },
+    enterDungeonIfOnEntrance: () => {
+      try {
+        // Ensure modals are closed to avoid movement gating
+        try {
+          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
+            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
+            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
+            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
+            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
+            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          }
+        } catch (_) {}
+        // Fast path
+        if (ctx.enterDungeonIfOnEntrance && ctx.enterDungeonIfOnEntrance()) return true;
+        // Only attempt routing in overworld
+        if (ctx.getMode() !== "world") return false;
+        const w = ctx.getWorld();
+        if (!w || !w.map || !Array.isArray(w.dungeons) || w.dungeons.length === 0) return false;
+        const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
+        const start = ctx.getPlayer();
+
+        // If already on dungeon or adjacent (including diagonals), retry enter
+        if (WT) {
+          const tHere = w.map[start.y] && w.map[start.y][start.x];
+          const adjDirs = [
+            {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+            {dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}
+          ];
+          const onOrAdjDungeon = (tHere === WT.DUNGEON) || adjDirs.some(d => {
+            const nx = start.x + d.dx, ny = start.y + d.dy;
+            return w.map[ny] && w.map[ny][nx] === WT.DUNGEON;
+          });
+          if (onOrAdjDungeon) {
+            try { return !!ctx.enterDungeonIfOnEntrance(); } catch (_) { return false; }
+          }
+        }
+
+        // Find nearest dungeon and route using shared helper (includes adjacency fallback)
+        let best = null, bestD = Infinity;
+        for (const d of w.dungeons) {
+          const dist = Math.abs(d.x - start.x) + Math.abs(d.y - start.y);
+          if (dist < bestD) { bestD = dist; best = { x: d.x, y: d.y }; }
+        }
+        if (!best) return false;
+
+        const path = window.GameAPI.routeTo(best.x, best.y);
+        if (!path || !path.length) return false;
+
+        // Walk the path quickly (synchronous)
+        for (const step of path) {
+          const p = ctx.getPlayer();
+          const dx = Math.sign(step.x - p.x);
+          const dy = Math.sign(step.y - p.y);
+          try { ctx.tryMovePlayer(dx, dy); } catch (_) {}
+        }
+        // Attempt entry now
+        try { return !!ctx.enterDungeonIfOnEntrance(); } catch (_) { return false; }
+      } catch (_) { return false; }
+    },
 
     // Map entities
     getEnemies: () => {
@@ -239,7 +449,9 @@ export function create(ctx) {
         let g = p.inventory.find(i => i && i.kind === "gold");
         if (!g) { g = { kind: "gold", amount: 0, name: "gold" }; p.inventory.push(g); }
         g.amount += amount;
-        ctx.updateUI(); ctx.renderInventoryPanel();
+        // HUD-only refresh: update HUD and rerender inventory only if open; no canvas redraw needed
+        ctx.updateUI();
+        try { ctx.rerenderInventoryIfOpen && ctx.rerenderInventoryIfOpen(); } catch (_) {}
         return true;
       } catch(_) { return false; }
     },
@@ -251,7 +463,9 @@ export function create(ctx) {
         let g = p.inventory.find(i => i && i.kind === "gold");
         if (!g) return false;
         g.amount = Math.max(0, (g.amount|0) - amount);
-        ctx.updateUI(); ctx.renderInventoryPanel();
+        // HUD-only refresh: update HUD and rerender inventory only if open; no canvas redraw needed
+        ctx.updateUI();
+        try { ctx.rerenderInventoryIfOpen && ctx.rerenderInventoryIfOpen(); } catch (_) {}
         return true;
       } catch(_) { return false; }
     },
@@ -300,8 +514,8 @@ export function create(ctx) {
 
     checkHomeRoutes: () => {
       try {
-        if (window.TownAI && typeof TownAI.checkHomeRoutes === "function") {
-          return TownAI.checkHomeRoutes(ctx.getCtx()) || null;
+        if (typeof window !== "undefined" && window.TownAI && typeof window.TownAI.checkHomeRoutes === "function") {
+          return window.TownAI.checkHomeRoutes(ctx.getCtx()) || null;
         }
       } catch (_) {}
       return null;
@@ -309,7 +523,7 @@ export function create(ctx) {
     getClock: () => {
       try { return ctx.getClock(); } catch (_) { return { hhmm: "00:00", phase: "day", hours: 0, minutes: 0 }; }
     },
-    advanceMinutes: (mins) => { try { ctx.advanceTimeMinutes((Number(mins)||0)|0); ctx.updateUI(); ctx.requestDraw(); return true; } catch (_) { return false; } },
+    advanceMinutes: (mins) => { try { ctx.advanceTimeMinutes((Number(mins)||0)|0); ctx.updateUI(); return true; } catch (_) { return false; } },
     
     getPerf: () => {
       try {
@@ -338,7 +552,6 @@ export function create(ctx) {
         const e = enemies.find(en => (en.x|0) === nx && (en.y|0) === ny);
         if (!e || typeof e.hp !== "number") return false;
         e.hp = val;
-        ctx.updateUI(); ctx.requestDraw();
         return true;
       } catch(_) { return false; }
     },
@@ -509,7 +722,7 @@ export function create(ctx) {
               if (mode === "world") {
                 if (!world || !world.map) continue;
                 const t = world.map[ny] && world.map[ny][nx];
-                const walk = (typeof window.World === "object" && typeof World.isWalkable === "function") ? World.isWalkable(t) : true;
+                const walk = (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
                 if (walk && md < bestD) { best = { x: nx, y: ny }; bestD = md; }
               } else {
                 if (!ctx.inBounds(nx, ny)) continue;
@@ -547,9 +760,9 @@ export function create(ctx) {
       } catch (_) { return false; }
     },
     // Force-overworld: immediately set mode to world by regenerating it.
-    // This is a hard escape hatch for tests: it does not wipe inventory; it just reinitializes the overworld.
+    // Draw is scheduled by core/game.js after sync; avoid redundant requestDraw here.
     forceWorld: () => {
-      try { ctx.initWorld(); ctx.requestDraw(); return true; } catch (_) { return false; }
+      try { ctx.initWorld(); return true; } catch (_) { return false; }
     },
   };
   return api;
