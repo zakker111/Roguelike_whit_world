@@ -253,6 +253,20 @@
       const sel = params.scenarios;
       const steps = [];
       let aborted = false;
+
+      // Structured trace for deeper analysis in exported JSON
+      const G = window.GameAPI || {};
+      const trace = {
+        runIndex: runIndex || 1,
+        total: runTotal || 1,
+        seed: (ctx && ctx.seedUsed) || (window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.CUR_SEED) || null,
+        params,
+        caps: Object.keys(caps).filter(k => caps[k]),
+        startMode: (typeof G.getMode === "function") ? G.getMode() : null,
+        scenarioTraces: [],
+        timestamps: { start: Date.now() }
+      };
+
       const skipOk = new Set((ctx && ctx.skipSteps) ? ctx.skipSteps : []);
       // Abort controls: if a critical condition like "immobile" occurs, abort this run early
       let __abortRequested = false;
@@ -877,6 +891,7 @@
           const runLabel = (runIndex && runTotal) ? ("Run " + runIndex + " / " + runTotal) : "Run";
           if (Banner && typeof Banner.setStatus === "function") Banner.setStatus(runLabel + " • " + step.name);
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Running scenario: " + step.name, "info");
+          const __scenarioStartMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
           await step.fn(baseCtx);
           if (Banner && typeof Banner.log === "function") Banner.log(runLabel + " • Scenario completed: " + step.name, "good");
           // Close the GOD panel after town diagnostics to avoid overlaying subsequent scenarios (robust)
@@ -934,6 +949,25 @@
           const during = steps.slice(beforeCount);
           const hasFail = during.some(s => !s.ok && !s.skipped);
           scenarioResults.push({ name: step.name, passed: !hasFail });
+
+          // Structured scenario trace for JSON export
+          try {
+            const sPass = during.filter(s => s.ok && !s.skipped).map(s => String(s.msg || ""));
+            const sFail = during.filter(s => !s.ok && !s.skipped).map(s => String(s.msg || ""));
+            const sSkip = during.filter(s => s.skipped).map(s => String(s.msg || ""));
+            const endMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+            const sTrace = {
+              name: step.name,
+              startedMode: __scenarioStartMode,
+              endedMode: endMode,
+              stepCount: during.length,
+              passes: sPass,
+              fails: sFail,
+              skipped: sSkip,
+              endedAt: Date.now()
+            };
+            trace.scenarioTraces.push(sTrace);
+          } catch (_) {}
         } catch (_) {}
       }
 
@@ -1062,8 +1096,8 @@
         }
       } catch (_) {}
 
-      try { window.SMOKE_OK = ok; window.SMOKE_STEPS = steps.slice(); window.SMOKE_JSON = { ok, steps, caps }; } catch (_) {}
-      try { localStorage.setItem("smoke-pass-token", ok ? "PASS" : "FAIL"); localStorage.setItem("smoke-json-token", JSON.stringify({ ok, steps, caps })); } catch (_) {}
+      try { window.SMOKE_OK = ok; window.SMOKE_STEPS = steps.slice(); window.SMOKE_JSON = { ok, steps, caps, trace }; } catch (_) {}
+      try { localStorage.setItem("smoke-pass-token", ok ? "PASS" : "FAIL"); localStorage.setItem("smoke-json-token", JSON.stringify({ ok, steps, caps, trace })); } catch (_) {}
       // Provide hidden DOM tokens for CI (align with legacy runner)
       try {
         var token = document.getElementById("smoke-pass-token");
@@ -1081,9 +1115,18 @@
           jsonToken.style.display = "none";
           document.body.appendChild(jsonToken);
         }
-        jsonToken.textContent = JSON.stringify({ ok, steps, caps });
+        jsonToken.textContent = JSON.stringify({ ok, steps, caps, trace });
       } catch (_) {}
-      return { ok, steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason };
+      // Finalize trace with end mode and perf snapshot
+      try {
+        trace.endMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
+        trace.timestamps.end = Date.now();
+        if (window.GameAPI && typeof window.GameAPI.getPerf === "function") {
+          const p = window.GameAPI.getPerf() || {};
+          trace.perf = { lastTurnMs: p.lastTurnMs || 0, lastDrawMs: p.lastDrawMs || 0 };
+        }
+      } catch (_) {}
+      return { ok, steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason, trace };
     } catch (e) {
       try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
       return null;
@@ -1132,6 +1175,7 @@
     const okMsgs = new Set();
     // Track seeds used within this series to guarantee uniqueness
     const usedSeeds = new Set();
+    const usedSeedList = [];
    
     // Fresh seed helpers
     function randomUint32(runIndex) {
@@ -1182,15 +1226,13 @@
       return s >>> 0;
     }
     async function applyFreshSeedForRun(runIndex) {
+      let s = deriveSeed(runIndex);
       try {
         const B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
         const TP = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport;
         const Dom = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Dom;
         const G = window.GameAPI || {};
         const W = (typeof window !== "undefined" && window.World) ? window.World : null;
-
-        // Always start each run with a fresh seed and a New Game so the world is regenerated deterministically.
-        const s = deriveSeed(runIndex);
 
         // Ensure GOD panel is open to apply seed and click New Game
         try {
@@ -1275,12 +1317,18 @@
           }
         } catch (_) {}
 
-        // Reopen GOD panel for visibility (if it was closed) and log
+        // Reopen GOD panel for visibility (if it was closed) and log, and record the current seed globally
         try {
           if (window.UIBridge && typeof window.UIBridge.showGod === "function") window.UIBridge.showGod({});
           if (B && typeof B.log === "function") B.log(`New Game started for run ${runIndex + 1} with seed ${s}`, "notice");
+          try {
+            window.SmokeTest = window.SmokeTest || {};
+            window.SmokeTest.Runner = window.SmokeTest.Runner || {};
+            window.SmokeTest.Runner.CUR_SEED = s >>> 0;
+          } catch (_) {}
         } catch (_) {}
       } catch (_) {}
+      return s >>> 0;
     }
 
     // Live "matchup" scoreboard in the panel (updates after each run)
@@ -1368,7 +1416,8 @@
         const Bc = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
         if (Bc && typeof Bc.setStatus === "function") Bc.setStatus(`Run ${i + 1} / ${n}: preparing…`);
       } catch (_) {}
-      await applyFreshSeedForRun(i);
+      const seedUsed = await applyFreshSeedForRun(i);
+      usedSeedList.push(seedUsed);
       // Wait for world mode to be active and stable before running scenarios
       try {
         const Bc = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
@@ -1411,7 +1460,7 @@
           }
         } catch (_) {}
 
-      const res = await run({ index: i + 1, total: n, suppressReport: false, skipScenarios: skipList, skipSteps: Array.from(okMsgs) });
+      const res = await run({ index: i + 1, total: n, suppressReport: false, skipScenarios: skipList, skipSteps: Array.from(okMsgs), seedUsed });
       all.push(res);
       if (res && res.aborted && res.abortReason === "immobile") {
         skippedRuns++;
@@ -1573,7 +1622,9 @@
             avgTurnMs: Number(avgTurn.toFixed ? avgTurn.toFixed(2) : avgTurn),
             avgDrawMs: Number(avgDraw.toFixed ? avgDraw.toFixed(2) : avgDraw),
             results: all,
-            aggregatedSteps
+            aggregatedSteps,
+            seeds: usedSeedList,
+            params
           };
           const summaryText = [
             `Roguelike Smoke Test Summary (Runner v${rep.runnerVersion})`,
