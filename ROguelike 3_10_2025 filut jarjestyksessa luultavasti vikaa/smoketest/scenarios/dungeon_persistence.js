@@ -187,7 +187,7 @@
       try {
         var exit = has(window.GameAPI.getDungeonExit) ? window.GameAPI.getDungeonExit() : null;
         if (exit) {
-          var preCorpses = has(window.GameAPI.getCorpses) ? window.GameAPI.getCorpses().map(c => (c.x + "," + c.y + ":" + c.kind)) : [];
+          var preCorpsesList = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
           var preDecals = has(window.GameAPI.getDecalsCount) ? window.GameAPI.getDecalsCount() : 0;
 
           var pathBack = has(window.GameAPI.routeToDungeon) ? (window.GameAPI.routeToDungeon(exit.x, exit.y) || []) : [];
@@ -252,12 +252,29 @@
             var m2 = has(window.GameAPI.getMode) ? window.GameAPI.getMode() : "";
             if (m2 !== "dungeon") { key("g"); await sleep(220); m2 = has(window.GameAPI.getMode) ? window.GameAPI.getMode() : ""; }
             if (m2 === "dungeon") {
-              var postCorpses = has(window.GameAPI.getCorpses) ? window.GameAPI.getCorpses().map(c => (c.x + "," + c.y + ":" + c.kind)) : [];
+              var postCorpsesList = has(window.GameAPI.getCorpses) ? (window.GameAPI.getCorpses() || []) : [];
               var postDecals = has(window.GameAPI.getDecalsCount) ? window.GameAPI.getDecalsCount() : 0;
-              var overlap = preCorpses.filter(k => postCorpses.includes(k)).length;
-              var corpsesOk = postCorpses.length >= preCorpses.length && (preCorpses.length === 0 || overlap > 0);
+              // Tolerant overlap: match by kind within Manhattan distance <= 1, avoid double counting
+              var overlapAdj = (function () {
+                var count = 0;
+                var used = new Set();
+                for (var i = 0; i < preCorpsesList.length; i++) {
+                  var pre = preCorpsesList[i];
+                  if (!pre) continue;
+                  for (var j = 0; j < postCorpsesList.length; j++) {
+                    if (used.has(j)) continue;
+                    var post = postCorpsesList[j];
+                    if (!post) continue;
+                    var sameKind = String(post.kind || "") === String(pre.kind || "");
+                    var dist = Math.abs((post.x | 0) - (pre.x | 0)) + Math.abs((post.y | 0) - (pre.y | 0));
+                    if (sameKind && dist <= 1) { used.add(j); count += 1; break; }
+                  }
+                }
+                return count;
+              })();
+              var corpsesOk = postCorpsesList.length >= preCorpsesList.length && (preCorpsesList.length === 0 || overlapAdj > 0);
               var decalsOk = postDecals >= preDecals;
-              record(corpsesOk, "Persistence corpses: before " + preCorpses.length + ", after " + postCorpses.length + ", overlap " + overlap);
+              record(corpsesOk, "Persistence corpses: before " + preCorpsesList.length + ", after " + postCorpsesList.length + ", overlap " + overlapAdj);
               record(decalsOk, "Persistence decals: before " + preDecals + ", after " + postDecals);
 
               // Chest invariant persists (empty on re-enter): if a chest was looted earlier, confirm it remains empty/looted

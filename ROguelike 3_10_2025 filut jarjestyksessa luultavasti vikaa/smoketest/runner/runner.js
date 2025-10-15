@@ -252,6 +252,7 @@
       const params = parseParams();
       const sel = params.scenarios;
       const steps = [];
+      let sanitized = null;
       let aborted = false;
       let __curScenarioName = null;
 
@@ -952,6 +953,17 @@
             ok = (getMode() === "town");
           }
 
+          // Final fallback: teleport directly to nearest town tile and enter
+          if (!ok) {
+            try {
+              const TP3 = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+              if (TP3 && typeof TP3.teleportToTownGateAndEnter === "function") {
+                const entered = await TP3.teleportToTownGateAndEnter({ key, sleep, ensureAllModalsClosed }, { closeModals: true, waitMs: 500 });
+                ok = !!entered;
+              }
+            } catch (_) {}
+          }
+
           if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
           try { act.endMode = getMode(); act.success = !!ok; if (trace && Array.isArray(trace.actions)) trace.actions.push(act); } catch (_) {}
           return ok;
@@ -1132,58 +1144,63 @@
           }
         } catch (_) {}
 
-        // Per-scenario pass determination: pass if no failures recorded during this scenario block
+        // Per-scenario pass determination:
+        // - passed only if there is at least one OK step and no failures
+        // - mark skippedOnly when there are only skips and no OK steps
         try {
           const during = steps.slice(beforeCount);
           const hasFail = during.some(s => !s.ok && !s.skipped);
-          scenarioResults.push({ name: step.name, passed: !hasFail });
+          const hasOk = during.some(s => s.ok && !s.skipped);
+          const hasSkip = during.some(s => s.skipped);
+          const passed = (!hasFail && hasOk);
+          const skippedOnly = (!hasOk && hasSkip);
+          scenarioResults.push({ name: step.name, passed, skippedOnly });
 
           // Structured scenario trace for JSON export
           try {
             const sPass = during.filter(s => s.ok && !s.skipped).map(s => String(s.msg || ""));
             const sFail = during.filter(s => !s.ok && !s.skipped).map(s => String(s.msg || ""));
             const sSkip = during.filter(s => s.skipped).map(s => String(s.msg || ""));
-            const endMode = (window.GameAPI && typeof window.GameAPI.getMode === "function") ? window.GameAPI.getMode() : null;
-            const endedAt = Date.now();
-            const modesSeen = (() => {
-              try {
-                const arr = during.map(s => s && s.mode).filter(Boolean);
-                const out = [];
-                const seen = new Set();
-                for (let k of arr) { if (!seen.has(k)) { seen.add(k); out.push(k); } }
-                return out;
-              } catch (_) { return []; }
-            })();
-            // Step timing breakdown
-            let tsFirst = null, tsLast = null, avgStepDeltaMs = 0, maxStepDeltaMs = 0;
-            try {
-              const tsList = during.map(s => s && typeof s.ts === "number" ? (s.ts | 0) : null).filter(v => v != null);
-              if (tsList.length) {
-                tsFirst = tsList[0];
-                tsLast = tsList[tsList.length - 1];
-                const deltas = [];
-                for (let k = 1; k < tsList.length; k++) {
-                  const d = Math.max(0, (tsList[k] - tsList[k - 1]));
-                  deltas.push(d);
-                }
-                if (deltas.length) {
-                  avgStepDeltaMs = (deltas.reduce((a,b) => a + b, 0) / deltas.length);
-                  maxStepDeltaMs = Math.max.apply(null, deltas);
-                }
+            const observedModes = Array.from(new Set(during.map(s => String(s.mode || "")))).filter(Boolean);
+            const modeTransitions = [];
+            let lastMode = startMode;
+            during.forEach((s) => {
+              const m = String(s.mode || "");
+              if (m && m !== lastMode) {
+                modeTransitions.push({ at: s.ts || Date.now(), from: lastMode, to: m });
+                lastMode = m;
               }
-            } catch (_) {}
-            // Mode transitions seen in this scenario (with timestamps)
-            let modeTransitions = [];
-            try {
-              let prevMode = __scenarioStartMode;
-              for (const s of during) {
-                try {
-                  const m = s && s.mode;
-                  if (m && prevMode && m !== prevMode) {
-                    modeTransitions.push({ at: s.ts || 0, from: prevMode, to: m });
-                  }
-                  prevMode = m || prevMode;
-                } catch (_) {}
+            });
+            scenarioTraces.push({
+              name: step.name,
+              startedMode: startMode,
+              endedMode: lastMode,
+              stepCount: during.length,
+              passes: sPass,
+              fails: sFail,
+              skipped: sSkip,
+              startedAt: during.length ? during[0].ts : trace.timestamps.start,
+              endedAt: during.length ? during[during.length - 1].ts : Date.now(),
+              durationMs: (during.length ? (during[during.length - 1].ts - during[0].ts) : 0) | 0,
+              observedModes,
+              tsFirst: (during.length ? during[0].ts - Date.now() : 0),
+              tsLast: (during.length ? during[during.length - 1].ts - Date.now() : 0),
+              avgStepDeltaMs: (() => {
+                if (during.length <= 1) return 0;
+                let sum = 0;
+                for (let i = 1; i < during.length; i++) sum += (during[i].ts - during[i - 1].ts);
+                return (sum / (during.length - 1));
+              })(),
+              maxStepDeltaMs: (() => {
+                if (during.length <= 1) return 0;
+                let mx = 0;
+                for (let i = 1; i < during.length; i++) mx = Math.max(mx, (during[i].ts - during[i - 1].ts));
+                return mx;
+              })(),
+              modeTransitions
+            });
+          } catch (_) {}
+        } catch (_) {}
               }
             } catch (_) {}
 
@@ -1305,6 +1322,7 @@
           return false;
         };
         const filteredSteps = steps.filter(s => !shouldSuppressMsg(s.msg));
+        sanitized = filteredSteps;
         const passed = filteredSteps.filter(s => s.ok && !s.skipped);
         const skipped = filteredSteps.filter(s => s.skipped);
         const failed = filteredSteps.filter(s => !s.ok && !s.skipped);
@@ -1395,7 +1413,7 @@
           trace.perf = { lastTurnMs: p.lastTurnMs || 0, lastDrawMs: p.lastDrawMs || 0 };
         }
       } catch (_) {}
-      return { ok, steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason, trace, keyChecklist: keyChecklistRun };
+      return { ok, steps, sanitizedSteps: sanitized || steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason, trace, keyChecklist: keyChecklistRun };
     } catch (e) {
       try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
       return null;
@@ -1892,10 +1910,11 @@
         if (stepAvgDraw > CONFIG.perfBudget.drawMs) perfWarnings.push(`Avg per-step draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw}ms exceeds budget ${CONFIG.perfBudget.drawMs}ms`);
       } catch (_) {}
 
+      const skippedOnlyCount = (() => { let c = 0; try { for (const res of all) { if (res && Array.isArray(res.scenarioResults)) { for (const sr of res.scenarioResults) { if (sr && sr.skippedOnly) c++; } } } } catch (_) {} return c; })();
       const failColorSum = fail ? '#ef4444' : '#86efac';
       const summary = [
         `<div style="margin-top:8px;"><strong>Smoke Test Summary:</strong></div>`,
-        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped runs: ${skippedRuns}  •  Step skips: ${skippedAgg.length}</div>`,
+        `<div>Runs: ${n}  Pass: ${pass}  Fail: <span style="color:${failColorSum};">${fail}</span>  Skipped runs: ${skippedRuns}  •  Step skips: ${skippedAgg.length}  •  Skipped-only scenarios: ${skippedOnlyCount}</div>`,
         `<div style="opacity:0.9;">Avg PERF (per-step): turn ${stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn} ms, draw ${stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw} ms</div>`,
         perfWarnings.length ? `<div style="color:#ef4444; margin-top:4px;"><strong>Performance:</strong> ${perfWarnings.join("; ")}</div>` : ``,
       ].join("");
@@ -2056,6 +2075,7 @@
             stepAvgTurnMs: Number(stepAvgTurn.toFixed ? stepAvgTurn.toFixed(2) : stepAvgTurn),
             stepAvgDrawMs: Number(stepAvgDraw.toFixed ? stepAvgDraw.toFixed(2) : stepAvgDraw),
             results: all,
+            sanitizedPerRunSteps: all.map(r => (r && Array.isArray(r.sanitizedSteps)) ? r.sanitizedSteps : []),
             aggregatedSteps,
             seeds: usedSeedList,
             params,

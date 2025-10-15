@@ -186,6 +186,157 @@
       }
     },
 
+    // Convenience: teleport to town gate (world) and press 'g' to enter town.
+    // opts: { closeModals: true, waitMs: 500 }
+    async teleportToTownGateAndEnter(ctx, opts) {
+      try {
+        const G = window.GameAPI || {};
+        const MV = window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Movement;
+        const key = (ctx && ctx.key) || (MV && MV.key) || function(){};
+        const sleep = (ctx && ctx.sleep) || ((ms) => new Promise(r => setTimeout(r, ms | 0)));
+        const ensureAllModalsClosed = (ctx && ctx.ensureAllModalsClosed) ? ctx.ensureAllModalsClosed : async function(){};
+        const waitMs = (opts && opts.waitMs != null) ? (opts.waitMs | 0) : 700;
+        const record = (ctx && ctx.record) || function(){};
+        const trace = (act) => { try { if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") window.SmokeTest.Runner.traceAction(act); } catch (_) {} };
+
+        if (!has(G.getMode) || G.getMode() !== "world") return false;
+
+        let gate = has(G.nearestTown) ? G.nearestTown() : null;
+        if (!gate) {
+          // Fallback: scan world for TOWN tile
+          try {
+            const ctxG = has(G.getCtx) ? G.getCtx() : null;
+            const W = (typeof window !== "undefined" && window.World) ? window.World : null;
+            const worldObj = has(G.getWorld) ? G.getWorld() : null;
+            const tiles = (W && W.TILES) ? W.TILES : (G.TILES || null);
+            if (worldObj && tiles && worldObj.map && worldObj.map.length) {
+              const pl = has(G.getPlayer) ? G.getPlayer() : { x: 0, y: 0 };
+              let best = null, bestD = Infinity;
+              for (let y = 0; y < worldObj.map.length; y++) {
+                const row = worldObj.map[y] || [];
+                for (let x = 0; x < row.length; x++) {
+                  if (row[x] === tiles.TOWN) {
+                    const d = Math.abs(x - pl.x) + Math.abs(y - pl.y);
+                    if (d < bestD) { bestD = d; best = { x, y }; }
+                  }
+                }
+              }
+              gate = best;
+            }
+          } catch (_) {}
+        }
+        if (!gate) return false;
+
+        record(true, "Town entry helper: target at " + gate.x + "," + gate.y);
+        const act = { type: "townEnterHelper", startMode: "world", target: { x: gate.x, y: gate.y }, teleports: [], nudged: false, routed: false, gPresses: 0, endMode: null, success: false };
+
+        const isOnGate = () => {
+          try {
+            const pl = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
+            return (pl.x === gate.x && pl.y === gate.y);
+          } catch(_) { return false; }
+        };
+
+        const stepTowardGateOnce = async () => {
+          try {
+            const pl = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
+            const dx = Math.sign(gate.x - pl.x);
+            const dy = Math.sign(gate.y - pl.y);
+            key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+            await sleep(120);
+          } catch(_) {}
+        };
+
+        // Close modals so 'g' isn't swallowed
+        try { if (opts && opts.closeModals !== false) await ensureAllModalsClosed(4); } catch (_) {}
+
+        // Try to land exactly on gate, with walkable-guard first
+        let tpOk = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: true, fallbackScanRadius: 4 });
+        act.teleports.push({ x: gate.x, y: gate.y, walkable: true, ok: !!tpOk });
+        if (!tpOk) {
+          // Force-teleport ignoring walkability (NPCs)
+          let tp2 = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+          act.teleports.push({ x: gate.x, y: gate.y, walkable: false, ok: !!tp2 });
+          tpOk = tp2;
+        }
+        // If we teleported but did not end up exactly on gate (landed adjacent due to block), try to step or force-teleport
+        if (tpOk && !isOnGate()) {
+          try {
+            const pl = has(G.getPlayer) ? G.getPlayer() : { x: gate.x, y: gate.y };
+            if (Math.abs(pl.x - gate.x) + Math.abs(pl.y - gate.y) === 1) {
+              await stepTowardGateOnce();
+              act.nudged = true;
+            }
+          } catch(_) {}
+          if (!isOnGate()) {
+            try {
+              const tp3 = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+              act.teleports.push({ x: gate.x, y: gate.y, walkable: false, ok: !!tp3, phase: "retry" });
+            } catch(_) {}
+          }
+        }
+
+        // If initial teleport failed, try routing precisely to gate
+        if (!tpOk) {
+          let routed = false;
+          try { if (MV && typeof MV.routeTo === "function") routed = await MV.routeTo(gate.x, gate.y, { timeoutMs: 2000, stepMs: 90 }); } catch (_){}
+          act.routed = !!routed;
+          if (!routed && has(G.routeTo)) {
+            const path = G.routeTo(gate.x, gate.y) || [];
+            for (let i = 0; i < path.length; i++) {
+              const st = path[i];
+              const pl = has(G.getPlayer) ? G.getPlayer() : st;
+              const dx = Math.sign(st.x - pl.x);
+              const dy = Math.sign(st.y - pl.y);
+              key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+              await sleep(80);
+            }
+          }
+          // Final nudge if adjacent
+          if (!isOnGate()) await stepTowardGateOnce();
+        }
+
+        // Ensure we are exactly on gate before pressing 'g'. If not, one last force-teleport.
+        if (!isOnGate()) {
+          try {
+            const tp4 = await Teleport.teleportTo(gate.x, gate.y, { ensureWalkable: false, fallbackScanRadius: 0 });
+            act.teleports.push({ x: gate.x, y: gate.y, walkable: false, ok: !!tp4, phase: "final" });
+          } catch(_) {}
+        }
+
+        // Press 'g' and use API fallback; then confirm town
+        try { key("g"); act.gPresses += 1; } catch (_) {}
+        await sleep(waitMs);
+        try {
+          if (has(G.enterTownIfOnTile)) { G.enterTownIfOnTile(); }
+        } catch (_){}
+        await sleep(waitMs);
+        let modeNow = has(G.getMode) ? G.getMode() : "";
+        record(true, "Town entry helper: post-'g' mode=" + modeNow);
+        if (modeNow === "town") {
+          act.endMode = "town"; act.success = true; trace(act);
+          return true;
+        }
+
+        // Final fallback: use Modes.enterTownIfOnTile(ctx) if available
+        try {
+          const Modes = (typeof window !== "undefined" && window.Modes) ? window.Modes : null;
+          const ctxG = has(G.getCtx) ? G.getCtx() : null;
+          if (Modes && typeof Modes.enterTownIfOnTile === "function" && ctxG) {
+            const okModes = !!Modes.enterTownIfOnTile(ctxG);
+            await sleep(waitMs);
+            modeNow = has(G.getMode) ? G.getMode() : modeNow;
+          }
+        } catch (_) {}
+
+        act.endMode = modeNow; act.success = (modeNow === "town"); trace(act);
+        record(act.success, "Town entry helper: final mode=" + modeNow);
+        return modeNow === "town";
+      } catch (_) {
+        return false;
+      }
+    },
+
     // Convenience: teleport to dungeon exit and press 'g' to leave to overworld.
     // opts: { closeModals: true, waitMs: 500 }
     async teleportToDungeonExitAndLeave(ctx, opts) {
