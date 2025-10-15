@@ -6,8 +6,10 @@ v1.35.27 — Phase 5: Centralize world draw scheduling
   - Removed requestDraw at end of generate(); draw is now orchestrated centrally.
 - Changed: core/game.js
   - initWorld(): after successful WorldRuntime.generate, now calls requestDraw() post syncFromCtx(ctx).
+- Changed: core/game_api.js
+  - forceWorld(): removed redundant requestDraw; initWorld now schedules draw itself.
 - Benefit: consistent draw orchestration across all runtimes (world/town/dungeon), reducing duplicate frames.
-- Deployment: (pending)
+- Deployment: https://k4pgqv9tqymd.cosine.page
 
 v1.35.26 — Phase 5: Coalesced draws in Actions/Town/GOD
 - Changed: core/actions.js
