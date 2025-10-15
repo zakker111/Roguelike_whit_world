@@ -1326,6 +1326,8 @@
         // Render only if not in suppress/collect mode
         if (!suppress) {
           try {
+            // Ensure GOD panel is visible before writing the report
+            try { openGodPanel(); } catch (_) {}
             var B = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
             if (B) {
               if (stacking && typeof B.appendToPanel === "function") {
@@ -1900,6 +1902,8 @@
 
       // Append final aggregated report (keep per-run sections visible)
       try {
+        // Ensure GOD panel is visible before writing the aggregated report
+        try { openGodPanel(); } catch (_) {}
         const Bsum = window.SmokeTest && window.SmokeTest.Runner && window.SmokeTest.Runner.Banner;
         if (Bsum && typeof Bsum.appendToPanel === "function") {
           Bsum.appendToPanel(summary);
