@@ -484,31 +484,73 @@
                 return !!(pl && target && pl.x === target.x && pl.y === target.y);
               } catch (_) { return false; }
             };
-            if (target && !isOnEntrance() && TP && typeof TP.teleportTo === "function") {
-              try { await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }); } catch (_) {}
+
+            // Retry strategy: attempt up to 3 cycles of (teleport/route) + bump + 'g'
+            for (let attempt = 0; attempt < 3 && (!target || !isOnEntrance()); attempt++) {
+              // If no target yet, re-scan
+              try { if (!target) target = findDungeonEntranceTile(); } catch (_) {}
+              // Teleport to entrance (walkable first, then forced)
+              if (target && TP && typeof TP.teleportTo === "function") {
+                let tpOk = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: true, fallbackScanRadius: 4 }));
+                if (!tpOk) tpOk = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }));
+                // If adjacent after teleport, nudge once
+                if (!isOnEntrance()) {
+                  try {
+                    const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                    if (Math.abs(pl.x - target.x) + Math.abs(pl.y - target.y) === 1) {
+                      const dx = Math.sign(target.x - pl.x);
+                      const dy = Math.sign(target.y - pl.y);
+                      key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                      await sleep(140);
+                    }
+                  } catch (_) {}
+                }
+              }
+              // If still not exact, try routing adjacency and bump toward entrance
+              if (!isOnEntrance()) {
+                try {
+                  if (MV && typeof MV.routeAdjTo === "function") {
+                    await MV.routeAdjTo(target.x, target.y, { timeoutMs: 2000, stepMs: 90 });
+                  }
+                  const pl2 = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                  const dx2 = Math.sign(target.x - pl2.x);
+                  const dy2 = Math.sign(target.y - pl2.y);
+                  key(dx2 === -1 ? "ArrowLeft" : dx2 === 1 ? "ArrowRight" : (dy2 === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(140);
+                } catch (_) {}
+              }
+              // Try pressing 'g' + API fallback
+              try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
+              try { key("g"); } catch (_) {}
+              await sleep(280);
+              try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
+              await sleep(280);
+              // Early exit if mode changed
+              if (getMode() === "dungeon") break;
             }
           } catch (_) {}
 
-          // Ensure no modals are intercepting the action, then attempt entry (normalized 'g' + API)
-          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
-          try { key("g"); } catch (_) {}
-          await sleep(300);
-          try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
-          await sleep(300);
-
-          // Confirm mode transition; if still not in dungeon, one last forced attempt via teleport nearestDungeon + 'g'
+          // Confirm mode transition; if still not in dungeon, try adjacent teleports around target then 'g'
           let ok = (getMode() === "dungeon");
           if (!ok) {
             try {
               const nd = (typeof G.nearestDungeon === "function") ? G.nearestDungeon() : null;
-              const TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
-              if (nd && TP && typeof TP.teleportTo === "function") {
-                await TP.teleportTo(nd.x, nd.y, { ensureWalkable: false, fallbackScanRadius: 0 });
-                await sleep(200);
-                try { key("g"); } catch (_) {}
-                await sleep(280);
-                try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
-                await sleep(280);
+              const TP2 = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+              if (nd && TP2 && typeof TP2.teleportTo === "function") {
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                for (let a = 0; a < adj.length && getMode() !== "dungeon"; a++) {
+                  await TP2.teleportTo(nd.x + adj[a].dx, nd.y + adj[a].dy, { ensureWalkable: true, fallbackScanRadius: 3 });
+                  await sleep(160);
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: nd.x, y: nd.y };
+                  const dx = Math.sign(nd.x - pl.x);
+                  const dy = Math.sign(nd.y - pl.y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(160);
+                  try { key("g"); } catch (_) {}
+                  await sleep(240);
+                  try { if (typeof G.enterDungeonIfOnEntrance === "function") G.enterDungeonIfOnEntrance(); } catch (_) {}
+                  await sleep(240);
+                }
               }
             } catch (_) {}
             ok = (getMode() === "dungeon");
@@ -632,46 +674,68 @@
                 }
               }
 
-              // Verify we are exactly on the target; allow a single final nudge if adjacent
+              // Verify we are exactly on the target; helper and teleport retries
               const isOnTarget = () => {
                 try {
                   const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : null;
-                  return !!(pl && pl.x === target.x && pl.y === target.y);
+                  return !!(pl && target && pl.x === target.x && pl.y === target.y);
                 } catch (_) { return false; }
               };
-              try {
-                if (!isOnTarget()) {
+
+              // Retry up to 3 times: teleport to gate/town tile (walkable then forced), nudge if adjacent, then 'g'
+              const TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+              for (let attempt = 0; attempt < 3 && !isOnTarget(); attempt++) {
+                // Teleport onto target if possible
+                if (TP && typeof TP.teleportTo === "function") {
+                  let okTp = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: true, fallbackScanRadius: 4 }));
+                  if (!okTp) okTp = !!(await TP.teleportTo(target.x, target.y, { ensureWalkable: false, fallbackScanRadius: 0 }));
+                }
+                // If adjacent, nudge once
+                try {
                   const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
-                  if (Math.abs(pl.x - target.x) + Math.abs(pl.y - target.y) === 1) {
+                  if (!isOnTarget() && Math.abs(pl.x - target.x) + Math.abs(pl.y - target.y) === 1) {
                     const dx = Math.sign(target.x - pl.x);
                     const dy = Math.sign(target.y - pl.y);
                     key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
-                    await sleep(120);
+                    await sleep(140);
                   }
-                }
-              } catch (_) {}
-
-              // Only press 'g' if precisely on the target tile (gate/town tile underfoot)
-              try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
-              if (isOnTarget()) {
+                } catch (_) {}
+                // Try entering
+                try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
                 try { key("g"); } catch (_) {}
-                await sleep(300);
+                await sleep(280);
+                try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
+                await sleep(280);
+                if (getMode() === "town") break;
               }
-              // Always attempt API fallback (safe no-op if not on gate)
-              try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
-              await sleep(300);
             }
           } catch (_) {}
 
-          // Ensure no modals are intercepting the action, then attempt entry (normalized 'g')
-          try { if (typeof ensureAllModalsClosed === "function") await ensureAllModalsClosed(1); } catch (_) {}
-          try { key("g"); } catch (_) {}
-          await sleep(300);
-          try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
-          await sleep(300);
+          // Confirm mode transition; if still not in town, try adjacent teleports around target then 'g'
+          let ok = (getMode() === "town");
+          if (!ok) {
+            try {
+              const TP2 = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+              if (TP2 && typeof TP2.teleportTo === "function" && target) {
+                const adj = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+                for (let a = 0; a < adj.length && getMode() !== "town"; a++) {
+                  await TP2.teleportTo(target.x + adj[a].dx, target.y + adj[a].dy, { ensureWalkable: true, fallbackScanRadius: 3 });
+                  await sleep(160);
+                  const pl = (typeof G.getPlayer === "function") ? G.getPlayer() : { x: target.x, y: target.y };
+                  const dx = Math.sign(target.x - pl.x);
+                  const dy = Math.sign(target.y - pl.y);
+                  key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
+                  await sleep(160);
+                  try { key("g"); } catch (_) {}
+                  await sleep(240);
+                  try { if (typeof G.enterTownIfOnTile === "function") G.enterTownIfOnTile(); } catch (_) {}
+                  await sleep(240);
+                }
+              }
+            } catch (_) {}
+            ok = (getMode() === "town");
+          }
 
-          // Confirm mode transition
-          const ok = (getMode() === "town");
           if (ok) { try { window.SmokeTest.Runner.TOWN_LOCK = true; } catch (_) {} }
           return ok;
         } catch (_) { return false; }
