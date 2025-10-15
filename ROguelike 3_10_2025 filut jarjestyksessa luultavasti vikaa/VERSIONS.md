@@ -1,6 +1,15 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
+v1.35.18 — Phase 5: Draw coalescing for Actions/GOD logs
+- Changed: core/actions.js now avoids scheduling canvas redraws for pure log-only interactions (signs, props, tavern/shop messages, guidance) and reserves draws for actual visual changes (e.g., time advancement via Inn rest).
+- Changed: data/god.js coalesces UI updates:
+  - heal(ctx): updates HUD without forcing a canvas redraw.
+  - spawnItems(ctx): updates HUD/inventory, then lets the engine coalesce the draw.
+  - spawnStairsHere(ctx): retains a single draw since the tile changes.
+- Benefit: fewer unnecessary draws when the action affects only the HUD/log; sustained performance improvements during town interactions.
+- Deployment: (pending)
+
 v1.35.17 — Phase 5: Action-level UI coalescing (inventory/gold)
 - Changed: core/game.js renderInventoryPanel no longer calls updateUI itself; action flows (equip/drink/decay) invoke updateUI as needed to avoid duplicate HUD updates.
 - Changed: core/game_api.js addGold/removeGold now call updateUI once, rerenderInventoryIfOpen() (panel-only), then a single requestDraw(), reducing redundant DOM and draw work when inventory is closed.

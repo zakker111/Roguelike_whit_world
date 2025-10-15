@@ -18,7 +18,7 @@ export function heal(ctx) {
   if (ctx.player.hp > prev) ctx.log(`GOD: You are fully healed (${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)} HP).`, "good");
   else ctx.log(`GOD: HP already full (${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)}).`, "warn");
   ctx.updateUI();
-  ctx.requestDraw();
+  // Pure HUD update; no canvas change -> no draw
 }
 
 export function spawnStairsHere(ctx) {
@@ -28,7 +28,8 @@ export function spawnStairsHere(ctx) {
   ctx.seen[y][x] = true;
   ctx.visible[y][x] = true;
   ctx.log("GOD: Stairs appear beneath your feet.", "notice");
-  ctx.requestDraw();
+  // Visual change (tile underfoot) will be drawn on next scheduled frame; defer draw to engine coalescer
+  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 }
 
 export function spawnItems(ctx, count = 3) {
@@ -57,7 +58,9 @@ export function spawnItems(ctx, count = 3) {
     created.forEach(n => ctx.log(`- ${n}`));
     ctx.updateUI();
     if (ctx.renderInventory) ctx.renderInventory();
-    ctx.requestDraw();
+    // Inventory/UI changes only; let engine coalesce draw if needed
+    try { ctx.rerenderInventoryIfOpen && ctx.rerenderInventoryIfOpen(); } catch (_) {}
+    try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
   }
 }
 
