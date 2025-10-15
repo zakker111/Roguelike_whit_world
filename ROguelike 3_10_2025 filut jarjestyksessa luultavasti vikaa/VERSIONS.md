@@ -1,6 +1,19 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.37 — Runner suppression: town confirm success detection and re-enter counterpart filters
+- Changed: smoketest/runner/runner.js
+  - Union-of-success detection for town now recognizes “Mode confirm (town enter): town” alongside “Entered town,” ensuring the Town scenario is marked passed when town entry succeeds in any scenario within the run.
+  - Per-run suppression hides failure counterparts when any town success occurred:
+    - Suppresses “Town entry not achieved (scenario)”
+    - Suppresses “Town overlays skipped (not in town)”
+    - Suppresses “Mode confirm (town enter): world” and “Mode confirm (town re-enter): world”
+  - Dungeon counterparts likewise suppress “Mode confirm (dungeon enter): world” and “Mode confirm (dungeon re-enter): world” after any dungeon success.
+  - Aggregated union-of-success now uses the same town success recognition and hides the above failure counterparts in the aggregated step list.
+  - Live Matchup scoreboard coalesces the same failure counterparts after successes so the panel prioritizes real issues.
+- Benefit: Eliminates misleading “not achieved”/“confirm … : world” failures when town/dungeon transitions did succeed elsewhere in the run/series; clearer per-run and aggregated reports.
+- Notes: No change to actual scenario flows; this is reporting-only. Runner version remains v1.8.0.
+
 v1.35.36 — Smoketest reporting: Key Checklist alignment and aggregation clarity
 - Changed: smoketest/reporting/render.js
   - Key Checklist now recognizes additional success messages for common flows:

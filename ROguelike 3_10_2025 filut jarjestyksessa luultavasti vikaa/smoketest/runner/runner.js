@@ -1216,7 +1216,7 @@
         const isOk = (s) => !!(s && s.ok && !s.skipped);
 
         const sawDungeonOk = steps.some(s => isOk(s) && (/entered dungeon/i.test(String(s.msg || "")) || /inventory prep:\s*entered dungeon/i.test(String(s.msg || ""))));
-        const sawTownOk = steps.some(s => isOk(s) && /entered town/i.test(String(s.msg || "")));
+        const sawTownOk = steps.some(s => isOk(s) && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
 
         const sawWorldOk = steps.some(s => isOk(s) && (/world movement test:\s*moved/i.test(String(s.msg || "")) || /world snapshot:/i.test(String(s.msg || ""))));
         const sawInventoryOk = steps.some(s => isOk(s) && (/equip best from inventory/i.test(String(s.msg || "")) || /manual equip\/unequip/i.test(String(s.msg || "")) || /drank potion/i.test(String(s.msg || ""))));
@@ -1277,7 +1277,7 @@
       try {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
         // Suppress known failure counterparts if their success occurred within this run
-        const sawTownOkRun = steps.some(s => s.ok && /entered town/i.test(String(s.msg || "")));
+        const sawTownOkRun = steps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
         const sawDungeonOkRun = steps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
         const suppress = (msg) => {
           const t = String(msg || "");
@@ -1285,12 +1285,12 @@
           if (sawTownOkRun) {
             if (/town entry not achieved/i.test(t)) return true;
             if (/town overlays skipped/i.test(t)) return true;
-            if (/mode confirm\s*\(town enter\):\s*world/i.test(t)) return true;
+            if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return true;
           }
           // Hide dungeon failure counterparts if any dungeon entry succeeded in this run
           if (sawDungeonOkRun) {
             if (/dungeon entry failed/i.test(t)) return true;
-            if (/mode confirm\s*\(dungeon enter\):\s*world/i.test(t)) return true;
+            if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return true;
           }
           return false;
         };
@@ -1632,13 +1632,13 @@
         // Include lastSeen for better sorting (most recent first)
         const raw = Array.from(agg.values());
         // Coalesce known categories: if town/dungeon succeeded anywhere, hide their failure counterparts
-        const sawTownOkAny = raw.some(v => !!v.ok && /entered town/i.test(String(v.msg || "")));
+        const sawTownOkAny = raw.some(v => !!v.ok && (/entered town/i.test(String(v.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(v.msg || ""))));
         const sawDungeonOkAny = raw.some(v => !!v.ok && /entered dungeon/i.test(String(v.msg || "")));
         const all = raw
           .filter(v => {
             const t = String(v.msg || "");
-            if (sawTownOkAny && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t))) return false;
-            if (sawDungeonOkAny && (/dungeon entry failed/i.test(t))) return false;
+            if (sawTownOkAny && (/town entry not achieved/i.test(t) || /town overlays skipped/i.test(t) || /mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t))) return false;
+            if (sawDungeonOkAny && (/dungeon entry failed/i.test(t) || /mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t))) return false;
             return true;
           })
           .map(v => ({ ok: !!v.ok, skipped: (!v.ok && !!v.skippedAny), msg: v.msg, lastSeen: v.lastSeen || 0 }));
@@ -1804,18 +1804,18 @@
         return { ok: !!v.ok, msg: v.msg, skipped: (!v.ok && !!v.skippedAny) };
       });
       // Coalesce known categories: if town/dungeon succeeded anywhere, hide their failure counterparts
-      const sawTownOkAgg = aggregatedSteps.some(s => s.ok && /entered town/i.test(String(s.msg || "")));
+      const sawTownOkAgg = aggregatedSteps.some(s => s.ok && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
       const sawDungeonOkAgg = aggregatedSteps.some(s => s.ok && /entered dungeon/i.test(String(s.msg || "")));
       aggregatedSteps = aggregatedSteps.filter(s => {
         const t = String(s.msg || "");
         if (sawTownOkAgg) {
           if (/town entry not achieved/i.test(t)) return false;
           if (/town overlays skipped/i.test(t)) return false;
-          if (/mode confirm\s*\(town enter\):\s*world/i.test(t)) return false;
+          if (/mode confirm\s*\(town (re-)?enter\):\s*world/i.test(t)) return false;
         }
         if (sawDungeonOkAgg) {
           if (/dungeon entry failed/i.test(t)) return false;
-          if (/mode confirm\s*\(dungeon enter\):\s*world/i.test(t)) return false;
+          if (/mode confirm\s*\(dungeon (re-)?enter\):\s*world/i.test(t)) return false;
         }
         return true;
       });
