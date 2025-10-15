@@ -1202,8 +1202,8 @@
           } catch (_) {}
         } catch (_) {}
       
-      // Adjust scenario pass/fail based on union-of successes within the same run (remove false negatives</)
-  try {
+      // Adjust scenario pass/fail based on union-of successes within the same run (remove false negatives)
+      try {
         const has = (rx) => (s) => { try { return rx.test(String(s.msg || "")); } catch (_) { return false; } };
         const isOk = (s) => !!(s && s.ok && !s.skipped);
 
@@ -2072,9 +2072,9 @@
           E.attachButtons(rep, summaryText, checklistText);
         }
       } catch (_) {}
-    } catch (_) {}
 
     // Release run lock
+    tryse run lock
     try { if (window.SmokeTest && window.SmokeTest.Runner) window.SmokeTest.Runner.RUN_LOCK = false; } catch (_) {}
 
     return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
