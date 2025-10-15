@@ -1789,7 +1789,7 @@
     const avgDraw = (pass + fail) ? (perfSumDraw / (pass + fail)) : 0;
 
     // Summary via reporting module and full aggregated report
-      try {
+      {
         const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
 
       // Build aggregated steps: if any run had OK, mark OK; else if only skipped, mark skipped; else fail.
@@ -2057,9 +2057,7 @@
           const checklistText = (R && typeof R.buildKeyChecklistHtmlFromSteps === "function" ? R.buildKeyChecklistHtmlFromSteps(aggregatedSteps) : "").replace(/<[^>]+>/g, "");
           E.attachButtons(rep, summaryText, checklistText);
         }
-      } catch (_) {}
-
-    // Release run lock
+      // Release run lock
     try { if (window.SmokeTest && window.SmokeTest.Runner) window.SmokeTest.Runner.RUN_LOCK = false; } catch (_) {}
 
     return { pass, fail, results: all, avgTurnMs: Number(avgTurn), avgDrawMs: Number(avgDraw), runnerVersion: RUNNER_VERSION };
