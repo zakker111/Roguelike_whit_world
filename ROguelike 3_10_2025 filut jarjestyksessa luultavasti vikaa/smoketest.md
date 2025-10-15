@@ -146,3 +146,23 @@ Recent updates
 - Town diagnostics and shop flows:
   - Teleport near shop, route to exact tile, bump near shopkeeper (no 'G'); Escape closes if UI opens.
   - If menu fails to open but keeper present and route adjacency confirmed, logs “Shop present; route to shopkeeper: OK”.
+
+Runner v1.8.0 additions (Oct 2025)
+- New series controls:
+  - skipokafter=N — skip scenarios that have already passed N runs in the current series (still guarantees at least one run of town_diagnostics and dungeon_persistence unless persistence=never).
+  - persistence=once|always|never — control how often the dungeon_persistence scenario runs per series.
+  - abortonimmobile=1 — abort the current run when any scenario records an “immobile” condition; the step is counted as SKIP, not FAIL.
+- Live Matchup scoreboard:
+  - Pinned, high-contrast panel at the top of the GOD output; prioritizes FAIL, then SKIP, then OK, with recency sorting.
+  - Shows counters for OK/FAIL/SKIP plus IMMOBILE and DEAD; updates after each run.
+- Union-of-success aggregation:
+  - After multi-run, an aggregated report is appended. Each step is marked OK if any run passed it; SKIP if only skipped; FAIL otherwise.
+  - Failure counterparts are suppressed when a matching success occurred in the same series (e.g., hide “Dungeon entry failed” if any run “Entered dungeon”).
+- Per-run seed workflow + world-mode guard:
+  - Derives a unique 32-bit seed per run (deterministic when &seed=BASE provided); applies via GOD panel; starts a New Game; waits for “world” mode.
+  - Ensures spawn walkability and teleports to the nearest walkable tile if necessary.
+- Structured trace and exports:
+  - Per-run JSON includes scenarioTraces (timings, modes, transitions), actionsSummary, scenarioPassCounts, and step-level tile/modal/perf stats.
+  - Final export buttons provide aggregated Summary TXT and Checklist TXT built from the union-of-success steps.
+- CI tokens unchanged:
+  - Hidden DOM tokens #smoke-pass-token and #smoke-json-token; localStorage tokens smoke-pass-token and smoke-json-token.

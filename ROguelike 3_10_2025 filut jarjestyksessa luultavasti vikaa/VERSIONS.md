@@ -1,6 +1,28 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.35 — Smoketest runner v1.8.0: multi-run aggregation, controls, and diagnostics
+- Runner version: 1.8.0 (smoketest/runner/runner.js)
+- Added: series controls
+  - skipokafter=N — skip scenarios that have already passed N runs in the current series (still guarantees at least one run of town_diagnostics and dungeon_persistence unless persistence=never).
+  - persistence=once|always|never — control dungeon_persistence frequency per series.
+  - abortonimmobile=1 — abort the current run when an “immobile” step is recorded; the step is SKIP, not FAIL.
+- Added: Live Matchup scoreboard
+  - Pinned, high-contrast panel at the top of the GOD output; prioritizes FAIL, then SKIP, then OK and sorts by recency.
+  - Counters: OK/FAIL/SKIP plus IMMOBILE and DEAD; updates after each run.
+- Added: Union-of-success aggregated report
+  - After multi-run, append an aggregated report where a step is OK if any run passed it; SKIP if only skipped; FAIL otherwise.
+  - Suppress failure counterparts when a matching success occurred in the series (e.g., hide “Dungeon entry failed” if any run “Entered dungeon”).
+  - Export buttons attach aggregated Summary TXT and Checklist TXT.
+- Changed: per-run seed workflow and world-mode gating
+  - Derive a unique 32-bit seed per run (deterministic when &seed=BASE provided); apply via GOD panel New Game; wait for “world” mode.
+  - Ensure spawn tile walkability; teleport to nearest walkable if blocked.
+- Added: structured trace and diagnostics in exports
+  - scenarioTraces with timings/mode transitions, actionsSummary, scenarioPassCounts, step-level tile/modal/perf stats.
+- Docs: smoketest.md and smoketest/README.md updated to document new runner options and behavior.
+- Benefit: faster stabilization across multi-run series, clearer visibility into flaky steps, and richer diagnostics for CI.
+- Deployment: (pending)
+
 v1.35.34 — Phase 5 completion: performance + UX polish consolidated
 - Summary of Phase 5 improvements:
   - Rendering: offscreen base-layer caches (overworld/town/dungeon), cropped blits via RenderCore.blitViewport, OffscreenCanvas adoption, crisper tiles/glyphs (image smoothing disabled).
