@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.23 — Phase 5: More draw coalescing in dungeon guidance
+- Changed: core/game.js
+  - lootCorpse() dungeon fallback removes requestDraw for guidance-only message (“Return to the entrance …”); canvas unchanged.
+- Benefit: avoids unnecessary frames on pure log guidance in dungeon mode.
+- Deployment: (pending)
+
 v1.35.22 — Phase 5: Renderer micro-optimizations and responsive minimap
 - Changed: ui/render_town.js
   - Introduced SHOP_GLYPHS cache keyed by shops reference; rebuild only when shops array changes.

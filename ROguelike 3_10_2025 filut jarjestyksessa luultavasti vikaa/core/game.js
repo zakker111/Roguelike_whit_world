@@ -1545,7 +1545,7 @@
         }
       }
       log("Return to the entrance (the hole '>') and press G to leave.", "info");
-      requestDraw();
+      // Pure guidance; canvas unchanged -> no redraw
       return;
     }
 
