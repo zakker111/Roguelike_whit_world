@@ -277,10 +277,9 @@ export function create(ctx) {
         let g = p.inventory.find(i => i && i.kind === "gold");
         if (!g) { g = { kind: "gold", amount: 0, name: "gold" }; p.inventory.push(g); }
         g.amount += amount;
-        // Coalesced UI refresh: update HUD, rerender inventory only if open, then single draw
+        // HUD/inventory-only refresh: update HUD, rerender inventory only if open (no canvas redraw)
         ctx.updateUI();
         try { ctx.rerenderInventoryIfOpen && ctx.rerenderInventoryIfOpen(); } catch (_) {}
-        ctx.requestDraw && ctx.requestDraw();
         return true;
       } catch(_) { return false; }
     },
@@ -292,10 +291,9 @@ export function create(ctx) {
         let g = p.inventory.find(i => i && i.kind === "gold");
         if (!g) return false;
         g.amount = Math.max(0, (g.amount|0) - amount);
-        // Coalesced UI refresh: update HUD, rerender inventory only if open, then single draw
+        // HUD/inventory-only refresh: update HUD, rerender inventory only if open (no canvas redraw)
         ctx.updateUI();
         try { ctx.rerenderInventoryIfOpen && ctx.rerenderInventoryIfOpen(); } catch (_) {}
-        ctx.requestDraw && ctx.requestDraw();
         return true;
       } catch(_) { return false; }
     },

@@ -60,7 +60,6 @@ export function spawnItems(ctx, count = 3) {
     if (ctx.renderInventory) ctx.renderInventory();
     // Inventory/UI changes only; let engine coalesce draw if needed
     try { ctx.rerenderInventoryIfOpen && ctx.rerenderInventoryIfOpen(); } catch (_) {}
-    try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
   }
 }
 

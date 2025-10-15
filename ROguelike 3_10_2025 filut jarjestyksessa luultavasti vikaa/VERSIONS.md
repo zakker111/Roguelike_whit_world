@@ -1,5 +1,20 @@
 # Game Version History
-Last updated: 2025-10-14 00:00 UTC
+Last updated: 2025-10-15 00:00 UTC
+
+v1.35.20 — Phase 5: Cleanup — remove redundant draws in HUD/log-only flows
+- Changed: core/game_api.js
+  - addGold/removeGold no longer schedule a canvas redraw; they update HUD and rerender inventory panel only if open.
+- Changed: core/town_runtime.js
+  - talk(ctx): removed unconditional requestDraw at tail; redraw now occurs only when shop UI open-state changes.
+  - tryMoveTown(ctx): removed draw after bump-talk “Excuse me!” (pure log).
+- Changed: core/dungeon_runtime.js
+  - lootHere(ctx): removed immediate draw when auto-stepping onto an adjacent corpse/chest; subsequent loot/turn handles UI/draw.
+- Changed: ui/shop_panel.js
+  - openForNPC/buyIndex: removed requestDraw calls (Shop panel is DOM-only).
+- Changed: data/god.js
+  - spawnItems(ctx): removed requestDraw (HUD/inventory-only changes).
+- Benefit: fewer unnecessary frames; improved responsiveness during town/dungeon interactions that affect only HUD/logs.
+- Deployment: (pending)
 
 v1.35.19 — Phase 5: Coalesced HUD-only updates (GameAPI/Town props)
 - Changed: core/game_api.js

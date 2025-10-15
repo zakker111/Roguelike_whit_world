@@ -113,7 +113,6 @@ export function talk(ctx) {
     }
   } catch (_) {}
 
-  ctx.requestDraw && ctx.requestDraw();
   return true;
 }
 
@@ -137,7 +136,6 @@ export function tryMoveTown(ctx, dx, dy) {
       talk(ctx);
     } else if (ctx.log) {
       ctx.log("Excuse me!", "info");
-      ctx.requestDraw && ctx.requestDraw();
     }
     return true;
   }

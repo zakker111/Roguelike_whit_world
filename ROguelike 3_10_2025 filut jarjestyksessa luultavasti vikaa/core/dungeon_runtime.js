@@ -283,7 +283,6 @@ export function lootHere(ctx) {
         const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
         if (walkable && !enemyBlocks) {
           ctx.player.x = target.x; ctx.player.y = target.y;
-          ctx.requestDraw && ctx.requestDraw();
         }
       }
     }
