@@ -1216,8 +1216,17 @@
         }
       } catch (_) {}
 
-      try { window.SMOKE_OK = ok; window.SMOKE_STEPS = steps.slice(); window.SMOKE_JSON = { ok, steps, caps, trace }; } catch (_) {}
-      try { localStorage.setItem("smoke-pass-token", ok ? "PASS" : "FAIL"); localStorage.setItem("smoke-json-token", JSON.stringify({ ok, steps, caps, trace })); } catch (_) {}
+      // Build per-run Key Checklist object for JSON
+      let keyChecklistRun = {};
+      try {
+        const R = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Render;
+        if (R && typeof R.buildKeyChecklistObjectFromSteps === "function") {
+          keyChecklistRun = R.buildKeyChecklistObjectFromSteps(steps);
+        }
+      } catch (_) {}
+
+      try { window.SMOKE_OK = ok; window.SMOKE_STEPS = steps.slice(); window.SMOKE_JSON = { ok, steps, caps, trace, keyChecklist: keyChecklistRun }; } catch (_) {}
+      try { localStorage.setItem("smoke-pass-token", ok ? "PASS" : "FAIL"); localStorage.setItem("smoke-json-token", JSON.stringify({ ok, steps, caps, trace, keyChecklist: keyChecklistRun })); } catch (_) {}
       // Provide hidden DOM tokens for CI (align with legacy runner)
       try {
         var token = document.getElementById("smoke-pass-token");
@@ -1235,7 +1244,7 @@
           jsonToken.style.display = "none";
           document.body.appendChild(jsonToken);
         }
-        jsonToken.textContent = JSON.stringify({ ok, steps, caps, trace });
+        jsonToken.textContent = JSON.stringify({ ok, steps, caps, trace, keyChecklist: keyChecklistRun });
       } catch (_) {}
       // Finalize trace with end mode and perf snapshot
       try {
@@ -1246,7 +1255,7 @@
           trace.perf = { lastTurnMs: p.lastTurnMs || 0, lastDrawMs: p.lastDrawMs || 0 };
         }
       } catch (_) {}
-      return { ok, steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason, trace };
+      return { ok, steps, caps, scenarioResults, aborted: __abortRequested, abortReason: __abortReason, trace, keyChecklist: keyChecklistRun };
     } catch (e) {
       try { console.error("[SMOKE] Orchestrator run failed", e); } catch (_) {}
       return null;
@@ -1734,6 +1743,44 @@
       try {
         const E = window.SmokeTest && window.SmokeTest.Reporting && window.SmokeTest.Reporting.Export;
         if (E && typeof E.attachButtons === "function") {
+          // Build aggregated Key Checklist (object) and diagnostics
+          let aggregatedKeyChecklist = {};
+          try {
+            if (R && typeof R.buildKeyChecklistObjectFromSteps === "function") {
+              aggregatedKeyChecklist = R.buildKeyChecklistObjectFromSteps(aggregatedSteps);
+            }
+          } catch (_) {}
+          const diagnostics = (() => {
+            try {
+              const imm = aggregatedSteps.filter(s => !s.ok && !s.skipped && /immobile/i.test(String(s.msg || ""))).length;
+              const dead = aggregatedSteps.filter(s => !s.ok && !s.skipped && /(death|dead|game over)/i.test(String(s.msg || ""))).length;
+              return { immobileFailures: imm, deathFailures: dead };
+            } catch (_) { return { immobileFailures: 0, deathFailures: 0 }; }
+          })();
+          const scenarioPassCountsObj = (() => {
+            const obj = {};
+            try {
+              scenarioPassCounts.forEach((v, k) => { obj[k] = v | 0; });
+            } catch (_) {}
+            return obj;
+          })();
+          const actionsSummary = (() => {
+            const sum = {};
+            try {
+              for (const res of all) {
+                if (!res || !res.trace || !Array.isArray(res.trace.actions)) continue;
+                for (const act of res.trace.actions) {
+                  const t = String((act && act.type) || "");
+                  if (!t) continue;
+                  if (!sum[t]) sum[t] = { count: 0, success: 0 };
+                  sum[t].count += 1;
+                  if (act && act.success) sum[t].success += 1;
+                }
+              }
+            } catch (_) {}
+            return sum;
+          })();
+
           const rep = {
             runnerVersion: RUNNER_VERSION,
             runs: n,
@@ -1744,7 +1791,11 @@
             results: all,
             aggregatedSteps,
             seeds: usedSeedList,
-            params
+            params,
+            keyChecklist: aggregatedKeyChecklist,
+            diagnostics,
+            scenarioPassCounts: scenarioPassCountsObj,
+            actionsSummary
           };
           const summaryText = [
             `Roguelike Smoke Test Summary (Runner v${rep.runnerVersion})`,

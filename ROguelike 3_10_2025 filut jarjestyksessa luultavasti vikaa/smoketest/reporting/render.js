@@ -53,7 +53,7 @@
       }).join("");
     },
 
-    // Helper to build key checklist from a set of steps
+    // Helper to build key checklist from a set of steps (HTML)
     buildKeyChecklistHtmlFromSteps(steps) {
       if (!Array.isArray(steps)) return "";
       function hasStep(sub, okOnly = true) {
@@ -89,6 +89,45 @@
         return "<div style=\"color:" + color + ";\">" + mark + " " + c.label + "</div>";
       }).join("");
       return "<div style=\"margin-top:10px;\"><strong>Key Checklist</strong></div>" + rows;
+    },
+
+    // Helper to build key checklist from a set of steps (JSON object)
+    buildKeyChecklistObjectFromSteps(steps) {
+      if (!Array.isArray(steps)) return {};
+      const has = (sub, okOnly = true) => {
+        for (const s of steps) {
+          if (okOnly && !s.ok) continue;
+          if (String(s.msg || "").toLowerCase().includes(String(sub).toLowerCase())) return true;
+        }
+        return false;
+      };
+      const obj = {
+        enteredDungeon: has("Entered dungeon"),
+        lootedChest: has("Looted chest at ("),
+        chestInvariant: has("Chest invariant:"),
+        spawnedEnemyFromGod: has("Dungeon spawn: enemies"),
+        enemyTypesPresent: has("Enemy types present:"),
+        enemyGlyphsNotQuestion: has("Enemy glyphs:") && !has('All enemy glyphs are "?"', false),
+        attackedEnemy: has("Moved and attempted attacks"),
+        killedEnemy: has("Killed enemy: YES"),
+        decayIncreasedOnHands: has("Decay check:") && !has("Decay did not increase", false),
+        stairGuardWorks: has("Stair guard: G on non-stair does not exit dungeon"),
+        returnedToOverworldFromDungeon: has("Returned to overworld from dungeon"),
+        dungeonCorpsesPersisted: has("Persistence corpses:"),
+        dungeonDecalsPersisted: has("Persistence decals:"),
+        townEntered: has("Entered town"),
+        npcsPresentInTown: has("NPC presence: count"),
+        bumpedIntoNPC: has("Bumped into at least one NPC"),
+        npcHomeHasProps: has("NPC home has"),
+        shopUiClosesWithEsc: has("Shop UI closes with Esc"),
+      };
+      let total = 0, checked = 0;
+      try {
+        const keys = Object.keys(obj);
+        total = keys.length;
+        checked = keys.filter(k => !!obj[k]).length;
+      } catch (_) {}
+      return { items: obj, checkedCount: checked, totalCount: total };
     },
 
     // New: header renderer
