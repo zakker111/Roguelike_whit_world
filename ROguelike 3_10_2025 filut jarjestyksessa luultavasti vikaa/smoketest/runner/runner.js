@@ -726,7 +726,9 @@
           try {
             await waitUntilTrue(() => { try { return (typeof G.getMode === "function" && G.getMode() === "town"); } catch(_) { return false; } }, 1200, 80);
           } catch (_) {}
-          // If still not in
+          // If still not in town, try adjacent teleports around target then 'g'
+          let ok = (getMode() === "town");
+          if (!ok) {
             try {
               const TP2 = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
               if (TP2 && typeof TP2.teleportTo === "function" && target) {
