@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.27 — Phase 5: Centralize world draw scheduling
+- Changed: core/world_runtime.js
+  - Removed requestDraw at end of generate(); draw is now orchestrated centrally.
+- Changed: core/game.js
+  - initWorld(): after successful WorldRuntime.generate, now calls requestDraw() post syncFromCtx(ctx).
+- Benefit: consistent draw orchestration across all runtimes (world/town/dungeon), reducing duplicate frames.
+- Deployment: (pending)
+
 v1.35.26 — Phase 5: Coalesced draws in Actions/Town/GOD
 - Changed: core/actions.js
   - Inn rest no longer calls requestDraw; updates HUD only. Orchestrator draws after action.

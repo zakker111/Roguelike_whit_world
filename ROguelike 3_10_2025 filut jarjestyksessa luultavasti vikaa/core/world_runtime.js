@@ -64,8 +64,7 @@ export function generate(ctx, opts = {}) {
     if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(ctx);
   } catch (_) {}
 
-  try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
-
+  // Draw is handled by the orchestrator (core/game.js) after sync; avoid redundant frames here.
   return true;
 }
 

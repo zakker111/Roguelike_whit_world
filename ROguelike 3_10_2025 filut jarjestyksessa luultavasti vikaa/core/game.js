@@ -999,6 +999,8 @@
       if (ok) {
         // Sync back any mutated references from ctx
         syncFromCtx(ctx);
+        // Orchestrator schedules a single draw after world init
+        requestDraw();
         return;
       }
       // Fall through to legacy path if WorldRuntime signaled failure
