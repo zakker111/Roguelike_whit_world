@@ -1203,8 +1203,7 @@
         } catch (_) {}
       
       // Adjust scenario pass/fail based on union-of successes within the same run (remove false negatives)
-      try {
-        const has = (rx) => (s) => { try { return rx.test(String(s.msg || "")); } catch (_) { return false; } };
+      {
         const isOk = (s) => !!(s && s.ok && !s.skipped);
 
         const sawDungeonOk = steps.some(s => isOk(s) && (/entered dungeon/i.test(String(s.msg || "")) || /inventory prep:\s*entered dungeon/i.test(String(s.msg || ""))));
@@ -1260,7 +1259,7 @@
             continue;
           }
         }
-      } catch (_) {}
+      }
 
       // Build report via reporting renderer
       // Run-level OK: if any real step passed in this run, consider the run OK (union-of successes per run)
