@@ -2299,7 +2299,11 @@
         isShopOpenNow: (shop) => isShopOpenNow(shop),
         shopScheduleStr: (shop) => shopScheduleStr(shop),
         advanceTimeMinutes: (mins) => advanceTimeMinutes(mins),
+        // Mode transitions
         returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
+        returnToWorldFromTown: () => returnToWorldFromTown(),
+        initWorld: () => initWorld(),
+        // GOD/helpers
         setAlwaysCrit: (v) => setAlwaysCrit(v),
         setCritPart: (part) => setCritPart(part),
         godSpawnEnemyNearby: (count) => godSpawnEnemyNearby(count),

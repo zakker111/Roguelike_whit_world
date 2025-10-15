@@ -11,6 +11,9 @@ export function create(ctx) {
     getWorld: () => {
       try { return ctx.getWorld(); } catch (_) { return null; }
     },
+    getCtx: () => {
+      try { return (typeof ctx.getCtx === "function") ? ctx.getCtx() : ctx; } catch (_) { return null; }
+    },
     getPlayer: () => {
       try { const p = ctx.getPlayer(); return { x: p.x, y: p.y }; } catch (_) { return { x: 0, y: 0 }; }
     },
@@ -535,6 +538,10 @@ export function create(ctx) {
       try { const d = ctx.getDecals(); return Array.isArray(d) ? d.length : 0; } catch (_) { return 0; }
     },
     returnToWorldIfAtExit: () => { try { return !!ctx.returnToWorldIfAtExit(); } catch(_) { return false; } },
+    // Town exit helpers exposed for smoketest robustness
+    returnToWorldFromTown: () => { try { return !!ctx.returnToWorldFromTown(); } catch(_) { return false; } },
+    requestLeaveTown: () => { try { ctx.requestLeaveTown(); return true; } catch(_) { return false; } },
+    leaveTownNow: () => { try { ctx.leaveTownNow(); return true; } catch(_) { return false; } },
 
     // Crit/status helpers
     setAlwaysCrit: (v) => { try { ctx.setAlwaysCrit(!!v); return true; } catch(_) { return false; } },

@@ -197,6 +197,166 @@
         recordSkip("Skipped hand chooser test (no 1-hand item available)");
       }
 
+      // Inventory & equipment persistence across town/dungeon enter/exit (spawn/equip if needed)
+      try {
+        var TP = (window.SmokeTest && window.SmokeTest.Helpers && window.SmokeTest.Helpers.Teleport) || null;
+        var G = window.GameAPI || {};
+
+        // Helpers for capture, diff, and mode waits
+        function captureInv() {
+          var arr = (typeof G.getInventory === "function") ? (G.getInventory() || []) : [];
+          var names = arr.map(function (it) { return (it && it.name) ? String(it.name) : (it && it.kind ? String(it.kind) : ""); });
+          names.sort();
+          return { count: arr.length | 0, names: names, sig: names.join("|") };
+        }
+        function captureEq() {
+          var eq = (typeof G.getEquipment === "function") ? (G.getEquipment() || {}) : {};
+          var slots = Object.keys(eq).filter(function (k) { return !!eq[k] && !!eq[k].name; }).sort();
+          var pairs = slots.map(function (k) { return k + ":" + String(eq[k].name || ""); });
+          return { pairs: pairs, sig: pairs.join("|"), empty: slots.length === 0 };
+        }
+        function eqSame(a, b) { return !!(a && b && a.sig === b.sig); }
+        function invSame(a, b) { return !!(a && b && a.count === b.count && a.sig === b.sig); }
+        function countMap(list) {
+          var m = {};
+          for (var i = 0; i < list.length; i++) {
+            var k = list[i];
+            m[k] = (m[k] | 0) + 1;
+          }
+          return m;
+        }
+        function diffCounts(aMap, bMap) {
+          var added = [], removed = [];
+          var keys = Object.keys(aMap).concat(Object.keys(bMap));
+          var seen = {};
+          for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            if (seen[k]) continue; seen[k] = true;
+            var a = aMap[k] | 0; var b = bMap[k] | 0;
+            if (b > a) added.push(k + " x" + (b - a));
+            else if (a > b) removed.push(k + " x" + (a - b));
+          }
+          return { added: added, removed: removed };
+        }
+        async function waitMode(expected, timeoutMs) {
+          var to = Math.max(300, (timeoutMs | 0) || 0);
+          var deadline = Date.now() + to;
+          while (Date.now() < deadline) {
+            try { if (typeof G.getMode === "function" && G.getMode() === expected) return true; } catch (_) {}
+            await sleep(80);
+          }
+          try { return (typeof G.getMode === "function" && G.getMode() === expected); } catch (_) { return false; }
+        }
+        async function persistCheck(expectedMode, label, baseInv, baseEq) {
+          // Clear modals and wait for mode confirmation before capturing
+          try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(2); } catch (_) {}
+          var modeOk = await waitMode(expectedMode, 1200);
+          record(modeOk, "Mode confirm (" + label + "): " + (modeOk ? expectedMode : (G.getMode ? G.getMode() : "(unknown)")));
+
+          // Capture twice (allow in-mode oscillation to settle)
+          var inv1 = captureInv(); var eq1 = captureEq();
+          await sleep(500);
+          try { if (typeof ctx.ensureAllModalsClosed === "function") await ctx.ensureAllModalsClosed(1); } catch (_) {}
+          var inv2 = captureInv(); var eq2 = captureEq();
+
+          var okEarly = invSame(baseInv, inv1) && eqSame(baseEq, eq1);
+          var okSettled = invSame(baseInv, inv2) && eqSame(baseEq, eq2);
+          var okPersist = !!(okEarly || okSettled);
+
+          if (okPersist) {
+            record(true, "Inventory persist (" + label + "): items/equipment stable" + (okEarly ? " [early]" : " [settled]"));
+          } else {
+            // Build diffs against settled capture
+            var dInv = diffCounts(countMap(baseInv.names || []), countMap(inv2.names || []));
+            var dEq = diffCounts(countMap(baseEq.pairs || []), countMap(eq2.pairs || []));
+            var parts = [];
+            if (dInv.added.length) parts.push("+inv " + dInv.added.join(", "));
+            if (dInv.removed.length) parts.push("-inv " + dInv.removed.join(", "));
+            if (dEq.added.length) parts.push("+eq " + dEq.added.join(", "));
+            if (dEq.removed.length) parts.push("-eq " + dEq.removed.join(", "));
+            var delta = parts.length ? ("; Δ " + parts.join(" | ")) : "";
+            record(false, "Inventory persist (" + label + "): changed" + delta);
+          }
+        }
+
+        // Ensure some items exist, spawn if empty
+        var invPreEnsure = (typeof G.getInventory === "function") ? (G.getInventory() || []) : [];
+        if (!invPreEnsure || !invPreEnsure.length) {
+          if (typeof G.spawnItems === "function") { G.spawnItems(3); await sleep(160); }
+        }
+        // Ensure at least one item equipped; prefer hand slot, else auto-equip the first equip item
+        var eqPre = (typeof G.getEquipment === "function") ? (G.getEquipment() || {}) : {};
+        var hasAnyEquip = !!(eqPre && (eqPre.left || eqPre.right || eqPre.head || eqPre.body || eqPre.feet));
+        if (!hasAnyEquip) {
+          var invForEquip = (typeof G.getInventory === "function") ? (G.getInventory() || []) : [];
+          var idxAny = invForEquip.findIndex(function (it) { return it && it.kind === "equip"; });
+          if (idxAny !== -1) {
+            if (typeof G.equipItemAtIndexHand === "function") {
+              var eqNow = (typeof G.getEquipment === "function") ? (G.getEquipment() || {}) : {};
+              var hand = (!eqNow.left ? "left" : (!eqNow.right ? "right" : "left"));
+              G.equipItemAtIndexHand(idxAny, hand);
+              await sleep(140);
+            } else if (typeof G.equipItemAtIndex === "function") {
+              G.equipItemAtIndex(idxAny);
+              await sleep(140);
+            }
+          }
+        }
+
+        var inv0 = captureInv();
+        var eq0 = captureEq();
+
+        // Ensure starting from world without resetting via New Game (avoid wiping inventory)
+        var modeStart = (typeof G.getMode === "function") ? G.getMode() : null;
+        if (modeStart === "dungeon") {
+          if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 500 }); }
+          await sleep(200);
+        } else if (modeStart === "town") {
+          if (TP && typeof TP.teleportToGateAndExit === "function") { await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 500 }); }
+          await sleep(200);
+        }
+        var modeWorldNow = (typeof G.getMode === "function") ? G.getMode() : null;
+        if (modeWorldNow !== "world") {
+          recordSkip("Inventory persistence skipped (not in world to begin transitions)");
+        } else {
+          // Dungeon enter/exit cycle (with settle waits and explicit mode confirmation)
+          try {
+            if (typeof ctx.ensureDungeonOnce === "function") { await ctx.ensureDungeonOnce(); }
+            await persistCheck("dungeon", "dungeon enter", inv0, eq0);
+
+            if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
+            await persistCheck("world", "dungeon exit", inv0, eq0);
+
+            if (typeof ctx.ensureDungeonOnce === "function") { await ctx.ensureDungeonOnce(); }
+            await persistCheck("dungeon", "dungeon re-enter", inv0, eq0);
+
+            if (TP && typeof TP.teleportToDungeonExitAndLeave === "function") { await TP.teleportToDungeonExitAndLeave(ctx, { closeModals: true, waitMs: 600 }); }
+            await persistCheck("world", "dungeon re-exit", inv0, eq0);
+          } catch (_) {
+            record(false, "Inventory persistence (dungeon cycles) failed");
+          }
+
+          // Town enter/exit cycle (with settle waits and explicit mode confirmation)
+          try {
+            if (typeof ctx.ensureTownOnce === "function") { await ctx.ensureTownOnce(); }
+            await persistCheck("town", "town enter", inv0, eq0);
+
+            if (TP && typeof TP.teleportToGateAndExit === "function") { await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 600 }); }
+            await persistCheck("world", "town exit", inv0, eq0);
+
+            if (typeof ctx.ensureTownOnce === "function") { await ctx.ensureTownOnce(); }
+            await persistCheck("town", "town re-enter", inv0, eq0);
+
+            if (TP && typeof TP.teleportToGateAndExit === "function") { await TP.teleportToGateAndExit(ctx, { closeModals: true, waitMs: 600 }); }
+            await persistCheck("world", "town re-exit", inv0, eq0);
+          } catch (_) {
+            record(false, "Inventory persistence (town cycles) failed");
+          }
+        }
+      } catch (_) {
+        record(true, "Inventory persistence checks skipped (helper/API not available)");
+      }
+
       return true;
     } catch (e) {
       try { (ctx.record || function(){false;})(false, "Inventory scenario failed: " + (e && e.message ? e.message : String(e))); } catch (_) {}

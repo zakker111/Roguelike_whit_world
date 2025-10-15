@@ -69,6 +69,11 @@
       var enemiesBeforeList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
       var enemiesBefore = enemiesBeforeList.length;
 
+      // Decay baseline before combat attempt
+      var eqStart = (typeof window.GameAPI.getEquipment === "function") ? (window.GameAPI.getEquipment() || {}) : {};
+      var leftDecay0 = (eqStart && eqStart.left && typeof eqStart.left.decay === "number") ? eqStart.left.decay : null;
+      var rightDecay0 = (eqStart && eqStart.right && typeof eqStart.right.decay === "number") ? eqStart.right.decay : null;
+
       // Helper: clamp HP of newly spawned enemies (by position delta)
       async function clampNewEnemiesLowHp(beforeList, afterList) {
         try {
@@ -108,13 +113,19 @@
             var enemiesAfterDomList = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : enemiesBeforeList;
             var enemiesAfterDom = enemiesAfterDomList.length;
             spawnedOk = enemiesAfterDom > enemiesBefore;
-            record(spawnedOk, "Dungeon spawn (GOD): enemies " + enemiesBefore + " -> " + enemiesAfterDom);
+            // Checklist expects: "Dungeon spawn: enemies X -> Y"
+            record(spawnedOk, "Dungeon spawn: enemies " + enemiesBefore + " -> " + enemiesAfterDom);
             // Clamp low HP for newly spawned ones
-            await clampNewEnemiesLowHp(enemiesBeforeList, enemiesAfterDomList);
+            var clamped1 = await clampNewEnemiesLowHp(enemiesBeforeList, enemiesAfterDomList);
+            try { 
+              if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+                window.SmokeTest.Runner.traceAction({ type: "combatSpawnUI", before: enemiesBefore, after: enemiesAfterDom, clamped: clamped1 });
+              }
+            } catch (_) {}
             enemiesBeforeList = enemiesAfterDomList.slice(0);
             enemiesBefore = enemiesAfterDom;
           } else {
-            recordSkip("Dungeon spawn (GOD) skipped (not in dungeon)");
+            recordSkip("Dungeon spawn: skipped (not in dungeon)");
           }
         } catch (_) {}
         // GameAPI fallback with retries (works in dungeon; may also work in world depending on implementation)
@@ -129,7 +140,12 @@
           spawnedOk = enemiesNow > enemiesBefore;
           // Clamp newly spawned via fallback
           if (spawnedOk) {
-            await clampNewEnemiesLowHp(enemiesBeforeList, enemiesNowList);
+            var clamped2 = await clampNewEnemiesLowHp(enemiesBeforeList, enemiesNowList);
+            try { 
+              if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+                window.SmokeTest.Runner.traceAction({ type: "combatSpawnAPI", attempts, before: enemiesBefore, after: enemiesNow, clamped: clamped2 });
+              }
+            } catch (_) {}
             enemiesBeforeList = enemiesNowList.slice(0);
             enemiesBefore = enemiesNow;
           }
@@ -137,6 +153,33 @@
         }
         if (!spawnedOk) {
           recordSkip("No enemies available for combat pathing");
+          try { 
+            if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+              window.SmokeTest.Runner.traceAction({ type: "combatSpawnAPI", attempts, before: enemiesBefore, after: enemiesBefore, clamped: 0, success: false });
+            }
+          } catch (_) {}
+        }
+      } catch (_) {}
+
+      // Enemy audits: types present and glyphs not '?'
+      try {
+        var enemiesForAudit = (typeof window.GameAPI.getEnemies === "function") ? (window.GameAPI.getEnemies() || []) : [];
+        if (enemiesForAudit && enemiesForAudit.length) {
+          var typeCount = enemiesForAudit.filter(function (e) { return !!(e && (e.kind || e.type)); }).length;
+          // Checklist expects: "Enemy types present:"
+          record(typeCount > 0, "Enemy types present: " + typeCount);
+          // Checklist expects: "Enemy glyphs:" and fail line 'All enemy glyphs are "?"'
+          var allQuestion = enemiesForAudit.length > 0 && enemiesForAudit.every(function (e) {
+            var g = (e && (e.glyph != null ? e.glyph : e.char != null ? e.char : "?"));
+            return String(g) === "?";
+          });
+          if (allQuestion) {
+            record(false, "All enemy glyphs are \"?\"");
+          } else {
+            record(true, "Enemy glyphs: OK");
+          }
+        } else {
+          recordSkip("Enemy audits skipped (no enemies)");
         }
       } catch (_) {}
 
@@ -171,8 +214,18 @@
         var NEAR_R = 5;
         if (nearest) {
           record(bestD2 <= NEAR_R, "Enemy nearby: dist " + bestD2 + (bestD2 <= NEAR_R ? " (<= " + NEAR_R + ")" : " (> " + NEAR_R + ")"));
+          try {
+            if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+              window.SmokeTest.Runner.traceAction({ type: "combatProximity", dist: bestD2, threshold: NEAR_R });
+            }
+          } catch (_) {}
         } else {
           recordSkip("No enemies visible after spawn for proximity check");
+          try {
+            if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+              window.SmokeTest.Runner.traceAction({ type: "combatProximity", none: true });
+            }
+          } catch (_) {}
         }
 
         // If near enough, wait for first enemy hit (player HP drops)
@@ -188,12 +241,22 @@
             var hpCur = (stCur && typeof stCur.hp === "number") ? stCur.hp : null;
             if (hpCur != null && hpCur < hp0) {
               record(true, "Enemy hit: HP " + hp0 + " -> " + hpCur + " in " + (wt + 1) + " turns");
+              try {
+                if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+                  window.SmokeTest.Runner.traceAction({ type: "combatEnemyHitWait", turns: (wt + 1), hp0, hpCur, hit: true });
+                }
+              } catch (_) {}
               gotHit = true;
               break;
             }
           }
           if (!gotHit) {
             recordSkip("Enemy hit: none within " + turnsToWait + " turns");
+            try {
+              if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+                window.SmokeTest.Runner.traceAction({ type: "combatEnemyHitWait", turns: turnsToWait, hp0, hit: false });
+              }
+            } catch (_) {}
           }
         } else {
           recordSkip("Enemy not near; skip waiting for hit");
@@ -220,6 +283,7 @@
             usedHelper = await MV.routeTo(best.x, best.y, { timeoutMs: (CONFIG && CONFIG.timeouts && CONFIG.timeouts.route) || 5000, stepMs: 90 });
           }
           // If helper not used or failed, try simple BFS path as fallback
+          var pathLen = 0;
           if (!usedHelper) {
             var path = (typeof window.GameAPI.routeToDungeon === "function") ? window.GameAPI.routeToDungeon(best.x, best.y) : [];
             var budget = makeBudget((CONFIG && CONFIG.timeouts && CONFIG.timeouts.route) || 5000);
@@ -231,8 +295,14 @@
               var dy = Math.sign(step.y - plNow.y);
               key(dx === -1 ? "ArrowLeft" : dx === 1 ? "ArrowRight" : (dy === -1 ? "ArrowUp" : "ArrowDown"));
               await sleep(90);
+              pathLen++;
             }
           }
+          try {
+            if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+              window.SmokeTest.Runner.traceAction({ type: "combatRoute", usedHelper: !!usedHelper, pathLen });
+            }
+          } catch (_) {}
         } catch (_) {}
 
         // Snapshot before dynamic bump-attacks
@@ -265,6 +335,11 @@
           await sleep(140);
         }
         record(true, "Moved and attempted attacks (" + bumps + " bumps)");
+        try {
+          if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+            window.SmokeTest.Runner.traceAction({ type: "combatBumpPursuit", bumps });
+          }
+        } catch (_) {}
 
         // Post-checks: HP decrease, corpse or decals increase
         try {
@@ -291,6 +366,14 @@
             (sumHpDropped ? "sum hp↓ " : "") +
             (corpseInc ? "corpse+ " : "") +
             (decalsInc ? "decals+ " : ""));
+          try {
+            if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+              window.SmokeTest.Runner.traceAction({ type: "combatEffects", hpDroppedForTarget, sumHpDropped, corpseInc, decalsInc });
+            }
+          } catch (_) {}
+
+          // Explicit kill check for checklist: corpse count increased
+          record(!!corpseInc, "Killed enemy: " + (corpseInc ? "YES" : "NO"));
 
           // Retry burst with forced crit if no effect detected and API supports it (stabilize test)
           if (!fightOk && typeof window.GameAPI.setAlwaysCrit === "function") {
@@ -312,6 +395,11 @@
                 key(dx3 === -1 ? "ArrowLeft" : dx3 === 1 ? "ArrowRight" : (dy3 === -1 ? "ArrowUp" : "ArrowDown"));
                 await sleep(140);
               }
+              try {
+                if (window.SmokeTest && window.SmokeTest.Runner && typeof window.SmokeTest.Runner.traceAction === "function") {
+                  window.SmokeTest.Runner.traceAction({ type: "combatRetryCrit", forced: true, bursts: 2 });
+                }
+              } catch (_) {}
             } catch (_) {}
             try { window.GameAPI.setAlwaysCrit(false); } catch (_) {}
             try { if (typeof window.GameAPI.setCritPart === "function") window.GameAPI.setCritPart(""); } catch (_) {}
@@ -351,6 +439,13 @@
       var rightDecay = (eq && eq.right && typeof eq.right.decay === "number") ? eq.right.decay : null;
       if (leftDecay != null || rightDecay != null) {
         record(true, "Decay snapshot: left " + leftDecay + ", right " + rightDecay);
+        var incLeft = (leftDecay0 != null && leftDecay != null) ? (leftDecay > leftDecay0) : false;
+        var incRight = (rightDecay0 != null && rightDecay != null) ? (rightDecay > rightDecay0) : false;
+        if (incLeft || incRight) {
+          record(true, "Decay check: increased");
+        } else {
+          record(false, "Decay did not increase");
+        }
       } else {
         recordSkip("No hand equipment to measure decay");
       }
