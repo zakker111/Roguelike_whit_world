@@ -1156,110 +1156,104 @@
           const skippedOnly = (!hasOk && hasSkip);
           scenarioResults.push({ name: step.name, passed, skippedOnly });
 
-          // Structured scenario trace for JSON export
-          try {
-            const sPass = during.filter(s => s.ok && !s.skipped).map(s => String(s.msg || ""));
-            const sFail = during.filter(s => !s.ok && !s.skipped).map(s => String(s.msg || ""));
-            const sSkip = during.filter(s => s.skipped).map(s => String(s.msg || ""));
-            const observedModes = Array.from(new Set(during.map(s => String(s.mode || "")))).filter(Boolean);
-            const modeTransitions = [];
-            let lastMode = __scenarioStartMode;
-            during.forEach((s) => {
-              const m = String(s.mode || "");
-              if (m && m !== lastMode) {
-                modeTransitions.push({ at: s.ts || Date.now(), from: lastMode, to: m });
-                lastMode = m;
-              }
-            });
-            trace.scenarioTraces.push({
-              name: step.name,
-              startedMode: __scenarioStartMode,
-              endedMode: lastMode,
-              stepCount: during.length,
-              passes: sPass,
-              fails: sFail,
-              skipped: sSkip,
-              startedAt: during.length ? during[0].ts : __scenarioStartTs,
-              endedAt: during.length ? during[during.length - 1].ts : Date.now(),
-              durationMs: (during.length ? (during[during.length - 1].ts - during[0].ts) : 0) | 0,
-              observedModes,
-              tsFirst: (during.length ? during[0].ts - Date.now() : 0),
-              tsLast: (during.length ? during[during.length - 1].ts - Date.now() : 0),
-              avgStepDeltaMs: (() => {
-                if (during.length <= 1) return 0;
-                let sum = 0;
-                for (let i = 1; i < during.length; i++) sum += (during[i].ts - during[i - 1].ts);
-                return (sum / (during.length - 1));
-              })(),
-              maxStepDeltaMs: (() => {
-                if (during.length <= 1) return 0;
-                let mx = 0;
-                for (let i = 1; i < during.length; i++) mx = Math.max(mx, (during[i].ts - during[i - 1].ts));
-                return mx;
-              })(),
-              modeTransitions
-            });
-          } catch (_) {}
+          // Structured scenario trace for JSON export (no nested try/catch needed)
+          const sPass = during.filter(s => s.ok && !s.skipped).map(s => String(s.msg || ""));
+          const sFail = during.filter(s => !s.ok && !s.skipped).map(s => String(s.msg || ""));
+          const sSkip = during.filter(s => s.skipped).map(s => String(s.msg || ""));
+          const observedModes = Array.from(new Set(during.map(s => String(s.mode || "")))).filter(Boolean);
+          const modeTransitions = [];
+          let lastMode = __scenarioStartMode;
+          during.forEach((s) => {
+            const m = String(s.mode || "");
+            if (m && m !== lastMode) {
+              modeTransitions.push({ at: s.ts || Date.now(), from: lastMode, to: m });
+              lastMode = m;
+            }
+          });
+          trace.scenarioTraces.push({
+            name: step.name,
+            startedMode: __scenarioStartMode,
+            endedMode: lastMode,
+            stepCount: during.length,
+            passes: sPass,
+            fails: sFail,
+            skipped: sSkip,
+            startedAt: during.length ? during[0].ts : __scenarioStartTs,
+            endedAt: during.length ? during[during.length - 1].ts : Date.now(),
+            durationMs: (during.length ? (during[during.length - 1].ts - during[0].ts) : 0) | 0,
+            observedModes,
+            tsFirst: (during.length ? during[0].ts - Date.now() : 0),
+            tsLast: (during.length ? during[during.length - 1].ts - Date.now() : 0),
+            avgStepDeltaMs: (() => {
+              if (during.length <= 1) return 0;
+              let sum = 0;
+              for (let i = 1; i < during.length; i++) sum += (during[i].ts - during[i - 1].ts);
+              return (sum / (during.length - 1));
+            })(),
+            maxStepDeltaMs: (() => {
+              if (during.length <= 1) return 0;
+              let mx = 0;
+              for (let i = 1; i < during.length; i++) mx = Math.max(mx, (during[i].ts - during[i - 1].ts));
+              return mx;
+            })(),
+            modeTransitions
+          });
+
+          // Adjust scenario pass/fail based on union-of successes within the same run (remove false negatives)
+          const isOkStep = (s) => !!(s && s.ok && !s.skipped);
+          const sawDungeonOk = steps.some(s => isOkStep(s) && (/entered dungeon/i.test(String(s.msg || "")) || /inventory prep:\s*entered dungeon/i.test(String(s.msg || ""))));
+          const sawTownOk = steps.some(s => isOkStep(s) && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
+          const sawWorldOk = steps.some(s => isOkStep(s) && (/world movement test:\s*moved/i.test(String(s.msg || "")) || /world snapshot:/i.test(String(s.msg || ""))));
+          const sawInventoryOk = steps.some(s => isOkStep(s) && (/equip best from inventory/i.test(String(s.msg || "")) || /manual equip\/unequip/i.test(String(s.msg || "")) || /drank potion/i.test(String(s.msg || ""))));
+          const sawCombatOk = steps.some(s => isOkStep(s) && (/moved and attempted attacks/i.test(String(s.msg || "")) || /combat effects:/i.test(String(s.msg || ""))));
+          const sawOverlaysOk = steps.some(s => isOkStep(s) && (/overlay perf:/i.test(String(s.msg || "")) || /grid perf:/i.test(String(s.msg || ""))));
+          const sawDeterminismOk = steps.some(s => isOkStep(s) && /seed invariants:/i.test(String(s.msg || "")));
+          const sawDungeonPersistenceOk = steps.some(s => isOkStep(s) && (/persistence corpses:/i.test(String(s.msg || "")) || /persistence decals:/i.test(String(s.msg || "")) || /returned to overworld from dungeon/i.test(String(s.msg || ""))));
+          const sawTownDiagnosticsOk = steps.some(s => isOkStep(s) && (/gate npcs/i.test(String(s.msg || "")) || /gate greeter/i.test(String(s.msg || "")) || /gold ops/i.test(String(s.msg || "")) || /shop ui closes with esc/i.test(String(s.msg || "")) || /bump near shopkeeper: ok/i.test(String(s.msg || "")) || /interacted at shop by bump/i.test(String(s.msg || ""))));
+
+          for (let i = 0; i < scenarioResults.length; i++) {
+            const sr = scenarioResults[i];
+            if (!sr || !sr.name) continue;
+            const name = sr.name;
+
+            if (name === "dungeon" && !sr.passed && sawDungeonOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "town" && !sr.passed && sawTownOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "world" && !sr.passed && sawWorldOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "inventory" && !sr.passed && sawInventoryOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "combat" && !sr.passed && sawCombatOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "overlays" && !sr.passed && sawOverlaysOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "determinism" && !sr.passed && sawDeterminismOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "dungeon_persistence" && !sr.passed && sawDungeonPersistenceOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+            if (name === "town_diagnostics" && !sr.passed && sawTownDiagnosticsOk) {
+              scenarioResults[i] = { ...sr, passed: true };
+              continue;
+            }
+          }
         } catch (_) {}
-      
-      // Adjust scenario pass/fail based on union-of successes within the same run (remove false negatives)
-      {
-        const isOk = (s) => !!(s && s.ok && !s.skipped);
-
-        const sawDungeonOk = steps.some(s => isOk(s) && (/entered dungeon/i.test(String(s.msg || "")) || /inventory prep:\s*entered dungeon/i.test(String(s.msg || ""))));
-        const sawTownOk = steps.some(s => isOk(s) && (/entered town/i.test(String(s.msg || "")) || /mode confirm\s*\(town enter\):\s*town/i.test(String(s.msg || ""))));
-
-        const sawWorldOk = steps.some(s => isOk(s) && (/world movement test:\s*moved/i.test(String(s.msg || "")) || /world snapshot:/i.test(String(s.msg || ""))));
-        const sawInventoryOk = steps.some(s => isOk(s) && (/equip best from inventory/i.test(String(s.msg || "")) || /manual equip\/unequip/i.test(String(s.msg || "")) || /drank potion/i.test(String(s.msg || ""))));
-        const sawCombatOk = steps.some(s => isOk(s) && (/moved and attempted attacks/i.test(String(s.msg || "")) || /combat effects:/i.test(String(s.msg || ""))));
-        const sawOverlaysOk = steps.some(s => isOk(s) && (/overlay perf:/i.test(String(s.msg || "")) || /grid perf:/i.test(String(s.msg || ""))));
-        const sawDeterminismOk = steps.some(s => isOk(s) && /seed invariants:/i.test(String(s.msg || "")));
-        const sawDungeonPersistenceOk = steps.some(s => isOk(s) && (/persistence corpses:/i.test(String(s.msg || "")) || /persistence decals:/i.test(String(s.msg || "")) || /returned to overworld from dungeon/i.test(String(s.msg || ""))));
-        const sawTownDiagnosticsOk = steps.some(s => isOk(s) && (/gate npcs/i.test(String(s.msg || "")) || /gate greeter/i.test(String(s.msg || "")) || /gold ops/i.test(String(s.msg || "")) || /shop ui closes with esc/i.test(String(s.msg || "")) || /bump near shopkeeper: ok/i.test(String(s.msg || "")) || /interacted at shop by bump/i.test(String(s.msg || ""))));
-
-        for (let i = 0; i < scenarioResults.length; i++) {
-          const sr = scenarioResults[i];
-          if (!sr || !sr.name) continue;
-          const name = sr.name;
-
-          if (name === "dungeon" && !sr.passed && sawDungeonOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "town" && !sr.passed && sawTownOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "world" && !sr.passed && sawWorldOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "inventory" && !sr.passed && sawInventoryOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "combat" && !sr.passed && sawCombatOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "overlays" && !sr.passed && sawOverlaysOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "determinism" && !sr.passed && sawDeterminismOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "dungeon_persistence" && !sr.passed && sawDungeonPersistenceOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-          if (name === "town_diagnostics" && !sr.passed && sawTownDiagnosticsOk) {
-            scenarioResults[i] = { ...sr, passed: true };
-            continue;
-          }
-        }
-      }
 
       // Build report via reporting renderer
       // Run-level OK: if any real step passed in this run, consider the run OK (union-of successes per run)
