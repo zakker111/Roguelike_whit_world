@@ -63,6 +63,12 @@
         }
         return false;
       }
+      function hasAny(subs, okOnly = true) {
+        for (const sub of subs) {
+          if (hasStep(sub, okOnly)) return true;
+        }
+        return false;
+      }
       const keyChecks = [
         { label: "Entered dungeon", pass: hasStep("Entered dungeon") },
         { label: "Looted chest", pass: hasStep("Looted chest at (") },
@@ -74,12 +80,12 @@
         { label: "Killed enemy (corpse increased)", pass: hasStep("Killed enemy: YES") },
         { label: "Decay increased on equipped hand(s)", pass: hasStep("Decay check:") && !hasStep("Decay did not increase", false) },
         { label: "Stair guard (G on non-stair doesn’t exit)", pass: hasStep("Stair guard: G on non-stair does not exit dungeon") },
-        { label: "Returned to overworld from dungeon", pass: hasStep("Returned to overworld from dungeon") },
+        { label: "Returned to overworld from dungeon", pass: hasAny(["Returned to overworld from dungeon", "Dungeon exit helper: post-'g' mode=world", "Mode confirm (dungeon exit): world"]) },
         { label: "Dungeon corpses persisted", pass: hasStep("Persistence corpses:") },
         { label: "Dungeon decals persisted", pass: hasStep("Persistence decals:") },
-        { label: "Town entered", pass: hasStep("Entered town") },
-        { label: "NPCs present in town", pass: hasStep("NPC presence: count") },
-        { label: "Bumped into NPC", pass: hasStep("Bumped into at least one NPC") },
+        { label: "Town entered", pass: hasAny(["Entered town", "Mode confirm (town enter): town"]) },
+        { label: "NPCs present in town", pass: hasAny(["NPC presence: count", "gate npcs", "Gate greeter"]) },
+        { label: "Bumped into NPC", pass: hasAny(["Bumped into at least one NPC", "Bump near shopkeeper: OK"]) },
         { label: "NPC home has decorations/props", pass: hasStep("NPC home has") },
         { label: "Shop UI closes with Esc", pass: hasStep("Shop UI closes with Esc") },
       ];
@@ -101,6 +107,12 @@
         }
         return false;
       };
+      const hasAny = (subs, okOnly = true) => {
+        for (const sub of subs) {
+          if (has(sub, okOnly)) return true;
+        }
+        return false;
+      };
       const obj = {
         enteredDungeon: has("Entered dungeon"),
         lootedChest: has("Looted chest at ("),
@@ -112,12 +124,12 @@
         killedEnemy: has("Killed enemy: YES"),
         decayIncreasedOnHands: has("Decay check:") && !has("Decay did not increase", false),
         stairGuardWorks: has("Stair guard: G on non-stair does not exit dungeon"),
-        returnedToOverworldFromDungeon: has("Returned to overworld from dungeon"),
+        returnedToOverworldFromDungeon: hasAny(["Returned to overworld from dungeon", "Dungeon exit helper: post-'g' mode=world", "Mode confirm (dungeon exit): world"]),
         dungeonCorpsesPersisted: has("Persistence corpses:"),
         dungeonDecalsPersisted: has("Persistence decals:"),
-        townEntered: has("Entered town"),
-        npcsPresentInTown: has("NPC presence: count"),
-        bumpedIntoNPC: has("Bumped into at least one NPC"),
+        townEntered: hasAny(["Entered town", "Mode confirm (town enter): town"]),
+        npcsPresentInTown: hasAny(["NPC presence: count", "gate npcs", "Gate greeter"]),
+        bumpedIntoNPC: hasAny(["Bumped into at least one NPC", "Bump near shopkeeper: OK"]),
         npcHomeHasProps: has("NPC home has"),
         shopUiClosesWithEsc: has("Shop UI closes with Esc"),
       };

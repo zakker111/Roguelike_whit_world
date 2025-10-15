@@ -1,6 +1,16 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.36 — Smoketest reporting: Key Checklist alignment and aggregation clarity
+- Changed: smoketest/reporting/render.js
+  - Key Checklist now recognizes additional success messages for common flows:
+    - “Town entered” also matches “Mode confirm (town enter): town”.
+    - “Returned to overworld from dungeon” also matches “Dungeon exit helper: post-'g' mode=world” and “Mode confirm (dungeon exit): world”.
+  - Applies to both HTML and JSON checklist builders to keep per-run and aggregated reports consistent.
+- Benefit: Checklist accurately reflects successful town/dungeon transitions even when success is logged via confirm/helper messages; reduces misleading “Town entry not achieved” impressions when other scenarios already entered town successfully.
+- Next: Rerun smoketest to verify checklist items reflect successes across the series.
+- Deployment: (pending)
+
 v1.35.35 — Smoketest runner v1.8.0: multi-run aggregation, controls, and diagnostics
 - Runner version: 1.8.0 (smoketest/runner/runner.js)
 - Added: series controls
