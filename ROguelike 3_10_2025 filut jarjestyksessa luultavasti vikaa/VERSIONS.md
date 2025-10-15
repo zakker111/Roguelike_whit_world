@@ -1,6 +1,12 @@
 # Game Version History
 Last updated: 2025-10-14 00:00 UTC
 
+v1.35.17 — Phase 5: Action-level UI coalescing (inventory/gold)
+- Changed: core/game.js renderInventoryPanel no longer calls updateUI itself; action flows (equip/drink/decay) invoke updateUI as needed to avoid duplicate HUD updates.
+- Changed: core/game_api.js addGold/removeGold now call updateUI once, rerenderInventoryIfOpen() (panel-only), then a single requestDraw(), reducing redundant DOM and draw work when inventory is closed.
+- Benefit: fewer repeated UI updates and draws during common actions; smoother responsiveness.
+- Deployment: (pending)
+
 v1.35.16 — Phase 5: Baseline toggles + coalesced Shop open redraw
 - Changed: ui/ui.js init now establishes baseline window flags (DRAW_GRID, SHOW_PERF, SHOW_MINIMAP) from getters when undefined, avoiding repeated localStorage reads in hot paths; buttons refreshed to reflect baseline.
 - Changed: core/town_runtime.js talk coalesces redraw on shop open — only requests draw if the Shop panel was previously closed; still requests draw when logging “closed” schedule messages.

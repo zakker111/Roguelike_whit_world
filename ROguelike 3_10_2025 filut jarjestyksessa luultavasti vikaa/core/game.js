@@ -1611,8 +1611,6 @@
 
   
   function renderInventoryPanel() {
-    // Keep totals in sync
-    updateUI();
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.render === "function") {
       IC.render(getCtx());
