@@ -9,6 +9,13 @@ v1.35.29 — Phase 5: Entry/Exit robustness (diagonals + near-exit)
 - Benefit: Further reductions in “Dungeon entry failed (mode=world)”, “Town entry not achieved”, and occasional “Attempted return to overworld (mode=dungeon)” failures in smoketests.
 - Deployment: (pending)
 
+v1.35.30 — Phase 5: FOV recompute guard in world mode
+- Changed: core/game.js
+  - recomputeFOV now skips when mode/map/FOV/player position are unchanged, even in world mode.
+  - Avoids re-filling seen/visible arrays every turn on the overworld, reducing per-turn work.
+- Benefit: small but steady performance gain during overworld turns without visual change.
+- Deployment: (pending)
+
 v1.35.28 — Phase 5: Smoketest pass-rate improvements (robust entry + near spawns)
 - Changed: core/game_api.js
   - enterTownIfOnTile/enterDungeonIfOnEntrance now auto-route to the nearest town/dungeon when not already on/adjacent, then attempt entry. Synchronous BFS walk; preserves ctx-first semantics.

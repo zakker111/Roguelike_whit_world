@@ -856,8 +856,9 @@
     const modeChanged = (mode !== _lastMode);
     const mapChanged = (rows !== _lastMapRows) || (cols !== _lastMapCols);
 
-    if (!modeChanged && !mapChanged && !fovChanged && !moved && mode !== "world") {
-      // No change affecting FOV; skip recompute in dungeon/town
+    // Skip recompute when nothing relevant changed (applies to all modes, including world).
+    // World mode keeps entire map visible; avoid re-filling arrays every turn when unchanged.
+    if (!modeChanged && !mapChanged && !fovChanged && !moved) {
       return;
     }
 
