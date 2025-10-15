@@ -120,24 +120,45 @@ export function spawnEnemyNearby(ctx, count = 1) {
   };
 
   const pickNearby = () => {
-    const maxAttempts = 100;
-    for (let i = 0; i < maxAttempts; i++) {
-      const dx = Math.floor(ctx.rng() * 17) - 8; // wider search radius
-      const dy = Math.floor(ctx.rng() * 17) - 8;
-      const x = ctx.player.x + dx;
-      const y = ctx.player.y + dy;
-      if (isFreeFloor(x, y)) return { x, y };
+    // Prefer spawning within radius <= 5 around player when possible
+    const maxR = 5;
+    const px = ctx.player.x | 0;
+    const py = ctx.player.y | 0;
+
+    // Scan rings from r=1..maxR; randomize order per ring
+    for (let r = 1; r <= maxR; r++) {
+      const candidates = [];
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.abs(dx) + Math.abs(dy) !== r) continue; // perimeter of Manhattan ring
+          const x = px + dx;
+          const y = py + dy;
+          if (isFreeFloor(x, y)) candidates.push({ x, y });
+        }
+      }
+      if (candidates.length) {
+        // Deterministic shuffle using ctx.rng
+        for (let i = candidates.length - 1; i > 0; i--) {
+          const j = Math.floor(ctx.rng() * (i + 1));
+          const tmp = candidates[i]; candidates[i] = candidates[j]; candidates[j] = tmp;
+        }
+        return candidates[0];
+      }
     }
-    const free = [];
+
+    // Fallback: choose nearest free tile on the entire map
+    let best = null;
+    let bestD = Infinity;
     const rows = ctx.map.length;
     const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
-        if (isFreeFloor(x, y)) free.push({ x, y });
+        if (!isFreeFloor(x, y)) continue;
+        const md = Math.abs(x - px) + Math.abs(y - py);
+        if (md < bestD) { bestD = md; best = { x, y }; }
       }
     }
-    if (!free.length) return null;
-    return free[Math.floor(ctx.rng() * free.length)];
+    return best;
   };
 
   function linearAt(arr, depth, fallback = 1) {

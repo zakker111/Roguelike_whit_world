@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.28 — Phase 5: Smoketest pass-rate improvements (robust entry + near spawns)
+- Changed: core/game_api.js
+  - enterTownIfOnTile/enterDungeonIfOnEntrance now auto-route to the nearest town/dungeon when not already on/adjacent, then attempt entry. Synchronous BFS walk; preserves ctx-first semantics.
+- Changed: data/god.js
+  - spawnEnemyNearby clamps spawn to Manhattan radius <= 5 around player when possible (rings r=1..5, randomized); fallback picks the nearest free tile on the map.
+- Benefit: Reduces “Dungeon entry failed (mode=world)” and “Town entry not achieved” flakes; increases likelihood of “Enemy nearby ≤ 5” for combat scenario.
+- Deployment: (pending)
+
 v1.35.27 — Phase 5: Centralize world draw scheduling
 - Changed: core/world_runtime.js
   - Removed requestDraw at end of generate(); draw is now orchestrated centrally.
