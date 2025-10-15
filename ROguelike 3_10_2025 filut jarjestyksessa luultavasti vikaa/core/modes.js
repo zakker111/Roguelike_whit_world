@@ -234,7 +234,7 @@ export function enterDungeonIfOnEntrance(ctx) {
     try {
       if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.enter === "function") {
         const ok = ctx.DungeonRuntime.enter(ctx, info);
-        if (ok) return true;
+        if (ok) { syncAfterMutation(ctx); return true; }
       }
     } catch (_) {}
 

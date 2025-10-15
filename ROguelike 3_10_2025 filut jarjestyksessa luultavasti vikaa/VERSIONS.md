@@ -1,6 +1,14 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.25 — Phase 5: Centralized draw after DungeonRuntime.enter; remove extra draws in DungeonState
+- Changed: core/modes.js
+  - After a successful DungeonRuntime.enter(ctx, info), now calls syncAfterMutation(ctx) to recompute FOV, update camera/UI, and schedule a draw via the orchestrator.
+- Changed: dungeon/dungeon_state.js
+  - Removed requestDraw() from applyState() and returnToWorldIfAtExit(); draw scheduling is handled by Modes and core/game.js.
+- Benefit: avoids duplicate frames on dungeon re-entry/exit and keeps draw orchestration in one place.
+- Deployment: (pending)
+
 v1.35.24 — Phase 5: Coalesced draws in runtimes (Dungeon/Town)
 - Changed: core/dungeon_runtime.js
   - Removed requestDraw from load(), generate() (including fallback), returnToWorldIfAtExit(), and enter().
