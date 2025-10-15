@@ -383,7 +383,6 @@ export function create(ctx) {
         if (!e || typeof e.hp !== "number") return false;
         e.hp = val;
         return true;
-      } catch(_) { return false;turn true;
       } catch(_) { return false; }
     },
 
