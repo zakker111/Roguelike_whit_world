@@ -1,6 +1,16 @@
 # Game Version History
 Last updated: 2025-10-15 00:00 UTC
 
+v1.35.26 — Phase 5: Coalesced draws in Actions/Town/GOD
+- Changed: core/actions.js
+  - Inn rest no longer calls requestDraw; updates HUD only. Orchestrator draws after action.
+- Changed: worldgen/town_gen.js
+  - Removed requestDraw at end of generate(); draw is handled by orchestrator after town entry.
+- Changed: data/god.js
+  - applySeed(ctx,seed) no longer calls requestDraw; core/game.js handles draw after regeneration.
+- Benefit: reduces redundant frames during common flows (inn rest, town generation, seeding).
+- Deployment: (pending)
+
 v1.35.25 — Phase 5: Centralized draw after DungeonRuntime.enter; remove extra draws in DungeonState
 - Changed: core/modes.js
   - After a successful DungeonRuntime.enter(ctx, info), now calls syncAfterMutation(ctx) to recompute FOV, update camera/UI, and schedule a draw via the orchestrator.

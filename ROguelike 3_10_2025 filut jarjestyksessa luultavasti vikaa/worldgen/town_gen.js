@@ -868,7 +868,7 @@
 
     // Finish
     if (ctx.updateUI) ctx.updateUI();
-    if (ctx.requestDraw) ctx.requestDraw();
+    // Draw is handled by orchestrator after generation; avoid redundant frame
     return true;
   }
 

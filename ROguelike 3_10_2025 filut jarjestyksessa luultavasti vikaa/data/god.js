@@ -284,7 +284,7 @@ export function applySeed(ctx, seedUint32) {
     ctx.log(`GOD: Applied seed ${s}. Regenerating floor ${ctx.floor}...`, "notice");
     ctx.generateLevel(ctx.floor);
   }
-  ctx.requestDraw();
+  // Draw will be scheduled by orchestrator (core/game.js) after regeneration
   try {
     const el = document.getElementById("god-seed-help");
     if (el) el.textContent = `Current seed: ${s}`;
