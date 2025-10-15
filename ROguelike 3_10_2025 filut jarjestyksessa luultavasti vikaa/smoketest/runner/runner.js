@@ -1147,7 +1147,7 @@
         // Per-scenario pass determination:
         // - passed only if there is at least one OK step and no failures
         // - mark skippedOnly when there are only skips and no OK steps
-        try {
+        {
           const during = steps.slice(beforeCount);
           const hasFail = during.some(s => !s.ok && !s.skipped);
           const hasOk = during.some(s => s.ok && !s.skipped);
@@ -1253,7 +1253,7 @@
               continue;
             }
           }
-        } catch (_) {}
+        }
 
       // Build report via reporting renderer
       // Run-level OK: if any real step passed in this run, consider the run OK (union-of successes per run)
