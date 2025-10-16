@@ -194,14 +194,14 @@ export function draw(ctx, view) {
       const t = row[x];
       if (WT && t === WT.TOWN) {
         const tdTown = getTileDef("overworld", WT.TOWN);
-        const glyph = (tdTown && tdTown.glyph) || "T";
+        const glyph = (tdTown && Object.prototype.hasOwnProperty.call(tdTown, "glyph")) ? tdTown.glyph : "T";
         const fg = (tdTown && tdTown.colors && tdTown.colors.fg) || "#d7ba7d";
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
       } else if (WT && t === WT.DUNGEON) {
         const td = getTileDef("overworld", WT.DUNGEON);
-        const glyph = (td && td.glyph) || "D";
+        const glyph = (td && Object.prototype.hasOwnProperty.call(td, "glyph")) ? td.glyph : "D";
         const fg = (td && td.colors && td.colors.fg) || "#c586c0";
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;

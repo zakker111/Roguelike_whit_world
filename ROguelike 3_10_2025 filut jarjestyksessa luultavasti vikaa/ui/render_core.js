@@ -29,6 +29,8 @@ export function enemyColor(ctx, type, COLORS) {
 }
 
 export function drawGlyph(ctx2d, x, y, ch, color, TILE) {
+  // Skip drawing if glyph is empty or whitespace-only
+  if (!ch || (typeof ch === "string" && ch.trim().length === 0)) return;
   const half = TILE / 2;
   ctx2d.fillStyle = color;
   ctx2d.fillText(ch, x + half, y + half + 1);

@@ -83,7 +83,7 @@ export function draw(ctx, view) {
               oc.fillRect(sx, sy, TILE, TILE);
               if (type === TILES.STAIRS && !tilesetReady) {
                 const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
-                const glyph = (tdStairs && tdStairs.glyph) || ">";
+                const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : ">";
                 const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
                 RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
               }
@@ -136,7 +136,7 @@ export function draw(ctx, view) {
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
           if (type === TILES.STAIRS && !tilesetReady) {
             const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
-            const glyph = (tdStairs && tdStairs.glyph) || ">";
+            const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : ">";
             const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
             RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
           }

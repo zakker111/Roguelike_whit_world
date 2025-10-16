@@ -87,16 +87,18 @@ export function draw(ctx, view) {
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(screenX, screenY, TILE, TILE);
 
-      // TREE glyph overlay (from tiles.json if available)
+      // TREE glyph overlay (from tiles.json if available). If glyph is blank, skip.
       if (WT && t === WT.TREE) {
         const half = TILE / 2;
         const tdTree = td || getTileDef("region", WT.TREE);
-        const glyph = (tdTree && tdTree.glyph) || "||";
+        const glyph = (tdTree && Object.prototype.hasOwnProperty.call(tdTree, "glyph")) ? tdTree.glyph : "||";
         const fg = (tdTree && tdTree.colors && tdTree.colors.fg) || "#3fa650";
         ctx2d.save();
         ctx2d.lineWidth = 2;
         ctx2d.strokeStyle = "#0b0f16";
-        ctx2d.strokeText(glyph, screenX + half, screenY + half + 1);
+        if (glyph && String(glyph).trim().length > 0) {
+          ctx2d.strokeText(glyph, screenX + half, screenY + half + 1);
+        }
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
         ctx2d.restore();
       }
