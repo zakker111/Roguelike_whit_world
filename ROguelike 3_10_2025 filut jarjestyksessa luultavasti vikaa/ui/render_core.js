@@ -40,6 +40,13 @@ function posMod(n, m) {
 }
 
 export function computeView(ctx) {
+  // Ensure camera is centered on player for active gameplay modes before computing view
+  try {
+    if (ctx && typeof ctx.updateCamera === "function" && ctx.mode !== "region") {
+      ctx.updateCamera();
+    }
+  } catch (_) {}
+
   const { ctx2d, TILE, ROWS, COLS, COLORS, TILES, map, camera: camMaybe } = ctx;
 
   const cam = camMaybe || { x: 0, y: 0, width: COLS * TILE, height: ROWS * TILE };
