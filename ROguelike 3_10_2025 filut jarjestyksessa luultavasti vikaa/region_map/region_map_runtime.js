@@ -316,19 +316,30 @@ export function open(ctx, size) {
   ctx.player.x = ctx.region.cursor.x | 0;
   ctx.player.y = ctx.region.cursor.y | 0;
 
-  // Override LOS transparency in region mode: mountains block FOV, water/river do not.
+  // Override LOS transparency in region mode without mutating the original LOS object:
+  // mountains block FOV, other biomes are transparent. Preserve hasLOS if present.
   try {
     const WT2 = World.TILES;
-    const los = ctx.los || {};
-    los.tileTransparent = (c, x, y) => {
-      const rows = c.map.length;
-      const cols = rows ? (c.map[0] ? c.map[0].length : 0) : 0;
-      if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
-      const t = c.map[y][x];
-      if (WT2 && t === WT2.MOUNTAIN) return false;   // block FOV on mountains
-      return true;                                    // all other biomes are transparent for FOV in region
+    const prevLOS = ctx.los || null;
+    const prevTileTransparent = prevLOS && typeof prevLOS.tileTransparent === "function" ? prevLOS.tileTransparent : null;
+    ctx.region._prevLOS = prevLOS;
+    ctx.region._prevTileTransparent = prevTileTransparent;
+
+    const regionLOS = {
+      tileTransparent: (c, x, y) => {
+        const rows = c.map.length;
+        const cols = rows ? (c.map[0] ? c.map[0].length : 0) : 0;
+        if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+        const t = c.map[y][x];
+        if (WT2 && t === WT2.MOUNTAIN) return false; // block FOV on mountains
+        return true;                                  // other overworld tiles are transparent in region
+      },
     };
-    ctx.los = los;
+    // Preserve hasLOS pass-through if the previous LOS provided it
+    if (prevLOS && typeof prevLOS.hasLOS === "function") {
+      regionLOS.hasLOS = (c, x0, y0, x1, y1) => prevLOS.hasLOS(c, x0, y0, x1, y1);
+    }
+    ctx.los = regionLOS;
   } catch (_) {}
 
   ctx.mode = "region";
@@ -344,10 +355,23 @@ export function close(ctx) {
   if (!ctx || ctx.mode !== "region") return false;
   // Restore world view and player position at the exact coordinates where G was pressed
   const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
-  // Restore previous LOS transparency
+  // Restore previous LOS transparency (object and original function) to avoid breaking dungeon FOV.
   try {
-    if (ctx.region && ctx.region._prevLOS) {
-      ctx.los = ctx.region._prevLOS;
+    const prevLOS = ctx.region && ctx.region._prevLOS ? ctx.region._prevLOS : null;
+    const prevTileTransparent = ctx.region && ctx.region._prevTileTransparent ? ctx.region._prevTileTransparent : null;
+    if (prevLOS) {
+      // If we accidentally mutated the original object earlier, ensure its tileTransparent is restored.
+      if (ctx.los === prevLOS && prevTileTransparent) {
+        try { ctx.los.tileTransparent = prevTileTransparent; } catch (_) {}
+      } else {
+        ctx.los = prevLOS;
+        if (prevTileTransparent && ctx.los) {
+          try { ctx.los.tileTransparent = prevTileTransparent; } catch (_) {}
+        }
+      }
+    } else {
+      // No previous LOS; remove the region-specific LOS to allow default behavior.
+      try { delete ctx.los; } catch (_) { ctx.los = null; }
     }
   } catch (_) {}
   ctx.mode = "world";
