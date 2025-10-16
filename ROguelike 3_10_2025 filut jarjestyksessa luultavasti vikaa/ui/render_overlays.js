@@ -216,11 +216,28 @@ export function drawLampGlow(ctx, view) {
     if (!(time && (time.phase === "night" || time.phase === "dusk" || time.phase === "dawn"))) return;
     if (!Array.isArray(ctx.townProps)) return;
 
+    function propEmitsLight(type) {
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+        if (!arr) return type === "lamp";
+        const key = String(type || "").toUpperCase();
+        for (let i = 0; i < arr.length; i++) {
+          const t = arr[i];
+          if (!t || !t.key) continue;
+          if (String(t.key).toUpperCase() !== key) continue;
+          if (!Array.isArray(t.appearsIn) || !t.appearsIn.some(s => String(s).toLowerCase() === "town")) continue;
+          return !!(t.properties && t.properties.emitsLight);
+        }
+      } catch (_) {}
+      return type === "lamp";
+    }
+
     const { ctx2d, TILE } = Object.assign({}, view);
     ctx2d.save();
     ctx2d.globalCompositeOperation = "lighter";
     for (const p of ctx.townProps) {
-      if (p.type !== "lamp") continue;
+      if (!propEmitsLight(p.type)) continue;
       const px = p.x, py = p.y;
       if (px < view.startX || px > view.endX || py < view.startY || py > view.endY) continue;
       if (!ctx.visible[py] || !ctx.visible[py][px]) continue;

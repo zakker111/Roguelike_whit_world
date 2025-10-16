@@ -111,21 +111,39 @@ export function recomputeFOV(ctx) {
   castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, 1, 0);  // N-NE
   castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, -1, 0); // N-NW
 
-  // Dynamic lamp lighting in towns at night/dawn/dusk: extend visibility from lamps
+  // Dynamic lamp lighting in towns at night/dawn/dusk: extend visibility from props that emit light
   try {
     const isTown = ctx.mode === "town";
     const phase = ctx.time && ctx.time.phase;
     const lampActive = isTown && (phase === "night" || phase === "dusk" || phase === "dawn");
+
+    function propEmitsLight(type) {
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+        if (!arr) return type === "lamp";
+        const key = String(type || "").toUpperCase();
+        for (let i = 0; i < arr.length; i++) {
+          const t = arr[i];
+          if (!t || !t.key) continue;
+          if (String(t.key).toUpperCase() !== key) continue;
+          if (!Array.isArray(t.appearsIn) || !t.appearsIn.some(s => String(s).toLowerCase() === "town")) continue;
+          return !!(t.properties && t.properties.emitsLight);
+        }
+      } catch (_) {}
+      return type === "lamp";
+    }
+
     if (lampActive && Array.isArray(ctx.townProps)) {
       const lampRadius = Math.max(2, Math.min(6, Math.floor((radius + 2) / 3))); // small local glow (typically 3-4)
       for (const p of ctx.townProps) {
-        if (!p || p.type !== "lamp") continue;
+        if (!p || !propEmitsLight(p.type)) continue;
         const lx = p.x | 0, ly = p.y | 0;
         if (!ctx.inBounds(lx, ly)) continue;
         // Mark lamp tile itself visible
         visible[ly][lx] = true;
         ctx.seen[ly][lx] = true;
-        // Cast limited light from lamp (respecting walls/windows via isTransparent)
+        // Cast limited light from prop (respecting walls/windows via isTransparent)
         castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, 1);
         castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, -1);
         castLight(lx, ly, 1, 1.0, 0.0, lampRadius, -1, 0, 0, 1);
