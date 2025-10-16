@@ -1965,6 +1965,11 @@
       if (WR && typeof WR.tick === "function") {
         WR.tick(getCtx());
       }
+    } else if (mode === "region") {
+      const RM = modHandle("RegionMapRuntime");
+      if (RM && typeof RM.tick === "function") {
+        RM.tick(getCtx());
+      }
     }
 
     recomputeFOV();

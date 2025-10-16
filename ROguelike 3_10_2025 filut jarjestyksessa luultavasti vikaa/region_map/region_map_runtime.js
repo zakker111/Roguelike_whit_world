@@ -89,26 +89,46 @@ export function open(ctx, size) {
     enterWorldPos: { x: ctx.player.x, y: ctx.player.y },
   };
 
+  // Region behaves like a normal mode: use region map as active map and player follows cursor
+  ctx.map = sample;
+  // Reveal region map fully
+  ctx.seen = Array.from({ length: height }, () => Array(width).fill(true));
+  ctx.visible = Array.from({ length: height }, () => Array(width).fill(true));
+  // Move player to region cursor (camera centers on player)
+  ctx.player.x = ctx.region.cursor.x | 0;
+  ctx.player.y = ctx.region.cursor.y | 0;
+
   ctx.mode = "region";
-  try { ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw(); } catch (_) {}
+  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+  try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
+  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
   if (ctx.log) ctx.log("Region map opened. Move with arrows. Press G on an orange edge tile to close.", "info");
   return true;
 }
 
 export function close(ctx) {
   if (!ctx || ctx.mode !== "region") return false;
-  ctx.mode = "world";
-  // Restore world view around the player at the exact coordinates where G was pressed
+  // Restore world view and player position at the exact coordinates where G was pressed
   const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
+  ctx.mode = "world";
+  // Restore active map to world
+  if (ctx.world && ctx.world.map) {
+    ctx.map = ctx.world.map;
+    const rows = ctx.map.length;
+    const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+    // Reveal world fully
+    ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
+    ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
+  }
   if (pos) {
     ctx.player.x = pos.x | 0;
     ctx.player.y = pos.y | 0;
   }
-  try { ctx.updateCamera(); } catch (_) {}
-  try { ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw(); } catch (_) {}
+  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+  try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
+  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
   if (ctx.log) ctx.log("Region map closed.", "info");
   return true;
 }
@@ -121,8 +141,11 @@ export function tryMove(ctx, dx, dy) {
   const ny = clamp(cur.y + (dy | 0), 0, h - 1);
   if (nx === cur.x && ny === cur.y) return false;
   ctx.region.cursor = { x: nx, y: ny };
-  try { ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw(); } catch (_) {}
+  // Keep player in sync with region cursor for camera centering
+  ctx.player.x = nx; ctx.player.y = ny;
+  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+  // Act like other modes: advance a turn on movement
+  try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
   return true;
 }
 

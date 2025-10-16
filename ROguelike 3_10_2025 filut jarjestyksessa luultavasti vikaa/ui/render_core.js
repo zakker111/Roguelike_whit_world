@@ -42,7 +42,7 @@ function posMod(n, m) {
 export function computeView(ctx) {
   // Ensure camera is centered on player for active gameplay modes before computing view
   try {
-    if (ctx && typeof ctx.updateCamera === "function" && ctx.mode !== "region") {
+    if (ctx && typeof ctx.updateCamera === "function") {
       ctx.updateCamera();
     }
   } catch (_) {}
