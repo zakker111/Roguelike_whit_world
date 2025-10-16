@@ -1243,7 +1243,12 @@
           // Open Region map when pressing G on a walkable overworld tile
           const RM = modHandle("RegionMapRuntime");
           if (RM && typeof RM.open === "function") {
-            RM.open(getCtx());
+            const ctxMod = getCtx();
+            const ok = !!RM.open(ctxMod);
+            if (ok) {
+              // Sync mutated ctx (mode -> "region") and refresh
+              applyCtxSyncAndRefresh(ctxMod);
+            }
           } else {
             log("Region map module not available.", "warn");
           }
