@@ -1239,7 +1239,15 @@
 
     if (mode === "world") {
       if (!enterTownIfOnTile()) {
-        enterDungeonIfOnEntrance();
+        if (!enterDungeonIfOnEntrance()) {
+          // Open Region map when pressing G on a walkable overworld tile
+          const RM = modHandle("RegionMapRuntime");
+          if (RM && typeof RM.open === "function") {
+            RM.open(getCtx());
+          } else {
+            log("Region map module not available.", "warn");
+          }
+        }
       }
       return;
     }
@@ -1247,6 +1255,15 @@
     if (mode === "town") {
       if (returnToWorldFromTown()) return;
       lootCorpse();
+      return;
+    }
+
+    if (mode === "region") {
+      const RM = modHandle("RegionMapRuntime");
+      if (RM && typeof RM.onAction === "function") {
+        const handled = !!RM.onAction(getCtx());
+        if (handled) return;
+      }
       return;
     }
 
@@ -1431,6 +1448,16 @@
 
   function tryMovePlayer(dx, dy) {
     if (isDead) return;
+
+    // REGION MAP MODE (overlay): move cursor only, no time advance
+    if (mode === "region") {
+      const RM = modHandle("RegionMapRuntime");
+      if (RM && typeof RM.tryMove === "function") {
+        const ok = !!RM.tryMove(getCtx(), dx, dy);
+        if (ok) return;
+      }
+      return;
+    }
 
     // WORLD MODE
     if (mode === "world") {
