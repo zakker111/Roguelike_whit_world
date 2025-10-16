@@ -9,6 +9,23 @@ import * as RenderCore from "./render_core.js";
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
 let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
 
+// Helper: get tile def from GameData.tiles for a given mode and numeric id
+function getTileDef(mode, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 export function draw(ctx, view) {
   const {
     ctx2d, TILE, COLORS, TILES, TS, tilesetReady,
@@ -52,15 +69,22 @@ export function draw(ctx, view) {
               drawn = TS.draw(oc, key, sx, sy, TILE);
             }
             if (!drawn) {
-              let fill;
-              if (type === TILES.WALL) fill = COLORS.wall;
-              else if (type === TILES.STAIRS) fill = "#3a2f1b";
-              else if (type === TILES.DOOR) fill = "#3a2f1b";
-              else fill = COLORS.floorLit;
+              // Prefer tiles.json fill color if present per dungeon mode
+              const td = getTileDef("dungeon", type);
+              let fill = (td && td.colors && td.colors.fill) || COLORS.floorLit;
+              if (!td) {
+                if (type === TILES.WALL) fill = COLORS.wall;
+                else if (type === TILES.STAIRS) fill = "#3a2f1b";
+                else if (type === TILES.DOOR) fill = "#3a2f1b";
+                else fill = COLORS.floorLit;
+              }
               oc.fillStyle = fill;
               oc.fillRect(sx, sy, TILE, TILE);
               if (type === TILES.STAIRS && !tilesetReady) {
-                RenderCore.drawGlyph(oc, sx, sy, ">", "#d7ba7d", TILE);
+                const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
+                const glyph = (tdStairs && tdStairs.glyph) || ">";
+                const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
+                RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
               }
             }
           }
@@ -98,15 +122,22 @@ export function draw(ctx, view) {
           drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
         }
         if (!drawn) {
-          let fill;
-          if (type === TILES.WALL) fill = COLORS.wall;
-          else if (type === TILES.STAIRS) fill = "#3a2f1b";
-          else if (type === TILES.DOOR) fill = "#3a2f1b";
-          else fill = COLORS.floorLit;
+          // Prefer tiles.json fill color if present per dungeon mode
+          const td = getTileDef("dungeon", type);
+          let fill = (td && td.colors && td.colors.fill) || COLORS.floorLit;
+          if (!td) {
+            if (type === TILES.WALL) fill = COLORS.wall;
+            else if (type === TILES.STAIRS) fill = "#3a2f1b";
+            else if (type === TILES.DOOR) fill = "#3a2f1b";
+            else fill = COLORS.floorLit;
+          }
           ctx2d.fillStyle = fill;
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
           if (type === TILES.STAIRS && !tilesetReady) {
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+            const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
+            const glyph = (tdStairs && tdStairs.glyph) || ">";
+            const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
           }
         }
       }

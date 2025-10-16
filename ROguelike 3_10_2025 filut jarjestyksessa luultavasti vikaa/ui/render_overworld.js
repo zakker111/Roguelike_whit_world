@@ -14,19 +14,41 @@ let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
 // Town glyphs cache keyed by towns array reference
 let TOWN_GLYPHS_CACHE = { ref: null, map: {} };
 
+// Helper: get tile def from GameData.tiles for a given mode and numeric id
+function getTileDef(mode, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 function rebuildTownGlyphs(towns) {
   const out = {};
   try {
     if (Array.isArray(towns)) {
       for (const info of towns) {
-        let glyph = "T";
+        // Default glyph from tiles.json (overworld mode), fallback to size-derived
+        let defGlyph = "T";
+        const tdTown = getTileDef("overworld", World.TILES.TOWN);
+        if (tdTown && tdTown.glyph) defGlyph = tdTown.glyph;
+
+        let glyph = defGlyph;
         const sz = (info.size || "").toLowerCase();
         if (sz === "small") glyph = "t";
         else if (sz === "city") glyph = "C";
-        out[`${
-          info.x
-        },${
-          info.y
+        out[`${ 
+          info.x 
+        },${ 
+          info.y 
         }`] = glyph;
       }
     }
@@ -110,10 +132,14 @@ export function draw(ctx, view) {
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
             // Overlay static glyphs directly onto the base
             if (WT && t === WT.TOWN) {
-              const glyph = TOWN_GLYPHS[`${xx},${yy}`] || "T";
-              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, glyph, "#d7ba7d", TILE);
+              const glyph = TOWN_GLYPHS[`${xx},${yy}`] || ((getTileDef("overworld", WT.TOWN) && getTileDef("overworld", WT.TOWN).glyph) || "T");
+              const fg = ((getTileDef("overworld", WT.TOWN) && getTileDef("overworld", WT.TOWN).colors && getTileDef("overworld", WT.TOWN).colors.fg) || "#d7ba7d");
+              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, glyph, fg, TILE);
             } else if (WT && t === WT.DUNGEON) {
-              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, "D", "#c586c0", TILE);
+              const td = getTileDef("overworld", WT.DUNGEON);
+              const glyph = (td && td.glyph) || "D";
+              const fg = (td && td.colors && td.colors.fg) || "#c586c0";
+              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, glyph, fg, TILE);
             }
           }
         }
@@ -162,10 +188,16 @@ export function draw(ctx, view) {
 
         // Overlay glyphs for special overworld tiles
         if (WT && t === WT.TOWN) {
-          const glyph = TOWN_GLYPHS[`${x},${y}`] || "T";
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, "#d7ba7d", TILE);
+          const tdTown = getTileDef("overworld", WT.TOWN);
+          const defGlyph = (tdTown && tdTown.glyph) || "T";
+          const glyph = TOWN_GLYPHS[`${x},${y}`] || defGlyph;
+          const fg = (tdTown && tdTown.colors && tdTown.colors.fg) || "#d7ba7d";
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
         } else if (WT && t === WT.DUNGEON) {
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, "D", "#c586c0", TILE);
+          const td = getTileDef("overworld", WT.DUNGEON);
+          const glyph = (td && td.glyph) || "D";
+          const fg = (td && td.colors && td.colors.fg) || "#c586c0";
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
         }
       }
     }

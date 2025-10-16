@@ -7,6 +7,23 @@
 import * as RenderCore from "./render_core.js";
 import * as World from "../world/world.js";
 
+// Helper: get tile def from GameData.tiles for a given mode and numeric id
+function getTileDef(mode, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 export function draw(ctx, view) {
   if (!ctx || ctx.mode !== "region" || !ctx.region) return;
   const {
@@ -51,8 +68,10 @@ export function draw(ctx, view) {
       }
 
       const t = row[x];
-      let fill = WCOL.grass;
-      if (WT) {
+      // Prefer tiles.json fill color if present
+      const td = getTileDef("region", t);
+      let fill = (td && td.colors && td.colors.fill) || WCOL.grass;
+      if (!td && WT) {
         if (t === WT.WATER) fill = WCOL.water;
         else if (t === WT.RIVER) fill = WCOL.river;
         else if (t === WT.SWAMP) fill = WCOL.swamp;
@@ -68,14 +87,17 @@ export function draw(ctx, view) {
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(screenX, screenY, TILE, TILE);
 
-      // TREE glyph overlay
+      // TREE glyph overlay (from tiles.json if available)
       if (WT && t === WT.TREE) {
         const half = TILE / 2;
+        const tdTree = td || getTileDef("region", WT.TREE);
+        const glyph = (tdTree && tdTree.glyph) || "||";
+        const fg = (tdTree && tdTree.colors && tdTree.colors.fg) || "#3fa650";
         ctx2d.save();
         ctx2d.lineWidth = 2;
         ctx2d.strokeStyle = "#0b0f16";
-        ctx2d.strokeText("||", screenX + half, screenY + half + 1);
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "||", "#3fa650", TILE);
+        ctx2d.strokeText(glyph, screenX + half, screenY + half + 1);
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
         ctx2d.restore();
       }
     }

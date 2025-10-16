@@ -14,6 +14,23 @@ import * as World from "../world/world.js";
 const DEFAULT_WIDTH = 28;
 const DEFAULT_HEIGHT = 18;
 
+// Helper: get tile def from GameData.tiles for a given mode and numeric id
+function getTileDef(mode, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 // Build a local downscaled sample centered around the player's world position.
@@ -358,8 +375,14 @@ export function open(ctx, size) {
         const cols = rows ? (c.map[0] ? c.map[0].length : 0) : 0;
         if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
         const t = c.map[y][x];
-        if (WT2 && (t === WT2.MOUNTAIN || t === WT2.TREE)) return false; // mountains and trees block FOV
-        return true;                                  // other overworld tiles are transparent in region
+        // Prefer tiles.json properties if present
+        const td = getTileDef("region", t);
+        if (td && td.properties && typeof td.properties.blocksFOV === "boolean") {
+          return !td.properties.blocksFOV;
+        }
+        // Fallback: mountains and trees block FOV
+        if (WT2 && (t === WT2.MOUNTAIN || t === WT2.TREE)) return false;
+        return true;
       },
     };
     // Preserve hasLOS pass-through if the previous LOS provided it
