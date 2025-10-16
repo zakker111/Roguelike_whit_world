@@ -70,20 +70,16 @@ export function draw(ctx, view) {
               drawn = TS.draw(oc, key, sx, sy, TILE);
             }
             if (!drawn) {
-              // Prefer tiles.json fill color if present per dungeon mode
+              // Tiles.json defines fill color per dungeon mode
               const td = getTileDef("dungeon", type);
-              let fill = (td && td.colors && td.colors.fill) || COLORS.floorLit;
-              if (!td) {
-                if (type === TILES.WALL) fill = COLORS.wall;
-                else if (type === TILES.STAIRS) fill = "#3a2f1b";
-                else if (type === TILES.DOOR) fill = "#3a2f1b";
-                else fill = COLORS.floorLit;
+              const fill = td && td.colors && td.colors.fill;
+              if (fill) {
+                oc.fillStyle = fill;
+                oc.fillRect(sx, sy, TILE, TILE);
               }
-              oc.fillStyle = fill;
-              oc.fillRect(sx, sy, TILE, TILE);
               if (type === TILES.STAIRS && !tilesetReady) {
                 const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
-                const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : ">";
+                const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : "";
                 const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
                 RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
               }
@@ -123,20 +119,16 @@ export function draw(ctx, view) {
           drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
         }
         if (!drawn) {
-          // Prefer tiles.json fill color if present per dungeon mode
+          // Tiles.json defines fill color per dungeon mode
           const td = getTileDef("dungeon", type);
-          let fill = (td && td.colors && td.colors.fill) || COLORS.floorLit;
-          if (!td) {
-            if (type === TILES.WALL) fill = COLORS.wall;
-            else if (type === TILES.STAIRS) fill = "#3a2f1b";
-            else if (type === TILES.DOOR) fill = "#3a2f1b";
-            else fill = COLORS.floorLit;
+          const fill = td && td.colors && td.colors.fill;
+          if (fill) {
+            ctx2d.fillStyle = fill;
+            ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
-          ctx2d.fillStyle = fill;
-          ctx2d.fillRect(screenX, screenY, TILE, TILE);
           if (type === TILES.STAIRS && !tilesetReady) {
             const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
-            const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : ">";
+            const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : "";
             const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
             RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
           }

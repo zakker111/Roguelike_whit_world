@@ -79,13 +79,7 @@ export function draw(ctx, view) {
     cam, tileOffsetX, tileOffsetY, startX, startY, endX, endY
   } = Object.assign({}, view, ctx);
 
-  const TCOL = {
-    wall: "#2f2b26",       // building
-    window: "#295b6e",     // windows
-    floor: "#0f1620",      // street/plaza
-    door: "#6f5b3e",
-    shop: "#d7ba7d",
-  };
+  // Tiles are driven entirely by data/tiles.json in town mode; no hardcoded palette here.
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
@@ -120,20 +114,13 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // Prefer tiles.json fill colors if present
-            let fill = TCOL.floor;
-            if (type === TILES.WALL) {
-              const td = getTileDef("dungeon", TILES.WALL);
-              fill = (td && td.colors && td.colors.fill) || TCOL.wall;
-            } else if (type === TILES.WINDOW) {
-              const td = getTileDef("town", TILES.WINDOW) || getTileDef("dungeon", TILES.WINDOW);
-              fill = (td && td.colors && td.colors.fill) || TCOL.window;
-            } else if (type === TILES.DOOR) {
-              const td = getTileDef("dungeon", TILES.DOOR);
-              fill = (td && td.colors && td.colors.fill) || TCOL.door;
+            // Tiles.json defines fill colors per town/dungeon modes
+            const td = getTileDef("town", type) || getTileDef("dungeon", type);
+            const fill = td && td.colors && td.colors.fill;
+            if (fill) {
+              oc.fillStyle = fill;
+              oc.fillRect(sx, sy, TILE, TILE);
             }
-            oc.fillStyle = fill;
-            oc.fillRect(sx, sy, TILE, TILE);
           }
         }
         TOWN.canvas = off;
@@ -147,7 +134,7 @@ export function draw(ctx, view) {
       RenderCore.blitViewport(ctx2d, TOWN.canvas, cam, TOWN.wpx, TOWN.hpx);
     } catch (_) {}
   } else {
-    // Fallback: draw base tiles in viewport
+    // Fallback: draw base tiles in viewport using tiles.json only
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -160,12 +147,12 @@ export function draw(ctx, view) {
           continue;
         }
         const type = rowMap[x];
-        let fill = TCOL.floor;
-        if (type === TILES.WALL) fill = TCOL.wall;
-        else if (type === TILES.WINDOW) fill = TCOL.window;
-        else if (type === TILES.DOOR) fill = TCOL.door;
-        ctx2d.fillStyle = fill;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
+        const td = getTileDef("town", type) || getTileDef("dungeon", type);
+        const fill = td && td.colors && td.colors.fill;
+        if (fill) {
+          ctx2d.fillStyle = fill;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+        }
       }
     }
   }
@@ -195,7 +182,8 @@ export function draw(ctx, view) {
     }
   }
 
-  // If shop door, overlay glyph (T for Tavern, I for Inn, otherwise S) when visible
+  // If shop door, overlay glyph (T for Tavern, I for Inn, otherwise S) when visible.
+  // Color is derived from tiles.json door fg color; if not available, skip drawing.
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowVis = yIn ? (visible[y] || []) : [];
@@ -204,10 +192,12 @@ export function draw(ctx, view) {
       const vis = !!rowVis[x];
       if (!vis) continue;
       const glyph = SHOP_GLYPHS[`${x},${y}`];
-      if (glyph) {
+      const tdDoor = getTileDef("dungeon", TILES.DOOR);
+      const shopColor = tdDoor && tdDoor.colors && tdDoor.colors.fg;
+      if (glyph && shopColor) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, TCOL.shop, TILE);
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, shopColor, TILE);
       }
     }
   }

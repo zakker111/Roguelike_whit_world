@@ -43,15 +43,15 @@ function getTileDef(mode, id) {
 }
 
 export function isWalkable(tile) {
-  // Prefer tiles.json property when available for overworld mode, then fallback.
+  // Use tiles.json property only; no tile-based fallbacks in code.
   try {
     const td = getTileDef("overworld", tile);
     if (td && td.properties && typeof td.properties.walkable === "boolean") {
       return !!td.properties.walkable;
     }
   } catch (_) {}
-  // Fallback: non-walkable water, river, mountains
-  return tile !== TILES.WATER && tile !== TILES.RIVER && tile !== TILES.MOUNTAIN;
+  // Default to walkable when JSON does not specify (not tile-specific).
+  return true;
 }
 
 function inBounds(x, y, w, h) {
@@ -59,19 +59,11 @@ function inBounds(x, y, w, h) {
 }
 
 export function biomeName(tile) {
-  switch (tile) {
-    case TILES.WATER: return "Ocean/Lake";
-    case TILES.RIVER: return "River";
-    case TILES.BEACH: return "Beach";
-    case TILES.SWAMP: return "Swamp";
-    case TILES.FOREST: return "Forest";
-    case TILES.MOUNTAIN: return "Mountain";
-    case TILES.DESERT: return "Desert";
-    case TILES.SNOW: return "Snow";
-    case TILES.GRASS: return "Plains";
-    case TILES.TOWN: return "Town";
-    case TILES.DUNGEON: return "Dungeon";
-    default: return "Unknown";
+  try {
+    const td = getTileDef("overworld", tile);
+    return (td && td.name) || "";
+  } catch (_) {
+    return "";
   }
 }
 

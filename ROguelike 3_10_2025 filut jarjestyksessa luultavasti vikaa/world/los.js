@@ -30,7 +30,7 @@ function getTileDef(mode, id) {
 export function tileTransparent(ctx, x, y) {
   if (!ctx || typeof ctx.inBounds !== "function") return false;
   if (!ctx.inBounds(x, y)) return false;
-  // Prefer tiles.json blocksFOV property based on mode if available
+  // Use tiles.json blocksFOV property only; no tile-based fallbacks in code.
   try {
     const mode = String(ctx.mode || "").toLowerCase() || "dungeon";
     const t = ctx.map[y][x];
@@ -39,8 +39,8 @@ export function tileTransparent(ctx, x, y) {
       return !td.properties.blocksFOV;
     }
   } catch (_) {}
-  // Fallback: only walls block LOS
-  return ctx.map[y][x] !== ctx.TILES.WALL;
+  // Default to transparent when JSON does not specify (not tile-specific).
+  return true;
 }
 
 export function hasLOS(ctx, x0, y0, x1, y1) {

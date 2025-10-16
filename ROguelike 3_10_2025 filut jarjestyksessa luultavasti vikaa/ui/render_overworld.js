@@ -71,20 +71,7 @@ export function draw(ctx, view) {
 
   const enemyColor = (t) => RenderCore.enemyColor(ctx, t, COLORS);
 
-  // lightweight palette for overworld
-  const WCOL = {
-    water: "#0a1b2a",
-    river: "#0e2f4a",
-    grass: "#10331a",
-    forest: "#0d2615",
-    swamp: "#1b2a1e",
-    beach: "#b59b6a",
-    desert: "#c2a36b",
-    snow: "#b9c7d3",
-    mountain: "#2f2f34",
-    town: "#3a2f1b",
-    dungeon: "#2a1b2a",
-  };
+  // Tiles are driven entirely by data/tiles.json; no hardcoded palette here.
 
   const WT = World.TILES;
   const mapRows = map.length;
@@ -125,21 +112,11 @@ export function draw(ctx, view) {
             const t = rowM[xx];
             // Prefer tiles.json fill color if present in overworld mode
             const td = getTileDef("overworld", t);
-            let c = (td && td.colors && td.colors.fill) || WCOL.grass;
-            if (!td && WT) {
-              if (t === WT.WATER) c = WCOL.water;
-              else if (t === WT.RIVER) c = WCOL.river;
-              else if (t === WT.SWAMP) c = WCOL.swamp;
-              else if (t === WT.BEACH) c = WCOL.beach;
-              else if (t === WT.DESERT) c = WCOL.desert;
-              else if (t === WT.SNOW) c = WCOL.snow;
-              else if (t === WT.FOREST) c = WCOL.forest;
-              else if (t === WT.MOUNTAIN) c = WCOL.mountain;
-              else if (t === WT.DUNGEON) c = WCOL.dungeon;
-              else if (t === WT.TOWN) c = WCOL.town;
+            const c = td && td.colors && td.colors.fill;
+            if (c) {
+              oc.fillStyle = c;
+              oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
             }
-            oc.fillStyle = c;
-            oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
             // Note: glyph overlays for towns/dungeons are drawn per-frame below, not baked into base.
           }
         }
@@ -169,22 +146,12 @@ export function draw(ctx, view) {
         }
 
         const t = row[x];
-        let fill = WCOL.grass;
-        if (WT) {
-          if (t === WT.WATER) fill = WCOL.water;
-          else if (t === WT.RIVER) fill = WCOL.river;
-          else if (t === WT.SWAMP) fill = WCOL.swamp;
-          else if (t === WT.BEACH) fill = WCOL.beach;
-          else if (t === WT.DESERT) fill = WCOL.desert;
-          else if (t === WT.SNOW) fill = WCOL.snow;
-          else if (t === WT.GRASS) fill = WCOL.grass;
-          else if (t === WT.FOREST) fill = WCOL.forest;
-          else if (t === WT.MOUNTAIN) fill = WCOL.mountain;
-          else if (t === WT.TOWN) fill = WCOL.town;
-          else if (t === WT.DUNGEON) fill = WCOL.dungeon;
+        const td = getTileDef("overworld", t);
+        const fill = td && td.colors && td.colors.fill;
+        if (fill) {
+          ctx2d.fillStyle = fill;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
         }
-        ctx2d.fillStyle = fill;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
     }
   }
@@ -218,10 +185,9 @@ export function draw(ctx, view) {
   try {
     let labelWidth = 260;
     let biomeName = "";
-    if (WT && typeof World.biomeName === "function") {
-      const tile = map[player.y] && map[player.y][player.x];
-      biomeName = World.biomeName(tile);
-    }
+    const tileHere = map[player.y] && map[player.y][player.x];
+    const tdHere = getTileDef("overworld", tileHere);
+    biomeName = (tdHere && tdHere.name) || "";
     const time = ctx.time || null;
     const clock = time ? time.hhmm : null;
 
@@ -272,21 +238,11 @@ export function draw(ctx, view) {
             for (let xx = 0; xx < mw; xx++) {
               const t = rowM[xx];
               const td = getTileDef("overworld", t);
-              let c = (td && td.colors && td.colors.fill) || WCOL.grass;
-              if (!td && WT) {
-                if (t === WT.WATER) c = WCOL.water;
-                else if (t === WT.RIVER) c = WCOL.river;
-                else if (t === WT.SWAMP) c = WCOL.swamp;
-                else if (t === WT.BEACH) c = WCOL.beach;
-                else if (t === WT.DESERT) c = WCOL.desert;
-                else if (t === WT.SNOW) c = WCOL.snow;
-                else if (t === WT.FOREST) c = WCOL.forest;
-                else if (t === WT.MOUNTAIN) c = WCOL.mountain;
-                else if (t === WT.DUNGEON) c = WCOL.dungeon;
-                else if (t === WT.TOWN) c = WCOL.town;
+              const c = td && td.colors && td.colors.fill;
+              if (c) {
+                oc.fillStyle = c;
+                oc.fillRect(xx * scale, yy * scale, scale, scale);
               }
-              oc.fillStyle = c;
-              oc.fillRect(xx * scale, yy * scale, scale, scale);
             }
           }
           // overlay towns and dungeons squares using JSON fg colors if present
