@@ -956,6 +956,7 @@
       camera,
       mode,
       world,
+      region,
       npcs,
       shops,
       townProps,
