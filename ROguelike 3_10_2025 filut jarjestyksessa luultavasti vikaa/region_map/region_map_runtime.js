@@ -154,6 +154,102 @@ function filterSampleByNeighborSet(sample, neighborSet, primaryTile) {
   }
 }
 
+// Determine predominant tile for each cardinal direction relative to the player.
+// N considers (px-1,py-1), (px,py-1), (px+1,py-1); S considers row y+1; W/E consider columns x-1/x+1.
+function computeCardinalTiles(world, px, py) {
+  const Ww = world.width || (world.map[0] ? world.map[0].length : 0);
+  const Wh = world.height || world.map.length;
+
+  function predominant(list) {
+    const m = new Map();
+    for (const t of list) m.set(t, (m.get(t) || 0) + 1);
+    let best = null, bestCnt = -1;
+    for (const [t, cnt] of m.entries()) {
+      if (cnt > bestCnt) { best = t; bestCnt = cnt; }
+    }
+    return best;
+  }
+
+  const northList = [];
+  for (let dx = -1; dx <= 1; dx++) {
+    const nx = px + dx, ny = py - 1;
+    if (nx >= 0 && ny >= 0 && nx < Ww && ny < Wh) northList.push(world.map[ny][nx]);
+  }
+  const southList = [];
+  for (let dx = -1; dx <= 1; dx++) {
+    const nx = px + dx, ny = py + 1;
+    if (nx >= 0 && ny >= 0 && nx < Ww && ny < Wh) southList.push(world.map[ny][nx]);
+  }
+  const westList = [];
+  for (let dy = -1; dy <= 1; dy++) {
+    const nx = px - 1, ny = py + dy;
+    if (nx >= 0 && ny >= 0 && nx < Ww && ny < Wh) westList.push(world.map[ny][nx]);
+  }
+  const eastList = [];
+  for (let dy = -1; dy <= 1; dy++) {
+    const nx = px + 1, ny = py + dy;
+    if (nx >= 0 && ny >= 0 && nx < Ww && ny < Wh) eastList.push(world.map[ny][nx]);
+  }
+
+  return {
+    N: northList.length ? predominant(northList) : null,
+    S: southList.length ? predominant(southList) : null,
+    W: westList.length ? predominant(westList) : null,
+    E: eastList.length ? predominant(eastList) : null,
+  };
+}
+
+// Orient the region sample so that cardinal biomes appear toward their respective edges.
+// Top band -> N tile, bottom band -> S tile, left band -> W tile, right band -> E tile.
+function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33) {
+  const h = sample.length, w = sample[0] ? sample[0].length : 0;
+  if (!w || !h) return;
+  const topH = Math.max(1, Math.floor(h * edgeFrac));
+  const botH = Math.max(1, Math.floor(h * edgeFrac));
+  const leftW = Math.max(1, Math.floor(w * edgeFrac));
+  const rightW = Math.max(1, Math.floor(w * edgeFrac));
+
+  // Top band (north)
+  if (cardinals.N != null) {
+    for (let y = 0; y < topH; y++) {
+      const row = sample[y];
+      for (let x = 0; x < w; x++) {
+        row[x] = cardinals.N;
+      }
+    }
+  }
+
+  // Bottom band (south)
+  if (cardinals.S != null) {
+    for (let y = h - botH; y < h; y++) {
+      const row = sample[y];
+      for (let x = 0; x < w; x++) {
+        row[x] = cardinals.S;
+      }
+    }
+  }
+
+  // Left band (west)
+  if (cardinals.W != null) {
+    for (let y = 0; y < h; y++) {
+      const row = sample[y];
+      for (let x = 0; x < leftW; x++) {
+        row[x] = cardinals.W;
+      }
+    }
+  }
+
+  // Right band (east)
+  if (cardinals.E != null) {
+    for (let y = 0; y < h; y++) {
+      const row = sample[y];
+      for (let x = w - rightW; x < w; x++) {
+        row[x] = cardinals.E;
+      }
+    }
+  }
+}
+
 export function open(ctx, size) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
   // Only allow from walkable, non-town, non-dungeon tiles
@@ -175,6 +271,10 @@ export function open(ctx, size) {
   neighborSet.add(playerTile);
   const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
   filterSampleByNeighborSet(sample, neighborSet, primaryTile);
+
+  // Orient biomes by cardinal direction: if mountains are north in overworld, show mountains toward the top, etc.
+  const cardinals = computeCardinalTiles(ctx.world, ctx.player.x | 0, ctx.player.y | 0);
+  orientSampleByCardinals(sample, cardinals, 0.33);
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   addMinorWaterAndBeaches(sample);
