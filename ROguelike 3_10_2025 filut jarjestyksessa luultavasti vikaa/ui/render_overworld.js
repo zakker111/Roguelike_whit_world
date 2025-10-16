@@ -130,17 +130,7 @@ export function draw(ctx, view) {
             }
             oc.fillStyle = c;
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
-            // Overlay static glyphs directly onto the base
-            if (WT && t === WT.TOWN) {
-              const glyph = TOWN_GLYPHS[`${xx},${yy}`] || ((getTileDef("overworld", WT.TOWN) && getTileDef("overworld", WT.TOWN).glyph) || "T");
-              const fg = ((getTileDef("overworld", WT.TOWN) && getTileDef("overworld", WT.TOWN).colors && getTileDef("overworld", WT.TOWN).colors.fg) || "#d7ba7d");
-              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, glyph, fg, TILE);
-            } else if (WT && t === WT.DUNGEON) {
-              const td = getTileDef("overworld", WT.DUNGEON);
-              const glyph = (td && td.glyph) || "D";
-              const fg = (td && td.colors && td.colors.fg) || "#c586c0";
-              RenderCore.drawGlyph(oc, xx * TILE, yy * TILE, glyph, fg, TILE);
-            }
+            // Note: glyph overlays for towns/dungeons are drawn per-frame below, not baked into base.
           }
         }
         WORLD.canvas = off;
@@ -185,20 +175,31 @@ export function draw(ctx, view) {
         }
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
+      }
+    }
+  }
 
-        // Overlay glyphs for special overworld tiles
-        if (WT && t === WT.TOWN) {
-          const tdTown = getTileDef("overworld", WT.TOWN);
-          const defGlyph = (tdTown && tdTown.glyph) || "T";
-          const glyph = TOWN_GLYPHS[`${x},${y}`] || defGlyph;
-          const fg = (tdTown && tdTown.colors && tdTown.colors.fg) || "#d7ba7d";
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-        } else if (WT && t === WT.DUNGEON) {
-          const td = getTileDef("overworld", WT.DUNGEON);
-          const glyph = (td && td.glyph) || "D";
-          const fg = (td && td.colors && td.colors.fg) || "#c586c0";
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-        }
+  // Per-frame glyph overlay for towns and dungeons: uses tiles.json and reflects changes immediately
+  for (let y = startY; y <= endY; y++) {
+    const yIn = y >= 0 && y < mapRows;
+    const row = yIn ? map[y] : null;
+    for (let x = startX; x <= endX; x++) {
+      if (!yIn || x < 0 || x >= mapCols) continue;
+      const t = row[x];
+      if (WT && t === WT.TOWN) {
+        const tdTown = getTileDef("overworld", WT.TOWN);
+        const glyph = (tdTown && tdTown.glyph) || "T";
+        const fg = (tdTown && tdTown.colors && tdTown.colors.fg) || "#d7ba7d";
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+      } else if (WT && t === WT.DUNGEON) {
+        const td = getTileDef("overworld", WT.DUNGEON);
+        const glyph = (td && td.glyph) || "D";
+        const fg = (td && td.colors && td.colors.fg) || "#c586c0";
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
       }
     }
   }
