@@ -124,7 +124,7 @@
       "tags": ["decor", "woods"]
     },
 
-    // Dungeon mode tiles (IDs overlap with overworld; use appearsIn to disambiguate)
+    
     {
       "id": 0,
       "key": "WALL",
