@@ -3,9 +3,9 @@
  * Lightweight, fixed-size overlay map shown from overworld when pressing G on a walkable tile.
  *
  * Exports (ESM + window.RegionMapRuntime):
- * - open(ctx, size?): builds a downscaled view of the world and enters "region" mode.
+ * - open(ctx, size?): builds a local downscaled view of the world and enters "region" mode.
  * - close(ctx): returns to overworld at the same coordinates where G was pressed.
- * - tryMove(ctx, dx, dy): moves the region cursor within bounds (no time advance).
+ * - tryMove(ctx, dx, dy): moves the region cursor within bounds; respects overworld walkability.
  * - onAction(ctx): pressing G inside region map; closes only when on an orange edge tile.
  * - tick(ctx): optional no-op hook.
  */
@@ -16,49 +16,101 @@ const DEFAULT_HEIGHT = 18;
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-function colorForTile(t) {
-  const WT = World.TILES;
-  const WCOL = {
-    water: "#0a1b2a",
-    river: "#0e2f4a",
-    grass: "#10331a",
-    forest: "#0d2615",
-    swamp: "#1b2a1e",
-    beach: "#b59b6a",
-    desert: "#c2a36b",
-    snow: "#b9c7d3",
-    mountain: "#2f2f34",
-    town: "#3a2f1b",
-    dungeon: "#2a1b2a",
-    unknown: "#0b0c10",
-  };
-  if (!WT) return WCOL.unknown;
-  if (t === WT.WATER) return WCOL.water;
-  if (t === WT.RIVER) return WCOL.river;
-  if (t === WT.SWAMP) return WCOL.swamp;
-  if (t === WT.BEACH) return WCOL.beach;
-  if (t === WT.DESERT) return WCOL.desert;
-  if (t === WT.SNOW) return WCOL.snow;
-  if (t === WT.FOREST) return WCOL.forest;
-  if (t === WT.MOUNTAIN) return WCOL.mountain;
-  if (t === WT.DUNGEON) return WCOL.dungeon;
-  if (t === WT.TOWN) return WCOL.town;
-  return WCOL.grass;
-}
-
-function buildDownscaled(world, w, h) {
+// Build a local downscaled sample centered around the player's world position.
+// Samples a window ~35% of the world dimensions to reflect nearby biomes rather than the whole map.
+function buildLocalDownscaled(world, px, py, w, h) {
   const out = Array.from({ length: h }, () => Array(w).fill(0));
   const Ww = world.width || (world.map[0] ? world.map[0].length : 0);
   const Wh = world.height || world.map.length;
   if (!Ww || !Wh) return out;
+
+  const winW = clamp(Math.floor(Ww * 0.35), 12, Ww);
+  const winH = clamp(Math.floor(Wh * 0.35), 8, Wh);
+  const minX = clamp(px - Math.floor(winW / 2), 0, Math.max(0, Ww - winW));
+  const minY = clamp(py - Math.floor(winH / 2), 0, Math.max(0, Wh - winH));
+
   for (let ry = 0; ry < h; ry++) {
     for (let rx = 0; rx < w; rx++) {
-      const nx = Math.round(rx * (Ww - 1) / Math.max(1, (w - 1)));
-      const ny = Math.round(ry * (Wh - 1) / Math.max(1, (h - 1)));
+      const nx = minX + Math.round(rx * (winW - 1) / Math.max(1, (w - 1)));
+      const ny = minY + Math.round(ry * (winH - 1) / Math.max(1, (h - 1)));
       out[ry][rx] = world.map[ny][nx];
     }
   }
   return out;
+}
+
+function countBiomes(sample) {
+  const WT = World.TILES;
+  const counts = {
+    [WT.WATER]: 0, [WT.RIVER]: 0, [WT.BEACH]: 0,
+    [WT.SWAMP]: 0, [WT.FOREST]: 0, [WT.GRASS]: 0,
+    [WT.MOUNTAIN]: 0, [WT.DESERT]: 0, [WT.SNOW]: 0,
+    [WT.TOWN]: 0, [WT.DUNGEON]: 0
+  };
+  for (let y = 0; y < sample.length; y++) {
+    const row = sample[y] || [];
+    for (let x = 0; x < row.length; x++) {
+      const t = row[x];
+      if (typeof counts[t] === "number") counts[t] += 1;
+    }
+  }
+  const total = sample.length * (sample[0] ? sample[0].length : 0);
+  return { counts, total };
+}
+
+// Add small ponds to otherwise uniform regions (grass/forest dominated),
+// and add beach shorelines near any water.
+function addMinorWaterAndBeaches(sample) {
+  const WT = World.TILES;
+  const h = sample.length, w = sample[0] ? sample[0].length : 0;
+  if (!w || !h) return;
+
+  const { counts, total } = countBiomes(sample);
+  const waterTiles = (counts[WT.WATER] || 0) + (counts[WT.RIVER] || 0);
+  const grassTiles = (counts[WT.GRASS] || 0);
+  const forestTiles = (counts[WT.FOREST] || 0);
+
+  // Inject a few ponds if no water and dominated by grass/forest
+  if (waterTiles < Math.max(1, Math.floor(total * 0.01)) && (grassTiles + forestTiles) > Math.floor(total * 0.65)) {
+    const ponds = Math.floor(Math.random() * 3); // 0..2 small ponds
+    for (let p = 0; p < ponds; p++) {
+      const cx = clamp((Math.random() * w) | 0, 2, w - 3);
+      const cy = clamp((Math.random() * h) | 0, 2, h - 3);
+      const rx = 2 + ((Math.random() * 2) | 0);
+      const ry = 1 + ((Math.random() * 2) | 0);
+      for (let dy = -ry; dy <= ry; dy++) {
+        for (let dx = -rx; dx <= rx; dx++) {
+          const nx = cx + dx, ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const e = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+          if (e <= 1.0) {
+            sample[ny][nx] = WT.WATER;
+          }
+        }
+      }
+    }
+  }
+
+  // Shoreline pass: convert tiles adjacent to water into BEACH to reflect coastlines
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const t = sample[y][x];
+      if (t === WT.WATER) continue;
+      let nearWater = false;
+      for (let dy = -1; dy <= 1 && !nearWater; dy++) {
+        for (let dx = -1; dx <= 1 && !nearWater; dx++) {
+          if (!dx && !dy) continue;
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const nt = sample[ny][nx];
+          if (nt === WT.WATER || nt === WT.RIVER) nearWater = true;
+        }
+      }
+      if (nearWater && (t === WT.GRASS || t === WT.FOREST)) {
+        sample[y][x] = WT.BEACH;
+      }
+    }
+  }
 }
 
 export function open(ctx, size) {
@@ -73,7 +125,9 @@ export function open(ctx, size) {
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
 
-  const sample = buildDownscaled(ctx.world, width, height);
+  // Build local sample reflecting biomes near the player, then enhance per rules (minor water, beaches)
+  const sample = buildLocalDownscaled(ctx.world, ctx.player.x | 0, ctx.player.y | 0, width, height);
+  addMinorWaterAndBeaches(sample);
 
   const exitNorth = { x: (width / 2) | 0, y: 0 };
   const exitSouth = { x: (width / 2) | 0, y: height - 1 };
@@ -187,17 +241,14 @@ export function tryMove(ctx, dx, dy) {
   } catch (_) {}
 
   if (!walkable) {
-    // No movement; still consume a draw for feedback
     try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
     return false;
   }
 
   ctx.region.cursor = { x: nx, y: ny };
-  // Keep player in sync with region cursor for camera centering
   ctx.player.x = nx; ctx.player.y = ny;
 
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
-  // Act like other modes: advance a turn on movement
   try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
   return true;
 }
@@ -215,6 +266,11 @@ export function onAction(ctx) {
 }
 
 export function tick(ctx) { return true; }
+
+// Back-compat: attach to window
+if (typeof window !== "undefined") {
+  window.RegionMapRuntime = { open, close, tryMove, onAction, tick };
+}
 
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
