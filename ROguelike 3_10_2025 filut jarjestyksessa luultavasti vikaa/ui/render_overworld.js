@@ -39,12 +39,16 @@ function rebuildTownGlyphs(towns) {
         // Default glyph from tiles.json (overworld mode), fallback to size-derived
         let defGlyph = "T";
         const tdTown = getTileDef("overworld", World.TILES.TOWN);
-        if (tdTown && tdTown.glyph) defGlyph = tdTown.glyph;
+        if (tdTown && Object.prototype.hasOwnProperty.call(tdTown, "glyph")) defGlyph = tdTown.glyph;
 
         let glyph = defGlyph;
-        const sz = (info.size || "").toLowerCase();
-        if (sz === "small") glyph = "t";
-        else if (sz === "city") glyph = "C";
+        // If JSON glyph is blank, respect it and don't override by size
+        const jsonBlank = !glyph || String(glyph).trim().length === 0;
+        if (!jsonBlank) {
+          const sz = (info.size || "").toLowerCase();
+          if (sz === "small") glyph = "t";
+          else if (sz === "city") glyph = "C";
+        }
         out[`${info.x},${info.y}`] = glyph;
       }
     }
