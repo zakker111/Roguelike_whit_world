@@ -80,11 +80,24 @@ export function open(ctx, size) {
   const exitWest = { x: 0, y: (height / 2) | 0 };
   const exitEast = { x: width - 1, y: (height / 2) | 0 };
 
+  // Choose spawn exit closest to the player's overworld position relative to world edges
+  const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
+  const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
+  const dNorth = ctx.player.y | 0;
+  const dSouth = Math.max(0, (worldH - 1) - (ctx.player.y | 0));
+  const dWest = ctx.player.x | 0;
+  const dEast = Math.max(0, (worldW - 1) - (ctx.player.x | 0));
+  let spawnExit = exitNorth;
+  const minD = Math.min(dNorth, dSouth, dWest, dEast);
+  if (minD === dSouth) spawnExit = exitSouth;
+  else if (minD === dWest) spawnExit = exitWest;
+  else if (minD === dEast) spawnExit = exitEast;
+
   ctx.region = {
     width,
     height,
     map: sample,
-    cursor: { x: (width / 2) | 0, y: (height / 2) | 0 },
+    cursor: { x: spawnExit.x | 0, y: spawnExit.y | 0 },
     exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
     enterWorldPos: { x: ctx.player.x, y: ctx.player.y },
     _prevLOS: ctx.los || null,
