@@ -7,8 +7,32 @@
 import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
 
+// Helper: get tile def from GameData.tiles for a given mode and numeric id
+function getTileDef(mode, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+// Helper: current tiles.json reference (for cache invalidation)
+function tilesRef() {
+  try {
+    return (typeof window !== "undefined" && window.GameData && window.GameData.tiles) ? window.GameData.tiles : null;
+  } catch (_) { return null; }
+}
+
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
+let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
 // Shop glyphs cache keyed by shops array reference
 let SHOP_GLYPHS_CACHE = { ref: null, map: {} };
 
@@ -58,12 +82,13 @@ export function draw(ctx, view) {
     if (mapRows && mapCols) {
       const wpx = mapCols * TILE;
       const hpx = mapRows * TILE;
-      const needsRebuild = (!TOWN.canvas) || TOWN.mapRef !== map || TOWN.wpx !== wpx || TOWN.hpx !== hpx || TOWN.TILE !== TILE;
+      const needsRebuild = (!TOWN.canvas) || TOWN.mapRef !== map || TOWN.wpx !== wpx || TOWN.hpx !== hpx || TOWN.TILE !== TILE || TOWN._tilesRef !== tilesRef();
       if (needsRebuild) {
         TOWN.mapRef = map;
         TOWN.wpx = wpx;
         TOWN.hpx = hpx;
         TOWN.TILE = TILE;
+        TOWN._tilesRef = tilesRef();
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         try {
@@ -76,10 +101,18 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
+            // Prefer tiles.json fill colors if present
             let fill = TCOL.floor;
-            if (type === TILES.WALL) fill = TCOL.wall;
-            else if (type === TILES.WINDOW) fill = TCOL.window;
-            else if (type === TILES.DOOR) fill = TCOL.door;
+            if (type === TILES.WALL) {
+              const td = getTileDef("dungeon", TILES.WALL);
+              fill = (td && td.colors && td.colors.fill) || TCOL.wall;
+            } else if (type === TILES.WINDOW) {
+              const td = getTileDef("town", TILES.WINDOW) || getTileDef("dungeon", TILES.WINDOW);
+              fill = (td && td.colors && td.colors.fill) || TCOL.window;
+            } else if (type === TILES.DOOR) {
+              const td = getTileDef("dungeon", TILES.DOOR);
+              fill = (td && td.colors && td.colors.fill) || TCOL.door;
+            }
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }

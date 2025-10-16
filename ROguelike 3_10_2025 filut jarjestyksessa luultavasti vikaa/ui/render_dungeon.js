@@ -7,7 +7,7 @@
 import * as RenderCore from "./render_core.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
-let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
+let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
 
 // Helper: get tile def from GameData.tiles for a given mode and numeric id
 function getTileDef(mode, id) {
@@ -41,12 +41,13 @@ export function draw(ctx, view) {
     if (mapRows && mapCols) {
       const wpx = mapCols * TILE;
       const hpx = mapRows * TILE;
-      const needsRebuild = (!DUN.canvas) || DUN.mapRef !== map || DUN.wpx !== wpx || DUN.hpx !== hpx || DUN.TILE !== TILE;
+      const needsRebuild = (!DUN.canvas) || DUN.mapRef !== map || DUN.wpx !== wpx || DUN.hpx !== hpx || DUN.TILE !== TILE || DUN._tilesRef !== (typeof window !== "undefined" && window.GameData ? window.GameData.tiles : null);
       if (needsRebuild) {
         DUN.mapRef = map;
         DUN.wpx = wpx;
         DUN.hpx = hpx;
         DUN.TILE = TILE;
+        DUN._tilesRef = (typeof window !== "undefined" && window.GameData ? window.GameData.tiles : null);
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         // Set font/align once for glyphs

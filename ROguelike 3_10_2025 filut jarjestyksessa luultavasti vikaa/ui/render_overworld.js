@@ -8,9 +8,9 @@ import * as RenderCore from "./render_core.js";
 import * as World from "../world/world.js";
 
 // Minimap offscreen cache to avoid redrawing every frame
-let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0 };
+let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null };
 // World base layer offscreen cache (full map at TILE resolution)
-let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
+let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
 // Town glyphs cache keyed by towns array reference
 let TOWN_GLYPHS_CACHE = { ref: null, map: {} };
 
@@ -45,15 +45,18 @@ function rebuildTownGlyphs(towns) {
         const sz = (info.size || "").toLowerCase();
         if (sz === "small") glyph = "t";
         else if (sz === "city") glyph = "C";
-        out[`${ 
-          info.x 
-        },${ 
-          info.y 
-        }`] = glyph;
+        out[`${info.x},${info.y}`] = glyph;
       }
     }
   } catch (_) {}
   TOWN_GLYPHS_CACHE = { ref: towns, map: out };
+}
+
+// Helper: current tiles.json reference (for cache invalidation)
+function tilesRef() {
+  try {
+    return (typeof window !== "undefined" && window.GameData && window.GameData.tiles) ? window.GameData.tiles : null;
+  } catch (_) { return null; }
 }
 
 export function draw(ctx, view) {
@@ -97,12 +100,13 @@ export function draw(ctx, view) {
     if (mw && mh) {
       const wpx = mw * TILE;
       const hpx = mh * TILE;
-      const needsWorldRebuild = (!WORLD.canvas) || WORLD.mapRef !== map || WORLD.wpx !== wpx || WORLD.hpx !== hpx || WORLD.TILE !== TILE;
+      const needsWorldRebuild = (!WORLD.canvas) || WORLD.mapRef !== map || WORLD.wpx !== wpx || WORLD.hpx !== hpx || WORLD.TILE !== TILE || WORLD._tilesRef !== tilesRef();
       if (needsWorldRebuild) {
         WORLD.mapRef = map;
         WORLD.wpx = wpx;
         WORLD.hpx = hpx;
         WORLD.TILE = TILE;
+        WORLD._tilesRef = tilesRef();
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         // Set font/align once for glyphs
@@ -115,8 +119,10 @@ export function draw(ctx, view) {
           const rowM = map[yy];
           for (let xx = 0; xx < mw; xx++) {
             const t = rowM[xx];
-            let c = WCOL.grass;
-            if (WT) {
+            // Prefer tiles.json fill color if present in overworld mode
+            const td = getTileDef("overworld", t);
+            let c = (td && td.colors && td.colors.fill) || WCOL.grass;
+            if (!td && WT) {
               if (t === WT.WATER) c = WCOL.water;
               else if (t === WT.RIVER) c = WCOL.river;
               else if (t === WT.SWAMP) c = WCOL.swamp;
@@ -247,12 +253,13 @@ export function draw(ctx, view) {
 
         // Build offscreen once per world map reference or dimension change
         const mapRef = map;
-        const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale;
+        const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef();
         if (needsRebuild) {
           MINI.mapRef = mapRef;
           MINI.wpx = wpx;
           MINI.hpx = hpx;
           MINI.scale = scale;
+          MINI._tilesRef = tilesRef();
           const off = RenderCore.createOffscreen(wpx, hpx);
           const oc = off.getContext("2d");
           // tiles
@@ -260,8 +267,9 @@ export function draw(ctx, view) {
             const rowM = map[yy];
             for (let xx = 0; xx < mw; xx++) {
               const t = rowM[xx];
-              let c = WCOL.grass;
-              if (WT) {
+              const td = getTileDef("overworld", t);
+              let c = (td && td.colors && td.colors.fill) || WCOL.grass;
+              if (!td && WT) {
                 if (t === WT.WATER) c = WCOL.water;
                 else if (t === WT.RIVER) c = WCOL.river;
                 else if (t === WT.SWAMP) c = WCOL.swamp;
@@ -277,15 +285,19 @@ export function draw(ctx, view) {
               oc.fillRect(xx * scale, yy * scale, scale, scale);
             }
           }
-          // overlay towns and dungeons
+          // overlay towns and dungeons squares using JSON fg colors if present
+          const tdTown = getTileDef("overworld", WT.TOWN);
+          const tdDun = getTileDef("overworld", WT.DUNGEON);
+          const townFg = (tdTown && tdTown.colors && tdTown.colors.fg) || "#ffcc66";
+          const dunFg = (tdDun && tdDun.colors && tdDun.colors.fg) || "#c586c0";
           if (ctx.world && Array.isArray(ctx.world.towns)) {
-            oc.fillStyle = "#ffcc66";
+            oc.fillStyle = townFg;
             for (const t of ctx.world.towns) {
               oc.fillRect(t.x * scale, t.y * scale, Math.max(1, scale), Math.max(1, scale));
             }
           }
           if (ctx.world && Array.isArray(ctx.world.dungeons)) {
-            oc.fillStyle = "#c586c0";
+            oc.fillStyle = dunFg;
             for (const d of ctx.world.dungeons) {
               oc.fillRect(d.x * scale, d.y * scale, Math.max(1, scale), Math.max(1, scale));
             }
