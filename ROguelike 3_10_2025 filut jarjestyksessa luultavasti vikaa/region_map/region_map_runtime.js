@@ -113,6 +113,47 @@ function addMinorWaterAndBeaches(sample) {
   }
 }
 
+// Collect the set of immediate neighboring tiles around the player (8-neighborhood).
+function collectNeighborSet(world, px, py) {
+  const Ww = world.width || (world.map[0] ? world.map[0].length : 0);
+  const Wh = world.height || world.map.length;
+  const set = new Set();
+  const counts = new Map();
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = px + dx, ny = py + dy;
+      if (nx < 0 || ny < 0 || nx >= Ww || ny >= Wh) continue;
+      const t = world.map[ny][nx];
+      set.add(t);
+      counts.set(t, (counts.get(t) || 0) + 1);
+    }
+  }
+  return { set, counts };
+}
+
+function choosePrimaryTile(counts, fallback) {
+  let bestTile = fallback;
+  let bestCount = -1;
+  for (const [tile, cnt] of counts.entries()) {
+    if (cnt > bestCount) { bestCount = cnt; bestTile = tile; }
+  }
+  return bestTile;
+}
+
+// Filter a sampled region to only use tiles present in neighborSet; replace others with primaryTile.
+function filterSampleByNeighborSet(sample, neighborSet, primaryTile) {
+  for (let y = 0; y < sample.length; y++) {
+    const row = sample[y] || [];
+    for (let x = 0; x < row.length; x++) {
+      const t = row[x];
+      if (!neighborSet.has(t)) {
+        row[x] = primaryTile;
+      }
+    }
+  }
+}
+
 export function open(ctx, size) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
   // Only allow from walkable, non-town, non-dungeon tiles
@@ -125,8 +166,17 @@ export function open(ctx, size) {
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
 
-  // Build local sample reflecting biomes near the player, then enhance per rules (minor water, beaches)
-  const sample = buildLocalDownscaled(ctx.world, ctx.player.x | 0, ctx.player.y | 0, width, height);
+  // Build local sample reflecting biomes near the player.
+  let sample = buildLocalDownscaled(ctx.world, ctx.player.x | 0, ctx.player.y | 0, width, height);
+
+  // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile).
+  const playerTile = tile;
+  const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, ctx.player.x | 0, ctx.player.y | 0);
+  neighborSet.add(playerTile);
+  const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
+  filterSampleByNeighborSet(sample, neighborSet, primaryTile);
+
+  // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   addMinorWaterAndBeaches(sample);
 
   const exitNorth = { x: (width / 2) | 0, y: 0 };
