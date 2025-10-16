@@ -26,6 +26,7 @@ export function draw(ctx, view) {
     river: "#0e2f4a",
     grass: "#10331a",
     forest: "#0d2615",
+    tree: "#0f3b1e",      // dark green for TREE tiles
     swamp: "#1b2a1e",
     beach: "#b59b6a",
     desert: "#c2a36b",
@@ -59,12 +60,24 @@ export function draw(ctx, view) {
         else if (t === WT.DESERT) fill = WCOL.desert;
         else if (t === WT.SNOW) fill = WCOL.snow;
         else if (t === WT.FOREST) fill = WCOL.forest;
+        else if (t === WT.TREE) fill = WCOL.tree;
         else if (t === WT.MOUNTAIN) fill = WCOL.mountain;
         else if (t === WT.DUNGEON) fill = WCOL.dungeon;
         else if (t === WT.TOWN) fill = WCOL.town;
       }
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(screenX, screenY, TILE, TILE);
+
+      // TREE glyph overlay
+      if (WT && t === WT.TREE) {
+        const half = TILE / 2;
+        ctx2d.save();
+        ctx2d.lineWidth = 2;
+        ctx2d.strokeStyle = "#0b0f16";
+        ctx2d.strokeText("||", screenX + half, screenY + half + 1);
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, "||", "#3fa650", TILE);
+        ctx2d.restore();
+      }
     }
   }
 
