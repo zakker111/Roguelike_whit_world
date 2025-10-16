@@ -87,6 +87,7 @@ export function open(ctx, size) {
     cursor: { x: (width / 2) | 0, y: (height / 2) | 0 },
     exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
     enterWorldPos: { x: ctx.player.x, y: ctx.player.y },
+    _prevLOS: ctx.los || null,
   };
 
   // Region behaves like a normal mode: use region map as active map and player follows cursor
@@ -97,6 +98,21 @@ export function open(ctx, size) {
   // Move player to region cursor (camera centers on player)
   ctx.player.x = ctx.region.cursor.x | 0;
   ctx.player.y = ctx.region.cursor.y | 0;
+
+  // Override LOS transparency in region mode: mountains block FOV, water/river do not.
+  try {
+    const WT2 = World.TILES;
+    const los = ctx.los || {};
+    los.tileTransparent = (c, x, y) => {
+      const rows = c.map.length;
+      const cols = rows ? (c.map[0] ? c.map[0].length : 0) : 0;
+      if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+      const t = c.map[y][x];
+      if (WT2 && t === WT2.MOUNTAIN) return false;   // block FOV on mountains
+      return true;                                    // all other biomes are transparent for FOV in region
+    };
+    ctx.los = los;
+  } catch (_) {}
 
   ctx.mode = "region";
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
@@ -111,6 +127,12 @@ export function close(ctx) {
   if (!ctx || ctx.mode !== "region") return false;
   // Restore world view and player position at the exact coordinates where G was pressed
   const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
+  // Restore previous LOS transparency
+  try {
+    if (ctx.region && ctx.region._prevLOS) {
+      ctx.los = ctx.region._prevLOS;
+    }
+  } catch (_) {}
   ctx.mode = "world";
   // Restore active map to world
   if (ctx.world && ctx.world.map) {
