@@ -1271,8 +1271,12 @@
     if (mode === "region") {
       const RM = modHandle("RegionMapRuntime");
       if (RM && typeof RM.onAction === "function") {
-        const handled = !!RM.onAction(getCtx());
-        if (handled) return;
+        const ctxMod = getCtx();
+        const handled = !!RM.onAction(ctxMod);
+        if (handled) {
+          applyCtxSyncAndRefresh(ctxMod);
+          return;
+        }
       }
       return;
     }
