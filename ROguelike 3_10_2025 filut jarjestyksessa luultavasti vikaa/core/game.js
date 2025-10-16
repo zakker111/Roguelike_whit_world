@@ -52,6 +52,8 @@
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
   let mode = "world";
   let world = null;          // { map, width, height, towns, dungeons }
+  // Region map overlay state (fixed-size downscaled world view)
+  let region = null;         // { width, height, map:number[][], cursor:{x,y}, exitTiles:[{x,y}], enterWorldPos:{x,y} }
   let npcs = [];             // simple NPCs for town mode: { x, y, name, lines:[] }
   let shops = [];            // shops in town mode: [{x,y,type,name}]
   let townProps = [];        // interactive town props: [{x,y,type,name}]
@@ -221,6 +223,7 @@
       // world/overworld
       mode,
       world,
+      region,
       worldReturnPos,
       cameFromWorld,
       npcs,
@@ -1095,6 +1098,7 @@
     townPlaza = ctx.townPlaza || townPlaza;
     tavern = ctx.tavern || tavern;
     worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+    region = ctx.region || region;
     townExitAt = ctx.townExitAt || townExitAt;
     dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
     currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
