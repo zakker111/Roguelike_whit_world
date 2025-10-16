@@ -91,9 +91,9 @@ export function open(ctx, size) {
 
   // Region behaves like a normal mode: use region map as active map and player follows cursor
   ctx.map = sample;
-  // Reveal region map fully
-  ctx.seen = Array.from({ length: height }, () => Array(width).fill(true));
-  ctx.visible = Array.from({ length: height }, () => Array(width).fill(true));
+  // Initialize FOV memory and visibility (unseen by default; recomputeFOV will fill visible)
+  ctx.seen = Array.from({ length: height }, () => Array(width).fill(false));
+  ctx.visible = Array.from({ length: height }, () => Array(width).fill(false));
   // Move player to region cursor (camera centers on player)
   ctx.player.x = ctx.region.cursor.x | 0;
   ctx.player.y = ctx.region.cursor.y | 0;
@@ -140,9 +140,27 @@ export function tryMove(ctx, dx, dy) {
   const nx = clamp(cur.x + (dx | 0), 0, w - 1);
   const ny = clamp(cur.y + (dy | 0), 0, h - 1);
   if (nx === cur.x && ny === cur.y) return false;
+
+  // Respect overworld walkability (water/river/mountain are not walkable)
+  const row = ctx.region.map[ny] || [];
+  const tile = row[nx];
+  let walkable = true;
+  try {
+    const WT = World.TILES;
+    const isWalkableWorld = (typeof World.isWalkable === "function") ? World.isWalkable : null;
+    walkable = isWalkableWorld ? !!isWalkableWorld(tile) : (WT ? (tile !== WT.WATER && tile !== WT.RIVER && tile !== WT.MOUNTAIN) : true);
+  } catch (_) {}
+
+  if (!walkable) {
+    // No movement; still consume a draw for feedback
+    try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+    return false;
+  }
+
   ctx.region.cursor = { x: nx, y: ny };
   // Keep player in sync with region cursor for camera centering
   ctx.player.x = nx; ctx.player.y = ny;
+
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
   // Act like other modes: advance a turn on movement
   try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}

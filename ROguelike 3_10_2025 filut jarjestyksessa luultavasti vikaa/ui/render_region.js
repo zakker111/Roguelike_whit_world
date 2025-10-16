@@ -10,14 +10,13 @@ import * as World from "../world/world.js";
 export function draw(ctx, view) {
   if (!ctx || ctx.mode !== "region" || !ctx.region) return;
   const {
-    ctx2d, TILE,
+    ctx2d, TILE, COLORS, map, seen, visible,
     startX, startY, endX, endY,
     tileOffsetX, tileOffsetY,
     cam
-  } = view;
+  } = Object.assign({}, view, ctx);
 
   const WT = World.TILES;
-  const map = ctx.map || [];
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
@@ -36,7 +35,7 @@ export function draw(ctx, view) {
     dungeon: "#2a1b2a",
   };
 
-  // Base tiles
+  // Base tiles within viewport
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const row = yIn ? map[y] : null;
@@ -69,6 +68,31 @@ export function draw(ctx, view) {
     }
   }
 
+  // Visibility overlays within viewport (void for unseen, dim for seen-but-not-visible)
+  for (let y = startY; y <= endY; y++) {
+    const yIn = y >= 0 && y < mapRows;
+    const rowSeen = yIn ? (seen[y] || []) : [];
+    const rowVis = yIn ? (visible[y] || []) : [];
+    for (let x = startX; x <= endX; x++) {
+      const screenX = (x - startX) * TILE - tileOffsetX;
+      const screenY = (y - startY) * TILE - tileOffsetY;
+      if (!yIn || x < 0 || x >= mapCols) {
+        ctx2d.fillStyle = COLORS.wallDark;
+        ctx2d.fillRect(screenX, screenY, TILE, TILE);
+        continue;
+      }
+      const vis = !!rowVis[x];
+      const everSeen = !!rowSeen[x];
+      if (!everSeen) {
+        ctx2d.fillStyle = COLORS.wallDark;
+        ctx2d.fillRect(screenX, screenY, TILE, TILE);
+      } else if (!vis) {
+        ctx2d.fillStyle = COLORS.dim;
+        ctx2d.fillRect(screenX, screenY, TILE, TILE);
+      }
+    }
+  }
+
   // Orange edge tiles (center tiles on each side)
   try {
     ctx2d.save();
@@ -87,9 +111,9 @@ export function draw(ctx, view) {
     ctx2d.restore();
   } catch (_) {}
 
-  // Player marker (cursor) with backdrop
+  // Player marker (cursor) with backdrop (only if visible)
   const px = ctx.player.x, py = ctx.player.y;
-  if (px >= startX && px <= endX && py >= startY && py <= endY) {
+  if (px >= startX && px <= endX && py >= startY && py <= endY && visible[py] && visible[py][px]) {
     const screenX = (px - startX) * TILE - tileOffsetX;
     const screenY = (py - startY) * TILE - tileOffsetY;
 
@@ -104,23 +128,43 @@ export function draw(ctx, view) {
     ctx2d.lineWidth = 2;
     ctx2d.strokeStyle = "#0b0f16";
     ctx2d.strokeText("@", screenX + half, screenY + half + 1);
-    ctx2d.fillStyle = (ctx.COLORS && ctx.COLORS.player) || "#9ece6a";
+    ctx2d.fillStyle = COLORS.player || "#9ece6a";
     ctx2d.fillText("@", screenX + half, screenY + half + 1);
     ctx2d.restore();
   }
 
-  // Label + hint
+  // Label + clock + hint
   try {
     const prevAlign = ctx2d.textAlign;
     const prevBaseline = ctx2d.textBaseline;
     ctx2d.textAlign = "left";
     ctx2d.textBaseline = "top";
     ctx2d.fillStyle = "#cbd5e1";
-    ctx2d.fillText("Region Map", 8, 8);
+    const clock = ctx.time && ctx.time.hhmm ? `   |   Time: ${ctx.time.hhmm}` : "";
+    ctx2d.fillText(`Region Map${clock}`, 8, 8);
     ctx2d.fillStyle = "#a1a1aa";
     ctx2d.fillText("Move with arrows. Press G on orange edge to return.", 8, 26);
     ctx2d.textAlign = prevAlign;
     ctx2d.textBaseline = prevBaseline;
+  } catch (_) {}
+
+  // Day/night tint overlay (same palette as town/overworld)
+  try {
+    const time = ctx.time;
+    if (time && time.phase) {
+      ctx2d.save();
+      if (time.phase === "night") {
+        ctx2d.fillStyle = "rgba(0,0,0,0.35)";
+        ctx2d.fillRect(0, 0, cam.width, cam.height);
+      } else if (time.phase === "dusk") {
+        ctx2d.fillStyle = "rgba(255,120,40,0.12)";
+        ctx2d.fillRect(0, 0, cam.width, cam.height);
+      } else if (time.phase === "dawn") {
+        ctx2d.fillStyle = "rgba(120,180,255,0.10)";
+        ctx2d.fillRect(0, 0, cam.width, cam.height);
+      }
+      ctx2d.restore();
+    }
   } catch (_) {}
 
   RenderCore.drawGridOverlay(view);
