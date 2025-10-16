@@ -187,7 +187,7 @@ export function enterDungeonIfOnEntrance(ctx) {
 
   // Strict mode: adjacency entry disabled. Require standing exactly on the dungeon tile.
 
-  if (t && WT && t === WTT.DUNGEON || tryEnterAdjacent(WT.DUNGEON))) {
+  if (t && WT && t === WT.DUNGEON) {
     const enterWX = ctx.player.x, enterWY = ctx.player.y;
     ctx.cameFromWorld = true;
     ctx.worldReturnPos = { x: enterWX, y: enterWY };
