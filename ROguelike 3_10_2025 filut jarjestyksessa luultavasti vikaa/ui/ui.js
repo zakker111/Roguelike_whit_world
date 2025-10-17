@@ -623,7 +623,7 @@ export const UI = {
     return true;
   },
 
-  showConfirm(text, { x, y } = {}, onOk, onCancel) {
+  showConfirm(text, pos, onOk, onCancel) {
     if (!this.els.confirm) {
       // fallback
       const ans = window.confirm(text || "Are you sure?");
@@ -639,6 +639,10 @@ export const UI = {
     // Default position: center
     let left = Math.round((window.innerWidth - box.offsetWidth) / 2);
     let top = Math.round((window.innerHeight - box.offsetHeight) / 2);
+    // Safe handling for optional pos (can be null/undefined)
+    const hasPos = pos && typeof pos === "object";
+    const x = hasPos && typeof pos.x === "number" ? pos.x : undefined;
+    const y = hasPos && typeof pos.y === "number" ? pos.y : undefined;
     if (typeof x === "number" && typeof y === "number") {
       left = Math.max(10, Math.min(window.innerWidth - 300, Math.round(x)));
       top = Math.max(10, Math.min(window.innerHeight - 120, Math.round(y)));
