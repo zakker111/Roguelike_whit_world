@@ -49,9 +49,7 @@
       "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
       "appearsIn": ["overworld", "region"],
       "tags": ["woods"],
-      "decorators": [
-        { "tile": "TREE", "density": 0.10, "sparse": true, "onlyInModes": ["region"] }
-      ]
+      
     },
     {
       "id": 1,
@@ -113,16 +111,7 @@
       "appearsIn": ["overworld", "region"],
       "tags": ["entrance"]
     },
-    {
-      "id": 11,
-      "key": "TREE",
-      "name": "Tree",
-      "glyph": "||",
-      "colors": { "fill": "#0f3b1e", "fg": "#3fa650" },
-      "properties": { "walkable": true, "blocksFOV": true, "emitsLight": false },
-      "appearsIn": ["region", "town"],
-      "tags": ["decor", "woods"]
-    },
+    
 
     
     {
@@ -348,7 +337,7 @@
   ],
   "overrides": {
     "region": {
-      "TREE": { "blocksFOV": true },
+      
       "MOUNTAIN": { "blocksFOV": true },
       "WATER": { "blocksFOV": false },
       "RIVER": { "blocksFOV": false }

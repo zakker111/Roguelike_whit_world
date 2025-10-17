@@ -21,7 +21,6 @@ export const TILES = {
   BEACH: 8,
   DESERT: 9,
   SNOW: 10,
-  TREE: 11, // region-only decorative tree tile; walkable but blocks FOV in region
 };
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
