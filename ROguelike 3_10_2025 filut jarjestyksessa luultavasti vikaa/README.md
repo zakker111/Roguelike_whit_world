@@ -3,19 +3,28 @@ Tiny Roguelike — README
 What this is
 - A small browser-based roguelike with a data-driven content model (items, enemies, NPCs, shops, town layout).
 - Deterministic seeds for repeatable runs, simple UI, single-floor dungeons, and a built-in smoketest runner.
+- JSON-first tile registry (data/tiles.json) controlling glyphs, colors, and properties across all modes.
 
 Play it
-- Open index.html in a browser (or the deployed URL).
+- Open index.html in a browser or run the dev server (recommended) and visit http://localhost:8080/.
 - Controls:
   - Move: Arrow keys or Numpad
-  - Action (G): interact, loot, enter/exit
+  - Action (G):
+    - Overworld: stand exactly on a Town or Dungeon tile and press G to enter.
+    - Overworld: press G on any other walkable tile to open the Region Map overlay.
+    - Region Map: move cursor with arrows; press G on an orange edge tile to exit back to overworld.
+    - Town/Dungeon: interact/loot/use when applicable.
   - Inventory: I
   - GOD panel: P
   - Wait: Numpad5
   - Brace: B (dungeon only; raises block chance this turn if holding a defensive hand item)
+- Notes:
+  - Movement advances time and recomputes FOV. This includes GameAPI fallback movement in the overworld.
+  - While a modal (e.g., shop or inventory) is open, movement keys are ignored; ESC closes the modal first.
 
 Data-driven configuration
 - JSON files under data/ drive most content:
+  - tiles.json: tile glyphs, colors, and properties (walkable, blocksFOV, emitsLight) for overworld, region, town, and dungeon modes.
   - items.json: equipment types and stat ranges
   - enemies.json: enemy types, glyphs/colors, spawn weights, stat formulas
   - npcs.json: names and flavor lines
@@ -24,6 +33,25 @@ Data-driven configuration
   - town.json: map size, plaza size, roads, buildings, props
 - These are loaded by data/loader.js and adapted at runtime; missing fields fall back safely.
 - When running via file://, the loader provides built-in defaults so the game remains playable without HTTP.
+- Tiles.json editing tips:
+  - Overworld/Region tiles include: WATER, RIVER, BEACH, SWAMP, FOREST, GRASS, MOUNTAIN, DESERT, SNOW, TOWN, DUNGEON, TREE.
+  - Dungeon/Town core tiles include: WALL, FLOOR, DOOR, STAIRS, WINDOW.
+  - Town decor and containers include: WELL, FOUNTAIN, BENCH, LAMP, STALL, FIREPLACE, TABLE, CHAIR, BED, SHELF, PLANT, RUG, SIGN; CHEST/CRATE/BARREL also render via JSON in dungeon and town; CORPSE in dungeon.
+  - A non-blank "glyph" with a defined colors.fg renders as a per-frame overlay; set glyph to "" or " " to hide the overlay.
+  - Region LOS/FOV consults tiles.json: MOUNTAIN and TREE block FOV; WATER/RIVER are transparent; movement respects overworld walkability.
+
+Region Map mode
+- Opened by pressing G on a walkable overworld tile that is not Town/Dungeon.
+- Behaves like other modes:
+  - Camera follows the cursor/player; time advances on movement turns.
+  - FOV and fog-of-war apply; mountains and trees block LOS/FOV.
+  - Movement respects overworld walkability: WATER, RIVER, MOUNTAIN block; GRASS/FOREST/TOWN/DUNGEON and similar are walkable.
+- Exit: one orange-highlighted tile at the center of each edge—press G on one to return to the exact overworld location.
+- Rendering includes time-of-day tint and a clock label.
+
+Strict entry rules
+- To enter a town or dungeon from the overworld, stand exactly on the TOWN or DUNGEON tile and press G.
+- Adjacent/diagonal entry is disabled (strict mode) for clarity and consistency.
 
 Determinism and seeds
 - RNG is centralized; apply seeds in the GOD panel.
@@ -57,6 +85,8 @@ Bundling (optional, Vite)
   - You can deploy either the raw repo (native ESM) or the dist/ folder produced by Vite.
 
 Key features at a glance
+- Overworld with connected towns and dungeon entrances; routing helpers in GameAPI.
+- Region Map overlay with FOV/time-of-day and JSON-based tiles; mountains and trees block FOV; movement respects overworld rules.
 - Single-floor dungeons with connected rooms, guaranteed stairs, and data-driven enemies.
 - Interaction-first gameplay: bump-to-attack, G to loot/interact/enter/exit.
 - HUD perf overlay: shows last turn and draw timings (ms) next to the clock for optimization visibility.
