@@ -1281,6 +1281,26 @@
       return;
     }
 
+    if (mode === "encounter") {
+      // Encounter maps use dungeon-like loot containers; try dungeon lootHere first.
+      const DR = modHandle("DungeonRuntime");
+      if (DR && typeof DR.lootHere === "function") {
+        const ctxMod = getCtx();
+        DR.lootHere(ctxMod);
+        applyCtxSyncAndRefresh(ctxMod);
+        return;
+      }
+      // Simple withdraw: pressing G leaves the encounter and returns to overworld
+      const ER = modHandle("EncounterRuntime");
+      if (ER && typeof ER.complete === "function") {
+        const ctxMod = getCtx();
+        ER.complete(ctxMod, "withdraw");
+        applyCtxSyncAndRefresh(ctxMod);
+        return;
+      }
+      return;
+    }
+
     if (mode === "dungeon") {
       lootCorpse();
       return;
