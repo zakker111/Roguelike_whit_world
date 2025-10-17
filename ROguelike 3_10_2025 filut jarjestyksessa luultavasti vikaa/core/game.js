@@ -1522,14 +1522,14 @@
       if (walkable) {
         player.x = nx; player.y = ny;
         updateCamera();
-        turn();
-        // Encounter roll on fallback path
+        // Encounter roll before advancing time so acceptance can switch mode first
         try {
           const ES = modHandle("EncounterService");
           if (ES && typeof ES.maybeTryEncounter === "function") {
             ES.maybeTryEncounter(getCtx());
           }
         } catch (_) {}
+        turn();
       }
       return;
     }

@@ -80,14 +80,15 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   if (!walkable) return false;
   ctx.player.x = nx; ctx.player.y = ny;
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
-  try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
-  // After a successful world step, roll for a random encounter (best-effort)
+  // Roll for encounter first so acceptance can switch mode before advancing world time
   try {
     const ES = ctx.EncounterService || (typeof window !== "undefined" ? window.EncounterService : null);
     if (ES && typeof ES.maybeTryEncounter === "function") {
       ES.maybeTryEncounter(ctx);
     }
   } catch (_) {}
+  // Advance a turn after the roll (if an encounter opened, next turn will tick region)
+  try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
   return true;
 }
 
