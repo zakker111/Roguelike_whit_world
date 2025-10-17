@@ -48,10 +48,7 @@
       "colors": { "fill": "#0d2615", "fg": "#84cc16" },
       "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
       "appearsIn": ["overworld", "region"],
-      "tags": ["woods"],
-      "decorators": [
-        { "tile": "TREE", "density": 0.10, "sparse": true, "onlyInModes": ["region"] }
-      ]
+      "tags": ["woods"]
     },
     {
       "id": 1,
@@ -124,7 +121,6 @@
       "tags": ["decor", "woods"]
     },
 
-    
     {
       "id": 0,
       "key": "WALL",
@@ -176,7 +172,6 @@
       "tags": ["window"]
     },
 
-    
     { "id": 100, "key": "WELL",       "name": "Well",       "glyph": "O",  "colors": { "fill": "#0f1620", "fg": "#7aa2f7" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
     { "id": 101, "key": "FOUNTAIN",   "name": "Fountain",   "glyph": "◌",  "colors": { "fill": "#0f1620", "fg": "#89ddff" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
     { "id": 102, "key": "BENCH",      "name": "Bench",      "glyph": "≡",  "colors": { "fill": "#0f1620", "fg": "#d7ba7d" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
@@ -193,8 +188,8 @@
     { "id": 113, "key": "SHELF",      "name": "Shelf",      "glyph": "≋",  "colors": { "fill": "#0f1620", "fg": "#b4f9f8" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
     { "id": 114, "key": "PLANT",      "name": "Plant",      "glyph": "❀",  "colors": { "fill": "#0f1620", "fg": "#84cc16" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop","flora"] },
     { "id": 115, "key": "RUG",        "name": "Rug",        "glyph": "≈",  "colors": { "fill": "#0f1620", "fg": "#a3be8c" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
-    { "id": 116, "key": "SIGN",       "name": "Sign",       "glyph": "∎",  "colors": { "fill": "#0f1620", "fg": "#ffd166" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] }
-  ,
+    { "id": 116, "key": "SIGN",       "name": "Sign",       "glyph": "∎",  "colors": { "fill": "#0f1620", "fg": "#ffd166" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+
     {
       "id": 0,
       "key": "WALL",
@@ -222,18 +217,8 @@
       "glyph": "+",
       "colors": { "fill": "#6f5b3e", "fg": "#d7ba7d" },
       "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
-      "appears    "region": {
-      "TREE": { "blocksFOV": true },
-      "MOUNTAIN": { "blocksFOV": true },
-      "WATER": { "blocksFOV": false },
-      "RIVER": { "blocksFOV": false }
-    },
-    "dungeon": {
-      "WALL": { "walkable": false, "blocksFOV": true },
-      "STAIRS": { "glyph": ">" }
-    },
-    "town": {
-      "WINDOW": { "emitsLight": true }
+      "appearsIn": ["town"],
+      "tags": ["door"]
     }
-  }
+  ]
 }
