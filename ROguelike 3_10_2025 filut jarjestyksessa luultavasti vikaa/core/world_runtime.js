@@ -81,6 +81,13 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   ctx.player.x = nx; ctx.player.y = ny;
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
   try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+  // After a successful world step, roll for a random encounter (best-effort)
+  try {
+    const ES = ctx.EncounterService || (typeof window !== "undefined" ? window.EncounterService : null);
+    if (ES && typeof ES.maybeTryEncounter === "function") {
+      ES.maybeTryEncounter(ctx);
+    }
+  } catch (_) {}
   return true;
 }
 

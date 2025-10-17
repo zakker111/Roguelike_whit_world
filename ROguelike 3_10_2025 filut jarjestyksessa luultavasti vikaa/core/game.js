@@ -1523,6 +1523,34 @@
         player.x = nx; player.y = ny;
         updateCamera();
         turn();
+        // Encounter roll on fallback path
+        try {
+          const ES = modHandle("EncounterService");
+          if (ES && typeof ES.maybeTryEncounter === "function") {
+            ES.maybeTryEncounter(getCtx());
+          }
+        } catch (_) {}
+      }
+      return;
+    }
+
+    // ENCOUNTER MODE
+    if (mode === "encounter") {
+      const ER = modHandle("EncounterRuntime");
+      if (ER && typeof ER.tryMoveEncounter === "function") {
+        const ok = !!ER.tryMoveEncounter(getCtx(), dx, dy);
+        if (ok) return;
+      }
+      // Fallback: minimal dungeon-like movement
+      const nx = player.x + dx;
+      const ny = player.y + dy;
+      if (!inBounds(nx, ny)) return;
+      const blockedByEnemy = (occupancy && typeof occupancy.hasEnemy === "function") ? occupancy.hasEnemy(nx, ny) : enemies.some(e => e && e.x === nx && e.y === ny);
+      if (isWalkable(nx, ny) && !blockedByEnemy) {
+        player.x = nx;
+        player.y = ny;
+        updateCamera();
+        turn();
       }
       return;
     }
@@ -1999,6 +2027,11 @@
       if (WR && typeof WR.tick === "function") {
         WR.tick(getCtx());
       }
+    } else if (mode === "encounter") {
+      const ER = modHandle("EncounterRuntime");
+      if (ER && typeof ER.tick === "function") {
+        ER.tick(getCtx());
+      }
     } else if (mode === "region") {
       const RM = modHandle("RegionMapRuntime");
       if (RM && typeof RM.tick === "function") {
@@ -2009,6 +2042,14 @@
     recomputeFOV();
     updateUI();
     requestDraw();
+
+    // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), sync orchestrator state
+    try {
+      const cPost = getCtx();
+      if (cPost && cPost.mode !== mode) {
+        applyCtxSyncAndRefresh(cPost);
+      }
+    } catch (_) {}
 
     const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
     PERF.lastTurnMs = t1 - t0;
@@ -2389,6 +2430,19 @@
         returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
         returnToWorldFromTown: () => returnToWorldFromTown(),
         initWorld: () => initWorld(),
+        // Encounter helper: enter and sync
+        enterEncounter: (template, biome) => {
+          const ER = modHandle("EncounterRuntime");
+          if (ER && typeof ER.enter === "function") {
+            const ctx = getCtx();
+            const ok = ER.enter(ctx, { template, biome });
+            if (ok) {
+              applyCtxSyncAndRefresh(ctx);
+            }
+            return ok;
+          }
+          return false;
+        },
         // GOD/helpers
         setAlwaysCrit: (v) => setAlwaysCrit(v),
         setCritPart: (part) => setCritPart(part),
