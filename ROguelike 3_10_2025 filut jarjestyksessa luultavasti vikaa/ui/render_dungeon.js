@@ -295,6 +295,49 @@ export function draw(ctx, view) {
     }
   }
 
+  // Decorative encounter props (e.g., campfires)
+  try {
+    const props = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : [];
+    if (props.length) {
+      for (const p of props) {
+        const px = p.x | 0, py = p.y | 0;
+        if (px < startX || px > endX || py < startY || py > endY) continue;
+        const everSeen = !!(seen[py] && seen[py][px]);
+        if (!everSeen) continue;
+        const visNow = !!(visible[py] && visible[py][px]);
+        const sx = (px - startX) * TILE - tileOffsetX;
+        const sy = (py - startY) * TILE - tileOffsetY;
+
+        if (p.type === "campfire") {
+          // Prefer tileset mapping if available (custom key), else JSON glyph from town FIREPLACE
+          let drawn = false;
+          if (tilesetReady && TS && typeof TS.draw === "function") {
+            drawn = TS.draw(ctx2d, "campfire", sx, sy, TILE);
+          }
+          if (!drawn) {
+            let glyph = "♨";
+            let color = "#ff6d00";
+            try {
+              const td = getTileDefByKey("town", "FIREPLACE");
+              if (td) {
+                if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
+                if (td.colors && td.colors.fg) color = td.colors.fg || color;
+              }
+            } catch (_) {}
+            if (!visNow) {
+              ctx2d.save();
+              ctx2d.globalAlpha = 0.55;
+              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+              ctx2d.restore();
+            } else {
+              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+            }
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
   // enemies
   for (const e of enemies) {
     if (!visible[e.y] || !visible[e.y][e.x]) continue;

@@ -90,6 +90,12 @@ export function enter(ctx, info) {
   // Use dungeon-style tiles (Render falls back to dungeon renderer for unknown modes)
   const T = ctx.TILES;
 
+  // Decor/state helpers
+  const hutCenters = [];
+  const chestSpots = new Set();
+  const encProps = [];
+  const keyFor = (x, y) => `${x},${y}`;
+
   // Simple generator set for varied arenas (kept intentionally minimal)
   function genEmpty() {
     const m = Array.from({ length: H }, () => Array(W).fill(T.FLOOR));
@@ -143,12 +149,27 @@ export function enter(ctx, info) {
         else if (side === 1) m[y0 + 2][x0 + 1] = T.DOOR;
         else if (side === 2) m[y0 + 1][x0] = T.DOOR;
         else m[y0 + 1][x0 + 2] = T.DOOR;
+        // record hut center for chest placement
+        hutCenters.push({ x: x0 + 1, y: y0 + 1 });
         break;
       }
     }
-    // Add a campfire clearing in center
+    // Add a central clearing
     const px = (W / 2) | 0, py = (H / 2) | 0;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) m[py + dy][px + dx] = T.FLOOR;
+    // Add 1–2 decorative campfires near center (non-blocking)
+    const fireCandidates = [
+      { x: px + 2, y: py }, { x: px - 2, y: py },
+      { x: px, y: py + 2 }, { x: px, y: py - 2 }
+    ];
+    let fires = 0;
+    for (const f of fireCandidates) {
+      if (fires >= 2) break;
+      if (f.x > 0 && f.y > 0 && f.x < W - 1 && f.y < H - 1 && m[f.y][f.x] === T.FLOOR) {
+        encProps.push({ x: f.x, y: f.y, type: "campfire" });
+        fires++;
+      }
+    }
     return m;
   }
   function genRuins(rng) {
@@ -204,6 +225,7 @@ export function enter(ctx, info) {
   ctx.enemies = [];
   ctx.corpses = [];
   ctx.decals = [];
+  ctx.encounterProps = encProps;
 
   // Add simple exit tiles near each edge so the player can always walk out.
   // These use the STAIRS tile, consistent with dungeon exit semantics.
@@ -235,7 +257,22 @@ export function enter(ctx, info) {
   const px = (W / 2) | 0, py = (H / 2) | 0;
   ctx.player.x = px; ctx.player.y = py;
 
-  // Spawn enemies per template groups (counts only); types are picked by the dungeon enemy factory
+  // Place chests inside huts (center tile). Fill with simple loot.
+  try {
+    const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+    for (let i = 0; i < hutCenters.length; i++) {
+      const c = hutCenters[i];
+      if (c.x <= 0 || c.y <= 0 || c.x >= W - 1 || c.y >= H - 1) continue;
+      if (map[c.y][c.x] !== T.FLOOR) continue;
+      // Avoid placing on player start
+      if (c.x === ctx.player.x && c.y === ctx.player.y) continue;
+      const loot = (L && typeof L.generate === "function") ? (L.generate(ctx, { type: "bandit", xp: 10 }) || []) : [{ name: "5 gold", kind: "gold", amount: 5 }];
+      ctx.corpses.push({ kind: "chest", x: c.x, y: c.y, loot, looted: loot.length === 0 });
+      chestSpots.add(keyFor(c.x, c.y));
+    }
+  } catch (_) {}
+
+  // Spawn enemies per template groups (counts only)
   const groups = Array.isArray(template.groups) ? template.groups : [];
   const totalWanted = groups.reduce((acc, g) => {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
@@ -249,6 +286,7 @@ export function enter(ctx, info) {
     if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
     if (x === ctx.player.x && y === ctx.player.y) return false;
     if (placements.some(p => p.x === x && p.y === y)) return false;
+    if (chestSpots.has(keyFor(x, y))) return false;
     return map[y][x] === T.FLOOR;
     }
 
