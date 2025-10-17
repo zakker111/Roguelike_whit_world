@@ -129,7 +129,7 @@
       "id": 0,
       "key": "WALL",
       "name": "Wall",
-      "glyph": "#",
+      "glyph": " ",
       "colors": { "fill": "#1b1f2a", "fg": "#cbd5e1" },
       "properties": { "walkable": false, "blocksFOV": true, "emitsLight": false },
       "appearsIn": ["dungeon"],
