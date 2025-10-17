@@ -518,11 +518,16 @@ export function tick(ctx) {
     }
   } catch (_) {}
 
-  // Victory: no enemies remain -> return to overworld
+  // Do NOT auto-return to overworld on victory. Keep the encounter map active so player can loot or explore.
+  // Announce clear state once.
   try {
-    if (!Array.isArray(ctx.enemies) || ctx.enemies.length === 0) {
-      complete(ctx, "victory");
-      return true;
+    if (Array.isArray(ctx.enemies) && ctx.enemies.length === 0) {
+      if (!ctx._encounterCleared) {
+        ctx._encounterCleared = true;
+        try { ctx.log && ctx.log("Area clear. Step onto an exit (>) to leave when ready.", "notice"); } catch (_) {}
+      }
+    } else {
+      ctx._encounterCleared = false;
     }
   } catch (_) {}
   return true;
