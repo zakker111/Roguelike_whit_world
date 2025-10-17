@@ -138,6 +138,32 @@ export function enter(ctx, info) {
   ctx.corpses = [];
   ctx.decals = [];
 
+  // Add simple exit tiles near each edge so the player can always walk out.
+  // These use the STAIRS tile, consistent with dungeon exit semantics.
+  try {
+    const cx = (W / 2) | 0, cy = (H / 2) | 0;
+    const exits = [
+      { x: 1, y: cy },            // West edge
+      { x: W - 2, y: cy },        // East edge
+      { x: cx, y: 1 },            // North edge
+      { x: cx, y: H - 2 },        // South edge
+    ];
+    for (const e of exits) {
+      if (e.x > 0 && e.y > 0 && e.x < W - 1 && e.y < H - 1) {
+        map[e.y][e.x] = T.STAIRS;
+        // Ensure a small clearing around the exit so it's accessible
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const x = e.x + dx, y = e.y + dy;
+            if (x > 0 && y > 0 && x < W - 1 && y < H - 1) {
+              if (map[y][x] === T.WALL) map[y][x] = T.FLOOR;
+            }
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
   // Spawn player near center
   const px = (W / 2) | 0, py = (H / 2) | 0;
   ctx.player.x = px; ctx.player.y = py;
@@ -267,13 +293,23 @@ export function tryMoveEncounter(ctx, dx, dy) {
     return true;
   }
 
-  // Move if free floor
+  // Move if free floor (auto-exit if stepping onto an exit tile)
+  const T = ctx.TILES || {};
   const walkable = (ctx.isWalkable ? ctx.isWalkable(nx, ny) : true);
   const blocked = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny);
   if (walkable && !blocked) {
+    const isExit = (Array.isArray(ctx.map) && ctx.map[ny] && ctx.map[ny][nx] === T.STAIRS);
     ctx.player.x = nx; ctx.player.y = ny;
     try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-    try { ctx.turn && ctx.turn(); } catch (_) {}
+    if (isExit) {
+      try {
+        complete(ctx, "withdraw");
+      } catch (_) {
+        try { ctx.turn && ctx.turn(); } catch (_) {}
+      }
+    } else {
+      try { ctx.turn && ctx.turn(); } catch (_) {}
+    }
     return true;
   }
   return false;
