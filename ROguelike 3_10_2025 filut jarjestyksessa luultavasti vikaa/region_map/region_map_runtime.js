@@ -297,7 +297,7 @@ export function open(ctx, size) {
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   addMinorWaterAndBeaches(sample);
-  
+
 
   const exitNorth = { x: (width / 2) | 0, y: 0 };
   const exitSouth = { x: (width / 2) | 0, y: height - 1 };
@@ -357,7 +357,7 @@ export function open(ctx, size) {
           return !td.properties.blocksFOV;
         }
         // Fallback: mountains block FOV
-        if (WT2 && t === WT2.MOUNTAIN) return false;
+        if (WT2 && (t === WT2.MOUNTAIN)) return false;
         return true;
       },
     };
