@@ -176,7 +176,7 @@
       "tags": ["window"]
     },
 
-    // Town props (overlay-only; glyph/fg driven here). IDs are unique within "town" mode.
+    
     { "id": 100, "key": "WELL",       "name": "Well",       "glyph": "O",  "colors": { "fill": "#0f1620", "fg": "#7aa2f7" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
     { "id": 101, "key": "FOUNTAIN",   "name": "Fountain",   "glyph": "◌",  "colors": { "fill": "#0f1620", "fg": "#89ddff" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
     { "id": 102, "key": "BENCH",      "name": "Bench",      "glyph": "≡",  "colors": { "fill": "#0f1620", "fg": "#d7ba7d" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
