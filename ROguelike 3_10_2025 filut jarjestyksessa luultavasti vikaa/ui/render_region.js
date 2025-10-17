@@ -37,21 +37,7 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
-  // Palette aligned to overworld
-  const WCOL = {
-    water: "#0a1b2a",
-    river: "#0e2f4a",
-    grass: "#10331a",
-    forest: "#0d2615",
-    tree: "#0f3b1e",      // dark green for TREE tiles
-    swamp: "#1b2a1e",
-    beach: "#b59b6a",
-    desert: "#c2a36b",
-    snow: "#b9c7d3",
-    mountain: "#2f2f34",
-    town: "#3a2f1b",
-    dungeon: "#2a1b2a",
-  };
+  
 
   // Base tiles within viewport
   for (let y = startY; y <= endY; y++) {
@@ -68,39 +54,29 @@ export function draw(ctx, view) {
       }
 
       const t = row[x];
-      // Prefer tiles.json fill color if present
+      // JSON-only fill color for region mode
       const td = getTileDef("region", t);
-      let fill = (td && td.colors && td.colors.fill) || WCOL.grass;
-      if (!td && WT) {
-        if (t === WT.WATER) fill = WCOL.water;
-        else if (t === WT.RIVER) fill = WCOL.river;
-        else if (t === WT.SWAMP) fill = WCOL.swamp;
-        else if (t === WT.BEACH) fill = WCOL.beach;
-        else if (t === WT.DESERT) fill = WCOL.desert;
-        else if (t === WT.SNOW) fill = WCOL.snow;
-        else if (t === WT.FOREST) fill = WCOL.forest;
-        else if (t === WT.TREE) fill = WCOL.tree;
-        else if (t === WT.MOUNTAIN) fill = WCOL.mountain;
-        else if (t === WT.DUNGEON) fill = WCOL.dungeon;
-        else if (t === WT.TOWN) fill = WCOL.town;
-      }
+      const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(screenX, screenY, TILE, TILE);
+    }
+  }
 
-      // TREE glyph overlay (from tiles.json if available). If glyph is blank, skip.
-      if (WT && t === WT.TREE) {
-        const half = TILE / 2;
-        const tdTree = td || getTileDef("region", WT.TREE);
-        const glyph = (tdTree && Object.prototype.hasOwnProperty.call(tdTree, "glyph")) ? tdTree.glyph : "||";
-        const fg = (tdTree && tdTree.colors && tdTree.colors.fg) || "#3fa650";
-        ctx2d.save();
-        ctx2d.lineWidth = 2;
-        ctx2d.strokeStyle = "#0b0f16";
-        if (glyph && String(glyph).trim().length > 0) {
-          ctx2d.strokeText(glyph, screenX + half, screenY + half + 1);
-        }
+  // Per-frame glyph overlay for any tile with a non-blank JSON glyph (drawn before visibility overlays)
+  for (let y = startY; y <= endY; y++) {
+    const yIn = y >= 0 && y < mapRows;
+    const row = yIn ? map[y] : null;
+    for (let x = startX; x <= endX; x++) {
+      if (!yIn || x < 0 || x >= mapCols) continue;
+      const t = row[x];
+      const td = getTileDef("region", t);
+      if (!td) continue;
+      const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+      const fg = td.colors && td.colors.fg ? td.colors.fg : null;
+      if (glyph && String(glyph).trim().length > 0 && fg) {
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-        ctx2d.restore();
       }
     }
   }

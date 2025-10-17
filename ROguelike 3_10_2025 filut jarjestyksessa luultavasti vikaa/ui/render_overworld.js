@@ -11,28 +11,7 @@ import * as World from "../world/world.js";
 let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null };
 // World base layer offscreen cache (full map at TILE resolution)
 let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
-// Town glyphs cache keyed by towns array reference
-let TOWN_GLYPHS_CACHE = { ref: null, map: {} };
-
-// Helper: get tile def from GameData.tiles for a given mode and numeric id
-function getTileDef(mode, id) {
-  try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-    if (!arr) return null;
-    const m = String(mode || "").toLowerCase();
-    for (let i = 0; i < arr.length; i++) {
-      const t = arr[i];
-      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
-      }
-    }
-  } catch (_) {}
-  return null;
-}
-
-function rebuildTownGlyphs(towns) {
-  const out = {};
+;
   try {
     if (Array.isArray(towns)) {
       for (const info of towns) {
@@ -71,31 +50,13 @@ export function draw(ctx, view) {
 
   const enemyColor = (t) => RenderCore.enemyColor(ctx, t, COLORS);
 
-  // lightweight palette for overworld
-  const WCOL = {
-    water: "#0a1b2a",
-    river: "#0e2f4a",
-    grass: "#10331a",
-    forest: "#0d2615",
-    swamp: "#1b2a1e",
-    beach: "#b59b6a",
-    desert: "#c2a36b",
-    snow: "#b9c7d3",
-    mountain: "#2f2f34",
-    town: "#3a2f1b",
-    dungeon: "#2a1b2a",
-  };
+  
 
   const WT = World.TILES;
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
-  // Ensure town glyphs cache is up to date
-  const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
-  if (towns !== TOWN_GLYPHS_CACHE.ref) {
-    rebuildTownGlyphs(towns);
-  }
-  const TOWN_GLYPHS = TOWN_GLYPHS_CACHE.map;
+  
 
   // Build world base offscreen once per map/TILE change
   try {
@@ -123,21 +84,9 @@ export function draw(ctx, view) {
           const rowM = map[yy];
           for (let xx = 0; xx < mw; xx++) {
             const t = rowM[xx];
-            // Prefer tiles.json fill color if present in overworld mode
+            // JSON-only fill color for overworld
             const td = getTileDef("overworld", t);
-            let c = (td && td.colors && td.colors.fill) || WCOL.grass;
-            if (!td && WT) {
-              if (t === WT.WATER) c = WCOL.water;
-              else if (t === WT.RIVER) c = WCOL.river;
-              else if (t === WT.SWAMP) c = WCOL.swamp;
-              else if (t === WT.BEACH) c = WCOL.beach;
-              else if (t === WT.DESERT) c = WCOL.desert;
-              else if (t === WT.SNOW) c = WCOL.snow;
-              else if (t === WT.FOREST) c = WCOL.forest;
-              else if (t === WT.MOUNTAIN) c = WCOL.mountain;
-              else if (t === WT.DUNGEON) c = WCOL.dungeon;
-              else if (t === WT.TOWN) c = WCOL.town;
-            }
+            const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
             oc.fillStyle = c;
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
             // Note: glyph overlays for towns/dungeons are drawn per-frame below, not baked into base.
@@ -169,44 +118,26 @@ export function draw(ctx, view) {
         }
 
         const t = row[x];
-        let fill = WCOL.grass;
-        if (WT) {
-          if (t === WT.WATER) fill = WCOL.water;
-          else if (t === WT.RIVER) fill = WCOL.river;
-          else if (t === WT.SWAMP) fill = WCOL.swamp;
-          else if (t === WT.BEACH) fill = WCOL.beach;
-          else if (t === WT.DESERT) fill = WCOL.desert;
-          else if (t === WT.SNOW) fill = WCOL.snow;
-          else if (t === WT.GRASS) fill = WCOL.grass;
-          else if (t === WT.FOREST) fill = WCOL.forest;
-          else if (t === WT.MOUNTAIN) fill = WCOL.mountain;
-          else if (t === WT.TOWN) fill = WCOL.town;
-          else if (t === WT.DUNGEON) fill = WCOL.dungeon;
-        }
+        const td = getTileDef("overworld", t);
+        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
     }
   }
 
-  // Per-frame glyph overlay for towns and dungeons: uses tiles.json and reflects changes immediately
+  // Per-frame glyph overlay for any tile with a non-blank JSON glyph
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const row = yIn ? map[y] : null;
     for (let x = startX; x <= endX; x++) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const t = row[x];
-      if (WT && t === WT.TOWN) {
-        const tdTown = getTileDef("overworld", WT.TOWN);
-        const glyph = (tdTown && Object.prototype.hasOwnProperty.call(tdTown, "glyph")) ? tdTown.glyph : "T";
-        const fg = (tdTown && tdTown.colors && tdTown.colors.fg) || "#d7ba7d";
-        const screenX = (x - startX) * TILE - tileOffsetX;
-        const screenY = (y - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-      } else if (WT && t === WT.DUNGEON) {
-        const td = getTileDef("overworld", WT.DUNGEON);
-        const glyph = (td && Object.prototype.hasOwnProperty.call(td, "glyph")) ? td.glyph : "D";
-        const fg = (td && td.colors && td.colors.fg) || "#c586c0";
+      const td = getTileDef("overworld", t);
+      if (!td) continue;
+      const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+      const fg = td.colors && td.colors.fg ? td.colors.fg : null;
+      if (glyph && String(glyph).trim().length > 0 && fg) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
@@ -266,44 +197,15 @@ export function draw(ctx, view) {
           MINI._tilesRef = tilesRef();
           const off = RenderCore.createOffscreen(wpx, hpx);
           const oc = off.getContext("2d");
-          // tiles
+          // tiles from JSON only
           for (let yy = 0; yy < mh; yy++) {
             const rowM = map[yy];
             for (let xx = 0; xx < mw; xx++) {
               const t = rowM[xx];
               const td = getTileDef("overworld", t);
-              let c = (td && td.colors && td.colors.fill) || WCOL.grass;
-              if (!td && WT) {
-                if (t === WT.WATER) c = WCOL.water;
-                else if (t === WT.RIVER) c = WCOL.river;
-                else if (t === WT.SWAMP) c = WCOL.swamp;
-                else if (t === WT.BEACH) c = WCOL.beach;
-                else if (t === WT.DESERT) c = WCOL.desert;
-                else if (t === WT.SNOW) c = WCOL.snow;
-                else if (t === WT.FOREST) c = WCOL.forest;
-                else if (t === WT.MOUNTAIN) c = WCOL.mountain;
-                else if (t === WT.DUNGEON) c = WCOL.dungeon;
-                else if (t === WT.TOWN) c = WCOL.town;
-              }
+              const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
               oc.fillStyle = c;
               oc.fillRect(xx * scale, yy * scale, scale, scale);
-            }
-          }
-          // overlay towns and dungeons squares using JSON fg colors if present
-          const tdTown = getTileDef("overworld", WT.TOWN);
-          const tdDun = getTileDef("overworld", WT.DUNGEON);
-          const townFg = (tdTown && tdTown.colors && tdTown.colors.fg) || "#ffcc66";
-          const dunFg = (tdDun && tdDun.colors && tdDun.colors.fg) || "#c586c0";
-          if (ctx.world && Array.isArray(ctx.world.towns)) {
-            oc.fillStyle = townFg;
-            for (const t of ctx.world.towns) {
-              oc.fillRect(t.x * scale, t.y * scale, Math.max(1, scale), Math.max(1, scale));
-            }
-          }
-          if (ctx.world && Array.isArray(ctx.world.dungeons)) {
-            oc.fillStyle = dunFg;
-            for (const d of ctx.world.dungeons) {
-              oc.fillRect(d.x * scale, d.y * scale, Math.max(1, scale), Math.max(1, scale));
             }
           }
           MINI.canvas = off;

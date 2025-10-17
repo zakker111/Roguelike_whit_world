@@ -51,26 +51,7 @@ function tilesRef() {
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
 let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
-// Shop glyphs cache keyed by shops array reference
-let SHOP_GLYPHS_CACHE = { ref: null, map: {} };
 
-function rebuildShopGlyphs(shops) {
-  const out = {};
-  try {
-    if (Array.isArray(shops)) {
-      for (const s of shops) {
-        const nm = (s.name || "").toLowerCase();
-        const glyph = nm.includes("tavern") ? "T" : (nm.includes("inn") ? "I" : "S");
-        out[`${
-          s.x
-        },${
-          s.y
-        }`] = glyph;
-      }
-    }
-  } catch (_) {}
-  SHOP_GLYPHS_CACHE = { ref: shops, map: out };
-}
 
 export function draw(ctx, view) {
   const {
@@ -78,22 +59,11 @@ export function draw(ctx, view) {
     cam, tileOffsetX, tileOffsetY, startX, startY, endX, endY
   } = Object.assign({}, view, ctx);
 
-  const TCOL = {
-    wall: "#2f2b26",       // building
-    window: "#295b6e",     // windows
-    floor: "#0f1620",      // street/plaza
-    door: "#6f5b3e",
-    shop: "#d7ba7d",
-  };
-
+  
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
-  // Ensure shop glyphs cache is up to date
-  if (shops !== SHOP_GLYPHS_CACHE.ref) {
-    rebuildShopGlyphs(shops);
-  }
-  const SHOP_GLYPHS = SHOP_GLYPHS_CACHE.map;
+  
 
   // Build base offscreen once per map/TILE change
   try {
@@ -119,18 +89,9 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // Prefer tiles.json fill colors if present
-            let fill = TCOL.floor;
-            if (type === TILES.WALL) {
-              const td = getTileDef("dungeon", TILES.WALL);
-              fill = (td && td.colors && td.colors.fill) || TCOL.wall;
-            } else if (type === TILES.WINDOW) {
-              const td = getTileDef("town", TILES.WINDOW) || getTileDef("dungeon", TILES.WINDOW);
-              fill = (td && td.colors && td.colors.fill) || TCOL.window;
-            } else if (type === TILES.DOOR) {
-              const td = getTileDef("dungeon", TILES.DOOR);
-              fill = (td && td.colors && td.colors.fill) || TCOL.door;
-            }
+            // JSON-only fill colors: prefer town, then dungeon. Unknown tiles use a neutral dark fill.
+            const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
+            const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -146,7 +107,7 @@ export function draw(ctx, view) {
       RenderCore.blitViewport(ctx2d, TOWN.canvas, cam, TOWN.wpx, TOWN.hpx);
     } catch (_) {}
   } else {
-    // Fallback: draw base tiles in viewport
+    // Fallback: draw base tiles in viewport using JSON-only colors
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -159,12 +120,29 @@ export function draw(ctx, view) {
           continue;
         }
         const type = rowMap[x];
-        let fill = TCOL.floor;
-        if (type === TILES.WALL) fill = TCOL.wall;
-        else if (type === TILES.WINDOW) fill = TCOL.window;
-        else if (type === TILES.DOOR) fill = TCOL.door;
+        const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
+        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
+      }
+    }
+  }
+
+  // Per-frame glyph overlay for any tile with a non-blank JSON glyph (drawn before visibility overlays)
+  for (let y = startY; y <= endY; y++) {
+    const yIn = y >= 0 && y < mapRows;
+    const rowMap = yIn ? map[y] : null;
+    for (let x = startX; x <= endX; x++) {
+      if (!yIn || x < 0 || x >= mapCols) continue;
+      const type = rowMap[x];
+      const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
+      if (!td) continue;
+      const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+      const fg = td.colors && td.colors.fg ? td.colors.fg : null;
+      if (glyph && String(glyph).trim().length > 0 && fg) {
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
       }
     }
   }
@@ -194,23 +172,6 @@ export function draw(ctx, view) {
     }
   }
 
-  // If shop door, overlay glyph (T for Tavern, I for Inn, otherwise S) when visible
-  for (let y = startY; y <= endY; y++) {
-    const yIn = y >= 0 && y < mapRows;
-    const rowVis = yIn ? (visible[y] || []) : [];
-    for (let x = startX; x <= endX; x++) {
-      if (!yIn || x < 0 || x >= mapCols) continue;
-      const vis = !!rowVis[x];
-      if (!vis) continue;
-      const glyph = SHOP_GLYPHS[`${x},${y}`];
-      if (glyph) {
-        const screenX = (x - startX) * TILE - tileOffsetX;
-        const screenY = (y - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, TCOL.shop, TILE);
-      }
-    }
-  }
-
   // Props (only if visible). Use tiles.json only; no code fallbacks.
   if (Array.isArray(ctx.townProps)) {
     for (const p of ctx.townProps) {
@@ -219,7 +180,12 @@ export function draw(ctx, view) {
       const screenX = (p.x - startX) * TILE - tileOffsetX;
       const screenY = (p.y - startY) * TILE - tileOffsetY;
 
-      const tdProp = getPropDef(p.type);
+      // Lookup by key in JSON: prefer town mode, then dungeon/overworld
+      let tdProp = null;
+      try {
+        const key = String(p.type || "").toUpperCase();
+        tdProp = getTileDefByKey("town", key) || getTileDefByKey("dungeon", key) || getTileDefByKey("overworld", key);
+      } catch (_) {}
       if (!tdProp) continue;
       const glyph = Object.prototype.hasOwnProperty.call(tdProp, "glyph") ? tdProp.glyph : "";
       const color = tdProp.colors && tdProp.colors.fg ? tdProp.colors.fg : null;

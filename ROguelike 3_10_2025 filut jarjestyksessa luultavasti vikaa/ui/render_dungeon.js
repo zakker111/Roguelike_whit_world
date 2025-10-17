@@ -26,6 +26,24 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Helper: get tile def by key for a given mode
+function getTileDefByKey(mode, key) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    const k = String(key || "").toUpperCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if (String(t.key || "").toUpperCase() === k && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 export function draw(ctx, view) {
   const {
     ctx2d, TILE, COLORS, TILES, TS, tilesetReady,
@@ -97,13 +115,12 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Blit base layer if available
+  // Blit base layer if available, otherwise draw base tiles within viewport
   if (DUN.canvas) {
     try {
       RenderCore.blitViewport(ctx2d, DUN.canvas, cam, DUN.wpx, DUN.hpx);
     } catch (_) {}
   } else {
-    // Fallback: draw base tiles within viewport
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -125,7 +142,7 @@ export function draw(ctx, view) {
           drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
         }
         if (!drawn) {
-          // Tiles.json defines fill color per dungeon mode
+          // JSON-only fill color per dungeon mode
           const td = getTileDef("dungeon", type);
           const fill = td && td.colors && td.colors.fill;
           if (fill) {
@@ -133,13 +150,24 @@ export function draw(ctx, view) {
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
-        // JSON glyph overlay for any dungeon tile with a non-blank glyph
-        const td2 = getTileDef("dungeon", type);
-        const glyph2 = (td2 && Object.prototype.hasOwnProperty.call(td2, "glyph")) ? td2.glyph : "";
-        const fg2 = (td2 && td2.colors && td2.colors.fg) || null;
-        if (glyph2 && String(glyph2).trim().length > 0 && fg2) {
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph2, fg2, TILE);
-        }
+      }
+    }
+  }
+
+  // Per-frame glyph overlay for any dungeon tile with a non-blank JSON glyph (drawn before visibility overlays)
+  for (let y = startY; y <= endY; y++) {
+    const yIn = y >= 0 && y < mapRows;
+    const rowMap = yIn ? map[y] : null;
+    for (let x = startX; x <= endX; x++) {
+      if (!yIn || x < 0 || x >= mapCols) continue;
+      const type = rowMap[x];
+      const td = getTileDef("dungeon", type);
+      const glyph = (td && Object.prototype.hasOwnProperty.call(td, "glyph")) ? td.glyph : "";
+      const fg = (td && td.colors && td.colors.fg) || null;
+      if (glyph && String(glyph).trim().length > 0 && fg) {
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
       }
     }
   }
@@ -225,14 +253,19 @@ export function draw(ctx, view) {
       if (tilesetReady && TS.draw(ctx2d, c.kind === "chest" ? "chest" : "corpse", screenX, screenY, TILE)) {
         return;
       }
-      if (c.kind === "chest") {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "▯", c.looted ? "#8b7355" : "#d7ba7d", TILE);
-      } else if (c.kind === "crate") {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "▢", "#b59b6a", TILE);
-      } else if (c.kind === "barrel") {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "◍", "#a07c4b", TILE);
-      } else {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "%", c.looted ? COLORS.corpseEmpty : COLORS.corpse, TILE);
+      // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld)
+      let glyph = "";
+      let color = c.looted ? (COLORS.corpseEmpty || "#808080") : (COLORS.corpse || "#b22222");
+      try {
+        const key = String(c.kind || (c.kind === "chest" ? "chest" : "corpse")).toUpperCase();
+        const td = getTileDefByKey("dungeon", key) || getTileDefByKey("town", key) || getTileDefByKey("overworld", key);
+        if (td) {
+          if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph;
+          if (td.colors && td.colors.fg) color = td.colors.fg;
+        }
+      } catch (_) {}
+      if (glyph && String(glyph).trim().length > 0) {
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
       }
     };
 
