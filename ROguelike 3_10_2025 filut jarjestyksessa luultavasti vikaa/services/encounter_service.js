@@ -12,6 +12,24 @@ const STATE = {
   movesSinceLast: 0,
 };
 
+// Read encounter rate from global/localStorage; 0..100, default 50
+function getEncounterRate() {
+  try {
+    if (typeof window !== "undefined" && typeof window.ENCOUNTER_RATE === "number") {
+      const v = Math.max(0, Math.min(100, Math.round(Number(window.ENCOUNTER_RATE) || 0)));
+      return v;
+    }
+    if (typeof localStorage !== "undefined") {
+      const raw = localStorage.getItem("ENCOUNTER_RATE");
+      if (raw != null) {
+        const v = Math.max(0, Math.min(100, Math.round(Number(raw) || 0)));
+        return v;
+      }
+    }
+  } catch (_) {}
+  return 50;
+}
+
 function biomeFromTile(tile) {
   try {
     const W = (typeof window !== "undefined" ? window.World : null);
@@ -75,10 +93,18 @@ export function maybeTryEncounter(ctx) {
     const tile = ctx.world.map[wy][wx];
     const biome = biomeFromTile(tile);
 
-    // Base chance and pity: start low; increase slowly the longer without an encounter
-    const baseP = 0.03; // 3%
-    const pityBoost = Math.max(0, Math.floor((STATE.movesSinceLast - 18) / 8)) * 0.006; // +0.6% per 8 moves after ~18
-    const chance = Math.min(0.18, baseP + pityBoost);
+    // Base chance and pity scaled by GOD panel Encounter Rate (0..100).
+    // rate 50 -> baseline; 0 -> no encounters; 100 -> ~2x baseline with higher cap.
+    const rate = getEncounterRate();
+    if (rate <= 0) { STATE.movesSinceLast += 1; return false; }
+    const scale = rate / 50; // 0..2
+    const baseP0 = 0.03; // baseline 3%
+    const pityStep0 = 0.006; // +0.6% per 8 moves after ~18
+    const baseP = baseP0 * scale;
+    const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 18) / 8));
+    const pityBoost = pitySteps * (pityStep0 * scale);
+    const cap = Math.min(0.35, 0.18 * scale); // raise cap modestly with scale (max 35%)
+    const chance = Math.min(cap, baseP + pityBoost);
 
     const roll = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
     if (roll >= chance) {

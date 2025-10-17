@@ -28,6 +28,7 @@ export const UI = {
     onGodHeal: null,
     onGodSpawn: null,
     onGodSetFov: null,
+    onGodSetEncounterRate: null,
     onGodSpawnEnemy: null,
     onTownExit: null,
   },
@@ -56,7 +57,8 @@ export const UI = {
     this.els.godSpawnStairsBtn = document.getElementById("god-spawn-stairs-btn");
     this.els.godFov = document.getElementById("god-fov");
     this.els.godFovValue = document.getElementById("god-fov-value");
-    this.els.godToggleMirrorBtn = document.getElementById("god-toggle-mirror-btn");
+    this.els.godEncRate = document.getElementById("god-enc-rate");
+    this.els.godEncRateValue    this.els.godToggleMirrorBtn = document.getElementById("god-toggle-mirror-btn");
     this.els.godToggleCritBtn = document.getElementById("god-toggle-crit-btn");
     this.els.godToggleGridBtn = document.getElementById("god-toggle-grid-btn");
     this.els.godSeedInput = document.getElementById("god-seed-input");
@@ -284,6 +286,15 @@ export const UI = {
       this.els.godFov.addEventListener("input", updateFov);
       this.els.godFov.addEventListener("change", updateFov);
     }
+    if (this.els.godEncRate) {
+      const updateEncRate = () => {
+        const val = parseInt(this.els.godEncRate.value, 10);
+        this.setEncounterRateState(val);
+        if (typeof this.handlers.onGodSetEncounterRate === "function") this.handlers.onGodSetEncounterRate(val);
+      };
+      this.els.godEncRate.addEventListener("input", updateEncRate);
+      this.els.godEncRate.addEventListener("change", updateEncRate);
+    }
     if (this.els.godToggleMirrorBtn) {
       this.els.godToggleMirrorBtn.addEventListener("click", () => {
         this.toggleSideLog();
@@ -406,6 +417,7 @@ export const UI = {
       });
     }
     this.updateSeedUI();
+    this.updateEncounterRateUI();
 
     // Smoke config buttons
     if (this.els.smokeRunBtn) {
@@ -650,7 +662,7 @@ export const UI = {
     if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
   },
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -660,6 +672,7 @@ export const UI = {
     if (typeof onGodHeal === "function") this.handlers.onGodHeal = onGodHeal;
     if (typeof onGodSpawn === "function") this.handlers.onGodSpawn = onGodSpawn;
     if (typeof onGodSetFov === "function") this.handlers.onGodSetFov = onGodSetFov;
+    if (typeof onGodSetEncounterRate === "function") this.handlers.onGodSetEncounterRate = onGodSetEncounterRate;
     if (typeof onGodSpawnEnemy === "function") this.handlers.onGodSpawnEnemy = onGodSpawnEnemy;
     if (typeof onGodSpawnStairs === "function") this.handlers.onGodSpawnStairs = onGodSpawnStairs;
     if (typeof onGodSetAlwaysCrit === "function") this.handlers.onGodSetAlwaysCrit = onGodSetAlwaysCrit;
@@ -1025,6 +1038,38 @@ export const UI = {
     const v = Math.max(parseInt(this.els.godFov.min || "3", 10), Math.min(parseInt(this.els.godFov.max || "14", 10), parseInt(val, 10) || 0));
     this.els.godFov.value = String(v);
     if (this.els.godFovValue) this.els.godFovValue.textContent = `FOV: ${v}`;
+  },
+
+  // --- Encounter rate controls (0..100) ---
+  getEncounterRateState() {
+    // Default 50 means baseline frequency; <50 fewer, >50 more
+    try {
+      if (typeof window.ENCOUNTER_RATE === "number" && Number.isFinite(window.ENCOUNTER_RATE)) {
+        const v = Math.max(0, Math.min(100, Math.round(Number(window.ENCOUNTER_RATE))));
+        return v;
+      }
+      const raw = localStorage.getItem("ENCOUNTER_RATE");
+      if (raw != null) {
+        const v = Math.max(0, Math.min(100, Math.round(Number(raw) || 0)));
+        return v;
+      }
+    } catch (_) {}
+    return 50;
+  },
+
+  setEncounterRateState(val) {
+    const v = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
+    try {
+      window.ENCOUNTER_RATE = v;
+      localStorage.setItem("ENCOUNTER_RATE", String(v));
+    } catch (_) {}
+    this.updateEncounterRateUI();
+  },
+
+  updateEncounterRateUI() {
+    const v = this.getEncounterRateState();
+    if (this.els.godEncRate) this.els.godEncRate.value = String(v);
+    if (this.els.godEncRateValue) this.els.godEncRateValue.textContent = `Encounter rate: ${v}`;
   },
 
   // --- Side log mirror controls ---
