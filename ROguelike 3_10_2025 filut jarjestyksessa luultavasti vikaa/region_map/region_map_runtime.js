@@ -398,7 +398,7 @@ function addSparseTreesInForests(sample, density = 0.08, rng) {
   }
 }
 
-export function open(ctx, size) {
+function open(ctx, size) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
   // Only allow from walkable, non-town, non-dungeon tiles
   const WT = World.TILES;
@@ -508,7 +508,7 @@ export function open(ctx, size) {
   return true;
 }
 
-export function close(ctx) {
+function close(ctx) {
   if (!ctx || ctx.mode !== "region") return false;
   // Restore world view and player position at the exact coordinates where G was pressed
   const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
@@ -553,7 +553,7 @@ export function close(ctx) {
   return true;
 }
 
-export function tryMove(ctx, dx, dy) {
+function tryMove(ctx, dx, dy) {
   if (!ctx || ctx.mode !== "region" || !ctx.region) return false;
   const cur = ctx.region.cursor || { x: 0, y: 0 };
   const w = ctx.region.width | 0, h = ctx.region.height | 0;
@@ -584,7 +584,7 @@ export function tryMove(ctx, dx, dy) {
   return true;
 }
 
-export function onAction(ctx) {
+function onAction(ctx) {
   if (!ctx || ctx.mode !== "region" || !ctx.region) return false;
   const { cursor, exitTiles } = ctx.region;
   const onExit = exitTiles.some(e => e.x === cursor.x && e.y === cursor.y);
@@ -628,7 +628,7 @@ export function onAction(ctx) {
   return true;
 }
 
-export function tick(ctx) { return true; }
+function tick(ctx) { return true; }
 
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
