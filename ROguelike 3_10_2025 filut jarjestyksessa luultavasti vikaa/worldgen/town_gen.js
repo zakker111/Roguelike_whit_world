@@ -112,9 +112,31 @@
       case "stall":
         ctx.log("A vendor waves: 'Fresh wares soon!'", "notice");
         break;
-      case "tree":
-        ctx.log("A leafy tree offers a bit of shade.", "info");
+      case "tree": {
+        // Chop the tree for materials
+        ctx.log("You cut the tree.", "notice");
+        // Remove the tree prop so it can't be farmed infinitely
+        try {
+          const idx = ctx.townProps.findIndex(tp => tp && tp.x === p.x && tp.y === p.y && tp.type === "tree");
+          if (idx !== -1) ctx.townProps.splice(idx, 1);
+        } catch (_) {}
+        // Grant planks (material: wood) to inventory, 10 per tree
+        try {
+          const inv = ctx.player.inventory || (ctx.player.inventory = []);
+          // Prefer a single stackable entry using amount (like gold)
+          const existing = inv.find(it => it && it.kind === "material" && (it.type === "wood" || it.material === "wood") && (String(it.name || "").toLowerCase() === "planks"));
+          if (existing) {
+            // use amount if present, else count
+            if (typeof existing.amount === "number") existing.amount += 10;
+            else if (typeof existing.count === "number") existing.count += 10;
+            else existing.amount = 10; // establish amount field going forward
+          } else {
+            inv.push({ kind: "material", type: "wood", name: "planks", amount: 10 });
+          }
+          if (typeof ctx.updateUI === "function") ctx.updateUI();
+        } catch (_) {}
         break;
+      }
       case "fireplace":
         ctx.log("You warm your hands by the fireplace.", "info");
         break;
