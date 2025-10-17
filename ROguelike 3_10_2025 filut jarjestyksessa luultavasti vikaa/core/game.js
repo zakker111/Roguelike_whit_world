@@ -1282,18 +1282,33 @@
     }
 
     if (mode === "encounter") {
-      // Encounter maps use dungeon-like loot containers; try dungeon lootHere first.
-      const DR = modHandle("DungeonRuntime");
-      if (DR && typeof DR.lootHere === "function") {
-        const ctxMod = getCtx();
-        DR.lootHere(ctxMod);
-        applyCtxSyncAndRefresh(ctxMod);
-        return;
+      const ctxMod = getCtx();
+      // Check for a lootable container (corpse/chest) underfoot or adjacent with items
+      let hasNearbyLoot = false;
+      try {
+        const p = ctxMod.player || player;
+        const list = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : [];
+        for (const c of list) {
+          if (!c) continue;
+          const hasItems = Array.isArray(c.loot) && c.loot.length > 0;
+          if (!hasItems) continue;
+          const md = Math.abs((c.x|0) - (p.x|0)) + Math.abs((c.y|0) - (p.y|0));
+          if (md <= 1) { hasNearbyLoot = true; break; }
+        }
+      } catch (_) {}
+
+      if (hasNearbyLoot) {
+        const DR = modHandle("DungeonRuntime");
+        if (DR && typeof DR.lootHere === "function") {
+          DR.lootHere(ctxMod);
+          applyCtxSyncAndRefresh(ctxMod);
+          return;
+        }
       }
-      // Simple withdraw: pressing G leaves the encounter and returns to overworld
+
+      // No lootable container nearby: treat G as withdraw/leave
       const ER = modHandle("EncounterRuntime");
       if (ER && typeof ER.complete === "function") {
-        const ctxMod = getCtx();
         ER.complete(ctxMod, "withdraw");
         applyCtxSyncAndRefresh(ctxMod);
         return;

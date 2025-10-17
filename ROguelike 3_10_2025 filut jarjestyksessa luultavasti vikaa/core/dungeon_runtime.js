@@ -261,7 +261,7 @@ export function returnToWorldIfAtExit(ctx) {
 }
 
 export function lootHere(ctx) {
-  if (!ctx || ctx.mode !== "dungeon") return false;
+  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
 
   // QoL: if adjacent to a corpse/chest, step onto it (only if not on exit)
   try {
