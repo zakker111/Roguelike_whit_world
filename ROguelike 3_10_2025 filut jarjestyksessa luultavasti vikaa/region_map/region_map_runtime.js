@@ -62,7 +62,7 @@ function countBiomes(sample) {
     [WT.WATER]: 0, [WT.RIVER]: 0, [WT.BEACH]: 0,
     [WT.SWAMP]: 0, [WT.FOREST]: 0, [WT.GRASS]: 0,
     [WT.MOUNTAIN]: 0, [WT.DESERT]: 0, [WT.SNOW]: 0,
-    [WT.TOWN]: 0, [WT.DUNGEON]: 0, [WT.TREE]: 0
+    [WT.TOWN]: 0, [WT.DUNGEON]: 0
   };
   for (let y = 0; y < sample.length; y++) {
     const row = sample[y] || [];
@@ -267,30 +267,7 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33) {
   }
 }
 
-// Sprinkle sparse TREE tiles inside FOREST tiles for region map visualization.
-// Avoid placing trees adjacent to each other to keep them sparse.
-function addSparseTreesInForests(sample, density = 0.08) {
-  const WT = World.TILES;
-  const h = sample.length, w = sample[0] ? sample[0].length : 0;
-  if (!w || !h) return;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (sample[y][x] !== WT.FOREST) continue;
-      if (Math.random() >= density) continue;
-      // avoid adjacent trees to keep sparsity
-      let nearTree = false;
-      for (let dy = -1; dy <= 1 && !nearTree; dy++) {
-        for (let dx = -1; dx <= 1 && !nearTree; dx++) {
-          if (!dx && !dy) continue;
-          const nx = x + dx, ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-          if (sample[ny][nx] === WT.TREE) nearTree = true;
-        }
-      }
-      if (!nearTree) sample[y][x] = WT.TREE;
-    }
-  }
-}
+
 
 export function open(ctx, size) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
@@ -320,8 +297,6 @@ export function open(ctx, size) {
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   addMinorWaterAndBeaches(sample);
-  // Sprinkle sparse trees in forest tiles for region visualization
-  addSparseTreesInForests(sample, 0.10);
 
   const exitNorth = { x: (width / 2) | 0, y: 0 };
   const exitSouth = { x: (width / 2) | 0, y: height - 1 };
@@ -380,8 +355,8 @@ export function open(ctx, size) {
         if (td && td.properties && typeof td.properties.blocksFOV === "boolean") {
           return !td.properties.blocksFOV;
         }
-        // Fallback: mountains and trees block FOV
-        if (WT2 && (t === WT2.MOUNTAIN || t === WT2.TREE)) return false;
+        // Fallback: mountains block FOV
+        if (WT2 && (t === WT2.MOUNTAIN)) return false;
         return true;
       },
     };

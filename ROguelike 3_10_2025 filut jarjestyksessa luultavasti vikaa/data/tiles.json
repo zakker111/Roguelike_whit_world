@@ -49,9 +49,7 @@
       "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
       "appearsIn": ["overworld", "region"],
       "tags": ["woods"],
-      "decorators": [
-        { "tile": "TREE", "density": 0.10, "sparse": true, "onlyInModes": ["region"] }
-      ]
+      "decorators": []
     },
     {
       "id": 1,
@@ -120,7 +118,7 @@
       "glyph": "||",
       "colors": { "fill": "#0f3b1e", "fg": "#3fa650" },
       "properties": { "walkable": true, "blocksFOV": true, "emitsLight": false },
-      "appearsIn": ["region", "town"],
+      "appearsIn": [],
       "tags": ["decor", "woods"]
     },
 
@@ -348,9 +346,9 @@
   ],
   "overrides": {
     "region": {
-      "TREE": { "blocksFOV": true },
       "MOUNTAIN": { "blocksFOV": true },
       "WATER": { "blocksFOV": false },
+      "RIVER": "blocksFOV": false },
       "RIVER": { "blocksFOV": false }
     },
     "dungeon": {

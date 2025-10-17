@@ -112,9 +112,7 @@
       case "stall":
         ctx.log("A vendor waves: 'Fresh wares soon!'", "notice");
         break;
-      case "tree":
-        ctx.log("A leafy tree offers a bit of shade.", "info");
-        break;
+      
       case "fireplace":
         ctx.log("You warm your hands by the fireplace.", "info");
         break;
