@@ -49,7 +49,9 @@
       "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
       "appearsIn": ["overworld", "region"],
       "tags": ["woods"],
-      "decorators": []
+      "decorators": [
+        { "tile": "TREE", "density": 0.10, "sparse": true, "onlyInModes": ["region"] }
+      ]
     },
     {
       "id": 1,
