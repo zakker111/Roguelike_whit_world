@@ -1609,6 +1609,12 @@
               }
             }
           } catch (_) {}
+          // Merge enemy/corpse/decals mutations that may have been synced via a different ctx inside callbacks
+          try {
+            ctxMod.enemies = Array.isArray(enemies) ? enemies : ctxMod.enemies;
+            ctxMod.corpses = Array.isArray(corpses) ? corpses : ctxMod.corpses;
+            ctxMod.decals = Array.isArray(decals) ? decals : ctxMod.decals;
+          } catch (_) {}
           // Sync any mode/map changes and then advance the turn so AI/status run on synchronized state
           applyCtxSyncAndRefresh(ctxMod);
           turn();
@@ -2106,7 +2112,13 @@
       if (ER && typeof ER.tick === "function") {
         const ctxMod = getCtx();
         ER.tick(ctxMod);
-        // Sync any mode change triggered by encounter completion (victory/withdraw)
+        // Merge enemy/corpse/decals mutations that may have been synced via a different ctx inside callbacks
+        try {
+          ctxMod.enemies = Array.isArray(enemies) ? enemies : ctxMod.enemies;
+          ctxMod.corpses = Array.isArray(corpses) ? corpses : ctxMod.corpses;
+          ctxMod.decals = Array.isArray(decals) ? decals : ctxMod.decals;
+        } catch (_) {}
+        // Now push ctx state (including player position/mode changes) and refresh
         applyCtxSyncAndRefresh(ctxMod);
       }
     } else if (mode === "region") {
