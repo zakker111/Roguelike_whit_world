@@ -603,7 +603,13 @@ export const UI = {
           this.hideInventory();
           e.preventDefault();
         } else if (this.isGodOpen()) {
-          this.hide   }
+          this.hideGod();
+          e.preventDefault();
+        } else if (this.isSmokeOpen()) {
+          this.hideSmoke();
+          e.preventDefault();
+        }
+      }
     });
 
     // Establish baseline render toggles early to avoid repeated localStorage reads in hot paths.
