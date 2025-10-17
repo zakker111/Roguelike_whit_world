@@ -395,6 +395,36 @@ export function draw(ctx, view) {
               RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
             }
           }
+        } else if (p.type === "crate" || p.type === "barrel" || p.type === "bench") {
+          // Draw simple decor props with tileset fallback to JSON keys
+          let key = p.type;
+          let drawn = false;
+          if (tilesetReady && TS && typeof TS.draw === "function") {
+            drawn = TS.draw(ctx2d, key, sx, sy, TILE);
+          }
+          if (!drawn) {
+            let jsonKey = (p.type === "crate") ? "CRATE" : (p.type === "barrel") ? "BARREL" : "BENCH";
+            let glyph = "";
+            let color = COLORS.corpse || "#cbd5e1";
+            // Prefer dungeon tile if exists, fall back to town definitions
+            try {
+              const td = getTileDefByKey("dungeon", jsonKey) || getTileDefByKey("town", jsonKey);
+              if (td) {
+                if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
+                if (td.colors && td.colors.fg) color = td.colors.fg || color;
+              }
+            } catch (_) {}
+            if (glyph) {
+              if (!visNow) {
+                ctx2d.save();
+                ctx2d.globalAlpha = 0.65;
+                RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+                ctx2d.restore();
+              } else {
+                RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+              }
+            }
+          }
         }
       }
     }

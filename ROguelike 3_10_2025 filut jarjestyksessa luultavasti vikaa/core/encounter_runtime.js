@@ -134,6 +134,7 @@ export function enter(ctx, info) {
     // Place 2–4 small huts (3x3 walls with one door)
     const huts = 2 + Math.floor(rng() * 3);
     const taken = [];
+    const hutDoors = [];
     for (let i = 0; i < huts; i++) {
       let tries = 0;
       while (tries++ < 80) {
@@ -142,14 +143,15 @@ export function enter(ctx, info) {
         // avoid overlapping centers
         if (taken.some(t => Math.abs(t.x - x0) < 4 && Math.abs(t.y - y0) < 4)) continue;
         taken.push({ x: x0, y: y0 });
+        // hut perimeter
         for (let x = x0; x < x0 + 3; x++) { m[y0][x] = T.WALL; m[y0 + 2][x] = T.WALL; }
         for (let y = y0; y < y0 + 3; y++) { m[y][x0] = T.WALL; m[y][x0 + 2] = T.WALL; }
-        // carve a random door
+        // carve a random door and record its outward direction
         const side = Math.floor(rng() * 4);
-        if (side === 0) m[y0][x0 + 1] = T.DOOR;
-        else if (side === 1) m[y0 + 2][x0 + 1] = T.DOOR;
-        else if (side === 2) m[y0 + 1][x0] = T.DOOR;
-        else m[y0 + 1][x0 + 2] = T.DOOR;
+        if (side === 0) { m[y0][x0 + 1] = T.DOOR; hutDoors.push({ x: x0 + 1, y: y0, dx: 0, dy: -1 }); }
+        else if (side === 1) { m[y0 + 2][x0 + 1] = T.DOOR; hutDoors.push({ x: x0 + 1, y: y0 + 2, dx: 0, dy: 1 }); }
+        else if (side === 2) { m[y0 + 1][x0] = T.DOOR; hutDoors.push({ x: x0, y: y0 + 1, dx: -1, dy: 0 }); }
+        else { m[y0 + 1][x0 + 2] = T.DOOR; hutDoors.push({ x: x0 + 2, y: y0 + 1, dx: 1, dy: 0 }); }
         // record hut center for chest placement
         hutCenters.push({ x: x0 + 1, y: y0 + 1 });
         break;
@@ -158,7 +160,18 @@ export function enter(ctx, info) {
     // Add a central clearing
     const px = (W / 2) | 0, py = (H / 2) | 0;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) m[py + dy][px + dx] = T.FLOOR;
-    // Add 1–2 decorative campfires near center (non-blocking)
+
+    // Helper: check free floor and not colliding with existing props
+    const propUsed = () => new Set(encProps.map(p => `${p.x},${p.y}`));
+    function canPlace(x, y) {
+      if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+      if (m[y][x] !== T.FLOOR) return false;
+      const k = `${x},${y}`;
+      if (propUsed().has(k)) return false;
+      return true;
+    }
+
+    // Add 2 decorative campfires near center and benches around them
     const fireCandidates = [
       { x: px + 2, y: py }, { x: px - 2, y: py },
       { x: px, y: py + 2 }, { x: px, y: py - 2 }
@@ -166,11 +179,40 @@ export function enter(ctx, info) {
     let fires = 0;
     for (const f of fireCandidates) {
       if (fires >= 2) break;
-      if (f.x > 0 && f.y > 0 && f.x < W - 1 && f.y < H - 1 && m[f.y][f.x] === T.FLOOR) {
+      if (canPlace(f.x, f.y)) {
         encProps.push({ x: f.x, y: f.y, type: "campfire" });
         fires++;
+        // place up to two benches adjacent
+        const benchCandidates = [
+          { x: f.x + 1, y: f.y }, { x: f.x - 1, y: f.y },
+          { x: f.x, y: f.y + 1 }, { x: f.x, y: f.y - 1 }
+        ];
+        let benches = 0;
+        for (const b of benchCandidates) {
+          if (benches >= 2) break;
+          if (canPlace(b.x, b.y)) {
+            encProps.push({ x: b.x, y: b.y, type: "bench" });
+            benches++;
+          }
+        }
       }
     }
+
+    // Add crates/barrels just outside hut doors
+    for (const d of hutDoors) {
+      const ox = d.x + d.dx, oy = d.y + d.dy;
+      const side1 = { x: d.x + d.dy, y: d.y - d.dx };
+      const side2 = { x: d.x - d.dy, y: d.y + d.dx };
+      const choices = [ { x: ox, y: oy }, side1, side2 ];
+      for (const c of choices) {
+        if (canPlace(c.x, c.y)) {
+          const kind = (rng() < 0.5) ? "crate" : "barrel";
+          encProps.push({ x: c.x, y: c.y, type: kind });
+          break;
+        }
+      }
+    }
+
     return m;
   }
   function genRuins(rng) {

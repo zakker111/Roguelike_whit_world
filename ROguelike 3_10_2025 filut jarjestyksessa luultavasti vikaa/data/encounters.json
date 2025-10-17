@@ -15,7 +15,7 @@
       "id": "bandit_camp",
       "name": "Bandit Camp",
       "baseWeight": 0.8,
-      "allowedBiomes": ["GRASS", "DESERT", "BEACH", "SNOW"],
+      "allowedBiomes": ["FOREST", "GRASS", "DESERT", "BEACH", "SNOW"],
       "map": { "generator": "camp", "w": 26, "h": 18 },
       "groups": [
         { "type": "bandit", "count": { "min": 3, "max": 6 } }
