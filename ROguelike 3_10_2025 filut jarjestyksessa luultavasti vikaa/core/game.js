@@ -1590,13 +1590,26 @@
 
     // ENCOUNTER MODE
     if (mode === "encounter") {
-      const ER = modHandle("EncounterRuntime");
-      if (ER && typeof ER.tryMoveEncounter === "function") {
-        const ctxMod = getCtx();
-        const ok = !!ER.tryMoveEncounter(ctxMod, dx, dy);
-        if (ok) {
-          // Sync any mode/map changes (e.g., exit to overworld) immediately,
-          // then advance the turn so AI/status/decals run using the synced state.
+      // Keep encounter input path identical to dungeon: delegate to DungeonRuntime.tryMoveDungeon,
+      // then handle encounter-specific exit on STAIRS.
+      const DR = modHandle("DungeonRuntime");
+      const ctxMod = getCtx();
+      if (DR && typeof DR.tryMoveDungeon === "function") {
+        const acted = !!DR.tryMoveDungeon(ctxMod, dx, dy); // in encounter mode it does NOT call ctx.turn()
+        if (acted) {
+          // If we stepped onto an exit tile in encounter, withdraw immediately (dungeon uses returnToWorld, we use Encounter.complete)
+          try {
+            if (ctxMod.inBounds && ctxMod.inBounds(ctxMod.player.x, ctxMod.player.y)) {
+              const here = ctxMod.map[ctxMod.player.y][ctxMod.player.x];
+              if (here === ctxMod.TILES.STAIRS) {
+                const ER = modHandle("EncounterRuntime");
+                if (ER && typeof ER.complete === "function") {
+                  ER.complete(ctxMod, "withdraw");
+                }
+              }
+            }
+          } catch (_) {}
+          // Sync any mode/map changes and then advance the turn so AI/status run on synchronized state
           applyCtxSyncAndRefresh(ctxMod);
           turn();
           return;
