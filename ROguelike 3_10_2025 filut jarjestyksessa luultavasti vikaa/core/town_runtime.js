@@ -19,6 +19,26 @@ export function generate(ctx) {
       if (typeof Tn.spawnGateGreeters === "function") {
         try { Tn.spawnGateGreeters(ctx, 0); } catch (_) {}
       }
+
+      // Safety: if no NPCs ended up populated, force a minimal population so the town isn't empty
+      try {
+        if (!Array.isArray(ctx.npcs) || ctx.npcs.length === 0) {
+          const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
+          if (TAI && typeof TAI.populateTown === "function") {
+            TAI.populateTown(ctx);
+          }
+          // Ensure at least one greeter near the gate
+          if (typeof Tn.spawnGateGreeters === "function") {
+            Tn.spawnGateGreeters(ctx, 1);
+          }
+          // Rebuild occupancy to reflect newly added NPCs
+          try {
+            if (typeof rebuildOccupancy === "function") rebuildOccupancy(ctx);
+            else if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
+          } catch (_) {}
+        }
+      } catch (_) {}
+
       // Post-gen camera/FOV/UI (draw coalesced by orchestrator)
       try { ctx.updateCamera(); } catch (_) {}
       try { ctx.recomputeFOV(); } catch (_) {}
