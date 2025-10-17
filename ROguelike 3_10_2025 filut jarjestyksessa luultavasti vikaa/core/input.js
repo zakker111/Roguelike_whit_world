@@ -136,6 +136,8 @@ export function init(handlers) {
     // Action / interact (G)
     if (e.key && e.key.toLowerCase() === "g") {
       e.preventDefault();
+      // Guard against auto-repeat so a single held press doesn't open then immediately exit region
+      if (e.repeat) return;
       _handlers.onHideLoot && _handlers.onHideLoot();
       _handlers.onLoot && _handlers.onLoot();
       return;
