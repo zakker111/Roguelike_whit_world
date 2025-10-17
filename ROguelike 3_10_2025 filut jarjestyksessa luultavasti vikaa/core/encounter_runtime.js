@@ -6,9 +6,42 @@
  * - tryMoveEncounter(ctx, dx, dy): movement during encounter (bump to attack)
  * - tick(ctx): drives AI and completes encounter on kill-all
  */
+function createDungeonEnemyAt(ctx, x, y, depth) {
+  // Prefer the same factory used by dungeon floors
+  try {
+    if (typeof ctx.enemyFactory === "function") {
+      const e = ctx.enemyFactory(x, y, depth);
+      if (e) return e;
+    }
+  } catch (_) {}
+  // Fallback: use Enemies registry to pick a type by depth
+  try {
+    const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
+    if (EM && typeof EM.pickType === "function") {
+      const type = EM.pickType(depth, ctx.rng);
+      const td = EM.getTypeDef && EM.getTypeDef(type);
+      if (td) {
+        const level = (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(type, depth, ctx.rng) : depth;
+        return {
+          x, y,
+          type,
+          glyph: (td.glyph && td.glyph.length) ? td.glyph : ((type && type.length) ? type.charAt(0) : "?"),
+          hp: td.hp(depth),
+          atk: td.atk(depth),
+          xp: td.xp(depth),
+          level,
+          announced: false
+        };
+      }
+    }
+  } catch (_) {}
+  // Last resort
+  return { x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+}
+
 export function enter(ctx, info) {
   if (!ctx || !ctx.world || !ctx.world.map) return false;
-  const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { type: "bandit", count: { min: 2, max: 3 } } ] };
+  const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { count: { min: 2, max: 3 } } ] };
 
   // Remember return position in overworld
   const worldX = ctx.player.x | 0;
@@ -168,7 +201,7 @@ export function enter(ctx, info) {
   const px = (W / 2) | 0, py = (H / 2) | 0;
   ctx.player.x = px; ctx.player.y = py;
 
-  // Spawn enemies per template groups
+  // Spawn enemies per template groups (counts only); types are picked by the dungeon enemy factory
   const groups = Array.isArray(template.groups) ? template.groups : [];
   const totalWanted = groups.reduce((acc, g) => {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
@@ -224,18 +257,16 @@ export function enter(ctx, info) {
     ring++;
   }
 
-  // Materialize enemies with enemyFactory
+  // Materialize enemies using dungeon enemy factory
   let pIdx = 0;
   const depth = Math.max(1, (ctx.floor | 0) || 1);
   for (const g of groups) {
-    const type = g.type || "goblin";
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
     const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
       const p = placements[pIdx++];
-      const e = (typeof ctx.enemyFactory === "function") ? ctx.enemyFactory(p.x, p.y, depth) : { x: p.x, y: p.y, type: type, hp: 4, atk: 1, xp: 6, level: depth };
-      e.type = type || e.type || "goblin";
+      const e = createDungeonEnemyAt(ctx, p.x, p.y, depth);
       ctx.enemies.push(e);
     }
   }
@@ -411,18 +442,16 @@ export function enterRegion(ctx, info) {
     ring++;
   }
 
-  // Materialize enemies
+  // Materialize enemies using dungeon enemy factory (types picked like dungeon)
   let pIdx = 0;
   const depth = Math.max(1, (ctx.floor | 0) || 1);
   for (const g of groups) {
-    const type = g.type || "goblin";
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
     const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
       const p = placements[pIdx++];
-      const e = (typeof ctx.enemyFactory === "function") ? ctx.enemyFactory(p.x, p.y, depth) : { x: p.x, y: p.y, type: type, hp: 4, atk: 1, xp: 6, level: depth };
-      e.type = type || e.type || "goblin";
+      const e = createDungeonEnemyAt(ctx, p.x, p.y, depth);
       ctx.enemies.push(e);
     }
   }
