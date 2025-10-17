@@ -1592,8 +1592,13 @@
     if (mode === "encounter") {
       const ER = modHandle("EncounterRuntime");
       if (ER && typeof ER.tryMoveEncounter === "function") {
-        const ok = !!ER.tryMoveEncounter(getCtx(), dx, dy);
-        if (ok) return;
+        const ctxMod = getCtx();
+        const ok = !!ER.tryMoveEncounter(ctxMod, dx, dy);
+        if (ok) {
+          // Sync any mode/map changes (e.g., exit to overworld) immediately
+          applyCtxSyncAndRefresh(ctxMod);
+          return;
+        }
       }
       // Fallback: minimal dungeon-like movement
       const nx = player.x + dx;
@@ -2084,7 +2089,10 @@
     } else if (mode === "encounter") {
       const ER = modHandle("EncounterRuntime");
       if (ER && typeof ER.tick === "function") {
-        ER.tick(getCtx());
+        const ctxMod = getCtx();
+        ER.tick(ctxMod);
+        // Sync any mode change triggered by encounter completion (victory/withdraw)
+        applyCtxSyncAndRefresh(ctxMod);
       }
     } else if (mode === "region") {
       const RM = modHandle("RegionMapRuntime");
