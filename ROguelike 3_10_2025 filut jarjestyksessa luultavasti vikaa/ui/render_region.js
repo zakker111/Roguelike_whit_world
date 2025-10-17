@@ -109,23 +109,7 @@ export function draw(ctx, view) {
     }
   }
 
-  // Orange edge tiles (center tiles on each side)
-  try {
-    ctx2d.save();
-    ctx2d.fillStyle = "rgba(241,153,40,0.28)";
-    ctx2d.strokeStyle = "rgba(241,153,40,0.80)";
-    ctx2d.lineWidth = 2;
-    for (const e of (ctx.region.exitTiles || [])) {
-      const ex = (e.x | 0), ey = (e.y | 0);
-      if (ex >= startX && ex <= endX && ey >= startY && ey <= endY) {
-        const sx = (ex - startX) * TILE - tileOffsetX;
-        const sy = (ey - startY) * TILE - tileOffsetY;
-        ctx2d.fillRect(sx, sy, TILE, TILE);
-        ctx2d.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
-      }
-    }
-    ctx2d.restore();
-  } catch (_) {}
+  
 
   // Player marker (cursor) with backdrop (only if visible)
   const px = ctx.player.x, py = ctx.player.y;
@@ -159,7 +143,7 @@ export function draw(ctx, view) {
     const clock = ctx.time && ctx.time.hhmm ? `   |   Time: ${ctx.time.hhmm}` : "";
     ctx2d.fillText(`Region Map${clock}`, 8, 8);
     ctx2d.fillStyle = "#a1a1aa";
-    ctx2d.fillText("Move with arrows. Press G on orange edge to return.", 8, 26);
+    ctx2d.fillText("Move with arrows. Press G to return.", 8, 26);
     ctx2d.textAlign = prevAlign;
     ctx2d.textBaseline = prevBaseline;
   } catch (_) {}
