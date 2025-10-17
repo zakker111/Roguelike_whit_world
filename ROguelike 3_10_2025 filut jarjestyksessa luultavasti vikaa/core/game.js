@@ -1666,8 +1666,21 @@
             ctxMod.corpses = Array.isArray(corpses) ? corpses : ctxMod.corpses;
             ctxMod.decals = Array.isArray(decals) ? decals : ctxMod.decals;
           } catch (_) {}
-          // Sync any mode/map changes and then advance the turn so AI/status run on synchronized state
+          // Sync any mode/map changes
           applyCtxSyncAndRefresh(ctxMod);
+          // If we just moved onto a merchant (e.g., Seppo), auto-open the shop
+          try {
+            const props = Array.isArray(ctxMod.encounterProps) ? ctxMod.encounterProps : [];
+            const onMerchant = props.find(pr => pr && pr.type === "merchant" && pr.x === ctxMod.player.x && pr.y === ctxMod.player.y);
+            if (onMerchant) {
+              const UB = modHandle("UIBridge");
+              if (UB && typeof UB.showShop === "function") {
+                const already = (typeof UB.isShopOpen === "function") ? !!UB.isShopOpen() : false;
+                if (!already) UB.showShop(ctxMod, { name: onMerchant.name || "Merchant", vendor: onMerchant.vendor || "merchant" });
+              }
+            }
+          } catch (_) {}
+          // Advance the turn so AI/status run on synchronized state
           turn();
           return;
         }
@@ -1681,6 +1694,18 @@
         player.x = nx;
         player.y = ny;
         updateCamera();
+        // Auto-open shop if we stepped onto a merchant tile
+        try {
+          const props = Array.isArray(encounterProps) ? encounterProps : [];
+          const onMerchant = props.find(pr => pr && pr.type === "merchant" && pr.x === player.x && pr.y === player.y);
+          if (onMerchant) {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.showShop === "function") {
+              const already = (typeof UB.isShopOpen === "function") ? !!UB.isShopOpen() : false;
+              if (!already) UB.showShop(getCtx(), { name: onMerchant.name || "Merchant", vendor: onMerchant.vendor || "merchant" });
+            }
+          }
+        } catch (_) {}
         turn();
       }
       return;
