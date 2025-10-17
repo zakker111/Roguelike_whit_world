@@ -182,28 +182,9 @@ export function draw(ctx, view) {
     }
   }
 
-  // If shop door, overlay glyph (T for Tavern, I for Inn, otherwise S) when visible.
-  // Color is derived from tiles.json door fg color; if not available, skip drawing.
-  for (let y = startY; y <= endY; y++) {
-    const yIn = y >= 0 && y < mapRows;
-    const rowVis = yIn ? (visible[y] || []) : [];
-    for (let x = startX; x <= endX; x++) {
-      if (!yIn || x < 0 || x >= mapCols) continue;
-      const vis = !!rowVis[x];
-      if (!vis) continue;
-      const glyph = SHOP_GLYPHS[`${x},${y}`];
-      const tdDoor = getTileDef("dungeon", TILES.DOOR);
-      const shopColor = tdDoor && tdDoor.colors && tdDoor.colors.fg;
-      if (glyph && shopColor) {
-        const screenX = (x - startX) * TILE - tileOffsetX;
-        const screenY = (y - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, shopColor, TILE);
-      }
-    }
-  }
+  // No shop-door overlays from code; all tile overlays come from tiles.json only.
 
-  // Props (only if visible). JSON-first: if tiles.json defines a town prop with matching key,
-  // use its glyph/color; otherwise fallback to built-in defaults.
+  // Props (only if visible). Use tiles.json only; no code fallbacks.
   if (Array.isArray(ctx.townProps)) {
     for (const p of ctx.townProps) {
       if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
@@ -211,34 +192,13 @@ export function draw(ctx, view) {
       const screenX = (p.x - startX) * TILE - tileOffsetX;
       const screenY = (p.y - startY) * TILE - tileOffsetY;
 
-      let glyph = "?";
-      let color = "#e5e7eb";
-
       const tdProp = getPropDef(p.type);
-      if (tdProp) {
-        if (Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph;
-        if (tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg;
-      } else {
-        if (p.type === "well") { glyph = "O"; color = "#7aa2f7"; }
-        else if (p.type === "fountain") { glyph = "◌"; color = "#89ddff"; }
-        else if (p.type === "bench") { glyph = "≡"; color = "#d7ba7d"; }
-        else if (p.type === "lamp") { glyph = "†"; color = "#ffd166"; }
-        else if (p.type === "stall") { glyph = "s"; color = "#b4f9f8"; }
-        else if (p.type === "tree") { glyph = "♣"; color = "#84cc16"; }
-        else if (p.type === "fireplace") { glyph = "∩"; color = "#ff9966"; }
-        else if (p.type === "table") { glyph = "┼"; color = "#d7ba7d"; }
-        else if (p.type === "chair") { glyph = "π"; color = "#d7ba7d"; }
-        else if (p.type === "bed") { glyph = "b"; color = "#a3be8c"; }
-        else if (p.type === "chest") { glyph = "▯"; color = "#d7ba7d"; }
-        else if (p.type === "crate") { glyph = "▢"; color = "#b59b6a"; }
-        else if (p.type === "barrel") { glyph = "◍"; color = "#a07c4b"; }
-        else if (p.type === "shelf") { glyph = "≋"; color = "#b4f9f8"; }
-        else if (p.type === "plant") { glyph = "❀"; color = "#84cc16"; }
-        else if (p.type === "rug") { glyph = "≈"; color = "#a3be8c"; }
-        else if (p.type === "sign") { glyph = "∎"; color = "#ffd166"; }
+      if (!tdProp) continue;
+      const glyph = Object.prototype.hasOwnProperty.call(tdProp, "glyph") ? tdProp.glyph : "";
+      const color = tdProp.colors && tdProp.colors.fg ? tdProp.colors.fg : null;
+      if (glyph && String(glyph).trim().length > 0 && color) {
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
       }
-
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
     }
   }
 

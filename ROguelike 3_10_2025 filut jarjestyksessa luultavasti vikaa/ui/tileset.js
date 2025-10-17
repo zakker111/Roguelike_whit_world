@@ -79,23 +79,8 @@ export const Tileset = {
 Tileset.configure({
   tileSize: 32,
   map: {
-    floor: { x: 0, y: 0 },
-    wall: { x: 1, y: 0 },
-    door: { x: 2, y: 0 },
-    stairs: { x: 3, y: 0 },
-    chest: { x: 4, y: 0 },
-    corpse: { x: 5, y: 0 },
-
-    player: { x: 0, y: 1 },
-    "enemy.goblin": { x: 1, y: 1 },
-    "enemy.troll": { x: 2, y: 1 },
-    "enemy.ogre": { x: 3, y: 1 },
-    "enemy.hell_houndin": { x: 4, y: 1 },
-
-    // Optional decal frames (if present in atlas). Fallback drawing used otherwise.
-    "decal.blood1": { x: 5, y: 1 },
-    "decal.blood2": { x: 6, y: 1 },
-    "decal.blood3": { x: 7, y: 1 },
+    // No hardcoded tile-to-frame mapping; can be configured at runtime via Tileset.configure().
+    // Rendering falls back to tiles.json glyph/colors.
   }
 });
 

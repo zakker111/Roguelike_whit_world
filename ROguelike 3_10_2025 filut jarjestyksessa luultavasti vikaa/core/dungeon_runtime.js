@@ -285,8 +285,7 @@ export function lootHere(ctx) {
         if (c) { target = { x: tx, y: ty }; break; }
       }
       if (target) {
-        const walkable = (ctx.inBounds(target.x, target.y) &&
-          (ctx.map[target.y][target.x] === ctx.TILES.FLOOR || ctx.map[target.y][target.x] === ctx.TILES.DOOR));
+        const walkable = (typeof ctx.isWalkable === "function") ? !!ctx.isWalkable(target.x, target.y) : (ctx.inBounds(target.x, target.y));
         const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
         if (walkable && !enemyBlocks) {
           ctx.player.x = target.x; ctx.player.y = target.y;
@@ -601,7 +600,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
   // Movement into empty tile
   try {
     const blockedByEnemy = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny);
-    const walkable = ctx.inBounds(nx, ny) && (ctx.map[ny][nx] === ctx.TILES.FLOOR || ctx.map[ny][nx] === ctx.TILES.DOOR || ctx.map[ny][nx] === ctx.TILES.STAIRS);
+    const walkable = (typeof ctx.isWalkable === "function") ? !!ctx.isWalkable(nx, ny) : (ctx.inBounds(nx, ny));
     if (walkable && !blockedByEnemy) {
       ctx.player.x = nx; ctx.player.y = ny;
       ctx.updateCamera && ctx.updateCamera();

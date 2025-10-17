@@ -141,6 +141,65 @@ GameData.ready = (async function loadAll() {
       if (!isArr(ND.petDogs)) logNotice("NPCs: petDogs missing or empty.");
     })();
 
+    // Tiles.json validation: warn when critical fields are missing or conflicting
+    (function validateTiles() {
+      const TD = GameData.tiles;
+      if (!TD || !Array.isArray(TD.tiles)) { logNotice("Tiles registry missing or malformed."); return; }
+      const tiles = TD.tiles;
+      const seenByMode = { overworld: new Map(), region: new Map(), dungeon: new Map(), town: new Map() };
+      let missingFill = 0, missingProps = 0, duplicateIdMode = 0;
+
+      function add(mode, id, t) {
+        const m = seenByMode[mode];
+        if (!m) return;
+        if (m.has(id)) {
+          duplicateIdMode++;
+        } else {
+          m.set(id, t);
+        }
+      }
+
+      for (let i = 0; i < tiles.length; i++) {
+        const t = tiles[i];
+        const id = (t && typeof t.id === "number") ? (t.id | 0) : null;
+        const appears = Array.isArray(t && t.appearsIn) ? t.appearsIn : [];
+        if (id == null || appears.length === 0) {
+          logNotice(`Tiles: entry ${i} missing id or appearsIn.`);
+          continue;
+        }
+        for (const modeRaw of appears) {
+          const mode = String(modeRaw).toLowerCase();
+          add(mode, id, t);
+          // colors.fill recommended for base layer draw
+          if (!t.colors || !t.colors.fill) missingFill++;
+          // properties.walkable/blocksFOV recommended for behavior consistency
+          const props = t.properties || {};
+          if (typeof props.walkable !== "boolean" && typeof props.blocksFOV !== "boolean") missingProps++;
+        }
+      }
+
+      if (duplicateIdMode > 0) logNotice(`Tiles: ${duplicateIdMode} duplicate id+mode entries detected (conflicting definitions).`);
+      if (missingFill > 0) logNotice(`Tiles: ${missingFill} entries without colors.fill (those tiles will not render base layer).`);
+      if (missingProps > 0) logNotice(`Tiles: ${missingProps} entries without walkable/blocksFOV properties (movement/LOS may be ambiguous).`);
+
+      // Overrides format check (optional)
+      const overrides = TD.overrides;
+      if (overrides && typeof overrides === "object") {
+        for (const mode of Object.keys(overrides)) {
+          const ov = overrides[mode];
+          if (!ov || typeof ov !== "object") continue;
+          for (const key of Object.keys(ov)) {
+            const val = ov[key];
+            if (val && typeof val === "object") {
+              // okay
+            } else {
+              logNotice(`Tiles: override ${mode}.${key} should be an object of property overrides.`);
+            }
+          }
+        }
+      }
+    })();
+
     if (window.DEV) {
       try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles }); } catch (_) {}
     }

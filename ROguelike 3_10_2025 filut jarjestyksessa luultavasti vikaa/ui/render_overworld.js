@@ -156,24 +156,17 @@ export function draw(ctx, view) {
     }
   }
 
-  // Per-frame glyph overlay for towns and dungeons: uses tiles.json and reflects changes immediately
+  // Per-frame glyph overlay for any overworld tile whose tiles.json defines a non-blank glyph
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const row = yIn ? map[y] : null;
     for (let x = startX; x <= endX; x++) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const t = row[x];
-      if (WT && t === WT.TOWN) {
-        const tdTown = getTileDef("overworld", WT.TOWN);
-        const glyph = (tdTown && Object.prototype.hasOwnProperty.call(tdTown, "glyph")) ? tdTown.glyph : "T";
-        const fg = (tdTown && tdTown.colors && tdTown.colors.fg) || "#d7ba7d";
-        const screenX = (x - startX) * TILE - tileOffsetX;
-        const screenY = (y - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-      } else if (WT && t === WT.DUNGEON) {
-        const td = getTileDef("overworld", WT.DUNGEON);
-        const glyph = (td && Object.prototype.hasOwnProperty.call(td, "glyph")) ? td.glyph : "D";
-        const fg = (td && td.colors && td.colors.fg) || "#c586c0";
+      const td = getTileDef("overworld", t);
+      const glyph = (td && Object.prototype.hasOwnProperty.call(td, "glyph")) ? td.glyph : "";
+      const fg = (td && td.colors && td.colors.fg) || null;
+      if (glyph && String(glyph).trim().length > 0 && fg) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
@@ -245,23 +238,7 @@ export function draw(ctx, view) {
               }
             }
           }
-          // overlay towns and dungeons squares using JSON fg colors if present
-          const tdTown = getTileDef("overworld", WT.TOWN);
-          const tdDun = getTileDef("overworld", WT.DUNGEON);
-          const townFg = (tdTown && tdTown.colors && tdTown.colors.fg) || "#ffcc66";
-          const dunFg = (tdDun && tdDun.colors && tdDun.colors.fg) || "#c586c0";
-          if (ctx.world && Array.isArray(ctx.world.towns)) {
-            oc.fillStyle = townFg;
-            for (const t of ctx.world.towns) {
-              oc.fillRect(t.x * scale, t.y * scale, Math.max(1, scale), Math.max(1, scale));
-            }
-          }
-          if (ctx.world && Array.isArray(ctx.world.dungeons)) {
-            oc.fillStyle = dunFg;
-            for (const d of ctx.world.dungeons) {
-              oc.fillRect(d.x * scale, d.y * scale, Math.max(1, scale), Math.max(1, scale));
-            }
-          }
+          // No special-case overlays; minimap uses only tiles.json base colors
           MINI.canvas = off;
         }
 

@@ -126,12 +126,13 @@ export function draw(ctx, view) {
             ctx2d.fillStyle = fill;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
-          if (type === TILES.STAIRS && !tilesetReady) {
-            const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
-            const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : "";
-            const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-          }
+        }
+        // JSON glyph overlay for any dungeon tile with a non-blank glyph
+        const td2 = getTileDef("dungeon", type);
+        const glyph2 = (td2 && Object.prototype.hasOwnProperty.call(td2, "glyph")) ? td2.glyph : "";
+        const fg2 = (td2 && td2.colors && td2.colors.fg) || null;
+        if (glyph2 && String(glyph2).trim().length > 0 && fg2) {
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph2, fg2, TILE);
         }
       }
     }
