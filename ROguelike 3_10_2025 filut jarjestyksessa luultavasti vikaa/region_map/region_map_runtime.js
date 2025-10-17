@@ -29,6 +29,9 @@ export function open(ctx) {
     ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
     ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
 
+    // Inform the player
+    try { if (typeof ctx.log === "function") ctx.log("Region Map: opened.", "notice"); } catch (_) {}
+
     // Center camera on player via caller's refresh flow
     return true;
   } catch (_) {
@@ -89,6 +92,9 @@ export function onAction(ctx) {
 
     // Clear region state
     ctx.region = null;
+
+    // Inform the player
+    try { if (typeof ctx.log === "function") ctx.log("Region Map: exit to overworld.", "notice"); } catch (_) {}
 
     // Camera/UI/redraw handled by caller's applyCtxSyncAndRefresh
     return true;
