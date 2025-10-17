@@ -29,6 +29,8 @@ export function enemyColor(ctx, type, COLORS) {
 }
 
 export function drawGlyph(ctx2d, x, y, ch, color, TILE) {
+  // Skip drawing if glyph is empty or whitespace-only
+  if (!ch || (typeof ch === "string" && ch.trim().length === 0)) return;
   const half = TILE / 2;
   ctx2d.fillStyle = color;
   ctx2d.fillText(ch, x + half, y + half + 1);
@@ -40,6 +42,13 @@ function posMod(n, m) {
 }
 
 export function computeView(ctx) {
+  // Ensure camera is centered on player for active gameplay modes before computing view
+  try {
+    if (ctx && typeof ctx.updateCamera === "function") {
+      ctx.updateCamera();
+    }
+  } catch (_) {}
+
   const { ctx2d, TILE, ROWS, COLS, COLORS, TILES, map, camera: camMaybe } = ctx;
 
   const cam = camMaybe || { x: 0, y: 0, width: COLS * TILE, height: ROWS * TILE };

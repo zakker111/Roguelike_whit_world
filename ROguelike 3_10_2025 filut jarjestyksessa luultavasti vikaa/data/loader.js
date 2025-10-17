@@ -23,6 +23,7 @@ const DATA_FILES = {
   shops: "data/shops.json",
   town: "data/town.json",
   flavor: "data/flavor.json",
+  tiles: "data/tiles.json",
 };
 
 // Compact defaults used when JSON is unavailable (e.g., file://)
@@ -46,6 +47,7 @@ export const GameData = {
   shops: null,
   town: null,
   flavor: null,
+  tiles: null,
   ready: null,
 };
 
@@ -70,7 +72,7 @@ function applyDefaultsIfNeeded() {
 
 GameData.ready = (async function loadAll() {
   try {
-    const [items, enemies, npcs, consumables, shops, town, flavor] = await Promise.all([
+    const [items, enemies, npcs, consumables, shops, town, flavor, tiles] = await Promise.all([
       fetchJson(DATA_FILES.items).catch(() => null),
       fetchJson(DATA_FILES.enemies).catch(() => null),
       fetchJson(DATA_FILES.npcs).catch(() => null),
@@ -78,6 +80,7 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.shops).catch(() => null),
       fetchJson(DATA_FILES.town).catch(() => null),
       fetchJson(DATA_FILES.flavor).catch(() => null),
+      fetchJson(DATA_FILES.tiles).catch(() => null),
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -87,6 +90,7 @@ GameData.ready = (async function loadAll() {
     GameData.shops = Array.isArray(shops) ? shops : null;
     GameData.town = (town && typeof town === "object") ? town : null;
     GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
+    GameData.tiles = (tiles && typeof tiles === "object" && Array.isArray(tiles.tiles)) ? tiles : null;
 
     // If running under file://, note that JSON may not load due to fetch/CORS
     if (runningFromFile()) {
@@ -138,11 +142,11 @@ GameData.ready = (async function loadAll() {
     })();
 
     if (window.DEV) {
-      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town }); } catch (_) {}
+      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles }); } catch (_) {}
     }
 
     // If any registry failed to load, modules will use internal fallbacks.
-    if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor) {
+    if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles) {
       logNotice("Some registries failed to load; modules will use internal fallbacks.");
     }
   } catch (e) {

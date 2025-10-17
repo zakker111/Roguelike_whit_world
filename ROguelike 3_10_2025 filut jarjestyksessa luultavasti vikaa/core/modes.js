@@ -81,38 +81,14 @@ export function enterTownIfOnTile(ctx) {
   const t = ctx.world.map[ctx.player.y][ctx.player.x];
 
   // Try to move one step into a target tile and capture approach direction
-  function tryEnterAdjacent(kindTile) {
-    // Include diagonals to improve robustness near markers placed in tight terrain
-    const dirs = [
-      { dx: 1, dy: 0, dir: "E" },
-      { dx: -1, dy: 0, dir: "W" },
-      { dx: 0, dy: 1, dir: "S" },
-      { dx: 0, dy: -1, dir: "N" },
-      { dx: 1, dy: 1, dir: "SE" },
-      { dx: 1, dy: -1, dir: "NE" },
-      { dx: -1, dy: 1, dir: "SW" },
-      { dx: -1, dy: -1, dir: "NW" },
-    ];
-    for (const d of dirs) {
-      const nx = ctx.player.x + d.dx, ny = ctx.player.y + d.dy;
-      if (!inBounds(ctx, nx, ny)) continue;
-      if (ctx.world.map[ny][nx] === kindTile) {
-        // Record the direction of movement (the side we approached from)
-        ctx.enterFromDir = d.dir;
-        // Step onto the marker tile to trigger generation
-        ctx.player.x = nx; ctx.player.y = ny;
-        return true;
-      }
-    }
-    return false;
-  }
+  // Strict mode: adjacency entry disabled. Require standing exactly on the town tile.
 
   // If already on the town tile, there's no clear approach; clear any stale dir
   if (WT && t === ctx.World.TILES.TOWN) {
     ctx.enterFromDir = "";
   }
 
-  if (WT && (t === ctx.World.TILES.TOWN || tryEnterAdjacent(ctx.World.TILES.TOWN))) {
+  if (WT && t === ctx.World.TILES.TOWN) {
       ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
       ctx.mode = "town";
 
@@ -209,25 +185,9 @@ export function enterDungeonIfOnEntrance(ctx) {
   const WT = ctx.World && ctx.World.TILES;
   const t = ctx.world.map[ctx.player.y][ctx.player.x];
 
-  function tryEnterAdjacent(kindTile) {
-    // Include diagonals to be robust near markers placed with limited cardinal access
-    const dirs = [
-      { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
-      { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
-    ];
-    for (const d of dirs) {
-      const nx = ctx.player.x + d.dx, ny = ctx.player.y + d.dy;
-      if (!inBounds(ctx, nx, ny)) continue;
-      if (ctx.world.map[ny][nx] === kindTile) {
-        // Step directly onto the marker tile
-        ctx.player.x = nx; ctx.player.y = ny;
-        return true;
-      }
-    }
-    return false;
-  }
+  // Strict mode: adjacency entry disabled. Require standing exactly on the dungeon tile.
 
-  if (t && WT && (t === WT.DUNGEON || tryEnterAdjacent(WT.DUNGEON))) {
+  if (t && WT && t === WT.DUNGEON) {
     const enterWX = ctx.player.x, enterWY = ctx.player.y;
     ctx.cameFromWorld = true;
     ctx.worldReturnPos = { x: enterWX, y: enterWY };
