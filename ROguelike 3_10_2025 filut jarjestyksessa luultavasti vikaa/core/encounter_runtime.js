@@ -275,6 +275,7 @@ export function enter(ctx, info) {
   ctx.corpses = [];
   ctx.decals = [];
   ctx.encounterProps = encProps;
+  ctx.encounterObjective = null;
 
   // Add simple exit tiles near each edge so the player can always walk out.
   // These use the STAIRS tile, consistent with dungeon exit semantics.
@@ -320,6 +321,66 @@ export function enter(ctx, info) {
       chestSpots.add(keyFor(c.x, c.y));
     }
   } catch (_) {}
+
+  // Objectives: surviveTurns, reachExit, rescueTarget
+  (function setupObjective() {
+    try {
+      const obj = (template && template.objective) ? template.objective : null;
+      if (!obj || !obj.type) return;
+      const t = String(obj.type).toLowerCase();
+      if (t === "surviveturns") {
+        const turns = Math.max(1, (obj.turns | 0) || 8);
+        ctx.encounterObjective = { type: "surviveTurns", turnsRemaining: turns, status: "active" };
+        try { ctx.log && ctx.log(`Objective: Survive for ${turns} turns.`, "notice"); } catch (_) {}
+      } else if (t === "reachexit") {
+        ctx.encounterObjective = { type: "reachExit", status: "active" };
+        try { ctx.log && ctx.log("Objective: Reach an exit (>).", "notice"); } catch (_) {}
+      } else if (t === "rescuetarget") {
+        // Place a non-blocking captive prop on a safe floor tile away from player
+        function canPlace(x, y) {
+          if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+          if (map[y][x] !== T.FLOOR) return false;
+          if (x === ctx.player.x && y === ctx.player.y) return false;
+          if (chestSpots.has(keyFor(x, y))) return false;
+          // avoid exits
+          if (map[y][x] === T.STAIRS) return false;
+          // avoid existing props
+          if (encProps.some(p => p.x === x && p.y === y)) return false;
+          return true;
+        }
+        let tx = -1, ty = -1;
+        // Prefer hut centers if available
+        for (const c of hutCenters) {
+          if (canPlace(c.x, c.y)) { tx = c.x; ty = c.y; break; }
+        }
+        if (tx < 0) {
+          // Search ring around player
+          const maxR = Math.max(3, Math.min(10, ((ctx.fovRadius | 0) || 8)));
+          outer:
+          for (let r = 3; r <= maxR; r++) {
+            for (let dx = -r; dx <= r; dx++) {
+              const xs = [px + dx, px - dx];
+              const ys = [py + (r - Math.abs(dx)), py - (r - Math.abs(dx))];
+              for (const x0 of xs) for (const y0 of ys) {
+                const x = x0 | 0, y = y0 | 0;
+                if (canPlace(x, y)) { tx = x; ty = y; break outer; }
+              }
+            }
+          }
+        }
+        if (tx >= 0) {
+          encProps.push({ x: tx, y: ty, type: "captive" });
+          ctx.encounterObjective = { type: "rescueTarget", status: "active", rescued: false, target: { x: tx, y: ty } };
+          try { ctx.log && ctx.log("Objective: Rescue the captive (stand on them), then reach an exit (>) to leave.", "notice"); } catch (_) {}
+        } else {
+          // Fallback to survive turns if placement failed
+          const turns = Math.max(1, (obj.turns | 0) || 6);
+          ctx.encounterObjective = { type: "surviveTurns", turnsRemaining: turns, status: "active" };
+          try { ctx.log && ctx.log(`Objective: Survive for ${turns} turns.`, "notice"); } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  })();
 
   // Spawn enemies per template groups (counts only)
   const groups = Array.isArray(template.groups) ? template.groups : [];
@@ -381,6 +442,12 @@ export function enter(ctx, info) {
   // Materialize enemies; honor group.type when provided (e.g., bandit camp spawns bandits)
   let pIdx = 0;
   const depth = Math.max(1, (ctx.floor | 0) || 1);
+  const deriveFaction = (t) => {
+    const s = String(t || "").toLowerCase();
+    if (s.includes("bandit")) return "bandit";
+    if (s.includes("orc")) return "orc";
+    return "monster";
+  };
   for (const g of groups) {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
@@ -389,6 +456,10 @@ export function enter(ctx, info) {
       const p = placements[pIdx++];
       const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
       const e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      // Assign faction from group or derived from type
+      try {
+        e.faction = (g && g.faction) ? String(g.faction) : deriveFaction(e.type);
+      } catch (_) {}
       ctx.enemies.push(e);
     }
   }
@@ -554,6 +625,12 @@ export function enterRegion(ctx, info) {
   // Materialize enemies; honor group.type when provided
   let pIdx = 0;
   const depth = Math.max(1, (ctx.floor | 0) || 1);
+  const deriveFaction = (t) => {
+    const s = String(t || "").toLowerCase();
+    if (s.includes("bandit")) return "bandit";
+    if (s.includes("orc")) return "orc";
+    return "monster";
+  };
   for (const g of groups) {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
@@ -562,6 +639,9 @@ export function enterRegion(ctx, info) {
       const p = placements[pIdx++];
       const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
       const e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      try {
+        e.faction = (g && g.faction) ? String(g.faction) : deriveFaction(e.type);
+      } catch (_) {}
       ctx.enemies.push(e);
     }
   }
@@ -628,6 +708,40 @@ export function tick(ctx) {
       // Fallback to local minimal tick (should rarely happen)
       const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);
       if (AIH && typeof AIH.enemiesAct === "function") AIH.enemiesAct(ctx);
+    }
+  } catch (_) {}
+
+  // Objectives processing (non-blocking; does not auto-exit)
+  try {
+    const obj = ctx.encounterObjective || null;
+    if (obj && obj.status !== "success") {
+      const here = (ctx.inBounds && ctx.inBounds(ctx.player.x, ctx.player.y)) ? ctx.map[ctx.player.y][ctx.player.x] : null;
+      if (obj.type === "surviveTurns" && typeof obj.turnsRemaining === "number") {
+        obj.turnsRemaining = Math.max(0, (obj.turnsRemaining | 0) - 1);
+        if (obj.turnsRemaining === 0) {
+          obj.status = "success";
+          ctx.log && ctx.log("Objective complete: You survived. Step onto an exit (>) to leave.", "good");
+        } else {
+          // periodic reminder
+          if ((obj.turnsRemaining % 3) === 0) {
+            ctx.log && ctx.log(`Survive ${obj.turnsRemaining} more turn(s)...`, "info");
+          }
+        }
+      } else if (obj.type === "reachExit") {
+        if (here === ctx.TILES.STAIRS) {
+          obj.status = "success";
+          ctx.log && ctx.log("Objective complete: Reached exit. Press G to leave.", "good");
+        }
+      } else if (obj.type === "rescueTarget") {
+        const rescued = !!obj.rescued;
+        if (!rescued && obj.target && obj.target.x === ctx.player.x && obj.target.y === ctx.player.y) {
+          obj.rescued = true;
+          ctx.log && ctx.log("You free the captive! Now reach an exit (>) to leave.", "good");
+        } else if (rescued && here === ctx.TILES.STAIRS) {
+          obj.status = "success";
+          ctx.log && ctx.log("Objective complete: Escorted the captive to safety.", "good");
+        }
+      }
     }
   } catch (_) {}
 

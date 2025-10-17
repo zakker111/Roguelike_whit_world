@@ -173,6 +173,7 @@
   // Encounter visuals
   let encounterProps = [];
   let encounterBiome = null;
+  let encounterObjective = null;
   // Occupancy Grid (entities on tiles)
   let occupancy = null;
   
@@ -222,7 +223,7 @@
       ROWS, COLS, MAP_ROWS, MAP_COLS, TILE, TILES,
       player, enemies, corpses, decals, map, seen, visible, occupancy,
       // encounter visuals
-      encounterProps, encounterBiome,
+      encounterProps, encounterBiome, encounterObjective,
       floor, depth: floor,
       fovRadius,
       // world/overworld
@@ -1045,6 +1046,7 @@
     // Clear lingering encounter visuals when returning to world
     encounterProps = [];
     encounterBiome = null;
+    encounterObjective = null;
     npcs = [];   // no NPCs on overworld
     shops = [];  // no shops on overworld
     map = world.map;
@@ -1108,7 +1110,10 @@
     if (Object.prototype.hasOwnProperty.call(ctx, "encounterBiome")) {
       encounterBiome = ctx.encounterBiome;
     }
-    npcs =    shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
+    if (Object.prototype.hasOwnProperty.call(ctx, "encounterObjective")) {
+      encounterObjective = ctx.encounterObjective;
+    }
+    shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
     townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
     townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
     townPlaza = ctx.townPlaza || townPlaza;
@@ -1336,17 +1341,26 @@
         }
       } catch (_) {}
 
-      // If standing on an encounter prop, describe it (consistent with town prop messages)
+      // If standing on an encounter prop, interact or describe it (consistent with town prop messages)
       try {
         const props = Array.isArray(ctxMod.encounterProps) ? ctxMod.encounterProps : [];
         const p = props.find(pr => pr && pr.x === ctxMod.player.x && pr.y === ctxMod.player.y);
         if (p) {
           const type = String(p.type || "").toLowerCase();
-          if (type === "barrel") log("You stand next to a barrel.", "info");
+          if (type === "captive") {
+            // Rescue captive objective support
+            if (ctxMod.encounterObjective && ctxMod.encounterObjective.type === "rescueTarget" && !ctxMod.encounterObjective.rescued) {
+              ctxMod.encounterObjective.rescued = true;
+              log("You free the captive! Now reach an exit (>) to leave.", "good");
+            } else {
+              log("You help the captive to their feet.", "info");
+            }
+          } else if (type === "barrel") log("You stand next to a barrel.", "info");
           else if (type === "crate") log("You stand next to a crate.", "info");
           else if (type === "bench") log("You stand next to a bench.", "info");
           else if (type === "campfire") log("You stand by a campfire.", "info");
           else log(`You stand on ${p.name || p.type || "a prop"}.`, "info");
+          applyCtxSyncAndRefresh(ctxMod);
           return;
         }
       } catch (_) {}

@@ -526,6 +526,25 @@ export function draw(ctx, view) {
               }
             }
           }
+        } else if (p.type === "captive") {
+          // Rescue target marker
+          let glyph = "☺";
+          let color = "#eab308";
+          try {
+            const td = getTileDefByKey("town", "NPC") || getTileDefByKey("town", "VILLAGER") || getTileDefByKey("dungeon", "PRISONER");
+            if (td) {
+              if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
+              if (td.colors && td.colors.fg) color = td.colors.fg || color;
+            }
+          } catch (_) {}
+          if (!visNow) {
+            ctx2d.save();
+            ctx2d.globalAlpha = 0.75;
+            RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+            ctx2d.restore();
+          } else {
+            RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+          }
         }
       }
     }

@@ -20,6 +20,39 @@
       "groups": [
         { "type": "bandit", "count": { "min": 3, "max": 6 } }
       ]
+    },
+    {
+      "id": "skirmish_orc_bandit",
+      "name": "Skirmish: Orcs vs Bandits",
+      "baseWeight": 0.6,
+      "allowedBiomes": ["FOREST", "GRASS", "DESERT", "SNOW"],
+      "map": { "generator": "arena", "w": 26, "h": 18 },
+      "groups": [
+        { "type": "orc", "count": { "min": 2, "max": 4 }, "faction": "orc" },
+        { "type": "bandit", "count": { "min": 2, "max": 4 }, "faction": "bandit" }
+      ]
+    },
+    {
+      "id": "ambush_survive",
+      "name": "Ambush: Survive",
+      "baseWeight": 0.4,
+      "allowedBiomes": ["FOREST", "GRASS"],
+      "map": { "generator": "ambush_forest", "w": 24, "h": 16 },
+      "objective": { "type": "surviveTurns", "turns": 10 },
+      "groups": [
+        { "type": "bandit", "count": { "min": 2, "max": 3 } }
+      ]
+    },
+    {
+      "id": "rescue_captive",
+      "name": "Rescue Captive",
+      "baseWeight": 0.5,
+      "allowedBiomes": ["FOREST", "GRASS", "SNOW"],
+      "map": { "generator": "camp", "w": 26, "h": 18 },
+      "objective": { "type": "rescueTarget" },
+      "groups": [
+        { "type": "bandit", "count": { "min": 3, "max": 5 }, "faction": "bandit" }
+      ]
     }
   ]
 }
