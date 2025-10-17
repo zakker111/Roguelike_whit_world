@@ -76,6 +76,8 @@ function createEnemyOfType(ctx, x, y, depth, type) {
 export function enter(ctx, info) {
   if (!ctx || !ctx.world || !ctx.world.map) return false;
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { count: { min: 2, max: 3 } } ] };
+  const biome = info && info.biome ? String(info.biome).toUpperCase() : null;
+  ctx.encounterBiome = biome;
 
   // Remember return position in overworld
   const worldX = ctx.player.x | 0;
@@ -97,10 +99,9 @@ export function enter(ctx, info) {
   const keyFor = (x, y) => `${x},${y}`;
 
   // Simple generator set for varied arenas (kept intentionally minimal)
+  // Do not enclose the map with border walls; outer-of-bounds already prevents walking outside.
   function genEmpty() {
     const m = Array.from({ length: H }, () => Array(W).fill(T.FLOOR));
-    for (let x = 0; x < W; x++) { m[0][x] = T.WALL; m[H - 1][x] = T.WALL; }
-    for (let y = 0; y < H; y++) { m[y][0] = T.WALL; m[y][W - 1] = T.WALL; }
     return m;
   }
   function genAmbushForest(rng) {

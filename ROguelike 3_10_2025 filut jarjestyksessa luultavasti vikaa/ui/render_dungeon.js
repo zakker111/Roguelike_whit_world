@@ -54,6 +54,48 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
+  // Helpers: biome-aware fill colors for encounter maps (fallback when no tileset)
+  function parseHex(c) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(c || ""));
+    if (!m) return null;
+    const v = parseInt(m[1], 16);
+    return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+  }
+  function toHex(rgb) {
+    const clamp = (x) => Math.max(0, Math.min(255, Math.round(x)));
+    const v = (clamp(rgb.r) << 16) | (clamp(rgb.g) << 8) | clamp(rgb.b);
+    return "#" + v.toString(16).padStart(6, "0");
+  }
+  function shade(hex, factor) {
+    const rgb = parseHex(hex);
+    if (!rgb) return hex;
+    return toHex({ r: rgb.r * factor, g: rgb.g * factor, b: rgb.b * factor });
+  }
+  function biomeBaseFill() {
+    const b = (ctx.encounterBiome || "").toUpperCase();
+    if (!b) return null;
+    // Map biome -> tile key whose fill to borrow
+    const key = (b === "FOREST") ? "FOREST"
+              : (b === "GRASS") ? "GRASS"
+              : (b === "DESERT") ? "DESERT"
+              : (b === "SNOW") ? "SNOW"
+              : (b === "BEACH") ? "BEACH"
+              : (b === "SWAMP") ? "SWAMP"
+              : null;
+    if (!key) return null;
+    const td = getTileDefByKey("overworld", key) || getTileDefByKey("region", key);
+    return (td && td.colors && td.colors.fill) ? td.colors.fill : null;
+  }
+  function encounterFillFor(type) {
+    if (!ctx.encounterBiome) return null;
+    const base = biomeBaseFill();
+    if (!base) return null;
+    if (type === TILES.WALL) return shade(base, 0.65);
+    if (type === TILES.DOOR) return base;
+    if (type === TILES.FLOOR || type === TILES.STAIRS) return base;
+    return null;
+  }
+
   // Build base offscreen once per map/TILE change
   try {
     if (mapRows && mapCols) {
@@ -88,9 +130,10 @@ export function draw(ctx, view) {
               drawn = TS.draw(oc, key, sx, sy, TILE);
             }
             if (!drawn) {
-              // Tiles.json defines fill color per dungeon mode
+              // Biome-aware fill (fallback), otherwise tiles.json dungeon fill
               const td = getTileDef("dungeon", type);
-              const fill = td && td.colors && td.colors.fill;
+              const theme = encounterFillFor(type);
+              const fill = theme || (td && td.colors && td.colors.fill);
               if (fill) {
                 oc.fillStyle = fill;
                 oc.fillRect(sx, sy, TILE, TILE);
@@ -142,9 +185,10 @@ export function draw(ctx, view) {
           drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
         }
         if (!drawn) {
-          // JSON-only fill color per dungeon mode
+          // JSON-only fill color (biome-aware fallback -> dungeon fallback)
           const td = getTileDef("dungeon", type);
-          const fill = td && td.colors && td.colors.fill;
+          const theme = encounterFillFor(type);
+          const fill = theme || (td && td.colors && td.colors.fill);
           if (fill) {
             ctx2d.fillStyle = fill;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);

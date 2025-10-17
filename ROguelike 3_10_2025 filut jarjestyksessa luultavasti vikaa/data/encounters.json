@@ -5,7 +5,7 @@
       "id": "ambush_forest",
       "name": "Forest Ambush",
       "baseWeight": 1.0,
-      "allowedBiomes": ["FOREST", "GRASS"],
+      "allowedBiomes": ["FOREST", "GRASS", "SWAMP", "SNOW"],
       "map": { "generator": "ambush_forest", "w": 24, "h": 16 },
       "groups": [
         { "type": "bandit", "count": { "min": 2, "max": 4 } }
@@ -15,7 +15,7 @@
       "id": "bandit_camp",
       "name": "Bandit Camp",
       "baseWeight": 0.8,
-      "allowedBiomes": ["GRASS", "DESERT", "BEACH"],
+      "allowedBiomes": ["GRASS", "DESERT", "BEACH", "SNOW"],
       "map": { "generator": "camp", "w": 26, "h": 18 },
       "groups": [
         { "type": "bandit", "count": { "min": 3, "max": 6 } }
