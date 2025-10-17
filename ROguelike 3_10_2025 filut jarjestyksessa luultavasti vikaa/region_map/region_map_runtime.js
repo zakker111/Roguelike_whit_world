@@ -245,9 +245,55 @@ function computeCardinalTiles(world, px, py) {
   };
 }
 
-// Orient the region sample so that cardinal biomes appear toward their respective edges.
+// Determine predominant tile for each diagonal direction relative to the player.
+// NW looks at (x-1,y-1) area, etc.
+function computeDiagonalTiles(world, px, py) {
+  const Ww = world.width || (world.map[0] ? world.map[0].length : 0);
+  const Wh = world.height || world.map.length;
+  function predominant(list) {
+    const m = new Map();
+    for (const t of list) m.set(t, (m.get(t) || 0) + 1);
+    let best = null, bestCnt = -1;
+    for (const [t, cnt] of m.entries()) {
+      if (cnt > bestCnt) { best = t; bestCnt = cnt; }
+    }
+    return best;
+  }
+  const NE = [], NW = [], SE = [], SW = [];
+  // sample small 3x3 blocks in each diagonal
+  for (let dy = -2; dy <= -1; dy++) {
+    for (let dx = -2; dx <= -1; dx++) {
+      const nx = px + dx, ny = py + dy;
+      if (nx >= 0 && ny >= 0 && nx < Ww && ny < Wh) NW.push(world.map[ny][nx]);
+    }
+    for (let dx = 1; dx <= 2; dx++) {
+      const nx = px + dx, ny = py + dy;
+      if (nx >= 0 && ny >= 0 && nx < Ww && ny < Wh) NE.push(world.map[ny][nx]);
+    }
+  }
+  for (let dy = 1; dy <= 2; dy++) {
+    for (let dx = -2; dx <= -1; dx++) {
+      const nx = px + dx, ny = py + dy;
+      if (nx >= 0 && ny >= 0 && nx < Ww && ny < Wh) SW.push(world.map[ny][nx]);
+    }
+    for (let dx = 1; dx <= 2; dx++) {
+      const nx = px + dx, ny = py + dy;
+      if (nx >= 0 && ny >= 0 && nx < Ww && ny < Wh) SE.push(world.map[ny][nx]);
+    }
+  }
+  return {
+    NW: NW.length ? predominant(NW) : null,
+    NE: NE.length ? predominant(NE) : null,
+    SW: SW.length ? predominant(SW) : null,
+    SE: SE.length ? predominant(SE) : null,
+  };
+}
+
+// Orient the region sample so that cardinal biomes appear toward their respective edges,
+// and diagonals fill corner wedges to better line up with overworld.
 // Top band -> N tile, bottom band -> S tile, left band -> W tile, right band -> E tile.
-function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33) {
+// Corner wedges: NW/NE/SW/SE fill a triangular corner area to blend edges naturally.
+function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals = null) {
   const h = sample.length, w = sample[0] ? sample[0].length : 0;
   if (!w || !h) return;
   const topH = Math.max(1, Math.floor(h * edgeFrac));
@@ -291,6 +337,48 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33) {
       const row = sample[y];
       for (let x = w - rightW; x < w; x++) {
         row[x] = cardinals.E;
+      }
+    }
+  }
+
+  // Corner wedges using diagonals to improve alignment with overworld
+  if (diagonals) {
+    const cornerW = Math.max(1, Math.floor(Math.min(leftW, rightW) * 0.8));
+    const cornerH = Math.max(1, Math.floor(Math.min(topH, botH) * 0.8));
+    // NW corner
+    if (diagonals.NW != null) {
+      for (let y = 0; y < cornerH; y++) {
+        for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
+          sample[y][x] = diagonals.NW;
+        }
+      }
+    }
+    // NE corner
+    if (diagonals.NE != null) {
+      for (let y = 0; y < cornerH; y++) {
+        for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
+          const xx = w - 1 - x;
+          sample[y][xx] = diagonals.NE;
+        }
+      }
+    }
+    // SW corner
+    if (diagonals.SW != null) {
+      for (let y = 0; y < cornerH; y++) {
+        const yy = h - 1 - y;
+        for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
+          sample[yy][x] = diagonals.SW;
+        }
+      }
+    }
+    // SE corner
+    if (diagonals.SE != null) {
+      for (let y = 0; y < cornerH; y++) {
+        const yy = h - 1 - y;
+        for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
+          const xx = w - 1 - x;
+          sample[yy][xx] = diagonals.SE;
+        }
       }
     }
   }
@@ -344,9 +432,10 @@ export function open(ctx, size) {
   const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
   filterSampleByNeighborSet(sample, neighborSet, primaryTile);
 
-  // Orient biomes by cardinal direction: if mountains are north in overworld, show mountains toward the top, etc.
+  // Orient biomes by cardinal direction and diagonal corners to line up with overworld
   const cardinals = computeCardinalTiles(ctx.world, ctx.player.x | 0, ctx.player.y | 0);
-  orientSampleByCardinals(sample, cardinals, 0.33);
+  const diagonals = computeDiagonalTiles(ctx.world, ctx.player.x | 0, ctx.player.y | 0);
+  orientSampleByCardinals(sample, cardinals, 0.33, diagonals);
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   const rng = getRegionRng(ctx);
