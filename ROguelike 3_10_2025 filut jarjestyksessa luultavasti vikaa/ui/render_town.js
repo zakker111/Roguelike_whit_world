@@ -24,6 +24,24 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Helper: get tile def by key for a given mode (for town props)
+function getTileDefByKey(mode, key) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    const k = String(key || "").toUpperCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if (String(t.key || "").toUpperCase() === k && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 // Helper: current tiles.json reference (for cache invalidation)
 function tilesRef() {
   try {
@@ -193,32 +211,49 @@ export function draw(ctx, view) {
     }
   }
 
-  // Props (only if visible)
+  // Props (only if visible) - JSON-first: use tiles.json by key if present, fallback to built-in mapping
   if (Array.isArray(ctx.townProps)) {
     for (const p of ctx.townProps) {
       if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
       if (!visible[p.y] || !visible[p.y][p.x]) continue;
       const screenX = (p.x - startX) * TILE - tileOffsetX;
       const screenY = (p.y - startY) * TILE - tileOffsetY;
-      let glyph = "?";
+
+      // Try tiles.json first using the prop type as key (uppercased), prefer town mode, fallback to dungeon/overworld
+      let glyph = "";
       let color = "#e5e7eb";
-      if (p.type === "well") { glyph = "O"; color = "#7aa2f7"; }
-      else if (p.type === "fountain") { glyph = "◌"; color = "#89ddff"; }
-      else if (p.type === "bench") { glyph = "≡"; color = "#d7ba7d"; }
-      else if (p.type === "lamp") { glyph = "†"; color = "#ffd166"; }
-      else if (p.type === "stall") { glyph = "s"; color = "#b4f9f8"; }
-      else if (p.type === "tree") { glyph = "♣"; color = "#84cc16"; }
-      else if (p.type === "fireplace") { glyph = "∩"; color = "#ff9966"; }
-      else if (p.type === "table") { glyph = "┼"; color = "#d7ba7d"; }
-      else if (p.type === "chair") { glyph = "π"; color = "#d7ba7d"; }
-      else if (p.type === "bed") { glyph = "b"; color = "#a3be8c"; }
-      else if (p.type === "chest") { glyph = "▯"; color = "#d7ba7d"; }
-      else if (p.type === "crate") { glyph = "▢"; color = "#b59b6a"; }
-      else if (p.type === "barrel") { glyph = "◍"; color = "#a07c4b"; }
-      else if (p.type === "shelf") { glyph = "≋"; color = "#b4f9f8"; }
-      else if (p.type === "plant") { glyph = "❀"; color = "#84cc16"; }
-      else if (p.type === "rug") { glyph = "≈"; color = "#a3be8c"; }
-      else if (p.type === "sign") { glyph = "∎"; color = "#ffd166"; }
+      try {
+        const key = String(p.type || "").toUpperCase();
+        const tdTown = getTileDefByKey("town", key);
+        const tdFallback = tdTown || getTileDefByKey("dungeon", key) || getTileDefByKey("overworld", key);
+        if (tdFallback) {
+          if (tdFallback.colors && tdFallback.colors.fg) color = tdFallback.colors.fg;
+          if (Object.prototype.hasOwnProperty.call(tdFallback, "glyph")) glyph = tdFallback.glyph;
+        }
+      } catch (_) {}
+
+      // Fallback mapping if JSON did not provide a glyph
+      if (!glyph || String(glyph).trim().length === 0) {
+        if (p.type === "well") { glyph = "O"; color = "#7aa2f7"; }
+        else if (p.type === "fountain") { glyph = "◌"; color = "#89ddff"; }
+        else if (p.type === "bench") { glyph = "≡"; color = "#d7ba7d"; }
+        else if (p.type === "lamp") { glyph = "†"; color = "#ffd166"; }
+        else if (p.type === "stall") { glyph = "s"; color = "#b4f9f8"; }
+        else if (p.type === "tree") { glyph = "♣"; color = "#84cc16"; }
+        else if (p.type === "fireplace") { glyph = "∩"; color = "#ff9966"; }
+        else if (p.type === "table") { glyph = "┼"; color = "#d7ba7d"; }
+        else if (p.type === "chair") { glyph = "π"; color = "#d7ba7d"; }
+        else if (p.type === "bed") { glyph = "b"; color = "#a3be8c"; }
+        else if (p.type === "chest") { glyph = "▯"; color = "#d7ba7d"; }
+        else if (p.type === "crate") { glyph = "▢"; color = "#b59b6a"; }
+        else if (p.type === "barrel") { glyph = "◍"; color = "#a07c4b"; }
+        else if (p.type === "shelf") { glyph = "≋"; color = "#b4f9f8"; }
+        else if (p.type === "plant") { glyph = "❀"; color = "#84cc16"; }
+        else if (p.type === "rug") { glyph = "≈"; color = "#a3be8c"; }
+        else if (p.type === "sign") { glyph = "∎"; color = "#ffd166"; }
+        else { glyph = "?"; color = "#e5e7eb"; }
+      }
+
       RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
     }
   }

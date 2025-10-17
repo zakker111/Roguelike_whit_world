@@ -26,6 +26,24 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Helper: get tile def by key for a given mode (for chest/crate/barrel/etc.)
+function getTileDefByKey(mode, key) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    const k = String(key || "").toUpperCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if (String(t.key || "").toUpperCase() === k && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 export function draw(ctx, view) {
   const {
     ctx2d, TILE, COLORS, TILES, TS, tilesetReady,
@@ -226,15 +244,30 @@ export function draw(ctx, view) {
       if (tilesetReady && TS.draw(ctx2d, c.kind === "chest" ? "chest" : "corpse", screenX, screenY, TILE)) {
         return;
       }
-      if (c.kind === "chest") {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "▯", c.looted ? "#8b7355" : "#d7ba7d", TILE);
-      } else if (c.kind === "crate") {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "▢", "#b59b6a", TILE);
-      } else if (c.kind === "barrel") {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "◍", "#a07c4b", TILE);
-      } else {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "%", c.looted ? COLORS.corpseEmpty : COLORS.corpse, TILE);
+      // JSON-first: try tiles.json by key for dungeon (fallback to town/overworld)
+      let glyph = "";
+      let color = c.looted ? COLORS.corpseEmpty : COLORS.corpse;
+      try {
+        const key = String(c.kind || (c.kind === "chest" ? "chest" : "corpse")).toUpperCase();
+        const td = getTileDefByKey("dungeon", key) || getTileDefByKey("town", key) || getTileDefByKey("overworld", key);
+        if (td) {
+          if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph;
+          if (td.colors && td.colors.fg) color = td.colors.fg;
+        }
+      } catch (_) {}
+
+      if (!glyph || String(glyph).trim().length === 0) {
+        if (c.kind === "chest") {
+          glyph = "▯"; color = c.looted ? "#8b7355" : "#d7ba7d";
+        } else if (c.kind === "crate") {
+          glyph = "▢"; color = "#b59b6a";
+        } else if (c.kind === "barrel") {
+          glyph = "◍"; color = "#a07c4b";
+        } else {
+          glyph = "%"; color = c.looted ? COLORS.corpseEmpty : COLORS.corpse;
+        }
       }
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
     };
 
     if (visNow) {
