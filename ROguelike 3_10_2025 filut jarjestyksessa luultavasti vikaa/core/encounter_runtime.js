@@ -199,8 +199,30 @@ export function enterRegion(ctx, info) {
     return acc + n;
   }, 0);
 
+  // Seed at least one placement near the player within FOV range to ensure visibility
+  (function seedNearPlayer() {
+    try {
+      const px = (ctx.player.x | 0), py = (ctx.player.y | 0);
+      const maxR = Math.max(3, Math.min(6, ((ctx.fovRadius | 0) || 8) - 1));
+      outer:
+      for (let r = 2; r <= maxR; r++) {
+        // Sample 16 directions around the ring
+        const dirs = [
+          [ r,  0], [ 0,  r], [-r,  0], [ 0, -r],
+          [ r,  1], [ 1,  r], [-1,  r], [-r,  1],
+          [-r, -1], [-1, -r], [ 1, -r], [ r, -1],
+          [ r,  2], [ 2,  r], [-2,  r], [-r,  2],
+        ];
+        for (const d of dirs) {
+          const x = px + d[0], y = py + d[1];
+          if (free(x, y)) { placements.push({ x, y }); break outer; }
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Collect edge-ring placements inward to avoid spawning adjacent to player
-  let ring = 0, placed = 0;
+  let ring = 0, placed = placements.length | 0;
   while (placed < totalWanted && ring < Math.max(W, H)) {
     for (let x = 1 + ring; x < W - 1 - ring && placed < totalWanted; x++) {
       const y1 = 1 + ring, y2 = H - 2 - ring;

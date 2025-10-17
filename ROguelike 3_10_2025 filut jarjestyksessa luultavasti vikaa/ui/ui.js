@@ -596,17 +596,14 @@ export const UI = {
     // Fallback keyboard handler to ensure Esc closes panels even if Input.init isn't active
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
-        if (this.isInventoryOpen()) {
+        if (this.isConfirmOpen && this.isConfirmOpen()) {
+          this.cancelConfirm && this.cancelConfirm();
+          e.preventDefault();
+        } else if (this.isInventoryOpen()) {
           this.hideInventory();
           e.preventDefault();
         } else if (this.isGodOpen()) {
-          this.hideGod();
-          e.preventDefault();
-        } else if (this.isSmokeOpen()) {
-          this.hideSmoke();
-          e.preventDefault();
-        }
-      }
+          this.hide   }
     });
 
     // Establish baseline render toggles early to avoid repeated localStorage reads in hot paths.
@@ -657,6 +654,17 @@ export const UI = {
     this.els.confirm.style.display = "none";
     this._confirmOkCb = null;
     this._confirmCancelCb = null;
+  },
+
+  isConfirmOpen() {
+    return !!(this.els.confirm && this.els.confirm.style.display !== "none");
+  },
+
+  cancelConfirm() {
+    if (!this.els.confirm) return;
+    const cancelCb = this._confirmCancelCb;
+    this.hideConfirm();
+    if (typeof cancelCb === "function") cancelCb();
   },
 
   showTownExitButton() {

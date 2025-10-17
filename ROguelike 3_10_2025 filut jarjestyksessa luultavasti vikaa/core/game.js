@@ -1377,6 +1377,14 @@
           } catch (_) {}
           return false;
         },
+        // Confirm dialog gating
+        isConfirmOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isConfirmOpen === "function") return !!UB.isConfirmOpen();
+          } catch (_) {}
+          return false;
+        },
         // actions
         onRestart: () => restartGame(),
         onShowInventory: () => showInventoryPanel(),
@@ -1412,6 +1420,17 @@
           } catch (_) {}
           try {
             if (UB && typeof UB.hideSmoke === "function") UB.hideSmoke(getCtx());
+          } catch (_) {}
+          if (wasOpen) requestDraw();
+        },
+        onCancelConfirm: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isConfirmOpen === "function") wasOpen = !!UB.isConfirmOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.cancelConfirm === "function") UB.cancelConfirm(getCtx());
           } catch (_) {}
           if (wasOpen) requestDraw();
         },
@@ -2464,6 +2483,13 @@
             const ok = !!ER.enterRegion(ctx, { template, biome });
             if (ok) {
               applyCtxSyncAndRefresh(ctx);
+              // If the Region Map overlay modal is open, repaint it to show spawned enemies immediately
+              try {
+                const UB = modHandle("UIBridge");
+                if (UB && typeof UB.isRegionMapOpen === "function" && UB.isRegionMapOpen() && typeof UB.showRegionMap === "function") {
+                  UB.showRegionMap(ctx);
+                }
+              } catch (_) {}
             }
             return ok;
           }

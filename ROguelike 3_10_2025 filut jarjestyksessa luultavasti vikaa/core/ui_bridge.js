@@ -175,10 +175,18 @@ export function isRegionMapOpen() {
   try { return !!(hasUI() && window.UI.isRegionMapOpen && window.UI.isRegionMapOpen()); } catch (_) { return false; }
 }
 
+// Confirm modal wrappers
+export function isConfirmOpen() {
+  try { return !!(hasUI() && window.UI.isConfirmOpen && window.UI.isConfirmOpen()); } catch (_) { return false; }
+}
+export function cancelConfirm(ctx) {
+  try { if (hasUI() && window.UI.cancelConfirm) window.UI.cancelConfirm(); } catch (_) {}
+}
+
 // Aggregate modal state for simple gating
 export function isAnyModalOpen() {
   try {
-    return !!(isLootOpen() || isInventoryOpen() || isGodOpen() || isShopOpen() || isSmokeOpen());
+    return !!(isConfirmOpen() || isLootOpen() || isInventoryOpen() || isGodOpen() || isShopOpen() || isSmokeOpen());
   } catch (_) { return false; }
 }
 
@@ -231,6 +239,10 @@ if (typeof window !== "undefined") {
     isRegionMapOpen,
     showRegionMap,
     hideRegionMap,
+    // Confirm modal
+    isConfirmOpen,
+    cancelConfirm,
+    // Aggregate
     isAnyModalOpen,
     showConfirm,
     showTownExitButton,
