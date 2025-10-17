@@ -170,6 +170,9 @@
   let corpses = [];
   // Visual decals like blood stains on the floor; array of { x, y, a (alpha 0..1), r (radius px) }
   let decals = [];
+  // Encounter visuals
+  let encounterProps = [];
+  let encounterBiome = null;
   // Occupancy Grid (entities on tiles)
   let occupancy = null;
   
@@ -218,6 +221,8 @@
       rng,
       ROWS, COLS, MAP_ROWS, MAP_COLS, TILE, TILES,
       player, enemies, corpses, decals, map, seen, visible, occupancy,
+      // encounter visuals
+      encounterProps, encounterBiome,
       floor, depth: floor,
       fovRadius,
       // world/overworld
@@ -962,6 +967,9 @@
       townProps,
       townBuildings,
       townExitAt,
+      // encounter visuals for RenderDungeon
+      encounterProps,
+      encounterBiome,
       enemyColor: (t) => enemyColor(t),
       time: getClock(),
       // GameLoop can measure draw time and report via this sink
@@ -1034,6 +1042,9 @@
     enemies = [];
     corpses = [];
     decals = [];
+    // Clear lingering encounter visuals when returning to world
+    encounterProps = [];
+    encounterBiome = null;
     npcs = [];   // no NPCs on overworld
     shops = [];  // no shops on overworld
     map = world.map;
@@ -1092,8 +1103,12 @@
     enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
     corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
     decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-    npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
-    shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
+    // Encounter visuals
+    encounterProps = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : encounterProps;
+    if (Object.prototype.hasOwnProperty.call(ctx, "encounterBiome")) {
+      encounterBiome = ctx.encounterBiome;
+    }
+    npcs =    shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
     townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
     townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
     townPlaza = ctx.townPlaza || townPlaza;
