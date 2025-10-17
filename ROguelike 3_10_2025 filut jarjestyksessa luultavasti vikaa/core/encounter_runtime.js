@@ -271,7 +271,7 @@ export function tryMoveEncounter(ctx, dx, dy) {
     const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
     if (C && typeof C.playerAttackEnemy === "function") {
       try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
-      ctx.turn && ctx.turn();
+      // Do NOT advance turn here; orchestrator will sync and then call turn()
       return true;
     }
     // Minimal fallback: push damage via game helpers
@@ -289,7 +289,7 @@ export function tryMoveEncounter(ctx, dx, dy) {
         if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
       }
     } catch (_) {}
-    ctx.turn && ctx.turn();
+    // Do NOT advance turn here
     return true;
   }
 
@@ -302,14 +302,10 @@ export function tryMoveEncounter(ctx, dx, dy) {
     ctx.player.x = nx; ctx.player.y = ny;
     try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
     if (isExit) {
-      try {
-        complete(ctx, "withdraw");
-      } catch (_) {
-        try { ctx.turn && ctx.turn(); } catch (_) {}
-      }
-    } else {
-      try { ctx.turn && ctx.turn(); } catch (_) {}
+      try { complete(ctx, "withdraw"); } catch (_) {}
+      // Orchestrator will sync to world and advance turn after
     }
+    // Do NOT advance turn here; orchestrator will handle it
     return true;
   }
   return false;
@@ -473,11 +469,36 @@ export function tick(ctx) {
       AIH.enemiesAct(ctx);
     }
   } catch (_) {}
-  // Rebuild occupancy to reflect enemy movement
+  // Ensure occupancy reflects enemy movement/deaths this turn
   try {
     const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
     if (OG && typeof OG.build === "function") {
       ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+    }
+  } catch (_) {}
+  // Status effects tick (bleed, dazed, etc.) to mirror dungeon behavior
+  try {
+    const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
+    if (ST && typeof ST.tick === "function") {
+      ST.tick(ctx);
+    }
+  } catch (_) {}
+  // Visual: decals fade each turn (mirror dungeon)
+  try {
+    const DC = ctx.Decals || (typeof window !== "undefined" ? window.Decals : null);
+    if (DC && typeof DC.tick === "function") {
+      DC.tick(ctx);
+    } else if (Array.isArray(ctx.decals) && ctx.decals.length) {
+      for (let i = 0; i < ctx.decals.length; i++) {
+        ctx.decals[i].a *= 0.92;
+      }
+      ctx.decals = ctx.decals.filter(d => d.a > 0.04);
+    }
+  } catch (_) {}
+  // End of turn: brace stance lasts only for this enemy round
+  try {
+    if (ctx.player && typeof ctx.player.braceTurns === "number" && ctx.player.braceTurns > 0) {
+      ctx.player.braceTurns = 0;
     }
   } catch (_) {}
   // Check objective: killAll

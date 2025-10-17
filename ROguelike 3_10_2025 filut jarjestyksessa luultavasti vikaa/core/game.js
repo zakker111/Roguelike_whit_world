@@ -1595,8 +1595,10 @@
         const ctxMod = getCtx();
         const ok = !!ER.tryMoveEncounter(ctxMod, dx, dy);
         if (ok) {
-          // Sync any mode/map changes (e.g., exit to overworld) immediately
+          // Sync any mode/map changes (e.g., exit to overworld) immediately,
+          // then advance the turn so AI/status/decals run using the synced state.
           applyCtxSyncAndRefresh(ctxMod);
+          turn();
           return;
         }
       }
