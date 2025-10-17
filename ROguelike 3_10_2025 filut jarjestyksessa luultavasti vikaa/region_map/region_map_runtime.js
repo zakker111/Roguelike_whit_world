@@ -485,6 +485,38 @@ export function onAction(ctx) {
     close(ctx);
     return true;
   }
+
+  // Context action inside region: chop tree if standing on a TREE tile
+  try {
+    const WT = World.TILES;
+    const t = (ctx.region.map[cursor.y] && ctx.region.map[cursor.y][cursor.x]);
+    if (t === WT.TREE) {
+      // Log and convert this spot back to forest for visualization
+      if (ctx.log) ctx.log("You cut the tree.", "notice");
+      try {
+        ctx.region.map[cursor.y][cursor.x] = WT.FOREST;
+        // Reflect change in active map and request redraw
+        if (ctx.map === ctx.region.map && typeof ctx.requestDraw === "function") ctx.requestDraw();
+      } catch (_) {}
+
+      // Grant planks material in inventory (stacking)
+      try {
+        const inv = ctx.player.inventory || (ctx.player.inventory = []);
+        const existing = inv.find(it => it && it.kind === "material" && (it.type === "wood" || it.material === "wood") && (String(it.name || "").toLowerCase() === "planks"));
+        if (existing) {
+          if (typeof existing.amount === "number") existing.amount += 10;
+          else if (typeof existing.count === "number") existing.count += 10;
+          else existing.amount = 10;
+        } else {
+          inv.push({ kind: "material", type: "wood", name: "planks", amount: 10 });
+        }
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+      } catch (_) {}
+
+      return true;
+    }
+  } catch (_) {}
+
   if (ctx.log) ctx.log("Move to an orange edge tile and press G to close the Region map.", "info");
   return true;
 }
