@@ -458,14 +458,15 @@ export function enter(ctx, info) {
 }
 
 export function tryMoveDungeon(ctx, dx, dy) {
-  if (!ctx || ctx.mode !== "dungeon") return false;
+  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
+  const advanceTurn = (ctx.mode === "dungeon"); // in encounter, the orchestrator advances the turn after syncing
 
   // Dazed: skip action if dazedTurns > 0
   try {
     if (ctx.player && ctx.player.dazedTurns && ctx.player.dazedTurns > 0) {
       ctx.player.dazedTurns -= 1;
       ctx.log && ctx.log("You are dazed and lose your action this turn.", "warn");
-      ctx.turn && ctx.turn();
+      if (advanceTurn && ctx.turn) ctx.turn();
       return true;
     }
   } catch (_) {}
@@ -527,7 +528,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
           ctx.decayEquipped("hands", rf(0.2, 0.7));
         }
       } catch (_) {}
-      ctx.turn && ctx.turn();
+      if (advanceTurn && ctx.turn) ctx.turn();
       return true;
     }
 
@@ -594,7 +595,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
       }
     } catch (_) {}
 
-    ctx.turn && ctx.turn();
+    if (advanceTurn && ctx.turn) ctx.turn();
     return true;
   }
 
@@ -605,7 +606,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
     if (walkable && !blockedByEnemy) {
       ctx.player.x = nx; ctx.player.y = ny;
       ctx.updateCamera && ctx.updateCamera();
-      ctx.turn && ctx.turn();
+      if (advanceTurn && ctx.turn) ctx.turn();
       return true;
     }
   } catch (_) {}
@@ -614,7 +615,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
 }
 
 export function tick(ctx) {
-  if (!ctx || ctx.mode !== "dungeon") return false;
+  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
   // Enemies act via AI
   try {
     const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);

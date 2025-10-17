@@ -263,18 +263,36 @@ export function tryMoveEncounter(ctx, dx, dy) {
   const ny = ctx.player.y + (dy | 0);
   if (!(ctx.inBounds && ctx.inBounds(nx, ny))) return false;
 
-  // Attack if enemy occupies target
+  // Prefer to reuse DungeonRuntime movement/attack so encounters behave exactly like dungeon
+  const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
+  if (DR && typeof DR.tryMoveDungeon === "function") {
+    const T = ctx.TILES || {};
+    const wasX = ctx.player.x | 0, wasY = ctx.player.y | 0;
+    const ok = !!DR.tryMoveDungeon(ctx, dx, dy); // does not call ctx.turn() in encounter mode
+    if (ok) {
+      // Auto-exit if we stepped onto an exit tile (STAIRS)
+      try {
+        if (ctx.player.x === nx && ctx.player.y === ny) {
+          const tile = (ctx.map[ny] && ctx.map[ny][nx]);
+          if (tile === T.STAIRS) {
+            complete(ctx, "withdraw");
+          }
+        }
+      } catch (_) {}
+      return true;
+    }
+    // If DR didn't handle, fall through to minimal fallback below
+  }
+
+  // Fallback attack if enemy occupies target
   let enemy = null;
   try { enemy = Array.isArray(ctx.enemies) ? ctx.enemies.find(e => e && e.x === nx && e.y === ny) : null; } catch (_) { enemy = null; }
   if (enemy) {
-    // Prefer Combat via ctx-first path
     const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
     if (C && typeof C.playerAttackEnemy === "function") {
       try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
-      // Do NOT advance turn here; orchestrator will sync and then call turn()
       return true;
     }
-    // Minimal fallback: push damage via game helpers
     try {
       const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
       const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
@@ -289,11 +307,10 @@ export function tryMoveEncounter(ctx, dx, dy) {
         if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
       }
     } catch (_) {}
-    // Do NOT advance turn here
     return true;
   }
 
-  // Move if free floor (auto-exit if stepping onto an exit tile)
+  // Fallback movement (with auto-exit)
   const T = ctx.TILES || {};
   const walkable = (ctx.isWalkable ? ctx.isWalkable(nx, ny) : true);
   const blocked = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny);
@@ -303,9 +320,7 @@ export function tryMoveEncounter(ctx, dx, dy) {
     try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
     if (isExit) {
       try { complete(ctx, "withdraw"); } catch (_) {}
-      // Orchestrator will sync to world and advance turn after
     }
-    // Do NOT advance turn here; orchestrator will handle it
     return true;
   }
   return false;
@@ -462,46 +477,19 @@ export function complete(ctx, outcome = "victory") {
 
 export function tick(ctx) {
   if (!ctx || ctx.mode !== "encounter") return false;
-  // Drive AI using the same path as dungeon mode
+  // Reuse DungeonRuntime.tick so AI/status/decals behave exactly like dungeon mode
   try {
-    const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);
-    if (AIH && typeof AIH.enemiesAct === "function") {
-      AIH.enemiesAct(ctx);
+    const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
+    if (DR && typeof DR.tick === "function") {
+      DR.tick(ctx);
+    } else {
+      // Fallback to local minimal tick (should rarely happen)
+      const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);
+      if (AIH && typeof AIH.enemiesAct === "function") AIH.enemiesAct(ctx);
     }
   } catch (_) {}
-  // Ensure occupancy reflects enemy movement/deaths this turn
-  try {
-    const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-    if (OG && typeof OG.build === "function") {
-      ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-    }
-  } catch (_) {}
-  // Status effects tick (bleed, dazed, etc.) to mirror dungeon behavior
-  try {
-    const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
-    if (ST && typeof ST.tick === "function") {
-      ST.tick(ctx);
-    }
-  } catch (_) {}
-  // Visual: decals fade each turn (mirror dungeon)
-  try {
-    const DC = ctx.Decals || (typeof window !== "undefined" ? window.Decals : null);
-    if (DC && typeof DC.tick === "function") {
-      DC.tick(ctx);
-    } else if (Array.isArray(ctx.decals) && ctx.decals.length) {
-      for (let i = 0; i < ctx.decals.length; i++) {
-        ctx.decals[i].a *= 0.92;
-      }
-      ctx.decals = ctx.decals.filter(d => d.a > 0.04);
-    }
-  } catch (_) {}
-  // End of turn: brace stance lasts only for this enemy round
-  try {
-    if (ctx.player && typeof ctx.player.braceTurns === "number" && ctx.player.braceTurns > 0) {
-      ctx.player.braceTurns = 0;
-    }
-  } catch (_) {}
-  // Check objective: killAll
+
+  // Victory: no enemies remain -> return to overworld
   try {
     if (!Array.isArray(ctx.enemies) || ctx.enemies.length === 0) {
       complete(ctx, "victory");
