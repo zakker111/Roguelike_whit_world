@@ -200,6 +200,56 @@ function filterSampleByNeighborSet(sample, neighborSet, primaryTile) {
   }
 }
 
+// ---- Persistence of cut trees per region (do not respawn after cutting) ----
+const REGION_CUTS_LS_KEY = "REGION_CUTS_V1";
+
+function _loadCutsMap() {
+  try {
+    const raw = localStorage.getItem(REGION_CUTS_LS_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch (_) {
+    return {};
+  }
+}
+function _saveCutsMap(map) {
+  try {
+    localStorage.setItem(REGION_CUTS_LS_KEY, JSON.stringify(map || {}));
+  } catch (_) {}
+}
+function regionCutKey(worldX, worldY, width, height) {
+  return `r:${worldX},${worldY}:${width}x${height}`;
+}
+function applyRegionCuts(sample, key) {
+  if (!key) return;
+  const map = _loadCutsMap();
+  const arr = Array.isArray(map[key]) ? map[key] : [];
+  if (!arr.length) return;
+  const h = sample.length, w = sample[0] ? sample[0].length : 0;
+  const WT = World.TILES;
+  for (const s of arr) {
+    const parts = String(s).split(",");
+    if (parts.length !== 2) continue;
+    const x = (Number(parts[0]) | 0), y = (Number(parts[1]) | 0);
+    if (x < 0 || y < 0 || x >= w || y >= h) continue;
+    // Only convert if currently a TREE to avoid clobbering non-tree tiles
+    try {
+      if (sample[y][x] === WT.TREE) sample[y][x] = WT.FOREST;
+    } catch (_) {}
+  }
+}
+function addRegionCut(key, x, y) {
+  if (!key) return;
+  const map = _loadCutsMap();
+  const k = String(key);
+  const arr = Array.isArray(map[k]) ? map[k] : [];
+  const tag = `${x | 0},${y | 0}`;
+  if (!arr.includes(tag)) arr.push(tag);
+  map[k] = arr;
+  _saveCutsMap(map);
+}
+
 // Robust directional sampling around the player using angular sectors (8-way).
 // Bins tiles within a radius into N, NE, E, SE, S, SW, W, NW by angle.
 // Returns predominant tile per sector and a dominance weight (0..1) per cardinal.
@@ -401,9 +451,12 @@ function addSparseTreesInForests(sample, density = 0.08, rng) {
 
 function open(ctx, size) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
+  // Capture world position for persistence keying
+  const worldX = ctx.player.x | 0;
+  const worldY = ctx.player.y | 0;
   // Only allow from walkable, non-town, non-dungeon tiles
   const WT = World.TILES;
-  const tile = ctx.world.map[ctx.player.y][ctx.player.x];
+  const tile = ctx.world.map[worldY][worldX];
   if (tile === WT.TOWN || tile === WT.DUNGEON) return false;
   const isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tile) : true;
   if (!isWalkable) return false;
@@ -412,17 +465,17 @@ function open(ctx, size) {
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
 
   // Build local sample reflecting biomes near the player.
-  let sample = buildLocalDownscaled(ctx.world, ctx.player.x | 0, ctx.player.y | 0, width, height);
+  let sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
 
   // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile).
   const playerTile = tile;
-  const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, ctx.player.x | 0, ctx.player.y | 0);
+  const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, worldX, worldY);
   neighborSet.add(playerTile);
   const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
   filterSampleByNeighborSet(sample, neighborSet, primaryTile);
 
   // Orient biomes by robust directional sampling (cardinals + diagonals) to line up with overworld
-  const dirs = computeDirectionalTiles(ctx.world, ctx.player.x | 0, ctx.player.y | 0, 7);
+  const dirs = computeDirectionalTiles(ctx.world, worldX, worldY, 7);
   orientSampleByCardinals(sample, dirs.cardinals, 0.33, dirs.diagonals, dirs.weights);
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
@@ -430,6 +483,14 @@ function open(ctx, size) {
   addMinorWaterAndBeaches(sample, rng);
   // Sprinkle sparse trees in forest tiles for region visualization
   addSparseTreesInForests(sample, 0.10, rng);
+  // Apply persisted tree cuts for this region so trees don't respawn
+  try {
+    const cutKey = regionCutKey(worldX, worldY, width, height);
+    applyRegionCuts(sample, cutKey);
+    // Stash key for onAction persistence
+    if (!ctx.region) ctx.region = {};
+    ctx.region._cutKey = cutKey;
+  } catch (_) {}
 
   const exitNorth = { x: (width / 2) | 0, y: 0 };
   const exitSouth = { x: (width / 2) | 0, y: height - 1 };
@@ -439,10 +500,10 @@ function open(ctx, size) {
   // Choose spawn exit closest to the player's overworld position relative to world edges
   const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
   const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
-  const dNorth = ctx.player.y | 0;
-  const dSouth = Math.max(0, (worldH - 1) - (ctx.player.y | 0));
-  const dWest = ctx.player.x | 0;
-  const dEast = Math.max(0, (worldW - 1) - (ctx.player.x | 0));
+  const dNorth = worldY;
+  const dSouth = Math.max(0, (worldH - 1) - worldY);
+  const dWest = worldX;
+  const dEast = Math.max(0, (worldW - 1) - worldX);
   let spawnExit = exitNorth;
   const minD = Math.min(dNorth, dSouth, dWest, dEast);
   if (minD === dSouth) spawnExit = exitSouth;
@@ -450,12 +511,13 @@ function open(ctx, size) {
   else if (minD === dEast) spawnExit = exitEast;
 
   ctx.region = {
+    ...(ctx.region || {}),
     width,
     height,
     map: sample,
     cursor: { x: spawnExit.x | 0, y: spawnExit.y | 0 },
     exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
-    enterWorldPos: { x: ctx.player.x, y: ctx.player.y },
+    enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
   };
 
@@ -619,6 +681,13 @@ function onAction(ctx) {
           inv.push({ kind: "material", type: "wood", name: "planks", amount: 10 });
         }
         if (typeof ctx.updateUI === "function") ctx.updateUI();
+      } catch (_) {}
+
+      // Persist cut so this tree does not respawn next time for this region
+      try {
+        if (ctx.region && typeof ctx.region._cutKey === "string" && ctx.region._cutKey) {
+          addRegionCut(ctx.region._cutKey, cursor.x | 0, cursor.y | 0);
+        }
       } catch (_) {}
 
       return true;
