@@ -24,7 +24,9 @@
  * - buyShopIndex(ctx, idx)    // triggers a buy by index
  * - showSmoke(ctx)            // opens Smoke Config panel
  * - hideSmoke(ctx)            // hides Smoke Config panel
- *
+ * - showRegionMap(ctx)        // opens Region Map modal
+ * - hideRegionMap(ctx)        // hides Region Map modal
+ * - isRegionMapOpen()         // query open state
  * Notes:
  * - Thin layer: delegates to window.UI if present (and window.ShopUI for shop panel).
  * - Keeps calls consistent and reduces direct UI wiring inside core/game.js.
@@ -161,6 +163,18 @@ export function hideSmoke(ctx) {
   try { window.UI.hideSmoke && window.UI.hideSmoke(); } catch (_) {}
 }
 
+export function showRegionMap(ctx) {
+  if (!hasUI()) return;
+  try { window.UI.showRegionMap && window.UI.showRegionMap(ctx); } catch (_) {}
+}
+export function hideRegionMap(ctx) {
+  if (!hasUI()) return;
+  try { window.UI.hideRegionMap && window.UI.hideRegionMap(); } catch (_) {}
+}
+export function isRegionMapOpen() {
+  try { return !!(hasUI() && window.UI.isRegionMapOpen && window.UI.isRegionMapOpen()); } catch (_) { return false; }
+}
+
 // Aggregate modal state for simple gating
 export function isAnyModalOpen() {
   try {
@@ -214,6 +228,9 @@ if (typeof window !== "undefined") {
     isSmokeOpen,
     showSmoke,
     hideSmoke,
+    isRegionMapOpen,
+    showRegionMap,
+    hideRegionMap,
     isAnyModalOpen,
     showConfirm,
     showTownExitButton,

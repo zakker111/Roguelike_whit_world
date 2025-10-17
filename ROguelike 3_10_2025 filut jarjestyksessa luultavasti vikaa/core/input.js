@@ -14,6 +14,7 @@
  * - Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5.
  * - Inventory: I. Loot/Action: G. Descend: N.
  * - GOD panel: P to open. FOV adjust: [-] and [+]/[=] (also Numpad +/-).
+ * - Region Map: M to open/close.
  */
 
 const KEY_DIRS = {
@@ -102,6 +103,17 @@ export function init(handlers) {
     if ((e.key && e.key.toLowerCase() === "p") || e.code === "KeyP") {
       e.preventDefault();
       _handlers.onShowGod && _handlers.onShowGod();
+      return;
+    }
+
+    // Region Map toggle
+    if ((e.key && e.key.toLowerCase() === "m") || e.code === "KeyM") {
+      e.preventDefault();
+      if (_handlers.isRegionMapOpen && _handlers.isRegionMapOpen()) {
+        _handlers.onHideRegionMap && _handlers.onHideRegionMap();
+      } else {
+        _handlers.onShowRegionMap && _handlers.onShowRegionMap();
+      }
       return;
     }
 

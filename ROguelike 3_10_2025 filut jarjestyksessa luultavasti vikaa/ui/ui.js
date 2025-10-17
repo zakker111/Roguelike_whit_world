@@ -898,6 +898,86 @@ export const UI = {
     return !!(this.els.godPanel && !this.els.godPanel.hidden);
   },
 
+  // ---- Region Map modal ----
+  showRegionMap(ctx = null) {
+    // Close other modals for clarity
+    if (this.isLootOpen()) this.hideLoot();
+    if (this.isInventoryOpen()) this.hideInventory();
+    if (this.isGodOpen()) this.hideGod();
+    if (this.isSmokeOpen()) this.hideSmoke();
+
+    // Create panel lazily
+    if (!this.els.regionPanel) {
+      const panel = document.createElement("div");
+      panel.id = "region-panel";
+      panel.style.position = "fixed";
+      panel.style.left = "50%";
+      panel.style.top = "50%";
+      panel.style.transform = "translate(-50%, -50%)";
+      panel.style.zIndex = "40000";
+      panel.style.background = "rgba(20,24,33,0.98)";
+      panel.style.border = "1px solid rgba(80,90,120,0.6)";
+      panel.style.borderRadius = "8px";
+      panel.style.padding = "8px";
+      panel.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
+      panel.style.minWidth = "420px";
+      panel.style.minHeight = "300px";
+      panel.style.maxWidth = "92vw";
+      panel.style.maxHeight = "80vh";
+      panel.style.display = "none";
+
+      const close = document.createElement("div");
+      close.textContent = "Close (Esc)";
+      close.style.color = "#94a3b8";
+      close.style.fontSize = "12px";
+      close.style.margin = "4px 0 6px 0";
+
+      const canvas = document.createElement("canvas");
+      canvas.id = "region-canvas";
+      // responsive size
+      const vw = Math.max(640, Math.floor(window.innerWidth * 0.7));
+      const vh = Math.max(360, Math.floor(window.innerHeight * 0.6));
+      canvas.width = Math.min(vw, Math.floor(window.innerWidth * 0.92));
+      canvas.height = Math.min(vh, Math.floor(window.innerHeight * 0.80));
+      canvas.style.display = "block";
+      canvas.style.background = "#0b0c10";
+      canvas.style.border = "1px solid rgba(80,90,120,0.5)";
+      canvas.style.borderRadius = "6px";
+
+      panel.appendChild(close);
+      panel.appendChild(canvas);
+      document.body.appendChild(panel);
+      this.els.regionPanel = panel;
+      this.els.regionCanvas = canvas;
+
+      // Click outside to close
+      panel.addEventListener("click", (e) => {
+        if (e.target === panel) {
+          this.hideRegionMap();
+          e.stopPropagation();
+        }
+      });
+    }
+
+    // Show panel
+    this.els.regionPanel.style.display = "block";
+    // Render contents via RegionMap if available
+    try {
+      const RM = (typeof window !== "undefined" ? window.RegionMap : null);
+      if (RM && typeof RM.draw === "function") {
+        RM.draw(ctx || (window.GameAPI && typeof window.GameAPI.getCtx === "function" ? window.GameAPI.getCtx() : null));
+      }
+    } catch (_) {}
+  },
+
+  hideRegionMap() {
+    if (this.els.regionPanel) this.els.regionPanel.style.display = "none";
+  },
+
+  isRegionMapOpen() {
+    return !!(this.els.regionPanel && this.els.regionPanel.style.display !== "none");
+  },
+
   // Smoke Test Configuration modal
   showSmoke() {
     if (this.isLootOpen()) this.hideLoot();

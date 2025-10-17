@@ -1397,6 +1397,36 @@
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
           if (!wasOpen) requestDraw();
         },
+        // Region Map
+        isRegionMapOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isRegionMapOpen === "function") return !!UB.isRegionMapOpen();
+          } catch (_) {}
+          return false;
+        },
+        onShowRegionMap: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isRegionMapOpen === "function") wasOpen = !!UB.isRegionMapOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.showRegionMap === "function") UB.showRegionMap(getCtx());
+          } catch (_) {}
+          if (!wasOpen) requestDraw();
+        },
+        onHideRegionMap: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isRegionMapOpen === "function") wasOpen = !!UB.isRegionMapOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.hideRegionMap === "function") UB.hideRegionMap(getCtx());
+          } catch (_) {}
+          if (wasOpen) requestDraw();
+        },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
         onLoot: () => doAction(),
