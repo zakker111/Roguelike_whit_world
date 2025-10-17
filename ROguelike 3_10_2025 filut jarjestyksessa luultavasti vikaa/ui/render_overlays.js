@@ -220,7 +220,7 @@ export function drawLampGlow(ctx, view) {
       try {
         const GD = (typeof window !== "undefined" ? window.GameData : null);
         const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-        if (!arr) return type === "lamp";
+        if (!arr) return false;
         const key = String(type || "").toUpperCase();
         for (let i = 0; i < arr.length; i++) {
           const t = arr[i];
@@ -230,7 +230,7 @@ export function drawLampGlow(ctx, view) {
           return !!(t.properties && t.properties.emitsLight);
         }
       } catch (_) {}
-      return type === "lamp";
+      return false;
     }
 
     const { ctx2d, TILE } = Object.assign({}, view);

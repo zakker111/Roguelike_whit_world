@@ -210,7 +210,17 @@ export function draw(ctx, view) {
       const screenX = (n.x - startX) * TILE - tileOffsetX;
       const screenY = (n.y - startY) * TILE - tileOffsetY;
       // Pets: cat 'c', dog 'd'; others 'n'
-      let glyph = "n";
+      const tdProp = getPropDef(p.type);
+      if (!tdProp) continue;
+
+      const hasGlyphField = Object.prototype.hasOwnProperty.call(tdProp, "glyph");
+      const glyph = hasGlyphField ? tdProp.glyph : "";
+      if (!glyph || String(glyph).trim().length === 0) continue;
+
+      const color = (tdProp.colors && tdProp.colors.fg) || null;
+      if (!color) continue;
+
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);lyph = "n";
       if (n.isPet) {
         if (n.kind === "cat") glyph = "c";
         else if (n.kind === "dog") glyph = "d";

@@ -174,7 +174,26 @@
       "properties": { "walkable": false, "blocksFOV": false, "emitsLight": true },
       "appearsIn": ["dungeon", "town"],
       "tags": ["window"]
-    }
+    },
+
+    // Town props (overlay-only; glyph/fg driven here). IDs are unique within "town" mode.
+    { "id": 100, "key": "WELL",       "name": "Well",       "glyph": "O",  "colors": { "fill": "#0f1620", "fg": "#7aa2f7" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+    { "id": 101, "key": "FOUNTAIN",   "name": "Fountain",   "glyph": "◌",  "colors": { "fill": "#0f1620", "fg": "#89ddff" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+    { "id": 102, "key": "BENCH",      "name": "Bench",      "glyph": "≡",  "colors": { "fill": "#0f1620", "fg": "#d7ba7d" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+    { "id": 103, "key": "LAMP",       "name": "Lamp",       "glyph": "†",  "colors": { "fill": "#0f1620", "fg": "#ffd166" }, "properties": { "emitsLight": true },  "appearsIn": ["town"], "tags": ["prop","light"] },
+    { "id": 104, "key": "STALL",      "name": "Stall",      "glyph": "s",  "colors": { "fill": "#0f1620", "fg": "#b4f9f8" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+    { "id": 105, "key": "TREE",       "name": "Tree",       "glyph": "♣",  "colors": { "fill": "#0f1620", "fg": "#84cc16" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop","woods"] },
+    { "id": 106, "key": "FIREPLACE",  "name": "Fireplace",  "glyph": "∩",  "colors": { "fill": "#0f1620", "fg": "#ff9966" }, "properties": { "emitsLight": true },  "appearsIn": ["town"], "tags": ["prop","light"] },
+    { "id": 107, "key": "TABLE",      "name": "Table",      "glyph": "┼",  "colors": { "fill": "#0f1620", "fg": "#d7ba7d" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+    { "id": 108, "key": "CHAIR",      "name": "Chair",      "glyph": "π",  "colors": { "fill": "#0f1620", "fg": "#d7ba7d" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+    { "id": 109, "key": "BED",        "name": "Bed",        "glyph": "b",  "colors": { "fill": "#0f1620", "fg": "#a3be8c" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+    { "id": 110, "key": "CHEST",      "name": "Chest",      "glyph": "▯",  "colors": { "fill": "#0f1620", "fg": "#d7ba7d" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop","storage"] },
+    { "id": 111, "key": "CRATE",      "name": "Crate",      "glyph": "▢",  "colors": { "fill": "#0f1620", "fg": "#b59b6a" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop","storage"] },
+    { "id": 112, "key": "BARREL",     "name": "Barrel",     "glyph": "◍",  "colors": { "fill": "#0f1620", "fg": "#a07c4b" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop","storage"] },
+    { "id": 113, "key": "SHELF",      "name": "Shelf",      "glyph": "≋",  "colors": { "fill": "#0f1620", "fg": "#b4f9f8" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+    { "id": 114, "key": "PLANT",      "name": "Plant",      "glyph": "❀",  "colors": { "fill": "#0f1620", "fg": "#84cc16" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop","flora"] },
+    { "id": 115, "key": "RUG",        "name": "Rug",        "glyph": "≈",  "colors": { "fill": "#0f1620", "fg": "#a3be8c" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] },
+    { "id": 116, "key": "SIGN",       "name": "Sign",       "glyph": "∎",  "colors": { "fill": "#0f1620", "fg": "#ffd166" }, "properties": { "emitsLight": false }, "appearsIn": ["town"], "tags": ["prop"] }
   ],
   "overrides": {
     "region": {

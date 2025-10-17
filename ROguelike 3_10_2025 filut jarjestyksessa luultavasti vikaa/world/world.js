@@ -50,8 +50,8 @@ export function isWalkable(tile) {
       return !!td.properties.walkable;
     }
   } catch (_) {}
-  // Default to walkable when JSON does not specify (not tile-specific).
-  return true;
+  // Only use tiles.json; when unspecified, treat as not walkable.
+  return false;
 }
 
 function inBounds(x, y, w, h) {
