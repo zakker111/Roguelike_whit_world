@@ -2443,6 +2443,32 @@
           }
           return false;
         },
+        // Open Region Map at current overworld tile and sync orchestrator state
+        openRegionMap: () => {
+          const RM = modHandle("RegionMapRuntime");
+          if (RM && typeof RM.open === "function") {
+            const ctx = getCtx();
+            const ok = !!RM.open(ctx);
+            if (ok) {
+              applyCtxSyncAndRefresh(ctx);
+            }
+            return ok;
+          }
+          return false;
+        },
+        // Start an encounter inside the active Region Map (ctx.mode === "region")
+        startRegionEncounter: (template, biome) => {
+          const ER = modHandle("EncounterRuntime");
+          if (ER && typeof ER.enterRegion === "function") {
+            const ctx = getCtx();
+            const ok = !!ER.enterRegion(ctx, { template, biome });
+            if (ok) {
+              applyCtxSyncAndRefresh(ctx);
+            }
+            return ok;
+          }
+          return false;
+        },
         // GOD/helpers
         setAlwaysCrit: (v) => setAlwaysCrit(v),
         setCritPart: (part) => setCritPart(part),
