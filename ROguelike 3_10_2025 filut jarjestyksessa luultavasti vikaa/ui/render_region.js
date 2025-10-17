@@ -124,6 +124,25 @@ export function draw(ctx, view) {
     ctx2d.restore();
   } catch (_) {}
 
+  // Enemies overlay (draw simple markers for active region-encounter)
+  try {
+    if (ctx.region && ctx.region._isEncounter && Array.isArray(ctx.enemies)) {
+      for (const e of ctx.enemies) {
+        if (!e) continue;
+        const ex = e.x | 0, ey = e.y | 0;
+        if (ex < startX || ex > endX || ey < startY || ey > endY) continue;
+        if (!visible[ey] || !visible[ey][ex]) continue;
+        const sx = (ex - startX) * TILE - tileOffsetX;
+        const sy = (ey - startY) * TILE - tileOffsetY;
+        const c = (typeof ctx.enemyColor === "function") ? ctx.enemyColor(e.type || "enemy") : "#f7768e";
+        ctx2d.save();
+        ctx2d.fillStyle = c;
+        ctx2d.fillRect(sx + 6, sy + 6, TILE - 12, TILE - 12);
+        ctx2d.restore();
+      }
+    }
+  } catch (_) {}
+
   // Player marker (cursor) with backdrop (only if visible)
   const px = ctx.player.x, py = ctx.player.y;
   if (px >= startX && px <= endX && py >= startY && py <= endY && visible[py] && visible[py][px]) {

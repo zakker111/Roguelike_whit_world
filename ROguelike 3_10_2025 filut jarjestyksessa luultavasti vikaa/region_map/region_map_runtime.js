@@ -634,6 +634,37 @@ function tryMove(ctx, dx, dy) {
     walkable = isWalkableWorld ? !!isWalkableWorld(tile) : (WT ? (tile !== WT.WATER && tile !== WT.RIVER && tile !== WT.MOUNTAIN) : true);
   } catch (_) {}
 
+  // If an encounter is active in region, allow bump attacks on enemies occupying the target
+  let enemy = null;
+  if (ctx.region && ctx.region._isEncounter && Array.isArray(ctx.enemies)) {
+    try { enemy = ctx.enemies.find(e => e && e.x === nx && e.y === ny) || null; } catch (_) { enemy = null; }
+  }
+  if (enemy) {
+    const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
+    if (C && typeof C.playerAttackEnemy === "function") {
+      try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
+      try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+      return true;
+    }
+    // Minimal fallback
+    try {
+      const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
+      const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
+      const rb = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+      if (rb < blockChance) {
+        ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
+      } else {
+        const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
+        const dmg = Math.max(0.1, Math.round(atk * 10) / 10);
+        enemy.hp -= dmg;
+        ctx.log && ctx.log(`You hit the ${(enemy.type || "enemy")} for ${dmg}.`);
+        if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
+      }
+    } catch (_) {}
+    try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+    return true;
+  }
+
   if (!walkable) {
     try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
     return false;
@@ -698,7 +729,35 @@ function onAction(ctx) {
   return true;
 }
 
-function tick(ctx) { return true; }
+function tick(ctx) {
+  if (!ctx || ctx.mode !== "region") return true;
+  // If an encounter is active within the region map, drive simple AI and completion check
+  if (ctx.region && ctx.region._isEncounter) {
+    try {
+      const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);
+      if (AIH && typeof AIH.enemiesAct === "function") {
+        AIH.enemiesAct(ctx);
+      }
+    } catch (_) {}
+    try {
+      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+      if (OG && typeof OG.build === "function") {
+        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      }
+    } catch (_) {}
+    // Victory: no enemies remain
+    try {
+      if (!Array.isArray(ctx.enemies) || ctx.enemies.length === 0) {
+        ctx.region._isEncounter = false;
+        ctx.encounterInfo = null;
+        if (ctx.log) ctx.log("You prevail and return to the overworld.", "good");
+        close(ctx);
+        return true;
+      }
+    } catch (_) {}
+  }
+  return true;
+}
 
 // Back-compat: attach to window
 if (typeof window !== "undefined") {

@@ -103,15 +103,6 @@ export function enter(ctx, info) {
 
   try { ctx.log && ctx.log(`${template.name || "Encounter"} begins: eliminate the hostiles.`, "notice"); } catch (_) {}
   ctx.encounterInfo = { id: template.id, name: template.name || "Encounter" };
-
-  // Open Region Map overlay as an overview for the encounter (modal panel).
-  try {
-    const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
-    if (UB && typeof UB.showRegionMap === "function") {
-      UB.showRegionMap(ctx);
-    }
-  } catch (_) {}
-
   return true;
 }
 
@@ -125,7 +116,6 @@ export function tryMoveEncounter(ctx, dx, dy) {
   let enemy = null;
   try { enemy = Array.isArray(ctx.enemies) ? ctx.enemies.find(e => e && e.x === nx && e.y === ny) : null; } catch (_) { enemy = null; }
   if (enemy) {
-    // Reuse dungeon combat path: try to step into enemy triggers attack via DungeonRuntime.tryMoveDungeon fallback
     // Prefer Combat via ctx-first path
     const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
     if (C && typeof C.playerAttackEnemy === "function") {
@@ -162,6 +152,104 @@ export function tryMoveEncounter(ctx, dx, dy) {
     return true;
   }
   return false;
+}
+
+// Start an encounter within the existing Region Map mode (ctx.mode === "region").
+// Spawns enemies on the current region sample without changing mode or map.
+export function enterRegion(ctx, info) {
+  if (!ctx || ctx.mode !== "region" || !ctx.map || !Array.isArray(ctx.map) || !ctx.map.length) return false;
+  const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", groups: [ { type: "bandit", count: { min: 2, max: 3 } } ] };
+
+  const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : (ctx.World && ctx.World.TILES) ? ctx.World.TILES : null;
+  const isWalkableWorld = (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function")
+    ? window.World.isWalkable
+    : (ctx.World && typeof ctx.World.isWalkable === "function") ? ctx.World.isWalkable : null;
+
+  const H = ctx.map.length;
+  const W = ctx.map[0] ? ctx.map[0].length : 0;
+  if (!W || !H) return false;
+
+  // Initialize encounter state on region
+  if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
+  ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+
+  // Helper: free spawn spot (walkable region tile, not on player, not duplicate)
+  const placements = [];
+  function walkableAt(x, y) {
+    if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+    const t = ctx.map[y][x];
+    if (isWalkableWorld) return !!isWalkableWorld(t);
+    if (!WT) return true;
+    // Fallback: avoid water/river/mountain
+    return !(t === WT.WATER || t === WT.RIVER || t === WT.MOUNTAIN);
+  }
+  function free(x, y) {
+    if (!walkableAt(x, y)) return false;
+    if (x === (ctx.player.x | 0) && y === (ctx.player.y | 0)) return false;
+    if (placements.some(p => p.x === x && p.y === y)) return false;
+    return true;
+  }
+
+  // Determine total enemies from groups
+  const groups = Array.isArray(template.groups) ? template.groups : [];
+  const totalWanted = groups.reduce((acc, g) => {
+    const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
+    const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
+    const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    return acc + n;
+  }, 0);
+
+  // Collect edge-ring placements inward to avoid spawning adjacent to player
+  let ring = 0, placed = 0;
+  while (placed < totalWanted && ring < Math.max(W, H)) {
+    for (let x = 1 + ring; x < W - 1 - ring && placed < totalWanted; x++) {
+      const y1 = 1 + ring, y2 = H - 2 - ring;
+      if (free(x, y1)) { placements.push({ x, y: y1 }); placed++; }
+      if (placed >= totalWanted) break;
+      if (free(x, y2)) { placements.push({ x, y: y2 }); placed++; }
+    }
+    for (let y = 2 + ring; y < H - 2 - ring && placed < totalWanted; y++) {
+      const x1 = 1 + ring, x2 = W - 2 - ring;
+      if (free(x1, y)) { placements.push({ x: x1, y }); placed++; }
+      if (placed >= totalWanted) break;
+      if (free(x2, y)) { placements.push({ x: x2, y }); placed++; }
+    }
+    ring++;
+  }
+
+  // Materialize enemies
+  let pIdx = 0;
+  const depth = Math.max(1, (ctx.floor | 0) || 1);
+  for (const g of groups) {
+    const type = g.type || "goblin";
+    const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
+    const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
+    const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    for (let i = 0; i < n && pIdx < placements.length; i++) {
+      const p = placements[pIdx++];
+      const e = (typeof ctx.enemyFactory === "function") ? ctx.enemyFactory(p.x, p.y, depth) : { x: p.x, y: p.y, type: type, hp: 4, atk: 1, xp: 6, level: depth };
+      e.type = type || e.type || "goblin";
+      ctx.enemies.push(e);
+    }
+  }
+
+  // Build occupancy for region map
+  try {
+    const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+    if (OG && typeof OG.build === "function") {
+      ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+    }
+  } catch (_) {}
+
+  // Mark encounter-active in region and notify
+  try { ctx.log && ctx.log(`${template.name || "Encounter"} begins here.`, "notice"); } catch (_) {}
+  ctx.encounterInfo = { id: template.id, name: template.name || "Encounter" };
+  if (!ctx.region) ctx.region = {};
+  ctx.region._isEncounter = true;
+
+  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  return true;
 }
 
 export function complete(ctx, outcome = "victory") {

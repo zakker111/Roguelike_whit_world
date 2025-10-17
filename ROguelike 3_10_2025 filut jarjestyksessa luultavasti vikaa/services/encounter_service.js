@@ -119,22 +119,21 @@ export function maybeTryEncounter(ctx) {
     const text = `${tmpl.name || "Encounter"}: ${biome.toLowerCase()} — Enter?`;
     const enter = () => {
       try {
-        // Prefer orchestrator helper to sync mutated ctx back into game state
-        if (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function") {
-          const ok = !!window.GameAPI.enterEncounter(tmpl, biome);
-          if (ok) {
+        // Open Region Map anchored to the current world tile, then start encounter inside it
+        const RM = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+        const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+        if (RM && typeof RM.open === "function") {
+          const okOpen = !!RM.open(ctx);
+          if (okOpen) {
+            if (ER && typeof ER.enterRegion === "function") {
+              ER.enterRegion(ctx, { template: tmpl, biome });
+            }
+            // Ensure orchestrator syncs external ctx.mode/map mutation
+            try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
             STATE.movesSinceLast = 0;
             STATE.cooldownMoves = 10;
             return true;
           }
-        }
-        // Fallback: direct runtime call (may not sync UI state perfectly)
-        const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
-        if (ER && typeof ER.enter === "function") {
-          ER.enter(ctx, { template: tmpl, biome });
-          STATE.movesSinceLast = 0;
-          STATE.cooldownMoves = 10;
-          return true;
         }
       } catch (_) {}
       return false;
