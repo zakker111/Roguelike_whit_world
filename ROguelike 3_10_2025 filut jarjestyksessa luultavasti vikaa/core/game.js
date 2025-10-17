@@ -2507,12 +2507,22 @@
         returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
         returnToWorldFromTown: () => returnToWorldFromTown(),
         initWorld: () => initWorld(),
-        // Encounter helper: enter and sync
+        // Encounter helper: now enters a small Dungeon floor so enemies/AI/combat are exactly like dungeon.
+        // This sets worldReturnPos to the current overworld tile and generates a "small" dungeon via DungeonRuntime.enter.
         enterEncounter: (template, biome) => {
-          const ER = modHandle("EncounterRuntime");
-          if (ER && typeof ER.enter === "function") {
+          const DR = modHandle("DungeonRuntime");
+          if (DR && typeof DR.enter === "function") {
             const ctx = getCtx();
-            const ok = ER.enter(ctx, { template, biome });
+            // Ensure we can return to the same overworld position
+            ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
+            // Build a minimal dungeon info keyed by current world tile; size small for compact arenas
+            const info = {
+              x: ctx.player.x | 0,
+              y: ctx.player.y | 0,
+              level: Math.max(1, (ctx.floor | 0) || 1),
+              size: "small",
+            };
+            const ok = DR.enter(ctx, info);
             if (ok) {
               applyCtxSyncAndRefresh(ctx);
             }
