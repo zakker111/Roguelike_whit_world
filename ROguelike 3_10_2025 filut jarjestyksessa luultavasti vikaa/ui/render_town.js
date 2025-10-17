@@ -219,12 +219,8 @@ export function draw(ctx, view) {
         color = "#f6c177";
       }
 
-      ctx2d.save();
-      if (!isVisible) {
-        ctx2d.globalAlpha = wasSeen ? 0.6 : 0.45;
-      }
+      // Always draw at full opacity to ensure discoverability, regardless of FOV memory.
       RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-      ctx2d.restore();
 
       // Sleeping indicator: animated z/Z above sleeping NPCs (only when visible to avoid noise)
       if (isVisible && n._sleeping) {
