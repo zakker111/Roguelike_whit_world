@@ -310,23 +310,41 @@ export function draw(ctx, view) {
 
         if (p.type === "campfire") {
           // Prefer tileset mapping if available (custom key), else JSON glyph from town FIREPLACE
-          let drawn = false;
-          if (tilesetReady && TS && typeof TS.draw === "function") {
-            drawn = TS.draw(ctx2d, "campfire", sx, sy, TILE);
-          }
-          if (!drawn) {
-            let glyph = "♨";
-            let color = "#ff6d00";
-            try {
-              const td = getTileDefByKey("town", "FIREPLACE");
-              if (td) {
-                if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
-                if (td.colors && td.colors.fg) color = td.colors.fg || color;
-              }
-            } catch (_) {}
+          let glyph = "♨";
+          let color = "#ff6d00";
+          try {
+            const td = getTileDefByKey("town", "FIREPLACE");
+            if (td) {
+              if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
+              if (td.colors && td.colors.fg) color = td.colors.fg || color;
+            }
+          } catch (_) {}
+
+          // Subtle glow: draw a radial gradient under the glyph; stronger at night/dusk/dawn.
+          try {
+            const phase = (ctx.time && ctx.time.phase) || "day";
+            const phaseMult = (phase === "night") ? 1.0 : (phase === "dusk" || phase === "dawn") ? 0.7 : 0.45;
+            const cx = sx + TILE / 2;
+            const cy = sy + TILE / 2;
+            const r = TILE * (2.0 * phaseMult + 1.2); // ~2.2T at night, ~1.6T at day
+            const grad = ctx2d.createRadialGradient(cx, cy, Math.max(2, TILE * 0.10), cx, cy, r);
+            grad.addColorStop(0, "rgba(255, 200, 120, " + (0.55 * phaseMult).toFixed(3) + ")");
+            grad.addColorStop(0.4, "rgba(255, 170, 80, " + (0.30 * phaseMult).toFixed(3) + ")");
+            grad.addColorStop(1, "rgba(255, 140, 40, 0.0)");
+            ctx2d.save();
+            ctx2d.globalCompositeOperation = "lighter";
+            ctx2d.fillStyle = grad;
+            ctx2d.beginPath();
+            ctx2d.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx2d.fill();
+            ctx2d.restore();
+          } catch (_) {}
+
+          // Draw the fire glyph (dim if not currently visible)
+          if (!tilesetReady || !TS || typeof TS.draw !== "function" || !TS.draw(ctx2d, "campfire", sx, sy, TILE)) {
             if (!visNow) {
               ctx2d.save();
-              ctx2d.globalAlpha = 0.55;
+              ctx2d.globalAlpha = 0.65;
               RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
               ctx2d.restore();
             } else {
