@@ -13,6 +13,8 @@ Play it
   - GOD panel: P
   - Wait: Numpad5
   - Brace: B (dungeon only; raises block chance this turn if holding a defensive hand item)
+- Entry rule:
+  - Overworld: stand exactly on a Town or Dungeon tile and press G to enter. Adjacent/diagonal entry is disabled (strict mode).
 
 Data-driven configuration
 - JSON files under data/ drive most content:
@@ -22,8 +24,41 @@ Data-driven configuration
   - consumables.json: potions/consumables
   - shops.json: shop names/types and open/close schedules
   - town.json: map size, plaza size, roads, buildings, props
+  - tiles.json: unified tiles registry (colors, glyphs, walkability, FOV blocking) across modes
 - These are loaded by data/loader.js and adapted at runtime; missing fields fall back safely.
 - When running via file://, the loader provides built-in defaults so the game remains playable without HTTP.
+
+Tiles.json (unified tiles registry)
+- All map tiles and decor are defined in data/tiles.json and referenced by renderers and logic:
+  - Modes supported in appearsIn: overworld, region, dungeon, town.
+  - Properties:
+    - colors.fill: base tile color
+    - colors.fg: glyph color (if a non-blank glyph is defined)
+    - glyph: per-tile glyph; blank or whitespace-only means “draw no glyph”
+    - properties.walkable: used by World.isWalkable (overworld) and movement rules
+    - properties.blocksFOV: used by LOS/FOV to determine transparency
+  - Overworld/Region biomes: WATER, RIVER, BEACH, SWAMP, FOREST, GRASS, MOUNTAIN, DESERT, SNOW, TOWN, DUNGEON, TREE
+  - Dungeon/Town core: WALL, FLOOR, DOOR, STAIRS, WINDOW
+  - Decor/containers:
+    - Town: WELL, FOUNTAIN, BENCH, LAMP (light), STALL, FIREPLACE (light), TABLE, CHAIR, BED, SHELF, PLANT, RUG, SIGN, TREE
+    - Dungeon/Town: CHEST, CRATE, BARREL
+    - Dungeon: CORPSE
+- Rendering reads tiles.json only:
+  - Overworld/Region/Town/Dungeon base layers use colors.fill.
+  - Glyph overlays draw any non-blank glyph with colors.fg every frame.
+- Logic reads tiles.json where applicable:
+  - Overworld walkability prefers properties.walkable.
+  - LOS/FOV blocking prefers properties.blocksFOV; dungeon walls block by default via JSON.
+- Tips:
+  - Use a local server (node server.js) so tiles.json loads; browsers typically block JSON fetch via file://.
+  - Editing tiles.json and reloading applies visual changes; the world/town/dungeon offscreen caches auto-rebuild when JSON changes.
+
+Region Map overlay (G on overworld non-entry tiles)
+- Press G on a walkable overworld tile that is not Town/Dungeon to open Region mode:
+  - Camera follows the player cursor; movement advances turns (time passes).
+  - Movement uses overworld walkability (water/river/mountain block).
+  - FOV/LOS use tiles.json; mountains and trees block FOV, shores/water are transparent.
+  - Orange-highlighted edge tiles act as exits; press G on them to return to the overworld position where you opened the map.
 
 Determinism and seeds
 - RNG is centralized; apply seeds in the GOD panel.
@@ -45,6 +80,8 @@ Local dev server
   - node server.js
   - Open http://localhost:8080/?dev=1
 - You can change the port with PORT=9000 node server.js
+- Rendering refresh:
+  - The game requests a redraw after tiles.json loads (GameData.ready). If you edit tiles.json, reload the page to apply the new visuals.
 
 Bundling (optional, Vite)
 - This project supports optional bundling for production using Vite. Native ESM still works without bundling.
@@ -59,6 +96,7 @@ Bundling (optional, Vite)
 Key features at a glance
 - Single-floor dungeons with connected rooms, guaranteed stairs, and data-driven enemies.
 - Interaction-first gameplay: bump-to-attack, G to loot/interact/enter/exit.
+- Region Map overlay for quick local exploration and orientation.
 - HUD perf overlay: shows last turn and draw timings (ms) next to the clock for optimization visibility.
 - Inventory/equipment:
   - Two-handed items occupy both hands; unequipping one removes both.
