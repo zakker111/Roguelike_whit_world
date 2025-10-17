@@ -911,6 +911,15 @@
     // Visibility reset for town
     ctx.seen = Array.from({ length: H }, () => Array(W).fill(false));
     ctx.visible = Array.from({ length: H }, () => Array(W).fill(false));
+    // Seed initial \"seen\" region around the gate so nearby NPCs/props can render dimmed if just outside FOV
+    try {
+      const R = 3;
+      for (let yy = Math.max(0, gate.y - R); yy <= Math.min(H - 1, gate.y + R); yy++) {
+        for (let xx = Math.max(0, gate.x - R); xx <= Math.min(W - 1, gate.x + R); xx++) {
+          ctx.seen[yy][xx] = true;
+        }
+      }
+    } catch (_) {}
     ctx.enemies = [];
     ctx.corpses = [];
     ctx.decals = [];
