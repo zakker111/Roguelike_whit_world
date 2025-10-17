@@ -114,6 +114,32 @@ export function draw(ctx, view) {
     }
   }
 
+  // Coastline/shore outline: draw thin highlight where water/river borders land
+  try {
+    for (let y = startY; y <= endY; y++) {
+      if (y < 0 || y >= mapRows) continue;
+      const row = map[y];
+      for (let x = startX; x <= endX; x++) {
+        if (x < 0 || x >= mapCols) continue;
+        const t = row[x];
+        if (t !== WT.WATER && t !== WT.RIVER) continue;
+        const hasLandNeighbor =
+          (y > 0 && map[y - 1][x] !== WT.WATER && map[y - 1][x] !== WT.RIVER) ||
+          (y < mapRows - 1 && map[y + 1][x] !== WT.WATER && map[y + 1][x] !== WT.RIVER) ||
+          (x > 0 && map[y][x - 1] !== WT.WATER && map[y][x - 1] !== WT.RIVER) ||
+          (x < mapCols - 1 && map[y][x + 1] !== WT.WATER && map[y][x + 1] !== WT.RIVER);
+        if (!hasLandNeighbor) continue;
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+        ctx2d.save();
+        ctx2d.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx2d.lineWidth = 1;
+        ctx2d.strokeRect(screenX + 1.5, screenY + 1.5, TILE - 3, TILE - 3);
+        ctx2d.restore();
+      }
+    }
+  } catch (_) {}
+
   // Per-frame glyph overlay for any tile with a non-blank JSON glyph
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
@@ -133,7 +159,7 @@ export function draw(ctx, view) {
     }
   }
 
-  // Biome label + clock
+  // Biome label + clock (rounded box + subtle border)
   try {
     let labelWidth = 260;
     let biomeName = "";
@@ -146,15 +172,40 @@ export function draw(ctx, view) {
 
     const text = `Biome: ${biomeName}${clock ? "   |   Time: " + clock : ""}`;
     labelWidth = Math.max(260, 16 * (text.length / 2));
-    ctx2d.fillStyle = "rgba(13,16,24,0.8)";
-    ctx2d.fillRect(8, 8, labelWidth, 26);
+    const bx = 8, by = 8, bh = 26, bw = labelWidth;
+    ctx2d.save();
+    ctx2d.fillStyle = "rgba(13,16,24,0.80)";
+    // Rounded rect
+    try {
+      const r = 6;
+      ctx2d.beginPath();
+      ctx2d.moveTo(bx + r, by);
+      ctx2d.lineTo(bx + bw - r, by);
+      ctx2d.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+      ctx2d.lineTo(bx + bw, by + bh - r);
+      ctx2d.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
+      ctx2d.lineTo(bx + r, by + bh);
+      ctx2d.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
+      ctx2d.lineTo(bx, by + r);
+      ctx2d.quadraticCurveTo(bx, by, bx + r, by);
+      ctx2d.closePath();
+      ctx2d.fill();
+      ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+      ctx2d.lineWidth = 1;
+      ctx2d.stroke();
+    } catch (_) {
+      ctx2d.fillRect(bx, by, bw, bh);
+      ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+    }
     ctx2d.fillStyle = "#e5e7eb";
     ctx2d.textAlign = "left";
-    ctx2d.fillText(text, 18, 8 + 13);
-    ctx2d.textAlign = "center";
+    ctx2d.fillText(text, bx + 10, by + 13);
+    ctx2d.restore();
   } catch (_) {}
 
-  // Minimap (top-right) with offscreen cache (toggleable)
+  // Minimap (top-right) with offscreen cache (toggleable) + POI markers
   try {
     const showMini = (typeof window !== "undefined" && typeof window.SHOW_MINIMAP === "boolean") ? window.SHOW_MINIMAP : true;
     if (showMini) {
@@ -200,6 +251,7 @@ export function draw(ctx, view) {
         }
 
         // background + border + label
+        ctx2d.save();
         ctx2d.fillStyle = "rgba(13,16,24,0.70)";
         ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
         ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
@@ -221,9 +273,26 @@ export function draw(ctx, view) {
           ctx2d.drawImage(MINI.canvas, bx, by);
         }
 
-        // player marker
+        // POI markers: towns (gold), dungeons (red)
+        try {
+          const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
+          const dungeons = Array.isArray(ctx.world?.dungeons) ? ctx.world.dungeons : [];
+          ctx2d.save();
+          for (const t of towns) {
+            ctx2d.fillStyle = "#f6c177";
+            ctx2d.fillRect(bx + t.x * scale, by + t.y * scale, Math.max(1, scale), Math.max(1, scale));
+          }
+          for (const d of dungeons) {
+            ctx2d.fillStyle = "#f7768e";
+            ctx2d.fillRect(bx + d.x * scale, by + d.y * scale, Math.max(1, scale), Math.max(1, scale));
+          }
+          ctx2d.restore();
+        } catch (_) {}
+
+        // player marker (white)
         ctx2d.fillStyle = "#ffffff";
         ctx2d.fillRect(bx + player.x * scale, by + player.y * scale, Math.max(1, scale), Math.max(1, scale));
+        ctx2d.restore();
       }
     }
   } catch (_) {}
