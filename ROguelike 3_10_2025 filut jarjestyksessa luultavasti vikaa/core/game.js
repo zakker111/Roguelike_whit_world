@@ -1336,6 +1336,21 @@
         }
       } catch (_) {}
 
+      // If standing on an encounter prop, describe it (consistent with town prop messages)
+      try {
+        const props = Array.isArray(ctxMod.encounterProps) ? ctxMod.encounterProps : [];
+        const p = props.find(pr => pr && pr.x === ctxMod.player.x && pr.y === ctxMod.player.y);
+        if (p) {
+          const type = String(p.type || "").toLowerCase();
+          if (type === "barrel") log("You stand next to a barrel.", "info");
+          else if (type === "crate") log("You stand next to a crate.", "info");
+          else if (type === "bench") log("You stand next to a bench.", "info");
+          else if (type === "campfire") log("You stand by a campfire.", "info");
+          else log(`You stand on ${p.name || p.type || "a prop"}.`, "info");
+          return;
+        }
+      } catch (_) {}
+
       // Otherwise, nothing to do here
       log("Return to the exit (>) to leave this encounter.", "info");
       return;
