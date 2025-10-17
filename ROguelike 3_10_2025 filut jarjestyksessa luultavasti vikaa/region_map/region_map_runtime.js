@@ -321,8 +321,7 @@ export function open(ctx, size) {
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   addMinorWaterAndBeaches(sample);
   // Sprinkle sparse trees in forest tiles for region visualization
-  addSparseTreesInForests(sample, 0.10);nhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
-  addMinorWaterAndBeaches(sample);
+  addSparseTreesInForests(sample, 0.10);
 
 
   const exitNorth = { x: (width / 2) | 0, y: 0 };
