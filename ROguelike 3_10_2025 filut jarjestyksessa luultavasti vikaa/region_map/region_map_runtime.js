@@ -200,7 +200,75 @@ function filterSampleByNeighborSet(sample, neighborSet, primaryTile) {
   }
 }
 
-// Determine predominant tile for each cardinal direction relative to the player.
+// Robust directional sampling around the player using angular sectors (8-way).
+// Bins tiles within a radius into N, NE, E, SE, S, SW, W, NW by angle.
+// Returns predominant tile per sector and a dominance weight (0..1) per cardinal.
+function computeDirectionalTiles(world, px, py, radius = 6) {
+  const Ww = world.width || (world.map[0] ? world.map[0].length : 0);
+  const Wh = world.height || world.map.length;
+
+  // Map sector name to array of tiles seen
+  const bins = {
+    N: [], NE: [], E: [], SE: [], S: [], SW: [], W: [], NW: []
+  };
+
+  function sectorOf(dx, dy) {
+    // atan2: y down positive; convert to degrees [0,360)
+    const ang = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+    // E-centered sectors (22.5° width half-angle)
+    if (ang >= 337.5 || ang < 22.5) return "E";
+    if (ang < 67.5) return "NE";
+    if (ang < 112.5) return "N";
+    if (ang < 157.5) return "NW";
+    if (ang < 202.5) return "W";
+    if (ang < 247.5) return "SW";
+    if (ang < 292.5) return "S";
+    return "SE";
+  }
+
+  // Weighted sampling within radius; give slightly more weight to nearer tiles to avoid far noise
+  const r2 = radius * radius;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      const nx = px + dx, ny = py + dy;
+      if (nx < 0 || ny < 0 || nx >= Ww || ny >= Wh) continue;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > r2) continue;
+      const s = sectorOf(dx, dy);
+      // Weight: closer tiles count a bit more (inverse distance), clamp
+      const w = Math.max(0.5, 1.5 - Math.sqrt(d2) / (radius || 1));
+      const t = world.map[ny][nx];
+      // Push repeated entries to approximate weight without extra structures
+      const repeats = Math.max(1, Math.round(w));
+      for (let k = 0; k < repeats; k++) bins[s].push(t);
+    }
+  }
+
+  function predominant(arr) {
+    if (!arr.length) return { tile: null, weight: 0 };
+    const m = new Map();
+    for (const t of arr) m.set(t, (m.get(t) || 0) + 1);
+    let best = null, bestCnt = -1, total = 0;
+    for (const [t, cnt] of m.entries()) {
+      total += cnt;
+      if (cnt > bestCnt) { best = t; bestCnt = cnt; }
+    }
+    const weight = total > 0 ? (bestCnt / total) : 0;
+    return { tile: best, weight };
+  }
+
+  const N = predominant(bins.N), S = predominant(bins.S), E = predominant(bins.E), W = predominant(bins.W);
+  const NE = predominant(bins.NE), NW = predominant(bins.NW), SE = predominant(bins.SE), SW = predominant(bins.SW);
+
+  return {
+    cardinals: { N: N.tile, S: S.tile, E: E.tile, W: W.tile },
+    diagonals: { NE: NE.tile, NW: NW.tile, SE: SE.tile, SW: SW.tile },
+    weights: {
+      N: N.weight, S: S.weight, E: E.weight, W: W.weight
+    }
+  };
+}al direction relative to the player.
 // N considers (px-1,py-1), (px,py-1), (px+1,py-1); S considers row y+1; W/E consider columns x-1/x+1.
 function computeCardinalTiles(world, px, py) {
   const Ww = world.width || (world.map[0] ? world.map[0].length : 0);
@@ -293,13 +361,20 @@ function computeDiagonalTiles(world, px, py) {
 // and diagonals fill corner wedges to better line up with overworld.
 // Top band -> N tile, bottom band -> S tile, left band -> W tile, right band -> E tile.
 // Corner wedges: NW/NE/SW/SE fill a triangular corner area to blend edges naturally.
-function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals = null) {
+// weights: optional dominance factors (0..1) per cardinal to scale band thickness.
+function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals = null, weights = null) {
   const h = sample.length, w = sample[0] ? sample[0].length : 0;
   if (!w || !h) return;
-  const topH = Math.max(1, Math.floor(h * edgeFrac));
-  const botH = Math.max(1, Math.floor(h * edgeFrac));
-  const leftW = Math.max(1, Math.floor(w * edgeFrac));
-  const rightW = Math.max(1, Math.floor(w * edgeFrac));
+  const clampFrac = (v) => Math.max(0.18, Math.min(0.5, v));
+  const wN = weights && typeof weights.N === "number" ? weights.N : 1.0;
+  const wS = weights && typeof weights.S === "number" ? weights.S : 1.0;
+  const wW = weights && typeof weights.W === "number" ? weights.W : 1.0;
+  const wE = weights && typeof weights.E === "number" ? weights.E : 1.0;
+  // Scale edge thickness by dominance: stronger dominance -> slightly thicker band
+  const topH = Math.max(1, Math.floor(h * clampFrac(edgeFrac * (0.8 + 0.4 * wN))));
+  const botH = Math.max(1, Math.floor(h * clampFrac(edgeFrac * (0.8 + 0.4 * wS))));
+  const leftW = Math.max(1, Math.floor(w * clampFrac(edgeFrac * (0.8 + 0.4 * wW))));
+  const rightW = Math.max(1, Math.floor(w * clampFrac(edgeFrac * (0.8 + 0.4 * wE))));
 
   // Top band (north)
   if (cardinals.N != null) {
@@ -432,10 +507,9 @@ export function open(ctx, size) {
   const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
   filterSampleByNeighborSet(sample, neighborSet, primaryTile);
 
-  // Orient biomes by cardinal direction and diagonal corners to line up with overworld
-  const cardinals = computeCardinalTiles(ctx.world, ctx.player.x | 0, ctx.player.y | 0);
-  const diagonals = computeDiagonalTiles(ctx.world, ctx.player.x | 0, ctx.player.y | 0);
-  orientSampleByCardinals(sample, cardinals, 0.33, diagonals);
+  // Orient biomes by robust directional sampling (cardinals + diagonals) to line up with overworld
+  const dirs = computeDirectionalTiles(ctx.world, ctx.player.x | 0, ctx.player.y | 0, 7);
+  orientSampleByCardinals(sample, dirs.cardinals, 0.33, dirs.diagonals, dirs.weights);
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   const rng = getRegionRng(ctx);
