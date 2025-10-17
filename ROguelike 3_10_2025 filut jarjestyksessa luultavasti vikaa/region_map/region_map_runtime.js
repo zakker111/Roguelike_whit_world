@@ -268,6 +268,7 @@ function computeDirectionalTiles(world, px, py, radius = 6) {
       N: N.weight, S: S.weight, E: E.weight, W: W.weight
     }
   };
+}
 
 
 // Orient the region sample so that cardinal biomes appear toward their respective edges,
