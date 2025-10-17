@@ -30,7 +30,7 @@ function ensurePanel() {
     el.style.border = "1px solid #334155";
     el.style.borderRadius = "8px";
     el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
-    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong>Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="shop-list"></div>';
+    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="shop-title">Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="shop-list"></div>';
     document.body.appendChild(el);
     try {
       const btn = el.querySelector("#shop-close-btn");
@@ -126,25 +126,50 @@ function render(ctx) {
 
 export function openForNPC(ctx, npc) {
   try {
-    const stock = [];
-    // Potions
-    stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
-    stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
+    const el = ensurePanel();
+    const titleEl = el ? el.querySelector("#shop-title") : null;
+    if (titleEl) {
+      try { titleEl.textContent = (npc && npc.name) ? `${npc.name}'s Wares` : "Shop"; } catch (_) {}
+    }
 
-    // Equipment via Items registry when available
-    try {
-      if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
-        const t1 = ctx.Items.createEquipment(1, ctx.rng);
-        const t2 = ctx.Items.createEquipment(2, ctx.rng);
-        if (t1) stock.push({ item: t1, price: priceFor(t1) });
-        if (t2) stock.push({ item: t2, price: priceFor(t2) });
-      } else {
-        const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
-        const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
-        stock.push({ item: s, price: priceFor(s) });
-        stock.push({ item: a, price: priceFor(a) });
-      }
-    } catch (_) {}
+    const stock = [];
+    const isSeppo = !!(npc && (npc.isSeppo || npc.seppo));
+
+    if (isSeppo) {
+      // Premium stock for Wild Seppo
+      stock.push({ item: { kind: "potion", heal: 20, count: 1, name: "potion (+20 HP)" }, price: 40 });
+      try {
+        if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
+          for (let i = 0; i < 3; i++) {
+            const t3 = ctx.Items.createEquipment(3, ctx.rng);
+            if (t3) stock.push({ item: t3, price: Math.round(priceFor(t3) * 1.2) }); // slight premium
+          }
+        } else {
+          const s = { kind: "equip", slot: "hand", name: "steel broadsword", atk: 3.0, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          const a = { kind: "equip", slot: "torso", name: "steel cuirass", def: 2.6, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          const g = { kind: "equip", slot: "hands", name: "steel gauntlets", atk: 0.4, def: 0.6, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          [s, a, g].forEach(it => stock.push({ item: it, price: Math.round(priceFor(it) * 1.2) }));
+        }
+      } catch (_) {}
+    } else {
+      // Standard stock
+      stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
+      stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
+
+      try {
+        if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
+          const t1 = ctx.Items.createEquipment(1, ctx.rng);
+          const t2 = ctx.Items.createEquipment(2, ctx.rng);
+          if (t1) stock.push({ item: t1, price: priceFor(t1) });
+          if (t2) stock.push({ item: t2, price: priceFor(t2) });
+        } else {
+          const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
+          const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
+          stock.push({ item: s, price: priceFor(s) });
+          stock.push({ item: a, price: priceFor(a) });
+        }
+      } catch (_) {}
+    }
 
     _stock = stock;
     render(ctx);

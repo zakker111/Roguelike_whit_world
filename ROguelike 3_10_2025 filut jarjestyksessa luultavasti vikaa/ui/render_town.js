@@ -209,18 +209,22 @@ export function draw(ctx, view) {
       const screenX = (n.x - startX) * TILE - tileOffsetX;
       const screenY = (n.y - startY) * TILE - tileOffsetY;
 
-      // Pets: cat 'c', dog 'd'; others 'n'
+      // Pets: cat 'c', dog 'd'; Seppo 'S'; others 'n'
       let glyph = "n";
+      let color = "#b4f9f8";
       if (n.isPet) {
         if (n.kind === "cat") glyph = "c";
         else if (n.kind === "dog") glyph = "d";
+      } else if (n.isSeppo || n.seppo) {
+        glyph = "S";
+        color = "#f6c177";
       }
 
       ctx2d.save();
       if (!isVisible && wasSeen) {
         ctx2d.globalAlpha = 0.6;
       }
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, "#b4f9f8", TILE);
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
       ctx2d.restore();
 
       // Sleeping indicator: animated z/Z above sleeping NPCs (only when visible to avoid noise)
