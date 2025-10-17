@@ -1,5 +1,5 @@
 /**
- * RenderOverworld: draws overworld tiles, towns/dungeons glyphs, minimap, NPCs, player, and time tint.
+ * RenderOverworld: draws overworld tiles, glyphs from tiles.json, minimap, NPCs, player, and time tint.
  *
  * Exports (ESM + window.RenderOverworld):
  * - draw(ctx, view)
@@ -11,28 +11,22 @@ import * as World from "../world/world.js";
 let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null };
 // World base layer offscreen cache (full map at TILE resolution)
 let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
-;
-  try {
-    if (Array.isArray(towns)) {
-      for (const info of towns) {
-        // Default glyph from tiles.json (overworld mode), fallback to size-derived
-        let defGlyph = "T";
-        const tdTown = getTileDef("overworld", World.TILES.TOWN);
-        if (tdTown && Object.prototype.hasOwnProperty.call(tdTown, "glyph")) defGlyph = tdTown.glyph;
 
-        let glyph = defGlyph;
-        // If JSON glyph is blank, respect it and don't override by size
-        const jsonBlank = !glyph || String(glyph).trim().length === 0;
-        if (!jsonBlank) {
-          const sz = (info.size || "").toLowerCase();
-          if (sz === "small") glyph = "t";
-          else if (sz === "city") glyph = "C";
-        }
-        out[`${info.x},${info.y}`] = glyph;
+// Helper: get tile def from GameData.tiles for a given mode and numeric id
+function getTileDef(mode, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
       }
     }
   } catch (_) {}
-  TOWN_GLYPHS_CACHE = { ref: towns, map: out };
+  return null;
 }
 
 // Helper: current tiles.json reference (for cache invalidation)
@@ -48,15 +42,9 @@ export function draw(ctx, view) {
     cam, tileOffsetX, tileOffsetY, startX, startY, endX, endY
   } = Object.assign({}, view, ctx);
 
-  const enemyColor = (t) => RenderCore.enemyColor(ctx, t, COLORS);
-
-  
-
   const WT = World.TILES;
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
-
-  
 
   // Build world base offscreen once per map/TILE change
   try {
@@ -89,7 +77,7 @@ export function draw(ctx, view) {
             const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
             oc.fillStyle = c;
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
-            // Note: glyph overlays for towns/dungeons are drawn per-frame below, not baked into base.
+            // Note: glyph overlays are drawn per-frame below, not baked into base.
           }
         }
         WORLD.canvas = off;
