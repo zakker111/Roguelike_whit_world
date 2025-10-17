@@ -269,14 +269,14 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33) {
 
 
 
-function addSparseTreesInForests(sample, density = 0.10) {
+function addSparseTreesInForests(sample, density = 0.10, rng = Math.random) {
   const WT = World.TILES;
   const h = sample.length, w = sample[0] ? sample[0].length : 0;
   if (!w || !h) return;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (sample[y][x] !== WT.FOREST) continue;
-      if (Math.random() >= density) continue;
+      if (rng() >= density) continue;
       // avoid adjacent trees to keep sparsity
       let nearTree = false;
       for (let dy = -1; dy <= 1 && !nearTree; dy++) {
@@ -290,6 +290,24 @@ function addSparseTreesInForests(sample, density = 0.10) {
       if (!nearTree) sample[y][x] = WT.TREE;
     }
   }
+}
+
+function treeDecoratorDensityForRegion(defaultDensity = 0.10) {
+  try {
+    const def = getTileDef("region", World.TILES.FOREST);
+    if (def && Array.isArray(def.decorators)) {
+      for (const d of def.decorators) {
+        const onlyModes = Array.isArray(d.onlyInModes) ? d.onlyInModes.map(s => String(s).toLowerCase()) : null;
+        const okMode = !onlyModes || onlyModes.includes("region");
+        const tileMatch = (d.tile === "TREE") || (typeof d.tile === "number" && d.tile === World.TILES.TREE);
+        if (okMode && tileMatch) {
+          const dn = Number(d.density);
+          if (Number.isFinite(dn) && dn >= 0 && dn <= 1) return dn;
+        }
+      }
+    }
+  } catch (_) {}
+  return defaultDensity;
 }
 
 export function open(ctx, size) {
@@ -320,8 +338,12 @@ export function open(ctx, size) {
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   addMinorWaterAndBeaches(sample);
-  // Sprinkle sparse trees in forest tiles for region visualization
-  addSparseTreesInForests(sample, 0.10);
+  // Sprinkle sparse trees in forest tiles for region visualization (density from tiles.json if present)
+  const rng = (ctx && typeof ctx.rng === "function")
+    ? ctx.rng
+    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  const treeDensity = treeDecoratorDensityForRegion(0.10);
+  addSparseTreesInForests);
 
 
   const exitNorth = { x: (width / 2) | 0, y: 0 };
