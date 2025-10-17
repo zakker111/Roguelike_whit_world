@@ -120,7 +120,7 @@
       "glyph": "||",
       "colors": { "fill": "#0f3b1e", "fg": "#3fa650" },
       "properties": { "walkable": true, "blocksFOV": true, "emitsLight": false },
-      "appearsIn": ["region"],
+      "appearsIn": ["region", "town"],
       "tags": ["decor", "woods"]
     },
 
@@ -174,6 +174,176 @@
       "properties": { "walkable": false, "blocksFOV": false, "emitsLight": true },
       "appearsIn": ["dungeon", "town"],
       "tags": ["window"]
+    },
+    {
+      "id": 50,
+      "key": "CHEST",
+      "name": "Chest",
+      "glyph": "▯",
+      "colors": { "fill": "#3a2f1b", "fg": "#d7ba7d" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["dungeon", "town"],
+      "tags": ["decor", "container"]
+    },
+    {
+      "id": 51,
+      "key": "CRATE",
+      "name": "Crate",
+      "glyph": "▢",
+      "colors": { "fill": "#3a2f1b", "fg": "#b59b6a" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["dungeon", "town"],
+      "tags": ["decor", "container"]
+    },
+    {
+      "id": 52,
+      "key": "BARREL",
+      "name": "Barrel",
+      "glyph": "◍",
+      "colors": { "fill": "#3a2f1b", "fg": "#a07c4b" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["dungeon", "town"],
+      "tags": ["decor", "container"]
+    },
+    {
+      "id": 53,
+      "key": "CORPSE",
+      "name": "Corpse",
+      "glyph": "%",
+      "colors": { "fill": "#0f1628", "fg": "#c3cad9" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["dungeon"],
+      "tags": ["decor"]
+    },
+    {
+      "id": 54,
+      "key": "WELL",
+      "name": "Well",
+      "glyph": "◍",
+      "colors": { "fill": "#0f1620", "fg": "#7aa2f7" },
+      "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor"]
+    },
+    {
+      "id": 55,
+      "key": "FOUNTAIN",
+      "name": "Fountain",
+      "glyph": "⛲",
+      "colors": { "fill": "#0f1620", "fg": "#89ddff" },
+      "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor", "water"]
+    },
+    {
+      "id": 56,
+      "key": "BENCH",
+      "name": "Bench",
+      "glyph": "=",
+      "colors": { "fill": "#0f1620", "fg": "#8b7355" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor", "seat"]
+    },
+    {
+      "id": 57,
+      "key": "LAMP",
+      "name": "Lamp",
+      "glyph": "†",
+      "colors": { "fill": "#0f1620", "fg": "#ffd166" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": true },
+      "appearsIn": ["town"],
+      "tags": ["decor", "light"]
+    },
+    {
+      "id": 58,
+      "key": "STALL",
+      "name": "Market Stall",
+      "glyph": "▣",
+      "colors": { "fill": "#0f1620", "fg": "#d7ba7d" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor", "market"]
+    },
+    {
+      "id": 59,
+      "key": "FIREPLACE",
+      "name": "Fireplace",
+      "glyph": "♨",
+      "colors": { "fill": "#0f1620", "fg": "#ff6d00" },
+      "properties": { "walkable": false, "blocksFOV": false, "emitsLight": true },
+      "appearsIn": ["town"],
+      "tags": ["decor", "light"]
+    },
+    {
+      "id": 60,
+      "key": "TABLE",
+      "name": "Table",
+      "glyph": "⊔",
+      "colors": { "fill": "#0f1620", "fg": "#cbd5e1" },
+      "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor", "furniture"]
+    },
+    {
+      "id": 61,
+      "key": "CHAIR",
+      "name": "Chair",
+      "glyph": "⟂",
+      "colors": { "fill": "#0f1620", "fg": "#cbd5e1" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor", "furniture"]
+    },
+    {
+      "id": 62,
+      "key": "BED",
+      "name": "Bed",
+      "glyph": "‗",
+      "colors": { "fill": "#0f1620", "fg": "#cbd5e1" },
+      "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor", "furniture"]
+    },
+    {
+      "id": 63,
+      "key": "SHELF",
+      "name": "Shelf",
+      "glyph": "≡",
+      "colors": { "fill": "#0f1620", "fg": "#cbd5e1" },
+      "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor", "furniture"]
+    },
+    {
+      "id": 64,
+      "key": "PLANT",
+      "name": "Potted Plant",
+      "glyph": "*",
+      "colors": { "fill": "#0f1620", "fg": "#84cc16" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor"]
+    },
+    {
+      "id": 65,
+      "key": "RUG",
+      "name": "Rug",
+      "glyph": "░",
+      "colors": { "fill": "#0f1620", "fg": "#b59b6a" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor", "floor"]
+    },
+    {
+      "id": 66,
+      "key": "SIGN",
+      "name": "Sign",
+      "glyph": "⚑",
+      "colors": { "fill": "#0f1620", "fg": "#d7ba7d" },
+      "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+      "appearsIn": ["town"],
+      "tags": ["decor"]
     }
   ],
   "overrides": {
