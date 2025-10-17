@@ -114,7 +114,7 @@
       "id": 11,
       "key": "TREE",
       "name": "Tree",
-      "glyph": "|",
+      "glyph": "||",
       "colors": { "fill": "#0f3b1e", "fg": "#3fa650" },
       "properties": { "walkable": true, "blocksFOV": true, "emitsLight": false },
       "appearsIn": ["region"],
