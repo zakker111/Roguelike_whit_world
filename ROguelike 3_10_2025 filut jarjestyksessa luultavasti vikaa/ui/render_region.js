@@ -37,6 +37,13 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
+  // Record tiles usage for diagnostics (region mode) once per map reference
+  try {
+    if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+      window.TilesValidation.recordMap({ mode: "region", map });
+    }
+  } catch (_) {}
+
   // Tiles are driven entirely by data/tiles.json in region mode.
 
   // Base tiles within viewport

@@ -64,6 +64,8 @@ export function attachModules(ctx) {
     if (window.OccupancyGrid) ctx.OccupancyGrid = window.OccupancyGrid;
     if (window.God) ctx.God = window.God;
     if (window.GameLoop) ctx.GameLoop = window.GameLoop;
+    // Tiles validation/diagnostics service
+    if (window.TilesValidation) ctx.TilesValidation = window.TilesValidation;
   }
   return ctx;
 }

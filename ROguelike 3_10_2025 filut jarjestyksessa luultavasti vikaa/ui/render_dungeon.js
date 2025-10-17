@@ -87,6 +87,12 @@ export function draw(ctx, view) {
           }
         }
         DUN.canvas = off;
+        // Record tiles usage for diagnostics (dungeon mode)
+        try {
+          if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+            window.TilesValidation.recordMap({ mode: "dungeon", map });
+          }
+        } catch (_) {}
       }
     }
   } catch (_) {}

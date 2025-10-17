@@ -124,6 +124,12 @@ export function draw(ctx, view) {
           }
         }
         TOWN.canvas = off;
+        // Record tiles usage for diagnostics (town mode)
+        try {
+          if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+            window.TilesValidation.recordMap({ mode: "town", map });
+          }
+        } catch (_) {}
       }
     }
   } catch (_) {}
@@ -210,17 +216,7 @@ export function draw(ctx, view) {
       const screenX = (n.x - startX) * TILE - tileOffsetX;
       const screenY = (n.y - startY) * TILE - tileOffsetY;
       // Pets: cat 'c', dog 'd'; others 'n'
-      const tdProp = getPropDef(p.type);
-      if (!tdProp) continue;
-
-      const hasGlyphField = Object.prototype.hasOwnProperty.call(tdProp, "glyph");
-      const glyph = hasGlyphField ? tdProp.glyph : "";
-      if (!glyph || String(glyph).trim().length === 0) continue;
-
-      const color = (tdProp.colors && tdProp.colors.fg) || null;
-      if (!color) continue;
-
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);lyph = "n";
+      let glyph = "n";
       if (n.isPet) {
         if (n.kind === "cat") glyph = "c";
         else if (n.kind === "dog") glyph = "d";
