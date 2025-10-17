@@ -1359,7 +1359,16 @@
           else if (type === "crate") log("You stand next to a crate.", "info");
           else if (type === "bench") log("You stand next to a bench.", "info");
           else if (type === "campfire") log("You stand by a campfire.", "info");
-          else log(`You stand on ${p.name || p.type || "a prop"}.`, "info");
+          else if (type === "merchant") {
+            try {
+              const UB = modHandle("UIBridge");
+              if (UB && typeof UB.showShop === "function") {
+                UB.showShop(ctxMod, { name: p.name || "Merchant", vendor: p.vendor || "merchant" });
+              } else {
+                log("The merchant nods. (Trading UI not available)", "warn");
+              }
+            } catch (_) {}
+          } else log(`You stand on ${p.name || p.type || "a prop"}.`, "info");
           applyCtxSyncAndRefresh(ctxMod);
           return;
         }

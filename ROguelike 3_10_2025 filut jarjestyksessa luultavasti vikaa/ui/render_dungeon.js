@@ -526,6 +526,24 @@ export function draw(ctx, view) {
               }
             }
           }
+        } else if (p.type === "merchant") {
+          // Traveling merchant (Seppo): draw a golden 'S' or tileset 'shopkeeper' if available
+          let drawn = false;
+          if (tilesetReady && TS && typeof TS.draw === "function") {
+            drawn = TS.draw(ctx2d, "shopkeeper", sx, sy, TILE);
+          }
+          if (!drawn) {
+            const glyph = "S";
+            const color = "#eab308";
+            if (!visNow) {
+              ctx2d.save();
+              ctx2d.globalAlpha = 0.85;
+              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+              ctx2d.restore();
+            } else {
+              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+            }
+          }
         } else if (p.type === "captive") {
           // Rescue target marker
           let glyph = "☺";

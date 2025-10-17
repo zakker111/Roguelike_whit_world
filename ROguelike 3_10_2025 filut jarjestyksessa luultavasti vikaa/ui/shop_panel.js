@@ -126,27 +126,79 @@ function render(ctx) {
 
 export function openForNPC(ctx, npc) {
   try {
-    const el = ensurePanel();
-    const titleEl = el ? el.querySelector("#shop-title") : null;
-    if (titleEl) {
-      try { titleEl.textContent = (npc && npc.name) ? `${npc.name}'s Wares` : "Shop"; } catch (_) {}
-    }
-
     const stock = [];
-    const isSeppo = !!(npc && (npc.isSeppo || npc.seppo));
+    const name = (npc && (npc.name || npc.title)) ? (npc.name || npc.title) : "Shopkeeper";
+    const vendor = (npc && npc.vendor) ? String(npc.vendor).toLowerCase() : "";
+
+    // Special vendor: Seppo — rare wandering merchant with premium stock
+    const isSeppo = (vendor === "seppo") || (/seppo/i.test(name));
 
     if (isSeppo) {
-      // Premium stock for Wild Seppo
-      stock.push({ item: { kind: "potion", heal: 20, count: 1, name: "potion (+20 HP)" }, price: 40 });
+      // Premium potions
+      stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 20 });
+      stock.push({ item: { kind: "potion", heal: 15, count: 1, name: "elixir (+15 HP)" }, price: 36 });
+
+      // Premium equipment (favor tier 3)
       try {
         if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
-          for (let i = 0; i < 3; i++) {
-            const t3 = ctx.Items.createEquipment(3, ctx.rng);
-            if (t3) stock.push({ item: t3, price: Math.round(priceFor(t3) * 1.2) }); // slight premium
+          const picks = [];
+          const p1 = ctx.Items.createEquipment(3, ctx.rng);
+          const p2 = ctx.Items.createEquipment(3, ctx.rng);
+          const p3 = ctx.Items.createEquipment(2, ctx.rng);
+          if (p1) picks.push(p1);
+          if (p2) picks.push(p2);
+          if (p3) picks.push(p3);
+          // Signature two-hander
+          try {
+            if (ctx.Items && typeof ctx.Items.createNamed === "function") {
+              const gs = ctx.Items.createNamed({ slot: "hand", twoHanded: true, tier: 3, name: "steel greatsword", atk: 3.6, decay: 0 }, ctx.rng);
+              if (gs) picks.unshift(gs);
+            }
+          } catch (_) {}
+          const mult = 1.35;
+          for (const it of picks) {
+            const base = priceFor(it);
+            stock.push({ item: it, price: Math.max(1, Math.round(base * mult)) });
           }
         } else {
-          const s = { kind: "equip", slot: "hand", name: "steel broadsword", atk: 3.0, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
-          const a = { kind: "equip", slot: "torso", name: "steel cuirass", def: 2.6, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          const s = { kind: "equip", slot: "hand", name: "steel greatsword", atk: 3.6, tier: 3, twoHanded: true, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          const a = { kind: "equip", slot: "torso", name: "steel plate armor", def: 3.2, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          const g = { kind: "equip", slot: "hands", name: "steel gauntlets", def: 2.0, atk: 0.6, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          const mult = 1.35;
+          stock.push({ item: s, price: Math.max(1, Math.round(priceFor(s) * mult)) });
+          stock.push({ item: a, price: Math.max(1, Math.round(priceFor(a) * mult)) });
+          stock.push({ item: g, price: Math.max(1, Math.round(priceFor(g) * mult)) });
+        }
+      } catch (_) {}
+
+      try { ctx.log && ctx.log(`${name}: Fine goods, fair prices.`, "notice"); } catch (_) {}
+    } else {
+      // Generic shopkeeper stock
+      // Potions
+      stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
+      stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
+
+      // Equipment via Items registry when available
+      try {
+        if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
+          const t1 = ctx.Items.createEquipment(1, ctx.rng);
+          const t2 = ctx.Items.createEquipment(2, ctx.rng);
+          if (t1) stock.push({ item: t1, price: priceFor(t1) });
+          if (t2) stock.push({ item: t2, price: priceFor(t2) });
+        } else {
+          const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
+          const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
+          stock.push({ item: s, price: priceFor(s) });
+          stock.push({ item: a, price: priceFor(a) });
+        }
+      } catch (_) {}
+    }
+
+    _stock = stock;
+    render(ctx);
+    // Shop panel is DOM-only; no canvas redraw needed
+  } catch (_) {}
+};
           const g = { kind: "equip", slot: "hands", name: "steel gauntlets", atk: 0.4, def: 0.6, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
           [s, a, g].forEach(it => stock.push({ item: it, price: Math.round(priceFor(it) * 1.2) }));
         }

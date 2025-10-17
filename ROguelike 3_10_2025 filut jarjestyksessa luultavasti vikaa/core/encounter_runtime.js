@@ -277,6 +277,58 @@ export function enter(ctx, info) {
   ctx.encounterProps = encProps;
   ctx.encounterObjective = null;
 
+  // Special case: traveling merchant encounter (e.g., Wild Seppo)
+  try {
+    const isSeppo = (template && ((template.merchant && String(template.merchant.vendor).toLowerCase() === "seppo") || String(template.id || "").toLowerCase() === "wild_seppo"));
+    if (isSeppo) {
+      // Place merchant on a safe floor tile near the player but not on top of them, away from chests/exits/props
+      const used = new Set(encProps.map(p => keyFor(p.x, p.y)));
+      function canPlace(x, y) {
+        if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+        if (map[y][x] !== T.FLOOR) return false;
+        if (x === ctx.player.x && y === ctx.player.y) return false;
+        if (used.has(keyFor(x, y))) return false;
+        if (chestSpots.has(keyFor(x, y))) return false;
+        // Avoid exits
+        if (map[y][x] === T.STAIRS) return false;
+        return true;
+      }
+      const cx0 = (W / 2) | 0, cy0 = (H / 2) | 0;
+      let mx = -1, my = -1;
+      // Try a small ring search around center, then around player
+      outer1:
+      for (let r1 = 2; r1 <= 5; r1++) {
+        for (let dx = -r1; dx <= r1; dx++) {
+          const dy = r1 - Math.abs(dx);
+          const xs = [cx0 + dx, cx0 - dx];
+          const ys = [cy0 + dy, cy0 - dy];
+          for (const xx of xs) for (const yy of ys) {
+            const x = xx | 0, y = yy | 0;
+            if (canPlace(x, y)) { mx = x; my = y; break outer1; }
+          }
+        }
+      }
+      if (mx < 0) {
+        const px0 = ctx.player.x | 0, py0 = ctx.player.y | 0;
+        outer2:
+        for (let r2 = 2; r2 <= 6; r2++) {
+          for (let dx = -r2; dx <= r2; dx++) {
+            const dy = r2 - Math.abs(dx);
+            const xs = [px0 + dx, px0 - dx];
+            const ys = [py0 + dy, py0 - dy];
+            for (const xx of xs) for (const yy of ys) {
+              const x = xx | 0, y = yy | 0;
+              if (canPlace(x, y)) { mx = x; my = y; break outer2; }
+            }
+          }
+        }
+      }
+      if (mx >= 0) {
+        encProps.push({ x: mx, y: my, type: "merchant", name: "Seppo", vendor: "seppo" });
+      }
+    }
+  } catch (_) {}
+
   // Add simple exit tiles near each edge so the player can always walk out.
   // These use the STAIRS tile, consistent with dungeon exit semantics.
   try {
@@ -476,7 +528,15 @@ export function enter(ctx, info) {
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
   try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
 
-  try { ctx.log && ctx.log(`${template.name || "Encounter"} begins: eliminate the hostiles.`, "notice"); } catch (_) {}
+  try {
+    const hasMerchant = Array.isArray(encProps) && encProps.some(p => p && (p.type === "merchant"));
+    const hasEnemies = Array.isArray(ctx.enemies) && ctx.enemies.length > 0;
+    if (hasMerchant && !hasEnemies) {
+      ctx.log && ctx.log(`${template.name || "Encounter"}: A wild Seppo appears! Press G on him to trade.`, "notice");
+    } else {
+      ctx.log && ctx.log(`${template.name || "Encounter"} begins: eliminate the hostiles.`, "notice");
+    }
+  } catch (_) {}
   ctx.encounterInfo = { id: template.id, name: template.name || "Encounter" };
   return true;
 }

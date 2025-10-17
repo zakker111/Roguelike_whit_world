@@ -53,6 +53,15 @@
       "groups": [
         { "type": "bandit", "count": { "min": 3, "max": 5 }, "faction": "bandit" }
       ]
+    },
+    {
+      "id": "wild_seppo",
+      "name": "Wild Seppo",
+      "baseWeight": 0.08,
+      "allowedBiomes": ["FOREST", "GRASS", "DESERT", "BEACH", "SNOW", "SWAMP"],
+      "map": { "generator": "camp", "w": 24, "h": 16 },
+      "merchant": { "vendor": "seppo" },
+      "groups": []
     }
   ]
 }
