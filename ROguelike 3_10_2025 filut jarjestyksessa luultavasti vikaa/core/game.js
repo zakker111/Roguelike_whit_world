@@ -2304,6 +2304,16 @@
     }
   }
 
+  // Ensure a redraw occurs once tiles.json finishes loading so JSON-only colors/glyphs apply
+  try {
+    if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
+      window.GameData.ready.then(() => {
+        // Request a draw which will rebuild offscreen caches against the now-loaded tiles.json
+        requestDraw();
+      });
+    }
+  } catch (_) {}
+
   // Expose GameAPI via builder
   try {
     if (typeof window !== "undefined" && window.GameAPIBuilder && typeof window.GameAPIBuilder.create === "function") {
