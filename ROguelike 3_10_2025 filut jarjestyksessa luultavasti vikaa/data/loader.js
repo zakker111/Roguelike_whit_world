@@ -208,6 +208,17 @@ GameData.ready = (async function loadAll() {
     if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles) {
       logNotice("Some registries failed to load; modules will use internal fallbacks.");
     }
+
+    // Notify runtime that tiles.json is ready so renderers relying on it can redraw the base layer.
+    // This avoids the initial black background when the first draw happens before tiles.json loads.
+    try {
+      // Prefer GameAPI.requestDraw (available after core/game.js builds API)
+      if (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
+        window.GameAPI.requestDraw();
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
+      }
+    } catch (_) {}
   } catch (e) {
     try { console.warn("[GameData] load error", e); } catch (_) {}
     // Keep whatever loaded; fill in defaults for missing ones
