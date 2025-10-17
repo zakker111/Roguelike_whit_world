@@ -43,15 +43,18 @@ function getTileDef(mode, id) {
 }
 
 export function isWalkable(tile) {
-  // Use tiles.json property only; no tile-based fallbacks in code.
+  // Prefer tiles.json when available
   try {
     const td = getTileDef("overworld", tile);
     if (td && td.properties && typeof td.properties.walkable === "boolean") {
       return !!td.properties.walkable;
     }
   } catch (_) {}
-  // Only use tiles.json; when unspecified, treat as not walkable.
-  return false;
+
+  // Fallback: classic overworld rules (avoid total lockout when tiles.json missing)
+  // Non-walkable: WATER, RIVER, MOUNTAIN. Everything else is walkable (TOWN/DUNGEON included).
+  if (tile === TILES.WATER || tile === TILES.RIVER || tile === TILES.MOUNTAIN) return false;
+  return true;
 }
 
 function inBounds(x, y, w, h) {

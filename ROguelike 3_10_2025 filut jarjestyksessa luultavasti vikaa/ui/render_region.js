@@ -24,6 +24,25 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Fallback fill palette when tiles.json is missing/unavailable
+function fallbackFillFor(id) {
+  switch (id | 0) {
+    case 0:  return "#0a1b2a"; // WATER
+    case 1:  return "#10331a"; // GRASS
+    case 2:  return "#0d2615"; // FOREST
+    case 3:  return "#2f2f34"; // MOUNTAIN
+    case 4:  return "#3a2f1b"; // TOWN
+    case 5:  return "#2a1b2a"; // DUNGEON
+    case 6:  return "#1b2a1e"; // SWAMP
+    case 7:  return "#0e2f4a"; // RIVER
+    case 8:  return "#b59b6a"; // BEACH
+    case 9:  return "#c2a36b"; // DESERT
+    case 10: return "#b9c7d3"; // SNOW
+    case 11: return "#0f3b1e"; // TREE (region)
+    default: return "#0b0c10"; // void/dark
+  }
+}
+
 export function draw(ctx, view) {
   if (!ctx || ctx.mode !== "region" || !ctx.region) return;
   const {
@@ -61,9 +80,10 @@ export function draw(ctx, view) {
       }
 
       const t = row[x];
-      // Only tiles.json defines fill color
+      // Prefer tiles.json for fill color; fallback to static palette when missing
       const td = getTileDef("region", t);
-      const fill = td && td.colors && td.colors.fill;
+      let fill = td && td.colors && td.colors.fill;
+      if (!fill) fill = fallbackFillFor(t);
       if (fill) {
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
