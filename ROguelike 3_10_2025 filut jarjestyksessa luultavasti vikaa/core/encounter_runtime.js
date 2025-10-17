@@ -6,6 +6,9 @@
  * - tryMoveEncounter(ctx, dx, dy): movement during encounter (bump to attack)
  * - tick(ctx): drives AI and completes encounter on kill-all
  */
+// Module-level flag to avoid spamming "Area clear" logs across ctx recreations
+let _clearAnnounced = false;
+
 function createDungeonEnemyAt(ctx, x, y, depth) {
   // Prefer the same factory used by dungeon floors
   try {
@@ -75,6 +78,9 @@ function createEnemyOfType(ctx, x, y, depth, type) {
 
 export function enter(ctx, info) {
   if (!ctx || !ctx.world || !ctx.world.map) return false;
+  // Reset clear-announcement guard for this encounter session
+  _clearAnnounced = false;
+
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { count: { min: 2, max: 3 } } ] };
   const biome = info && info.biome ? String(info.biome).toUpperCase() : null;
   ctx.encounterBiome = biome;
@@ -462,6 +468,8 @@ export function tryMoveEncounter(ctx, dx, dy) {
 // Spawns enemies on the current region sample without changing mode or map.
 export function enterRegion(ctx, info) {
   if (!ctx || ctx.mode !== "region" || !ctx.map || !Array.isArray(ctx.map) || !ctx.map.length) return false;
+  // Reset clear-announcement guard for region-embedded encounters too
+  _clearAnnounced = false;
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", groups: [ { type: "bandit", count: { min: 2, max: 3 } } ] };
 
   const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : (ctx.World && ctx.World.TILES) ? ctx.World.TILES : null;
@@ -579,6 +587,9 @@ export function enterRegion(ctx, info) {
 
 export function complete(ctx, outcome = "victory") {
   if (!ctx || ctx.mode !== "encounter") return false;
+  // Reset guard for next encounter session
+  _clearAnnounced = false;
+
   // Return to the overworld
   ctx.mode = "world";
   if (ctx.world && ctx.world.map) {
@@ -621,15 +632,16 @@ export function tick(ctx) {
   } catch (_) {}
 
   // Do NOT auto-return to overworld on victory. Keep the encounter map active so player can loot or explore.
-  // Announce clear state once.
+  // Announce clear state only once per encounter session (guarded by a module-level flag).
   try {
     if (Array.isArray(ctx.enemies) && ctx.enemies.length === 0) {
-      if (!ctx._encounterCleared) {
-        ctx._encounterCleared = true;
+      if (!_clearAnnounced) {
+        _clearAnnounced = true;
         try { ctx.log && ctx.log("Area clear. Step onto an exit (>) to leave when ready.", "notice"); } catch (_) {}
       }
     } else {
-      ctx._encounterCleared = false;
+      // If new enemies appear (edge-case), allow re-announcement once they are cleared again
+      _clearAnnounced = false;
     }
   } catch (_) {}
   return true;
