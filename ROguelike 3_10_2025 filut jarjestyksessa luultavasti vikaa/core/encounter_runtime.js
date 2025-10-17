@@ -39,6 +39,40 @@ function createDungeonEnemyAt(ctx, x, y, depth) {
   return { x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
 }
 
+// Create a specific enemy type defined in data/enemies.json; falls back gracefully if unavailable.
+function createEnemyOfType(ctx, x, y, depth, type) {
+  try {
+    const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
+    if (EM && typeof EM.getTypeDef === "function") {
+      const td = EM.getTypeDef(type);
+      if (td) {
+        const level = (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(type, depth, ctx.rng) : depth;
+        return {
+          x, y,
+          type,
+          glyph: (td.glyph && td.glyph.length) ? td.glyph : ((type && type.length) ? type.charAt(0) : "?"),
+          hp: td.hp(depth),
+          atk: td.atk(depth),
+          xp: td.xp(depth),
+          level,
+          announced: false
+        };
+      }
+    }
+  } catch (_) {}
+  // Fallback to dungeon factory then override type label if possible
+  try {
+    if (typeof ctx.enemyFactory === "function") {
+      const e = ctx.enemyFactory(x, y, depth);
+      if (e) {
+        e.type = type || e.type || "goblin";
+        return e;
+      }
+    }
+  } catch (_) {}
+  return { x, y, type: type || "goblin", glyph: (type && type.charAt) ? type.charAt(0) : "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+}
+
 export function enter(ctx, info) {
   if (!ctx || !ctx.world || !ctx.world.map) return false;
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { count: { min: 2, max: 3 } } ] };
@@ -257,7 +291,7 @@ export function enter(ctx, info) {
     ring++;
   }
 
-  // Materialize enemies using dungeon enemy factory
+  // Materialize enemies; honor group.type when provided (e.g., bandit camp spawns bandits)
   let pIdx = 0;
   const depth = Math.max(1, (ctx.floor | 0) || 1);
   for (const g of groups) {
@@ -266,7 +300,8 @@ export function enter(ctx, info) {
     const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
       const p = placements[pIdx++];
-      const e = createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
+      const e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
       ctx.enemies.push(e);
     }
   }
@@ -442,7 +477,7 @@ export function enterRegion(ctx, info) {
     ring++;
   }
 
-  // Materialize enemies using dungeon enemy factory (types picked like dungeon)
+  // Materialize enemies; honor group.type when provided
   let pIdx = 0;
   const depth = Math.max(1, (ctx.floor | 0) || 1);
   for (const g of groups) {
@@ -451,7 +486,8 @@ export function enterRegion(ctx, info) {
     const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
       const p = placements[pIdx++];
-      const e = createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
+      const e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
       ctx.enemies.push(e);
     }
   }
