@@ -872,8 +872,8 @@
       return;
     }
 
-    if (mode === "world") {
-      // In overworld, reveal entire map (no fog-of-war)
+    if (mode === "world" || mode === "region") {
+      // In overworld and region map overlay, reveal entire map (no fog-of-war)
       const shapeOk = Array.isArray(visible) && visible.length === rows && (rows === 0 || (visible[0] && visible[0].length === cols));
       if (!shapeOk) {
         visible = Array.from({ length: rows }, () => Array(cols).fill(true));
