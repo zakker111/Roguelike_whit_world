@@ -242,7 +242,37 @@
     const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
     const existingNear = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
     const target = Math.max(0, Math.min((count | 0), 1 - existingNear));
-    if (target <= 0) { clearAdjacentNPCsAroundPlayer(ctx); return true; }
+    if (target <= 0) {
+      // Keep player space clear but ensure at least one greeter remains in radius
+      clearAdjacentNPCsAroundPlayer(ctx);
+      try {
+        const nearNow = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
+        if (nearNow === 0) {
+          const names = ["Ava", "Borin", "Cora", "Darin", "Eda", "Finn", "Goro", "Hana"];
+          const lines = [
+            `Welcome to ${ctx.townName || "our town"}.`,
+            "Shops are marked with S.",
+            "Stay as long as you like.",
+            "The plaza is at the center.",
+          ];
+          // Prefer diagonals first to avoid blocking cardinal steps
+          const candidates = [
+            { x: gx + 1, y: gy + 1 }, { x: gx + 1, y: gy - 1 }, { x: gx - 1, y: gy + 1 }, { x: gx - 1, y: gy - 1 },
+            { x: gx + 2, y: gy }, { x: gx - 2, y: gy }, { x: gx, y: gy + 2 }, { x: gx, y: gy - 2 },
+            { x: gx + 2, y: gy + 1 }, { x: gx + 2, y: gy - 1 }, { x: gx - 2, y: gy + 1 }, { x: gx - 2, y: gy - 1 },
+            { x: gx + 1, y: gy + 2 }, { x: gx + 1, y: gy - 2 }, { x: gx - 1, y: gy + 2 }, { x: gx - 1, y: gy - 2 },
+          ];
+          for (const c of candidates) {
+            if (_isFreeTownFloor(ctx, c.x, c.y) && _manhattan(ctx, ctx.player.x, ctx.player.y, c.x, c.y) > 1) {
+              const name = names[(Math.floor(ctx.rng() * names.length)) % names.length];
+              ctx.npcs.push({ x: c.x, y: c.y, name, lines, greeter: true });
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+      return true;
+    }
 
     const dirs = [
       { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
@@ -270,6 +300,25 @@
       }
     }
     clearAdjacentNPCsAroundPlayer(ctx);
+    // After clearing adjacency, ensure at least one greeter remains near the gate
+    try {
+      const nearNow = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
+      if (nearNow === 0) {
+        const name = "Greeter";
+        const lines2 = [
+          `Welcome to ${ctx.townName || "our town"}.`,
+          "Shops are marked with S.",
+          "Stay as long as you like.",
+          "The plaza is at the center.",
+        ];
+        const diag = [
+          { x: gx + 1, y: gy + 1 }, { x: gx + 1, y: gy - 1 }, { x: gx - 1, y: gy + 1 }, { x: gx - 1, y: gy - 1 }
+        ];
+        for (const c of diag) {
+          if (_isFreeTownFloor(ctx, c.x, c.y)) { ctx.npcs.push({ x: c.x, y: c.y, name, lines: lines2, greeter: true }); break; }
+        }
+      }
+    } catch (_) {}
     return true;
   }
 
