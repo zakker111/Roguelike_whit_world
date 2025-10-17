@@ -119,28 +119,20 @@ export function maybeTryEncounter(ctx) {
     const text = `${tmpl.name || "Encounter"}: ${biome.toLowerCase()} — Enter?`;
     const enter = () => {
       try {
-        // Preferred path: use GameAPI so the orchestrator applies ctx sync immediately
-        if (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.openRegionMap === "function") {
-          const okOpen = !!window.GameAPI.openRegionMap();
-          if (okOpen) {
-            if (typeof window.GameAPI.startRegionEncounter === "function") {
-              window.GameAPI.startRegionEncounter(tmpl, biome);
-            }
+        // Preferred path: enter dedicated encounter mode (not Region Map)
+        if (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function") {
+          const ok = !!window.GameAPI.enterEncounter(tmpl, biome);
+          if (ok) {
             STATE.movesSinceLast = 0;
             STATE.cooldownMoves = 10;
             return true;
           }
         }
-        // Fallback: direct runtime calls (less robust sync)
-        const RM = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+        // Fallback: direct runtime call
         const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
-        if (RM && typeof RM.open === "function") {
-          const okOpen2 = !!RM.open(ctx);
-          if (okOpen2) {
-            if (ER && typeof ER.enterRegion === "function") {
-              ER.enterRegion(ctx, { template: tmpl, biome });
-            }
-            // Nudge a turn to refresh UI/draw when not using GameAPI
+        if (ER && typeof ER.enter === "function") {
+          const ok2 = !!ER.enter(ctx, { template: tmpl, biome });
+          if (ok2) {
             try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
             STATE.movesSinceLast = 0;
             STATE.cooldownMoves = 10;

@@ -22,10 +22,114 @@ export function enter(ctx, info) {
   ctx.mode = "encounter";
   // Use dungeon-style tiles (Render falls back to dungeon renderer for unknown modes)
   const T = ctx.TILES;
-  const map = Array.from({ length: H }, () => Array(W).fill(T.FLOOR));
-  // Simple border walls to bound the play area
-  for (let x = 0; x < W; x++) { map[0][x] = T.WALL; map[H - 1][x] = T.WALL; }
-  for (let y = 0; y < H; y++) { map[y][0] = T.WALL; map[y][W - 1] = T.WALL; }
+
+  // Simple generator set for varied arenas (kept intentionally minimal)
+  function genEmpty() {
+    const m = Array.from({ length: H }, () => Array(W).fill(T.FLOOR));
+    for (let x = 0; x < W; x++) { m[0][x] = T.WALL; m[H - 1][x] = T.WALL; }
+    for (let y = 0; y < H; y++) { m[y][0] = T.WALL; m[y][W - 1] = T.WALL; }
+    return m;
+  }
+  function genAmbushForest(rng) {
+    const m = genEmpty();
+    const clusters = Math.max(3, Math.floor((W * H) / 80));
+    for (let i = 0; i < clusters; i++) {
+      const cx = 2 + Math.floor((rng() * (W - 4)));
+      const cy = 2 + Math.floor((rng() * (H - 4)));
+      const r = 1 + Math.floor(rng() * 2); // radius 1..2
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const x = cx + dx, y = cy + dy;
+          if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) continue;
+          if ((dx*dx + dy*dy) <= (r*r) && rng() < 0.85) m[y][x] = T.WALL; // tree clump
+        }
+      }
+    }
+    // Clear a circle around center so player has breathing room
+    const px = (W / 2) | 0, py = (H / 2) | 0;
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const x = px + dx, y = py + dy;
+        if (x > 0 && y > 0 && x < W - 1 && y < H - 1) m[y][x] = T.FLOOR;
+      }
+    }
+    return m;
+  }
+  function genCamp(rng) {
+    const m = genEmpty();
+    // Place 2–4 small huts (3x3 walls with one door)
+    const huts = 2 + Math.floor(rng() * 3);
+    const taken = [];
+    for (let i = 0; i < huts; i++) {
+      let tries = 0;
+      while (tries++ < 80) {
+        const x0 = 2 + Math.floor(rng() * (W - 5));
+        const y0 = 2 + Math.floor(rng() * (H - 5));
+        // avoid overlapping centers
+        if (taken.some(t => Math.abs(t.x - x0) < 4 && Math.abs(t.y - y0) < 4)) continue;
+        taken.push({ x: x0, y: y0 });
+        for (let x = x0; x < x0 + 3; x++) { m[y0][x] = T.WALL; m[y0 + 2][x] = T.WALL; }
+        for (let y = y0; y < y0 + 3; y++) { m[y][x0] = T.WALL; m[y][x0 + 2] = T.WALL; }
+        // carve a random door
+        const side = Math.floor(rng() * 4);
+        if (side === 0) m[y0][x0 + 1] = T.DOOR;
+        else if (side === 1) m[y0 + 2][x0 + 1] = T.DOOR;
+        else if (side === 2) m[y0 + 1][x0] = T.DOOR;
+        else m[y0 + 1][x0 + 2] = T.DOOR;
+        break;
+      }
+    }
+    // Add a campfire clearing in center
+    const px = (W / 2) | 0, py = (H / 2) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) m[py + dy][px + dx] = T.FLOOR;
+    return m;
+  }
+  function genRuins(rng) {
+    const m = genEmpty();
+    // Scatter short wall segments
+    const segs = Math.max(4, Math.floor((W + H) / 6));
+    for (let i = 0; i < segs; i++) {
+      const len = 2 + Math.floor(rng() * 5);
+      const x0 = 2 + Math.floor(rng() * (W - 4));
+      const y0 = 2 + Math.floor(rng() * (H - 4));
+      const horiz = rng() < 0.5;
+      for (let k = 0; k < len; k++) {
+        const x = x0 + (horiz ? k : 0);
+        const y = y0 + (horiz ? 0 : k);
+        if (x > 0 && y > 0 && x < W - 1 && y < H - 1) m[y][x] = T.WALL;
+      }
+    }
+    // Clear spawn pocket
+    const px = (W / 2) | 0, py = (H / 2) | 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const x = px + dx, y = py + dy;
+      if (x > 0 && y > 0 && x < W - 1 && y < H - 1) m[y][x] = T.FLOOR;
+    }
+    return m;
+  }
+  function genArena(rng) {
+    const m = genEmpty();
+    // Plus-shaped barriers
+    const cx = (W / 2) | 0, cy = (H / 2) | 0;
+    for (let x = 2; x < W - 2; x++) { if (Math.abs(x - cx) > 1) m[cy][x] = T.WALL; }
+    for (let y = 2; y < H - 2; y++) { if (Math.abs(y - cy) > 1) m[y][cx] = T.WALL; }
+    // Open few gaps
+    m[cy][2 + Math.floor(rng() * Math.max(1, cx - 3))] = T.DOOR;
+    m[cy][(W - 3) - Math.floor(rng() * Math.max(1, cx - 3))] = T.DOOR;
+    m[2 + Math.floor(rng() * Math.max(1, cy - 3))][cx] = T.DOOR;
+    m[(H - 3) - Math.floor(rng() * Math.max(1, cy - 3))][cx] = T.DOOR;
+    return m;
+  }
+
+  const r = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+  const genId = (template && template.map && template.map.generator) ? String(template.map.generator) : "";
+  let map = null;
+  const id = genId.toLowerCase();
+  if (id === "ambush_forest" || id === "ambush" || id === "forest") map = genAmbushForest(r);
+  else if (id === "camp" || id === "bandit_camp" || id === "camp_small") map = genCamp(r);
+  else if (id === "ruins" || id === "ruin") map = genRuins(r);
+  else if (id === "arena" || id === "cross") map = genArena(r);
+  else map = genEmpty();
 
   ctx.map = map;
   ctx.seen = Array.from({ length: H }, () => Array(W).fill(false));
@@ -55,8 +159,29 @@ export function enter(ctx, info) {
     return map[y][x] === T.FLOOR;
     }
 
+  // Seed at least one placement near the player within FOV range to ensure visibility
+  (function seedNearPlayer() {
+    try {
+      const px = (ctx.player.x | 0), py = (ctx.player.y | 0);
+      const maxR = Math.max(3, Math.min(6, ((ctx.fovRadius | 0) || 8) - 1));
+      outer:
+      for (let r = 2; r <= maxR; r++) {
+        const dirs = [
+          [ r,  0], [ 0,  r], [-r,  0], [ 0, -r],
+          [ r,  1], [ 1,  r], [-1,  r], [-r,  1],
+          [-r, -1], [-1, -r], [ 1, -r], [ r, -1],
+          [ r,  2], [ 2,  r], [-2,  r], [-r,  2],
+        ];
+        for (const d of dirs) {
+          const x = px + d[0], y = py + d[1];
+          if (free(x, y)) { placements.push({ x, y }); break outer; }
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Place enemies around edges moving inward until placed
-  let ring = 0, placed = 0;
+  let ring = 0, placed = placements.length | 0;
   while (placed < totalWanted && ring < Math.max(W, H)) {
     for (let x = 1 + ring; x < W - 1 - ring && placed < totalWanted; x++) {
       const y1 = 1 + ring, y2 = H - 2 - ring;
