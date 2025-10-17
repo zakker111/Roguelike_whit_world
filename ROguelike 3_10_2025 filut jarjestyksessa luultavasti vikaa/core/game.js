@@ -1255,7 +1255,13 @@
               applyCtxSyncAndRefresh(ctxMod);
             }
           } else {
-            log("Region map module not available.", "warn");
+            // Fallback: open UI Region Map modal if runtime overlay is not available
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.showRegionMap === "function") {
+              UB.showRegionMap(getCtx());
+            } else {
+              log("Region map module not available.", "warn");
+            }
           }
         }
       }
