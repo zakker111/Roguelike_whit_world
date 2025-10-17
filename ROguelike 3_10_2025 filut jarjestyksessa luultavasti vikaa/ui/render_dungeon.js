@@ -116,6 +116,8 @@ export function draw(ctx, view) {
           oc.textAlign = "center";
           oc.textBaseline = "middle";
         } catch (_) {}
+        const baseHex = biomeBaseFill();
+        const tintFloorA = 0.18, tintWallA = 0.24;
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
           for (let xx = 0; xx < mapCols; xx++) {
@@ -145,6 +147,17 @@ export function draw(ctx, view) {
                 RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
               }
             }
+            // Biome tint overlay even when tileset is used
+            if (baseHex) {
+              try {
+                oc.save();
+                oc.globalCompositeOperation = "multiply";
+                oc.globalAlpha = (type === TILES.WALL ? tintWallA : tintFloorA);
+                oc.fillStyle = baseHex;
+                oc.fillRect(sx, sy, TILE, TILE);
+                oc.restore();
+              } catch (_) {}
+            }
           }
         }
         DUN.canvas = off;
@@ -164,6 +177,8 @@ export function draw(ctx, view) {
       RenderCore.blitViewport(ctx2d, DUN.canvas, cam, DUN.wpx, DUN.hpx);
     } catch (_) {}
   } else {
+    const baseHex = biomeBaseFill();
+    const tintFloorA = 0.18, tintWallA = 0.24;
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -194,6 +209,17 @@ export function draw(ctx, view) {
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
+        // Tint overlay for biome when tileset is used
+        if (baseHex) {
+          try {
+            ctx2d.save();
+            ctx2d.globalCompositeOperation = "multiply";
+            ctx2d.globalAlpha = (type === TILES.WALL ? tintWallA : tintFloorA);
+            ctx2d.fillStyle = baseHex;
+            ctx2d.fillRect(screenX, screenY, TILE, TILE);
+            ctx2d.restore();
+          } catch (_) {}
+        }
       }
     }
   }
@@ -212,6 +238,46 @@ export function draw(ctx, view) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+      }
+    }
+  }
+
+  // Biome-driven visual overlays (icons/textures) drawn before visibility overlays
+  if (ctx.encounterBiome) {
+    const biome = String(ctx.encounterBiome).toUpperCase();
+    for (let y = startY; y <= endY; y++) {
+      const yIn = y >= 0 && y < mapRows;
+      const rowMap = yIn ? map[y] : null;
+      for (let x = startX; x <= endX; x++) {
+        if (!yIn || x < 0 || x >= mapCols) continue;
+        const type = rowMap[x];
+        const sx = (x - startX) * TILE - tileOffsetX;
+        const sy = (y - startY) * TILE - tileOffsetY;
+
+        if (biome === "FOREST" && type === TILES.WALL) {
+          // Draw a tree glyph over obstacles to sell the forest feeling
+          let treeGlyph = "♣";
+          let treeColor = "#3fa650";
+          try {
+            const t = getTileDefByKey("region", "TREE") || getTileDefByKey("town", "TREE");
+            if (t) {
+              if (Object.prototype.hasOwnProperty.call(t, "glyph")) treeGlyph = t.glyph || treeGlyph;
+              if (t.colors && t.colors.fg) treeColor = t.colors.fg || treeColor;
+            }
+          } catch (_) {}
+          RenderCore.drawGlyph(ctx2d, sx, sy, treeGlyph, treeColor, TILE);
+        } else if (biome === "SNOW" && type === TILES.FLOOR) {
+          // Sparse snow speckles on floors
+          const hash = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+          if ((hash & 7) === 0) {
+            let snowColor = "#e5e7eb";
+            try {
+              const t = getTileDefByKey("overworld", "SNOW");
+              if (t && t.colors && t.colors.fg) snowColor = t.colors.fg;
+            } catch (_) {}
+            RenderCore.drawGlyph(ctx2d, sx, sy, "·", snowColor, TILE);
+          }
+        }
       }
     }
   }
