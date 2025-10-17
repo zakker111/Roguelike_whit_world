@@ -1,8 +1,9 @@
 # Game Version History
-Last updated: 2025-10-15 00:00 UTC
+Last updated: 2025-10-17 00:00 UTC
 
-v1.35.39 — Reporting load fix + GOD panel render visibility
-- Fixed: smoketest/reporting/render.js
+v1.35.40 — Dev server ESM compatibility
+- Changed: server.js converted from CommonJS (require) to ESM imports to match package.json "type": "module".
+- Benefit: node server.js runs without "require is not defined in ES module- Fixed: smoketest/reporting/render.js
   - Repaired a syntax error that prevented the reporting module from loading, which blocked the GOD-panel report.
 - Changed: smoketest/runner/runner.js
   - Ensures the GOD panel is open before writing per-run and aggregated reports (panel reopen guard).
