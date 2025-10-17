@@ -1,5 +1,5 @@
 /**
- * ShopUI: shop panel controls (step 3).
+ * ShopUI: shop panel controls.
  * Centralizes shop rendering and buying logic, used by core/game.js.
  *
  * Exports (ESM + window.ShopUI):
@@ -198,35 +198,6 @@ export function openForNPC(ctx, npc) {
     render(ctx);
     // Shop panel is DOM-only; no canvas redraw needed
   } catch (_) {}
-};
-          const g = { kind: "equip", slot: "hands", name: "steel gauntlets", atk: 0.4, def: 0.6, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
-          [s, a, g].forEach(it => stock.push({ item: it, price: Math.round(priceFor(it) * 1.2) }));
-        }
-      } catch (_) {}
-    } else {
-      // Standard stock
-      stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
-      stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
-
-      try {
-        if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
-          const t1 = ctx.Items.createEquipment(1, ctx.rng);
-          const t2 = ctx.Items.createEquipment(2, ctx.rng);
-          if (t1) stock.push({ item: t1, price: priceFor(t1) });
-          if (t2) stock.push({ item: t2, price: priceFor(t2) });
-        } else {
-          const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
-          const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
-          stock.push({ item: s, price: priceFor(s) });
-          stock.push({ item: a, price: priceFor(a) });
-        }
-      } catch (_) {}
-    }
-
-    _stock = stock;
-    render(ctx);
-    // Shop panel is DOM-only; no canvas redraw needed
-  } catch (_) {}
 }
 
 export function buyIndex(ctx, idx) {
@@ -240,6 +211,51 @@ export function buyIndex(ctx, idx) {
     for (let i = 0; i < inv.length; i++) {
       const it = inv[i];
       if (it && it.kind === "gold") { goldObj = it; cur = (typeof it.amount === "number") ? it.amount : 0; break; }
+    }
+    if (cur < cost) {
+      try { ctx.log("You don't have enough gold.", "warn"); } catch (_) {}
+      render(ctx);
+      return;
+    }
+
+    const copy = cloneItem(row.item);
+    if (!goldObj) { goldObj = { kind: "gold", amount: 0, name: "gold" }; inv.push(goldObj); }
+    goldObj.amount = (goldObj.amount | 0) - cost;
+
+    if (copy.kind === "potion") {
+      // Merge same potions
+      let same = null;
+      for (let j = 0; j < inv.length; j++) {
+        const it2 = inv[j];
+        if (it2 && it2.kind === "potion" && ((it2.heal || 0) === (copy.heal || 0))) { same = it2; break; }
+      }
+      if (same) same.count = (same.count || 1) + (copy.count || 1);
+      else inv.push(copy);
+    } else {
+      inv.push(copy);
+    }
+
+    try { ctx.updateUI(); } catch (_) {}
+    try { if (ctx.renderInventory) ctx.renderInventory(); } catch (_) {}
+    try {
+      const name = ctx.describeItem ? ctx.describeItem(copy) : (copy && copy.name) || "item";
+      ctx.log("You bought " + name + " for " + cost + " gold.", "good");
+    } catch (_) {}
+    render(ctx);
+    // Shop panel is DOM-only; no canvas redraw needed
+  } catch (_) {}
+}
+
+// Back-compat: attach to window
+if (typeof window !== "undefined") {
+  window.ShopUI = {
+    ensurePanel,
+    hide,
+    isOpen,
+    openForNPC,
+    buyIndex
+  };
+}
     }
     if (cur < cost) {
       try { ctx.log("You don't have enough gold.", "warn"); } catch (_) {}
