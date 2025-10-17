@@ -1600,25 +1600,13 @@
 
     // ENCOUNTER MODE
     if (mode === "encounter") {
-      // Keep encounter input path identical to dungeon: delegate to DungeonRuntime.tryMoveDungeon,
-      // then handle encounter-specific exit on STAIRS.
+      // Keep encounter input path identical to dungeon: delegate to DungeonRuntime.tryMoveDungeon.
+      // Do NOT auto-exit on stairs; exiting is only via G on the exit tile.
       const DR = modHandle("DungeonRuntime");
       const ctxMod = getCtx();
       if (DR && typeof DR.tryMoveDungeon === "function") {
         const acted = !!DR.tryMoveDungeon(ctxMod, dx, dy); // in encounter mode it does NOT call ctx.turn()
         if (acted) {
-          // If we stepped onto an exit tile in encounter, withdraw immediately (dungeon uses returnToWorld, we use Encounter.complete)
-          try {
-            if (ctxMod.inBounds && ctxMod.inBounds(ctxMod.player.x, ctxMod.player.y)) {
-              const here = ctxMod.map[ctxMod.player.y][ctxMod.player.x];
-              if (here === ctxMod.TILES.STAIRS) {
-                const ER = modHandle("EncounterRuntime");
-                if (ER && typeof ER.complete === "function") {
-                  ER.complete(ctxMod, "withdraw");
-                }
-              }
-            }
-          } catch (_) {}
           // Merge enemy/corpse/decals mutations that may have been synced via a different ctx inside callbacks
           try {
             ctxMod.enemies = Array.isArray(enemies) ? enemies : ctxMod.enemies;
@@ -1631,7 +1619,7 @@
           return;
         }
       }
-      // Fallback: minimal dungeon-like movement
+      // Fallback: minimal dungeon-like movement (no auto-exit)
       const nx = player.x + dx;
       const ny = player.y + dy;
       if (!inBounds(nx, ny)) return;

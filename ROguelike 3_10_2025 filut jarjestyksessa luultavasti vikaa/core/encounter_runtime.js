@@ -371,19 +371,9 @@ export function tryMoveEncounter(ctx, dx, dy) {
   // Prefer to reuse DungeonRuntime movement/attack so encounters behave exactly like dungeon
   const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
   if (DR && typeof DR.tryMoveDungeon === "function") {
-    const T = ctx.TILES || {};
-    const wasX = ctx.player.x | 0, wasY = ctx.player.y | 0;
     const ok = !!DR.tryMoveDungeon(ctx, dx, dy); // does not call ctx.turn() in encounter mode
     if (ok) {
-      // Auto-exit if we stepped onto an exit tile (STAIRS)
-      try {
-        if (ctx.player.x === nx && ctx.player.y === ny) {
-          const tile = (ctx.map[ny] && ctx.map[ny][nx]);
-          if (tile === T.STAIRS) {
-            complete(ctx, "withdraw");
-          }
-        }
-      } catch (_) {}
+      // No auto-exit on stairs; exiting requires pressing G on the exit tile.
       return true;
     }
     // If DR didn't handle, fall through to minimal fallback below
@@ -415,17 +405,12 @@ export function tryMoveEncounter(ctx, dx, dy) {
     return true;
   }
 
-  // Fallback movement (with auto-exit)
-  const T = ctx.TILES || {};
+  // Fallback movement (no auto-exit)
   const walkable = (ctx.isWalkable ? ctx.isWalkable(nx, ny) : true);
   const blocked = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny);
   if (walkable && !blocked) {
-    const isExit = (Array.isArray(ctx.map) && ctx.map[ny] && ctx.map[ny][nx] === T.STAIRS);
     ctx.player.x = nx; ctx.player.y = ny;
     try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-    if (isExit) {
-      try { complete(ctx, "withdraw"); } catch (_) {}
-    }
     return true;
   }
   return false;
