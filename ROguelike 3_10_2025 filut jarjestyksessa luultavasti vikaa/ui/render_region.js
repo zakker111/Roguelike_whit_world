@@ -65,109 +65,71 @@ export function draw(ctx, view) {
 
   // Tiles are driven entirely by data/tiles.json in region mode.
 
-  // Base tiles within viewport
-  for (let y = startY; y <= endY; y++) {
-    const yIn = y >= 0 && y < mapRows;
-    const row = yIn ? map[y] : null;
-    for (let x = startX; x <= endX; x++) {
-      const screenX = (x - startX) * TILE - tileOffsetX;
-      const screenY = (y - startY) * TILE - tileOffsetY;
+  // Draw the entire world map scaled to fit the viewport (distinct from overworld zoom)
+  const camW = cam.width, camH = cam.height;
+  const margin = 8;
+  const availW = camW - margin * 2;
+  const availH = camH - margin * 2;
+  const tilePx = Math.max(4, Math.floor(Math.min(availW / mapCols, availH / mapRows)));
+  const drawW = tilePx * mapCols;
+  const drawH = tilePx * mapRows;
+  const ox = Math.floor((camW - drawW) / 2);
+  const oy = Math.floor((camH - drawH) / 2);
 
-      if (!yIn || x < 0 || x >= mapCols) {
-        ctx2d.fillStyle = "#0b0c10";
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-        continue;
-      }
-
+  // Base tiles (use tiles.json colors when available; fallback palette otherwise)
+  for (let y = 0; y < mapRows; y++) {
+    const row = map[y];
+    for (let x = 0; x < mapCols; x++) {
+      const screenX = ox + x * tilePx;
+      const screenY = oy + y * tilePx;
       const t = row[x];
-      // Prefer tiles.json for fill color; fallback to static palette when missing
       const td = getTileDef("region", t);
       let fill = td && td.colors && td.colors.fill;
       if (!fill) fill = fallbackFillFor(t);
-      if (fill) {
-        ctx2d.fillStyle = fill;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      }
-
-      // Generic glyph overlay from tiles.json if present (non-blank)
-      const glyph = (td && Object.prototype.hasOwnProperty.call(td, "glyph")) ? td.glyph : "";
-      const fg = (td && td.colors && td.colors.fg) || null;
-      if (glyph && String(glyph).trim().length > 0 && fg) {
-        const half = TILE / 2;
-        ctx2d.save();
-        ctx2d.lineWidth = 2;
-        ctx2d.strokeStyle = "#0b0f16";
-        ctx2d.strokeText(glyph, screenX + half, screenY + half + 1);
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-        ctx2d.restore();
-      }
+      ctx2d.fillStyle = fill || "#0b0c10";
+      ctx2d.fillRect(screenX, screenY, tilePx, tilePx);
     }
   }
 
-  // Visibility overlays within viewport (void for unseen, dim for seen-but-not-visible)
-  for (let y = startY; y <= endY; y++) {
-    const yIn = y >= 0 && y < mapRows;
-    const rowSeen = yIn ? (seen[y] || []) : [];
-    const rowVis = yIn ? (visible[y] || []) : [];
-    for (let x = startX; x <= endX; x++) {
-      const screenX = (x - startX) * TILE - tileOffsetX;
-      const screenY = (y - startY) * TILE - tileOffsetY;
-      if (!yIn || x < 0 || x >= mapCols) {
-        ctx2d.fillStyle = COLORS.wallDark;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-        continue;
-      }
-      const vis = !!rowVis[x];
-      const everSeen = !!rowSeen[x];
-      if (!everSeen) {
-        ctx2d.fillStyle = COLORS.wallDark;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      } else if (!vis) {
-        ctx2d.fillStyle = COLORS.dim;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      }
-    }
-  }
-
-  // Orange edge tiles (center tiles on each side)
+  // Orange exit markers (center tiles on each side)
   try {
     ctx2d.save();
     ctx2d.fillStyle = "rgba(241,153,40,0.28)";
     ctx2d.strokeStyle = "rgba(241,153,40,0.80)";
-    ctx2d.lineWidth = 2;
+    ctx2d.lineWidth = 1;
     for (const e of (ctx.region.exitTiles || [])) {
-      const ex = (e.x | 0), ey = (e.y | 0);
-      if (ex >= startX && ex <= endX && ey >= startY && ey <= endY) {
-        const sx = (ex - startX) * TILE - tileOffsetX;
-        const sy = (ey - startY) * TILE - tileOffsetY;
-        ctx2d.fillRect(sx, sy, TILE, TILE);
-        ctx2d.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
-      }
+      const sx = ox + (e.x | 0) * tilePx;
+      const sy = oy + (e.y | 0) * tilePx;
+      ctx2d.fillRect(sx, sy, tilePx, tilePx);
+      ctx2d.strokeRect(sx + 0.5, sy + 0.5, tilePx - 1, tilePx - 1);
     }
     ctx2d.restore();
   } catch (_) {}
 
-  // Player marker (cursor) with backdrop (only if visible)
-  const px = ctx.player.x, py = ctx.player.y;
-  if (px >= startX && px <= endX && py >= startY && py <= endY && visible[py] && visible[py][px]) {
-    const screenX = (px - startX) * TILE - tileOffsetX;
-    const screenY = (py - startY) * TILE - tileOffsetY;
-
+  // Player marker (@) scaled to tilePx
+  try {
+    const px = ctx.player.x | 0, py = ctx.player.y | 0;
+    const sx = ox + px * tilePx;
+    const sy = oy + py * tilePx;
     ctx2d.save();
+    // backdrop
     ctx2d.fillStyle = "rgba(255,255,255,0.16)";
-    ctx2d.fillRect(screenX + 4, screenY + 4, TILE - 8, TILE - 8);
-    ctx2d.strokeStyle = "rgba(255,255,255,0.35)";
-    ctx2d.lineWidth = 1;
-    ctx2d.strokeRect(screenX + 4.5, screenY + 4.5, TILE - 9, TILE - 9);
-
-    const half = TILE / 2;
+    ctx2d.fillRect(sx + Math.max(1, Math.floor(tilePx * 0.12)), sy + Math.max(1, Math.floor(tilePx * 0.12)),
+                   tilePx - Math.max(2, Math.floor(tilePx * 0.24)), tilePx - Math.max(2, Math.floor(tilePx * 0.24)));
+    // glyph
+    const size = Math.max(8, tilePx - 2);
+    const prevFont = ctx2d.font, prevAlign = ctx2d.textAlign, prevBase = ctx2d.textBaseline;
+    ctx2d.font = `bold ${size}px JetBrains Mono, monospace`;
+    ctx2d.textAlign = "center";
+    ctx2d.textBaseline = "middle";
     ctx2d.lineWidth = 2;
     ctx2d.strokeStyle = "#0b0f16";
-    ctx2d.strokeText("@", screenX + half, screenY + half + 1);
+    ctx2d.strokeText("@", sx + tilePx / 2, sy + tilePx / 2 + 1);
     ctx2d.fillStyle = COLORS.player || "#9ece6a";
-    ctx2d.fillText("@", screenX + half, screenY + half + 1);
+    ctx2d.fillText("@", sx + tilePx / 2, sy + tilePx / 2 + 1);
+    ctx2d.font = prevFont; ctx2d.textAlign = prevAlign; ctx2d.textBaseline = prevBase;
     ctx2d.restore();
-  }
+  } catch (_) {}
 
   // Label + clock + hint
   try {
@@ -203,7 +165,7 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  RenderCore.drawGridOverlay(view);
+  // No grid overlay in region mode (scaled view)
 }
 
 if (typeof window !== "undefined") {
