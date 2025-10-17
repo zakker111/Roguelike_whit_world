@@ -24,6 +24,7 @@ const DATA_FILES = {
   town: "data/town.json",
   flavor: "data/flavor.json",
   tiles: "data/tiles.json",
+  encounters: "data/encounters.json",
 };
 
 // Compact defaults used when JSON is unavailable (e.g., file://)
@@ -72,7 +73,7 @@ function applyDefaultsIfNeeded() {
 
 GameData.ready = (async function loadAll() {
   try {
-    const [items, enemies, npcs, consumables, shops, town, flavor, tiles] = await Promise.all([
+    const [items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters] = await Promise.all([
       fetchJson(DATA_FILES.items).catch(() => null),
       fetchJson(DATA_FILES.enemies).catch(() => null),
       fetchJson(DATA_FILES.npcs).catch(() => null),
@@ -81,6 +82,7 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.town).catch(() => null),
       fetchJson(DATA_FILES.flavor).catch(() => null),
       fetchJson(DATA_FILES.tiles).catch(() => null),
+      fetchJson(DATA_FILES.encounters).catch(() => null),
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -91,6 +93,7 @@ GameData.ready = (async function loadAll() {
     GameData.town = (town && typeof town === "object") ? town : null;
     GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
     GameData.tiles = (tiles && typeof tiles === "object" && Array.isArray(tiles.tiles)) ? tiles : null;
+    GameData.encounters = (encounters && typeof encounters === "object") ? encounters : null;
 
     // If running under file://, note that JSON may not load due to fetch/CORS
     if (runningFromFile()) {
@@ -146,7 +149,7 @@ GameData.ready = (async function loadAll() {
     }
 
     // If any registry failed to load, modules will use internal fallbacks.
-    if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles) {
+    if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles || !GameData.encounters) {
       logNotice("Some registries failed to load; modules will use internal fallbacks.");
     }
   } catch (e) {

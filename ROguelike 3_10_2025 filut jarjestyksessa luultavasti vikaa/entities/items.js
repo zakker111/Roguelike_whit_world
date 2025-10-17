@@ -299,6 +299,13 @@ export function describe(item) {
     const count = item.count && item.count > 1 ? ` x${item.count}` : "";
     return `${base}${count}`;
   }
+  if (item.kind === "material") {
+    const base = item.name || "material";
+    const qty = (typeof item.amount === "number" ? item.amount : (typeof item.count === "number" ? item.count : null));
+    const type = item.type || item.material || "";
+    const typeStr = type ? ` (${type})` : "";
+    return qty != null ? `${base}${typeStr}: ${qty}` : `${base}${typeStr}`;
+  }
   return item.name || "item";
 }
 

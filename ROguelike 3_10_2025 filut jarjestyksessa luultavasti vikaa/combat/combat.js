@@ -1,15 +1,17 @@
 /**
- * Combat module: shared calculations for block chance and damage after defense.
+ * Combat module: shared calculations for block chance and damage after defense,
+ * plus a standardized playerAttackEnemy to unify attacks across modes.
  *
  * Exports (ESM + window.Combat augmentation):
  * - getPlayerBlockChance(ctx, loc)
  * - getEnemyBlockChance(ctx, enemy, loc)
  * - enemyDamageAfterDefense(ctx, raw)
  * - enemyDamageMultiplier(level)  // small helper for consistency
+ * - playerAttackEnemy(ctx, enemy) // full bump-attack flow used by dungeon/encounter/region
  *
  * Notes:
- * - Prefers helpers available on ctx (e.g., ctx.getPlayerDefense, ctx.utils.round1).
- * - Keeps logic aligned with existing game.js fallbacks.
+ * - Prefers helpers available on ctx (e.g., ctx.getPlayerAttack/Defense, ctx.utils.round1).
+ * - Keeps logic aligned with existing game.js/dungeon flow for consistency.
  */
 
 function round1(ctx, n) {
@@ -67,6 +69,116 @@ export function enemyDamageMultiplier(level) {
   return 1 + 0.15 * Math.max(0, (level || 1) - 1);
 }
 
+/**
+ * Standardized player attack against an enemy:
+ * - Computes hit location (ctx.rollHitLocation or profiles.torso)
+ * - Computes block chance via ctx.getEnemyBlockChance
+ * - Applies crit chance/multiplier when available
+ * - Damages enemy; logs; applies status on crit; blood decal
+ * - Calls ctx.onEnemyDied(enemy) when hp <= 0
+ * - Applies equipment decay for attack hands
+ */
+export function playerAttackEnemy(ctx, enemy) {
+  if (!ctx || !enemy) return;
+  const rng = typeof ctx.rng === "function" ? ctx.rng : Math.random;
+
+  // Hit location
+  let loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 };
+  try {
+    if (typeof ctx.rollHitLocation === "function") loc = ctx.rollHitLocation();
+  } catch (_) {}
+
+  // GOD forced part (best-effort)
+  try {
+    const forcedPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string")
+      ? window.ALWAYS_CRIT_PART
+      : (typeof localStorage !== "undefined" ? (localStorage.getItem("ALWAYS_CRIT_PART") || "") : "");
+    if (forcedPart && (ctx.Combat && ctx.Combat.profiles && ctx.Combat.profiles[forcedPart])) {
+      loc = ctx.Combat.profiles[forcedPart];
+    }
+  } catch (_) {}
+
+  // Block check
+  let blockChance = 0;
+  try {
+    if (typeof ctx.getEnemyBlockChance === "function") blockChance = ctx.getEnemyBlockChance(enemy, loc);
+    else blockChance = getEnemyBlockChance(ctx, enemy, loc);
+  } catch (_) { blockChance = 0; }
+  const rBlock = typeof ctx.rng === "function" ? ctx.rng() : rng();
+
+  if (rBlock < blockChance) {
+    try {
+      const name = (enemy.type || "enemy");
+      if (ctx.log) ctx.log(`${name.charAt(0).toUpperCase()}${name.slice(1)} blocks your attack to the ${loc.part}.`, "block");
+    } catch (_) {}
+    // Decay hands (light) on block
+    try {
+      if (typeof ctx.decayBlockingHands === "function") ctx.decayBlockingHands();
+      else if (typeof ctx.decayEquipped === "function") {
+        const rf = (min, max) => (min + (Math.random() * (max - min)));
+        ctx.decayEquipped("hands", rf(0.2, 0.7));
+      }
+    } catch (_) {}
+    return;
+  }
+
+  // Damage calculation
+  let atk = 1;
+  try { if (typeof ctx.getPlayerAttack === "function") atk = ctx.getPlayerAttack(); } catch (_) {}
+  let dmg = (atk || 1) * (loc.mult || 1.0);
+  let isCrit = false;
+  const alwaysCrit = !!((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false);
+  const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
+  let critMult = 1.8;
+  try { if (ctx.Combat && typeof ctx.Combat.critMultiplier === "function") critMult = ctx.Combat.critMultiplier(ctx.rng); } catch (_) {}
+  const rCrit = typeof ctx.rng === "function" ? ctx.rng() : rng();
+  if (alwaysCrit || rCrit < critChance) {
+    isCrit = true;
+    dmg *= critMult;
+  }
+  dmg = Math.max(0, round1(ctx, dmg));
+  enemy.hp = (typeof enemy.hp === "number" ? enemy.hp : 0) - dmg;
+
+  // Visual: blood decal
+  try { if (typeof ctx.addBloodDecal === "function" && dmg > 0) ctx.addBloodDecal(enemy.x, enemy.y, isCrit ? 1.6 : 1.0); } catch (_) {}
+
+  // Log
+  try {
+    const name = (enemy.type || "enemy");
+    if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit");
+    else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`);
+    if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
+  } catch (_) {}
+
+  // Status effects on crit
+  try {
+    const ST = (typeof window !== "undefined") ? window.Status : (ctx.Status || null);
+    if (isCrit && loc.part === "legs" && enemy.hp > 0) {
+      if (ST && typeof ST.applyLimpToEnemy === "function") ST.applyLimpToEnemy(ctx, enemy, 2);
+      else { enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2); if (ctx.log) ctx.log(`${(enemy.type || "enemy")[0].toUpperCase()}${(enemy.type || "enemy").slice(1)} staggers; its legs are crippled and it can't move for 2 turns.`, "notice"); }
+    }
+    if (isCrit && enemy.hp > 0) {
+      if (ST && typeof ST.applyBleedToEnemy === "function") ST.applyBleedToEnemy(ctx, enemy, 2);
+    }
+  } catch (_) {}
+
+  // Death
+  try {
+    if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") {
+      ctx.onEnemyDied(enemy);
+    }
+  } catch (_) {}
+
+  // Decay hands after attack
+  try {
+    if (typeof ctx.decayAttackHands === "function") ctx.decayAttackHands(false);
+    else if (typeof ctx.decayEquipped === "function") {
+      const rf = (min, max) => (min + (Math.random() * (max - min)));
+      ctx.decayEquipped("hands", rf(0.3, 1.0));
+    }
+  } catch (_) {}
+}
+
 // Back-compat: attach/augment window.Combat
 if (typeof window !== "undefined") {
   const base = window.Combat || {};
@@ -75,6 +187,7 @@ if (typeof window !== "undefined") {
     getEnemyBlockChance,
     enemyDamageAfterDefense,
     enemyDamageMultiplier,
+    playerAttackEnemy,
   });
   window.Combat = augmented;
 }

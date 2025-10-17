@@ -195,23 +195,40 @@ export function draw(ctx, view) {
     }
   }
 
-  // NPCs (only if visible)
+  // NPCs
   if (Array.isArray(ctx.npcs)) {
     for (const n of ctx.npcs) {
       if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
-      if (!visible[n.y] || !visible[n.y][n.x]) continue;
+
+      const isVisible = !!(visible[n.y] && visible[n.y][n.x]);
+      const wasSeen = !!(seen[n.y] && seen[n.y][n.x]);
+
+      // Draw NPCs if currently visible, else draw dimmed if they were seen before (helps discoverability in towns)
+      if (!isVisible && !wasSeen) continue;
+
       const screenX = (n.x - startX) * TILE - tileOffsetX;
       const screenY = (n.y - startY) * TILE - tileOffsetY;
-      // Pets: cat 'c', dog 'd'; others 'n'
+
+      // Pets: cat 'c', dog 'd'; Seppo 'S'; others 'n'
       let glyph = "n";
+      let color = "#b4f9f8";
       if (n.isPet) {
         if (n.kind === "cat") glyph = "c";
         else if (n.kind === "dog") glyph = "d";
+      } else if (n.isSeppo || n.seppo) {
+        glyph = "S";
+        color = "#f6c177";
       }
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, "#b4f9f8", TILE);
 
-      // Sleeping indicator: animated z/Z above sleeping NPCs
-      if (n._sleeping) {
+      ctx2d.save();
+      if (!isVisible && wasSeen) {
+        ctx2d.globalAlpha = 0.6;
+      }
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+      ctx2d.restore();
+
+      // Sleeping indicator: animated z/Z above sleeping NPCs (only when visible to avoid noise)
+      if (isVisible && n._sleeping) {
         const t = Date.now();
         const phase = Math.floor(t / 600) % 2; // toggle every ~0.6s
         const zChar = phase ? "Z" : "z";

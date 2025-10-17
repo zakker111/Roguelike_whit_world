@@ -190,27 +190,9 @@ export function generateLoot(ctx, source) {
 
 export function returnToWorldIfAtExit(ctx) {
   if (!ctx || ctx.mode !== "dungeon" || !ctx.world) return false;
-  // Consider adjacency to exit tile as valid; step onto exit if adjacent
-  let onExit =
-    (ctx.dungeonExitAt &&
-      ctx.player.x === ctx.dungeonExitAt.x &&
-      ctx.player.y === ctx.dungeonExitAt.y) ||
-    (ctx.inBounds && ctx.inBounds(ctx.player.x, ctx.player.y) &&
-      ctx.map && ctx.map[ctx.player.y] &&
-      ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
-
-  if (!onExit && ctx.dungeonExitAt) {
-    const dx = Math.abs(ctx.player.x - ctx.dungeonExitAt.x);
-    const dy = Math.abs(ctx.player.y - ctx.dungeonExitAt.y);
-    const md = dx + dy;
-    if (md === 1) {
-      // Step onto exact exit tile to satisfy strict checks
-      ctx.player.x = ctx.dungeonExitAt.x;
-      ctx.player.y = ctx.dungeonExitAt.y;
-      onExit = true;
-    }
-  }
-
+  // Strict: only allow leaving if standing exactly on the designated exit tile
+  if (!ctx.dungeonExitAt || typeof ctx.dungeonExitAt.x !== "number" || typeof ctx.dungeonExitAt.y !== "number") return false;
+  const onExit = (ctx.player.x === ctx.dungeonExitAt.x) && (ctx.player.y === ctx.dungeonExitAt.y);
   if (!onExit) return false;
 
   // Save state first
@@ -261,7 +243,7 @@ export function returnToWorldIfAtExit(ctx) {
 }
 
 export function lootHere(ctx) {
-  if (!ctx || ctx.mode !== "dungeon") return false;
+  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
 
   // QoL: if adjacent to a corpse/chest, step onto it (only if not on exit)
   try {
@@ -458,14 +440,15 @@ export function enter(ctx, info) {
 }
 
 export function tryMoveDungeon(ctx, dx, dy) {
-  if (!ctx || ctx.mode !== "dungeon") return false;
+  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
+  const advanceTurn = (ctx.mode === "dungeon"); // in encounter, the orchestrator advances the turn after syncing
 
   // Dazed: skip action if dazedTurns > 0
   try {
     if (ctx.player && ctx.player.dazedTurns && ctx.player.dazedTurns > 0) {
       ctx.player.dazedTurns -= 1;
       ctx.log && ctx.log("You are dazed and lose your action this turn.", "warn");
-      ctx.turn && ctx.turn();
+      if (advanceTurn && ctx.turn) ctx.turn();
       return true;
     }
   } catch (_) {}
@@ -527,7 +510,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
           ctx.decayEquipped("hands", rf(0.2, 0.7));
         }
       } catch (_) {}
-      ctx.turn && ctx.turn();
+      if (advanceTurn && ctx.turn) ctx.turn();
       return true;
     }
 
@@ -549,7 +532,8 @@ export function tryMoveDungeon(ctx, dx, dy) {
       dmg *= critMult;
     }
     const round1 = (ctx.utils && typeof ctx.utils.round1 === "function") ? ctx.utils.round1 : ((n) => Math.round(n * 10) / 10);
-    dmg = Math.max(0, round1(dmg));
+    // Guarantee chip damage so fights always progress, even with very low attack values.
+    dmg = Math.max(0.1, round1(dmg));
     enemy.hp -= dmg;
 
     // Visual: blood decal
@@ -577,8 +561,22 @@ export function tryMoveDungeon(ctx, dx, dy) {
 
     // Death
     try {
-      if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") {
-        ctx.onEnemyDied(enemy);
+      if (enemy.hp <= 0) {
+        if (typeof ctx.onEnemyDied === "function") {
+          ctx.onEnemyDied(enemy);
+        } else {
+          // Failsafe removal if the callback is missing
+          try {
+            // Minimal inline corpse + removal to avoid immortal enemies
+            const loot = (ctx.Loot && typeof ctx.Loot.generate === "function") ? (ctx.Loot.generate(ctx, enemy) || []) : [];
+            ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+            ctx.corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
+          } catch (_) {}
+          try {
+            if (Array.isArray(ctx.enemies)) ctx.enemies = ctx.enemies.filter(e => e !== enemy);
+            if (ctx.occupancy && typeof ctx.occupancy.clearEnemy === "function") ctx.occupancy.clearEnemy(enemy.x, enemy.y);
+          } catch (_) {}
+        }
       }
     } catch (_) {}
 
@@ -594,7 +592,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
       }
     } catch (_) {}
 
-    ctx.turn && ctx.turn();
+    if (advanceTurn && ctx.turn) ctx.turn();
     return true;
   }
 
@@ -605,7 +603,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
     if (walkable && !blockedByEnemy) {
       ctx.player.x = nx; ctx.player.y = ny;
       ctx.updateCamera && ctx.updateCamera();
-      ctx.turn && ctx.turn();
+      if (advanceTurn && ctx.turn) ctx.turn();
       return true;
     }
   } catch (_) {}
@@ -614,7 +612,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
 }
 
 export function tick(ctx) {
-  if (!ctx || ctx.mode !== "dungeon") return false;
+  if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
   // Enemies act via AI
   try {
     const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);

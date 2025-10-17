@@ -88,6 +88,13 @@
       <input id="god-fov" type="range" min="3" max="14" step="1" />
       <span id="god-fov-value" class="help" style="font-size:12px;"></span>
     </div>
+
+    <div class="inv-subtitle">Encounters</div>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+      <input id="god-enc-rate" type="range" min="0" max="100" step="1" />
+      <span id="god-enc-rate-value" class="help" style="font-size:12px;"></span>
+    </div>
+
     <div class="inv-subtitle">Logs</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
       <button id="god-toggle-mirror-btn" class="btn">Side Log: On</button>
@@ -235,6 +242,7 @@
   <!-- Services -->
   <script src="/services/time_service.js" type="module" defer></script>
   <script src="/services/shop_service.js" type="module" defer></script>
+  <script src="/services/encounter_service.js" type="module" defer></script>
 
   <!-- Combat modules -->
   <script src="/combat/combat_utils.js" type="module" defer></script>
@@ -294,6 +302,7 @@
   <script src="/core/inventory_controller.js" type="module" defer></script>
   <script src="/core/town_runtime.js" type="module" defer></script>
   <script src="/core/dungeon_runtime.js" type="module" defer></script>
+  <script src="/core/encounter_runtime.js" type="module" defer></script>
   <script src="/core/ui_bridge.js" type="module" defer></script>
   <!-- Region Map overlay runtime -->
   <script src="/region_map/region_map_runtime.js" type="module" defer></script>

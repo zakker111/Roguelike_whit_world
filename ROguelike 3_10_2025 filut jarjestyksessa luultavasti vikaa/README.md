@@ -11,6 +11,7 @@ Play it
   - Action (G): interact, loot, enter/exit
   - Inventory: I
   - GOD panel: P
+  - Region Map: M (toggle overview map/modal)
   - Wait: Numpad5
   - Brace: B (dungeon only; raises block chance this turn if holding a defensive hand item)
 
@@ -28,6 +29,13 @@ Data-driven configuration
 Determinism and seeds
 - RNG is centralized; apply seeds in the GOD panel.
 - With the same seed and context, generation and item rolls are repeatable.
+
+Encounters
+- While traveling on the overworld, you may be prompted with a random encounter. Accept to enter a small tactical map themed by the current biome.
+- Exit: stand on the '>' tile and press G to return to the overworld (no auto-exit).
+- Props: pressing G while standing on a prop logs a context message (barrel/crate/bench/campfire, etc.). Lootable containers (chests/corpses) use G to open loot.
+- Merchants: some encounters feature a wandering merchant (e.g., Seppo). Bumping into the merchant opens the Shop UI; premium stock is available.
+- Encounter rate: adjustable in the GOD panel via the “Encounter rate” slider (0–100). Setting persists per-browser.
 
 Smoketest (optional)
 - Orchestrator default: append ?smoketest=1 to the URL; add &dev=1 for diagnostics.

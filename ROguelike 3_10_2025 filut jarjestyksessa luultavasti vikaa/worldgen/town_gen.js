@@ -112,9 +112,31 @@
       case "stall":
         ctx.log("A vendor waves: 'Fresh wares soon!'", "notice");
         break;
-      case "tree":
-        ctx.log("A leafy tree offers a bit of shade.", "info");
+      case "tree": {
+        // Chop the tree for materials
+        ctx.log("You cut the tree.", "notice");
+        // Remove the tree prop so it can't be farmed infinitely
+        try {
+          const idx = ctx.townProps.findIndex(tp => tp && tp.x === p.x && tp.y === p.y && tp.type === "tree");
+          if (idx !== -1) ctx.townProps.splice(idx, 1);
+        } catch (_) {}
+        // Grant planks (material: wood) to inventory, 10 per tree
+        try {
+          const inv = ctx.player.inventory || (ctx.player.inventory = []);
+          // Prefer a single stackable entry using amount (like gold)
+          const existing = inv.find(it => it && it.kind === "material" && (it.type === "wood" || it.material === "wood") && (String(it.name || "").toLowerCase() === "planks"));
+          if (existing) {
+            // use amount if present, else count
+            if (typeof existing.amount === "number") existing.amount += 10;
+            else if (typeof existing.count === "number") existing.count += 10;
+            else existing.amount = 10; // establish amount field going forward
+          } else {
+            inv.push({ kind: "material", type: "wood", name: "planks", amount: 10 });
+          }
+          if (typeof ctx.updateUI === "function") ctx.updateUI();
+        } catch (_) {}
         break;
+      }
       case "fireplace":
         ctx.log("You warm your hands by the fireplace.", "info");
         break;
@@ -220,7 +242,37 @@
     const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
     const existingNear = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
     const target = Math.max(0, Math.min((count | 0), 1 - existingNear));
-    if (target <= 0) { clearAdjacentNPCsAroundPlayer(ctx); return true; }
+    if (target <= 0) {
+      // Keep player space clear but ensure at least one greeter remains in radius
+      clearAdjacentNPCsAroundPlayer(ctx);
+      try {
+        const nearNow = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
+        if (nearNow === 0) {
+          const names = ["Ava", "Borin", "Cora", "Darin", "Eda", "Finn", "Goro", "Hana"];
+          const lines = [
+            `Welcome to ${ctx.townName || "our town"}.`,
+            "Shops are marked with S.",
+            "Stay as long as you like.",
+            "The plaza is at the center.",
+          ];
+          // Prefer diagonals first to avoid blocking cardinal steps
+          const candidates = [
+            { x: gx + 1, y: gy + 1 }, { x: gx + 1, y: gy - 1 }, { x: gx - 1, y: gy + 1 }, { x: gx - 1, y: gy - 1 },
+            { x: gx + 2, y: gy }, { x: gx - 2, y: gy }, { x: gx, y: gy + 2 }, { x: gx, y: gy - 2 },
+            { x: gx + 2, y: gy + 1 }, { x: gx + 2, y: gy - 1 }, { x: gx - 2, y: gy + 1 }, { x: gx - 2, y: gy - 1 },
+            { x: gx + 1, y: gy + 2 }, { x: gx + 1, y: gy - 2 }, { x: gx - 1, y: gy + 2 }, { x: gx - 1, y: gy - 2 },
+          ];
+          for (const c of candidates) {
+            if (_isFreeTownFloor(ctx, c.x, c.y) && _manhattan(ctx, ctx.player.x, ctx.player.y, c.x, c.y) > 1) {
+              const name = names[(Math.floor(ctx.rng() * names.length)) % names.length];
+              ctx.npcs.push({ x: c.x, y: c.y, name, lines, greeter: true });
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+      return true;
+    }
 
     const dirs = [
       { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
@@ -248,6 +300,25 @@
       }
     }
     clearAdjacentNPCsAroundPlayer(ctx);
+    // After clearing adjacency, ensure at least one greeter remains near the gate
+    try {
+      const nearNow = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
+      if (nearNow === 0) {
+        const name = "Greeter";
+        const lines2 = [
+          `Welcome to ${ctx.townName || "our town"}.`,
+          "Shops are marked with S.",
+          "Stay as long as you like.",
+          "The plaza is at the center.",
+        ];
+        const diag = [
+          { x: gx + 1, y: gy + 1 }, { x: gx + 1, y: gy - 1 }, { x: gx - 1, y: gy + 1 }, { x: gx - 1, y: gy - 1 }
+        ];
+        for (const c of diag) {
+          if (_isFreeTownFloor(ctx, c.x, c.y)) { ctx.npcs.push({ x: c.x, y: c.y, name, lines: lines2, greeter: true }); break; }
+        }
+      }
+    } catch (_) {}
     return true;
   }
 
@@ -840,6 +911,15 @@
     // Visibility reset for town
     ctx.seen = Array.from({ length: H }, () => Array(W).fill(false));
     ctx.visible = Array.from({ length: H }, () => Array(W).fill(false));
+    // Seed initial \"seen\" region around the gate so nearby NPCs/props can render dimmed if just outside FOV
+    try {
+      const R = 3;
+      for (let yy = Math.max(0, gate.y - R); yy <= Math.min(H - 1, gate.y + R); yy++) {
+        for (let xx = Math.max(0, gate.x - R); xx <= Math.min(W - 1, gate.x + R); xx++) {
+          ctx.seen[yy][xx] = true;
+        }
+      }
+    } catch (_) {}
     ctx.enemies = [];
     ctx.corpses = [];
     ctx.decals = [];

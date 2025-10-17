@@ -70,6 +70,21 @@ export function enemiesAct(ctx) {
 
   const senseRange = 8;
 
+  // Faction helpers (minimal matrix: different factions are hostile, all hostile to player)
+  const factionOf = (en) => {
+    if (!en) return "neutral";
+    if (en.faction) return String(en.faction);
+    const t = String(en.type || "").toLowerCase();
+    if (t.includes("bandit")) return "bandit";
+    if (t.includes("orc")) return "orc";
+    return "monster";
+  };
+  const isHostileTo = (fa, fb) => {
+    if (fa === "neutral" || fb === "neutral") return false;
+    if (fa === fb) return false;
+    return true;
+  };
+
   // Use shared OccupancyGrid if available for movement updates
   const occ = (ctx.occupancy && typeof ctx.occupancy.clearEnemy === "function" && typeof ctx.occupancy.setEnemy === "function" && typeof ctx.occupancy.isFree === "function")
     ? ctx.occupancy
@@ -119,19 +134,32 @@ export function enemiesAct(ctx) {
   };
 
   for (const e of enemies) {
-    const dx = player.x - e.x;
-    const dy = player.y - e.y;
+    const eFac = factionOf(e);
+
+    // Choose a target among player and hostile factions
+    let target = { kind: "player", x: player.x, y: player.y, ref: null, faction: "player" };
+    let bestDist = Math.abs(player.x - e.x) + Math.abs(player.y - e.y);
+
+    for (const other of enemies) {
+      if (!other || other === e) continue;
+      const oFac = factionOf(other);
+      if (!isHostileTo(eFac, oFac)) continue;
+      const d = Math.abs(other.x - e.x) + Math.abs(other.y - e.y);
+      if (d < bestDist) {
+        bestDist = d;
+        target = { kind: "enemy", x: other.x, y: other.y, ref: other, faction: oFac };
+      }
+    }
+
+    const dx = target.x - e.x;
+    const dy = target.y - e.y;
     const dist = Math.abs(dx) + Math.abs(dy);
 
     // Low-HP panic/flee (generic for all enemies)
-    // If enemy HP is very low, small chance to enter a short panic state and try to flee,
-    // occasionally yelling they don't want to die.
     if (typeof e.hp === "number" && e.hp <= 2) {
-      // start or refresh panic with small chance
       if (!(e._panicTurns > 0) && chance(0.2)) {
         e._panicTurns = 3;
       }
-      // yell occasionally with cooldown
       if (typeof e._panicYellCd === "number" && e._panicYellCd > 0) e._panicYellCd -= 1;
       if ((e._panicYellCd | 0) <= 0 && (e._panicTurns | 0) > 0 && chance(0.35)) {
         try { ctx.log("I don't want to die!", "flavor"); } catch (_) {}
@@ -139,7 +167,7 @@ export function enemiesAct(ctx) {
       }
     }
 
-    // Compute away-from-player preferred directions (used by panic and mime_ghost)
+    // Compute away-from-target (used by panic and mime_ghost against player)
     const sxAway = dx === 0 ? 0 : (dx > 0 ? -1 : 1);
     const syAway = dy === 0 ? 0 : (dy > 0 ? -1 : 1);
     const primaryAway = Math.abs(dx) > Math.abs(dy)
@@ -149,7 +177,6 @@ export function enemiesAct(ctx) {
     // If panicking, prefer to flee instead of fighting when possible
     if ((e._panicTurns | 0) > 0) {
       let fled = false;
-      // If adjacent, strong preference to step away instead of attacking
       const tryDirs = primaryAway.concat(ALT_DIRS);
       for (const d of tryDirs) {
         const nx = e.x + d.x, ny = e.y + d.y;
@@ -162,24 +189,28 @@ export function enemiesAct(ctx) {
         }
       }
       e._panicTurns -= 1;
-      if (fled) continue; // used turn to flee
-      // If couldn't flee, fall through to normal behavior (may attack if adjacent)
+      if (fled) continue;
     }
 
-    // Special behavior: mime_ghost tends to flee, shouts "Argh!", and only sometimes attacks
+    // Special behavior: mime_ghost logic only cares about player proximity/LOS
     if (e.type === "mime_ghost") {
-      // lightweight shout cooldown to avoid spam
       if (typeof e._arghCd === "number" && e._arghCd > 0) e._arghCd -= 1;
       if ((e._arghCd | 0) <= 0 && chance(0.15)) {
         try { ctx.log("Argh!", "flavor"); } catch (_) {}
         e._arghCd = 3;
       }
 
-      // If adjacent: 35% chance to attack; otherwise try to step away
-      if (dist === 1) {
+      const pdx = player.x - e.x;
+      const pdy = player.y - e.y;
+      const pdist = Math.abs(pdx) + Math.abs(pdy);
+
+      if (pdist === 1) {
         if (!chance(0.35)) {
           let moved = false;
-          for (const d of primaryAway) {
+          const pxAway = Math.abs(pdx) > Math.abs(pdy)
+            ? [{ x: (pdx > 0 ? -1 : 1), y: 0 }, { x: 0, y: (pdy > 0 ? -1 : 1) }]
+            : [{ x: 0, y: (pdy > 0 ? -1 : 1) }, { x: (pdx > 0 ? -1 : 1), y: 0 }];
+          for (const d of pxAway) {
             const nx = e.x + d.x, ny = e.y + d.y;
             if (isFree(nx, ny)) {
               occClearEnemy(occ, e.x, e.y);
@@ -201,14 +232,15 @@ export function enemiesAct(ctx) {
               }
             }
           }
-          if (moved) continue; // skipped attack this turn
+          if (moved) continue;
         }
-        // else fall through to default adjacent attack below
       } else {
-        // Not adjacent: if senses the player with LOS, try to move away
-        if (dist <= senseRange && hasLOS(ctx, e.x, e.y, player.x, player.y)) {
+        if (pdist <= senseRange && hasLOS(ctx, e.x, e.y, player.x, player.y)) {
           let moved = false;
-          for (const d of primaryAway) {
+          const pxAway = Math.abs(pdx) > Math.abs(pdy)
+            ? [{ x: (pdx > 0 ? -1 : 1), y: 0 }, { x: 0, y: (pdy > 0 ? -1 : 1) }]
+            : [{ x: 0, y: (pdy > 0 ? -1 : 1) }, { x: (pdx > 0 ? -1 : 1), y: 0 }];
+          for (const d of pxAway) {
             const nx = e.x + d.x, ny = e.y + d.y;
             if (isFree(nx, ny)) {
               occClearEnemy(occ, e.x, e.y);
@@ -230,84 +262,90 @@ export function enemiesAct(ctx) {
               }
             }
           }
-          if (moved) continue; // handled movement; next enemy
+          if (moved) continue;
         }
-        // otherwise let default wander logic later handle it
       }
     }
 
-    // attack if adjacent
-    if (Math.abs(dx) + Math.abs(dy) === 1) {
+    // Adjacent attack vs chosen target
+    if (dist === 1) {
       const loc = ctx.rollHitLocation();
 
-      // Player attempts to block with hand/position
-      if (ctx.rng() < ctx.getPlayerBlockChance(loc)) {
-        ctx.log(`You block the ${e.type || "enemy"}'s attack to your ${loc.part}.`, "block");
-        // Optional flavor for blocks
-        if (ctx.Flavor && typeof ctx.Flavor.onBlock === "function") {
-          ctx.Flavor.onBlock(ctx, { side: "player", attacker: e, defender: player, loc });
+      if (target.kind === "player") {
+        if (ctx.rng() < ctx.getPlayerBlockChance(loc)) {
+          ctx.log(`You block the ${e.type || "enemy"}'s attack to your ${loc.part}.`, "block");
+          if (ctx.Flavor && typeof ctx.Flavor.onBlock === "function") {
+            ctx.Flavor.onBlock(ctx, { side: "player", attacker: e, defender: player, loc });
+          }
+          ctx.decayBlockingHands();
+          ctx.decayEquipped("hands", randFloat(0.3, 1.0, 1));
+          continue;
         }
-        // Blocking uses gear
-        ctx.decayBlockingHands();
-        ctx.decayEquipped("hands", randFloat(0.3, 1.0, 1));
+        let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
+        let isCrit = false;
+        const critChance = Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
+        if (ctx.rng() < critChance) {
+          isCrit = true;
+          raw *= (ctx.critMultiplier ? ctx.critMultiplier() : (1.6 + ctx.rng() * 0.4));
+        }
+        const dmg = ctx.enemyDamageAfterDefense(raw);
+        player.hp -= dmg;
+        try { if (dmg > 0 && typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
+        if (isCrit) ctx.log(`Critical! ${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "crit");
+        else ctx.log(`${Cap(e.type)} hits your ${loc.part} for ${dmg}.`);
+        const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
+        if (isCrit && loc.part === "head" && ST && typeof ST.applyDazedToPlayer === "function") {
+          const dur = (ctx.rng ? (1 + Math.floor(ctx.rng() * 2)) : 1);
+          try { ST.applyDazedToPlayer(ctx, dur); } catch (_) {}
+        }
+        if (isCrit && ST && typeof ST.applyBleedToPlayer === "function") {
+          try { ST.applyBleedToPlayer(ctx, 2); } catch (_) {}
+        }
+        if (ctx.Flavor && typeof ctx.Flavor.logHit === "function") {
+          ctx.Flavor.logHit(ctx, { attacker: e, loc, crit: isCrit, dmg });
+        }
+        const critWear = isCrit ? 1.6 : 1.0;
+        let wear = 0.5;
+        if (loc.part === "torso") wear = randFloat(0.8, 2.0, 1);
+        else if (loc.part === "head") wear = randFloat(0.3, 1.0, 1);
+        else if (loc.part === "legs") wear = randFloat(0.4, 1.3, 1);
+        else if (loc.part === "hands") wear = randFloat(0.3, 1.0, 1);
+        ctx.decayEquipped(loc.part, wear * critWear);
+        if (player.hp <= 0) {
+          player.hp = 0;
+          if (typeof ctx.onPlayerDied === "function") ctx.onPlayerDied();
+          return;
+        }
+        continue;
+      } else if (target.kind === "enemy" && target.ref) {
+        // Enemy vs enemy attack (no defense reduction for simplicity; allow block base)
+        const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(target.ref, loc) : 0;
+        if (ctx.rng() < blockChance) {
+          try { ctx.log && ctx.log(`${Cap(target.ref.type)} blocks ${Cap(e.type)}'s attack.`, "block"); } catch (_) {}
+        } else {
+          let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
+          const isCrit = ctx.rng() < Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
+          if (isCrit) raw *= (ctx.critMultiplier ? ctx.critMultiplier() : (1.6 + ctx.rng() * 0.4));
+          const dmg = Math.max(0.1, Math.round(raw * 10) / 10);
+          target.ref.hp -= dmg;
+          try { if (dmg > 0 && typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(target.ref.x, target.ref.y, isCrit ? 1.2 : 0.9); } catch (_) {}
+          try {
+            ctx.log(`${Cap(e.type)} hits ${Cap(target.ref.type)} for ${dmg}.`, isCrit ? "crit" : "info");
+          } catch (_) {}
+          if (target.ref.hp <= 0 && typeof ctx.onEnemyDied === "function") {
+            ctx.onEnemyDied(target.ref);
+          }
+        }
         continue;
       }
-
-      // Compute damage with location and crit; then reduce by defense
-      let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
-      let isCrit = false;
-      const critChance = Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
-      if (ctx.rng() < critChance) {
-        isCrit = true;
-        raw *= (ctx.critMultiplier ? ctx.critMultiplier() : (1.6 + ctx.rng() * 0.4));
-      }
-      const dmg = ctx.enemyDamageAfterDefense(raw);
-      player.hp -= dmg;
-      // Blood decal on the player's tile when damaged
-      try {
-        if (dmg > 0 && typeof ctx.addBloodDecal === "function") {
-          ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0);
-        }
-      } catch (_) {}
-      if (isCrit) ctx.log(`Critical! ${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "crit");
-      else ctx.log(`${Cap(e.type)} hits your ${loc.part} for ${dmg}.`);
-      // Apply status effects
-      const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
-      if (isCrit && loc.part === "head" && ST && typeof ST.applyDazedToPlayer === "function") {
-        const dur = (ctx.rng ? (1 + Math.floor(ctx.rng() * 2)) : 1); // 1-2 turns
-        try { ST.applyDazedToPlayer(ctx, dur); } catch (_) {}
-      }
-      // Bleed on critical hits to the player (short duration)
-      if (isCrit && ST && typeof ST.applyBleedToPlayer === "function") {
-        try { ST.applyBleedToPlayer(ctx, 2); } catch (_) {}
-      }
-      if (ctx.Flavor && typeof ctx.Flavor.logHit === "function") {
-        ctx.Flavor.logHit(ctx, { attacker: e, loc, crit: isCrit, dmg });
-      }
-
-      // Item decay on being hit (only struck location)
-      const critWear = isCrit ? 1.6 : 1.0;
-      let wear = 0.5;
-      if (loc.part === "torso") wear = randFloat(0.8, 2.0, 1);
-      else if (loc.part === "head") wear = randFloat(0.3, 1.0, 1);
-      else if (loc.part === "legs") wear = randFloat(0.4, 1.3, 1);
-      else if (loc.part === "hands") wear = randFloat(0.3, 1.0, 1);
-      ctx.decayEquipped(loc.part, wear * critWear);
-      if (player.hp <= 0) {
-        player.hp = 0;
-        if (typeof ctx.onPlayerDied === "function") ctx.onPlayerDied();
-        return;
-      }
-      continue;
     }
 
     // movement/approach
     if (e.immobileTurns && e.immobileTurns > 0) {
-      // crippled legs: cannot move this turn (but still allowed to attack when adjacent above)
       e.immobileTurns -= 1;
       continue;
-    } else if (dist <= senseRange) {
-      // Prefer to chase if LOS; otherwise attempt a cautious step toward the player
+    } else if (bestDist <= senseRange) {
+      // Move toward chosen target
       const sx = dx === 0 ? 0 : (dx > 0 ? 1 : -1);
       const sy = dy === 0 ? 0 : (dy > 0 ? 1 : -1);
       const primary = Math.abs(dx) > Math.abs(dy) ? [{x:sx,y:0},{x:0,y:sy}] : [{x:0,y:sy},{x:sx,y:0}];
@@ -325,7 +363,6 @@ export function enemiesAct(ctx) {
         }
       }
       if (!moved) {
-        // try alternate directions (simple wiggle)
         for (const d of ALT_DIRS) {
           const nx = e.x + d.x;
           const ny = e.y + d.y;

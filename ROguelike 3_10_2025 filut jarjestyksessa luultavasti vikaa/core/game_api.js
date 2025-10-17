@@ -5,6 +5,18 @@
 
 export function create(ctx) {
   const api = {
+    // Encounter helpers
+    enterEncounter: (template, biome) => {
+      try { return !!(ctx.enterEncounter && ctx.enterEncounter(template, biome)); } catch (_) { return false; }
+    },
+    // Region Map helpers (exposed so services can transition cleanly)
+    openRegionMap: () => {
+      try { return !!(ctx.openRegionMap && ctx.openRegionMap()); } catch (_) { return false; }
+    },
+    startRegionEncounter: (template, biome) => {
+      try { return !!(ctx.startRegionEncounter && ctx.startRegionEncounter(template, biome)); } catch (_) { return false; }
+    },
+
     getMode: () => {
       try { return ctx.getMode(); } catch (_) { return "world"; }
     },

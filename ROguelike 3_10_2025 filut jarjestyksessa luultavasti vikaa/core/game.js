@@ -170,6 +170,10 @@
   let corpses = [];
   // Visual decals like blood stains on the floor; array of { x, y, a (alpha 0..1), r (radius px) }
   let decals = [];
+  // Encounter visuals
+  let encounterProps = [];
+  let encounterBiome = null;
+  let encounterObjective = null;
   // Occupancy Grid (entities on tiles)
   let occupancy = null;
   
@@ -218,6 +222,8 @@
       rng,
       ROWS, COLS, MAP_ROWS, MAP_COLS, TILE, TILES,
       player, enemies, corpses, decals, map, seen, visible, occupancy,
+      // encounter visuals
+      encounterProps, encounterBiome, encounterObjective,
       floor, depth: floor,
       fovRadius,
       // world/overworld
@@ -962,6 +968,9 @@
       townProps,
       townBuildings,
       townExitAt,
+      // encounter visuals for RenderDungeon
+      encounterProps,
+      encounterBiome,
       enemyColor: (t) => enemyColor(t),
       time: getClock(),
       // GameLoop can measure draw time and report via this sink
@@ -1034,6 +1043,10 @@
     enemies = [];
     corpses = [];
     decals = [];
+    // Clear lingering encounter visuals when returning to world
+    encounterProps = [];
+    encounterBiome = null;
+    encounterObjective = null;
     npcs = [];   // no NPCs on overworld
     shops = [];  // no shops on overworld
     map = world.map;
@@ -1092,7 +1105,14 @@
     enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
     corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
     decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-    npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
+    // Encounter visuals
+    encounterProps = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : encounterProps;
+    if (Object.prototype.hasOwnProperty.call(ctx, "encounterBiome")) {
+      encounterBiome = ctx.encounterBiome;
+    }
+    if (Object.prototype.hasOwnProperty.call(ctx, "encounterObjective")) {
+      encounterObjective = ctx.encounterObjective;
+    }
     shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
     townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
     townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
@@ -1281,6 +1301,84 @@
       return;
     }
 
+    if (mode === "encounter") {
+      const ctxMod = getCtx();
+      // Check for a lootable container (corpse/chest) underfoot or adjacent with items
+      let hasNearbyLoot = false;
+      try {
+        const p = ctxMod.player || player;
+        const list = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : [];
+        for (const c of list) {
+          if (!c) continue;
+          const hasItems = Array.isArray(c.loot) && c.loot.length > 0;
+          if (!hasItems) continue;
+          const md = Math.abs((c.x|0) - (p.x|0)) + Math.abs((c.y|0) - (p.y|0));
+          if (md <= 1) { hasNearbyLoot = true; break; }
+        }
+      } catch (_) {}
+
+      if (hasNearbyLoot) {
+        const DR = modHandle("DungeonRuntime");
+        if (DR && typeof DR.lootHere === "function") {
+          DR.lootHere(ctxMod);
+          applyCtxSyncAndRefresh(ctxMod);
+          return;
+        }
+      }
+
+      // No lootable container nearby: only allow withdraw if standing on exit (stairs) tile
+      try {
+        if (ctxMod.inBounds && ctxMod.inBounds(ctxMod.player.x, ctxMod.player.y)) {
+          const here = ctxMod.map[ctxMod.player.y][ctxMod.player.x];
+          if (here === ctxMod.TILES.STAIRS) {
+            const ER = modHandle("EncounterRuntime");
+            if (ER && typeof ER.complete === "function") {
+              ER.complete(ctxMod, "withdraw");
+              applyCtxSyncAndRefresh(ctxMod);
+              return;
+            }
+          }
+        }
+      } catch (_) {}
+
+      // If standing on an encounter prop, interact or describe it (consistent with town prop messages)
+      try {
+        const props = Array.isArray(ctxMod.encounterProps) ? ctxMod.encounterProps : [];
+        const p = props.find(pr => pr && pr.x === ctxMod.player.x && pr.y === ctxMod.player.y);
+        if (p) {
+          const type = String(p.type || "").toLowerCase();
+          if (type === "captive") {
+            // Rescue captive objective support
+            if (ctxMod.encounterObjective && ctxMod.encounterObjective.type === "rescueTarget" && !ctxMod.encounterObjective.rescued) {
+              ctxMod.encounterObjective.rescued = true;
+              log("You free the captive! Now reach an exit (>) to leave.", "good");
+            } else {
+              log("You help the captive to their feet.", "info");
+            }
+          } else if (type === "barrel") log("You stand next to a barrel.", "info");
+          else if (type === "crate") log("You stand next to a crate.", "info");
+          else if (type === "bench") log("You stand next to a bench.", "info");
+          else if (type === "campfire") log("You stand by a campfire.", "info");
+          else if (type === "merchant") {
+            try {
+              const UB = modHandle("UIBridge");
+              if (UB && typeof UB.showShop === "function") {
+                UB.showShop(ctxMod, { name: p.name || "Merchant", vendor: p.vendor || "merchant" });
+              } else {
+                log("The merchant nods. (Trading UI not available)", "warn");
+              }
+            } catch (_) {}
+          } else log(`You stand on ${p.name || p.type || "a prop"}.`, "info");
+          applyCtxSyncAndRefresh(ctxMod);
+          return;
+        }
+      } catch (_) {}
+
+      // Otherwise, nothing to do here
+      log("Return to the exit (>) to leave this encounter.", "info");
+      return;
+    }
+
     if (mode === "dungeon") {
       lootCorpse();
       return;
@@ -1377,6 +1475,14 @@
           } catch (_) {}
           return false;
         },
+        // Confirm dialog gating
+        isConfirmOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isConfirmOpen === "function") return !!UB.isConfirmOpen();
+          } catch (_) {}
+          return false;
+        },
         // actions
         onRestart: () => restartGame(),
         onShowInventory: () => showInventoryPanel(),
@@ -1412,6 +1518,17 @@
           } catch (_) {}
           try {
             if (UB && typeof UB.hideSmoke === "function") UB.hideSmoke(getCtx());
+          } catch (_) {}
+          if (wasOpen) requestDraw();
+        },
+        onCancelConfirm: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isConfirmOpen === "function") wasOpen = !!UB.isConfirmOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.cancelConfirm === "function") UB.cancelConfirm(getCtx());
           } catch (_) {}
           if (wasOpen) requestDraw();
         },
@@ -1522,6 +1639,73 @@
       if (walkable) {
         player.x = nx; player.y = ny;
         updateCamera();
+        // Encounter roll before advancing time so acceptance can switch mode first
+        try {
+          const ES = modHandle("EncounterService");
+          if (ES && typeof ES.maybeTryEncounter === "function") {
+            ES.maybeTryEncounter(getCtx());
+          }
+        } catch (_) {}
+        turn();
+      }
+      return;
+    }
+
+    // ENCOUNTER MODE
+    if (mode === "encounter") {
+      // Keep encounter input path identical to dungeon: delegate to DungeonRuntime.tryMoveDungeon.
+      // Do NOT auto-exit on stairs; exiting is only via G on the exit tile.
+      const DR = modHandle("DungeonRuntime");
+      const ctxMod = getCtx();
+      if (DR && typeof DR.tryMoveDungeon === "function") {
+        const acted = !!DR.tryMoveDungeon(ctxMod, dx, dy); // in encounter mode it does NOT call ctx.turn()
+        if (acted) {
+          // Merge enemy/corpse/decals mutations that may have been synced via a different ctx inside callbacks
+          try {
+            ctxMod.enemies = Array.isArray(enemies) ? enemies : ctxMod.enemies;
+            ctxMod.corpses = Array.isArray(corpses) ? corpses : ctxMod.corpses;
+            ctxMod.decals = Array.isArray(decals) ? decals : ctxMod.decals;
+          } catch (_) {}
+          // Sync any mode/map changes
+          applyCtxSyncAndRefresh(ctxMod);
+          // If we just moved onto a merchant (e.g., Seppo), auto-open the shop
+          try {
+            const props = Array.isArray(ctxMod.encounterProps) ? ctxMod.encounterProps : [];
+            const onMerchant = props.find(pr => pr && pr.type === "merchant" && pr.x === ctxMod.player.x && pr.y === ctxMod.player.y);
+            if (onMerchant) {
+              const UB = modHandle("UIBridge");
+              if (UB && typeof UB.showShop === "function") {
+                const already = (typeof UB.isShopOpen === "function") ? !!UB.isShopOpen() : false;
+                if (!already) UB.showShop(ctxMod, { name: onMerchant.name || "Merchant", vendor: onMerchant.vendor || "merchant" });
+              }
+            }
+          } catch (_) {}
+          // Advance the turn so AI/status run on synchronized state
+          turn();
+          return;
+        }
+      }
+      // Fallback: minimal dungeon-like movement (no auto-exit)
+      const nx = player.x + dx;
+      const ny = player.y + dy;
+      if (!inBounds(nx, ny)) return;
+      const blockedByEnemy = (occupancy && typeof occupancy.hasEnemy === "function") ? occupancy.hasEnemy(nx, ny) : enemies.some(e => e && e.x === nx && e.y === ny);
+      if (isWalkable(nx, ny) && !blockedByEnemy) {
+        player.x = nx;
+        player.y = ny;
+        updateCamera();
+        // Auto-open shop if we stepped onto a merchant tile
+        try {
+          const props = Array.isArray(encounterProps) ? encounterProps : [];
+          const onMerchant = props.find(pr => pr && pr.type === "merchant" && pr.x === player.x && pr.y === player.y);
+          if (onMerchant) {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.showShop === "function") {
+              const already = (typeof UB.isShopOpen === "function") ? !!UB.isShopOpen() : false;
+              if (!already) UB.showShop(getCtx(), { name: onMerchant.name || "Merchant", vendor: onMerchant.vendor || "merchant" });
+            }
+          }
+        } catch (_) {}
         turn();
       }
       return;
@@ -1999,6 +2183,20 @@
       if (WR && typeof WR.tick === "function") {
         WR.tick(getCtx());
       }
+    } else if (mode === "encounter") {
+      const ER = modHandle("EncounterRuntime");
+      if (ER && typeof ER.tick === "function") {
+        const ctxMod = getCtx();
+        ER.tick(ctxMod);
+        // Merge enemy/corpse/decals mutations that may have been synced via a different ctx inside callbacks
+        try {
+          ctxMod.enemies = Array.isArray(enemies) ? enemies : ctxMod.enemies;
+          ctxMod.corpses = Array.isArray(corpses) ? corpses : ctxMod.corpses;
+          ctxMod.decals = Array.isArray(decals) ? decals : ctxMod.decals;
+        } catch (_) {}
+        // Now push ctx state (including player position/mode changes) and refresh
+        applyCtxSyncAndRefresh(ctxMod);
+      }
     } else if (mode === "region") {
       const RM = modHandle("RegionMapRuntime");
       if (RM && typeof RM.tick === "function") {
@@ -2009,6 +2207,14 @@
     recomputeFOV();
     updateUI();
     requestDraw();
+
+    // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), sync orchestrator state
+    try {
+      const cPost = getCtx();
+      if (cPost && cPost.mode !== mode) {
+        applyCtxSyncAndRefresh(cPost);
+      }
+    } catch (_) {}
 
     const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
     PERF.lastTurnMs = t1 - t0;
@@ -2389,6 +2595,52 @@
         returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
         returnToWorldFromTown: () => returnToWorldFromTown(),
         initWorld: () => initWorld(),
+        // Encounter helper: enter and sync a unique encounter map, using dungeon enemies under the hood
+        enterEncounter: (template, biome) => {
+          const ER = modHandle("EncounterRuntime");
+          if (ER && typeof ER.enter === "function") {
+            const ctx = getCtx();
+            const ok = ER.enter(ctx, { template, biome });
+            if (ok) {
+              applyCtxSyncAndRefresh(ctx);
+            }
+            return ok;
+          }
+          return false;
+        },
+        // Open Region Map at current overworld tile and sync orchestrator state
+        openRegionMap: () => {
+          const RM = modHandle("RegionMapRuntime");
+          if (RM && typeof RM.open === "function") {
+            const ctx = getCtx();
+            const ok = !!RM.open(ctx);
+            if (ok) {
+              applyCtxSyncAndRefresh(ctx);
+            }
+            return ok;
+          }
+          return false;
+        },
+        // Start an encounter inside the active Region Map (ctx.mode === "region")
+        startRegionEncounter: (template, biome) => {
+          const ER = modHandle("EncounterRuntime");
+          if (ER && typeof ER.enterRegion === "function") {
+            const ctx = getCtx();
+            const ok = !!ER.enterRegion(ctx, { template, biome });
+            if (ok) {
+              applyCtxSyncAndRefresh(ctx);
+              // If the Region Map overlay modal is open, repaint it to show spawned enemies immediately
+              try {
+                const UB = modHandle("UIBridge");
+                if (UB && typeof UB.isRegionMapOpen === "function" && UB.isRegionMapOpen() && typeof UB.showRegionMap === "function") {
+                  UB.showRegionMap(ctx);
+                }
+              } catch (_) {}
+            }
+            return ok;
+          }
+          return false;
+        },
         // GOD/helpers
         setAlwaysCrit: (v) => setAlwaysCrit(v),
         setCritPart: (part) => setCritPart(part),

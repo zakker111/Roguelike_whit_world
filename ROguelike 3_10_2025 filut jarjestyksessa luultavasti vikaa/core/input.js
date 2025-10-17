@@ -43,6 +43,16 @@ export function init(handlers) {
       return;
     }
 
+    // Confirm modal gating: block all keys while confirm is open; Esc cancels it
+    if (_handlers.isConfirmOpen && _handlers.isConfirmOpen()) {
+      const isEsc = e.key === "Escape" || e.key === "Esc";
+      e.preventDefault();
+      if (isEsc && _handlers.onCancelConfirm) {
+        _handlers.onCancelConfirm();
+      }
+      return;
+    }
+
     // Close top-most modals first: GOD, Shop, then Inventory/Loot
     if (_handlers.isGodOpen && _handlers.isGodOpen()) {
       const isEsc = e.key === "Escape" || e.key === "Esc";

@@ -1,5 +1,5 @@
 /**
- * ShopUI: shop panel controls (step 3).
+ * ShopUI: shop panel controls.
  * Centralizes shop rendering and buying logic, used by core/game.js.
  *
  * Exports (ESM + window.ShopUI):
@@ -30,7 +30,7 @@ function ensurePanel() {
     el.style.border = "1px solid #334155";
     el.style.borderRadius = "8px";
     el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
-    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong>Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="shop-list"></div>';
+    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="shop-title">Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="shop-list"></div>';
     document.body.appendChild(el);
     try {
       const btn = el.querySelector("#shop-close-btn");
@@ -127,24 +127,72 @@ function render(ctx) {
 export function openForNPC(ctx, npc) {
   try {
     const stock = [];
-    // Potions
-    stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
-    stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
+    const name = (npc && (npc.name || npc.title)) ? (npc.name || npc.title) : "Shopkeeper";
+    const vendor = (npc && npc.vendor) ? String(npc.vendor).toLowerCase() : "";
 
-    // Equipment via Items registry when available
-    try {
-      if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
-        const t1 = ctx.Items.createEquipment(1, ctx.rng);
-        const t2 = ctx.Items.createEquipment(2, ctx.rng);
-        if (t1) stock.push({ item: t1, price: priceFor(t1) });
-        if (t2) stock.push({ item: t2, price: priceFor(t2) });
-      } else {
-        const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
-        const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
-        stock.push({ item: s, price: priceFor(s) });
-        stock.push({ item: a, price: priceFor(a) });
-      }
-    } catch (_) {}
+    // Special vendor: Seppo — rare wandering merchant with premium stock
+    const isSeppo = (vendor === "seppo") || (/seppo/i.test(name));
+
+    if (isSeppo) {
+      // Premium potions
+      stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 20 });
+      stock.push({ item: { kind: "potion", heal: 15, count: 1, name: "elixir (+15 HP)" }, price: 36 });
+
+      // Premium equipment (favor tier 3)
+      try {
+        if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
+          const picks = [];
+          const p1 = ctx.Items.createEquipment(3, ctx.rng);
+          const p2 = ctx.Items.createEquipment(3, ctx.rng);
+          const p3 = ctx.Items.createEquipment(2, ctx.rng);
+          if (p1) picks.push(p1);
+          if (p2) picks.push(p2);
+          if (p3) picks.push(p3);
+          // Signature two-hander
+          try {
+            if (ctx.Items && typeof ctx.Items.createNamed === "function") {
+              const gs = ctx.Items.createNamed({ slot: "hand", twoHanded: true, tier: 3, name: "steel greatsword", atk: 3.6, decay: 0 }, ctx.rng);
+              if (gs) picks.unshift(gs);
+            }
+          } catch (_) {}
+          const mult = 1.35;
+          for (const it of picks) {
+            const base = priceFor(it);
+            stock.push({ item: it, price: Math.max(1, Math.round(base * mult)) });
+          }
+        } else {
+          const s = { kind: "equip", slot: "hand", name: "steel greatsword", atk: 3.6, tier: 3, twoHanded: true, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          const a = { kind: "equip", slot: "torso", name: "steel plate armor", def: 3.2, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          const g = { kind: "equip", slot: "hands", name: "steel gauntlets", def: 2.0, atk: 0.6, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
+          const mult = 1.35;
+          stock.push({ item: s, price: Math.max(1, Math.round(priceFor(s) * mult)) });
+          stock.push({ item: a, price: Math.max(1, Math.round(priceFor(a) * mult)) });
+          stock.push({ item: g, price: Math.max(1, Math.round(priceFor(g) * mult)) });
+        }
+      } catch (_) {}
+
+      try { ctx.log && ctx.log(`${name}: Fine goods, fair prices.`, "notice"); } catch (_) {}
+    } else {
+      // Generic shopkeeper stock
+      // Potions
+      stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
+      stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
+
+      // Equipment via Items registry when available
+      try {
+        if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
+          const t1 = ctx.Items.createEquipment(1, ctx.rng);
+          const t2 = ctx.Items.createEquipment(2, ctx.rng);
+          if (t1) stock.push({ item: t1, price: priceFor(t1) });
+          if (t2) stock.push({ item: t2, price: priceFor(t2) });
+        } else {
+          const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
+          const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
+          stock.push({ item: s, price: priceFor(s) });
+          stock.push({ item: a, price: priceFor(a) });
+        }
+      } catch (_) {}
+    }
 
     _stock = stock;
     render(ctx);
