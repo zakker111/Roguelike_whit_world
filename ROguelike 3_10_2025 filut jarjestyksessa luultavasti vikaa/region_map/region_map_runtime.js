@@ -62,7 +62,7 @@ function countBiomes(sample) {
     [WT.WATER]: 0, [WT.RIVER]: 0, [WT.BEACH]: 0,
     [WT.SWAMP]: 0, [WT.FOREST]: 0, [WT.GRASS]: 0,
     [WT.MOUNTAIN]: 0, [WT.DESERT]: 0, [WT.SNOW]: 0,
-    [WT.TOWN]: 0, [WT.DUNGEON]: 0
+    [WT.TOWN]: 0, [WT.DUNGEON]: 0, [WT.TREE]: 0
   };
   for (let y = 0; y < sample.length; y++) {
     const row = sample[y] || [];
@@ -269,6 +269,29 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33) {
 
 
 
+function addSparseTreesInForests(sample, density = 0.10) {
+  const WT = World.TILES;
+  const h = sample.length, w = sample[0] ? sample[0].length : 0;
+  if (!w || !h) return;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (sample[y][x] !== WT.FOREST) continue;
+      if (Math.random() >= density) continue;
+      // avoid adjacent trees to keep sparsity
+      let nearTree = false;
+      for (let dy = -1; dy <= 1 && !nearTree; dy++) {
+        for (let dx = -1; dx <= 1 && !nearTree; dx++) {
+          if (!dx && !dy) continue;
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          if (sample[ny][nx] === WT.TREE) nearTree = true;
+        }
+      }
+      if (!nearTree) sample[y][x] = WT.TREE;
+    }
+  }
+}
+
 export function open(ctx, size) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
   // Only allow from walkable, non-town, non-dungeon tiles
@@ -296,6 +319,9 @@ export function open(ctx, size) {
   orientSampleByCardinals(sample, cardinals, 0.33);
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
+  addMinorWaterAndBeaches(sample);
+  // Sprinkle sparse trees in forest tiles for region visualization
+  addSparseTreesInForests(sample, 0.10);nhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   addMinorWaterAndBeaches(sample);
 
 
@@ -356,8 +382,8 @@ export function open(ctx, size) {
         if (td && td.properties && typeof td.properties.blocksFOV === "boolean") {
           return !td.properties.blocksFOV;
         }
-        // Fallback: mountains block FOV
-        if (WT2 && (t === WT2.MOUNTAIN)) return false;
+        // Fallback: mountains and trees block FOV
+        if (WT2 && (t === WT2.MOUNTAIN || t === WT2.TREE)) return false;
         return true;
       },
     };
@@ -455,12 +481,24 @@ export function tryMove(ctx, dx, dy) {
 
 export function onAction(ctx) {
   if (!ctx || ctx.mode !== "region" || !ctx.region) return false;
-  const { cursor, exitTiles } = ctx.region;
+  const { cursor, exitTiles, map } = ctx.region;
   const onExit = exitTiles.some(e => e.x === cursor.x && e.y === cursor.y);
   if (onExit) {
     close(ctx);
     return true;
   }
+  // Chop tree if standing on a TREE tile
+  try {
+    const WT = World.TILES;
+    const t = (map[cursor.y] && typeof map[cursor.y][cursor.x] !== "undefined") ? map[cursor.y][cursor.x] : null;
+    if (t === WT.TREE) {
+      map[cursor.y][cursor.x] = WT.FOREST;
+      if (ctx.log) ctx.log("You cut down the tree.", "info");
+      try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
+      try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+      return true;
+    }
+  } catch (_) {}
   if (ctx.log) ctx.log("Move to an orange edge tile and press G to close the Region map.", "info");
   return true;
 }

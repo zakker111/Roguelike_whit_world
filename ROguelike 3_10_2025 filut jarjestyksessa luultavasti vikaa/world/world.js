@@ -21,6 +21,7 @@ export const TILES = {
   BEACH: 8,
   DESERT: 9,
   SNOW: 10,
+  TREE: 11, // region-only decorative tree tile; used by region map visualization
 };
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
