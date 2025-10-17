@@ -14,6 +14,34 @@ import * as World from "../world/world.js";
 const DEFAULT_WIDTH = 28;
 const DEFAULT_HEIGHT = 18;
 
+// Deterministic RNG for region map based on global seed and world position
+function _mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function getRegionRng(ctx) {
+  let base = 0 >>> 0;
+  try {
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.getSeed === "function") {
+      const s = window.RNG.getSeed();
+      if (typeof s === "number") base = (s >>> 0);
+      else if (typeof s === "string") base = (Number(s) >>> 0) || 0;
+    } else if (typeof localStorage !== "undefined") {
+      const sRaw = localStorage.getItem("SEED");
+      if (sRaw != null) base = (Number(sRaw) >>> 0) || 0;
+    }
+  } catch (_) {}
+  const px = (ctx && ctx.player && typeof ctx.player.x === "number") ? (ctx.player.x | 0) : 0;
+  const py = (ctx && ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
+  const mix = (((px & 0xffff) | ((py & 0xffff) << 16)) ^ base) >>> 0;
+  return _mulberry32(mix);
+}
+
 // Helper: get tile def from GameData.tiles for a given mode and numeric id
 function getTileDef(mode, id) {
   try {
@@ -77,7 +105,8 @@ function countBiomes(sample) {
 
 // Add small ponds to otherwise uniform regions (grass/forest dominated),
 // and add beach shorelines near any water.
-function addMinorWaterAndBeaches(sample) {
+// Uses deterministic rng() to keep region map stable per world tile.
+function addMinorWaterAndBeaches(sample, rng) {
   const WT = World.TILES;
   const h = sample.length, w = sample[0] ? sample[0].length : 0;
   if (!w || !h) return;
@@ -89,12 +118,12 @@ function addMinorWaterAndBeaches(sample) {
 
   // Inject a few ponds if no water and dominated by grass/forest
   if (waterTiles < Math.max(1, Math.floor(total * 0.01)) && (grassTiles + forestTiles) > Math.floor(total * 0.65)) {
-    const ponds = Math.floor(Math.random() * 3); // 0..2 small ponds
+    const ponds = Math.floor(rng() * 3); // 0..2 small ponds
     for (let p = 0; p < ponds; p++) {
-      const cx = clamp((Math.random() * w) | 0, 2, w - 3);
-      const cy = clamp((Math.random() * h) | 0, 2, h - 3);
-      const rx = 2 + ((Math.random() * 2) | 0);
-      const ry = 1 + ((Math.random() * 2) | 0);
+      const cx = clamp((rng() * w) | 0, 2, w - 3);
+      const cy = clamp((rng() * h) | 0, 2, h - 3);
+      const rx = 2 + ((rng() * 2) | 0);
+      const ry = 1 + ((rng() * 2) | 0);
       for (let dy = -ry; dy <= ry; dy++) {
         for (let dx = -rx; dx <= rx; dx++) {
           const nx = cx + dx, ny = cy + dy;
@@ -269,14 +298,15 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33) {
 
 // Sprinkle sparse TREE tiles inside FOREST tiles for region map visualization.
 // Avoid placing trees adjacent to each other to keep them sparse.
-function addSparseTreesInForests(sample, density = 0.08) {
+// Uses deterministic rng() to keep region map stable per world tile.
+function addSparseTreesInForests(sample, density = 0.08, rng) {
   const WT = World.TILES;
   const h = sample.length, w = sample[0] ? sample[0].length : 0;
   if (!w || !h) return;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (sample[y][x] !== WT.FOREST) continue;
-      if (Math.random() >= density) continue;
+      if (rng() >= density) continue;
       // avoid adjacent trees to keep sparsity
       let nearTree = false;
       for (let dy = -1; dy <= 1 && !nearTree; dy++) {
@@ -319,9 +349,10 @@ export function open(ctx, size) {
   orientSampleByCardinals(sample, cardinals, 0.33);
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
-  addMinorWaterAndBeaches(sample);
+  const rng = getRegionRng(ctx);
+  addMinorWaterAndBeaches(sample, rng);
   // Sprinkle sparse trees in forest tiles for region visualization
-  addSparseTreesInForests(sample, 0.10);
+  addSparseTreesInForests(sample, 0.10, rng);
 
   const exitNorth = { x: (width / 2) | 0, y: 0 };
   const exitSouth = { x: (width / 2) | 0, y: height - 1 };
