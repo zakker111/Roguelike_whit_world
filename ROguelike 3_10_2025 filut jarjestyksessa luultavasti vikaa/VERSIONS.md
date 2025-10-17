@@ -1,5 +1,23 @@
 # Game Version History
-Last updated: 2025-10-15 00:00 UTC
+Last updated: 2025-10-17 00:00 UTC
+
+v1.35.42 — Shop panel syntax fix and duplication removal
+- Fixed: ui/shop_panel.js had a duplicated tail that caused “Unexpected token '}'”.
+- Result: Shop UI opens reliably; buying works; console error eliminated.
+- Deployment: https://92i0buv8fyab.cosine.page
+
+v1.35.41 — Encounter QoL: merchant auto-open and prop feedback
+- Changed: core/game.js
+  - In encounter mode, stepping onto a merchant now auto-opens the Shop UI via UIBridge.showShop (e.g., bump Seppo to trade).
+  - Pressing G while standing on a prop in encounters logs context flavor (barrel/crate/bench/campfire, etc.), matching town style.
+- Benefit: Consistent interactions and faster access to trading during encounters.
+- Deployment: https://2hqxef1lwyeq.cosine.page
+
+v1.35.40 — Town NPC visibility polish near the gate
+- Changed: ui/render_town.js draws previously-seen NPCs dimmed even when not currently in FOV.
+- Changed: worldgen/town_gen.js seeds a small seen-radius around the gate on entry so nearby greeters are discoverable.
+- Benefit: NPCs around the gate are visible immediately (dimmed if just outside FOV), reducing “invisible NPC” impressions.
+- Deployment: https://69xub6teqegs.cosine.page
 
 v1.35.39 — Reporting load fix + GOD panel render visibility
 - Fixed: smoketest/reporting/render.js
