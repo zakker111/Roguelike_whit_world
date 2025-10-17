@@ -1306,13 +1306,23 @@
         }
       }
 
-      // No lootable container nearby: treat G as withdraw/leave
-      const ER = modHandle("EncounterRuntime");
-      if (ER && typeof ER.complete === "function") {
-        ER.complete(ctxMod, "withdraw");
-        applyCtxSyncAndRefresh(ctxMod);
-        return;
-      }
+      // No lootable container nearby: only allow withdraw if standing on exit (stairs) tile
+      try {
+        if (ctxMod.inBounds && ctxMod.inBounds(ctxMod.player.x, ctxMod.player.y)) {
+          const here = ctxMod.map[ctxMod.player.y][ctxMod.player.x];
+          if (here === ctxMod.TILES.STAIRS) {
+            const ER = modHandle("EncounterRuntime");
+            if (ER && typeof ER.complete === "function") {
+              ER.complete(ctxMod, "withdraw");
+              applyCtxSyncAndRefresh(ctxMod);
+              return;
+            }
+          }
+        }
+      } catch (_) {}
+
+      // Otherwise, nothing to do here
+      log("Return to the exit (>) to leave this encounter.", "info");
       return;
     }
 

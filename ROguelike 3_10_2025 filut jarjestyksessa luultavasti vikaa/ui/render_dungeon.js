@@ -250,8 +250,16 @@ export function draw(ctx, view) {
     const screenY = (c.y - startY) * TILE - tileOffsetY;
 
     const drawCorpseOrChest = () => {
-      if (tilesetReady && TS.draw(ctx2d, c.kind === "chest" ? "chest" : "corpse", screenX, screenY, TILE)) {
-        return;
+      if (tilesetReady && TS) {
+        const isChest = (c.kind === "chest");
+        // For corpses: draw darker if looted by lowering alpha
+        if (!isChest && c.looted && typeof TS.drawAlpha === "function") {
+          if (TS.drawAlpha(ctx2d, "corpse", screenX, screenY, TILE, 0.55)) return;
+        }
+        // Normal tileset draw (chest or non-looted corpse)
+        if (TS.draw(ctx2d, isChest ? "chest" : "corpse", screenX, screenY, TILE)) {
+          return;
+        }
       }
       // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld)
       let glyph = "";
@@ -265,7 +273,15 @@ export function draw(ctx, view) {
         }
       } catch (_) {}
       if (glyph && String(glyph).trim().length > 0) {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+        // Shade glyph if looted
+        if (c.looted) {
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.6;
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+          ctx2d.restore();
+        } else {
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+        }
       }
     };
 

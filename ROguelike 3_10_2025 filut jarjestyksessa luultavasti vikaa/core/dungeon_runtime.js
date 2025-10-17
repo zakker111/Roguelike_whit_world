@@ -190,27 +190,9 @@ export function generateLoot(ctx, source) {
 
 export function returnToWorldIfAtExit(ctx) {
   if (!ctx || ctx.mode !== "dungeon" || !ctx.world) return false;
-  // Consider adjacency to exit tile as valid; step onto exit if adjacent
-  let onExit =
-    (ctx.dungeonExitAt &&
-      ctx.player.x === ctx.dungeonExitAt.x &&
-      ctx.player.y === ctx.dungeonExitAt.y) ||
-    (ctx.inBounds && ctx.inBounds(ctx.player.x, ctx.player.y) &&
-      ctx.map && ctx.map[ctx.player.y] &&
-      ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
-
-  if (!onExit && ctx.dungeonExitAt) {
-    const dx = Math.abs(ctx.player.x - ctx.dungeonExitAt.x);
-    const dy = Math.abs(ctx.player.y - ctx.dungeonExitAt.y);
-    const md = dx + dy;
-    if (md === 1) {
-      // Step onto exact exit tile to satisfy strict checks
-      ctx.player.x = ctx.dungeonExitAt.x;
-      ctx.player.y = ctx.dungeonExitAt.y;
-      onExit = true;
-    }
-  }
-
+  // Strict: only allow leaving if standing exactly on the designated exit tile
+  if (!ctx.dungeonExitAt || typeof ctx.dungeonExitAt.x !== "number" || typeof ctx.dungeonExitAt.y !== "number") return false;
+  const onExit = (ctx.player.x === ctx.dungeonExitAt.x) && (ctx.player.y === ctx.dungeonExitAt.y);
   if (!onExit) return false;
 
   // Save state first
