@@ -7,19 +7,44 @@
 import * as RenderCore from "./render_core.js";
 import * as World from "../world/world.js";
 
-// Helper: get tile def from GameData.tiles for a given mode and numeric id
+// Helper: get tile def from GameData.tiles for a given mode and numeric id,
+// applying per-mode overrides from GameData.tiles.overrides[mode] by key when present.
 function getTileDef(mode, id) {
   try {
     const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    const tilesObj = GD && GD.tiles && typeof GD.tiles === "object" ? GD.tiles : null;
+    const arr = tilesObj && Array.isArray(tilesObj.tiles) ? tilesObj.tiles : null;
     if (!arr) return null;
     const m = String(mode || "").toLowerCase();
+    let base = null;
     for (let i = 0; i < arr.length; i++) {
       const t = arr[i];
       if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
+        base = t;
+        break;
       }
     }
+    if (!base) return null;
+    // Apply overrides by key if available
+    try {
+      const ovrRoot = tilesObj.overrides && typeof tilesObj.overrides === "object" ? tilesObj.overrides : null;
+      const perMode = ovrRoot && ovrRoot[m] && typeof ovrRoot[m] === "object" ? ovrRoot[m] : null;
+      const key = base.key;
+      const patch = key && perMode && perMode[key] ? perMode[key] : null;
+      if (patch && typeof patch === "object") {
+        const merged = Object.assign({}, base);
+        // Shallow-merge known nested objects
+        if (patch.colors) merged.colors = Object.assign({}, base.colors || {}, patch.colors);
+        if (patch.properties) merged.properties = Object.assign({}, base.properties || {}, patch.properties);
+        // Copy other top-level fields (e.g., glyph)
+        for (const k in patch) {
+          if (k === "colors" || k === "properties") continue;
+          merged[k] = patch[k];
+        }
+        return merged;
+      }
+    } catch (_) {}
+    return base;
   } catch (_) {}
   return null;
 }
