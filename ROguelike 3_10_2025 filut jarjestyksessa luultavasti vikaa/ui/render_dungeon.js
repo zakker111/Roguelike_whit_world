@@ -117,7 +117,7 @@ export function draw(ctx, view) {
           oc.textBaseline = "middle";
         } catch (_) {}
         const baseHex = biomeBaseFill();
-        const tintFloorA = 0.18, tintWallA = 0.24;
+        const tintFloorA = 0.28, tintWallA = 0.36;
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
           for (let xx = 0; xx < mapCols; xx++) {
@@ -178,7 +178,7 @@ export function draw(ctx, view) {
     } catch (_) {}
   } else {
     const baseHex = biomeBaseFill();
-    const tintFloorA = 0.18, tintWallA = 0.24;
+    const tintFloorA = 0.28, tintWallA = 0.24;
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -245,6 +245,20 @@ export function draw(ctx, view) {
   // Biome-driven visual overlays (icons/textures) drawn before visibility overlays
   if (ctx.encounterBiome) {
     const biome = String(ctx.encounterBiome).toUpperCase();
+    const fgFor = (key, fallback) => {
+      try {
+        const td = getTileDefByKey("overworld", key) || getTileDefByKey("region", key);
+        if (td && td.colors && td.colors.fg) return td.colors.fg;
+      } catch (_) {}
+      return fallback;
+    };
+    const fgForest = fgFor("FOREST", "#3fa650");
+    const fgGrass  = fgFor("GRASS",  "#84cc16");
+    const fgDesert = fgFor("DESERT", "#d7ba7d");
+    const fgBeach  = fgFor("BEACH",  "#d7ba7d");
+    const fgSnow   = fgFor("SNOW",   "#e5e7eb");
+    const fgSwamp  = fgFor("SWAMP",  "#6fbf73");
+
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -254,29 +268,50 @@ export function draw(ctx, view) {
         const sx = (x - startX) * TILE - tileOffsetX;
         const sy = (y - startY) * TILE - tileOffsetY;
 
-        if (biome === "FOREST" && type === TILES.WALL) {
-          // Draw a tree glyph over obstacles to sell the forest feeling
-          let treeGlyph = "♣";
-          let treeColor = "#3fa650";
-          try {
-            const t = getTileDefByKey("region", "TREE") || getTileDefByKey("town", "TREE");
-            if (t) {
-              if (Object.prototype.hasOwnProperty.call(t, "glyph")) treeGlyph = t.glyph || treeGlyph;
-              if (t.colors && t.colors.fg) treeColor = t.colors.fg || treeColor;
-            }
-          } catch (_) {}
-          RenderCore.drawGlyph(ctx2d, sx, sy, treeGlyph, treeColor, TILE);
-        } else if (biome === "SNOW" && type === TILES.FLOOR) {
-          // Sparse snow speckles on floors
-          const hash = ((x * 73856093) ^ (y * 19349663)) >>> 0;
-          if ((hash & 7) === 0) {
-            let snowColor = "#e5e7eb";
+        // Deterministic scatter using hashed tile coordinate
+        const hash = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+
+        // Forest: decorate walls as tree-tops; floors get sparse leaf speckles
+        if (biome === "FOREST") {
+          if (type === TILES.WALL) {
+            let treeGlyph = "♣";
+            let treeColor = fgForest;
             try {
-              const t = getTileDefByKey("overworld", "SNOW");
-              if (t && t.colors && t.colors.fg) snowColor = t.colors.fg;
+              const t = getTileDefByKey("region", "TREE") || getTileDefByKey("town", "TREE");
+              if (t) {
+                if (Object.prototype.hasOwnProperty.call(t, "glyph")) treeGlyph = t.glyph || treeGlyph;
+                if (t.colors && t.colors.fg) treeColor = t.colors.fg || treeColor;
+              }
             } catch (_) {}
-            RenderCore.drawGlyph(ctx2d, sx, sy, "·", snowColor, TILE);
+            RenderCore.drawGlyph(ctx2d, sx, sy, treeGlyph, treeColor, TILE);
+          } else if (type === TILES.FLOOR && (hash & 7) === 0) {
+            RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgForest, TILE);
           }
+        }
+
+        // Grass plains: light green speckles on floors
+        if (biome === "GRASS" && type === TILES.FLOOR && (hash % 9) === 0) {
+          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgGrass, TILE);
+        }
+
+        // Desert: sand dots
+        if (biome === "DESERT" && type === TILES.FLOOR && (hash % 11) === 0) {
+          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgDesert, TILE);
+        }
+
+        // Beach: lighter sand dots, a bit denser
+        if (biome === "BEACH" && type === TILES.FLOOR && (hash % 8) === 0) {
+          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgBeach, TILE);
+        }
+
+        // Snow: sparse snow speckles (existing behavior), slightly denser to be visible
+        if (biome === "SNOW" && type === TILES.FLOOR && (hash & 7) <= 1) {
+          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgSnow, TILE);
+        }
+
+        // Swamp: occasional ripples
+        if (biome === "SWAMP" && type === TILES.FLOOR && (hash % 13) === 0) {
+          RenderCore.drawGlyph(ctx2d, sx, sy, "≈", fgSwamp, TILE);
         }
       }
     }
