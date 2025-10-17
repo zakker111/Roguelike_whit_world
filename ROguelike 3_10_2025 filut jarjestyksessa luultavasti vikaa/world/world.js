@@ -21,12 +21,36 @@ export const TILES = {
   BEACH: 8,
   DESERT: 9,
   SNOW: 10,
+  TREE: 11, // region-only decorative tree tile; walkable but blocks FOV in region
 };
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+function getTileDef(mode, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 export function isWalkable(tile) {
-  // Non-walkable: deep water, rivers, steep mountains
+  // Prefer tiles.json property when available for overworld mode, then fallback.
+  try {
+    const td = getTileDef("overworld", tile);
+    if (td && td.properties && typeof td.properties.walkable === "boolean") {
+      return !!td.properties.walkable;
+    }
+  } catch (_) {}
+  // Fallback: non-walkable water, river, mountains
   return tile !== TILES.WATER && tile !== TILES.RIVER && tile !== TILES.MOUNTAIN;
 }
 

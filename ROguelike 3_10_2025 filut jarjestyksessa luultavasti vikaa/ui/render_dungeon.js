@@ -7,7 +7,42 @@
 import * as RenderCore from "./render_core.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
-let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0 };
+let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
+
+// Helper: get tile def from GameData.tiles for a given mode and numeric id
+function getTileDef(mode, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+// Helper: get tile def by key for a given mode
+function getTileDefByKey(mode, key) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    const k = String(key || "").toUpperCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if (String(t.key || "").toUpperCase() === k && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
 
 export function draw(ctx, view) {
   const {
@@ -24,12 +59,13 @@ export function draw(ctx, view) {
     if (mapRows && mapCols) {
       const wpx = mapCols * TILE;
       const hpx = mapRows * TILE;
-      const needsRebuild = (!DUN.canvas) || DUN.mapRef !== map || DUN.wpx !== wpx || DUN.hpx !== hpx || DUN.TILE !== TILE;
+      const needsRebuild = (!DUN.canvas) || DUN.mapRef !== map || DUN.wpx !== wpx || DUN.hpx !== hpx || DUN.TILE !== TILE || DUN._tilesRef !== (typeof window !== "undefined" && window.GameData ? window.GameData.tiles : null);
       if (needsRebuild) {
         DUN.mapRef = map;
         DUN.wpx = wpx;
         DUN.hpx = hpx;
         DUN.TILE = TILE;
+        DUN._tilesRef = (typeof window !== "undefined" && window.GameData ? window.GameData.tiles : null);
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         // Set font/align once for glyphs
@@ -52,31 +88,39 @@ export function draw(ctx, view) {
               drawn = TS.draw(oc, key, sx, sy, TILE);
             }
             if (!drawn) {
-              let fill;
-              if (type === TILES.WALL) fill = COLORS.wall;
-              else if (type === TILES.STAIRS) fill = "#3a2f1b";
-              else if (type === TILES.DOOR) fill = "#3a2f1b";
-              else fill = COLORS.floorLit;
-              oc.fillStyle = fill;
-              oc.fillRect(sx, sy, TILE, TILE);
+              // Tiles.json defines fill color per dungeon mode
+              const td = getTileDef("dungeon", type);
+              const fill = td && td.colors && td.colors.fill;
+              if (fill) {
+                oc.fillStyle = fill;
+                oc.fillRect(sx, sy, TILE, TILE);
+              }
               if (type === TILES.STAIRS && !tilesetReady) {
-                RenderCore.drawGlyph(oc, sx, sy, ">", "#d7ba7d", TILE);
+                const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
+                const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : "";
+                const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
+                RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
               }
             }
           }
         }
         DUN.canvas = off;
+        // Record tiles usage for diagnostics (dungeon mode)
+        try {
+          if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+            window.TilesValidation.recordMap({ mode: "dungeon", map });
+          }
+        } catch (_) {}
       }
     }
   } catch (_) {}
 
-  // Blit base layer if available
+  // Blit base layer if available, otherwise draw base tiles within viewport
   if (DUN.canvas) {
     try {
       RenderCore.blitViewport(ctx2d, DUN.canvas, cam, DUN.wpx, DUN.hpx);
     } catch (_) {}
   } else {
-    // Fallback: draw base tiles within viewport
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -98,17 +142,32 @@ export function draw(ctx, view) {
           drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
         }
         if (!drawn) {
-          let fill;
-          if (type === TILES.WALL) fill = COLORS.wall;
-          else if (type === TILES.STAIRS) fill = "#3a2f1b";
-          else if (type === TILES.DOOR) fill = "#3a2f1b";
-          else fill = COLORS.floorLit;
-          ctx2d.fillStyle = fill;
-          ctx2d.fillRect(screenX, screenY, TILE, TILE);
-          if (type === TILES.STAIRS && !tilesetReady) {
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          // JSON-only fill color per dungeon mode
+          const td = getTileDef("dungeon", type);
+          const fill = td && td.colors && td.colors.fill;
+          if (fill) {
+            ctx2d.fillStyle = fill;
+            ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
+      }
+    }
+  }
+
+  // Per-frame glyph overlay for any dungeon tile with a non-blank JSON glyph (drawn before visibility overlays)
+  for (let y = startY; y <= endY; y++) {
+    const yIn = y >= 0 && y < mapRows;
+    const rowMap = yIn ? map[y] : null;
+    for (let x = startX; x <= endX; x++) {
+      if (!yIn || x < 0 || x >= mapCols) continue;
+      const type = rowMap[x];
+      const td = getTileDef("dungeon", type);
+      const glyph = (td && Object.prototype.hasOwnProperty.call(td, "glyph")) ? td.glyph : "";
+      const fg = (td && td.colors && td.colors.fg) || null;
+      if (glyph && String(glyph).trim().length > 0 && fg) {
+        const screenX = (x - startX) * TILE - tileOffsetX;
+        const screenY = (y - startY) * TILE - tileOffsetY;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
       }
     }
   }
@@ -194,14 +253,19 @@ export function draw(ctx, view) {
       if (tilesetReady && TS.draw(ctx2d, c.kind === "chest" ? "chest" : "corpse", screenX, screenY, TILE)) {
         return;
       }
-      if (c.kind === "chest") {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "▯", c.looted ? "#8b7355" : "#d7ba7d", TILE);
-      } else if (c.kind === "crate") {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "▢", "#b59b6a", TILE);
-      } else if (c.kind === "barrel") {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "◍", "#a07c4b", TILE);
-      } else {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "%", c.looted ? COLORS.corpseEmpty : COLORS.corpse, TILE);
+      // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld)
+      let glyph = "";
+      let color = c.looted ? (COLORS.corpseEmpty || "#808080") : (COLORS.corpse || "#b22222");
+      try {
+        const key = String(c.kind || (c.kind === "chest" ? "chest" : "corpse")).toUpperCase();
+        const td = getTileDefByKey("dungeon", key) || getTileDefByKey("town", key) || getTileDefByKey("overworld", key);
+        if (td) {
+          if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph;
+          if (td.colors && td.colors.fg) color = td.colors.fg;
+        }
+      } catch (_) {}
+      if (glyph && String(glyph).trim().length > 0) {
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
       }
     };
 

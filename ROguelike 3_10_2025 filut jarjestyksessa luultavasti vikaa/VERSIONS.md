@@ -1151,6 +1151,7 @@ Planned / Ideas
 
 Things to chek
 - some files are realy big it would be fine to start cut em to portions if it makes sens
+- in smoketest runner remove nudge for dungeon entry town entry dungeon exit and town exit make it exact in tiles nudge only in npc interaction or enemy interaction
 
 BUGS
 - chek there is not sleep walkers some npc have z top of them dont sure is thiss still existing

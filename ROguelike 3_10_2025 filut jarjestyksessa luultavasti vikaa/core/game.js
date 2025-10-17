@@ -52,6 +52,8 @@
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
   let mode = "world";
   let world = null;          // { map, width, height, towns, dungeons }
+  // Region map overlay state (fixed-size downscaled world view)
+  let region = null;         // { width, height, map:number[][], cursor:{x,y}, exitTiles:[{x,y}], enterWorldPos:{x,y} }
   let npcs = [];             // simple NPCs for town mode: { x, y, name, lines:[] }
   let shops = [];            // shops in town mode: [{x,y,type,name}]
   let townProps = [];        // interactive town props: [{x,y,type,name}]
@@ -221,6 +223,7 @@
       // world/overworld
       mode,
       world,
+      region,
       worldReturnPos,
       cameFromWorld,
       npcs,
@@ -953,6 +956,7 @@
       camera,
       mode,
       world,
+      region,
       npcs,
       shops,
       townProps,
@@ -1095,6 +1099,7 @@
     townPlaza = ctx.townPlaza || townPlaza;
     tavern = ctx.tavern || tavern;
     worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+    region = ctx.region || region;
     townExitAt = ctx.townExitAt || townExitAt;
     dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
     currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
@@ -1239,7 +1244,20 @@
 
     if (mode === "world") {
       if (!enterTownIfOnTile()) {
-        enterDungeonIfOnEntrance();
+        if (!enterDungeonIfOnEntrance()) {
+          // Open Region map when pressing G on a walkable overworld tile
+          const RM = modHandle("RegionMapRuntime");
+          if (RM && typeof RM.open === "function") {
+            const ctxMod = getCtx();
+            const ok = !!RM.open(ctxMod);
+            if (ok) {
+              // Sync mutated ctx (mode -> "region") and refresh
+              applyCtxSyncAndRefresh(ctxMod);
+            }
+          } else {
+            log("Region map module not available.", "warn");
+          }
+        }
       }
       return;
     }
@@ -1247,6 +1265,19 @@
     if (mode === "town") {
       if (returnToWorldFromTown()) return;
       lootCorpse();
+      return;
+    }
+
+    if (mode === "region") {
+      const RM = modHandle("RegionMapRuntime");
+      if (RM && typeof RM.onAction === "function") {
+        const ctxMod = getCtx();
+        const handled = !!RM.onAction(ctxMod);
+        if (handled) {
+          applyCtxSyncAndRefresh(ctxMod);
+          return;
+        }
+      }
       return;
     }
 
@@ -1431,6 +1462,16 @@
 
   function tryMovePlayer(dx, dy) {
     if (isDead) return;
+
+    // REGION MAP MODE (overlay): move cursor only, no time advance
+    if (mode === "region") {
+      const RM = modHandle("RegionMapRuntime");
+      if (RM && typeof RM.tryMove === "function") {
+        const ok = !!RM.tryMove(getCtx(), dx, dy);
+        if (ok) return;
+      }
+      return;
+    }
 
     // WORLD MODE
     if (mode === "world") {
@@ -1928,6 +1969,11 @@
       if (WR && typeof WR.tick === "function") {
         WR.tick(getCtx());
       }
+    } else if (mode === "region") {
+      const RM = modHandle("RegionMapRuntime");
+      if (RM && typeof RM.tick === "function") {
+        RM.tick(getCtx());
+      }
     }
 
     recomputeFOV();
@@ -2257,6 +2303,16 @@
       }
     }
   }
+
+  // Ensure a redraw occurs once tiles.json finishes loading so JSON-only colors/glyphs apply
+  try {
+    if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
+      window.GameData.ready.then(() => {
+        // Request a draw which will rebuild offscreen caches against the now-loaded tiles.json
+        requestDraw();
+      });
+    }
+  } catch (_) {}
 
   // Expose GameAPI via builder
   try {

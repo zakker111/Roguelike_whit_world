@@ -11,9 +11,35 @@
  *   excluding the start and exact target tile.
  */
 
+function getTileDef(mode, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
+    if (!arr) return null;
+    const m = String(mode || "").toLowerCase();
+    for (let i = 0; i < arr.length; i++) {
+      const t = arr[i];
+      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
+        return t;
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
 export function tileTransparent(ctx, x, y) {
   if (!ctx || typeof ctx.inBounds !== "function") return false;
   if (!ctx.inBounds(x, y)) return false;
+  // Prefer tiles.json blocksFOV property based on mode if available
+  try {
+    const mode = String(ctx.mode || "").toLowerCase() || "dungeon";
+    const t = ctx.map[y][x];
+    const td = getTileDef(mode, t);
+    if (td && td.properties && typeof td.properties.blocksFOV === "boolean") {
+      return !td.properties.blocksFOV;
+    }
+  } catch (_) {}
+  // Fallback: only walls block LOS
   return ctx.map[y][x] !== ctx.TILES.WALL;
 }
 

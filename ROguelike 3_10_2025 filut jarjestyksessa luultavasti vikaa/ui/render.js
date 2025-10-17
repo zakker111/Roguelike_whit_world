@@ -12,6 +12,7 @@ import * as RenderCore from "./render_core.js";
 import * as RenderOverworld from "./render_overworld.js";
 import * as RenderTown from "./render_town.js";
 import * as RenderDungeon from "./render_dungeon.js";
+import * as RenderRegion from "./render_region.js";
 
 export function draw(ctx) {
   const view = RenderCore.computeView(ctx);
@@ -20,6 +21,8 @@ export function draw(ctx) {
     return RenderOverworld.draw(ctx, view);
   } else if (ctx.mode === "town") {
     return RenderTown.draw(ctx, view);
+  } else if (ctx.mode === "region") {
+    return RenderRegion.draw(ctx, view);
   } else {
     return RenderDungeon.draw(ctx, view);
   }

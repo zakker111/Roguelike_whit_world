@@ -34,7 +34,11 @@ export function create(ctx) {
             if (walk) {
               const p = ctx.getPlayer();
               p.x = nx; p.y = ny;
-              try { ctx.updateCamera(); ctx.updateUI(); ctx.requestDraw(); } catch (_) {}
+              try {
+                ctx.updateCamera();
+                // Advance a turn to keep time/FOV/UI consistent with normal movement flows
+                if (typeof ctx.turn === "function") ctx.turn(); else { ctx.updateUI(); ctx.requestDraw(); }
+              } catch (_) {}
             }
           }
         }
