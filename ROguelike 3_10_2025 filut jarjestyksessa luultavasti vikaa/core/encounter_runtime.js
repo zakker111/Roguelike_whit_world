@@ -103,6 +103,15 @@ export function enter(ctx, info) {
 
   try { ctx.log && ctx.log(`${template.name || "Encounter"} begins: eliminate the hostiles.`, "notice"); } catch (_) {}
   ctx.encounterInfo = { id: template.id, name: template.name || "Encounter" };
+
+  // Open Region Map overlay as an overview for the encounter (modal panel).
+  try {
+    const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
+    if (UB && typeof UB.showRegionMap === "function") {
+      UB.showRegionMap(ctx);
+    }
+  } catch (_) {}
+
   return true;
 }
 
