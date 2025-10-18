@@ -428,7 +428,7 @@ export function draw(ctx, view) {
       // Fallback glyphs if JSON missed
       if (!glyph) {
         if ((c.kind || "").toLowerCase() === "chest") glyph = "C";
-        else glyph = "x";
+        else glyph = "%";
       }
       // Shade glyph if looted
       if (c.looted) {
@@ -608,6 +608,25 @@ export function draw(ctx, view) {
       RenderCore.drawGlyph(ctx2d, screenX, screenY, "@", COLORS.player, TILE);
     }
   }
+
+  // Day/night tint overlay for encounters
+  try {
+    const phase = ctx.time && ctx.time.phase;
+    if (ctx.mode === "encounter" && phase) {
+      ctx2d.save();
+      if (phase === "night") {
+        ctx2d.fillStyle = "rgba(0,0,0,0.35)";
+        ctx2d.fillRect(0, 0, cam.width, cam.height);
+      } else if (phase === "dusk") {
+        ctx2d.fillStyle = "rgba(255,120,40,0.12)";
+        ctx2d.fillRect(0, 0, cam.width, cam.height);
+      } else if (phase === "dawn") {
+        ctx2d.fillStyle = "rgba(120,180,255,0.10)";
+        ctx2d.fillRect(0, 0, cam.width, cam.height);
+      }
+      ctx2d.restore();
+    }
+  } catch (_) {}
 
   // Grid overlay (if enabled)
   RenderCore.drawGridOverlay(view);

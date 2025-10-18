@@ -89,9 +89,15 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const t = row[x];
       const td = getTileDef("region", t);
-      if (!td) continue;
-      const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
-      const fg = td.colors && td.colors.fg ? td.colors.fg : null;
+      let glyph = td && Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+      let fg = td && td.colors && td.colors.fg ? td.colors.fg : null;
+
+      // Fallback glyph/color for trees when region tiles.json lacks glyphs
+      if ((!glyph || !fg) && t === WT.TREE) {
+        if (!glyph || !String(glyph).trim().length) glyph = "♣";
+        if (!fg) fg = "#3fa650";
+      }
+
       if (glyph && String(glyph).trim().length > 0 && fg) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
