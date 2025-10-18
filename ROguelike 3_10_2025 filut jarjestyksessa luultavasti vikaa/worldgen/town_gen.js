@@ -539,45 +539,109 @@
       return { x: dd.x, y: dd.y };
     }
 
-    // Enlarge the future Inn building so it's always bigger
+    // Enlarge and position the Inn next to the plaza, with size almost as big as the plaza and double doors facing it
     (function enlargeInnBuilding() {
       if (!buildings.length) return;
-      // Pick the building nearest to plaza to become the inn, then enlarge it to a minimum size per town
-      function minInnSize(sizeKey) {
-        if (sizeKey === "small") return { w: 10, h: 8 };
-        if (sizeKey === "city") return { w: 16, h: 12 };
-        return { w: 12, h: 9 }; // big
-      }
-      // Choose the building currently closest to plaza center
-      let targetIdx = -1, bestD = Infinity;
-      for (let i = 0; i < buildings.length; i++) {
-        const b = buildings[i];
-        const d = Math.abs((b.x + (b.w / 2)) - plaza.x) + Math.abs((b.y + (b.h / 2)) - plaza.y);
-        if (d < bestD) { bestD = d; targetIdx = i; }
-      }
-      if (targetIdx === -1) return;
-      const minSize = minInnSize(townSize);
-      const cur = buildings[targetIdx];
-      if (cur.w >= minSize.w && cur.h >= minSize.h) return; // already large enough
 
-      // Compute new rectangle centered around current center, clamped to bounds
-      const cx = (cur.x + (cur.w / 2)) | 0;
-      const cy = (cur.y + (cur.h / 2)) | 0;
-      const newW = Math.min(blockW + 2, Math.max(minSize.w, cur.w + 2));
-      const newH = Math.min(blockH + 2, Math.max(minSize.h, cur.h + 2));
-      const nx = Math.max(1, Math.min(W - 2 - newW, cx - (newW / 2) | 0));
-      const ny = Math.max(1, Math.min(H - 2 - newH, cy - (newH / 2) | 0));
+      // Target size: scale from plaza dims
+      const targetW = Math.max(10, Math.floor(plazaW * 0.9));
+      const targetH = Math.max(8, Math.floor(plazaH * 0.8));
 
-      // Carve the enlarged building: walls perimeter, floors inside
-      for (let yy = ny; yy < ny + newH; yy++) {
-        for (let xx = nx; xx < nx + newW; xx++) {
+      // Try to place the Inn on one of the four sides adjacent to the plaza
+      function placeInnRect() {
+        const candidates = [];
+
+        // East of plaza
+        candidates.push({
+          side: "westFacing",
+          x: Math.min(W - 2 - targetW, ((plaza.x + (plazaW / 2)) | 0) + 2),
+          y: Math.max(1, Math.min(H - 2 - targetH, (plaza.y - (targetH / 2)) | 0))
+        });
+        // West of plaza
+        candidates.push({
+          side: "eastFacing",
+          x: Math.max(1, ((plaza.x - (plazaW / 2)) | 0) - 2 - targetW),
+          y: Math.max(1, Math.min(H - 2 - targetH, (plaza.y - (targetH / 2)) | 0))
+        });
+        // South of plaza
+        candidates.push({
+          side: "northFacing",
+          x: Math.max(1, Math.min(W - 2 - targetW, (plaza.x - (targetW / 2)) | 0)),
+          y: Math.min(H - 2 - targetH, ((plaza.y + (plazaH / 2)) | 0) + 2)
+        });
+        // North of plaza
+        candidates.push({
+          side: "southFacing",
+          x: Math.max(1, Math.min(W - 2 - targetW, (plaza.x - (targetW / 2)) | 0)),
+          y: Math.max(1, ((plaza.y - (plazaH / 2)) | 0) - 2 - targetH)
+        });
+
+        // Pick the first candidate that fits fully in bounds
+        for (const c of candidates) {
+          const nx = Math.max(1, Math.min(W - 2 - targetW, c.x));
+          const ny = Math.max(1, Math.min(H - 2 - targetH, c.y));
+          if (nx >= 1 && ny >= 1 && nx + targetW < W - 1 && ny + targetH < H - 1) {
+            return { x: nx, y: ny, w: targetW, h: targetH, facing: c.side };
+          }
+        }
+        // Fallback: nearest to plaza in bounds
+        const nx = Math.max(1, Math.min(W - 2 - targetW, (plaza.x - (targetW / 2)) | 0));
+        const ny = Math.max(1, Math.min(H - 2 - targetH, (plaza.y - (targetH / 2)) | 0));
+        return { x: nx, y: ny, w: targetW, h: targetH, facing: "southFacing" };
+      }
+
+      const innRect = placeInnRect();
+
+      // Carve the Inn: wall perimeter and floor interior
+      for (let yy = innRect.y; yy < innRect.y + innRect.h; yy++) {
+        for (let xx = innRect.x; xx < innRect.x + innRect.w; xx++) {
           if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
-          const isBorder = (yy === ny || yy === ny + newH - 1 || xx === nx || xx === nx + newW - 1);
+          const isBorder = (yy === innRect.y || yy === innRect.y + innRect.h - 1 || xx === innRect.x || xx === innRect.x + innRect.w - 1);
           ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
         }
       }
-      // Update the building record to the enlarged rectangle
-      buildings[targetIdx] = { x: nx, y: ny, w: newW, h: newH };
+
+      // Double doors centered on the side facing the plaza
+      function carveDoubleDoors(rect) {
+        if (rect.facing === "westFacing") {
+          const x = rect.x; // left wall faces west (toward plaza)
+          const cy = (rect.y + (rect.h / 2)) | 0;
+          ctx.map[cy][x] = ctx.TILES.DOOR;
+          ctx.map[cy + 1][x] = ctx.TILES.DOOR;
+        } else if (rect.facing === "eastFacing") {
+          const x = rect.x + rect.w - 1; // right wall faces east
+          const cy = (rect.y + (rect.h / 2)) | 0;
+          ctx.map[cy][x] = ctx.TILES.DOOR;
+          ctx.map[cy + 1][x] = ctx.TILES.DOOR;
+        } else if (rect.facing === "northFacing") {
+          const y = rect.y; // top wall faces north
+          const cx = (rect.x + (rect.w / 2)) | 0;
+          ctx.map[y][cx] = ctx.TILES.DOOR;
+          ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+        } else {
+          const y = rect.y + rect.h - 1; // bottom wall faces south
+          const cx = (rect.x + (rect.w / 2)) | 0;
+          ctx.map[y][cx] = ctx.TILES.DOOR;
+          ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+        }
+      }
+      carveDoubleDoors(innRect);
+
+      // Choose an existing building to replace/represent the inn, prefer the one closest to rect center
+      let targetIdx = -1, bestD = Infinity;
+      const cx = (innRect.x + (innRect.w / 2)) | 0;
+      const cy = (innRect.y + (innRect.h / 2)) | 0;
+      for (let i = 0; i < buildings.length; i++) {
+        const b = buildings[i];
+        const d = Math.abs((b.x + (b.w / 2)) - cx) + Math.abs((b.y + (b.h / 2)) - cy);
+        if (d < bestD) { bestD = d; targetIdx = i; }
+      }
+      if (targetIdx === -1) {
+        // If none available (shouldn't happen), push a new building record
+        buildings.push({ x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h });
+      } else {
+        buildings[targetIdx] = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
+      }
     })();
 
     ctx.shops = [];
@@ -659,7 +723,22 @@
       }
       usedBuildings.add(`${b.x},${b.y}`);
 
-      const door = ensureDoor(b);
+      // For Inn: prefer using existing double doors on the side facing the plaza if present
+      let door = null;
+      if (def.type === "inn") {
+        // check for any door on the inn building perimeter and pick one closest to plaza
+        const cds = candidateDoors(b);
+        let best = null, bestD = Infinity;
+        for (const d of cds) {
+          if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
+            const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
+            if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+          }
+        }
+        door = best || ensureDoor(b);
+      } else {
+        door = ensureDoor(b);
+      }
       const sched = scheduleFromData(def);
       const name = def.name || def.type || "Shop";
 
