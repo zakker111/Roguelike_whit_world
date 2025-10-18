@@ -1344,11 +1344,11 @@
 
     if (mode === "encounter") {
       const ctxMod = getCtx();
-      // Loot only when exactly standing on a corpse/chest with items
+      // Loot/flavor when standing on any corpse/chest (even if already looted)
       try {
         const list = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : [];
-        const underfoot = list.find(c => c && c.x === ctxMod.player.x && c.y === ctxMod.player.y && Array.isArray(c.loot) && c.loot.length > 0);
-        if (underfoot) {
+        const corpseHere = list.find(c => c && c.x === ctxMod.player.x && c.y === ctxMod.player.y);
+        if (corpseHere) {
           const DR = modHandle("DungeonRuntime");
           if (DR && typeof DR.lootHere === "function") {
             DR.lootHere(ctxMod);
