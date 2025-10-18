@@ -117,7 +117,7 @@ export function draw(ctx, view) {
     // Use lighter, biome-driven colors to avoid overly dark maps
     if (type === TILES.WALL) return shade(base, 0.88);            // slightly darker than floor, not murky
     if (type === TILES.DOOR) return shade(base, 1.06);            // slight highlight
-
+    if (type === TILES.FLOOR || type === TILES.ST
   // Build base offscreen once per map/TILE change
   try {
     if (mapRows && mapCols) {
