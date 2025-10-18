@@ -39,14 +39,21 @@
       });
     }
   } catch (_) {}
-  const TILE = 32;
-  const COLS = 30;
-  const ROWS = 20;
-  
-  const MAP_COLS = 120;
-  const MAP_ROWS = 80;
+  // Runtime configuration (loaded via GameData.config when available)
+  const CFG = (typeof window !== "undefined" && window.GameData && window.GameData.config && typeof window.GameData.config === "object")
+    ? window.GameData.config
+    : null;
 
-  const FOV_DEFAULT = 8;
+  const TILE = (CFG && CFG.viewport && typeof CFG.viewport.TILE === "number") ? CFG.viewport.TILE : 32;
+  const COLS = (CFG && CFG.viewport && typeof CFG.viewport.COLS === "number") ? CFG.viewport.COLS : 30;
+  const ROWS = (CFG && CFG.viewport && typeof CFG.viewport.ROWS === "number") ? CFG.viewport.ROWS : 20;
+  
+  const MAP_COLS = (CFG && CFG.world && typeof CFG.world.MAP_COLS === "number") ? CFG.world.MAP_COLS : 120;
+  const MAP_ROWS = (CFG && CFG.world && typeof CFG.world.MAP_ROWS === "number") ? CFG.world.MAP_ROWS : 80;
+
+  const FOV_DEFAULT = (CFG && CFG.fov && typeof CFG.fov.default === "number") ? CFG.fov.default : 8;
+  const FOV_MIN = (CFG && CFG.fov && typeof CFG.fov.min === "number") ? CFG.fov.min : 3;
+  const FOV_MAX = (CFG && CFG.fov && typeof CFG.fov.max === "number") ? CFG.fov.max : 14;
   let fovRadius = FOV_DEFAULT;
 
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
@@ -74,11 +81,15 @@
 
   // Global time-of-day cycle (shared across modes)
   // Centralized via TimeService to avoid duplication and keep math consistent.
+  // Time configuration from JSON when available
+  const _CFG_DAY_MINUTES = (CFG && CFG.time && typeof CFG.time.dayMinutes === "number") ? CFG.time.dayMinutes : (24 * 60);
+  const _CFG_CYCLE_TURNS = (CFG && CFG.time && typeof CFG.time.cycleTurns === "number") ? CFG.time.cycleTurns : 360;
+
   const TS = (typeof window !== "undefined" && window.TimeService && typeof window.TimeService.create === "function")
-    ? window.TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
+    ? window.TimeService.create({ dayMinutes: _CFG_DAY_MINUTES, cycleTurns: _CFG_CYCLE_TURNS })
     : (function () {
-        const DAY_MINUTES = 24 * 60;
-        const CYCLE_TURNS = 360;
+        const DAY_MINUTES = _CFG_DAY_MINUTES;
+        const CYCLE_TURNS = _CFG_CYCLE_TURNS;
         const MINUTES_PER_TURN = DAY_MINUTES / CYCLE_TURNS;
         function getClock(tc) {
           const totalMinutes = Math.floor((tc | 0) * MINUTES_PER_TURN) % DAY_MINUTES;
@@ -594,7 +605,7 @@
 
   
   function setFovRadius(r) {
-    const clamped = Math.max(3, Math.min(14, r));
+    const clamped = Math.max(FOV_MIN, Math.min(FOV_MAX, r));
     if (clamped !== fovRadius) {
       fovRadius = clamped;
       log(`FOV radius set to ${fovRadius}.`);
