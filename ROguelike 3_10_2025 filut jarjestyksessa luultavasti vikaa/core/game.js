@@ -856,15 +856,11 @@
     }
     const rows = Array.isArray(map) ? map.length : 0;
     const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
-    if ( <x 0 ||  <y 0 || x >= cols }
+    if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+    const t = map[y][x];
+    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS;
+  }
 
-  
-
-  
-  
-
-  
-  
   function ensureVisibilityShape() {
     const rows = map.length;
     const cols = map[0] ? map[0].length : 0;
