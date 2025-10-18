@@ -186,9 +186,9 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
   }
 
   // Enemies scale with dungeon difficulty and size
-  const sizeMult = sizeStr === "small" ? 0.7 : sizeStr === "large" ? 1.2 : 1.0;
-  const baseEnemies = 6 + Math.floor(depth * 3);
-  const enemyCount = Math.max(4, Math.floor(baseEnemies * sizeMult));
+  const sizeMult = sizeStr === "small" ? 0.8 : sizeStr === "large" ? 1.35 : 1.1;
+  const baseEnemies = 8 + Math.floor(depth * 4);
+  const enemyCount = Math.max(6, Math.floor(baseEnemies * sizeMult));
   const makeEnemy = ctx.enemyFactory || defaultEnemyFactory;
 
   // For now: ensure diversity — cycle through available types so each dungeon has different enemies regardless of level
@@ -269,6 +269,35 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     }
     ctx.enemies.push(enemy);
   }
+
+  // Extra packs: a portion of rooms get 1–2 additional enemies spawned inside
+  (function spawnExtraPacks() {
+    const packs = Math.max(1, Math.floor(rooms.length * 0.3));
+    function randomInRoom(r) {
+      const x = ri(r.x, r.x + r.w - 1);
+      const y = ri(r.y, r.y + r.h - 1);
+      return { x, y };
+    }
+    let placed = 0; let tries = 0;
+    while (placed < packs && tries++ < rooms.length * 4) {
+      const idx = ri(0, rooms.length - 1);
+      const r = rooms[idx];
+      // Skip start room
+      if (ctx.startRoomRect && r === ctx.startRoomRect) continue;
+      const add = 1 + (drng() < 0.6 ? 1 : 0); // 1–2 extras
+      for (let k = 0; k < add; k++) {
+        const p = randomInRoom(r);
+        if (ctx.map[p.y][p.x] !== TILES.FLOOR) continue;
+        // Avoid player tile and occupied enemy tiles
+        const occupied = ctx.enemies.some(e => e && e.x === p.x && e.y === p.y) || (p.x === ctx.player.x && p.y === ctx.player.y);
+        if (occupied) continue;
+        let e = makeEnemy(p.x, p.y, depth, drng);
+        if (!e) e = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+        ctx.enemies.push(e);
+      }
+      placed++;
+    }
+  })();
 
   const FlavorMod = (ctx.Flavor || (typeof window !== "undefined" ? window.Flavor : null));
   if (FlavorMod && typeof FlavorMod.announceFloorEnemyCount === "function") {

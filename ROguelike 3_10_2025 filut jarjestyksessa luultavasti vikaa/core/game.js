@@ -1344,30 +1344,21 @@
 
     if (mode === "encounter") {
       const ctxMod = getCtx();
-      // Check for a lootable container (corpse/chest) underfoot or adjacent with items
-      let hasNearbyLoot = false;
+      // Loot only when exactly standing on a corpse/chest with items
       try {
-        const p = ctxMod.player || player;
         const list = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : [];
-        for (const c of list) {
-          if (!c) continue;
-          const hasItems = Array.isArray(c.loot) && c.loot.length > 0;
-          if (!hasItems) continue;
-          const md = Math.abs((c.x|0) - (p.x|0)) + Math.abs((c.y|0) - (p.y|0));
-          if (md <= 1) { hasNearbyLoot = true; break; }
+        const underfoot = list.find(c => c && c.x === ctxMod.player.x && c.y === ctxMod.player.y && Array.isArray(c.loot) && c.loot.length > 0);
+        if (underfoot) {
+          const DR = modHandle("DungeonRuntime");
+          if (DR && typeof DR.lootHere === "function") {
+            DR.lootHere(ctxMod);
+            applyCtxSyncAndRefresh(ctxMod);
+            return;
+          }
         }
       } catch (_) {}
 
-      if (hasNearbyLoot) {
-        const DR = modHandle("DungeonRuntime");
-        if (DR && typeof DR.lootHere === "function") {
-          DR.lootHere(ctxMod);
-          applyCtxSyncAndRefresh(ctxMod);
-          return;
-        }
-      }
-
-      // No lootable container nearby: only allow withdraw if standing on exit (stairs) tile
+      // No lootable container underfoot: only allow withdraw if standing on exit (stairs) tile
       try {
         if (ctxMod.inBounds && ctxMod.inBounds(ctxMod.player.x, ctxMod.player.y)) {
           const here = ctxMod.map[ctxMod.player.y][ctxMod.player.x];
@@ -1635,6 +1626,36 @@
           } catch (_) {}
           try {
             if (UB && typeof UB.hideRegionMap === "function") UB.hideRegionMap(getCtx());
+          } catch (_) {}
+          if (wasOpen) requestDraw();
+        },
+        // Help / Controls + Character Sheet (F1)
+        isHelpOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isHelpOpen === "function") return !!UB.isHelpOpen();
+          } catch (_) {}
+          return false;
+        },
+        onShowHelp: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isHelpOpen === "function") wasOpen = !!UB.isHelpOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.showHelp === "function") UB.showHelp(getCtx());
+          } catch (_) {}
+          if (!wasOpen) requestDraw();
+        },
+        onHideHelp: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isHelpOpen === "function") wasOpen = !!UB.isHelpOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.hideHelp === "function") UB.hideHelp(getCtx());
           } catch (_) {}
           if (wasOpen) requestDraw();
         },
@@ -2229,6 +2250,31 @@
     // Advance global time (centralized via TimeService)
     turnCounter = TS.tick(turnCounter);
 
+    // Injury healing: healable injuries tick down and disappear when reaching 0
+    try {
+      if (player && Array.isArray(player.injuries) && player.injuries.length) {
+        let changed = false;
+        player.injuries = player.injuries.map((inj) => {
+          if (!inj) return null;
+          if (typeof inj === "string") {
+            // Convert legacy string format to object
+            const name = inj;
+            const permanent = /scar|missing finger/i.test(name);
+            return { name, healable: !permanent, durationTurns: permanent ? 0 : 40 };
+          }
+          if (inj.healable && (inj.durationTurns | 0) > 0) {
+            inj.durationTurns = (inj.durationTurns | 0) - 1;
+            changed = true;
+          }
+          return (inj.healable && inj.durationTurns <= 0) ? null : inj;
+        }).filter(Boolean);
+        if (changed) {
+          // Update HUD so Character Sheet reflects status sooner if open later
+          updateUI();
+        }
+      }
+    } catch (_) {}
+
 
 
     if (mode === "dungeon") {
@@ -2659,11 +2705,11 @@
         returnToWorldFromTown: () => returnToWorldFromTown(),
         initWorld: () => initWorld(),
         // Encounter helper: enter and sync a unique encounter map, using dungeon enemies under the hood
-        enterEncounter: (template, biome) => {
+        enterEncounter: (template, biome, difficulty = 1) => {
           const ER = modHandle("EncounterRuntime");
           if (ER && typeof ER.enter === "function") {
             const ctx = getCtx();
-            const ok = ER.enter(ctx, { template, biome });
+            const ok = ER.enter(ctx, { template, biome, difficulty });
             if (ok) {
               applyCtxSyncAndRefresh(ctx);
             }

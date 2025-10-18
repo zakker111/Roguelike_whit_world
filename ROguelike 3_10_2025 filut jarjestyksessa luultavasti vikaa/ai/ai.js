@@ -162,7 +162,11 @@ export function enemiesAct(ctx) {
       }
       if (typeof e._panicYellCd === "number" && e._panicYellCd > 0) e._panicYellCd -= 1;
       if ((e._panicYellCd | 0) <= 0 && (e._panicTurns | 0) > 0 && chance(0.35)) {
-        try { ctx.log("I don't want to die!", "flavor"); } catch (_) {}
+        // Animals should not speak; suppress panic lines for animal factions
+        const fac = factionOf(e);
+        if (fac !== "animal" && fac !== "animal_hostile") {
+          try { ctx.log("I don't want to die!", "flavor"); } catch (_) {}
+        }
         e._panicYellCd = 6;
       }
     }
@@ -311,6 +315,39 @@ export function enemiesAct(ctx) {
         else if (loc.part === "legs") wear = randFloat(0.4, 1.3, 1);
         else if (loc.part === "hands") wear = randFloat(0.3, 1.0, 1);
         ctx.decayEquipped(loc.part, wear * critWear);
+
+        // Persistent injury tracker (cosmetic role; shown in Character Sheet via F1)
+        try {
+          if (!Array.isArray(player.injuries)) player.injuries = [];
+          // Small chances, higher on crit. Limit duplicates.
+          const addInjury = (name, { healable = true, durationTurns = 40 } = {}) => {
+            if (!name) return;
+            // avoid duplicates by name
+            const exists = player.injuries.some(it => (typeof it === "string" ? it === name : it && it.name === name));
+            if (!exists) {
+              player.injuries.push({ name, healable, durationTurns: healable ? Math.max(10, durationTurns | 0) : 0 });
+              // keep list short
+              if (player.injuries.length > 24) player.injuries.splice(0, player.injuries.length - 24);
+              try { ctx.log && ctx.log(`You suffer ${name}.`, "warn"); } catch (_) {}
+            }
+          };
+          const r = rv();
+          if (loc.part === "hands") {
+            // Rare missing finger on crit; otherwise bruised knuckles
+            if (isCrit && r < 0.08) addInjury("missing finger", { healable: false, durationTurns: 0 });
+            else if (r < 0.20) addInjury("bruised knuckles", { healable: true, durationTurns: 30 });
+          } else if (loc.part === "legs") {
+            if (isCrit && r < 0.10) addInjury("sprained ankle", { healable: true, durationTurns: 80 });
+            else if (r < 0.25) addInjury("bruised leg", { healable: true, durationTurns: 40 });
+          } else if (loc.part === "head") {
+            if (isCrit && r < 0.12) addInjury("facial scar", { healable: false, durationTurns: 0 });
+            else if (r < 0.20) addInjury("black eye", { healable: true, durationTurns: 60 });
+          } else if (loc.part === "torso") {
+            if (isCrit && r < 0.10) addInjury("deep scar", { healable: false, durationTurns: 0 });
+            else if (r < 0.22) addInjury("rib bruise", { healable: true, durationTurns: 50 });
+          }
+        } catch (_) {}
+
         if (player.hp <= 0) {
           player.hp = 0;
           if (typeof ctx.onPlayerDied === "function") ctx.onPlayerDied();

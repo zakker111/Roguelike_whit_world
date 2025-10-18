@@ -33,6 +33,13 @@ export const defaults = {
     { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
+  injuries: [],
+  // Passive combat skills (increment with attacks; provide small damage buffs)
+  skills: {
+    oneHand: 0,
+    twoHand: 0,
+    blunt: 0
+  }
 };
 
 function clone(obj) {
@@ -51,6 +58,37 @@ export function normalize(p) {
   if (!Array.isArray(p.inventory)) p.inventory = [];
   const eq = p.equipment && typeof p.equipment === "object" ? p.equipment : {};
   p.equipment = Object.assign({ ...DEFAULT_EQUIPMENT }, eq);
+  if (!Array.isArray(p.injuries)) p.injuries = [];
+  // Normalize injuries into objects: { name, healable, durationTurns }
+  try {
+    p.injuries = p.injuries.map((inj) => {
+      if (!inj) return null;
+      if (typeof inj === "string") {
+        // Assume healable bruises by default when provided as strings
+        const name = inj;
+        const permanent = /scar|missing finger/i.test(name);
+        return {
+          name,
+          healable: !permanent,
+          durationTurns: permanent ? 0 : 40
+        };
+      }
+      // Already an object; ensure keys exist
+      const name = inj.name || "injury";
+      const healable = typeof inj.healable === "boolean" ? inj.healable : !(/scar|missing finger/i.test(name));
+      const durationTurns = healable ? Math.max(0, (inj.durationTurns | 0)) : 0;
+      return { name, healable, durationTurns };
+    }).filter(Boolean);
+  } catch (_) {}
+  // Normalize skills
+  try {
+    const s = (p.skills && typeof p.skills === "object") ? p.skills : {};
+    p.skills = {
+      oneHand: Math.max(0, (s.oneHand | 0)),
+      twoHand: Math.max(0, (s.twoHand | 0)),
+      blunt: Math.max(0, (s.blunt | 0)),
+    };
+  } catch (_) {}
   return p;
 }
 

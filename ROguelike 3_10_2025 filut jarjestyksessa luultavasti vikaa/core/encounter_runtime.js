@@ -83,7 +83,9 @@ export function enter(ctx, info) {
 
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { count: { min: 2, max: 3 } } ] };
   const biome = info && info.biome ? String(info.biome).toUpperCase() : null;
+  const difficulty = Math.max(1, Math.min(5, (info && typeof info.difficulty === "number") ? (info.difficulty | 0) : 1));
   ctx.encounterBiome = biome;
+  ctx.encounterDifficulty = difficulty;
 
   // Remember return position in overworld
   const worldX = ctx.player.x | 0;
@@ -516,11 +518,22 @@ export function enter(ctx, info) {
   for (const g of groups) {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    let n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    // Difficulty raises group size modestly
+    n = Math.max(min, Math.min(placements.length - pIdx, n + Math.max(0, ctx.encounterDifficulty - 1)));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
       const p = placements[pIdx++];
       const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
-      const e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      let e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      // Difficulty scaling: raise level/HP/ATK with diminishing returns
+      try {
+        const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
+        e.level = Math.max(1, (e.level | 0) + (d - 1));
+        const hpMult = 1 + 0.25 * (d - 1);
+        const atkMult = 1 + 0.20 * (d - 1);
+        e.hp = Math.max(1, Math.round(e.hp * hpMult));
+        e.atk = Math.max(0.1, Math.round(e.atk * atkMult * 10) / 10);
+      } catch (_) {}
       // Assign faction from group or derived from type
       try {
         e.faction = (g && g.faction) ? String(g.faction) : deriveFaction(e.type);
@@ -540,6 +553,12 @@ export function enter(ctx, info) {
   try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
   try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+
+  // Announce difficulty
+  try {
+    const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
+    ctx.log && ctx.log(`Difficulty: ${d} (${d > 3 ? "tough" : d > 1 ? "moderate" : "easy"})`, "info");
+  } catch (_) {}
 
   try {
     const hasMerchant = Array.isArray(encProps) && encProps.some(p => p && (p.type === "merchant"));
@@ -615,6 +634,8 @@ export function enterRegion(ctx, info) {
   // Reset clear-announcement guard for region-embedded encounters too
   _clearAnnounced = false;
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", groups: [ { type: "bandit", count: { min: 2, max: 3 } } ] };
+  const difficulty = Math.max(1, Math.min(5, (info && typeof info.difficulty === "number") ? (info.difficulty | 0) : 1));
+  ctx.encounterDifficulty = difficulty;
 
   const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : (ctx.World && ctx.World.TILES) ? ctx.World.TILES : null;
   const isWalkableWorld = (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function")
@@ -707,11 +728,22 @@ export function enterRegion(ctx, info) {
   for (const g of groups) {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    let n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    // Difficulty raises group size modestly
+    n = Math.max(min, Math.min(placements.length - pIdx, n + Math.max(0, (ctx.encounterDifficulty || 1) - 1)));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
       const p = placements[pIdx++];
       const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
-      const e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      let e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      // Difficulty scaling: raise level/HP/ATK with diminishing returns
+      try {
+        const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
+        e.level = Math.max(1, (e.level | 0) + (d - 1));
+        const hpMult = 1 + 0.25 * (d - 1);
+        const atkMult = 1 + 0.20 * (d - 1);
+        e.hp = Math.max(1, Math.round(e.hp * hpMult));
+        e.atk = Math.max(0.1, Math.round(e.atk * atkMult * 10) / 10);
+      } catch (_) {}
       try {
         e.faction = (g && g.faction) ? String(g.faction) : deriveFaction(e.type);
       } catch (_) {}

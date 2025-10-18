@@ -1,5 +1,29 @@
 # Game Version History
-Last updated: 2025-10-18 00:00 UTC
+Last updated: 2025-10-18 00:15 UTC
+
+v1.36.4 — Difficulty scaling, injuries/skills, animals, and denser world
+- Added: Encounter difficulty scaling (services/encounter_service.js, core/encounter_runtime.js, core/game.js)
+  - Difficulty 1..5 computed from player level and biome.
+  - Template prompt shows “(Difficulty X)”; enemies scale in count/level/HP/ATK.
+- Changed: Injury model and healing (entities/player.js, core/game.js, ui/ui.js, ai/ai.js)
+  - Injuries tracked as objects { name, healable, durationTurns }.
+  - Healable injuries tick down per turn and disappear; Character Sheet shows red (permanent) vs amber (healing).
+- Added: Passive combat skills with small damage buffs (combat/combat.js, entities/player.js, ui/ui.js)
+  - oneHand / twoHand / blunt counters increase on attacks; F1 panel shows bonuses and usage.
+- Changed: World population (world/world.js)
+  - Increased towns/dungeons density and broadened biome placement; more varied overworld exploration.
+- Changed: Dungeon population (dungeon/dungeon.js)
+  - More enemies per floor and extra small packs in rooms.
+- Added: Neutral animals in Region Map (region_map/region_map_runtime.js)
+  - Deer/Fox/Boar spawn rarely; neutral until attacked, then turn hostile and use AI.
+  - Suppressed panic speech for animal factions (ai/ai.js).
+  - Animals leave corpses; loot pool is meat/leather (entities/loot.js).
+- Deployment: https://i1b7oveberap.cosine.page
+
+v1.36.3 — Documentation housekeeping
+- Changed: VERSIONS.md
+  - Added entry and recorded deployment URL.
+- Deployment: https://80sqsb7khqr6.cosine.page
 
 v1.36.2 — Overworld town/city glyphs
 - Changed: ui/render_overworld.js
