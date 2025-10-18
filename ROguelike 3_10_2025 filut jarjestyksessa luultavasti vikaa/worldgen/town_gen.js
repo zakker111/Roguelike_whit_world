@@ -641,9 +641,15 @@
       const def = shopDefs[i % shopDefs.length];
       let b = scored[i].b;
 
-      // Prefer the largest building for the Inn
-      if (def.type === "inn" && largest) {
-        b = largest;
+      // Prefer the building nearest to the plaza for the Inn
+      if (def.type === "inn") {
+        // Pick the closest unused building; if all used, fall back to the absolute closest
+        let candidate = null;
+        for (let s of scored) {
+          const key = `${s.b.x},${s.b.y}`;
+          if (!usedBuildings.has(key)) { candidate = s.b; break; }
+        }
+        b = candidate || scored[0].b;
       }
 
       // If chosen building is already used, pick the next nearest unused
