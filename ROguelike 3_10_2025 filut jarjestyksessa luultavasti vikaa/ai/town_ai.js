@@ -203,7 +203,11 @@
       if (n._plan && n._plan.length >= 2) {
         const next = n._plan[1];
         const keyNext = `${next.x},${next.y}`;
-        if (isWalkTown(ctx, next.x, next.y) && !occ.has(keyNext) && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
+        // Allow shopkeepers to step onto their own reserved shop door
+        const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
+        const isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
+        const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
+        if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
           if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
             // Show entire planned route, not just remaining slice
             n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
@@ -238,7 +242,10 @@
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) n._debugPath = full.slice(0);
       const next = full[1];
       const keyNext = `${next.x},${next.y}`;
-      if (isWalkTown(ctx, next.x, next.y) && !occ.has(keyNext) && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
+      const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
+      const isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
+      const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
+      if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
         occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
         return true;
       }
@@ -257,7 +264,10 @@
       const nx = n.x + d.dx, ny = n.y + d.dy;
       if (!isWalkTown(ctx, nx, ny)) continue;
       if (ctx.player.x === nx && ctx.player.y === ny) continue;
-      if (occ.has(`${nx},${ny}`)) continue;
+      const keyN = `${nx},${ny}`;
+      const isReservedN = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyN);
+      const isOwnDoorN = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === nx && n._shopRef.y === ny);
+      if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
         // Single-step nudge visualization
         n._debugPath = [{ x: n.x, y: n.y }, { x: nx, y: ny }];
@@ -339,12 +349,12 @@
       const keeperNames = (ND && Array.isArray(ND.shopkeeperNames) && ND.shopkeeperNames.length) ? ND.shopkeeperNames : ["Shopkeeper","Trader","Smith"];
       for (const s of shops) {
         addSignNear(ctx, s.x, s.y, s.name || "Shop");
-        // choose spawn near door
-        let spot = { x: s.x, y: s.y };
+        // choose spawn near door (prefer not blocking the door tile itself)
+        let spot = null;
         const neigh = [
-          { dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+          { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
           { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
-        ];
+      _code  new]</;
         for (const d of neigh) {
           const nx = s.x + d.dx, ny = s.y + d.dy;
           if (isFreeTownFloor(ctx, nx, ny)) { spot = { x: nx, y: ny }; break; }
@@ -415,7 +425,9 @@
       const pickRandomShopDoor = () => {
         if (!shops || !shops.length) return null;
         const s = shops[randInt(ctx, 0, shops.length - 1)];
-        return { x: s.x, y: s.y };
+        // Prefer an adjacent floor tile next to the door so residents don't block the door itself
+        const adj = nearestFreeAdjacent(ctx, s.x, s.y, null);
+        return adj ? { x: adj.x, y: adj.y } : { x: s.x, y: s.y };
       };
 
       // Ensure every building has occupants (at least one), scaled by area
@@ -532,6 +544,17 @@
         if (propBlocks(p.type)) occ.add(`${p.x},${p.y}`);
       }
     }
+    // Reserve shop door tiles to avoid door blocking by non-shopkeepers
+    const reservedDoors = new Set();
+    try {
+      const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      for (const s of shops) {
+        const key = `${s.x},${s.y}`;
+        reservedDoors.add(key);
+        occ.add(key); // treat as blocked by default
+      }
+    } catch (_) {}
+    ctx._reservedShopDoors = reservedDoors;
 
     // Expose fast occupancy to helpers for this tick
     ctx._occ = occ;
