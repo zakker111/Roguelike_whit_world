@@ -142,6 +142,95 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
+  // Subtle biome embellishments to reduce flat look
+  try {
+    // Stable hash for x,y -> [0,1)
+    function h2(x, y) {
+      // large primes, clamp to 32-bit, normalize
+      const n = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+      return (n % 1000) / 1000;
+    }
+    for (let y = startY; y <= endY; y++) {
+      if (y < 0 || y >= mapRows) continue;
+      const row = map[y];
+      for (let x = startX; x <= endX; x++) {
+        if (x < 0 || x >= mapCols) continue;
+        const t = row[x];
+        const sx = (x - startX) * TILE - tileOffsetX;
+        const sy = (y - startY) * TILE - tileOffsetY;
+
+        // Forest canopy dots
+        if (t === TILES.FOREST) {
+          const r = h2(x, y);
+          if (r < 0.75) {
+            const dots = 1 + ((r * 3) | 0);
+            ctx2d.save();
+            ctx2d.globalAlpha = 0.15;
+            ctx2d.fillStyle = "#173d2b";
+            for (let i = 0; i < dots; i++) {
+              const ox = ((h2(x + i, y + i) * (TILE - 6)) | 0) + 3;
+              const oy = ((h2(x - i, y - i) * (TILE - 6)) | 0) + 3;
+              ctx2d.fillRect(sx + ox, sy + oy, 2, 2);
+            }
+            ctx2d.restore();
+          }
+        }
+
+        // Mountain ridge highlight (top-left light)
+        if (t === TILES.MOUNTAIN) {
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.20;
+          ctx2d.fillStyle = "#2a3342";
+          ctx2d.fillRect(sx + 1, sy + 1, TILE - 2, 3);
+          ctx2d.fillRect(sx + 1, sy + 1, 3, TILE - 2);
+          ctx2d.restore();
+        }
+
+        // Desert specks
+        if (t === TILES.DESERT) {
+          const r = h2(x, y);
+          if (r > 0.25) {
+            ctx2d.save();
+            ctx2d.globalAlpha = 0.18;
+            ctx2d.fillStyle = "#b69d78";
+            const ox = ((h2(x + 7, y + 3) * (TILE - 6)) | 0) + 3;
+            const oy = ((h2(x + 11, y + 5) * (TILE - 6)) | 0) + 3;
+            ctx2d.fillRect(sx + ox, sy + oy, 2, 2);
+            const ox2 = ((h2(x + 13, y + 9) * (TILE - 6)) | 0) + 3;
+            const oy2 = ((h2(x + 17, y + 1) * (TILE - 6)) | 0) + 3;
+            ctx2d.fillRect(sx + ox2, sy + oy2, 1, 1);
+            ctx2d.restore();
+          }
+        }
+
+        // Snow subtle blue shade variation
+        if (t === TILES.SNOW) {
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.08;
+          ctx2d.fillStyle = "#94b7ff";
+          const ox = ((h2(x + 19, y + 23) * (TILE - 6)) | 0) + 3;
+          const oy = ((h2(x + 29, y + 31) * (TILE - 6)) | 0) + 3;
+          ctx2d.fillRect(sx + ox, sy + oy, 3, 3);
+          ctx2d.restore();
+        }
+
+        // River shimmer (thin highlight line)
+        if (t === TILES.RIVER) {
+          const r = ((x + y) & 1) === 0;
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.12;
+          ctx2d.fillStyle = "#cfe9ff";
+          if (r) {
+            ctx2d.fillRect(sx + 4, sy + (TILE / 2) | 0, TILE - 8, 2);
+          } else {
+            ctx2d.fillRect(sx + (TILE / 2) | 0, sy + 4, 2, TILE - 8);
+          }
+          ctx2d.restore();
+        }
+      }
+    }
+  } catch (_) {}
+
   // Draw roads as overlays with style variations:
   // - dashed pattern via parity of (x+y)
   // - thicker segments near cities
@@ -478,6 +567,20 @@ export function draw(ctx, view) {
       }
       ctx2d.restore();
     }
+  } catch (_) {}
+
+  // Subtle vignette around viewport edges
+  try {
+    ctx2d.save();
+    const grad = ctx2d.createRadialGradient(
+      cam.width / 2, cam.height / 2, Math.min(cam.width, cam.height) * 0.60,
+      cam.width / 2, cam.height / 2, Math.max(cam.width, cam.height) * 0.70
+    );
+    grad.addColorStop(0, "rgba(0,0,0,0.00)");
+    grad.addColorStop(1, "rgba(0,0,0,0.12)");
+    ctx2d.fillStyle = grad;
+    ctx2d.fillRect(0, 0, cam.width, cam.height);
+    ctx2d.restore();
   } catch (_) {}
 
   // Grid overlay (if enabled)
