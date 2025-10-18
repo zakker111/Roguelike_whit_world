@@ -539,6 +539,47 @@
       return { x: dd.x, y: dd.y };
     }
 
+    // Enlarge the future Inn building so it's always bigger
+    (function enlargeInnBuilding() {
+      if (!buildings.length) return;
+      // Pick the building nearest to plaza to become the inn, then enlarge it to a minimum size per town
+      function minInnSize(sizeKey) {
+        if (sizeKey === "small") return { w: 10, h: 8 };
+        if (sizeKey === "city") return { w: 16, h: 12 };
+        return { w: 12, h: 9 }; // big
+      }
+      // Choose the building currently closest to plaza center
+      let targetIdx = -1, bestD = Infinity;
+      for (let i = 0; i < buildings.length; i++) {
+        const b = buildings[i];
+        const d = Math.abs((b.x + (b.w / 2)) - plaza.x) + Math.abs((b.y + (b.h / 2)) - plaza.y);
+        if (d < bestD) { bestD = d; targetIdx = i; }
+      }
+      if (targetIdx === -1) return;
+      const minSize = minInnSize(townSize);
+      const cur = buildings[targetIdx];
+      if (cur.w >= minSize.w && cur.h >= minSize.h) return; // already large enough
+
+      // Compute new rectangle centered around current center, clamped to bounds
+      const cx = (cur.x + (cur.w / 2)) | 0;
+      const cy = (cur.y + (cur.h / 2)) | 0;
+      const newW = Math.min(blockW + 2, Math.max(minSize.w, cur.w + 2));
+      const newH = Math.min(blockH + 2, Math.max(minSize.h, cur.h + 2));
+      const nx = Math.max(1, Math.min(W - 2 - newW, cx - (newW / 2) | 0));
+      const ny = Math.max(1, Math.min(H - 2 - newH, cy - (newH / 2) | 0));
+
+      // Carve the enlarged building: walls perimeter, floors inside
+      for (let yy = ny; yy < ny + newH; yy++) {
+        for (let xx = nx; xx < nx + newW; xx++) {
+          if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
+          const isBorder = (yy === ny || yy === ny + newH - 1 || xx === nx || xx === nx + newW - 1);
+          ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
+        }
+      }
+      // Update the building record to the enlarged rectangle
+      buildings[targetIdx] = { x: nx, y: ny, w: newW, h: newH };
+    })();
+
     ctx.shops = [];
 
     // Data-first shop selection: use GameData.shops when available
