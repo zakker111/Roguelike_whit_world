@@ -140,13 +140,18 @@ export function draw(ctx, view) {
     }
   }
 
-  // Per-frame glyph overlay for any tile with a non-blank JSON glyph (drawn before visibility overlays)
+  // Per-frame glyph overlay (drawn before visibility overlays)
+  // NOTE: Skip door/stairs glyphs in town to avoid ASCII noise ('+' and '>') cluttering the view.
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowMap = yIn ? map[y] : null;
     for (let x = startX; x <= endX; x++) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
+
+      // Suppress door/stairs glyphs in town mode; retain fill colors so doors remain visually distinct.
+      if (type === TILES.DOOR || type === TILES.STAIRS) continue;
+
       const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
       if (!td) continue;
       const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
