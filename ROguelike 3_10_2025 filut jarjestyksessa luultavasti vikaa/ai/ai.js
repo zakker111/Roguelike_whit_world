@@ -162,7 +162,11 @@ export function enemiesAct(ctx) {
       }
       if (typeof e._panicYellCd === "number" && e._panicYellCd > 0) e._panicYellCd -= 1;
       if ((e._panicYellCd | 0) <= 0 && (e._panicTurns | 0) > 0 && chance(0.35)) {
-        try { ctx.log("I don't want to die!", "flavor"); } catch (_) {}
+        // Animals should not speak; suppress panic lines for animal factions
+        const fac = factionOf(e);
+        if (fac !== "animal" && fac !== "animal_hostile") {
+          try { ctx.log("I don't want to die!", "flavor"); } catch (_) {}
+        }
         e._panicYellCd = 6;
       }
     }
