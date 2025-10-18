@@ -414,27 +414,30 @@ export function draw(ctx, view) {
           return;
         }
       }
-      // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld)
+      // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld); robust fallback glyph/color
       let glyph = "";
       let color = c.looted ? (COLORS.corpseEmpty || "#808080") : (COLORS.corpse || "#b22222");
       try {
         const key = String(c.kind || (c.kind === "chest" ? "chest" : "corpse")).toUpperCase();
         const td = getTileDefByKey("dungeon", key) || getTileDefByKey("town", key) || getTileDefByKey("overworld", key);
         if (td) {
-          if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph;
-          if (td.colors && td.colors.fg) color = td.colors.fg;
+          if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
+          if (td.colors && td.colors.fg) color = td.colors.fg || color;
         }
       } catch (_) {}
-      if (glyph && String(glyph).trim().length > 0) {
-        // Shade glyph if looted
-        if (c.looted) {
-          ctx2d.save();
-          ctx2d.globalAlpha = 0.6;
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-          ctx2d.restore();
-        } else {
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-        }
+      // Fallback glyphs if JSON missed
+      if (!glyph) {
+        if ((c.kind || "").toLowerCase() === "chest") glyph = "C";
+        else glyph = "x";
+      }
+      // Shade glyph if looted
+      if (c.looted) {
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.6;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+        ctx2d.restore();
+      } else {
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
       }
     };
 
@@ -505,7 +508,7 @@ export function draw(ctx, view) {
             }
           }
         } else if (p.type === "crate" || p.type === "barrel" || p.type === "bench") {
-          // Draw simple decor props with tileset fallback to JSON keys
+          // Draw simple decor props with tileset fallback to JSON keys, then robust glyph/color fallback
           let key = p.type;
           let drawn = false;
           if (tilesetReady && TS && typeof TS.draw === "function") {
@@ -523,15 +526,22 @@ export function draw(ctx, view) {
                 if (td.colors && td.colors.fg) color = td.colors.fg || color;
               }
             } catch (_) {}
-            if (glyph) {
-              if (!visNow) {
-                ctx2d.save();
-                ctx2d.globalAlpha = 0.65;
-                RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
-                ctx2d.restore();
-              } else {
-                RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
-              }
+            // Robust fallback glyphs/colors
+            if (!glyph) {
+              if (p.type === "crate") glyph = "□";
+              else if (p.type === "barrel") glyph = "◍";
+              else glyph = "≡";
+            }
+            if (p.type === "barrel" && (!color || color === (COLORS.corpse || "#cbd5e1"))) {
+              color = "#b5651d";
+            }
+            if (!visNow) {
+              ctx2d.save();
+              ctx2d.globalAlpha = 0.65;
+              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+              ctx2d.restore();
+            } else {
+              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
             }
           }
         } else if (p.type === "merchant") {

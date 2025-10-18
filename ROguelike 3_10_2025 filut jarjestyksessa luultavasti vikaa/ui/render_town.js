@@ -184,25 +184,69 @@ export function draw(ctx, view) {
     }
   }
 
-  // Props (only if visible). Use tiles.json only; no code fallbacks.
+  // Props: draw when seen, full opacity if visible; otherwise slightly dim.
   if (Array.isArray(ctx.townProps)) {
     for (const p of ctx.townProps) {
       if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
-      if (!visible[p.y] || !visible[p.y][p.x]) continue;
+      const wasSeen = !!(seen[p.y] && seen[p.y][p.x]);
+      if (!wasSeen) continue;
+      const visNow = !!(visible[p.y] && visible[p.y][p.x]);
       const screenX = (p.x - startX) * TILE - tileOffsetX;
       const screenY = (p.y - startY) * TILE - tileOffsetY;
 
-      // Lookup by key in JSON: prefer town mode, then dungeon/overworld
+      // Lookup by key in JSON: prefer town mode, then dungeon/overworld; fallback glyph/color if missing
+      let glyph = "";
+      let color = null;
       let tdProp = null;
       try {
         const key = String(p.type || "").toUpperCase();
         tdProp = getTileDefByKey("town", key) || getTileDefByKey("dungeon", key) || getTileDefByKey("overworld", key);
+        if (tdProp) {
+          if (Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph || glyph;
+          if (tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
+        }
       } catch (_) {}
-      if (!tdProp) continue;
-      const glyph = Object.prototype.hasOwnProperty.call(tdProp, "glyph") ? tdProp.glyph : "";
-      const color = tdProp.colors && tdProp.colors.fg ? tdProp.colors.fg : null;
-      if (glyph && String(glyph).trim().length > 0 && color) {
+
+      // Fallback glyphs/colors for common props
+      if (!glyph || !color) {
+        const t = String(p.type || "").toLowerCase();
+        if (!glyph) {
+          if (t === "well") glyph = "O";
+          else if (t === "lamp") glyph = "✦";
+          else if (t === "bench") glyph = "≡";
+          else if (t === "stall") glyph = "S";
+          else if (t === "crate") glyph = "□";
+          else if (t === "barrel") glyph = "◍";
+          else if (t === "chest") glyph = "C";
+          else if (t === "shelf") glyph = "≡";
+          else if (t === "plant") glyph = "❀";
+          else if (t === "rug") glyph = "░";
+          else if (t === "fireplace") glyph = "♨";
+          else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
+        }
+        if (!color) {
+          if (t === "well") color = "#9dd8ff";
+          else if (t === "lamp") color = "#ffd166";
+          else if (t === "bench") color = "#cbd5e1";
+          else if (t === "stall") color = "#eab308";
+          else if (t === "crate") color = "#cbd5e1";
+          else if (t === "barrel") color = "#b5651d";
+          else if (t === "chest") color = "#d7ba7d";
+          else if (t === "shelf") color = "#cbd5e1";
+          else if (t === "plant") color = "#65a30d";
+          else if (t === "rug") color = "#b45309";
+          else if (t === "fireplace") color = "#ff6d00";
+          else color = "#cbd5e1";
+        }
+      }
+
+      if (visNow) {
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+      } else {
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.65;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+        ctx2d.restore();
       }
     }
   }
