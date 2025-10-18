@@ -215,30 +215,8 @@ function hideLoot(ctx) {
 export function lootHere(ctx) {
   const { player, corpses } = ctx;
 
-  // Prefer standing on the container; if none underfoot, allow adjacent loot QoL
-  let here = corpses.filter(c => c && c.x === player.x && c.y === player.y);
-  if (here.length === 0) {
-    // Look for adjacent chest/corpse and step onto it if walkable and not occupied by an enemy
-    try {
-      const neighbors = [
-        { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-      ];
-      let target = null;
-      for (const d of neighbors) {
-        const tx = player.x + d.dx, ty = player.y + d.dy;
-        const found = corpses.find(c => c && c.x === tx && c.y === ty);
-        if (found) { target = { x: tx, y: ty }; break; }
-      }
-      if (target) {
-        const walkable = (ctx.inBounds(target.x, target.y) && (ctx.map[target.y][target.x] === ctx.TILES.FLOOR || ctx.map[target.y][target.x] === ctx.TILES.DOOR));
-        const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
-        if (walkable && !enemyBlocks) {
-          player.x = target.x; player.y = target.y;
-          here = corpses.filter(c => c && c.x === player.x && c.y === player.y);
-        }
-      }
-    } catch (_) {}
-  }
+  // Loot only when the player is exactly on the corpse/chest tile
+  const here = corpses.filter(c => c && c.x === player.x && c.y === player.y);
 
   if (here.length === 0) {
     ctx.log("There is no corpse here to loot.");
