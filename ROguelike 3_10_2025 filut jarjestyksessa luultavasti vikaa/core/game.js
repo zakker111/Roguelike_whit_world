@@ -2714,11 +2714,11 @@
         returnToWorldFromTown: () => returnToWorldFromTown(),
         initWorld: () => initWorld(),
         // Encounter helper: enter and sync a unique encounter map, using dungeon enemies under the hood
-        enterEncounter: (template, biome) => {
+        enterEncounter: (template, biome, difficulty = 1) => {
           const ER = modHandle("EncounterRuntime");
           if (ER && typeof ER.enter === "function") {
             const ctx = getCtx();
-            const ok = ER.enter(ctx, { template, biome });
+            const ok = ER.enter(ctx, { template, biome, difficulty });
             if (ok) {
               applyCtxSyncAndRefresh(ctx);
             }

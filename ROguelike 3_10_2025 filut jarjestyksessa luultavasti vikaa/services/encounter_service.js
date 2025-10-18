@@ -78,6 +78,21 @@ function pickTemplate(ctx, biome) {
   return candidates[0];
 }
 
+// Compute a simple difficulty level (1..5) based on player level and biome.
+// You can later swap this to use region threats, time-of-day, or config.
+function computeDifficulty(ctx, biome) {
+  try {
+    const pLv = (ctx && ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
+    // Base on player level: every 3 levels increases difficulty by 1, clamp 1..5
+    let diff = Math.max(1, Math.min(5, 1 + Math.floor((pLv - 1) / 3)));
+    // Biome slight modifiers (optional, conservative)
+    const b = String(biome || "").toUpperCase();
+    if (b === "DESERT" || b === "MOUNTAIN" || b === "SWAMP" || b === "SNOW") diff = Math.min(5, diff + 1);
+    return diff;
+  } catch (_) {}
+  return 1;
+}
+
 export function maybeTryEncounter(ctx) {
   try {
     if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
@@ -120,12 +135,13 @@ export function maybeTryEncounter(ctx) {
     const tmpl = pickTemplate(ctx, biome);
     if (!tmpl) { STATE.movesSinceLast += 1; return false; }
 
-    const text = `${tmpl.name || "Encounter"}: ${biome.toLowerCase()} — Enter?`;
+    const difficulty = computeDifficulty(ctx, biome);
+    const text = `${tmpl.name || "Encounter"} (Difficulty ${difficulty}): ${biome.toLowerCase()} — Enter?`;
     const enter = () => {
       try {
         // Preferred path: enter dedicated encounter mode (not Region Map)
         if (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function") {
-          const ok = !!window.GameAPI.enterEncounter(tmpl, biome);
+          const ok = !!window.GameAPI.enterEncounter(tmpl, biome, difficulty);
           if (ok) {
             STATE.movesSinceLast = 0;
             STATE.cooldownMoves = 10;
@@ -135,7 +151,7 @@ export function maybeTryEncounter(ctx) {
         // Fallback: direct runtime call
         const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
         if (ER && typeof ER.enter === "function") {
-          const ok2 = !!ER.enter(ctx, { template: tmpl, biome });
+          const ok2 = !!ER.enter(ctx, { template: tmpl, biome, difficulty });
           if (ok2) {
             try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
             STATE.movesSinceLast = 0;
