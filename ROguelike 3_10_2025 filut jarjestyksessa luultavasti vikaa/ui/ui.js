@@ -1115,7 +1115,26 @@ export const UI = {
       `<div>${levelStr}</div>`,
       `<div>Status: ${statuses.length ? statuses.join(", ") : "None"}</div>`,
       "<div style='margin-top:6px;'>Injuries:</div>",
-      `<ul style='margin:4px 0 0 14px;'>${injHTML}</ul>`
+      `<ul style='margin:4px 0 0 14px;'>${injHTML}</ul>`,
+      // Skills: small passive buffs that grow with use
+      (function () {
+        try {
+          const s = (p && p.skills) ? p.skills : null;
+          if (!s) return "";
+          const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
+          const oneBuff = clamp(Math.floor((s.oneHand || 0) / 20) * 0.01, 0, 0.05);
+          const twoBuff = clamp(Math.floor((s.twoHand || 0) / 20) * 0.01, 0, 0.06);
+          const bluntBuff = clamp(Math.floor((s.blunt || 0) / 25) * 0.01, 0, 0.04);
+          const pct = (v) => `${Math.round(v * 100)}%`;
+          const lines = [
+            `<li>One-handed: +${pct(oneBuff)} damage (uses: ${Math.floor(s.oneHand || 0)})</li>`,
+            `<li>Two-handed: +${pct(twoBuff)} damage (uses: ${Math.floor(s.twoHand || 0)})</li>`,
+            `<li>Blunt: +${pct(bluntBuff)} damage (uses: ${Math.floor(s.blunt || 0)})</li>`,
+          ].join("");
+          return "<div style='margin-top:6px;'>Skills (passive damage buffs):</div>" +
+                 `<ul style='margin:4px 0 0 14px;'>${lines}</ul>`;
+        } catch (_) { return ""; }
+      })()
     ].join("");
 
     this.els.helpContent.innerHTML = html;

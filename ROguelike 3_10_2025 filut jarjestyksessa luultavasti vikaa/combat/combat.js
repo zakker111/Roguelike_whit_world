@@ -82,6 +82,18 @@ export function playerAttackEnemy(ctx, enemy) {
   if (!ctx || !enemy) return;
   const rng = typeof ctx.rng === "function" ? ctx.rng : Math.random;
 
+  // Helper: classify equipped weapon for skill tracking
+  function classifyWeapon(p) {
+    const eq = (p && p.equipment) ? p.equipment : {};
+    const left = eq.left || null;
+    const right = eq.right || null;
+    const twoHanded = !!(left && right && left === right && left.twoHanded) || !!(left && left.twoHanded) || !!(right && right.twoHanded);
+    // crude blunt detection by name; extend when mace/club types are added
+    const name = (left && left.name) || (right && right.name) || "";
+    const blunt = /mace|club|hammer|stick/i.test(name);
+    return { twoHanded, blunt, oneHand: !twoHanded };
+  }
+
   // Hit location
   let loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 };
   try {
@@ -111,6 +123,15 @@ export function playerAttackEnemy(ctx, enemy) {
       const name = (enemy.type || "enemy");
       if (ctx.log) ctx.log(`${name.charAt(0).toUpperCase()}${name.slice(1)} blocks your attack to the ${loc.part}.`, "block");
     } catch (_) {}
+    // Small passive skill gain even on block (half)
+    try {
+      const p = ctx.player || null;
+      const cat = classifyWeapon(p);
+      p.skills = p.skills || { oneHand: 0, twoHand: 0, blunt: 0 };
+      if (cat.twoHanded) p.skills.twoHand += 0.5;
+      else p.skills.oneHand += 0.5;
+      if (cat.blunt) p.skills.blunt += 0.5;
+    } catch (_) {}
     // Decay hands (light) on block
     try {
       if (typeof ctx.decayBlockingHands === "function") ctx.decayBlockingHands();
@@ -126,6 +147,26 @@ export function playerAttackEnemy(ctx, enemy) {
   let atk = 1;
   try { if (typeof ctx.getPlayerAttack === "function") atk = ctx.getPlayerAttack(); } catch (_) {}
   let dmg = (atk || 1) * (loc.mult || 1.0);
+
+  // Passive skills: apply small buff based on weapon category
+  try {
+    const p = ctx.player || null;
+    const s = (p && p.skills) ? p.skills : null;
+    if (p && s) {
+      const cat = classifyWeapon(p);
+      const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
+      // Buffs scale slowly with usage (every ~20 attacks gives +1%), cap low
+      const oneHandBuff = clamp(Math.floor((s.oneHand || 0) / 20) * 0.01, 0, 0.05);
+      const twoHandBuff = clamp(Math.floor((s.twoHand || 0) / 20) * 0.01, 0, 0.06);
+      const bluntBuff   = clamp(Math.floor((s.blunt   || 0) / 25) * 0.01, 0, 0.04);
+      let mult = 1.0;
+      if (cat.twoHanded) mult *= (1 + twoHandBuff);
+      else mult *= (1 + oneHandBuff);
+      if (cat.blunt) mult *= (1 + bluntBuff);
+      dmg *= mult;
+    }
+  } catch (_) {}
+
   let isCrit = false;
   const alwaysCrit = !!((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false);
   const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
@@ -167,6 +208,16 @@ export function playerAttackEnemy(ctx, enemy) {
     if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") {
       ctx.onEnemyDied(enemy);
     }
+  } catch (_) {}
+
+  // Passive skill gain on successful hit
+  try {
+    const p = ctx.player || null;
+    const cat = classifyWeapon(p);
+    p.skills = p.skills || { oneHand: 0, twoHand: 0, blunt: 0 };
+    if (cat.twoHanded) p.skills.twoHand += 1;
+    else p.skills.oneHand += 1;
+    if (cat.blunt) p.skills.blunt += 1;
   } catch (_) {}
 
   // Decay hands after attack

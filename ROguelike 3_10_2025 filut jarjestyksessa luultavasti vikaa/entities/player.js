@@ -33,7 +33,13 @@ export const defaults = {
     { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
-  injuries: []
+  injuries: [],
+  // Passive combat skills (increment with attacks; provide small damage buffs)
+  skills: {
+    oneHand: 0,
+    twoHand: 0,
+    blunt: 0
+  }
 };
 
 function clone(obj) {
@@ -73,6 +79,15 @@ export function normalize(p) {
       const durationTurns = healable ? Math.max(0, (inj.durationTurns | 0)) : 0;
       return { name, healable, durationTurns };
     }).filter(Boolean);
+  } catch (_) {}
+  // Normalize skills
+  try {
+    const s = (p.skills && typeof p.skills === "object") ? p.skills : {};
+    p.skills = {
+      oneHand: Math.max(0, (s.oneHand | 0)),
+      twoHand: Math.max(0, (s.twoHand | 0)),
+      blunt: Math.max(0, (s.blunt | 0)),
+    };
   } catch (_) {}
   return p;
 }
