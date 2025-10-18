@@ -58,12 +58,9 @@ export const lootFactories = {
           ? window.RNGFallback.getRng()
           : Math.random));
     const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
-    if (ItemsMod && typeof ItemsMod.createByKey === "function") {
-      const keys = ["sword", "axe", "bow"];
-      // allow two-handed at higher tiers with small chance
-      if (tier >= 2 && rng() < 0.2) keys.push("two_handed_axe");
-      const key = keys[Math.floor(rng() * keys.length)];
-      return setDecayIfEquip(ItemsMod.createByKey(key, tier, rng), opts.decayAll ?? 99);
+    if (ItemsMod && typeof ItemsMod.createEquipmentOfSlot === "function") {
+      // Use registry-driven random hand equipment for variety
+      return setDecayIfEquip(ItemsMod.createEquipmentOfSlot("hand", tier, rng), opts.decayAll ?? 99);
     }
     // fallback
     return setDecayIfEquip({ kind: "equip", slot: "hand", name: "iron sword", atk: 1.5, tier, decay: 8 }, opts.decayAll ?? 99);
