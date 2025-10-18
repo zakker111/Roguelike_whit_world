@@ -644,6 +644,8 @@
       }
     })();
 
+    // Ensure props container exists before any early prop placement (e.g., shop signs)
+    ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
     ctx.shops = [];
 
     // Data-first shop selection: use GameData.shops when available
@@ -775,11 +777,11 @@
     ctx.townBuildings = buildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: getExistingDoor(b) }));
 
     // Props
-    ctx.townProps = [];
+    ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
     function addProp(x, y, type, name) {
       if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
       if (ctx.map[y][x] !== ctx.TILES.FLOOR) return false;
-      if (ctx.townProps.some(p => p.x === x && p.y === y)) return false;
+      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
       ctx.townProps.push({ x, y, type, name });
       return true;
     }
