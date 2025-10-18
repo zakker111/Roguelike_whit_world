@@ -1,5 +1,10 @@
 # Game Version History
-Last updated: 2025-10-18 00:00 UTC
+Last updated: 2025-10-18 00:05 UTC
+
+v1.36.3 — Documentation housekeeping
+- Changed: VERSIONS.md
+  - Added entry and recorded deployment URL.
+- Deployment: https://80sqsb7khqr6.cosine.page
 
 v1.36.2 — Overworld town/city glyphs
 - Changed: ui/render_overworld.js
