@@ -1,0 +1,103 @@
+{
+  "apothecary": {
+    "categories": {
+      "potions": {
+        "capPerDay": 6,
+        "entries": [
+          { "id": "potion_hp_5",  "kind": "potion", "heal": 5,
+            "phaseWeights": { "morning": 5, "midday": 4, "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 2, "stack": { "min": 1, "max": 2 }
+          },
+          { "id": "potion_hp_10", "kind": "potion", "heal": 10, "minTier": 2,
+            "phaseWeights": { "morning": 3, "midday": 4, "afternoon": 4, "dusk": 3 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
+          }
+        ]
+      },
+      "antidotes": {
+        "capPerDay": 3,
+        "entries": [
+          { "id": "antidote_basic", "kind": "antidote",
+            "phaseWeights": { "midday": 5, "afternoon": 4, "dusk": 3 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
+          }
+        ]
+      }
+    }
+  },
+  "blacksmith": {
+    "categories": {
+      "weapons": {
+        "capPerDay": 5,
+        "entries": [
+          { "id": "sword_simple", "kind": "weapon", "tier": 1,
+            "phaseWeights": { "morning": 5, "midday": 3, "afternoon": 2 },
+            "maxPerRestock": 2
+          },
+          { "id": "axe_heavy",    "kind": "weapon", "tier": 2,
+            "phaseWeights": { "afternoon": 5, "dusk": 2 },
+            "maxPerRestock": 1
+          },
+          { "id": "masterwork_blade", "kind": "weapon", "tier": 3, "rare": true,
+            "phaseWeights": { "dusk": 1 },
+            "maxPerRestock": 1
+          }
+        ]
+      }
+    }
+  },
+  "armorer": {
+    "categories": {
+      "armor": {
+        "capPerDay": 5,
+        "entries": [
+          { "id": "leather_armor", "kind": "armor", "slot": "torso", "tier": 1,
+            "phaseWeights": { "morning": 5, "midday": 3 },
+            "maxPerRestock": 2
+          },
+          { "id": "steel_shield", "kind": "shield", "slot": "hand", "tier": 2,
+            "phaseWeights": { "afternoon": 4, "dusk": 3 },
+            "maxPerRestock": 1
+          },
+          { "id": "plate_armor", "kind": "armor", "slot": "torso", "tier": 3,
+            "phaseWeights": { "dusk": 1 },
+            "maxPerRestock": 1
+          }
+        ]
+      }
+    }
+  },
+  "trader": {
+    "categories": {
+      "mixed": {
+        "capPerDay": 4,
+        "entries": [
+          { "id": "torch", "kind": "tool",
+            "phaseWeights": { "morning": 4, "midday": 3, "afternoon": 2, "dusk": 1 },
+            "maxPerRestock": 1
+          },
+          { "id": "lockpick", "kind": "tool",
+            "phaseWeights": { "midday": 4, "afternoon": 4 },
+            "maxPerRestock": 1
+          },
+          { "id": "potion_hp_5", "kind": "potion", "heal": 5,
+            "phaseWeights": { "morning": 3, "midday": 3 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
+          },
+          { "id": "simple_dagger", "kind": "low_tier_equip", "slot": "hand", "tier": 1,
+            "phaseWeights": { "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1
+          },
+          { "id": "wood_planks", "kind": "material", "material": "wood",
+            "phaseWeights": { "morning": 2, "midday": 3 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 2 }
+          },
+          { "id": "curio_odd_stone", "kind": "curio",
+            "phaseWeights": { "dusk": 2 },
+            "maxPerRestock": 1
+          }
+        ]
+      }
+    }
+  }
+}

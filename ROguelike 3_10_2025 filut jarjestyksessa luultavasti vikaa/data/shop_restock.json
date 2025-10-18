@@ -1,0 +1,22 @@
+{
+  "apothecary": {
+    "primaryRestockAt": "open",
+    "miniRestockAt": "12:00",
+    "rareSlotWindow": { "start": "19:00", "end": "21:00", "chance": 0.15 }
+  },
+  "blacksmith": {
+    "primaryRestockAt": "open",
+    "miniRestockAt": "15:00",
+    "rareSlotWindow": { "start": "18:00", "end": "19:30", "chance": 0.10 }
+  },
+  "armorer": {
+    "primaryRestockAt": "open",
+    "miniRestockAt": "14:00",
+    "rareSlotWindow": { "start": "19:00", "end": "20:00", "chance": 0.10 }
+  },
+  "trader": {
+    "primaryRestockAt": "open",
+    "miniRestockAt": "16:00",
+    "rareSlotWindow": { "start": "19:00", "end": "22:00", "chance": 0.05 }
+  }
+}

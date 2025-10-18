@@ -7,6 +7,7 @@
  * - openForNPC(ctx, npc), buyIndex(ctx, idx), sellIndex(ctx, idx)
  */
 let _stock = null;
+let _shopRef = null;
 
 function ensurePanel() {
   try {
@@ -59,32 +60,6 @@ export function isOpen() {
   } catch (_) { return false; }
 }
 
-function priceFor(item) {
-  try {
-    if (!item) return 10;
-    if (item.kind === "potion") {
-      const h = item.heal != null ? item.heal : 5;
-      return Math.max(5, Math.min(50, Math.round(h * 2)));
-    }
-    const base = (item.atk || 0) * 10 + (item.def || 0) * 10;
-    const tier = (item.tier || 1);
-    return Math.max(15, Math.round(base + tier * 15));
-  } catch (_) { return 10; }
-}
-
-function sellPriceFor(item) {
-  try {
-    const p = priceFor(item);
-    return Math.max(1, Math.round(p * 0.5));
-  } catch (_) { return 5; }
-}
-
-function cloneItem(it) {
-  try { return JSON.parse(JSON.stringify(it)); } catch (_) {}
-  try { return Object.assign({}, it); } catch (_) {}
-  return it;
-}
-
 function playerGold(ctx) {
   let goldObj = null;
   let cur = 0;
@@ -105,8 +80,15 @@ function listSellables(ctx) {
     for (let i = 0; i < inv.length; i++) {
       const it = inv[i];
       if (!it || it.kind === "gold") continue;
-      // Allow selling equip and potions/materials
-      out.push({ idx: i, item: it, price: sellPriceFor(it) });
+      // Show estimated sell price using rules
+      let est = 5;
+      try {
+        const phase = (window.ShopService && typeof window.ShopService.getPhase === "function") ? window.ShopService.getPhase(ctx) : "morning";
+        const base = (window.ShopService && typeof window.ShopService.calculatePrice === "function") ? window.ShopService.calculatePrice((_shopRef && _shopRef.type) || "trader", it, phase, null) : 10;
+        const rules = (window.GameData && window.GameData.shopRules && _shopRef && window.GameData.shopRules[_shopRef.type]) ? window.GameData.shopRules[_shopRef.type] : { buyMultiplier: 0.5 };
+        est = Math.max(1, Math.round(base * (rules.buyMultiplier || 0.5)));
+      } catch (_) {}
+      out.push({ idx: i, item: it, price: est });
     }
   } catch (_) {}
   return out;
@@ -133,9 +115,11 @@ function render(ctx) {
         listDiv.innerHTML = '<div style="margin:4px 0 6px 0;color:#e2e8f0;">Items for sale</div>' + _stock.map(function (row, idx) {
           const name = (ctx.describeItem ? ctx.describeItem(row.item) : (row.item && row.item.name) || "item");
           const p = row.price | 0;
+          const q = row.qty | 0;
+          const disabled = q <= 0 ? 'disabled style="padding:4px 8px;background:#3b4557;color:#9aa3af;border:1px solid #4b5563;border-radius:4px;cursor:not-allowed;"' : 'style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;"';
           return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' +
-                 '<div>' + name + ' — <span style="color:#93c5fd;">' + p + 'g</span></div>' +
-                 '<button data-idx="' + idx + '" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Buy</button>' +
+                 '<div>' + name + ' — <span style="color:#93c5fd;">' + p + 'g</span> <span style="color:#94a3b8;">(qty ' + q + ')</span></div>' +
+                 '<button data-idx="' + idx + '" ' + disabled + '>Buy</button>' +
                  '</div>';
         }).join("");
         const buttons = listDiv.querySelectorAll("button[data-idx]");
@@ -185,9 +169,8 @@ function render(ctx) {
 
 export function openForNPC(ctx, npc) {
   try {
-    const stock = [];
     const name = (npc && (npc.name || npc.title)) ? (npc.name || npc.title) : "Shopkeeper";
-    const vendor = (npc && npc.vendor) ? String(npc.vendor).toLowerCase() : "";
+    const shop = (npc && npc._shopRef) ? npc._shopRef : null;
 
     // Title
     try {
@@ -196,71 +179,14 @@ export function openForNPC(ctx, npc) {
       if (ttl) ttl.textContent = name;
     } catch (_) {}
 
-    // Special vendor: Seppo — rare wandering merchant with premium stock
-    const isSeppo = (vendor === "seppo") || (/seppo/i.test(name));
-
-    if (isSeppo) {
-      // Premium potions
-      stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 20 });
-      stock.push({ item: { kind: "potion", heal: 15, count: 1, name: "elixir (+15 HP)" }, price: 36 });
-
-      // Premium equipment (favor tier 3)
-      try {
-        if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
-          const picks = [];
-          const p1 = ctx.Items.createEquipment(3, ctx.rng);
-          const p2 = ctx.Items.createEquipment(3, ctx.rng);
-          const p3 = ctx.Items.createEquipment(2, ctx.rng);
-          if (p1) picks.push(p1);
-          if (p2) picks.push(p2);
-          if (p3) picks.push(p3);
-          // Signature two-hander
-          try {
-            if (ctx.Items && typeof ctx.Items.createNamed === "function") {
-              const gs = ctx.Items.createNamed({ slot: "hand", twoHanded: true, tier: 3, name: "steel greatsword", atk: 3.6, decay: 0 }, ctx.rng);
-              if (gs) picks.unshift(gs);
-            }
-          } catch (_) {}
-          const mult = 1.35;
-          for (const it of picks) {
-            const base = priceFor(it);
-            stock.push({ item: it, price: Math.max(1, Math.round(base * mult)) });
-          }
-        } else {
-          const s = { kind: "equip", slot: "hand", name: "steel greatsword", atk: 3.6, tier: 3, twoHanded: true, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
-          const a = { kind: "equip", slot: "torso", name: "steel plate armor", def: 3.2, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
-          const g = { kind: "equip", slot: "hands", name: "steel gauntlets", def: 2.0, atk: 0.6, tier: 3, decay: (ctx.initialDecay ? ctx.initialDecay(3) : 0) };
-          const mult = 1.35;
-          stock.push({ item: s, price: Math.max(1, Math.round(priceFor(s) * mult)) });
-          stock.push({ item: a, price: Math.max(1, Math.round(priceFor(a) * mult)) });
-          stock.push({ item: g, price: Math.max(1, Math.round(priceFor(g) * mult)) });
-        }
-      } catch (_) {}
-
-      try { ctx.log && ctx.log(`${name}: Fine goods, fair prices.`, "notice"); } catch (_) {}
+    _shopRef = shop;
+    // Inventory from ShopService (JSON-driven)
+    if (window.ShopService && typeof window.ShopService.getInventoryForShop === "function" && shop) {
+      _stock = window.ShopService.getInventoryForShop(ctx, shop);
     } else {
-      // Generic shopkeeper stock
-      // Potions
-      stock.push({ item: { kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, price: 10 });
-      stock.push({ item: { kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, price: 18 });
-
-      // Equipment via Items registry when available
-      try {
-        if (ctx.Items && typeof ctx.Items.createEquipment === "function") {
-          const t1 = ctx.Items.createEquipment(1, ctx.rng);
-          const t2 = ctx.Items.createEquipment(2, ctx.rng);
-          if (t1) stock.push({ item: t1, price: priceFor(t1) });
-          if (t2) stock.push({ item: t2, price: priceFor(t2) });
-        } else {
-          const s = { kind: "equip", slot: "left", name: "simple sword", atk: 1.5, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
-          const a = { kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: (ctx.initialDecay ? ctx.initialDecay(1) : 0) };
-          stock.push({ item: s, price: priceFor(s) });
-          stock.push({ item: a, price: priceFor(a) });
-        }
-      } catch (_) {}
+      _stock = [];
     }
 
-    _stock = stock;
     render(ctx);
     // Shop panel is DOM-only; no canvas redraw needed
   } catch (_) {}
@@ -269,78 +195,23 @@ export function openForNPC(ctx, npc) {
 export function buyIndex(ctx, idx) {
   try {
     if (!_stock || idx < 0 || idx >= _stock.length) return;
-    const row = _stock[idx];
-    const cost = row.price | 0;
-    const inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : [];
-    let goldObj = null;
-    let cur = 0;
-    for (let i = 0; i < inv.length; i++) {
-      const it = inv[i];
-      if (it && it.kind === "gold") { goldObj = it; cur = (typeof it.amount === "number") ? it.amount : 0; break; }
+    if (!_shopRef || !window.ShopService || typeof window.ShopService.buyItem !== "function") return;
+    const ok = window.ShopService.buyItem(ctx, _shopRef, idx);
+    if (ok) {
+      // refresh current stock view after quantity change
+      _stock = window.ShopService.getInventoryForShop(ctx, _shopRef);
     }
-    if (cur < cost) {
-      try { ctx.log("You don't have enough gold.", "warn"); } catch (_) {}
-      render(ctx);
-      return;
-    }
-
-    const copy = cloneItem(row.item);
-    if (!goldObj) { goldObj = { kind: "gold", amount: 0, name: "gold" }; inv.push(goldObj); }
-    goldObj.amount = (goldObj.amount | 0) - cost;
-
-    if (copy.kind === "potion") {
-      // Merge same potions
-      let same = null;
-      for (let j = 0; j < inv.length; j++) {
-        const it2 = inv[j];
-        if (it2 && it2.kind === "potion" && ((it2.heal || 0) === (copy.heal || 0))) { same = it2; break; }
-      }
-      if (same) same.count = (same.count || 1) + (copy.count || 1);
-      else inv.push(copy);
-    } else {
-      inv.push(copy);
-    }
-
-    try { ctx.updateUI(); } catch (_) {}
-    try { if (ctx.renderInventory) ctx.renderInventory(); } catch (_) {}
-    try {
-      const name = ctx.describeItem ? ctx.describeItem(copy) : (copy && copy.name) || "item";
-      ctx.log("You bought " + name + " for " + cost + " gold.", "good");
-    } catch (_) {}
     render(ctx);
-    // Shop panel is DOM-only; no canvas redraw needed
   } catch (_) {}
 }
 
 export function sellIndex(ctx, idx) {
   try {
-    const inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : [];
-    if (idx < 0 || idx >= inv.length) return;
-    const it = inv[idx];
-    if (!it || it.kind === "gold") return;
-    const pay = sellPriceFor(it);
-    // Ensure gold entry exists
-    let goldObj = null;
-    for (let i = 0; i < inv.length; i++) {
-      if (inv[i] && inv[i].kind === "gold") { goldObj = inv[i]; break; }
+    if (!_shopRef || !window.ShopService || typeof window.ShopService.sellItem !== "function") return;
+    const ok = window.ShopService.sellItem(ctx, _shopRef, idx);
+    if (ok) {
+      render(ctx);
     }
-    if (!goldObj) { goldObj = { kind: "gold", amount: 0, name: "gold" }; inv.push(goldObj); }
-    goldObj.amount = (goldObj.amount | 0) + pay;
-
-    // Remove or decrement stack
-    if (it.kind === "potion" && (it.count || 1) > 1) {
-      it.count = (it.count | 0) - 1;
-    } else {
-      inv.splice(idx, 1);
-    }
-
-    try { ctx.updateUI(); } catch (_) {}
-    try { if (ctx.renderInventory) ctx.renderInventory(); } catch (_) {}
-    try {
-      const name = ctx.describeItem ? ctx.describeItem(it) : (it && it.name) || "item";
-      ctx.log("You sold " + name + " for " + pay + " gold.", "good");
-    } catch (_) {}
-    render(ctx);
   } catch (_) {}
 }
 
