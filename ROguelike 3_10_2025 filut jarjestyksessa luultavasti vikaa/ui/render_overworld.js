@@ -142,25 +142,114 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Draw roads as subtle overlays on top of base tiles
+  // Draw roads as overlays with style variations:
+  // - dashed pattern via parity of (x+y)
+  // - thicker segments near cities
   try {
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
+    const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
     if (roads.length) {
       ctx2d.save();
-      ctx2d.globalAlpha = 0.35;
+      ctx2d.globalAlpha = 0.38;
       ctx2d.fillStyle = "#9aa5b1"; // light slate for road
+
+      // Helper: check if near a city to thicken segment
+      function nearCity(x, y) {
+        const R = 4;
+        for (const t of towns) {
+          if (!t || t.size !== "city") continue;
+          const d = Math.abs(t.x - x) + Math.abs(t.y - y);
+          if (d <= R) return true;
+        }
+        return false;
+      }
+
       for (const p of roads) {
         const x = p.x, y = p.y;
         if (x < startX || x > endX || y < startY || y > endY) continue;
+
+        // Dashed: skip every other tile based on parity; keep continuous look when near cities
+        const dashedSkip = ((x + y) % 2) !== 0 && !nearCity(x, y);
+        if (dashedSkip) continue;
+
         const sx = (x - startX) * TILE - tileOffsetX;
         const sy = (y - startY) * TILE - tileOffsetY;
-        // centered thin rect to suggest a road
-        const w = Math.max(2, Math.floor(TILE * 0.30));
-        const h = Math.max(2, Math.floor(TILE * 0.30));
+
+        // Thickness scales with proximity to cities
+        const thick = nearCity(x, y);
+        const w = thick ? Math.max(3, Math.floor(TILE * 0.55)) : Math.max(2, Math.floor(TILE * 0.30));
+        const h = thick ? Math.max(2, Math.floor(TILE * 0.40)) : Math.max(2, Math.floor(TILE * 0.30));
+
         ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
       }
       ctx2d.restore();
     }
+  } catch (_) {}
+
+  // Draw bridges as stronger markers across rivers
+  try {
+    const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
+    if (bridges.length) {
+      ctx2d.save();
+      ctx2d.globalAlpha = 0.6;
+      ctx2d.fillStyle = "#c3a37a"; // wood-like color
+      for (const p of bridges) {
+        const x = p.x, y = p.y;
+        if (x < startX || x > endX || y < startY || y > endY) continue;
+        const sx = (x - startX) * TILE - tileOffsetX;
+        const sy = (y - startY) * TILE - tileOffsetY;
+        // small plank-like rectangle
+        const w = Math.max(4, Math.floor(TILE * 0.55));
+        const h = Math.max(3, Math.floor(TILE * 0.20));
+        ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
+      }
+      ctx2d.restore();
+    }
+  } catch (_) {}
+
+  // Main-map POI icons: towns and dungeons
+  try {
+    const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
+    const dungeons = (ctx.world && Array.isArray(ctx.world.dungeons)) ? ctx.world.dungeons : [];
+    // Towns: gold squares, size scaled by town size
+    ctx2d.save();
+    for (const t of towns) {
+      const x = t.x, y = t.y;
+      if (x < startX || x > endX || y < startY || y > endY) continue;
+      const sx = (x - startX) * TILE - tileOffsetX;
+      const sy = (y - startY) * TILE - tileOffsetY;
+      let sizeMul = 0.40; // small
+      if (t.size === "big") sizeMul = 0.52;
+      else if (t.size === "city") sizeMul = 0.68;
+      const s = Math.max(4, Math.floor(TILE * sizeMul));
+      ctx2d.fillStyle = "#ffd166";
+      ctx2d.globalAlpha = 0.85;
+      ctx2d.fillRect(sx + (TILE - s) / 2, sy + (TILE - s) / 2, s, s);
+      // subtle border
+      ctx2d.globalAlpha = 0.95;
+      ctx2d.strokeStyle = "rgba(255, 209, 102, 0.7)";
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
+    }
+    ctx2d.restore();
+
+    // Dungeons: red squares
+    ctx2d.save();
+    for (const d of dungeons) {
+      const x = d.x, y = d.y;
+      if (x < startX || x > endX || y < startY || y > endY) continue;
+      const sx = (x - startX) * TILE - tileOffsetX;
+      const sy = (y - startY) * TILE - tileOffsetY;
+      const s = Math.max(4, Math.floor(TILE * 0.48));
+      ctx2d.fillStyle = "#ef4444";
+      ctx2d.globalAlpha = 0.85;
+      ctx2d.fillRect(sx + (TILE - s) / 2, sy + (TILE - s) / 2, s, s);
+      ctx2d.globalAlpha = 0.95;
+      ctx2d.strokeStyle = "rgba(239, 68, 68, 0.7)";
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
+    }
+    ctx2d.restore();
   } catch (_) {}
 
   // Draw bridges as stronger markers across rivers
