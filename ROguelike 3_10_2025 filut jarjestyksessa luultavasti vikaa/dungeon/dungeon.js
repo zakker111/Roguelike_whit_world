@@ -130,30 +130,15 @@ export function generateLevel(ctx, depth) {
   const start = center(rooms[0] || { x: 2, y: 2, w: 1, h: 1 });
   ctx.startRoomRect = rooms[0] || { x: start.x, y: start.y, w: 1, h: 1 };
 
-  // Place player at start
-  if (depth === 1) {
-    const PlayerMod = (ctx.Player || (typeof window !== "undefined" ? window.Player : null));
-    if (PlayerMod && typeof PlayerMod.resetFromDefaults === "function") {
-      PlayerMod.resetFromDefaults(ctx.player);
-    } else if (PlayerMod && typeof PlayerMod.createInitial === "function") {
-      const init = PlayerMod.createInitial();
-      Object.assign(ctx.player, init);
-    } else {
-      Object.assign(ctx.player, {
-        hp: 20, maxHp: 40, inventory: [], atk: 1, xp: 0, level: 1, xpNext: 20,
-        equipment: { left: null, right: null, head: null, torso: null, legs: null, hands: null }
-      });
-    }
-    ctx.player.x = start.x;
-    ctx.player.y = start.y;
+  // Place player at start (do not reset player; preserve inventory/equipment/HP across transitions)
+player.x = start.x;
+player.y = start.y;
 
-    const DI = (ctx.DungeonItems || (typeof window !== "undefined" ? window.DungeonItems : null));
-    if (DI && typeof DI.placeChestInStartRoom === "function") {
-      // Note: DI may use RNG service or ctx.utils; initial chest placement may vary slightly.
-      // Persistence ensures consistency on re-entry.
-      DI.placeChestInStartRoom(ctx);
-    }
-  } else {
+// On first generation, still place a chest in the start room if supported
+const DI = (ctx.DungeonItems || (typeof window !== "undefined" ? window.DungeonItems : null));
+if (DI && typeof DI.placeChestInStartRoom === "function") {
+  try { DI.placeChestInStartRoom(ctx); } catch (_) {}
+} else {
     player.x = start.x;
     player.y = start.y;
   }
