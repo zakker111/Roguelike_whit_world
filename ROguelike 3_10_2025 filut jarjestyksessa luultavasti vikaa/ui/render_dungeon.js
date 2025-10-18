@@ -84,9 +84,8 @@ export function draw(ctx, view) {
     return toHex({ r: rgb.r * factor, g: rgb.g * factor, b: rgb.b * factor });
   }
   function biomeBaseFill() {
-    const b = (ctx.encounterBiome || "").toUpperCase();
+    const b = String(ctx.encounterBiome || "").toUpperCase();
     if (!b) return null;
-    // Map biome -> tile key whose fill to borrow
     const key = (b === "FOREST") ? "FOREST"
               : (b === "GRASS") ? "GRASS"
               : (b === "DESERT") ? "DESERT"
@@ -94,19 +93,30 @@ export function draw(ctx, view) {
               : (b === "BEACH") ? "BEACH"
               : (b === "SWAMP") ? "SWAMP"
               : null;
-    if (!key) return null;
-    const td = getTileDefByKey("overworld", key) || getTileDefByKey("region", key);
-    return (td && td.colors && td.colors.fill) ? td.colors.fill : null;
+    let hex = null;
+    try {
+      const td = key ? (getTileDefByKey("overworld", key) || getTileDefByKey("region", key)) : null;
+      hex = (td && td.colors && td.colors.fill) ? td.colors.fill : null;
+    } catch (_) { hex = null; }
+    if (hex) return hex;
+    // Fallback palette for encounters when tiles.json lacks colors
+    const fallback = {
+      FOREST: "#163a22",
+      GRASS:  "#1c522b",
+      DESERT: "#cdaa70",
+      BEACH:  "#dbc398",
+      SNOW:   "#dfe5eb",
+      SWAMP:  "#1e3c27"
+    };
+    return fallback[b] || "#1f2937"; // neutral dark slate fallback
   }
   function encounterFillFor(type) {
     if (!ctx.encounterBiome) return null;
     const base = biomeBaseFill();
     if (!base) return null;
-    if (type === TILES.WALL) return shade(base, 0.65);
-    if (type === TILES.DOOR) return base;
-    if (type === TILES.FLOOR || type === TILES.STAIRS) return base;
-    return null;
-  }
+    // Use lighter, biome-driven colors to avoid overly dark maps
+    if (type === TILES.WALL) return shade(base, 0.88);            // slightly darker than floor, not murky
+    if (type === TILES.DOOR) return shade(base, 1.06);            // slight highlight
 
   // Build base offscreen once per map/TILE change
   try {
@@ -140,7 +150,7 @@ export function draw(ctx, view) {
             else if (type === TILES.STAIRS) key = "stairs";
             else if (type === TILES.DOOR) key = "door";
             let drawn = false;
-            if (tilesetReady && TS && typeof TS.draw === "function") {
+            if (tilesetReady && TS && typeof TS.draw === "function" && ctx.mode !== "encounter") {
               drawn = TS.draw(oc, key, sx, sy, TILE);
             }
             if (!drawn) {
@@ -157,17 +167,7 @@ export function draw(ctx, view) {
                 RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
               }
             }
-            // Biome tint overlay even when tileset is used
-            if (baseHex) {
-              try {
-                oc.save();
-                oc.globalCompositeOperation = "multiply";
-                oc.globalAlpha = (type === TILES.WALL ? tintWallA : tintFloorA);
-                oc.fillStyle = baseHex;
-                oc.fillRect(sx, sy, TILE, TILE);
-                oc.restore();
-              } catch (_) {}
-            }
+            
           }
         }
         DUN.canvas = off;
@@ -206,7 +206,7 @@ export function draw(ctx, view) {
         else if (type === TILES.STAIRS) key = "stairs";
         else if (type === TILES.DOOR) key = "door";
         let drawn = false;
-        if (tilesetReady && typeof TS.draw === "function") {
+        if (tilesetReady && typeof TS.draw === "function" && ctx.mode !== "encounter") {
           drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
         }
         if (!drawn) {
@@ -217,18 +217,7 @@ export function draw(ctx, view) {
           ctx2d.fillStyle = fill;
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
         }
-        // Tint overlay for biome when tileset is used
-        if (baseHex) {
-          try {
-            ctx2d.save();
-            ctx2d.globalCompositeOperation = "multiply";
-            ctx2d.globalAlpha = (type === TILES.WALL ? tintWallA : tintFloorA);
-            ctx2d.fillStyle = baseHex;
-            ctx2d.fillRect(screenX, screenY, TILE, TILE);
-            ctx2d.restore();
-          } catch (_) {}
-        }
-      }
+              }
     }
   }
 
@@ -609,19 +598,19 @@ export function draw(ctx, view) {
     }
   }
 
-  // Day/night tint overlay for encounters
+  // Day/night tint overlay for encounters (lighter to preserve biome styling)
   try {
     const phase = ctx.time && ctx.time.phase;
     if (ctx.mode === "encounter" && phase) {
       ctx2d.save();
       if (phase === "night") {
-        ctx2d.fillStyle = "rgba(0,0,0,0.35)";
+        ctx2d.fillStyle = "rgba(0,0,0,0.15)";
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       } else if (phase === "dusk") {
-        ctx2d.fillStyle = "rgba(255,120,40,0.12)";
+        ctx2d.fillStyle = "rgba(255,120,40,0.06)";
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       } else if (phase === "dawn") {
-        ctx2d.fillStyle = "rgba(120,180,255,0.10)";
+        ctx2d.fillStyle = "rgba(120,180,255,0.05)";
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       }
       ctx2d.restore();
