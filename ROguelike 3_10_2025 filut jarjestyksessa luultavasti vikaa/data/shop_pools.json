@@ -99,5 +99,18 @@
         ]
       }
     }
+  },
+  "carpenter": {
+    "categories": {
+      "materials": {
+        "capPerDay": 4,
+        "entries": [
+          { "id": "wood_planks", "kind": "material", "material": "wood",
+            "phaseWeights": { "morning": 4, "midday": 5, "afternoon": 3 },
+            "maxPerRestock": 2, "stack": { "min": 1, "max": 3 }
+          }
+        ]
+      }
+    }
   }
 }

@@ -3,5 +3,6 @@
   { "type": "apothecary", "name": "Apothecary", "open": "09:00", "close": "18:00" },
   { "type": "armorer", "name": "Armorer", "open": "08:00", "close": "17:00" },
   { "type": "trader", "name": "Trader", "open": "08:00", "close": "18:00" },
+  { "type": "carpenter", "name": "Carpenter", "open": "09:00", "close": "17:00" },
   { "type": "inn", "name": "Inn", "alwaysOpen": true }
 ]

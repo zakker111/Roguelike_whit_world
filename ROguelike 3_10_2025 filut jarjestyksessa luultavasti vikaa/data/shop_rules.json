@@ -25,5 +25,12 @@
     "buyMultiplier": 0.50,
     "sellMultiplier": 1.0,
     "dailySlots": 4
+  },
+  "carpenter": {
+    "sells": ["material", "tool"],
+    "buys": ["material"],
+    "buyMultiplier": 0.75,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "morning": 0.95 }
   }
 }
