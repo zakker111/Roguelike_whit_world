@@ -774,7 +774,14 @@
         } catch (_) {}
       }
       updateUI();
-      log("You explore the dungeon.");
+      {
+        const MZ = modHandle("Messages");
+        if (MZ && typeof MZ.log === "function") {
+          MZ.log(getCtx(), "dungeon.explore");
+        } else {
+          log("You explore the dungeon.");
+        }
+      }
       try {
         const DR2 = modHandle("DungeonRuntime");
         if (DR2 && typeof DR2.save === "function") {
@@ -802,7 +809,14 @@
     recomputeFOV();
     updateCamera();
     updateUI();
-    log("You explore the dungeon.");
+    {
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "dungeon.explore");
+      } else {
+        log("You explore the dungeon.");
+      }
+    }
     try {
       const DR2 = modHandle("DungeonRuntime");
       if (DR2 && typeof DR2.save === "function") {
@@ -1064,7 +1078,14 @@
     updateCamera();
     recomputeFOV();
     updateUI();
-    log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
+    {
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "world.arrive");
+      } else {
+        log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
+      }
+    }
     {
       // Delegate town exit button visibility via TownRuntime
       const TR = modHandle("TownRuntime");
@@ -1233,7 +1254,14 @@
         return true;
       }
     }
-    log("Return to the town gate to exit to the overworld.", "info");
+    {
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "town.exitHint");
+      } else {
+        log("Return to the town gate to exit to the overworld.", "info");
+      }
+    }
     return false;
   }
 
@@ -1385,7 +1413,14 @@
       } catch (_) {}
 
       // Otherwise, nothing to do here
-      log("Return to the exit (>) to leave this encounter.", "info");
+      {
+        const MZ = modHandle("Messages");
+        if (MZ && typeof MZ.log === "function") {
+          MZ.log(getCtx(), "encounter.exitHint");
+        } else {
+          log("Return to the exit (>) to leave this encounter.", "info");
+        }
+      }
       return;
     }
 
@@ -1410,14 +1445,29 @@
       return;
     }
     if (mode === "dungeon") {
-      log("This dungeon has no deeper levels. Return to the entrance (the hole '>') and press G to leave.", "info");
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "dungeon.noDeeper");
+      } else {
+        log("This dungeon has no deeper levels. Return to the entrance (the hole '>') and press G to leave.", "info");
+      }
       return;
     }
     const here = map[player.y][player.x];
     if (here === TILES.STAIRS) {
-      log("There is nowhere to go down from here.", "info");
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "dungeon.noDescendHere");
+      } else {
+        log("There is nowhere to go down from here.", "info");
+      }
     } else {
-      log("You need to stand on the staircase (brown tile marked with '>').", "info");
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "dungeon.needStairs");
+      } else {
+        log("You need to stand on the staircase (brown tile marked with '>').", "info");
+      }
     }
   }
 
