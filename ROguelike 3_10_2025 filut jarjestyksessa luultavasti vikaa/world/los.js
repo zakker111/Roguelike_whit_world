@@ -32,7 +32,9 @@ export function tileTransparent(ctx, x, y) {
   if (!ctx.inBounds(x, y)) return false;
   // Prefer tiles.json blocksFOV property based on mode if available
   try {
-    const mode = String(ctx.mode || "").toLowerCase() || "dungeon";
+    let mode = String(ctx.mode || "").toLowerCase() || "dungeon";
+    // Treat encounters as dungeon for tile property lookups
+    if (mode === "encounter") mode = "dungeon";
     const t = ctx.map[y][x];
     const td = getTileDef(mode, t);
     if (td && td.properties && typeof td.properties.blocksFOV === "boolean") {

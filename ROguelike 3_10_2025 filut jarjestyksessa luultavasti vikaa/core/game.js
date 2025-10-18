@@ -833,12 +833,14 @@
   }
 
   function inBounds(x, y) {
-    // Centralize via Utils.inBounds; no local fallback
+    // Centralize via Utils.inBounds; fallback to local map bounds
     const U = modHandle("Utils");
     if (U && typeof U.inBounds === "function") {
       return !!U.inBounds(getCtx(), x, y);
     }
-    return false;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    return x >= 0 && y >= 0 && x < cols && y < rows;
   }
 
   
@@ -847,13 +849,14 @@
   
 
   function isWalkable(x, y) {
-    // Centralize via Utils.isWalkableTile; no local fallback
+    // Centralize via Utils.isWalkableTile; fallback to tile-type check
     const U = modHandle("Utils");
     if (U && typeof U.isWalkableTile === "function") {
       return !!U.isWalkableTile(getCtx(), x, y);
     }
-    return false;
-  }
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    if ( <x 0 ||  <y 0 || x >= cols }
 
   
 
