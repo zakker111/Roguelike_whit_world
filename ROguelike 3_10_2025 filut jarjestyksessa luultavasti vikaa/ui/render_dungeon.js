@@ -26,6 +26,18 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Helper: robust fallback fill for dungeon tiles when tiles.json is missing/incomplete
+function fallbackFillDungeon(TILES, type, COLORS) {
+  try {
+    if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
+    if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
+    if (type === TILES.DOOR) return "#3a2f1b";
+    if (type === TILES.STAIRS) return "#3a2f1b";
+    if (type === TILES.WINDOW) return "#295b6e";
+  } catch (_) {}
+  return "#0b0c10";
+}
+
 // Helper: get tile def by key for a given mode
 function getTileDefByKey(mode, key) {
   try {
@@ -132,17 +144,15 @@ export function draw(ctx, view) {
               drawn = TS.draw(oc, key, sx, sy, TILE);
             }
             if (!drawn) {
-              // Biome-aware fill (fallback), otherwise tiles.json dungeon fill
+              // Biome-aware fill (fallback), otherwise tiles.json dungeon fill, else robust fallback color
               const td = getTileDef("dungeon", type);
               const theme = encounterFillFor(type);
-              const fill = theme || (td && td.colors && td.colors.fill);
-              if (fill) {
-                oc.fillStyle = fill;
-                oc.fillRect(sx, sy, TILE, TILE);
-              }
+              const fill = theme || (td && td.colors && td.colors.fill) || fallbackFillDungeon(TILES, type, COLORS);
+              oc.fillStyle = fill;
+              oc.fillRect(sx, sy, TILE, TILE);
               if (type === TILES.STAIRS && !tilesetReady) {
                 const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
-                const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : "";
+                const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : ">";
                 const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
                 RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
               }
@@ -200,14 +210,12 @@ export function draw(ctx, view) {
           drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
         }
         if (!drawn) {
-          // JSON-only fill color (biome-aware fallback -> dungeon fallback)
+          // JSON-only fill color (biome-aware fallback -> dungeon fallback -> robust fallback color)
           const td = getTileDef("dungeon", type);
           const theme = encounterFillFor(type);
-          const fill = theme || (td && td.colors && td.colors.fill);
-          if (fill) {
-            ctx2d.fillStyle = fill;
-            ctx2d.fillRect(screenX, screenY, TILE, TILE);
-          }
+          const fill = theme || (td && td.colors && td.colors.fill) || fallbackFillDungeon(TILES, type, COLORS);
+          ctx2d.fillStyle = fill;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
         }
         // Tint overlay for biome when tileset is used
         if (baseHex) {

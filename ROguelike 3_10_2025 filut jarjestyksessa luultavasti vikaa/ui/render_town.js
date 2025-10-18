@@ -24,6 +24,18 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Robust fallback fill for town tiles when tiles.json is missing/incomplete
+function fallbackFillTown(TILES, type, COLORS) {
+  try {
+    if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
+    if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
+    if (type === TILES.DOOR) return "#3a2f1b";
+    if (type === TILES.WINDOW) return "#295b6e";
+    if (type === TILES.STAIRS) return "#3a2f1b";
+  } catch (_) {}
+  return "#0b0c10";
+}
+
 // Helper: get tile def by key for a given mode (for town props)
 function getTileDefByKey(mode, key) {
   try {
@@ -89,9 +101,9 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // JSON-only fill colors: prefer town, then dungeon. Unknown tiles use a neutral dark fill.
+            // JSON fill colors: prefer town, then dungeon; else robust fallback color
             const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-            const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+            const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -107,7 +119,7 @@ export function draw(ctx, view) {
       RenderCore.blitViewport(ctx2d, TOWN.canvas, cam, TOWN.wpx, TOWN.hpx);
     } catch (_) {}
   } else {
-    // Fallback: draw base tiles in viewport using JSON-only colors
+    // Fallback: draw base tiles in viewport using JSON colors or robust fallback
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -121,7 +133,7 @@ export function draw(ctx, view) {
         }
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
