@@ -203,9 +203,8 @@ export function draw(ctx, view) {
       const isVisible = !!(visible[n.y] && visible[n.y][n.x]);
       const wasSeen = !!(seen[n.y] && seen[n.y][n.x]);
 
-      // Draw NPCs if currently visible, else draw dimmed if they were seen before (helps discoverability in towns)
-      if (!isVisible && !wasSeen) continue;
-
+      // Always draw town NPCs for discoverability.
+      // Use alpha to indicate visibility state: full when visible, dim when not.
       const screenX = (n.x - startX) * TILE - tileOffsetX;
       const screenY = (n.y - startY) * TILE - tileOffsetY;
 
@@ -220,12 +219,8 @@ export function draw(ctx, view) {
         color = "#f6c177";
       }
 
-      ctx2d.save();
-      if (!isVisible && wasSeen) {
-        ctx2d.globalAlpha = 0.6;
-      }
+      // Always draw at full opacity to ensure discoverability, regardless of FOV memory.
       RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-      ctx2d.restore();
 
       // Sleeping indicator: animated z/Z above sleeping NPCs (only when visible to avoid noise)
       if (isVisible && n._sleeping) {

@@ -3,10 +3,10 @@
   window.SmokeTest = window.SmokeTest || {};
 
   const CONFIG = window.SmokeTest.Config || {
-    timeouts: { route: 5000, interact: 2500, battle: 5000 },
-    perfBudget: { turnMs: 6.0, drawMs: 12.0 }
-  };
-  const RUNNER_VERSION = "1.8.0";
+        timeouts: { route: 5000, interact: 2500, battle: 5000 },
+        perfBudget: { turnMs: 6.0, drawMs: 12.0 }
+      };
+      const RUNNER_VERSION = "1.9.0";
 
   function parseParams() {
     try {
@@ -14,7 +14,7 @@
       const p = (name, def) => u.searchParams.get(name) || def;
       // Support both legacy "smoke" and new "scenarios" params
       const legacySel = (p("smoke", "") || "").trim();
-      const sel = legacySel ? legacySel : p("scenarios", "world,dungeon,inventory,combat,town,overlays,determinism");
+      const sel = legacySel ? legacySel : p("scenarios", "world,encounters,dungeon,inventory,combat,town,overlays,determinism");
       return {
         smoketest: p("smoketest", "0") === "1",
         dev: p("dev", "0") === "1",
@@ -984,6 +984,7 @@
         town_diagnostics: S.Town && S.Town.Diagnostics && S.Town.Diagnostics.run,
         overlays: S.Overlays && S.Overlays.run,
         determinism: S.Determinism && S.Determinism.run,
+        encounters: S.Encounters && S.Encounters.run,
       };
       let pipeline = [];
       try {
@@ -997,6 +998,7 @@
       if (!pipeline.length) {
         pipeline = [
           { name: "world", fn: avail.world },
+          { name: "encounters", fn: avail.encounters },
           { name: "dungeon", fn: avail.dungeon },
           { name: "inventory", fn: avail.inventory },
           { name: "combat", fn: avail.combat },

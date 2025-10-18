@@ -1,5 +1,39 @@
 # Game Version History
-Last updated: 2025-10-17 00:00 UTC
+Last updated: 2025-10-18 00:00 UTC
+
+v1.36.2 — Overworld town/city glyphs
+- Changed: ui/render_overworld.js
+  - Town POIs now render as gold glyphs with size semantics:
+    - 't' for towns (small/big)
+    - 'T' for cities
+  - Dungeons remain red squares.
+- Deployment: https://eugw8hescdb1.cosine.page
+
+v1.36.1 — Overworld visual polish: biome embellishments and vignette
+- Changed: ui/render_overworld.js
+  - Forest canopy dots (subtle speckling to break flat green).
+  - Mountain ridge highlight (soft shading on top-left edges).
+  - Desert sand specks (light grain texture).
+  - Snow tint variation (small cool-blue patches).
+  - River shimmer (faint highlight lines).
+  - Subtle vignette around viewport edges.
+- Deployment: https://3woxbq41j6fs.cosine.page
+
+v1.36.0 — Roads/bridges network + POI icons (main map)
+- Changed: world/world.js
+  - Ensures connectivity by carving walkable paths between towns and to nearest dungeons.
+  - Records explicit road and bridge overlays: roads[] and bridges[] returned with the world.
+- Changed: ui/render_overworld.js
+  - Draws dashed roads (alternating tiles), with thicker segments near cities.
+  - Draws bridges as stronger plank-like markers across rivers.
+  - Adds main-map POI icons: gold towns (scaled by size), red dungeons.
+- Deployment: https://fpfpw18yot5c.cosine.page, https://zwk7lp7p0kwp.cosine.page
+
+v1.35.43 — Town NPC visibility: engine sync fix
+- Fixed: core/game.js
+  - syncFromCtx(ctx) now copies ctx.npcs into local state, ensuring town NPCs render immediately after Town/TownAI population.
+- Result: NPCs appear without needing GOD diagnostics; consistent town life on entry.
+- Deployment: https://16zzzpmuiwz5.cosine.page
 
 v1.35.42 — Shop panel syntax fix and duplication removal
 - Fixed: ui/shop_panel.js had a duplicated tail that caused “Unexpected token '}'”.

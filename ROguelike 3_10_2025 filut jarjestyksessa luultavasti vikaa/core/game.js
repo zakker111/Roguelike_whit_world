@@ -1105,6 +1105,8 @@
     enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
     corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
     decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
+    // Town NPCs
+    npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
     // Encounter visuals
     encounterProps = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : encounterProps;
     if (Object.prototype.hasOwnProperty.call(ctx, "encounterBiome")) {
