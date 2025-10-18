@@ -444,6 +444,8 @@
       try { if (info) info.name = townName; } catch (_) {}
     }
     ctx.townName = townName;
+    // Expose size to other modules (AI, UI)
+    ctx.townSize = townSize;
 
     // Plaza
     const plaza = { x: (W / 2) | 0, y: (H / 2) | 0 };
@@ -576,7 +578,13 @@
     // Score buildings by distance to plaza and assign shops to closest buildings
     const scored = buildings.map(b => ({ b, d: Math.abs((b.x + (b.w / 2)) - plaza.x) + Math.abs((b.y + (b.h / 2)) - plaza.y) }));
     scored.sort((a, b) => a.d - b.d);
-    const shopCount = Math.min(shopDefs.length, scored.length);
+    // Vary number of shops by town size
+    function shopLimitBySize(sizeKey) {
+      if (sizeKey === "small") return 3;
+      if (sizeKey === "city") return 8;
+      return 5; // big
+    }
+    const shopCount = Math.min(shopDefs.length, scored.length, shopLimitBySize(townSize));
 
     for (let i = 0; i < shopCount; i++) {
       const b = scored[i].b;

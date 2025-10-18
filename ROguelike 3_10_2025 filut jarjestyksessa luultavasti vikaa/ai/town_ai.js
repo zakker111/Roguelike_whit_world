@@ -351,7 +351,12 @@
         }
         if (npcs.some(n => n.x === spot.x && n.y === spot.y)) continue;
 
-        const livesInShop = rng() < 0.4 && s.building;
+        // In smaller towns shopkeepers more often live in their shop; in cities less often
+        const size = (ctx.townSize || "big");
+        let baseLive = 0.4;
+        if (size === "small") baseLive = 0.6;
+        else if (size === "city") baseLive = 0.25;
+        const livesInShop = rng() < baseLive && s.building;
         let home = null;
         if (livesInShop && s.building) {
           const h = randomInteriorSpot(ctx, s.building) || s.inside || { x: s.x, y: s.y };
