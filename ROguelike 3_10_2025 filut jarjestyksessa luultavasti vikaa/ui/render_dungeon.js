@@ -129,7 +129,7 @@ export function draw(ctx, view) {
           oc.textBaseline = "middle";
         } catch (_) {}
         const baseHex = biomeBaseFill();
-        const tintFloorA = 0.28, tintWallA = 0.36;
+        const tintFloorA = 0.14, tintWallA = 0.20;
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
           for (let xx = 0; xx < mapCols; xx++) {
@@ -188,7 +188,7 @@ export function draw(ctx, view) {
     } catch (_) {}
   } else {
     const baseHex = biomeBaseFill();
-    const tintFloorA = 0.28, tintWallA = 0.24;
+    const tintFloorA = 0.12, tintWallA = 0.18;
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;

@@ -16,6 +16,6 @@
     "corpseEmpty": "#6b7280"
   },
   "overlays": {
-    "dim": "rgba(13, 16, 24, 0.75)"
+    "dim": "rgba(0, 0, 0, 0.70)"
   }
 }
