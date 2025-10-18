@@ -277,19 +277,7 @@ export function lootHere(ctx) {
     }
   } catch (_) {}
 
-  // Delegate to Loot.lootHere if available
-  try {
-    if (ctx.Loot && typeof ctx.Loot.lootHere === "function") {
-      ctx.Loot.lootHere(ctx);
-      return true;
-    }
-    if (typeof window !== "undefined" && window.Loot && typeof window.Loot.lootHere === "function") {
-      window.Loot.lootHere(ctx);
-      return true;
-    }
-  } catch (_) {}
-
-  // Minimal fallback: transfer items from corpse underfoot into inventory; auto-equip when better
+  // Minimal unified handling: determine what's underfoot first, then delegate when there is actual loot
   try {
     const list = Array.isArray(ctx.corpses) ? ctx.corpses.filter(c => c && c.x === ctx.player.x && c.y === ctx.player.y) : [];
     if (list.length === 0) {
@@ -343,6 +331,18 @@ export function lootHere(ctx) {
       ctx.turn && ctx.turn();
       return true;
     }
+
+    // Delegate to Loot.lootHere for actual loot transfer if available
+    try {
+      if (ctx.Loot && typeof ctx.Loot.lootHere === "function") {
+        ctx.Loot.lootHere(ctx);
+        return true;
+      }
+      if (typeof window !== "undefined" && window.Loot && typeof window.Loot.lootHere === "function") {
+        window.Loot.lootHere(ctx);
+        return true;
+      }
+    } catch (_) {}
     const acquired = [];
     for (const item of container.loot) {
       if (!item) continue;
