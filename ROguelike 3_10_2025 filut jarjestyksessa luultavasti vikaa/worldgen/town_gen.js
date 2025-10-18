@@ -767,6 +767,8 @@
         building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: door.x, y: door.y } },
         inside
       });
+      // Ensure a sign near the shop door with the correct shop name (e.g., Inn)
+      try { addSignNear(door.x, door.y, name); } catch (__code) new{</}
     }
 
     // Town buildings metadata
