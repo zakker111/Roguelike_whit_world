@@ -111,18 +111,24 @@ export function talk(ctx) {
     return true;
   }
 
-  // If the shopkeeper is at or adjacent to their shop door, gate opening by schedule via ShopService
+  // Open shop when bumping the shopkeeper if the shop is open.
   try {
-    let doorShop = null;
-    const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-    for (const s of shops) {
-      const dd = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
-      if (dd <= 1) { doorShop = s; break; }
+    const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
+    const shopRef = npc._shopRef || null;
+
+    // Prefer the explicit reference from the NPC; else fallback to nearest door shop
+    let targetShop = shopRef;
+    if (!targetShop) {
+      const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      for (const s of shops) {
+        const dd = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
+        if (dd <= 1) { targetShop = s; break; }
+      }
     }
-    if (doorShop) {
-      const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
-      const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, doorShop) : false;
-      const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(doorShop) : "";
+
+    if (targetShop) {
+      const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, targetShop) : false;
+      const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(targetShop) : "";
       if (openNow) {
         let wasOpen = false;
         try { wasOpen = !!(ctx.UIBridge && typeof ctx.UIBridge.isShopOpen === "function" && ctx.UIBridge.isShopOpen()); } catch (_) {}
@@ -131,7 +137,7 @@ export function talk(ctx) {
         }
         if (!wasOpen) { ctx.requestDraw && ctx.requestDraw(); }
       } else {
-        ctx.log && ctx.log(`The ${doorShop.name || "shop"} is closed. ${sched}`, "warn");
+        ctx.log && ctx.log(`The ${targetShop.name || "shop"} is closed. ${sched}`, "warn");
       }
     }
   } catch (_) {}
