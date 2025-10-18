@@ -219,16 +219,16 @@ export function generate(ctx, opts = {}) {
     }
   }
 
-  // Carve a few towns (prefer near water/river or beach)
+  // Carve towns and dungeons (prefer towns near water/river/beach)
   const towns = [];
   const dungeons = [];
-  const wantTowns = 8 + ((rng() * 4) | 0);
-  // Scale dungeon count with map area to populate more dungeons on larger maps.
-  // Baseline increased significantly; ensures richer world content.
+  // Increase town density and scale by area for richer worlds
   const area = width * height;
-  // Increase baseline dungeon density and scale with area more aggressively
-  const baseDungeons = Math.max(16, Math.floor(area / 600)); // ~16 for 120x80; grows with area
-  const wantDungeons = baseDungeons + ((rng() * Math.max(8, Math.floor(baseDungeons * 0.5))) | 0);
+  const baseTowns = Math.max(14, Math.floor(area / 700)); // ~14 for 120x80; grows with area
+  const wantTowns = baseTowns + ((rng() * Math.max(6, Math.floor(baseTowns * 0.4))) | 0);
+  // Scale dungeon count with map area and increase baseline density
+  const baseDungeons = Math.max(22, Math.floor(area / 500)); // ~22 for 120x80; grows with area
+  const wantDungeons = baseDungeons + ((rng() * Math.max(10, Math.floor(baseDungeons * 0.5))) | 0);
 
   // Decide town size distribution: small ~60%, big ~30%, city ~10%
   function pickTownSize() {
@@ -254,7 +254,8 @@ export function generate(ctx, opts = {}) {
     wantTowns,
     (x, y) => {
       const t = map[y][x];
-      if (t !== TILES.GRASS && t !== TILES.BEACH) return false;
+      // allow GRASS/BEACH and occasionally DESERT/SNOW towns
+      if (!(t === TILES.GRASS || t === TILES.BEACH || t === TILES.DESERT || t === TILES.SNOW)) return false;
       // prefer near water or river
       for (let dy = -5; dy <= 5; dy++) {
         for (let dx = -5; dx <= 5; dx++) {
@@ -266,7 +267,8 @@ export function generate(ctx, opts = {}) {
           }
         }
       }
-      return rng() < 0.08; // small chance elsewhere
+      // bias: occasional towns away from water (slightly higher than before)
+      return rng() < 0.12;
     },
     (x, y) => {
       map[y][x] = TILES.TOWN;
