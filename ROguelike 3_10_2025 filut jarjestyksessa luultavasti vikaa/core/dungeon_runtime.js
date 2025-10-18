@@ -245,37 +245,7 @@ export function returnToWorldIfAtExit(ctx) {
 export function lootHere(ctx) {
   if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
 
-  // QoL: if adjacent to a corpse/chest, step onto it (only if not on exit)
-  try {
-    const onExit =
-      (ctx.dungeonExitAt &&
-        ctx.player.x === ctx.dungeonExitAt.x &&
-        ctx.player.y === ctx.dungeonExitAt.y) ||
-      (ctx.inBounds && ctx.inBounds(ctx.player.x, ctx.player.y) &&
-        ctx.map && ctx.map[ctx.player.y] &&
-        ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
-
-    if (!onExit) {
-      const neighbors = [
-        { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-      ];
-      const hereList = Array.isArray(ctx.corpses) ? ctx.corpses : [];
-      let target = null;
-      for (const d of neighbors) {
-        const tx = ctx.player.x + d.dx, ty = ctx.player.y + d.dy;
-        const c = hereList.find(c => c && c.x === tx && c.y === ty);
-        if (c) { target = { x: tx, y: ty }; break; }
-      }
-      if (target) {
-        const walkable = (ctx.inBounds(target.x, target.y) &&
-          (ctx.map[target.y][target.x] === ctx.TILES.FLOOR || ctx.map[target.y][target.x] === ctx.TILES.DOOR));
-        const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
-        if (walkable && !enemyBlocks) {
-          ctx.player.x = target.x; ctx.player.y = target.y;
-        }
-      }
-    }
-  } catch (_) {}
+  // Exact-tile only: do not auto-step onto adjacent corpses/chests. Looting and flavor apply only if standing on the body tile.
 
   // Minimal unified handling: determine what's underfoot first, then delegate when there is actual loot
   try {
