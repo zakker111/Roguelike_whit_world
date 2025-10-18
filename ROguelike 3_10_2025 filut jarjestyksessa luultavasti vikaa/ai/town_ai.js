@@ -354,11 +354,12 @@
         const neigh = [
           { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
           { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
-      _code  new]</;
+        ];
         for (const d of neigh) {
           const nx = s.x + d.dx, ny = s.y + d.dy;
           if (isFreeTownFloor(ctx, nx, ny)) { spot = { x: nx, y: ny }; break; }
         }
+        if (!spot) { spot = { x: s.x, y: s.y }; }
         if (npcs.some(n => n.x === spot.x && n.y === spot.y)) continue;
 
         // In smaller towns shopkeepers more often live in their shop; in cities less often
