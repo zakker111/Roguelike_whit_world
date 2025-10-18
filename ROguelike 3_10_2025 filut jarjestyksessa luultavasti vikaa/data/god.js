@@ -85,6 +85,15 @@ export function spawnEnemyNearby(ctx, count = 1) {
       if ((!types || types.length === 0) && typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies)) {
         types = window.GameData.enemies.map(e => e.id || e.key).filter(Boolean);
       }
+      // Config-driven default types (Phase 5): prefer data/config.json when registries are empty or as override
+      try {
+        const cfgTypes = (typeof window !== "undefined" && window.GameData && window.GameData.config && window.GameData.config.dev && Array.isArray(window.GameData.config.dev.godDefaultTypes))
+          ? window.GameData.config.dev.godDefaultTypes.filter(Boolean)
+          : [];
+        if ((!types || types.length === 0) && cfgTypes.length > 0) {
+          types = cfgTypes.slice(0);
+        }
+      } catch (_) {}
       if (!types || types.length === 0) {
         // Hardcoded fallback for dev to avoid goblin-only behavior
         types = ["goblin","troll","skeleton","bandit","ogre","mime_ghost","hell_houndin"];

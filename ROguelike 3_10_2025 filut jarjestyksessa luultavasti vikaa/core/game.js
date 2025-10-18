@@ -226,9 +226,13 @@
       })());
   let isDead = false;
   let startRoomRect = null;
-  // GOD toggles
-  let alwaysCrit = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? !!window.ALWAYS_CRIT : false;
-  let forcedCritPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string") ? window.ALWAYS_CRIT_PART : (typeof localStorage !== "undefined" ? (localStorage.getItem("ALWAYS_CRIT_PART") || "") : "");
+  // GOD toggles (config-driven defaults with localStorage/window override)
+  const AC_DEFAULT = (CFG && CFG.dev && typeof CFG.dev.alwaysCritDefault === "boolean") ? !!CFG.dev.alwaysCritDefault : false;
+  const CP_DEFAULT = (CFG && CFG.dev && typeof CFG.dev.critPartDefault === "string") ? CFG.dev.critPartDefault : "";
+  let alwaysCrit = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? !!window.ALWAYS_CRIT : AC_DEFAULT;
+  let forcedCritPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string")
+    ? window.ALWAYS_CRIT_PART
+    : (typeof localStorage !== "undefined" ? ((localStorage.getItem("ALWAYS_CRIT_PART") || CP_DEFAULT)) : CP_DEFAULT);
   // Render grid preference (ctx-first). Default from window.DRAW_GRID; UI toggle will update this.
   let drawGridPref = (typeof window !== "undefined" && typeof window.DRAW_GRID === "boolean") ? !!window.DRAW_GRID : true;
 

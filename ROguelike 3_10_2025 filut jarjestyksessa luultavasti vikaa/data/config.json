@@ -18,6 +18,10 @@
     "cycleTurns": 360
   },
   "dev": {
-    "injectBadJson": false
+    "injectBadJson": false,
+    "godDefaultTypes": ["goblin","troll","skeleton","bandit","ogre","mime_ghost","hell_houndin"],
+    "encounterRateDefault": 50,
+    "alwaysCritDefault": false,
+    "critPartDefault": ""
   }
 }

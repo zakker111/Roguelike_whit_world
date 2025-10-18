@@ -1073,6 +1073,12 @@ export const UI = {
         return v;
       }
     } catch (_) {}
+    // Config-driven default (Phase 5)
+    try {
+      const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config && window.GameData.config.dev) ? window.GameData.config.dev : null;
+      const v = (cfg && typeof cfg.encounterRateDefault === "number") ? Math.max(0, Math.min(100, Math.round(Number(cfg.encounterRateDefault) || 0))) : 50;
+      return v;
+    } catch (_) {}
     return 50;
   },
 
