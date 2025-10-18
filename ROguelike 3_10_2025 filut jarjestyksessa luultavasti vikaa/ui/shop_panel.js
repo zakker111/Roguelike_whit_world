@@ -1,10 +1,10 @@
 /**
  * ShopUI: shop panel controls.
- * Centralizes shop rendering and buying logic, used by core/game.js.
+ * Centralizes shop rendering and buying/selling logic, used by core/game.js.
  *
  * Exports (ESM + window.ShopUI):
  * - ensurePanel(), hide(), isOpen()
- * - openForNPC(ctx, npc), buyIndex(ctx, idx)
+ * - openForNPC(ctx, npc), buyIndex(ctx, idx), sellIndex(ctx, idx)
  */
 let _stock = null;
 
@@ -21,8 +21,8 @@ function ensurePanel() {
     el.style.transform = "translate(-50%,-50%)";
     el.style.zIndex = "9998";
     el.style.minWidth = "300px";
-    el.style.maxWidth = "520px";
-    el.style.maxHeight = "60vh";
+    el.style.maxWidth = "640px";
+    el.style.maxHeight = "70vh";
     el.style.overflow = "auto";
     el.style.padding = "12px";
     el.style.background = "rgba(14, 18, 28, 0.95)";
@@ -30,7 +30,7 @@ function ensurePanel() {
     el.style.border = "1px solid #334155";
     el.style.borderRadius = "8px";
     el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
-    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="shop-title">Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="shop-list"></div>';
+    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="shop-title">Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="shop-list"></div><hr style="border-color:#1f2937;"><div id="sell-list"></div>';
     document.body.appendChild(el);
     try {
       const btn = el.querySelector("#shop-close-btn");
@@ -72,10 +72,44 @@ function priceFor(item) {
   } catch (_) { return 10; }
 }
 
+function sellPriceFor(item) {
+  try {
+    const p = priceFor(item);
+    return Math.max(1, Math.round(p * 0.5));
+  } catch (_) { return 5; }
+}
+
 function cloneItem(it) {
   try { return JSON.parse(JSON.stringify(it)); } catch (_) {}
   try { return Object.assign({}, it); } catch (_) {}
   return it;
+}
+
+function playerGold(ctx) {
+  let goldObj = null;
+  let cur = 0;
+  try {
+    const inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : [];
+    for (let i = 0; i < inv.length; i++) {
+      const it = inv[i];
+      if (it && it.kind === "gold") { goldObj = it; cur = (typeof it.amount === "number") ? it.amount : 0; break; }
+    }
+  } catch (_) {}
+  return { goldObj, cur };
+}
+
+function listSellables(ctx) {
+  const out = [];
+  try {
+    const inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : [];
+    for (let i = 0; i < inv.length; i++) {
+      const it = inv[i];
+      if (!it || it.kind === "gold") continue;
+      // Allow selling equip and potions/materials
+      out.push({ idx: i, item: it, price: sellPriceFor(it) });
+    }
+  } catch (_) {}
+  return out;
 }
 
 function render(ctx) {
@@ -84,44 +118,69 @@ function render(ctx) {
   el.hidden = false;
   const goldDiv = el.querySelector("#shop-gold");
   const listDiv = el.querySelector("#shop-list");
+  const sellDiv = el.querySelector("#sell-list");
 
   try {
-    let gold = 0;
-    const inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : [];
-    for (let i = 0; i < inv.length; i++) {
-      const it = inv[i];
-      if (it && it.kind === "gold" && typeof it.amount === "number") { gold = it.amount; break; }
-    }
-    if (goldDiv) goldDiv.textContent = "Gold: " + gold;
+    const g = playerGold(ctx);
+    if (goldDiv) goldDiv.textContent = "Gold: " + g.cur;
   } catch (_) {}
 
-  if (!listDiv) return;
-  if (!_stock || !_stock.length) {
-    listDiv.innerHTML = '<div style="color:#94a3b8;">No items for sale.</div>';
-    return;
+  if (listDiv) {
+    if (!_stock || !_stock.length) {
+      listDiv.innerHTML = '<div style="color:#94a3b8;">No items for sale.</div>';
+    } else {
+      try {
+        listDiv.innerHTML = '<div style="margin:4px 0 6px 0;color:#e2e8f0;">Items for sale</div>' + _stock.map(function (row, idx) {
+          const name = (ctx.describeItem ? ctx.describeItem(row.item) : (row.item && row.item.name) || "item");
+          const p = row.price | 0;
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' +
+                 '<div>' + name + ' — <span style="color:#93c5fd;">' + p + 'g</span></div>' +
+                 '<button data-idx="' + idx + '" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Buy</button>' +
+                 '</div>';
+        }).join("");
+        const buttons = listDiv.querySelectorAll("button[data-idx]");
+        for (let j = 0; j < buttons.length; j++) {
+          (function (btn) {
+            btn.onclick = function () {
+              try {
+                const i = Number(btn.getAttribute("data-idx") || -1);
+                buyIndex(ctx, i);
+              } catch (_) {}
+            };
+          })(buttons[j]);
+        }
+      } catch (_) {}
+    }
   }
 
-  try {
-    listDiv.innerHTML = _stock.map(function (row, idx) {
-      const name = (ctx.describeItem ? ctx.describeItem(row.item) : (row.item && row.item.name) || "item");
-      const p = row.price | 0;
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' +
-             '<div>' + name + ' — <span style="color:#93c5fd;">' + p + 'g</span></div>' +
-             '<button data-idx="' + idx + '" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Buy</button>' +
-             '</div>';
-    }).join("");
-    const buttons = listDiv.querySelectorAll("button[data-idx]");
-    for (let j = 0; j < buttons.length; j++) {
-      (function (btn) {
-        btn.onclick = function () {
-          try {
-            const i = Number(btn.getAttribute("data-idx") || -1);
-            buyIndex(ctx, i);
-          } catch (_) {}
-        };
-      })(buttons[j]);
+  if (sellDiv) {
+    const sellables = listSellables(ctx);
+    if (!sellables.length) {
+      sellDiv.innerHTML = '<div style="color:#94a3b8;">No items to sell.</div>';
+    } else {
+      try {
+        sellDiv.innerHTML = '<div style="margin:8px 0 6px 0;color:#e2e8f0;">Sell from your inventory</div>' + sellables.map(function (row) {
+          const name = (ctx.describeItem ? ctx.describeItem(row.item) : (row.item && row.item.name) || "item");
+          const p = row.price | 0;
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' +
+                 '<div>' + name + ' — <span style="color:#93c5fd;">' + p + 'g</span></div>' +
+                 '<button data-sidx="' + row.idx + '" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Sell</button>' +
+                 '</div>';
+        }).join("");
+        const buttons = sellDiv.querySelectorAll("button[data-sidx]");
+        for (let j = 0; j < buttons.length; j++) {
+          (function (btn) {
+            btn.onclick = function () {
+              try {
+                const i = Number(btn.getAttribute("data-sidx") || -1);
+                sellIndex(ctx, i);
+              } catch (_) {}
+            };
+          })(buttons[j]);
+        }
+      } catch (_) {}
     }
-  } catch (_) {}
+  }
 }
 
 export function openForNPC(ctx, npc) {
@@ -129,6 +188,13 @@ export function openForNPC(ctx, npc) {
     const stock = [];
     const name = (npc && (npc.name || npc.title)) ? (npc.name || npc.title) : "Shopkeeper";
     const vendor = (npc && npc.vendor) ? String(npc.vendor).toLowerCase() : "";
+
+    // Title
+    try {
+      const el = ensurePanel();
+      const ttl = el ? el.querySelector("#shop-title") : null;
+      if (ttl) ttl.textContent = name;
+    } catch (_) {}
 
     // Special vendor: Seppo — rare wandering merchant with premium stock
     const isSeppo = (vendor === "seppo") || (/seppo/i.test(name));
@@ -246,6 +312,38 @@ export function buyIndex(ctx, idx) {
   } catch (_) {}
 }
 
+export function sellIndex(ctx, idx) {
+  try {
+    const inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : [];
+    if (idx < 0 || idx >= inv.length) return;
+    const it = inv[idx];
+    if (!it || it.kind === "gold") return;
+    const pay = sellPriceFor(it);
+    // Ensure gold entry exists
+    let goldObj = null;
+    for (let i = 0; i < inv.length; i++) {
+      if (inv[i] && inv[i].kind === "gold") { goldObj = inv[i]; break; }
+    }
+    if (!goldObj) { goldObj = { kind: "gold", amount: 0, name: "gold" }; inv.push(goldObj); }
+    goldObj.amount = (goldObj.amount | 0) + pay;
+
+    // Remove or decrement stack
+    if (it.kind === "potion" && (it.count || 1) > 1) {
+      it.count = (it.count | 0) - 1;
+    } else {
+      inv.splice(idx, 1);
+    }
+
+    try { ctx.updateUI(); } catch (_) {}
+    try { if (ctx.renderInventory) ctx.renderInventory(); } catch (_) {}
+    try {
+      const name = ctx.describeItem ? ctx.describeItem(it) : (it && it.name) || "item";
+      ctx.log("You sold " + name + " for " + pay + " gold.", "good");
+    } catch (_) {}
+    render(ctx);
+  } catch (_) {}
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
   window.ShopUI = {
@@ -253,6 +351,7 @@ if (typeof window !== "undefined") {
     hide,
     isOpen,
     openForNPC,
-    buyIndex
+    buyIndex,
+    sellIndex
   };
 }
