@@ -105,7 +105,13 @@ export function talk(ctx) {
   const line = pick(lines, ctx.rng);
   ctx.log && ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
 
-  // If the NPC is at or adjacent to a shop door, gate opening by schedule via ShopService
+  // Only shopkeepers can open shops; villagers should not trigger trading.
+  const isKeeper = !!(npc && (npc.isShopkeeper || npc._shopRef));
+  if (!isKeeper) {
+    return true;
+  }
+
+  // If the shopkeeper is at or adjacent to their shop door, gate opening by schedule via ShopService
   try {
     let doorShop = null;
     const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
@@ -118,7 +124,6 @@ export function talk(ctx) {
       const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, doorShop) : false;
       const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(doorShop) : "";
       if (openNow) {
-        // Coalesce draw: only request a redraw if shop was previously closed
         let wasOpen = false;
         try { wasOpen = !!(ctx.UIBridge && typeof ctx.UIBridge.isShopOpen === "function" && ctx.UIBridge.isShopOpen()); } catch (_) {}
         if (ctx.UIBridge && typeof ctx.UIBridge.showShop === "function") {
@@ -127,7 +132,6 @@ export function talk(ctx) {
         if (!wasOpen) { ctx.requestDraw && ctx.requestDraw(); }
       } else {
         ctx.log && ctx.log(`The ${doorShop.name || "shop"} is closed. ${sched}`, "warn");
-        // Pure log; no canvas redraw needed
       }
     }
   } catch (_) {}
