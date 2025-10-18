@@ -33,6 +33,7 @@ export const defaults = {
     { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
+  injuries: []
 };
 
 function clone(obj) {
@@ -51,6 +52,7 @@ export function normalize(p) {
   if (!Array.isArray(p.inventory)) p.inventory = [];
   const eq = p.equipment && typeof p.equipment === "object" ? p.equipment : {};
   p.equipment = Object.assign({ ...DEFAULT_EQUIPMENT }, eq);
+  if (!Array.isArray(p.injuries)) p.injuries = [];
   return p;
 }
 

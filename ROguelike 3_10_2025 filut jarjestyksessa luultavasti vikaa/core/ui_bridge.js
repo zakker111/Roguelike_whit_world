@@ -27,6 +27,9 @@
  * - showRegionMap(ctx)        // opens Region Map modal
  * - hideRegionMap(ctx)        // hides Region Map modal
  * - isRegionMapOpen()         // query open state
+ * - showHelp(ctx)             // opens Help/Controls + Character Sheet
+ * - hideHelp(ctx)             // hides Help panel
+ * - isHelpOpen()              // query open state
  * Notes:
  * - Thin layer: delegates to window.UI if present (and window.ShopUI for shop panel).
  * - Keeps calls consistent and reduces direct UI wiring inside core/game.js.
@@ -175,6 +178,18 @@ export function isRegionMapOpen() {
   try { return !!(hasUI() && window.UI.isRegionMapOpen && window.UI.isRegionMapOpen()); } catch (_) { return false; }
 }
 
+export function showHelp(ctx) {
+  if (!hasUI()) return;
+  try { window.UI.showHelp && window.UI.showHelp(ctx); } catch (_) {}
+}
+export function hideHelp(ctx) {
+  if (!hasUI()) return;
+  try { window.UI.hideHelp && window.UI.hideHelp(); } catch (_) {}
+}
+export function isHelpOpen() {
+  try { return !!(hasUI() && window.UI.isHelpOpen && window.UI.isHelpOpen()); } catch (_) { return false; }
+}
+
 // Confirm modal wrappers
 export function isConfirmOpen() {
   try { return !!(hasUI() && window.UI.isConfirmOpen && window.UI.isConfirmOpen()); } catch (_) { return false; }
@@ -186,7 +201,7 @@ export function cancelConfirm(ctx) {
 // Aggregate modal state for simple gating
 export function isAnyModalOpen() {
   try {
-    return !!(isConfirmOpen() || isLootOpen() || isInventoryOpen() || isGodOpen() || isShopOpen() || isSmokeOpen());
+    return !!(isConfirmOpen() || isLootOpen() || isInventoryOpen() || isGodOpen() || isShopOpen() || isSmokeOpen() || isRegionMapOpen() || isHelpOpen());
   } catch (_) { return false; }
 }
 
@@ -239,6 +254,10 @@ if (typeof window !== "undefined") {
     isRegionMapOpen,
     showRegionMap,
     hideRegionMap,
+    // Help/Controls + Character Sheet
+    isHelpOpen,
+    showHelp,
+    hideHelp,
     // Confirm modal
     isConfirmOpen,
     cancelConfirm,

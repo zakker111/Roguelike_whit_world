@@ -311,6 +311,38 @@ export function enemiesAct(ctx) {
         else if (loc.part === "legs") wear = randFloat(0.4, 1.3, 1);
         else if (loc.part === "hands") wear = randFloat(0.3, 1.0, 1);
         ctx.decayEquipped(loc.part, wear * critWear);
+
+        // Persistent injury tracker (cosmetic role; shown in Character Sheet via F1)
+        try {
+          if (!Array.isArray(player.injuries)) player.injuries = [];
+          // Small chances, higher on crit. Limit duplicates.
+          const addInjury = (text) => {
+            if (!text) return;
+            // avoid duplicates
+            if (!player.injuries.includes(text)) {
+              player.injuries.push(text);
+              // keep list short
+              if (player.injuries.length > 24) player.injuries.splice(0, player.injuries.length - 24);
+              try { ctx.log && ctx.log(`You suffer ${text}.`, "warn"); } catch (_) {}
+            }
+          };
+          const r = rv();
+          if (loc.part === "hands") {
+            // Rare missing finger on crit; otherwise bruised knuckles
+            if (isCrit && r < 0.08) addInjury("missing finger");
+            else if (r < 0.20) addInjury("bruised knuckles");
+          } else if (loc.part === "legs") {
+            if (isCrit && r < 0.10) addInjury("sprained ankle");
+            else if (r < 0.25) addInjury("bruised leg");
+          } else if (loc.part === "head") {
+            if (isCrit && r < 0.12) addInjury("facial scar");
+            else if (r < 0.20) addInjury("black eye");
+          } else if (loc.part === "torso") {
+            if (isCrit && r < 0.10) addInjury("deep scar");
+            else if (r < 0.22) addInjury("rib bruise");
+          }
+        } catch (_) {}
+
         if (player.hp <= 0) {
           player.hp = 0;
           if (typeof ctx.onPlayerDied === "function") ctx.onPlayerDied();

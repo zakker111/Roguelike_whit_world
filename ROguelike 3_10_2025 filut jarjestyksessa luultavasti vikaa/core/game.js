@@ -1638,6 +1638,36 @@
           } catch (_) {}
           if (wasOpen) requestDraw();
         },
+        // Help / Controls + Character Sheet (F1)
+        isHelpOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isHelpOpen === "function") return !!UB.isHelpOpen();
+          } catch (_) {}
+          return false;
+        },
+        onShowHelp: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isHelpOpen === "function") wasOpen = !!UB.isHelpOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.showHelp === "function") UB.showHelp(getCtx());
+          } catch (_) {}
+          if (!wasOpen) requestDraw();
+        },
+        onHideHelp: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isHelpOpen === "function") wasOpen = !!UB.isHelpOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.hideHelp === "function") UB.hideHelp(getCtx());
+          } catch (_) {}
+          if (wasOpen) requestDraw();
+        },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
         onLoot: () => doAction(),

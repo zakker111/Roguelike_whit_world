@@ -127,6 +127,17 @@ export function init(handlers) {
       return;
     }
 
+    // Help / Controls panel (F1)
+    if (e.key === "F1") {
+      e.preventDefault();
+      if (_handlers.isHelpOpen && _handlers.isHelpOpen()) {
+        _handlers.onHideHelp && _handlers.onHideHelp();
+      } else {
+        _handlers.onShowHelp && _handlers.onShowHelp();
+      }
+      return;
+    }
+
     // FOV adjust
     if (e.code === "BracketLeft" || e.key === "[" || e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-") {
       e.preventDefault();
