@@ -563,6 +563,54 @@ function open(ctx, size) {
   } catch (_) {}
 
   ctx.mode = "region";
+
+  // Rare neutral animals in region: deer/boar/fox that wander; become hostile only if attacked.
+  (function spawnNeutralAnimals() {
+    try {
+      const WT = World.TILES;
+      const rng = getRegionRng(ctx);
+      const sample = ctx.region.map;
+      const h = sample.length, w = sample[0] ? sample[0].length : 0;
+      if (!w || !h) return;
+      // Base rarity: 0–2 animals, more likely in forest/grass/beach; very rare in desert/snow/swamp.
+      const { counts } = countBiomes(sample);
+      const forestBias = (counts[WT.FOREST] || 0) / (w * h);
+      const grassBias = (counts[WT.GRASS] || 0) / (w * h);
+      const beachBias = (counts[WT.BEACH] || 0) / (w * h);
+      const base = 0 + (rng() < (0.15 + forestBias * 0.30 + grassBias * 0.20 + beachBias * 0.10) ? 1 : 0) + (rng() < (forestBias * 0.25) ? 1 : 0);
+      const count = Math.min(2, base);
+      if (count <= 0) return;
+      ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
+      const types = ["deer","boar","fox"];
+      function pickType() {
+        const r = rng();
+        if (r < 0.45) return "deer";
+        if (r < 0.75) return "fox";
+        return "boar";
+      }
+      function randomWalkable() {
+        for (let tries = 0; tries < 200; tries++) {
+          const x = (rng() * w) | 0;
+          const y = (rng() * h) | 0;
+          const t = sample[y][x];
+          const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+          const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
+          const atCursor = (ctx.region.cursor && ctx.region.cursor.x === x && ctx.region.cursor.y === y);
+          if (walkable && !occupied && !atCursor) return { x, y };
+        }
+        return null;
+      }
+      for (let i = 0; i < count; i++) {
+        const pos = randomWalkable();
+        if (!pos) break;
+        const t = pickType();
+        const hp = t === "deer" ? 3 : t === "fox" ? 2 : 4;
+        const atk = t === "deer" ? 0.6 : t === "fox" ? 0.7 : 0.9;
+        ctx.enemies.push({ x: pos.x, y: pos.y, type: t, glyph: (t[0] || "?"), hp, atk, xp: 0, level: 1, faction: "animal", announced: false });
+      }
+    } catch (_) {}
+  })();
+
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
   try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
@@ -634,12 +682,20 @@ function tryMove(ctx, dx, dy) {
     walkable = isWalkableWorld ? !!isWalkableWorld(tile) : (WT ? (tile !== WT.WATER && tile !== WT.RIVER && tile !== WT.MOUNTAIN) : true);
   } catch (_) {}
 
-  // If an encounter is active in region, allow bump attacks on enemies occupying the target
+  // Allow bump attacks on any enemy occupying the target tile
   let enemy = null;
-  if (ctx.region && ctx.region._isEncounter && Array.isArray(ctx.enemies)) {
+  if (Array.isArray(ctx.enemies)) {
     try { enemy = ctx.enemies.find(e => e && e.x === nx && e.y === ny) || null; } catch (_) { enemy = null; }
   }
   if (enemy) {
+    // If this is a neutral animal, make it hostile when attacked and mark region as an encounter
+    try {
+      if (String(enemy.faction || "") === "animal") {
+        enemy.faction = "animal_hostile";
+        ctx.region._isEncounter = true;
+        ctx.log && ctx.log(`The ${enemy.type} turns hostile!`, "warn");
+      }
+    } catch (_) {}
     const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
     if (C && typeof C.playerAttackEnemy === "function") {
       try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
