@@ -150,20 +150,25 @@
     WINDOW: 4, // town-only: blocks movement, lets light through
   };
 
+  // Palette override from JSON when available
+  const PAL = (typeof window !== "undefined" && window.GameData && window.GameData.palette && typeof window.GameData.palette === "object")
+    ? window.GameData.palette
+    : null;
+
   const COLORS = {
-    wall: "#1b1f2a",
-    wallDark: "#131722",
-    floor: "#0f1320",
-    floorLit: "#0f1628",
-    player: "#9ece6a",
-    enemy: "#f7768e",
-    enemyGoblin: "#8bd5a0",
-    enemyTroll: "#e0af68",
-    enemyOgre: "#f7768e",
-    item: "#7aa2f7",
-    corpse: "#c3cad9",
-    corpseEmpty: "#6b7280",
-    dim: "rgba(13, 16, 24, 0.75)"
+    wall: (PAL && PAL.tiles && PAL.tiles.wall) || "#1b1f2a",
+    wallDark: (PAL && PAL.tiles && PAL.tiles.wallDark) || "#131722",
+    floor: (PAL && PAL.tiles && PAL.tiles.floor) || "#0f1320",
+    floorLit: (PAL && PAL.tiles && PAL.tiles.floorLit) || "#0f1628",
+    player: (PAL && PAL.entities && PAL.entities.player) || "#9ece6a",
+    enemy: (PAL && PAL.entities && PAL.entities.enemyDefault) || "#f7768e",
+    enemyGoblin: (PAL && PAL.entities && PAL.entities.goblin) || "#8bd5a0",
+    enemyTroll: (PAL && PAL.entities && PAL.entities.troll) || "#e0af68",
+    enemyOgre: (PAL && PAL.entities && PAL.entities.ogre) || "#f7768e",
+    item: (PAL && PAL.entities && PAL.entities.item) || "#7aa2f7",
+    corpse: (PAL && PAL.entities && PAL.entities.corpse) || "#c3cad9",
+    corpseEmpty: (PAL && PAL.entities && PAL.entities.corpseEmpty) || "#6b7280",
+    dim: (PAL && PAL.overlays && PAL.overlays.dim) || "rgba(13, 16, 24, 0.75)"
   };
 
   
