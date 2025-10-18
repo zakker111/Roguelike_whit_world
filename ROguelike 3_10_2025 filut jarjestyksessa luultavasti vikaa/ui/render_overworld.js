@@ -300,29 +300,17 @@ export function draw(ctx, view) {
   try {
     const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
     const dungeons = (ctx.world && Array.isArray(ctx.world.dungeons)) ? ctx.world.dungeons : [];
-    // Towns: gold squares, size scaled by town size
-    ctx2d.save();
+    // Towns: gold glyphs — 't' for towns, 'T' for cities
     for (const t of towns) {
       const x = t.x, y = t.y;
       if (x < startX || x > endX || y < startY || y > endY) continue;
       const sx = (x - startX) * TILE - tileOffsetX;
       const sy = (y - startY) * TILE - tileOffsetY;
-      let sizeMul = 0.40; // small
-      if (t.size === "big") sizeMul = 0.52;
-      else if (t.size === "city") sizeMul = 0.68;
-      const s = Math.max(4, Math.floor(TILE * sizeMul));
-      ctx2d.fillStyle = "#ffd166";
-      ctx2d.globalAlpha = 0.85;
-      ctx2d.fillRect(sx + (TILE - s) / 2, sy + (TILE - s) / 2, s, s);
-      // subtle border
-      ctx2d.globalAlpha = 0.95;
-      ctx2d.strokeStyle = "rgba(255, 209, 102, 0.7)";
-      ctx2d.lineWidth = 1;
-      ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
+      const glyph = (t.size === "city") ? "T" : "t";
+      RenderCore.drawGlyph(ctx2d, sx, sy, glyph, "#ffd166", TILE);
     }
-    ctx2d.restore();
 
-    // Dungeons: red squares
+    // Dungeons: red squares (unchanged)
     ctx2d.save();
     for (const d of dungeons) {
       const x = d.x, y = d.y;
