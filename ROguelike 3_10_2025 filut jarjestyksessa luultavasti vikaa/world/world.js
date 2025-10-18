@@ -387,7 +387,71 @@ export function generate(ctx, opts = {}) {
 
   ensureConnectivity();
 
-  return { map, width, height, towns, dungeons };
+  // Build explicit road and bridge overlays connecting towns and towns->nearest dungeon
+  const roads = [];
+  const bridges = [];
+  const roadSet = new Set();
+  const bridgeSet = new Set();
+  function addRoadPoint(x, y) {
+    const key = `${x},${y}`;
+    if (!roadSet.has(key)) { roadSet.add(key); roads.push({ x, y }); }
+  }
+  function addBridgePoint(x, y) {
+    const key = `${x},${y}`;
+    if (!bridgeSet.has(key)) { bridgeSet.add(key); bridges.push({ x, y }); }
+  }
+  function carveRoad(x0, y0, x1, y1) {
+    let x = x0, y = y0;
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    while (true) {
+      if (inBounds(x, y, width, height)) {
+        const t = map[y][x];
+        // Across water/river: mark as beach (walkable) and record bridge overlay
+        if (t === TILES.WATER || t === TILES.RIVER) {
+          map[y][x] = TILES.BEACH;
+          addBridgePoint(x, y);
+        }
+        // Across mountains: flatten to grass for passability
+        else if (t === TILES.MOUNTAIN) {
+          map[y][x] = TILES.GRASS;
+        }
+        addRoadPoint(x, y);
+      }
+      if (x === x1 && y === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 < dx) { err += dx; y += sy; }
+    }
+  }
+  function nearestDungeonFor(p) {
+    let best = null, bd = Infinity;
+    for (const d of dungeons) {
+      const dist = Math.abs(d.x - p.x) + Math.abs(d.y - p.y);
+      if (dist < bd) { bd = dist; best = d; }
+    }
+    return best;
+  }
+  function nearestTownFor(p) {
+    let best = null, bd = Infinity;
+    for (const t of towns) {
+      if (t === p) continue;
+      const dist = Math.abs(t.x - p.x) + Math.abs(t.y - p.y);
+      if (dist < bd) { bd = dist; best = t; }
+    }
+    return best;
+  }
+  // Connect each town to its nearest neighboring town and nearest dungeon
+  for (const t of towns) {
+    const t2 = nearestTownFor(t);
+    if (t2) carveRoad(t.x, t.y, t2.x, t2.y);
+    const d = nearestDungeonFor(t);
+    if (d) carveRoad(t.x, t.y, d.x, d.y);
+  }
+
+  return { map, width, height, towns, dungeons, roads, bridges };
 }
 
 export function pickTownStart(world, rng) {

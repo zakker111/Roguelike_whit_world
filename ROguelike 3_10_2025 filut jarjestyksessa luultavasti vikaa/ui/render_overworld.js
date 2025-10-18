@@ -114,29 +114,73 @@ export function draw(ctx, view) {
     }
   }
 
-  // Coastline/shore outline: draw thin highlight where water/river borders land
+  // Coastline/shoreline outlines for water/river adjacency (visual polish)
   try {
     for (let y = startY; y <= endY; y++) {
-      if (y < 0 || y >= mapRows) continue;
-      const row = map[y];
+      const yIn = y >= 0 && y < mapRows;
+      if (!yIn) continue;
       for (let x = startX; x <= endX; x++) {
         if (x < 0 || x >= mapCols) continue;
-        const t = row[x];
-        if (t !== WT.WATER && t !== WT.RIVER) continue;
-        const hasLandNeighbor =
-          (y > 0 && map[y - 1][x] !== WT.WATER && map[y - 1][x] !== WT.RIVER) ||
-          (y < mapRows - 1 && map[y + 1][x] !== WT.WATER && map[y + 1][x] !== WT.RIVER) ||
-          (x > 0 && map[y][x - 1] !== WT.WATER && map[y][x - 1] !== WT.RIVER) ||
-          (x < mapCols - 1 && map[y][x + 1] !== WT.WATER && map[y][x + 1] !== WT.RIVER);
-        if (!hasLandNeighbor) continue;
-        const screenX = (x - startX) * TILE - tileOffsetX;
-        const screenY = (y - startY) * TILE - tileOffsetY;
-        ctx2d.save();
-        ctx2d.strokeStyle = "rgba(255,255,255,0.18)";
-        ctx2d.lineWidth = 1;
-        ctx2d.strokeRect(screenX + 1.5, screenY + 1.5, TILE - 3, TILE - 3);
-        ctx2d.restore();
+        const t = map[y][x];
+        if (t !== TILES.WATER && t !== TILES.RIVER) continue;
+        // If adjacent to land (grass, forest, beach, swamp, desert, snow, town, dungeon), draw a light border on the land side
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+        for (const d of dirs) {
+          const nx = x + d.dx, ny = y + d.dy;
+          if (nx < 0 || ny < 0 || nx >= mapCols || ny >= mapRows) continue;
+          const nt = map[ny][nx];
+          if (nt === TILES.WATER || nt === TILES.RIVER) continue;
+          const sx = (nx - startX) * TILE - tileOffsetX;
+          const sy = (ny - startY) * TILE - tileOffsetY;
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.16;
+          ctx2d.fillStyle = "#a8dadc";
+          ctx2d.fillRect(sx, sy, TILE, TILE);
+          ctx2d.restore();
+        }
       }
+    }
+  } catch (_) {}
+
+  // Draw roads as subtle overlays on top of base tiles
+  try {
+    const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
+    if (roads.length) {
+      ctx2d.save();
+      ctx2d.globalAlpha = 0.35;
+      ctx2d.fillStyle = "#9aa5b1"; // light slate for road
+      for (const p of roads) {
+        const x = p.x, y = p.y;
+        if (x < startX || x > endX || y < startY || y > endY) continue;
+        const sx = (x - startX) * TILE - tileOffsetX;
+        const sy = (y - startY) * TILE - tileOffsetY;
+        // centered thin rect to suggest a road
+        const w = Math.max(2, Math.floor(TILE * 0.30));
+        const h = Math.max(2, Math.floor(TILE * 0.30));
+        ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
+      }
+      ctx2d.restore();
+    }
+  } catch (_) {}
+
+  // Draw bridges as stronger markers across rivers
+  try {
+    const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
+    if (bridges.length) {
+      ctx2d.save();
+      ctx2d.globalAlpha = 0.6;
+      ctx2d.fillStyle = "#c3a37a"; // wood-like color
+      for (const p of bridges) {
+        const x = p.x, y = p.y;
+        if (x < startX || x > endX || y < startY || y > endY) continue;
+        const sx = (x - startX) * TILE - tileOffsetX;
+        const sy = (y - startY) * TILE - tileOffsetY;
+        // small plank-like rectangle
+        const w = Math.max(4, Math.floor(TILE * 0.55));
+        const h = Math.max(3, Math.floor(TILE * 0.20));
+        ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
+      }
+      ctx2d.restore();
     }
   } catch (_) {}
 
