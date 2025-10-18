@@ -1,28 +1,61 @@
 {
-  "headCrit": [
-    "A brutal crack to the skull; your ears ring.",
-    "You take a hard hit to the head; your ears ring."
-  ],
-  "torsoStingPlayer": [
-    "A sharp jab to your ribs knocks the wind out.",
-    "You clutch your ribs; the hit steals your breath."
-  ],
-  "bloodSpill": [
-    "Blood spills across the floor.",
-    "Dark blood splashes on the stone.",
-    "A stain spreads underfoot."
-  ],
-  "enemyTorsoSting": [
-    "You jab its ribs; it wheezes.",
-    "A punch to its ribs knocks the wind out."
-  ],
-  "playerCritHeadVariants": [
-    "A clean crack to the {name}'s head; it reels.",
-    "Your strike slams the {name}'s head; it staggers."
-  ],
-  "playerGoodHitVariants": [
-    "A heavy blow to the {name}'s {part}!",
-    "A solid hit to the {name}'s {part}!",
-    "A telling strike to the {name}'s {part}!"
-  ]
+  "death": {
+    "default": {
+      "head":   { "normal": "wound to the head", "crit": "skull crushed into pieces" },
+      "torso":  { "normal": "bleeding cut in torso", "crit": "deep gash across the torso" },
+      "legs":   { "normal": "wound to the leg", "crit": "leg shattered beyond use" },
+      "hands":  { "normal": "cut on the hand", "crit": "hands mangled" }
+    },
+    "sharp": {
+      "head":   { "normal": "cut across the brow", "crit": "cleaving strike to the skull" },
+      "torso":  { "normal": "bleeding cut in torso", "crit": "cleaving cut through the ribs" },
+      "legs":   { "normal": "slice to the thigh", "crit": "hamstring severed" },
+      "hands":  { "normal": "cut on the hand", "crit": "fingers severed" }
+    },
+    "blunt": {
+      "head":   { "normal": "concussive blow to the head", "crit": "skull smashed" },
+      "torso":  { "normal": "bruised ribs", "crit": "ribs crushed" },
+      "legs":   { "normal": "shattered kneecap", "crit": "leg crushed" },
+      "hands":  { "normal": "crushed fingers", "crit": "hand pulverized" }
+    },
+    "piercing": {
+      "head":   { "normal": "puncture near the temple", "crit": "pierced eye socket" },
+      "torso":  { "normal": "stab wound in torso", "crit": "heart punctured" },
+      "legs":   { "normal": "stab to the thigh", "crit": "artery pierced" },
+      "hands":  { "normal": "palm punctured", "crit": "hand impaled" }
+    },
+    "burn": {
+      "head":   { "normal": "burnt hair and scalp", "crit": "face charred" },
+      "torso":  { "normal": "burnt chest", "crit": "torso scorched" },
+      "legs":   { "normal": "burnt calf", "crit": "legs scorched" },
+      "hands":  { "normal": "blistered hand", "crit": "hand charred" }
+    },
+    "freeze": {
+      "head":   { "normal": "frost on brow", "crit": "face frozen over" },
+      "torso":  { "normal": "ice-crusted chest", "crit": "torso frozen solid" },
+      "legs":   { "normal": "frostbitten leg", "crit": "leg encased in ice" },
+      "hands":  { "normal": "frostbitten fingers", "crit": "hand frozen stiff" }
+    },
+    "animal": {
+      "head":   { "normal": "bite to the head", "crit": "skull torn open" },
+      "torso":  { "normal": "claw marks across the torso", "crit": "torso ripped open" },
+      "legs":   { "normal": "bite to the thigh", "crit": "leg torn apart" },
+      "hands":  { "normal": "claw marks on hands", "crit": "hands torn" }
+    },
+    "undead": {
+      "head":   { "normal": "rotting blow to the head", "crit": "skull shattered" },
+      "torso":  { "normal": "rotting wound in torso", "crit": "torso torn apart" },
+      "legs":   { "normal": "rotting tear in leg", "crit": "leg severed" },
+      "hands":  { "normal": "rotting fingers torn", "crit": "hand torn off" }
+    },
+    "giant": {
+      "head":   { "normal": "club strike to the head", "crit": "head crushed under a massive blow" },
+      "torso":  { "normal": "massive blow to the chest", "crit": "ribs shattered by a giant" },
+      "legs":   { "normal": "leg battered", "crit": "leg crushed under immense force" },
+      "hands":  { "normal": "hand battered", "crit": "hand crushed" }
+    }
+  },
+  "killerNames": {
+    "player": "you"
+  }
 }

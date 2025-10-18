@@ -290,11 +290,17 @@ export function lootHere(ctx) {
       for (const c of list) {
         const meta = c && c.meta;
         if (meta && (meta.killedBy || meta.wound)) {
-          const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
-          const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
-          const viaStr = meta.via ? `(${meta.via})` : "";
-          const parts = [woundStr, killerStr].filter(Boolean).join(" ");
-          if (parts) ctx.log && ctx.log(`${parts} ${viaStr}`.trim(), "info");
+          const FS = (typeof window !== "undefined" ? window.FlavorService : null);
+          const line = (FS && typeof FS.describeCorpse === "function")
+            ? FS.describeCorpse(meta)
+            : (() => {
+                const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
+                const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
+                const viaStr = meta.via ? `(${meta.via})` : "";
+                const parts = [woundStr, killerStr].filter(Boolean).join(" ");
+                return `${parts} ${viaStr}`.trim();
+              })();
+          if (line) ctx.log && ctx.log(line, "info");
         }
       }
     } catch (_) {}
@@ -391,23 +397,33 @@ export function killEnemy(ctx, enemy) {
     }
   } catch (_) { loot = []; }
 
-  // Build flavor metadata from last hit info if available
+  // Build flavor metadata from last hit info if available (JSON-driven via FlavorService)
   const last = enemy._lastHit || null;
-  function flavorFromLastHit(lh) {
-    if (!lh) return null;
-    const part = lh.part || "torso";
-    const killer = lh.by || "unknown";
-    const via = lh.weapon ? lh.weapon : (lh.via || "attack");
-    let wound = "";
-    if (part === "head") wound = lh.crit ? "head crushed into pieces" : "wound to the head";
-    else if (part === "torso") wound = lh.crit ? "deep gash across the torso" : "stab wound in the torso";
-    else if (part === "legs") wound = lh.crit ? "leg shattered beyond use" : "wound to the leg";
-    else if (part === "hands") wound = lh.crit ? "hands mangled" : "cut on the hand";
-    else wound = "fatal wound";
-    const killedBy = (killer === "player") ? "you" : killer;
-    return { killedBy, wound, via };
+  let meta = null;
+  try {
+    const FS = (typeof window !== "undefined" ? window.FlavorService : null);
+    if (FS && typeof FS.buildCorpseMeta === "function") {
+      meta = FS.buildCorpseMeta(ctx, enemy, last);
+    }
+  } catch (_) { meta = null; }
+  if (!meta) {
+    // Fallback inline flavor
+    function flavorFromLastHit(lh) {
+      if (!lh) return null;
+      const part = lh.part || "torso";
+      const killer = lh.by || "unknown";
+      const via = lh.weapon ? lh.weapon : (lh.via || "attack");
+      let wound = "";
+      if (part === "head") wound = lh.crit ? "head crushed into pieces" : "wound to the head";
+      else if (part === "torso") wound = lh.crit ? "deep gash across the torso" : "bleeding cut in torso";
+      else if (part === "legs") wound = lh.crit ? "leg shattered beyond use" : "wound to the leg";
+      else if (part === "hands") wound = lh.crit ? "hands mangled" : "cut on the hand";
+      else wound = "fatal wound";
+      const killedBy = (killer === "player") ? "you" : killer;
+      return { killedBy, wound, via };
+    }
+    meta = flavorFromLastHit(last);
   }
-  const meta = flavorFromLastHit(last);
 
   // Place corpse with flavor meta
   try {
