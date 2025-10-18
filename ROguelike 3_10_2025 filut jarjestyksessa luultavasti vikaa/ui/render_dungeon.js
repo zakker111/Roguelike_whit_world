@@ -93,13 +93,20 @@ export function draw(ctx, view) {
               : (b === "BEACH") ? "BEACH"
               : (b === "SWAMP") ? "SWAMP"
               : null;
-    let hex = null;
+    // Prefer palette.json encounterBiome table
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const pal = GD && GD.palette && GD.palette.encounterBiome ? GD.palette.encounterBiome : null;
+      const hexFromPalette = pal && b ? pal[b] : null;
+      if (hexFromPalette) return hexFromPalette;
+    } catch (_) {}
+    // Next, try tiles.json (overworld/region entries)
     try {
       const td = key ? (getTileDefByKey("overworld", key) || getTileDefByKey("region", key)) : null;
-      hex = (td && td.colors && td.colors.fill) ? td.colors.fill : null;
-    } catch (_) { hex = null; }
-    if (hex) return hex;
-    // Fallback palette for encounters when tiles.json lacks colors
+      const hex = (td && td.colors && td.colors.fill) ? td.colors.fill : null;
+      if (hex) return hex;
+    } catch (_) {}
+    // Fallback palette for encounters when data is missing
     const fallback = {
       FOREST: "#163a22",
       GRASS:  "#1c522b",

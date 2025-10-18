@@ -17,5 +17,13 @@
   },
   "overlays": {
     "dim": "rgba(0, 0, 0, 0.70)"
+  },
+  "encounterBiome": {
+    "FOREST": "#163a22",
+    "GRASS":  "#1c522b",
+    "DESERT": "#cdaa70",
+    "BEACH":  "#dbc398",
+    "SNOW":   "#dfe5eb",
+    "SWAMP":  "#1e3c27"
   }
 }

@@ -59,6 +59,46 @@
     "notes": "Slightly higher top-end attack; small bonus band by tier."
   },
   {
+    "id": "mace",
+    "slot": "hand",
+    "name": "mace",
+    "twoHanded": false,
+    "tierMin": 1,
+    "weights": {
+      "1": 0.18,
+      "2": 0.20,
+      "3": 0.16
+    },
+    "atk": {
+      "1": [0.5, 2.0],
+      "2": [1.2, 3.4],
+      "3": [2.2, 4.0]
+    },
+    "atkBonus": {
+      "2": [0.1, 0.4],
+      "3": [0.2, 0.5]
+    },
+    "notes": "Blunt weapon; slightly higher average at mid tiers."
+  },
+  {
+    "id": "bow",
+    "slot": "hand",
+    "name": "bow",
+    "twoHanded": false,
+    "tierMin": 1,
+    "weights": {
+      "1": 0.10,
+      "2": 0.14,
+      "3": 0.16
+    },
+    "atk": {
+      "1": [0.5, 1.8],
+      "2": [1.0, 3.0],
+      "3": [1.8, 3.8]
+    },
+    "notes": "Ranged archetype represented as hand attack; moderate damage curve."
+  },
+  {
     "id": "shield",
     "slot": "hand",
     "name": "shield",
