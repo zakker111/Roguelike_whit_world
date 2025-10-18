@@ -134,6 +134,29 @@ function fallbackEquipment(ctx, tier) {
  * Returns: Array of items (gold/potion/equip/...)
  */
 export function generate(ctx, source) {
+  const type = (source && source.type) ? String(source.type).toLowerCase() : "goblin";
+
+  // Special case: neutral animals drop meat/leather; no gold/equipment
+  if (type === "deer" || type === "boar" || type === "fox") {
+    const drops = [];
+    const r = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+    // Meat amount: deer 2–3, boar 2–4, fox 1–2
+    let meatAmt = 1;
+    if (type === "deer") meatAmt = 2 + ((r() < 0.6) ? 1 : 0);
+    else if (type === "boar") meatAmt = 2 + ((r() < 0.8) ? 2 : (r() < 0.4 ? 1 : 0));
+    else meatAmt = 1 + ((r() < 0.5) ? 1 : 0);
+    drops.push({ kind: "material", name: "meat", type: "meat", amount: meatAmt });
+
+    // Leather chance and amount: higher for boar/deer
+    let leatherAmt = 0;
+    if (type === "deer") leatherAmt = (r() < 0.75) ? (1 + ((r() < 0.5) ? 1 : 0)) : 0;
+    else if (type === "boar") leatherAmt = (r() < 0.85) ? (1 + ((r() < 0.6) ? 1 : 0)) : 0;
+    else leatherAmt = (r() < 0.35) ? 1 : 0;
+    if (leatherAmt > 0) drops.push({ kind: "material", name: "leather", type: "leather", amount: leatherAmt });
+
+    return drops;
+  }
+
   const drops = [];
   const baseCoins = ctx.randInt(1, 6);
   const bonus = source ? Math.floor((source.xp || 0) / 10) : 0;
@@ -144,7 +167,6 @@ export function generate(ctx, source) {
     drops.push(pickPotion(ctx, source));
   }
 
-  const type = source?.type || "goblin";
   const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
   const tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(type) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
   const equipChance = (EM && typeof EM.equipChanceFor === "function") ? EM.equipChanceFor(type) : (type === "ogre" ? 0.75 : (type === "troll" ? 0.55 : 0.35));
