@@ -1082,7 +1082,24 @@ export const UI = {
     if (p && p.bleedTurns && p.bleedTurns > 0) statuses.push(`Bleeding (${p.bleedTurns})`);
     if (p && p.dazedTurns && p.dazedTurns > 0) statuses.push(`Dazed (${p.dazedTurns})`);
     const injuries = (p && Array.isArray(p.injuries)) ? p.injuries : [];
-    const injHTML = injuries.length ? injuries.slice(0, 16).map(s => `<li>${s}</li>`).join("") : "<li>(none)</li>";
+    const injHTML = injuries.length ? injuries.slice(0, 16).map((inj) => {
+      // Support both string and object formats
+      let name = "";
+      let healable = true;
+      let dur = 0;
+      if (typeof inj === "string") {
+        name = inj;
+        healable = !(/scar|missing finger/i.test(name));
+        dur = healable ? 0 : 0;
+      } else {
+        name = inj.name || "injury";
+        healable = (typeof inj.healable === "boolean") ? inj.healable : !(/scar|missing finger/i.test(name));
+        dur = (inj.durationTurns | 0);
+      }
+      const color = healable ? "#f59e0b" /* amber for healing */ : "#ef4444" /* red for permanent */;
+      const tail = healable ? (dur > 0 ? ` (healing)` : ` (healing)`) : " (permanent)";
+      return `<li style="color:${color};">${name}${tail}</li>`;
+    }).join("") : "<li>(none)</li>";
 
     const html = [
       "<div style='font-size:16px; font-weight:600; margin-bottom:8px;'>Controls</div>",

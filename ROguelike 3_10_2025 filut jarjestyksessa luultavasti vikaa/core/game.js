@@ -2259,6 +2259,31 @@
     // Advance global time (centralized via TimeService)
     turnCounter = TS.tick(turnCounter);
 
+    // Injury healing: healable injuries tick down and disappear when reaching 0
+    try {
+      if (player && Array.isArray(player.injuries) && player.injuries.length) {
+        let changed = false;
+        player.injuries = player.injuries.map((inj) => {
+          if (!inj) return null;
+          if (typeof inj === "string") {
+            // Convert legacy string format to object
+            const name = inj;
+            const permanent = /scar|missing finger/i.test(name);
+            return { name, healable: !permanent, durationTurns: permanent ? 0 : 40 };
+          }
+          if (inj.healable && (inj.durationTurns | 0) > 0) {
+            inj.durationTurns = (inj.durationTurns | 0) - 1;
+            changed = true;
+          }
+          return (inj.healable && inj.durationTurns <= 0) ? null : inj;
+        }).filter(Boolean);
+        if (changed) {
+          // Update HUD so Character Sheet reflects status sooner if open later
+          updateUI();
+        }
+      }
+    } catch (_) {}
+
 
 
     if (mode === "dungeon") {
