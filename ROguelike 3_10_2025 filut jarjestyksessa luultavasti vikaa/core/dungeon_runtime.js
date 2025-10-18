@@ -313,8 +313,31 @@ export function lootHere(ctx) {
 
     const container = list.find(c => Array.isArray(c.loot) && c.loot.length > 0);
     if (!container) {
-      list.forEach(c => c.looted = true);
-      ctx.log && ctx.log("Nothing of value here.");
+      // No loot left underfoot; show flavor per fresh examination and avoid repeated spam
+      let newlyExamined = 0;
+      for (const c of list) {
+        c.looted = true;
+        if (!c._examined) {
+          c._examined = true;
+          // Flavor line for this corpse if available
+          try {
+            const meta = c && c.meta;
+            if (meta && (meta.killedBy || meta.wound)) {
+              const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
+              const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
+              const viaStr = meta.via ? `(${meta.via})` : "";
+              const parts = [woundStr, killerStr].filter(Boolean).join(" ");
+              if (parts) ctx.log && ctx.log(`${parts} ${viaStr}`.trim(), "info");
+            }
+          } catch (_) {}
+          newlyExamined++;
+        }
+      }
+      if (newlyExamined > 0) {
+        const line = newlyExamined === 1 ? "You search the corpse but find nothing."
+                                         : "You search the corpses but find nothing.";
+        ctx.log && ctx.log(line);
+      }
       try { save(ctx, false); } catch (_) {}
       ctx.updateUI && ctx.updateUI();
       ctx.turn && ctx.turn();
