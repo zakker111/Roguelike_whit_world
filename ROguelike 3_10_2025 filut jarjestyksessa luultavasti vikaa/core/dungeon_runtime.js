@@ -296,6 +296,21 @@ export function lootHere(ctx) {
       ctx.log && ctx.log("There is no corpse here to loot.");
       return true;
     }
+
+    // Flavor: show death notes if present on any corpse underfoot
+    try {
+      for (const c of list) {
+        const meta = c && c.meta;
+        if (meta && (meta.killedBy || meta.wound)) {
+          const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
+          const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
+          const viaStr = meta.via ? `(${meta.via})` : "";
+          const parts = [woundStr, killerStr].filter(Boolean).join(" ");
+          if (parts) ctx.log && ctx.log(`${parts} ${viaStr}`.trim(), "info");
+        }
+      }
+    } catch (_) {}
+
     const container = list.find(c => Array.isArray(c.loot) && c.loot.length > 0);
     if (!container) {
       list.forEach(c => c.looted = true);
@@ -353,10 +368,34 @@ export function killEnemy(ctx, enemy) {
     }
   } catch (_) { loot = []; }
 
-  // Place corpse
+  // Build flavor metadata from last hit info if available
+  const last = enemy._lastHit || null;
+  function flavorFromLastHit(lh) {
+    if (!lh) return null;
+    const part = lh.part || "torso";
+    const killer = lh.by || "unknown";
+    const via = lh.weapon ? lh.weapon : (lh.via || "attack");
+    let wound = "";
+    if (part === "head") wound = lh.crit ? "head crushed into pieces" : "wound to the head";
+    else if (part === "torso") wound = lh.crit ? "deep gash across the torso" : "stab wound in the torso";
+    else if (part === "legs") wound = lh.crit ? "leg shattered beyond use" : "wound to the leg";
+    else if (part === "hands") wound = lh.crit ? "hands mangled" : "cut on the hand";
+    else wound = "fatal wound";
+    const killedBy = (killer === "player") ? "you" : killer;
+    return { killedBy, wound, via };
+  }
+  const meta = flavorFromLastHit(last);
+
+  // Place corpse with flavor meta
   try {
     ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
-    ctx.corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
+    ctx.corpses.push({
+      x: enemy.x,
+      y: enemy.y,
+      loot,
+      looted: loot.length === 0,
+      meta: meta || undefined
+    });
   } catch (_) {}
 
   // Remove enemy from list
@@ -543,9 +582,17 @@ export function tryMoveDungeon(ctx, dx, dy) {
     try {
       const name = (enemy.type || "enemy");
       if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit");
-      else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`);
-      if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
+    else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`);
+    if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
+    // Record last hit for death flavor
+    try {
+      const eq = ctx.player && ctx.player.equipment ? ctx.player.equipment : {};
+      const weaponName = (eq.right && eq.right.name) ? eq.right.name
+                       : (eq.left && eq.left.name) ? eq.left.name
+                       : null;
+      enemy._lastHit = { by: "player", part: loc.part, crit: isCrit, dmg, weapon: weaponName, via: weaponName ? `with ${weaponName}` : "melee" };
     } catch (_) {}
+  } catch (_) {}
 
     // Status effects on crit
     try {

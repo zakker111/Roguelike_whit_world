@@ -2209,10 +2209,26 @@
       syncFromCtx(ctx);
       return;
     }
-    // Minimal fallback: announce death, add corpse without loot, clear enemy, award XP
+    // Minimal fallback: announce death, add corpse with flavor, clear enemy, award XP
     const name = capitalize(enemy.type || "enemy");
     log(`${name} dies.`, "bad");
-    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
+    const last = enemy._lastHit || null;
+    function flavorFromLastHit(lh) {
+      if (!lh) return null;
+      const part = lh.part || "torso";
+      const killer = lh.by || "unknown";
+      const via = lh.weapon ? lh.weapon : (lh.via || "attack");
+      let wound = "";
+      if (part === "head") wound = lh.crit ? "head crushed into pieces" : "wound to the head";
+      else if (part === "torso") wound = lh.crit ? "deep gash across the torso" : "stab wound in the torso";
+      else if (part === "legs") wound = lh.crit ? "leg shattered beyond use" : "wound to the leg";
+      else if (part === "hands") wound = lh.crit ? "hands mangled" : "cut on the hand";
+      else wound = "fatal wound";
+      const killedBy = (killer === "player") ? "you" : killer;
+      return { killedBy, wound, via };
+    }
+    const meta = flavorFromLastHit(last);
+    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true, meta: meta || undefined });
     enemies = enemies.filter(e => e !== enemy);
     try {
       if (occupancy && typeof occupancy.clearEnemy === "function") {
