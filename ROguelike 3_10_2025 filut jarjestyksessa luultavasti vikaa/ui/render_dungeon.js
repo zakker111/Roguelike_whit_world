@@ -26,6 +26,18 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Helper: robust fallback fill for dungeon tiles when tiles.json is missing/incomplete
+function fallbackFillDungeon(TILES, type, COLORS) {
+  try {
+    if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
+    if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
+    if (type === TILES.DOOR) return "#3a2f1b";
+    if (type === TILES.STAIRS) return "#3a2f1b";
+    if (type === TILES.WINDOW) return "#295b6e";
+  } catch (_) {}
+  return "#0b0c10";
+}
+
 // Helper: get tile def by key for a given mode
 function getTileDefByKey(mode, key) {
   try {
@@ -72,9 +84,8 @@ export function draw(ctx, view) {
     return toHex({ r: rgb.r * factor, g: rgb.g * factor, b: rgb.b * factor });
   }
   function biomeBaseFill() {
-    const b = (ctx.encounterBiome || "").toUpperCase();
+    const b = String(ctx.encounterBiome || "").toUpperCase();
     if (!b) return null;
-    // Map biome -> tile key whose fill to borrow
     const key = (b === "FOREST") ? "FOREST"
               : (b === "GRASS") ? "GRASS"
               : (b === "DESERT") ? "DESERT"
@@ -82,20 +93,40 @@ export function draw(ctx, view) {
               : (b === "BEACH") ? "BEACH"
               : (b === "SWAMP") ? "SWAMP"
               : null;
-    if (!key) return null;
-    const td = getTileDefByKey("overworld", key) || getTileDefByKey("region", key);
-    return (td && td.colors && td.colors.fill) ? td.colors.fill : null;
+    // Prefer palette.json encounterBiome table
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const pal = GD && GD.palette && GD.palette.encounterBiome ? GD.palette.encounterBiome : null;
+      const hexFromPalette = pal && b ? pal[b] : null;
+      if (hexFromPalette) return hexFromPalette;
+    } catch (_) {}
+    // Next, try tiles.json (overworld/region entries)
+    try {
+      const td = key ? (getTileDefByKey("overworld", key) || getTileDefByKey("region", key)) : null;
+      const hex = (td && td.colors && td.colors.fill) ? td.colors.fill : null;
+      if (hex) return hex;
+    } catch (_) {}
+    // Fallback palette for encounters when data is missing
+    const fallback = {
+      FOREST: "#163a22",
+      GRASS:  "#1c522b",
+      DESERT: "#cdaa70",
+      BEACH:  "#dbc398",
+      SNOW:   "#dfe5eb",
+      SWAMP:  "#1e3c27"
+    };
+    return fallback[b] || "#1f2937"; // neutral dark slate fallback
   }
   function encounterFillFor(type) {
     if (!ctx.encounterBiome) return null;
     const base = biomeBaseFill();
     if (!base) return null;
-    if (type === TILES.WALL) return shade(base, 0.65);
-    if (type === TILES.DOOR) return base;
+    // Use lighter, biome-driven colors to avoid overly dark maps
+    if (type === TILES.WALL) return shade(base, 0.88);            // slightly darker than floor, not murky
+    if (type === TILES.DOOR) return shade(base, 1.06);            // slight highlight
     if (type === TILES.FLOOR || type === TILES.STAIRS) return base;
     return null;
   }
-
   // Build base offscreen once per map/TILE change
   try {
     if (mapRows && mapCols) {
@@ -117,7 +148,7 @@ export function draw(ctx, view) {
           oc.textBaseline = "middle";
         } catch (_) {}
         const baseHex = biomeBaseFill();
-        const tintFloorA = 0.28, tintWallA = 0.36;
+        const tintFloorA = 0.14, tintWallA = 0.20;
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
           for (let xx = 0; xx < mapCols; xx++) {
@@ -128,36 +159,24 @@ export function draw(ctx, view) {
             else if (type === TILES.STAIRS) key = "stairs";
             else if (type === TILES.DOOR) key = "door";
             let drawn = false;
-            if (tilesetReady && TS && typeof TS.draw === "function") {
+            if (tilesetReady && TS && typeof TS.draw === "function" && ctx.mode !== "encounter") {
               drawn = TS.draw(oc, key, sx, sy, TILE);
             }
             if (!drawn) {
-              // Biome-aware fill (fallback), otherwise tiles.json dungeon fill
+              // Biome-aware fill (fallback), otherwise tiles.json dungeon fill, else robust fallback color
               const td = getTileDef("dungeon", type);
               const theme = encounterFillFor(type);
-              const fill = theme || (td && td.colors && td.colors.fill);
-              if (fill) {
-                oc.fillStyle = fill;
-                oc.fillRect(sx, sy, TILE, TILE);
-              }
+              const fill = theme || (td && td.colors && td.colors.fill) || fallbackFillDungeon(TILES, type, COLORS);
+              oc.fillStyle = fill;
+              oc.fillRect(sx, sy, TILE, TILE);
               if (type === TILES.STAIRS && !tilesetReady) {
                 const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
-                const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : "";
+                const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : ">";
                 const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
                 RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
               }
             }
-            // Biome tint overlay even when tileset is used
-            if (baseHex) {
-              try {
-                oc.save();
-                oc.globalCompositeOperation = "multiply";
-                oc.globalAlpha = (type === TILES.WALL ? tintWallA : tintFloorA);
-                oc.fillStyle = baseHex;
-                oc.fillRect(sx, sy, TILE, TILE);
-                oc.restore();
-              } catch (_) {}
-            }
+            
           }
         }
         DUN.canvas = off;
@@ -178,7 +197,7 @@ export function draw(ctx, view) {
     } catch (_) {}
   } else {
     const baseHex = biomeBaseFill();
-    const tintFloorA = 0.28, tintWallA = 0.24;
+    const tintFloorA = 0.12, tintWallA = 0.18;
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -196,31 +215,18 @@ export function draw(ctx, view) {
         else if (type === TILES.STAIRS) key = "stairs";
         else if (type === TILES.DOOR) key = "door";
         let drawn = false;
-        if (tilesetReady && typeof TS.draw === "function") {
+        if (tilesetReady && typeof TS.draw === "function" && ctx.mode !== "encounter") {
           drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
         }
         if (!drawn) {
-          // JSON-only fill color (biome-aware fallback -> dungeon fallback)
+          // JSON-only fill color (biome-aware fallback -> dungeon fallback -> robust fallback color)
           const td = getTileDef("dungeon", type);
           const theme = encounterFillFor(type);
-          const fill = theme || (td && td.colors && td.colors.fill);
-          if (fill) {
-            ctx2d.fillStyle = fill;
-            ctx2d.fillRect(screenX, screenY, TILE, TILE);
-          }
+          const fill = theme || (td && td.colors && td.colors.fill) || fallbackFillDungeon(TILES, type, COLORS);
+          ctx2d.fillStyle = fill;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
         }
-        // Tint overlay for biome when tileset is used
-        if (baseHex) {
-          try {
-            ctx2d.save();
-            ctx2d.globalCompositeOperation = "multiply";
-            ctx2d.globalAlpha = (type === TILES.WALL ? tintWallA : tintFloorA);
-            ctx2d.fillStyle = baseHex;
-            ctx2d.fillRect(screenX, screenY, TILE, TILE);
-            ctx2d.restore();
-          } catch (_) {}
-        }
-      }
+              }
     }
   }
 
@@ -406,27 +412,30 @@ export function draw(ctx, view) {
           return;
         }
       }
-      // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld)
+      // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld); robust fallback glyph/color
       let glyph = "";
       let color = c.looted ? (COLORS.corpseEmpty || "#808080") : (COLORS.corpse || "#b22222");
       try {
         const key = String(c.kind || (c.kind === "chest" ? "chest" : "corpse")).toUpperCase();
         const td = getTileDefByKey("dungeon", key) || getTileDefByKey("town", key) || getTileDefByKey("overworld", key);
         if (td) {
-          if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph;
-          if (td.colors && td.colors.fg) color = td.colors.fg;
+          if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
+          if (td.colors && td.colors.fg) color = td.colors.fg || color;
         }
       } catch (_) {}
-      if (glyph && String(glyph).trim().length > 0) {
-        // Shade glyph if looted
-        if (c.looted) {
-          ctx2d.save();
-          ctx2d.globalAlpha = 0.6;
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-          ctx2d.restore();
-        } else {
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-        }
+      // Fallback glyphs if JSON missed
+      if (!glyph) {
+        if ((c.kind || "").toLowerCase() === "chest") glyph = "□";
+        else glyph = "%";
+      }
+      // Shade glyph if looted
+      if (c.looted) {
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.6;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+        ctx2d.restore();
+      } else {
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
       }
     };
 
@@ -497,7 +506,7 @@ export function draw(ctx, view) {
             }
           }
         } else if (p.type === "crate" || p.type === "barrel" || p.type === "bench") {
-          // Draw simple decor props with tileset fallback to JSON keys
+          // Draw simple decor props with tileset fallback to JSON keys, then robust glyph/color fallback
           let key = p.type;
           let drawn = false;
           if (tilesetReady && TS && typeof TS.draw === "function") {
@@ -515,15 +524,22 @@ export function draw(ctx, view) {
                 if (td.colors && td.colors.fg) color = td.colors.fg || color;
               }
             } catch (_) {}
-            if (glyph) {
-              if (!visNow) {
-                ctx2d.save();
-                ctx2d.globalAlpha = 0.65;
-                RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
-                ctx2d.restore();
-              } else {
-                RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
-              }
+            // Robust fallback glyphs/colors
+            if (!glyph) {
+              if (p.type === "crate") glyph = "□";
+              else if (p.type === "barrel") glyph = "◍";
+              else glyph = "≡";
+            }
+            if (p.type === "barrel" && (!color || color === (COLORS.corpse || "#cbd5e1"))) {
+              color = "#b5651d";
+            }
+            if (!visNow) {
+              ctx2d.save();
+              ctx2d.globalAlpha = 0.65;
+              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+              ctx2d.restore();
+            } else {
+              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
             }
           }
         } else if (p.type === "merchant") {
@@ -590,6 +606,25 @@ export function draw(ctx, view) {
       RenderCore.drawGlyph(ctx2d, screenX, screenY, "@", COLORS.player, TILE);
     }
   }
+
+  // Day/night tint overlay for encounters (lighter to preserve biome styling)
+  try {
+    const phase = ctx.time && ctx.time.phase;
+    if (ctx.mode === "encounter" && phase) {
+      ctx2d.save();
+      if (phase === "night") {
+        ctx2d.fillStyle = "rgba(0,0,0,0.15)";
+        ctx2d.fillRect(0, 0, cam.width, cam.height);
+      } else if (phase === "dusk") {
+        ctx2d.fillStyle = "rgba(255,120,40,0.06)";
+        ctx2d.fillRect(0, 0, cam.width, cam.height);
+      } else if (phase === "dawn") {
+        ctx2d.fillStyle = "rgba(120,180,255,0.05)";
+        ctx2d.fillRect(0, 0, cam.width, cam.height);
+      }
+      ctx2d.restore();
+    }
+  } catch (_) {}
 
   // Grid overlay (if enabled)
   RenderCore.drawGridOverlay(view);

@@ -27,7 +27,10 @@ function getEncounterRate() {
       }
     }
   } catch (_) {}
-  return 50;
+  const cfgDefault = (typeof window !== "undefined" && window.GameData && window.GameData.config && window.GameData.config.dev && typeof window.GameData.config.dev.encounterRateDefault === "number")
+    ? Math.max(0, Math.min(100, Math.round(Number(window.GameData.config.dev.encounterRateDefault) || 0)))
+    : 50;
+  return cfgDefault;
 }
 
 function biomeFromTile(tile) {

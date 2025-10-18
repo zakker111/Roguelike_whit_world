@@ -46,7 +46,175 @@ export const MATERIALS = {
 // TYPES registry is now optionally extended from JSON at load time.
 // Start with a minimal base; JSON will augment/override on loader ready.
 export const TYPES = {
-  // Kept empty to prefer JSON. Existing code paths still work if JSON missing.
+  // Minimal built-in types so item generation remains varied even without JSON.
+  sword_simple: {
+    key: "sword_simple",
+    slot: "hand",
+    twoHanded: false,
+    minTier: 1,
+    weight: (tier) => {
+      const map = { "1": 0.35, "2": 0.28, "3": 0.18 };
+      const k = String(Math.max(1, Math.min(3, tier || 1)));
+      return map[k] ?? 0.2;
+    },
+    atkRange: {
+      1: [0.6, 2.2],
+      2: [1.2, 3.2],
+      3: [2.0, 3.8],
+    },
+    name: (mat) => `${mat} simple sword`,
+  },
+  axe: {
+    key: "axe",
+    slot: "hand",
+    twoHanded: false,
+    minTier: 1,
+    weight: (tier) => {
+      const map = { "1": 0.25, "2": 0.22, "3": 0.16 };
+      const k = String(Math.max(1, Math.min(3, tier || 1)));
+      return map[k] ?? 0.2;
+    },
+    atkRange: {
+      1: [0.6, 2.2],
+      2: [1.2, 3.2],
+      3: [2.0, 4.0],
+    },
+    atkBonus: {
+      1: [0.0, 0.3],
+      2: [0.1, 0.5],
+      3: [0.2, 0.6],
+    },
+    name: (mat) => `${mat} axe`,
+  },
+  shield: {
+    key: "shield",
+    slot: "hand",
+    twoHanded: false,
+    minTier: 1,
+    weight: (tier) => {
+      const map = { "1": 0.15, "2": 0.16, "3": 0.14 };
+      const k = String(Math.max(1, Math.min(3, tier || 1)));
+      return map[k] ?? 0.15;
+    },
+    defRange: {
+      1: [0.4, 2.0],
+      2: [1.2, 3.2],
+      3: [2.0, 4.0],
+    },
+    name: (mat) => `${mat} shield`,
+  },
+  helmet: {
+    key: "helmet",
+    slot: "head",
+    minTier: 1,
+    weight: (tier) => {
+      const map = { "1": 1.0, "2": 0.8, "3": 0.6 };
+      const k = String(Math.max(1, Math.min(3, tier || 1)));
+      return map[k] ?? 0.8;
+    },
+    defRange: {
+      1: [0.2, 1.6],
+      2: [0.8, 2.8],
+      3: [1.6, 3.6],
+    },
+    name: (mat) => `${mat} helmet`,
+  },
+  torso_armor: {
+    key: "torso_armor",
+    slot: "torso",
+    minTier: 1,
+    weight: (tier) => {
+      const map = { "1": 1.0, "2": 1.0, "3": 0.9 };
+      const k = String(Math.max(1, Math.min(3, tier || 1)));
+      return map[k] ?? 1.0;
+    },
+    defRange: {
+      1: [0.6, 2.6],
+      2: [1.6, 3.6],
+      3: [2.4, 4.0],
+    },
+    name: (mat) => `${mat} armor`,
+  },
+  leg_armor: {
+    key: "leg_armor",
+    slot: "legs",
+    minTier: 1,
+    weight: (tier) => {
+      const map = { "1": 1.0, "2": 0.9, "3": 0.8 };
+      const k = String(Math.max(1, Math.min(3, tier || 1)));
+      return map[k] ?? 0.9;
+    },
+    defRange: {
+      1: [0.3, 1.8],
+      2: [1.0, 3.0],
+      3: [1.8, 3.8],
+    },
+    name: (mat) => `${mat} leg armor`,
+  },
+  gloves: {
+    key: "gloves",
+    slot: "hands",
+    minTier: 1,
+    weight: (tier) => {
+      const map = { "1": 1.0, "2": 0.9, "3": 0.8 };
+      const k = String(Math.max(1, Math.min(3, tier || 1)));
+      return map[k] ?? 0.9;
+    },
+    defRange: {
+      1: [0.2, 1.2],
+      2: [0.8, 2.4],
+      3: [1.2, 3.0],
+    },
+    handAtkBonus: {
+      2: [0.1, 0.6],
+      3: [0.2, 1.0],
+    },
+    handAtkChance: 0.5,
+    name: (mat) => `${mat} gloves`,
+  },
+  greatsword: {
+    key: "greatsword",
+    slot: "hand",
+    twoHanded: true,
+    minTier: 2,
+    weight: (tier) => {
+      const map = { "2": 0.20, "3": 0.25 };
+      const k = String(Math.max(1, Math.min(3, tier || 1)));
+      return map[k] ?? (k === "1" ? 0 : 0.22);
+    },
+    atkRange: {
+      2: [2.0, 3.4],
+      3: [2.6, 4.2],
+    },
+    name: (mat) => `${mat} greatsword`,
+  },
+  // Disabled examples (weights 0); present for compatibility
+  stick: {
+    key: "stick",
+    slot: "hand",
+    twoHanded: false,
+    minTier: 1,
+    weight: () => 0.0,
+    atkRange: {
+      1: [0.1, 1.1],
+      2: [1.1, 1.1],
+      3: [1.0, 1.1],
+    },
+    name: (mat) => `${mat} stick`,
+  },
+  dagger: {
+    key: "dagger",
+    slot: "hand",
+    twoHanded: false,
+    minTier: 1,
+    weight: () => 0.0,
+    atkRange: {
+      1: [0.4, 1.6],
+      2: [0.8, 2.4],
+      3: [1.0, 2.8],
+    },
+    name: (mat) => `${mat} dagger`,
+  },
 };
 
 function applyJsonItems(json) {

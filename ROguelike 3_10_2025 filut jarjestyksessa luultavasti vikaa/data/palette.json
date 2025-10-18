@@ -1,0 +1,29 @@
+{
+  "tiles": {
+    "wall": "#1b1f2a",
+    "wallDark": "#131722",
+    "floor": "#0f1320",
+    "floorLit": "#0f1628"
+  },
+  "entities": {
+    "player": "#9ece6a",
+    "enemyDefault": "#f7768e",
+    "goblin": "#8bd5a0",
+    "troll": "#e0af68",
+    "ogre": "#f7768e",
+    "item": "#7aa2f7",
+    "corpse": "#c3cad9",
+    "corpseEmpty": "#6b7280"
+  },
+  "overlays": {
+    "dim": "rgba(0, 0, 0, 0.70)"
+  },
+  "encounterBiome": {
+    "FOREST": "#163a22",
+    "GRASS":  "#1c522b",
+    "DESERT": "#cdaa70",
+    "BEACH":  "#dbc398",
+    "SNOW":   "#dfe5eb",
+    "SWAMP":  "#1e3c27"
+  }
+}

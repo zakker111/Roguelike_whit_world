@@ -1,0 +1,27 @@
+{
+  "viewport": {
+    "TILE": 32,
+    "COLS": 30,
+    "ROWS": 20
+  },
+  "world": {
+    "MAP_COLS": 120,
+    "MAP_ROWS": 80
+  },
+  "fov": {
+    "default": 8,
+    "min": 3,
+    "max": 14
+  },
+  "time": {
+    "dayMinutes": 1440,
+    "cycleTurns": 360
+  },
+  "dev": {
+    "injectBadJson": false,
+    "godDefaultTypes": ["goblin","troll","skeleton","bandit","ogre","mime_ghost","hell_houndin"],
+    "encounterRateDefault": 50,
+    "alwaysCritDefault": false,
+    "critPartDefault": ""
+  }
+}

@@ -39,14 +39,21 @@
       });
     }
   } catch (_) {}
-  const TILE = 32;
-  const COLS = 30;
-  const ROWS = 20;
-  
-  const MAP_COLS = 120;
-  const MAP_ROWS = 80;
+  // Runtime configuration (loaded via GameData.config when available)
+  const CFG = (typeof window !== "undefined" && window.GameData && window.GameData.config && typeof window.GameData.config === "object")
+    ? window.GameData.config
+    : null;
 
-  const FOV_DEFAULT = 8;
+  const TILE = (CFG && CFG.viewport && typeof CFG.viewport.TILE === "number") ? CFG.viewport.TILE : 32;
+  const COLS = (CFG && CFG.viewport && typeof CFG.viewport.COLS === "number") ? CFG.viewport.COLS : 30;
+  const ROWS = (CFG && CFG.viewport && typeof CFG.viewport.ROWS === "number") ? CFG.viewport.ROWS : 20;
+  
+  const MAP_COLS = (CFG && CFG.world && typeof CFG.world.MAP_COLS === "number") ? CFG.world.MAP_COLS : 120;
+  const MAP_ROWS = (CFG && CFG.world && typeof CFG.world.MAP_ROWS === "number") ? CFG.world.MAP_ROWS : 80;
+
+  const FOV_DEFAULT = (CFG && CFG.fov && typeof CFG.fov.default === "number") ? CFG.fov.default : 8;
+  const FOV_MIN = (CFG && CFG.fov && typeof CFG.fov.min === "number") ? CFG.fov.min : 3;
+  const FOV_MAX = (CFG && CFG.fov && typeof CFG.fov.max === "number") ? CFG.fov.max : 14;
   let fovRadius = FOV_DEFAULT;
 
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
@@ -74,11 +81,15 @@
 
   // Global time-of-day cycle (shared across modes)
   // Centralized via TimeService to avoid duplication and keep math consistent.
+  // Time configuration from JSON when available
+  const _CFG_DAY_MINUTES = (CFG && CFG.time && typeof CFG.time.dayMinutes === "number") ? CFG.time.dayMinutes : (24 * 60);
+  const _CFG_CYCLE_TURNS = (CFG && CFG.time && typeof CFG.time.cycleTurns === "number") ? CFG.time.cycleTurns : 360;
+
   const TS = (typeof window !== "undefined" && window.TimeService && typeof window.TimeService.create === "function")
-    ? window.TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
+    ? window.TimeService.create({ dayMinutes: _CFG_DAY_MINUTES, cycleTurns: _CFG_CYCLE_TURNS })
     : (function () {
-        const DAY_MINUTES = 24 * 60;
-        const CYCLE_TURNS = 360;
+        const DAY_MINUTES = _CFG_DAY_MINUTES;
+        const CYCLE_TURNS = _CFG_CYCLE_TURNS;
         const MINUTES_PER_TURN = DAY_MINUTES / CYCLE_TURNS;
         function getClock(tc) {
           const totalMinutes = Math.floor((tc | 0) * MINUTES_PER_TURN) % DAY_MINUTES;
@@ -139,20 +150,25 @@
     WINDOW: 4, // town-only: blocks movement, lets light through
   };
 
+  // Palette override from JSON when available
+  const PAL = (typeof window !== "undefined" && window.GameData && window.GameData.palette && typeof window.GameData.palette === "object")
+    ? window.GameData.palette
+    : null;
+
   const COLORS = {
-    wall: "#1b1f2a",
-    wallDark: "#131722",
-    floor: "#0f1320",
-    floorLit: "#0f1628",
-    player: "#9ece6a",
-    enemy: "#f7768e",
-    enemyGoblin: "#8bd5a0",
-    enemyTroll: "#e0af68",
-    enemyOgre: "#f7768e",
-    item: "#7aa2f7",
-    corpse: "#c3cad9",
-    corpseEmpty: "#6b7280",
-    dim: "rgba(13, 16, 24, 0.75)"
+    wall: (PAL && PAL.tiles && PAL.tiles.wall) || "#1b1f2a",
+    wallDark: (PAL && PAL.tiles && PAL.tiles.wallDark) || "#131722",
+    floor: (PAL && PAL.tiles && PAL.tiles.floor) || "#0f1320",
+    floorLit: (PAL && PAL.tiles && PAL.tiles.floorLit) || "#0f1628",
+    player: (PAL && PAL.entities && PAL.entities.player) || "#9ece6a",
+    enemy: (PAL && PAL.entities && PAL.entities.enemyDefault) || "#f7768e",
+    enemyGoblin: (PAL && PAL.entities && PAL.entities.goblin) || "#8bd5a0",
+    enemyTroll: (PAL && PAL.entities && PAL.entities.troll) || "#e0af68",
+    enemyOgre: (PAL && PAL.entities && PAL.entities.ogre) || "#f7768e",
+    item: (PAL && PAL.entities && PAL.entities.item) || "#7aa2f7",
+    corpse: (PAL && PAL.entities && PAL.entities.corpse) || "#c3cad9",
+    corpseEmpty: (PAL && PAL.entities && PAL.entities.corpseEmpty) || "#6b7280",
+    dim: (PAL && PAL.overlays && PAL.overlays.dim) || "rgba(13, 16, 24, 0.75)"
   };
 
   
@@ -210,9 +226,13 @@
       })());
   let isDead = false;
   let startRoomRect = null;
-  // GOD toggles
-  let alwaysCrit = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? !!window.ALWAYS_CRIT : false;
-  let forcedCritPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string") ? window.ALWAYS_CRIT_PART : (typeof localStorage !== "undefined" ? (localStorage.getItem("ALWAYS_CRIT_PART") || "") : "");
+  // GOD toggles (config-driven defaults with localStorage/window override)
+  const AC_DEFAULT = (CFG && CFG.dev && typeof CFG.dev.alwaysCritDefault === "boolean") ? !!CFG.dev.alwaysCritDefault : false;
+  const CP_DEFAULT = (CFG && CFG.dev && typeof CFG.dev.critPartDefault === "string") ? CFG.dev.critPartDefault : "";
+  let alwaysCrit = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? !!window.ALWAYS_CRIT : AC_DEFAULT;
+  let forcedCritPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string")
+    ? window.ALWAYS_CRIT_PART
+    : (typeof localStorage !== "undefined" ? ((localStorage.getItem("ALWAYS_CRIT_PART") || CP_DEFAULT)) : CP_DEFAULT);
   // Render grid preference (ctx-first). Default from window.DRAW_GRID; UI toggle will update this.
   let drawGridPref = (typeof window !== "undefined" && typeof window.DRAW_GRID === "boolean") ? !!window.DRAW_GRID : true;
 
@@ -565,15 +585,7 @@
   }
 
   
-  function enemyLevelFor(type, depth) {
-    const EM = modHandle("Enemies");
-    if (EM && typeof EM.levelFor === "function") {
-      return EM.levelFor(type, depth, rng);
-    }
-    const tier = type === "ogre" ? 2 : (type === "troll" ? 1 : 0);
-    const jitter = rng() < 0.35 ? 1 : 0;
-    return Math.max(1, depth + tier + jitter);
-  }
+  
 
   function enemyDamageMultiplier(level) {
     const C = modHandle("Combat");
@@ -602,7 +614,7 @@
 
   
   function setFovRadius(r) {
-    const clamped = Math.max(3, Math.min(14, r));
+    const clamped = Math.max(FOV_MIN, Math.min(FOV_MAX, r));
     if (clamped !== fovRadius) {
       fovRadius = clamped;
       log(`FOV radius set to ${fovRadius}.`);
@@ -766,7 +778,14 @@
         } catch (_) {}
       }
       updateUI();
-      log("You explore the dungeon.");
+      {
+        const MZ = modHandle("Messages");
+        if (MZ && typeof MZ.log === "function") {
+          MZ.log(getCtx(), "dungeon.explore");
+        } else {
+          log("You explore the dungeon.");
+        }
+      }
       try {
         const DR2 = modHandle("DungeonRuntime");
         if (DR2 && typeof DR2.save === "function") {
@@ -794,7 +813,14 @@
     recomputeFOV();
     updateCamera();
     updateUI();
-    log("You explore the dungeon.");
+    {
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "dungeon.explore");
+      } else {
+        log("You explore the dungeon.");
+      }
+    }
     try {
       const DR2 = modHandle("DungeonRuntime");
       if (DR2 && typeof DR2.save === "function") {
@@ -811,12 +837,14 @@
   }
 
   function inBounds(x, y) {
-    // Centralize via Utils.inBounds; no local fallback
+    // Centralize via Utils.inBounds; fallback to local map bounds
     const U = modHandle("Utils");
     if (U && typeof U.inBounds === "function") {
       return !!U.inBounds(getCtx(), x, y);
     }
-    return false;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    return x >= 0 && y >= 0 && x < cols && y < rows;
   }
 
   
@@ -825,21 +853,18 @@
   
 
   function isWalkable(x, y) {
-    // Centralize via Utils.isWalkableTile; no local fallback
+    // Centralize via Utils.isWalkableTile; fallback to tile-type check
     const U = modHandle("Utils");
     if (U && typeof U.isWalkableTile === "function") {
       return !!U.isWalkableTile(getCtx(), x, y);
     }
-    return false;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+    const t = map[y][x];
+    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS;
   }
 
-  
-
-  
-  
-
-  
-  
   function ensureVisibilityShape() {
     const rows = map.length;
     const cols = map[0] ? map[0].length : 0;
@@ -1056,7 +1081,14 @@
     updateCamera();
     recomputeFOV();
     updateUI();
-    log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
+    {
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "world.arrive");
+      } else {
+        log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
+      }
+    }
     {
       // Delegate town exit button visibility via TownRuntime
       const TR = modHandle("TownRuntime");
@@ -1225,7 +1257,14 @@
         return true;
       }
     }
-    log("Return to the town gate to exit to the overworld.", "info");
+    {
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "town.exitHint");
+      } else {
+        log("Return to the town gate to exit to the overworld.", "info");
+      }
+    }
     return false;
   }
 
@@ -1377,7 +1416,14 @@
       } catch (_) {}
 
       // Otherwise, nothing to do here
-      log("Return to the exit (>) to leave this encounter.", "info");
+      {
+        const MZ = modHandle("Messages");
+        if (MZ && typeof MZ.log === "function") {
+          MZ.log(getCtx(), "encounter.exitHint");
+        } else {
+          log("Return to the exit (>) to leave this encounter.", "info");
+        }
+      }
       return;
     }
 
@@ -1402,14 +1448,29 @@
       return;
     }
     if (mode === "dungeon") {
-      log("This dungeon has no deeper levels. Return to the entrance (the hole '>') and press G to leave.", "info");
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "dungeon.noDeeper");
+      } else {
+        log("This dungeon has no deeper levels. Return to the entrance (the hole '>') and press G to leave.", "info");
+      }
       return;
     }
     const here = map[player.y][player.x];
     if (here === TILES.STAIRS) {
-      log("There is nowhere to go down from here.", "info");
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "dungeon.noDescendHere");
+      } else {
+        log("There is nowhere to go down from here.", "info");
+      }
     } else {
-      log("You need to stand on the staircase (brown tile marked with '>').", "info");
+      const MZ = modHandle("Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(getCtx(), "dungeon.needStairs");
+      } else {
+        log("You need to stand on the staircase (brown tile marked with '>').", "info");
+      }
     }
   }
 

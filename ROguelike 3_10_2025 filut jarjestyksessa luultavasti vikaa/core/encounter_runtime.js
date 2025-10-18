@@ -259,8 +259,21 @@ export function enter(ctx, info) {
   }
 
   const r = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
-  const genId = (template && template.map && template.map.generator) ? String(template.map.generator) : "";
+  let genId = (template && template.map && template.map.generator) ? String(template.map.generator) : "";
   let map = null;
+
+  // Auto-select generator by biome when not specified or set to "auto"
+  const b = (biome || "").toUpperCase();
+  if (!genId || genId.toLowerCase() === "auto") {
+    if (b === "FOREST") genId = "ambush_forest";
+    else if (b === "GRASS") genId = "arena";
+    else if (b === "DESERT") genId = "ruins";
+    else if (b === "BEACH") genId = "arena";
+    else if (b === "SNOW") genId = "ruins";
+    else if (b === "SWAMP") genId = "ambush_forest";
+    else genId = "ambush_forest";
+  }
+
   const id = genId.toLowerCase();
   if (id === "ambush_forest" || id === "ambush" || id === "forest") map = genAmbushForest(r);
   else if (id === "camp" || id === "bandit_camp" || id === "camp_small") map = genCamp(r);

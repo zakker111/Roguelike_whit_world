@@ -59,6 +59,28 @@
     "notes": "Slightly higher top-end attack; small bonus band by tier."
   },
   {
+    "id": "mace",
+    "slot": "hand",
+    "name": "mace",
+    "twoHanded": false,
+    "tierMin": 1,
+    "weights": {
+      "1": 0.18,
+      "2": 0.20,
+      "3": 0.16
+    },
+    "atk": {
+      "1": [0.5, 2.0],
+      "2": [1.2, 3.4],
+      "3": [2.2, 4.0]
+    },
+    "atkBonus": {
+      "2": [0.1, 0.4],
+      "3": [0.2, 0.5]
+    },
+    "notes": "Blunt weapon; slightly higher average at mid tiers."
+  },
+  {
     "id": "shield",
     "slot": "hand",
     "name": "shield",

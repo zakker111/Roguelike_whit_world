@@ -25,12 +25,10 @@ const DATA_FILES = {
   flavor: "data/flavor.json",
   tiles: "data/tiles.json",
   encounters: "data/encounters.json",
+  config: "data/config.json",
+  palette: "data/palette.json",
+  messages: "data/messages.json",
 };
-
-// Compact defaults used when JSON is unavailable (e.g., file://)
-// Minimal defaults to avoid duplicating JSON content.
-// Intentionally left empty so modules use their own internal fallbacks when data is missing.
-const DEFAULTS = {};
 
 function fetchJson(url) {
   return fetch(url, { cache: "no-cache" })
@@ -49,8 +47,11 @@ export const GameData = {
   town: null,
   flavor: null,
   tiles: null,
+  encounters: null,
+  config: null,
+  palette: null,
+  messages: null,
   ready: null,
-};
 
 function logNotice(msg) {
   try {
@@ -66,14 +67,9 @@ function runningFromFile() {
   try { return typeof location !== "undefined" && location.protocol === "file:"; } catch (_) { return false; }
 }
 
-function applyDefaultsIfNeeded() {
-  // No-op: avoid duplicating JSON content with hardcoded defaults.
-  // Modules across the codebase already provide sensible fallbacks when registries are missing.
-}
-
 GameData.ready = (async function loadAll() {
   try {
-    const [items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters] = await Promise.all([
+    const [items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters, config, palette, messages] = await Promise.all([
       fetchJson(DATA_FILES.items).catch(() => null),
       fetchJson(DATA_FILES.enemies).catch(() => null),
       fetchJson(DATA_FILES.npcs).catch(() => null),
@@ -83,6 +79,9 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.flavor).catch(() => null),
       fetchJson(DATA_FILES.tiles).catch(() => null),
       fetchJson(DATA_FILES.encounters).catch(() => null),
+      fetchJson(DATA_FILES.config).catch(() => null),
+      fetchJson(DATA_FILES.palette).catch(() => null),
+      fetchJson(DATA_FILES.messages).catch(() => null),
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -94,6 +93,9 @@ GameData.ready = (async function loadAll() {
     GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
     GameData.tiles = (tiles && typeof tiles === "object" && Array.isArray(tiles.tiles)) ? tiles : null;
     GameData.encounters = (encounters && typeof encounters === "object") ? encounters : null;
+    GameData.config = (config && typeof config === "object") ? config : null;
+    GameData.palette = (palette && typeof palette === "object") ? palette : null;
+    GameData.messages = (messages && typeof messages === "object") ? messages : null;
 
     // If running under file://, note that JSON may not load due to fetch/CORS
     if (runningFromFile()) {
@@ -145,7 +147,7 @@ GameData.ready = (async function loadAll() {
     })();
 
     if (window.DEV) {
-      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles }); } catch (_) {}
+      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages }); } catch (_) {}
     }
 
     // If any registry failed to load, modules will use internal fallbacks.
@@ -154,8 +156,7 @@ GameData.ready = (async function loadAll() {
     }
   } catch (e) {
     try { console.warn("[GameData] load error", e); } catch (_) {}
-    // Keep whatever loaded; fill in defaults for missing ones
-    applyDefaultsIfNeeded();
+    // Keep whatever loaded; modules across the codebase provide sensible fallbacks.
     logNotice("Registry load error; using built-in defaults.");
   }
 })();

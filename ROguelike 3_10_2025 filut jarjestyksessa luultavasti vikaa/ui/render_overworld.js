@@ -29,6 +29,24 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Robust fallback fill color mapping when tiles.json is missing/incomplete
+function fallbackFillOverworld(WT, id) {
+  try {
+    if (id === WT.WATER) return "#0a1b2a";
+    if (id === WT.RIVER) return "#0e2f4a";
+    if (id === WT.BEACH) return "#b59b6a";
+    if (id === WT.SWAMP) return "#1b2a1e";
+    if (id === WT.FOREST) return "#0d2615";
+    if (id === WT.GRASS) return "#10331a";
+    if (id === WT.MOUNTAIN) return "#2f2f34";
+    if (id === WT.DESERT) return "#c2a36b";
+    if (id === WT.SNOW) return "#b9c7d3";
+    if (id === WT.TOWN) return "#3a2f1b";
+    if (id === WT.DUNGEON) return "#2a1b2a";
+  } catch (_) {}
+  return "#0b0c10";
+}
+
 // Helper: current tiles.json reference (for cache invalidation)
 function tilesRef() {
   try {
@@ -68,18 +86,30 @@ export function draw(ctx, view) {
           oc.textAlign = "center";
           oc.textBaseline = "middle";
         } catch (_) {}
+        let missingDefsCount = 0;
+        const missingSet = new Set();
         for (let yy = 0; yy < mh; yy++) {
           const rowM = map[yy];
           for (let xx = 0; xx < mw; xx++) {
             const t = rowM[xx];
-            // JSON-only fill color for overworld
+            // JSON fill color for overworld with robust fallback
             const td = getTileDef("overworld", t);
-            const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+            if (!td) { missingDefsCount++; missingSet.add(t); }
+            const c = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, t);
             oc.fillStyle = c;
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
             // Note: glyph overlays are drawn per-frame below, not baked into base.
           }
         }
+        // DEV-only: log a single summary if tile defs were missing
+        try {
+          if (missingDefsCount > 0 && typeof window !== "undefined" && (window.DEV || (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1"))) {
+            const LG = (typeof window !== "undefined" ? window.Logger : null);
+            const msg = `[RenderOverworld] Missing ${missingDefsCount} tile def lookups; ids without defs: ${Array.from(missingSet).join(", ")}. Using fallback colors.`;
+            if (LG && typeof LG.log === "function") LG.log(msg, "warn");
+            else console.warn(msg);
+          }
+        } catch (_) {}
         WORLD.canvas = off;
       }
     }
@@ -107,7 +137,7 @@ export function draw(ctx, view) {
 
         const t = row[x];
         const td = getTileDef("overworld", t);
-        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, t);
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }

@@ -24,6 +24,25 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Robust fallback fill color mapping when tiles.json is missing/incomplete
+function fallbackFillRegion(WT, id) {
+  try {
+    if (id === WT.WATER) return "#0a1b2a";
+    if (id === WT.RIVER) return "#0e2f4a";
+    if (id === WT.BEACH) return "#b59b6a";
+    if (id === WT.SWAMP) return "#1b2a1e";
+    if (id === WT.FOREST) return "#0d2615";
+    if (id === WT.GRASS) return "#10331a";
+    if (id === WT.MOUNTAIN) return "#2f2f34";
+    if (id === WT.DESERT) return "#c2a36b";
+    if (id === WT.SNOW) return "#b9c7d3";
+    if (id === WT.TOWN) return "#3a2f1b";
+    if (id === WT.DUNGEON) return "#2a1b2a";
+    if (id === WT.TREE) return "#0f3b1e";
+  } catch (_) {}
+  return "#0b0c10";
+}
+
 export function draw(ctx, view) {
   if (!ctx || ctx.mode !== "region" || !ctx.region) return;
   const {
@@ -54,9 +73,9 @@ export function draw(ctx, view) {
       }
 
       const t = row[x];
-      // JSON-only fill color for region mode
+      // JSON fill color for region mode with robust fallback
       const td = getTileDef("region", t);
-      const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+      const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillRegion(WT, t);
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(screenX, screenY, TILE, TILE);
     }
@@ -70,9 +89,15 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const t = row[x];
       const td = getTileDef("region", t);
-      if (!td) continue;
-      const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
-      const fg = td.colors && td.colors.fg ? td.colors.fg : null;
+      let glyph = td && Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+      let fg = td && td.colors && td.colors.fg ? td.colors.fg : null;
+
+      // Fallback glyph/color for trees when region tiles.json lacks glyphs
+      if ((!glyph || !fg) && t === WT.TREE) {
+        if (!glyph || !String(glyph).trim().length) glyph = "♣";
+        if (!fg) fg = "#3fa650";
+      }
+
       if (glyph && String(glyph).trim().length > 0 && fg) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;

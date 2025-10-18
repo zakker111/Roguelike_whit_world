@@ -24,6 +24,18 @@ function getTileDef(mode, id) {
   return null;
 }
 
+// Robust fallback fill for town tiles when tiles.json is missing/incomplete
+function fallbackFillTown(TILES, type, COLORS) {
+  try {
+    if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
+    if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
+    if (type === TILES.DOOR) return "#3a2f1b";
+    if (type === TILES.WINDOW) return "#295b6e";
+    if (type === TILES.STAIRS) return "#3a2f1b";
+  } catch (_) {}
+  return "#0b0c10";
+}
+
 // Helper: get tile def by key for a given mode (for town props)
 function getTileDefByKey(mode, key) {
   try {
@@ -89,9 +101,9 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // JSON-only fill colors: prefer town, then dungeon. Unknown tiles use a neutral dark fill.
+            // JSON fill colors: prefer town, then dungeon; else robust fallback color
             const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-            const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+            const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -107,7 +119,7 @@ export function draw(ctx, view) {
       RenderCore.blitViewport(ctx2d, TOWN.canvas, cam, TOWN.wpx, TOWN.hpx);
     } catch (_) {}
   } else {
-    // Fallback: draw base tiles in viewport using JSON-only colors
+    // Fallback: draw base tiles in viewport using JSON colors or robust fallback
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -121,7 +133,7 @@ export function draw(ctx, view) {
         }
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
@@ -172,25 +184,71 @@ export function draw(ctx, view) {
     }
   }
 
-  // Props (only if visible). Use tiles.json only; no code fallbacks.
+  // Props: draw when seen, full opacity if visible; otherwise slightly dim.
   if (Array.isArray(ctx.townProps)) {
     for (const p of ctx.townProps) {
       if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
-      if (!visible[p.y] || !visible[p.y][p.x]) continue;
+      const wasSeen = !!(seen[p.y] && seen[p.y][p.x]);
+      if (!wasSeen) continue;
+      const visNow = !!(visible[p.y] && visible[p.y][p.x]);
       const screenX = (p.x - startX) * TILE - tileOffsetX;
       const screenY = (p.y - startY) * TILE - tileOffsetY;
 
-      // Lookup by key in JSON: prefer town mode, then dungeon/overworld
+      // Lookup by key in JSON: prefer town mode, then dungeon/overworld; fallback glyph/color if missing
+      let glyph = "";
+      let color = null;
       let tdProp = null;
       try {
         const key = String(p.type || "").toUpperCase();
         tdProp = getTileDefByKey("town", key) || getTileDefByKey("dungeon", key) || getTileDefByKey("overworld", key);
+        if (tdProp) {
+          if (Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph || glyph;
+          if (tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
+        }
       } catch (_) {}
-      if (!tdProp) continue;
-      const glyph = Object.prototype.hasOwnProperty.call(tdProp, "glyph") ? tdProp.glyph : "";
-      const color = tdProp.colors && tdProp.colors.fg ? tdProp.colors.fg : null;
-      if (glyph && String(glyph).trim().length > 0 && color) {
+
+      // Fallback glyphs/colors for common props
+      if (!glyph || !color) {
+        const t = String(p.type || "").toLowerCase();
+        if (!glyph) {
+          if (t === "well") glyph = "O";
+          else if (t === "lamp") glyph = "✦";
+          else if (t === "bench") glyph = "≡";
+          else if (t === "stall") glyph = "S";
+          else if (t === "crate") glyph = "□";
+          else if (t === "barrel") glyph = "◍";
+          else if (t === "chest") glyph = "□";
+          else if (t === "shelf") glyph = "≡";
+          else if (t === "plant") glyph = "❀";
+          else if (t === "rug") glyph = "░";
+          else if (t === "fireplace") glyph = "♨";
+          else if (t === "sign") glyph = "⚑";
+          else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
+        }
+        if (!color) {
+          if (t === "well") color = "#9dd8ff";
+          else if (t === "lamp") color = "#ffd166";
+          else if (t === "bench") color = "#cbd5e1";
+          else if (t === "stall") color = "#eab308";
+          else if (t === "crate") color = "#cbd5e1";
+          else if (t === "barrel") color = "#b5651d";
+          else if (t === "chest") color = "#d7ba7d";
+          else if (t === "shelf") color = "#cbd5e1";
+          else if (t === "plant") color = "#65a30d";
+          else if (t === "rug") color = "#b45309";
+          else if (t === "fireplace") color = "#ff6d00";
+          else if (t === "sign") color = "#d7ba7d";
+          else color = "#cbd5e1";
+        }
+      }
+
+      if (visNow) {
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+      } else {
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.65;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+        ctx2d.restore();
       }
     }
   }
