@@ -578,6 +578,13 @@
     // Score buildings by distance to plaza and assign shops to closest buildings
     const scored = buildings.map(b => ({ b, d: Math.abs((b.x + (b.w / 2)) - plaza.x) + Math.abs((b.y + (b.h / 2)) - plaza.y) }));
     scored.sort((a, b) => a.d - b.d);
+    // Track largest building by area for assigning the inn
+    const largest = buildings.reduce((best, cur) => {
+      const area = cur.w * cur.h;
+      if (!best || area > (best.w * best.h)) return cur;
+      return best;
+    }, null);
+
     // Vary number of shops by town size
     function shopLimitBySize(sizeKey) {
       if (sizeKey === "small") return 3;
@@ -586,10 +593,26 @@
     }
     const shopCount = Math.min(shopDefs.length, scored.length, shopLimitBySize(townSize));
 
+    // Avoid assigning multiple shops to the same building
+    const usedBuildings = new Set();
+
     for (let i = 0; i < shopCount; i++) {
-      const b = scored[i].b;
-      const door = ensureDoor(b);
       const def = shopDefs[i % shopDefs.length];
+      let b = scored[i].b;
+
+      // Prefer the largest building for the Inn
+      if (def.type === "inn" && largest) {
+        b = largest;
+      }
+
+      // If chosen building is already used, pick the next nearest unused
+      if (usedBuildings.has(`${b.x},${b.y}`)) {
+        const alt = scored.find(s => !usedBuildings.has(`${s.b.x},${s.b.y}`));
+        if (alt) b = alt.b;
+      }
+      usedBuildings.add(`${b.x},${b.y}`);
+
+      const door = ensureDoor(b);
       const sched = scheduleFromData(def);
       const name = def.name || def.type || "Shop";
 
