@@ -565,15 +565,7 @@
   }
 
   
-  function enemyLevelFor(type, depth) {
-    const EM = modHandle("Enemies");
-    if (EM && typeof EM.levelFor === "function") {
-      return EM.levelFor(type, depth, rng);
-    }
-    const tier = type === "ogre" ? 2 : (type === "troll" ? 1 : 0);
-    const jitter = rng() < 0.35 ? 1 : 0;
-    return Math.max(1, depth + tier + jitter);
-  }
+  
 
   function enemyDamageMultiplier(level) {
     const C = modHandle("Combat");

@@ -27,11 +27,6 @@ const DATA_FILES = {
   encounters: "data/encounters.json",
 };
 
-// Compact defaults used when JSON is unavailable (e.g., file://)
-// Minimal defaults to avoid duplicating JSON content.
-// Intentionally left empty so modules use their own internal fallbacks when data is missing.
-const DEFAULTS = {};
-
 function fetchJson(url) {
   return fetch(url, { cache: "no-cache" })
     .then(r => {
@@ -49,6 +44,7 @@ export const GameData = {
   town: null,
   flavor: null,
   tiles: null,
+  encounters: null,
   ready: null,
 };
 
@@ -64,11 +60,6 @@ function logNotice(msg) {
 
 function runningFromFile() {
   try { return typeof location !== "undefined" && location.protocol === "file:"; } catch (_) { return false; }
-}
-
-function applyDefaultsIfNeeded() {
-  // No-op: avoid duplicating JSON content with hardcoded defaults.
-  // Modules across the codebase already provide sensible fallbacks when registries are missing.
 }
 
 GameData.ready = (async function loadAll() {
@@ -154,8 +145,7 @@ GameData.ready = (async function loadAll() {
     }
   } catch (e) {
     try { console.warn("[GameData] load error", e); } catch (_) {}
-    // Keep whatever loaded; fill in defaults for missing ones
-    applyDefaultsIfNeeded();
+    // Keep whatever loaded; modules across the codebase provide sensible fallbacks.
     logNotice("Registry load error; using built-in defaults.");
   }
 })();
