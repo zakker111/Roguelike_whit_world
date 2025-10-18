@@ -217,11 +217,12 @@ export function draw(ctx, view) {
           else if (t === "stall") glyph = "S";
           else if (t === "crate") glyph = "□";
           else if (t === "barrel") glyph = "◍";
-          else if (t === "chest") glyph = "C";
+          else if (t === "chest") glyph = "□";
           else if (t === "shelf") glyph = "≡";
           else if (t === "plant") glyph = "❀";
           else if (t === "rug") glyph = "░";
           else if (t === "fireplace") glyph = "♨";
+          else if (t === "sign") glyph = "⚑";
           else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
         }
         if (!color) {
@@ -236,6 +237,7 @@ export function draw(ctx, view) {
           else if (t === "plant") color = "#65a30d";
           else if (t === "rug") color = "#b45309";
           else if (t === "fireplace") color = "#ff6d00";
+          else if (t === "sign") color = "#d7ba7d";
           else color = "#cbd5e1";
         }
       }

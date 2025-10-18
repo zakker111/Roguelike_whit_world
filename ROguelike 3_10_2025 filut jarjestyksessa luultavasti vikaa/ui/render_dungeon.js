@@ -427,7 +427,7 @@ export function draw(ctx, view) {
       } catch (_) {}
       // Fallback glyphs if JSON missed
       if (!glyph) {
-        if ((c.kind || "").toLowerCase() === "chest") glyph = "C";
+        if ((c.kind || "").toLowerCase() === "chest") glyph = "□";
         else glyph = "%";
       }
       // Shade glyph if looted

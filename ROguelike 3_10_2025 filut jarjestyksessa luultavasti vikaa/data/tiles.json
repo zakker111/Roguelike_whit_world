@@ -179,7 +179,7 @@
       "id": 50,
       "key": "CHEST",
       "name": "Chest",
-      "glyph": "▯",
+      "glyph": "□",
       "colors": { "fill": "#3a2f1b", "fg": "#d7ba7d" },
       "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
       "appearsIn": ["dungeon", "town"],
