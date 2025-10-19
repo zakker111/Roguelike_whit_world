@@ -1247,6 +1247,11 @@
     let shopkeepersTotal = 0, greetersTotal = 0, petsTotal = 0;
     const tavernB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
 
+    // Inn/tavern occupancy across all NPCs (not just residents)
+    let innOccupancyAny = 0;
+    let innSleepingAny = 0;
+    const sleepersAtTavern = [];
+
     // Late-night window determination (02:00–05:00)
     const t = ctx.time;
     const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
@@ -1315,6 +1320,20 @@
       if (n.greeter) greetersTotal++;
       if (n.isPet) petsTotal++;
 
+      // Inn/tavern occupancy across all NPCs
+      const atTavernNowAny = tavernB && insideBuilding(tavernB, n.x, n.y);
+      if (atTavernNowAny) {
+        innOccupancyAny++;
+        if (n._sleeping) {
+          innSleepingAny++;
+          sleepersAtTavern.push({
+            index: i,
+            name: typeof n.name === "string" ? n.name : `NPC ${i + 1}`,
+            x: n.x, y: n.y
+          });
+        }
+      }
+
       // Count residents' current locations
       if (n.isResident) {
         residentsTotal++;
@@ -1370,6 +1389,10 @@
     res.total = Math.max(0, npcs.length - res.skipped);
     res.residents = { total: residentsTotal, atHome: residentsAtHome, atTavern: residentsAtTavern };
     res.residentsAwayLate = residentsAwayLate;
+
+    // Tavern summary for GOD panel (all NPCs)
+    res.tavern = { any: innOccupancyAny, sleeping: innSleepingAny };
+    res.sleepersAtTavern = sleepersAtTavern;
 
     // Type breakdown (for GOD panel diagnostics)
     const roamersTotal = Math.max(0, res.total - residentsTotal - shopkeepersTotal - greetersTotal);

@@ -2498,6 +2498,20 @@
                   // Provide a hint if no residents were counted
                   extraLines.push("No residents were counted; ensure town NPCs are populated.");
                 }
+                // Inn/Tavern occupancy summary across all NPCs (not just residents)
+                if (res.tavern && (typeof res.tavern.any === "number")) {
+                  const innAny = res.tavern.any | 0;
+                  const innSleep = (typeof res.tavern.sleeping === "number") ? res.tavern.sleeping | 0 : 0;
+                  extraLines.push(`Inn status: ${innAny} NPC(s) inside; sleeping: ${innSleep}.`);
+                }
+                // Show first few sleepers by name for quick verification
+                if (Array.isArray(res.sleepersAtTavern) && res.sleepersAtTavern.length) {
+                  res.sleepersAtTavern.slice(0, 8).forEach(d => {
+                    const nm = (typeof d.name === "string" && d.name) ? d.name : `NPC ${String((d.index | 0) + 1)}`;
+                    extraLines.push(`- Sleeping: ${nm} at (${d.x},${d.y})`);
+                  });
+                  if (res.sleepersAtTavern.length > 8) extraLines.push(`...and ${res.sleepersAtTavern.length - 8} more.`);
+                }
 
                 // Per-resident list of late-night away residents
                 if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
