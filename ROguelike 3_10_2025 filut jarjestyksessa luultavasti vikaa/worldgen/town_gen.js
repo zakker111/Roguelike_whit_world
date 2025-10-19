@@ -726,6 +726,23 @@
       } else {
         buildings[targetIdx] = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
       }
+
+      // Record the tavern (Inn) building and its preferred door (closest to plaza)
+      try {
+        const cds = candidateDoors(innRect);
+        let bestDoor = null, bestD = Infinity;
+        for (const d of cds) {
+          if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
+            const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
+            if (dd < bestD) { bestD = dd; bestDoor = { x: d.x, y: d.y }; }
+          }
+        }
+        if (!bestDoor) {
+          const dd = ensureDoor(innRect);
+          bestDoor = { x: dd.x, y: dd.y };
+        }
+        ctx.tavern = { building: { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
+      } catch (_) {}
     })();
 
     // Ensure props container exists before any early prop placement (e.g., shop signs)
@@ -799,12 +816,12 @@
       const def = shopDefs[i % shopDefs.length];
       let b = scored[i].b;
 
-      // Prefer the building nearest to the plaza for the Inn
+      // Prefer the enlarged tavern building for the Inn if available; else nearest to plaza
       if (def.type === "inn") {
-        // Pick the closest unused building; if all used, fall back to the absolute closest
-        let candidate = null;
-        for (let s of scored) {
-          const key = `${s.b.x},${s.b.y}`;
+        if (ctx.tavern && ctx.tavern.building) {
+          b = ctx.tavern.building;
+        } else {
+          // Pick the closest unused building${s.b.x},${s.b.y}`;
           if (!usedBuildings.has(key)) { candidate = s.b; break; }
         }
         b = candidate || scored[0].b;
