@@ -2513,10 +2513,10 @@
                 extraLines.forEach(line => log(line, "info"));
 
                 // Do not change Home Paths overlay state here; this action only logs results.
-               .
-                try {
-                  const UIH = modHandle("UI");
-                  if (UIH && typeof UIH.getHomePathsState === "function" && typeof UIH.setHomePathsState === "function") {
+                // Users can toggle the overlay via the GOD panel control.
+
+                // Request draw to show updated debug paths
+                requestDraw()</f UIH.setHomePathsState === "function") {
                     const on = !!UIH.getHomePathsState();
                     if (!on) {
                       UIH.setHomePathsState(true);
