@@ -370,7 +370,8 @@
       const keeperLines = (ND && Array.isArray(ND.shopkeeperLines) && ND.shopkeeperLines.length) ? ND.shopkeeperLines : ["We open on schedule.","Welcome in!","Back soon."];
       const keeperNames = (ND && Array.isArray(ND.shopkeeperNames) && ND.shopkeeperNames.length) ? ND.shopkeeperNames : ["Shopkeeper","Trader","Smith"];
       for (const s of shops) {
-        addSignNear(ctx, s.x, s.y, s.name || "Shop");
+        // Shop signs are placed during town generation (worldgen/town_gen.js) with outward placement.
+        // Avoid duplicating signs here to prevent incorrect sign placement inside buildings like the Inn.
         // choose spawn near door (prefer not blocking the door tile itself)
         let spot = null;
         const neigh = [
