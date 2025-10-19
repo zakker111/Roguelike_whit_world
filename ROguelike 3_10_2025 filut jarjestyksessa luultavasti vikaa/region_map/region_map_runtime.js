@@ -572,13 +572,15 @@ function open(ctx, size) {
       const sample = ctx.region.map;
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
-      // Base rarity: 0–2 animals, more likely in forest/grass/beach; very rare in desert/snow/swamp.
+      // Base rarity: 0–3 animals, more likely in forest/grass/beach; very rare in desert/snow/swamp.
       const { counts } = countBiomes(sample);
       const forestBias = (counts[WT.FOREST] || 0) / (w * h);
       const grassBias = (counts[WT.GRASS] || 0) / (w * h);
       const beachBias = (counts[WT.BEACH] || 0) / (w * h);
-      const base = 0 + (rng() < (0.15 + forestBias * 0.30 + grassBias * 0.20 + beachBias * 0.10) ? 1 : 0) + (rng() < (forestBias * 0.25) ? 1 : 0);
-      const count = Math.min(2, base);
+      const base = 0
+        + (rng() < (0.35 + forestBias * 0.50 + grassBias * 0.35 + beachBias * 0.20) ? 1 : 0)
+        + (rng() < (forestBias * 0.45 + grassBias * 0.25) ? 1 : 0);
+      const count = Math.min(3, base);
       if (count <= 0) return;
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
       const types = ["deer","boar","fox"];
