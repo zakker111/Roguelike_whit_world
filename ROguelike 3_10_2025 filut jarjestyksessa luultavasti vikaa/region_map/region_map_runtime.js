@@ -319,6 +319,50 @@ function animalsClearedHere(worldX, worldY) {
   return false;
 }
 
+// ---- Persistence of per-tile Region Map state (map + corpses) ----
+const REGION_STATE_LS_KEY = "REGION_STATE_V1";
+function _loadRegionStateMap() {
+  try {
+    const raw = localStorage.getItem(REGION_STATE_LS_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch (_) { return {}; }
+}
+function _saveRegionStateMap(map) {
+  try { localStorage.setItem(REGION_STATE_LS_KEY, JSON.stringify(map || {})); } catch (_) {}
+}
+function regionStateKey(worldX, worldY) {
+  return `s:${worldX},${worldY}`;
+}
+function saveRegionState(ctx) {
+  try {
+    const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
+    if (!pos) return;
+    const key = regionStateKey(pos.x | 0, pos.y | 0);
+    const mapObj = _loadRegionStateMap();
+    // Filter corpses within the region bounds
+    const corpses = Array.isArray(ctx.corpses) ? ctx.corpses.map(c => ({ x: c.x|0, y: c.y|0, looted: !!c.looted, loot: Array.isArray(c.loot) ? c.loot : [] })) : [];
+    const st = {
+      w: (ctx.region.width | 0),
+      h: (ctx.region.height | 0),
+      map: ctx.region.map, // small numeric grid
+      corpses
+    };
+    mapObj[key] = st;
+    _saveRegionStateMap(mapObj);
+  } catch (_) {}
+}
+function loadRegionState(worldX, worldY) {
+  try {
+    const key = regionStateKey(worldX | 0, worldY | 0);
+    const mapObj = _loadRegionStateMap();
+    const st = mapObj[key];
+    if (st && typeof st === "object" && Array.isArray(st.map) && st.w && st.h) return st;
+  } catch (_) {}
+  return null;
+}
+
 // Robust directional sampling around the player using angular sectors (8-way).
 // Bins tiles within a radius into N, NE, E, SE, S, SW, W, NW by angle.
 // Returns predominant tile per sector and a dominance weight (0..1) per cardinal.
@@ -533,8 +577,17 @@ function open(ctx, size) {
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
 
-  // Build local sample reflecting biomes near the player.
-  let sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
+  // If persisted state exists for this tile, load it; else build a fresh sample.
+  const persisted = loadRegionState(worldX, worldY);
+  let sample = null;
+  let restoredCorpses = null;
+  if (persisted && Array.isArray(persisted.map) && (persisted.w | 0) === width && (persisted.h | 0) === height) {
+    sample = persisted.map;
+    restoredCorpses = Array.isArray(persisted.corpses) ? persisted.corpses : [];
+  } else {
+    // Build local sample reflecting biomes near the player.
+    sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
+  }
 
   // If animals were previously cleared for this region, do not spawn new ones this session.
   const animalsCleared = animalsClearedHere(worldX, worldY);
@@ -599,6 +652,14 @@ function open(ctx, size) {
   // Initialize FOV memory and visibility (unseen by default; recomputeFOV will fill visible)
   ctx.seen = Array.from({ length: height }, () => Array(width).fill(false));
   ctx.visible = Array.from({ length: height }, () => Array(width).fill(false));
+  // Restore corpses saved for this region if present
+  try {
+    if (restoredCorpses && Array.isArray(restoredCorpses)) {
+      ctx.corpses = restoredCorpses;
+    } else {
+      ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+    }
+  } catch (_) {}
   // Move player to region cursor (camera centers on player)
   ctx.player.x = ctx.region.cursor.x | 0;
   ctx.player.y = ctx.region.cursor.y | 0;
@@ -708,6 +769,8 @@ function open(ctx, size) {
 
 function close(ctx) {
   if (!ctx || ctx.mode !== "region") return false;
+  // Save current region state so reopening at this tile restores it
+  try { saveRegionState(ctx); } catch (_) {}
   // Restore world view and player position at the exact coordinates where G was pressed
   const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
   // Restore previous LOS transparency (object and original function) to avoid breaking dungeon FOV.
