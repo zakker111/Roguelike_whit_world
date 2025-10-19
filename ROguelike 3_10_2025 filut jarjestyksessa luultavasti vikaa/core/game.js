@@ -2512,7 +2512,8 @@
                 // Also write all extra lines to the main log
                 extraLines.forEach(line => log(line, "info"));
 
-                // If Home Paths overlay is off, enable it so the computed debug paths are visible immediately.
+                // Do not change Home Paths overlay state here; this action only logs results.
+               .
                 try {
                   const UIH = modHandle("UI");
                   if (UIH && typeof UIH.getHomePathsState === "function" && typeof UIH.setHomePathsState === "function") {
