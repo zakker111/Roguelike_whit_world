@@ -25,3 +25,11 @@ Notes
   - `&abortonimmobile=1` — abort current run on immobile detection; otherwise records and continues.
   - `&dev=1` — enable DEV logs.
   - `&legacy=1` — load legacy shim; orchestrator does not auto‑run.
+
+Updates (Oct 2025)
+- Underfoot multi-container loot consolidation (entities/loot.js):
+  - Looting on a tile with multiple containers (e.g., chest plus corpse) now transfers all items in one action and marks every container looted.
+  - The Dungeon Persistence scenario should no longer expect repeat loot on the same tile; subsequent G on the tile will report “find nothing.”
+- UI: Help button added next to GOD in the HUD:
+  - Clicking Help opens the same Help / Character Sheet panel as F1.
+  - No change to runner behavior; modal gating/priorities remain the same.

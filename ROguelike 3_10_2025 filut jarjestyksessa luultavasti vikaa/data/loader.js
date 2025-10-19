@@ -28,6 +28,11 @@ const DATA_FILES = {
   config: "data/config.json",
   palette: "data/palette.json",
   messages: "data/messages.json",
+  shopPhases: "data/shop_phases.json",
+  shopPools: "data/shop_pools.json",
+  shopRules: "data/shop_rules.json",
+  shopRestock: "data/shop_restock.json",
+  progression: "data/progression.json"
 };
 
 function fetchJson(url) {
@@ -51,7 +56,13 @@ export const GameData = {
   config: null,
   palette: null,
   messages: null,
+  shopPhases: null,
+  shopPools: null,
+  shopRules: null,
+  shopRestock: null,
+  progression: null,
   ready: null,
+};
 
 function logNotice(msg) {
   try {
@@ -69,7 +80,10 @@ function runningFromFile() {
 
 GameData.ready = (async function loadAll() {
   try {
-    const [items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters, config, palette, messages] = await Promise.all([
+    const [
+      items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters, config, palette, messages,
+      shopPhases, shopPools, shopRules, shopRestock, progression
+    ] = await Promise.all([
       fetchJson(DATA_FILES.items).catch(() => null),
       fetchJson(DATA_FILES.enemies).catch(() => null),
       fetchJson(DATA_FILES.npcs).catch(() => null),
@@ -82,6 +96,11 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.config).catch(() => null),
       fetchJson(DATA_FILES.palette).catch(() => null),
       fetchJson(DATA_FILES.messages).catch(() => null),
+      fetchJson(DATA_FILES.shopPhases).catch(() => null),
+      fetchJson(DATA_FILES.shopPools).catch(() => null),
+      fetchJson(DATA_FILES.shopRules).catch(() => null),
+      fetchJson(DATA_FILES.shopRestock).catch(() => null),
+      fetchJson(DATA_FILES.progression).catch(() => null)
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -96,6 +115,12 @@ GameData.ready = (async function loadAll() {
     GameData.config = (config && typeof config === "object") ? config : null;
     GameData.palette = (palette && typeof palette === "object") ? palette : null;
     GameData.messages = (messages && typeof messages === "object") ? messages : null;
+
+    GameData.shopPhases = (shopPhases && typeof shopPhases === "object") ? shopPhases : null;
+    GameData.shopPools = (shopPools && typeof shopPools === "object") ? shopPools : null;
+    GameData.shopRules = (shopRules && typeof shopRules === "object") ? shopRules : null;
+    GameData.shopRestock = (shopRestock && typeof shopRestock === "object") ? shopRestock : null;
+    GameData.progression = (progression && typeof progression === "object") ? progression : null;
 
     // If running under file://, note that JSON may not load due to fetch/CORS
     if (runningFromFile()) {
@@ -147,7 +172,7 @@ GameData.ready = (async function loadAll() {
     })();
 
     if (window.DEV) {
-      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages }); } catch (_) {}
+      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression }); } catch (_) {}
     }
 
     // If any registry failed to load, modules will use internal fallbacks.

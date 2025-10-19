@@ -35,6 +35,46 @@ function syncAfterMutation(ctx) {
   if (typeof ctx.requestDraw === "function") ctx.requestDraw();
 }
 
+// Ensure player stands on the town gate interior tile on entry
+function movePlayerToTownGateInterior(ctx) {
+  try {
+    const map = ctx.map;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    if (!rows || !cols) return;
+
+    // Find perimeter door and move the player to the adjacent interior floor tile
+    let gx = null, gy = null;
+    // top row
+    for (let x = 0; x < cols; x++) {
+      if (map[0][x] === ctx.TILES.DOOR) { gx = x; gy = 1; break; }
+    }
+    // bottom row
+    if (gx == null) {
+      for (let x = 0; x < cols; x++) {
+        if (map[rows - 1][x] === ctx.TILES.DOOR) { gx = x; gy = rows - 2; break; }
+      }
+    }
+    // left column
+    if (gx == null) {
+      for (let y = 0; y < rows; y++) {
+        if (map[y][0] === ctx.TILES.DOOR) { gx = 1; gy = y; break; }
+      }
+    }
+    // right column
+    if (gx == null) {
+      for (let y = 0; y < rows; y++) {
+        if (map[y][cols - 1] === ctx.TILES.DOOR) { gx = cols - 2; gy = y; break; }
+      }
+    }
+
+    if (gx != null && gy != null) {
+      ctx.player.x = gx; ctx.player.y = gy;
+      ctx.townExitAt = { x: gx, y: gy };
+    }
+  } catch (_) {}
+}
+
 // Public API
 export function leaveTownNow(ctx) {
   if (!ctx || !ctx.world) return;
@@ -89,8 +129,32 @@ export function enterTownIfOnTile(ctx) {
   }
 
   if (WT && t === ctx.World.TILES.TOWN) {
-      ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
+      const enterWX = ctx.player.x, enterWY = ctx.player.y;
+      ctx.worldReturnPos = { x: enterWX, y: enterWY };
       ctx.mode = "town";
+
+      // First, try to load a persisted town state for this overworld tile
+      try {
+        const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
+        if (TS && typeof TS.load === "function") {
+          const loaded = !!TS.load(ctx, enterWX, enterWY);
+          if (loaded) {
+            // Ensure occupancy and UI
+            try {
+              if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
+            } catch (_) {}
+            try {
+              if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
+              else if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
+            } catch (_) {}
+            // Ensure player spawns on gate interior tile on entry
+            movePlayerToTownGateInterior(ctx);
+            if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            syncAfterMutation(ctx);
+            return true;
+          }
+        }
+      } catch (_) {}
 
       // Prefer centralized TownRuntime generation/helpers
       try {
@@ -99,6 +163,8 @@ export function enterTownIfOnTile(ctx) {
           if (ok) {
             // After TownRuntime.generate, ensure gate exit anchor, prime occupancy, and UI
             ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
+            // Ensure player stands on the gate interior tile
+            movePlayerToTownGateInterior(ctx);
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
@@ -118,6 +184,8 @@ export function enterTownIfOnTile(ctx) {
         ctx.Town.generate(ctx);
         try { if (typeof ctx.Town.ensureSpawnClear === "function") ctx.Town.ensureSpawnClear(ctx); } catch (_) {}
         ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
+        // Ensure player stands on the gate interior tile
+        movePlayerToTownGateInterior(ctx);
         // Town.generate already spawns a gate greeter; avoid duplicates.
         try { if (typeof ctx.Town.spawnGateGreeters === "function") ctx.Town.spawnGateGreeters(ctx, 0); } catch (_) {}
       }

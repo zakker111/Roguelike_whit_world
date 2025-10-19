@@ -58,7 +58,14 @@ function cloneForStorage(st) {
           x: c.x, y: c.y,
           kind: c.kind,           // preserve chest vs corpse
           looted: !!c.looted,
-          loot: Array.isArray(c.loot) ? c.loot : []
+          loot: Array.isArray(c.loot) ? c.loot : [],
+          // Persist flavor/meta and examination state so revisits keep the death details and prevent repeated spam
+          meta: c.meta ? {
+            killedBy: c.meta.killedBy,
+            wound: c.meta.wound,
+            via: c.meta.via
+          } : undefined,
+          _examined: !!c._examined
         }))
       : [],
     decals: Array.isArray(st.decals) ? st.decals.map(d => ({ x: d.x, y: d.y, a: d.a, r: d.r })) : [],

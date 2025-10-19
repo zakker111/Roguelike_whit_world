@@ -140,13 +140,18 @@ export function draw(ctx, view) {
     }
   }
 
-  // Per-frame glyph overlay for any tile with a non-blank JSON glyph (drawn before visibility overlays)
+  // Per-frame glyph overlay (drawn before visibility overlays)
+  // NOTE: Skip door/stairs glyphs in town to avoid ASCII noise ('+' and '>') cluttering the view.
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowMap = yIn ? map[y] : null;
     for (let x = startX; x <= endX; x++) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
+
+      // Suppress door/stairs glyphs in town mode; retain fill colors so doors remain visually distinct.
+      if (type === TILES.DOOR || type === TILES.STAIRS) continue;
+
       const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
       if (!td) continue;
       const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
@@ -184,17 +189,20 @@ export function draw(ctx, view) {
     }
   }
 
-  // Props: draw when seen, full opacity if visible; otherwise slightly dim.
+  // Props: draw remembered (seen) props dimmed; draw fully only when currently visible with direct LOS.
   if (Array.isArray(ctx.townProps)) {
     for (const p of ctx.townProps) {
       if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
+
       const wasSeen = !!(seen[p.y] && seen[p.y][p.x]);
       if (!wasSeen) continue;
+
       const visNow = !!(visible[p.y] && visible[p.y][p.x]);
+
+      // Lookup by key in JSON: prefer town mode, then dungeon/overworld; fallback glyph/color if missing
       const screenX = (p.x - startX) * TILE - tileOffsetX;
       const screenY = (p.y - startY) * TILE - tileOffsetY;
 
-      // Lookup by key in JSON: prefer town mode, then dungeon/overworld; fallback glyph/color if missing
       let glyph = "";
       let color = null;
       let tdProp = null;
@@ -242,13 +250,27 @@ export function draw(ctx, view) {
         }
       }
 
+      // Decide opacity: full if visible and LOS; dim if not visible or visible-without-LOS
+      let drawDim = !visNow;
       if (visNow) {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-      } else {
+        let hasLine = true;
+        try {
+          if (ctx.los && typeof ctx.los.hasLOS === "function") {
+            hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, p.x, p.y);
+          } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
+            hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, p.x, p.y);
+          }
+        } catch (_) {}
+        if (!hasLine) drawDim = true;
+      }
+
+      if (drawDim) {
         ctx2d.save();
         ctx2d.globalAlpha = 0.65;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
         ctx2d.restore();
+      } else {
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
       }
     }
   }
@@ -275,6 +297,9 @@ export function draw(ctx, view) {
       } else if (n.isSeppo || n.seppo) {
         glyph = "S";
         color = "#f6c177";
+      } else if (n.isShopkeeper || n._shopRef) {
+        // Highlight shopkeepers so the player can spot them easily
+        color = "#ffd166"; // warm gold
       }
 
       // Always draw at full opacity to ensure discoverability, regardless of FOV memory.

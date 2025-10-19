@@ -1,0 +1,8 @@
+{
+  "phases": [
+    { "id": "morning",   "start": "06:00", "end": "11:59" },
+    { "id": "midday",    "start": "12:00", "end": "15:59" },
+    { "id": "afternoon", "start": "16:00", "end": "18:59" },
+    { "id": "dusk",      "start": "19:00", "end": "23:59" }
+  ]
+}

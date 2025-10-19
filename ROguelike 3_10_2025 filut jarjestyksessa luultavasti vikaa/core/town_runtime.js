@@ -105,20 +105,31 @@ export function talk(ctx) {
   const line = pick(lines, ctx.rng);
   ctx.log && ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
 
-  // If the NPC is at or adjacent to a shop door, gate opening by schedule via ShopService
+  // Only shopkeepers can open shops; villagers should not trigger trading.
+  const isKeeper = !!(npc && (npc.isShopkeeper || npc._shopRef));
+  if (!isKeeper) {
+    return true;
+  }
+
+  // Open shop when bumping the shopkeeper if the shop is open.
   try {
-    let doorShop = null;
-    const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-    for (const s of shops) {
-      const dd = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
-      if (dd <= 1) { doorShop = s; break; }
+    const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
+    const shopRef = npc._shopRef || null;
+
+    // Prefer the explicit reference from the NPC; else fallback to nearest door shop
+    let targetShop = shopRef;
+    if (!targetShop) {
+      const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      for (const s of shops) {
+        const dd = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
+        if (dd <= 1) { targetShop = s; break; }
+      }
     }
-    if (doorShop) {
-      const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
-      const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, doorShop) : false;
-      const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(doorShop) : "";
+
+    if (targetShop) {
+      const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, targetShop) : false;
+      const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(targetShop) : "";
       if (openNow) {
-        // Coalesce draw: only request a redraw if shop was previously closed
         let wasOpen = false;
         try { wasOpen = !!(ctx.UIBridge && typeof ctx.UIBridge.isShopOpen === "function" && ctx.UIBridge.isShopOpen()); } catch (_) {}
         if (ctx.UIBridge && typeof ctx.UIBridge.showShop === "function") {
@@ -126,8 +137,7 @@ export function talk(ctx) {
         }
         if (!wasOpen) { ctx.requestDraw && ctx.requestDraw(); }
       } else {
-        ctx.log && ctx.log(`The ${doorShop.name || "shop"} is closed. ${sched}`, "warn");
-        // Pure log; no canvas redraw needed
+        ctx.log && ctx.log(`The ${targetShop.name || "shop"} is closed. ${sched}`, "warn");
       }
     }
   } catch (_) {}
@@ -182,6 +192,12 @@ export function returnToWorldIfAtGate(ctx) {
 
 export function applyLeaveSync(ctx) {
   if (!ctx || !ctx.world) return false;
+
+  // Persist current town state (map + visibility + entities) before leaving
+  try {
+    const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
+    if (TS && typeof TS.save === "function") TS.save(ctx);
+  } catch (_) {}
 
   // Switch mode and restore overworld map
   ctx.mode = "world";

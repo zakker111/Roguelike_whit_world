@@ -182,7 +182,7 @@
     return computePath(ctx, occ, sx, sy, tx, ty, opts);
   }
 
-  function stepTowards(ctx, occ, n, tx, ty) {
+  function stepTowards(ctx, occ, n, tx, ty, opts = {}) {
     if (typeof tx !== "number" || typeof ty !== "number") return false;
 
     // Consume existing plan if valid and targeted to the same goal
@@ -203,7 +203,19 @@
       if (n._plan && n._plan.length >= 2) {
         const next = n._plan[1];
         const keyNext = `${next.x},${next.y}`;
-        if (isWalkTown(ctx, next.x, next.y) && !occ.has(keyNext) && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
+        // Allow shopkeepers to step onto their own reserved shop door
+        const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
+        let isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
+        // Inn: allow shopkeeper to step onto either of the double door tiles on their building perimeter
+        if (!isOwnDoor && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
+          const B = n._shopRef.building;
+          if (B && ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR) {
+            const onPerimeter = (next.y === B.y || next.y === B.y + B.h - 1 || next.x === B.x || next.x === B.x + B.w - 1);
+            if (onPerimeter) isOwnDoor = true;
+          }
+        }
+        const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
+        if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
           if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
             // Show entire planned route, not just remaining slice
             n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
@@ -227,8 +239,9 @@
       }
     }
 
-    // No valid plan; compute new plan (budgeted)
-    const full = computePathBudgeted(ctx, occ, n.x, n.y, tx, ty);
+    // No valid plan; compute new plan (budgeted or urgent)
+    const pathFn = (opts && opts.urgent) ? computePath : computePathBudgeted;
+    const full = pathFn(ctx, occ, n.x, n.y, tx, ty);
     if (full && full.length >= 2) {
       n._plan = full.slice(0);
       n._planGoal = { x: tx, y: ty };
@@ -238,7 +251,17 @@
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) n._debugPath = full.slice(0);
       const next = full[1];
       const keyNext = `${next.x},${next.y}`;
-      if (isWalkTown(ctx, next.x, next.y) && !occ.has(keyNext) && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
+      const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
+      let isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
+      if (!isOwnDoor && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
+        const B = n._shopRef.building;
+        if (B && ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR) {
+          const onPerimeter = (next.y === B.y || next.y === B.y + B.h - 1 || next.x === B.x || next.x === B.x + B.w - 1);
+          if (onPerimeter) isOwnDoor = true;
+        }
+      }
+      const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
+      if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
         occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
         return true;
       }
@@ -257,7 +280,17 @@
       const nx = n.x + d.dx, ny = n.y + d.dy;
       if (!isWalkTown(ctx, nx, ny)) continue;
       if (ctx.player.x === nx && ctx.player.y === ny) continue;
-      if (occ.has(`${nx},${ny}`)) continue;
+      const keyN = `${nx},${ny}`;
+      const isReservedN = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyN);
+      let isOwnDoorN = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === nx && n._shopRef.y === ny);
+      if (!isOwnDoorN && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
+        const B = n._shopRef.building;
+        if (B && ctx.map[ny] && ctx.map[ny][nx] === ctx.TILES.DOOR) {
+          const onPerimeter = (ny === B.y || ny === B.y + B.h - 1 || nx === B.x || nx === B.x + B.w - 1);
+          if (onPerimeter) isOwnDoorN = true;
+        }
+      }
+      if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
         // Single-step nudge visualization
         n._debugPath = [{ x: n.x, y: n.y }, { x: nx, y: ny }];
@@ -338,20 +371,36 @@
       const keeperLines = (ND && Array.isArray(ND.shopkeeperLines) && ND.shopkeeperLines.length) ? ND.shopkeeperLines : ["We open on schedule.","Welcome in!","Back soon."];
       const keeperNames = (ND && Array.isArray(ND.shopkeeperNames) && ND.shopkeeperNames.length) ? ND.shopkeeperNames : ["Shopkeeper","Trader","Smith"];
       for (const s of shops) {
-        addSignNear(ctx, s.x, s.y, s.name || "Shop");
-        // choose spawn near door
-        let spot = { x: s.x, y: s.y };
-        const neigh = [
-          { dx: 0, dy: 0 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
-          { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
-        ];
-        for (const d of neigh) {
-          const nx = s.x + d.dx, ny = s.y + d.dy;
-          if (isFreeTownFloor(ctx, nx, ny)) { spot = { x: nx, y: ny }; break; }
+        // Shop signs are placed during town generation (worldgen/town_gen.js) with outward placement.
+        // Avoid duplicating signs here to prevent incorrect sign placement inside buildings like the Inn.
+        // choose spawn location:
+        // Inn: always spawn inside to keep entrance clear and ensure availability
+        const isInn = String(s.type || "").toLowerCase() === "inn";
+        let spot = null;
+        if (isInn && s.inside) {
+          spot = { x: s.inside.x, y: s.inside.y };
+        } else {
+          // Other shops: prefer adjacent free tile near door (avoid blocking the door tile itself)
+          const neigh = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+            { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
+          ];
+          for (const d of neigh) {
+            const nx = s.x + d.dx, ny = s.y + d.dy;
+            if (isFreeTownFloor(ctx, nx, ny)) { spot = { x: nx, y: ny }; break; }
+          }
+          if (!spot) {
+            spot = { x: s.x, y: s.y };
+          }
         }
         if (npcs.some(n => n.x === spot.x && n.y === spot.y)) continue;
 
-        const livesInShop = rng() < 0.4 && s.building;
+        // In smaller towns shopkeepers more often live in their shop; in cities less often
+        const size = (ctx.townSize || "big");
+        let baseLive = 0.4;
+        if (size === "small") baseLive = 0.6;
+        else if (size === "city") baseLive = 0.25;
+        const livesInShop = (isInn && s.building) ? true : (rng() < baseLive && s.building);
         let home = null;
         if (livesInShop && s.building) {
           const h = randomInteriorSpot(ctx, s.building) || s.inside || { x: s.x, y: s.y };
@@ -360,6 +409,11 @@
           const b = townBuildings[randInt(ctx, 0, townBuildings.length - 1)];
           const pos = randomInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
           home = { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y } };
+        }
+        // Special-case: innkeeper should always have home at inn as well
+        if (isInn && s.building && !home) {
+          const h2 = randomInteriorSpot(ctx, s.building) || s.inside || { x: s.x, y: s.y };
+          home = { building: s.building, x: h2.x, y: h2.y, door: { x: s.x, y: s.y } };
         }
 
         const shopBase = s.name ? `${s.name} ` : "";
@@ -410,7 +464,9 @@
       const pickRandomShopDoor = () => {
         if (!shops || !shops.length) return null;
         const s = shops[randInt(ctx, 0, shops.length - 1)];
-        return { x: s.x, y: s.y };
+        // Prefer an adjacent floor tile next to the door so residents don't block the door itself
+        const adj = nearestFreeAdjacent(ctx, s.x, s.y, null);
+        return adj ? { x: adj.x, y: adj.y } : { x: s.x, y: s.y };
       };
 
       // Ensure every building has occupants (at least one), scaled by area
@@ -422,16 +478,17 @@
         let created = 0;
         let tries = 0;
         while (created < residentCount && tries++ < 200) {
-          const pos = randomInteriorSpot(ctx, b) || firstFreeInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
+          const pos = randomInteriorSpot(ctx, b) || firstFreeInteriorSpot(ctx, b) || { x: Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2))), y: Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2))) };
           if (!pos) break;
           if (npcs.some(n => n.x === pos.x && n.y === pos.y)) continue;
           let errand = null;
+          let errandIsShopDoor = false;
           if (rng() < 0.5) {
             const pb = pickBenchNearPlaza();
-            if (pb) errand = { x: pb.x, y: pb.y };
+            if (pb) { errand = { x: pb.x, y: pb.y }; errandIsShopDoor = false; }
           } else {
             const sd = pickRandomShopDoor();
-            if (sd) errand = sd;
+            if (sd) { errand = sd; errandIsShopDoor = true; }
           }
           let sleepSpot = null;
           if (bedList.length) {
@@ -446,6 +503,8 @@
             isResident: true,
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: sleepSpot },
             _work: errand,
+            _workIsShopDoor: !!errandIsShopDoor,
+            _likesTavern: ctx.rng() < 0.45
           });
           created++;
         }
@@ -453,14 +512,18 @@
         if (created === 0) {
           const pos = firstFreeInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
           const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
+          const workToShop = (rng() < 0.5 && shops && shops.length);
+          const workTarget = workToShop ? { x: shops[0].x, y: shops[0].y }
+                                        : (townPlaza ? { x: townPlaza.x, y: townPlaza.y } : null);
           npcs.push({
             x: pos.x, y: pos.y,
             name: rname,
             lines: linesHome,
             isResident: true,
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: null },
-            _work: (rng() < 0.5 && shops && shops.length) ? { x: shops[0].x, y: shops[0].y }
-                  : (townPlaza ? { x: townPlaza.x, y: townPlaza.y } : null),
+            _work: workTarget,
+            _workIsShopDoor: !!workToShop,
+            _likesTavern: ctx.rng() < 0.45
           });
         }
       }
@@ -527,6 +590,37 @@
         if (propBlocks(p.type)) occ.add(`${p.x},${p.y}`);
       }
     }
+    // Reserve shop door tiles to avoid door blocking by non-shopkeepers.
+    // For inns, also reserve both tiles of the double door when present.
+    const reservedDoors = new Set();
+    try {
+      const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      const rows = ctx.map.length, cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+      function inB(x, y) { return x >= 0 && y >= 0 && x < cols && y < rows; }
+      for (const s of shops) {
+        const key = `${s.x},${s.y}`;
+        reservedDoors.add(key);
+        occ.add(key); // treat as blocked by default
+        // Inn: reserve adjacent DOOR tile to create an unobstructed double-door entry
+        if (String(s.type || "").toLowerCase() === "inn") {
+          const neigh = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
+          ];
+          for (const d of neigh) {
+            const nx = s.x + d.dx, ny = s.y + d.dy;
+            if (!inB(nx, ny)) continue;
+            if (ctx.map[ny][nx] === ctx.TILES.DOOR) {
+              const k2 = `${nx},${ny}`;
+              reservedDoors.add(k2);
+              occ.add(k2);
+              break; // only need one adjacent door to complete the pair
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    ctx._reservedShopDoors = reservedDoors;
 
     // Expose fast occupancy to helpers for this tick
     ctx._occ = occ;
@@ -569,15 +663,44 @@
       return inSpot || { x: door.x, y: door.y };
     }
 
+    // Tavern seating: pick floor tiles adjacent to chairs/tables inside the tavern
+    function tavernSeatSpots(ctx) {
+      const tv = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+      if (!tv) return [];
+      const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      const seats = [];
+      for (const p of props) {
+        if (p.type !== "chair" && p.type !== "table") continue;
+        if (!(p.x > tv.x && p.x < tv.x + tv.w - 1 && p.y > tv.y && p.y < tv.y + tv.h - 1)) continue;
+        const adj = nearestFreeAdjacent(ctx, p.x, p.y, tv);
+        if (adj) seats.push(adj);
+      }
+      return seats;
+    }
+    function chooseTavernSeat(ctx) {
+      const seats = tavernSeatSpots(ctx);
+      if (!seats.length) return chooseTavernTarget(ctx);
+      return seats[randInt(ctx, 0, seats.length - 1)];
+    }
+
     // Lightweight per-NPC rate limiting: each NPC only acts every N ticks.
     // Defaults: residents/shopkeepers every 2 ticks, pets every 3 ticks, generic 2.
     const tickMod = ((t && typeof t.turnCounter === "number") ? t.turnCounter : 0) | 0;
     function shouldSkipThisTick(n, idx) {
+      // Shopkeepers: during arrive-to-leave window, act every tick (no stride skip)
+      if (n.isShopkeeper && n._shopRef) {
+        const o = (typeof n._shopRef.openMin === "number") ? n._shopRef.openMin : 8 * 60;
+        const c = (typeof n._shopRef.closeMin === "number") ? n._shopRef.closeMin : 18 * 60;
+        const arriveStart = (o - 120 + 1440) % 1440; // same window as work intent
+        const leaveEnd = (c + 10) % 1440;
+        if (inWindow(arriveStart, leaveEnd, minutes, 1440)) return false;
+      }
       if (typeof n._stride !== "number") {
-        n._stride = n.isPet ? 3 : 2;
+        // Pets act less often, shopkeepers at a moderate rate, residents/generic every tick
+        n._stride = n.isPet ? 3 : (n.isShopkeeper ? 2 : 1);
       }
       if (typeof n._strideOffset !== "number") {
-        // Deterministic offset from index to evenly stagger across the stride
+        // Deterministic offset from initial index to evenly stagger across the stride
         n._strideOffset = idx % n._stride;
       }
       return (tickMod % n._stride) !== n._strideOffset;
@@ -835,11 +958,11 @@
           if (n.x === door.x && n.y === door.y) {
             // Step just inside to a free interior tile (planned)
             const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, building) || adjTarget || { x: door.x, y: door.y };
-            stepTowards(ctx, occ, n, inSpot.x, inSpot.y);
+            stepTowards(ctx, occ, n, inSpot.x, inSpot.y, { urgent: !!n.isShopkeeper });
             return true;
           }
           // Plan/step toward the door, persist plan across turns
-          stepTowards(ctx, occ, n, door.x, door.y);
+          stepTowards(ctx, occ, n, door.x, door.y, { urgent: !!n.isShopkeeper });
           return true;
         }
       } else {
@@ -886,10 +1009,24 @@
       // Shopkeepers with schedule
       if (n.isShopkeeper) {
         const shop = n._shopRef || null;
+        const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
+        if (isInnKeeper && shop && shop.building) {
+          // Innkeeper: always stay inside the inn, regardless of open/close windows
+          const targetInside = n._workInside || shop.inside || { x: shop.x, y: shop.y };
+          const handledInn = routeIntoBuilding(ctx, occ, n, shop.building, targetInside);
+          if (handledInn) continue;
+          // Minor fidget to avoid complete idling
+          if (ctx.rng() < 0.2) {
+            stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          }
+          continue;
+        }
+
         const o = shop ? shop.openMin : 8 * 60;
         const c = shop ? shop.closeMin : 18 * 60;
-        const arriveStart = (o - 60 + 1440) % 1440;
-        const leaveEnd = (c + 30) % 1440;
+        // Arrive earlier and leave shortly after close to avoid lingering
+        const arriveStart = (o - 120 + 1440) % 1440; // 2 hours before open
+        const leaveEnd = (c + 10) % 1440;           // 10 minutes after close
         const shouldBeAtWorkZone = inWindow(arriveStart, leaveEnd, minutes, 1440);
         const openNow = isOpenAt(shop, minutes, 1440);
 
@@ -898,7 +1035,7 @@
           if (openNow && n._workInside && shop && shop.building) {
             handled = routeIntoBuilding(ctx, occ, n, shop.building, n._workInside);
           } else if (n._work) {
-            handled = stepTowards(ctx, occ, n, n._work.x, n._work.y);
+            handled = stepTowards(ctx, occ, n, n._work.x, n._work.y, { urgent: true });
           }
         } else if (n._home && n._home.building) {
           // Off hours: stagger departure between 18:00-21:00
@@ -914,11 +1051,11 @@
           }
 
           if (!handled && !departReady) {
-            // Not yet time: linger around shop door or nearby plaza
-            const linger = n._work || (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
+            // Not yet time: linger briefly near the plaza (avoid lingering at shop door)
+            const linger = (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
             if (linger) {
               if (n.x === linger.x && n.y === linger.y) {
-                if (ctx.rng() < 0.9) continue;
+                if (ctx.rng() < 0.7) continue; // reduce idle chance to avoid long lingering
                 stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
               } else {
                 stepTowards(ctx, occ, n, linger.x, linger.y);
@@ -941,8 +1078,11 @@
 
         if (handled) continue;
 
-        // idle jiggle
-        if (ctx.rng() < 0.9) continue;
+        // idle jiggle: occasionally take a small step to avoid total idling
+        if (ctx.rng() < 0.3) {
+          stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+        }
+        continue;
       }
 
       // Residents: sleep system
@@ -1009,12 +1149,71 @@
           // If no home data for some reason, stop wandering at evening
           continue;
         } else if (phase === "day") {
+          // Daytime tavern visit behavior: sit for a short while if at a seat
+          const tvB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          if (tvB) {
+            if (n._tavernSeatGoal && insideBuilding(tvB, n.x, n.y) &&
+                n.x === n._tavernSeatGoal.x && n.y === n._tavernSeatGoal.y) {
+              // Arrived at seat: sit for a few turns
+              n._tavernStayTurns = randInt(ctx, 3, 9);
+              n._tavernSeatGoal = null;
+            }
+            if (n._tavernStayTurns && n._tavernStayTurns > 0) {
+              n._tavernStayTurns--;
+              // Occasionally fidget while seated
+              if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+              continue;
+            }
+          }
+          // Occasionally go to the tavern for a drink and sit
+          if (tvB) {
+            const wantTavern = n._likesTavern ? (ctx.rng() < 0.25) : (ctx.rng() < 0.08);
+            if (wantTavern) {
+              const seat = chooseTavernSeat(ctx);
+              if (seat) {
+                n._tavernSeatGoal = { x: seat.x, y: seat.y };
+                if (routeIntoBuilding(ctx, occ, n, tvB, seat)) continue;
+              }
+            }
+          }
+          // Default day behavior with limited shop-door lingering
           const target = n._work || (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
           if (target) {
             if (n.x === target.x && n.y === target.y) {
-              if (ctx.rng() < 0.9) continue;
-              stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
-              continue;
+              if (n._workIsShopDoor) {
+                if (typeof n._errandStayTurns !== "number" || n._errandStayTurns <= 0) {
+                  n._errandStayTurns = randInt(ctx, 1, 3); // short stay at shop door
+                }
+                n._errandStayTurns--;
+                if (n._errandStayTurns <= 0) {
+                  // Move on: clear errand and pick a bench near plaza if available
+                  n._work = null; n._workIsShopDoor = false;
+                  // Find nearest bench to plaza center
+                  let bench = null;
+                  try {
+                    const benches = (ctx.townProps || []).filter(p => p.type === "bench");
+                    if (benches.length) {
+                      benches.sort((a, b) => manhattan(a.x, a.y, ctx.townPlaza.x, ctx.townPlaza.y) - manhattan(b.x, b.y, ctx.townPlaza.x, ctx.townPlaza.y));
+                      bench = benches[0];
+                    }
+                  } catch (_) {}
+                  if (bench) {
+                    stepTowards(ctx, occ, n, bench.x, bench.y);
+                  } else {
+                    stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                  }
+                  continue;
+                } else {
+                  // brief fidget while waiting
+                  if (ctx.rng() < 0.2) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                  continue;
+                }
+              } else {
+                // Non-shop errand: reduced idle lingering
+                if (ctx.rng() < 0.6) continue;
+                stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                continue;
+              }
             }
             stepTowards(ctx, occ, n, target.x, target.y);
             continue;
@@ -1034,7 +1233,18 @@
       }
 
       // Generic NPCs
-      if (ctx.rng() < 0.25) continue;
+      if (ctx.rng() < 0.2) continue;
+      // Occasional tavern visit during the day for roamers who like the tavern
+      if (phase === "day" && ctx.tavern && n._likesTavern) {
+        const tvB = ctx.tavern.building;
+        const seat = chooseTavernSeat(ctx);
+        if (tvB && seat) {
+          if (routeIntoBuilding(ctx, occ, n, tvB, seat)) {
+            n._tavernStayTurns = randInt(ctx, 2, 6);
+            continue;
+          }
+        }
+      }
       let target = null;
       if (phase === "morning") target = n._home ? { x: n._home.x, y: n._home.y } : null;
       else if (phase === "day") target = (n._work || ctx.townPlaza);
@@ -1061,9 +1271,15 @@
     const res = { total: 0, reachable: 0, unreachable: 0, skipped: 0, details: [] };
     const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
 
-    // Track resident presence
+    // Track resident presence and type counts
     let residentsTotal = 0, residentsAtHome = 0, residentsAtTavern = 0;
+    let shopkeepersTotal = 0, greetersTotal = 0, petsTotal = 0;
     const tavernB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+
+    // Inn/tavern occupancy across all NPCs (not just residents)
+    let innOccupancyAny = 0;
+    let innSleepingAny = 0;
+    const sleepersAtTavern = [];
 
     // Late-night window determination (02:00–05:00)
     const t = ctx.time;
@@ -1128,6 +1344,25 @@
     for (let i = 0; i < npcs.length; i++) {
       const n = npcs[i];
 
+      // Type counters
+      if (n.isShopkeeper || n._shopRef) shopkeepersTotal++;
+      if (n.greeter) greetersTotal++;
+      if (n.isPet) petsTotal++;
+
+      // Inn/tavern occupancy across all NPCs
+      const atTavernNowAny = tavernB && insideBuilding(tavernB, n.x, n.y);
+      if (atTavernNowAny) {
+        innOccupancyAny++;
+        if (n._sleeping) {
+          innSleepingAny++;
+          sleepersAtTavern.push({
+            index: i,
+            name: typeof n.name === "string" ? n.name : `NPC ${i + 1}`,
+            x: n.x, y: n.y
+          });
+        }
+      }
+
       // Count residents' current locations
       if (n.isResident) {
         residentsTotal++;
@@ -1183,6 +1418,23 @@
     res.total = Math.max(0, npcs.length - res.skipped);
     res.residents = { total: residentsTotal, atHome: residentsAtHome, atTavern: residentsAtTavern };
     res.residentsAwayLate = residentsAwayLate;
+
+    // Tavern summary for GOD panel (all NPCs)
+    res.tavern = { any: innOccupancyAny, sleeping: innSleepingAny };
+    res.sleepersAtTavern = sleepersAtTavern;
+
+    // Type breakdown (for GOD panel diagnostics)
+    const roamersTotal = Math.max(0, res.total - residentsTotal - shopkeepersTotal - greetersTotal);
+    res.counts = {
+      npcTotal: npcs.length,
+      checkedTotal: res.total,
+      pets: petsTotal,
+      residentsTotal,
+      shopkeepersTotal,
+      greetersTotal,
+      roamersTotal
+    };
+
     return res;
   }
 

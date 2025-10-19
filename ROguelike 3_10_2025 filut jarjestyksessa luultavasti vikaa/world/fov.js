@@ -47,7 +47,8 @@ export function recomputeFOV(ctx) {
   }
 
   // Symmetrical shadowcasting (RogueBasin-style)
-  function castLight(cx, cy, row, start, end, radius, xx, xy, yx, yy) {
+  // Symmetrical shadowcasting (RogueBasin-style) with optional seen-memory marking
+  function castLight(cx, cy, row, start, end, radius, xx, xy, yx, yy, markSeen = true) {
     if (start < end) return;
     const radius2 = radius * radius;
 
@@ -74,7 +75,7 @@ export function recomputeFOV(ctx) {
         const dist2 = dx * dx + dy * dy;
         if (dist2 <= radius2) {
           visible[Y][X] = true;
-          ctx.seen[Y][X] = true;
+          if (markSeen) ctx.seen[Y][X] = true;
         }
 
         if (blocked) {
@@ -87,7 +88,7 @@ export function recomputeFOV(ctx) {
         } else {
           if (!isTransparent(X, Y) && i < radius) {
             blocked = true;
-            castLight(cx, cy, i + 1, start, lSlope, radius, xx, xy, yx, yy);
+            castLight(cx, cy, i + 1, start, lSlope, radius, xx, xy, yx, yy, markSeen);
             newStart = rSlope;
           }
         }
@@ -102,14 +103,14 @@ export function recomputeFOV(ctx) {
     ctx.seen[player.y][player.x] = true;
   }
 
-  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 1, 0, 0, 1);   // E-NE
-  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 1, 0, 0, -1);  // E-SE
-  castLight(player.x, player.y, 1, 1.0, 0.0, radius, -1, 0, 0, 1);  // W-NW
-  castLight(player.x, player.y, 1, 1.0, 0.0, radius, -1, 0, 0, -1); // W-SW
-  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, 1, 1, 0);   // S-SE
-  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, 1, -1, 0);  // S-SW
-  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, 1, 0);  // N-NE
-  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, -1, 0); // N-NW
+  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 1, 0, 0, 1, true);   // E-NE
+  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 1, 0, 0, -1, true);  // E-SE
+  castLight(player.x, player.y, 1, 1.0, 0.0, radius, -1, 0, 0, 1, true);  // W-NW
+  castLight(player.x, player.y, 1, 1.0, 0.0, radius, -1, 0, 0, -1, true); // W-SW
+  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, 1, 1, 0, true);   // S-SE
+  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, 1, -1, 0, true);  // S-SW
+  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, 1, 0, true);  // N-NE
+  castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, -1, 0, true); // N-NW
 
   // Dynamic lamp lighting in towns at night/dawn/dusk: extend visibility from lamps
   try {
@@ -122,18 +123,17 @@ export function recomputeFOV(ctx) {
         if (!p || p.type !== "lamp") continue;
         const lx = p.x | 0, ly = p.y | 0;
         if (!ctx.inBounds(lx, ly)) continue;
-        // Mark lamp tile itself visible
+        // Mark lamp tile itself visible (do not mark as 'seen' to avoid memory from non-player vision)
         visible[ly][lx] = true;
-        ctx.seen[ly][lx] = true;
-        // Cast limited light from lamp (respecting walls/windows via isTransparent)
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, 1);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, -1);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, -1, 0, 0, 1);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, -1, 0, 0, -1);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, 1, 1, 0);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, 1, -1, 0);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, -1, 1, 0);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, -1, -1, 0);
+        // Cast limited light from lamp (respecting walls/windows via isTransparent); do not mark seen memory
+        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, 1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, -1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, -1, 0, 0, 1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, -1, 0, 0, -1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, 1, 1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, 1, -1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, -1, 1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, -1, -1, 0, false);
       }
     }
   } catch (_) {}

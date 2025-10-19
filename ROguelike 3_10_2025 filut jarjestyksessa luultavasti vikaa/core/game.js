@@ -294,6 +294,8 @@
       showLoot: (list) => showLootPanel(list),
       hideLoot: () => hideLootPanel(),
       turn: () => turn(),
+      // Fast-forward helper: run turns to simulate minutes (NPCs act each turn)
+      fastForwardMinutes: (mins) => fastForwardMinutes(mins),
       // World/dungeon generation
       initWorld: () => initWorld(),
       generateLevel: (depth) => generateLevel(depth),
@@ -663,16 +665,17 @@
     }
     if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
     const it = player.inventory[idx];
-    if (!it || it.kind !== "potion") return;
+    if (!it || (it.kind !== "potion" && it.kind !== "drink")) return;
 
-    const heal = it.heal ?? 3;
+    const heal = it.heal ?? (it.kind === "drink" ? 2 : 3);
     const prev = player.hp;
     player.hp = Math.min(player.maxHp, player.hp + heal);
     const gained = player.hp - prev;
+    const label = it.name ? it.name : (it.kind === "drink" ? "drink" : "potion");
     if (gained > 0) {
-      log(`You drink a potion and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
+      log(`You drink ${label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
     } else {
-      log(`You drink a potion but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
+      log(`You drink ${label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
     }
 
     if (it.count && it.count > 1) {
@@ -1006,11 +1009,14 @@
   // Batch multiple draw requests within a frame to avoid redundant renders.
   let _drawQueued = false;
   let _rafId = null;
+  // Suppress draw flag used for fast-forward time (sleep/wait simulations)
+  let _suppressDraw = false;
 
   // Simple perf counters (DEV-only visible in console) + EMA smoothing
   const PERF = { lastTurnMs: 0, lastDrawMs: 0, avgTurnMs: 0, avgDrawMs: 0 };
 
   function requestDraw() {
+    if (_suppressDraw) return;
     const GL = modHandle("GameLoop");
     if (GL && typeof GL.requestDraw === "function") {
       GL.requestDraw();
@@ -1121,6 +1127,21 @@
   }
   function advanceTimeMinutes(mins) {
     turnCounter = TS.advanceMinutes(turnCounter, mins);
+  }
+  // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
+  function fastForwardMinutes(mins) {
+    const total = Math.max(0, (Number(mins) || 0) | 0);
+    if (total <= 0) return 0;
+    const turns = Math.max(1, Math.ceil(total / MINUTES_PER_TURN));
+    _suppressDraw = true;
+    for (let i = 0; i < turns; i++) {
+      try { turn(); } catch (_) { break; }
+    }
+    _suppressDraw = false;
+    // Ensure clock/UI/FOV are consistent after fast-forward
+    recomputeFOV();
+    updateUI();
+    return turns;
   }
 
   
@@ -1283,6 +1304,14 @@
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
   function doAction() {
+    // Toggle behavior: if Loot UI is open, close it and do nothing else (do not consume a turn)
+    try {
+      const UB = modHandle("UIBridge");
+      if (UB && typeof UB.isLootOpen === "function" && UB.isLootOpen()) {
+        hideLootPanel();
+        return;
+      }
+    } catch (_) {}
     hideLootPanel();
 
     // Town gate exit takes priority over other interactions
@@ -1344,11 +1373,11 @@
 
     if (mode === "encounter") {
       const ctxMod = getCtx();
-      // Loot only when exactly standing on a corpse/chest with items
+      // Loot/flavor when standing on any corpse/chest (even if already looted)
       try {
         const list = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : [];
-        const underfoot = list.find(c => c && c.x === ctxMod.player.x && c.y === ctxMod.player.y && Array.isArray(c.loot) && c.loot.length > 0);
-        if (underfoot) {
+        const corpseHere = list.find(c => c && c.x === ctxMod.player.x && c.y === ctxMod.player.y);
+        if (corpseHere) {
           const DR = modHandle("DungeonRuntime");
           if (DR && typeof DR.lootHere === "function") {
             DR.lootHere(ctxMod);
@@ -1529,6 +1558,14 @@
           } catch (_) {}
           return false;
         },
+        // Sleep modal (Inn beds)
+        isSleepOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isSleepOpen === "function") return !!UB.isSleepOpen();
+          } catch (_) {}
+          return false;
+        },
         // Confirm dialog gating
         isConfirmOpen: () => {
           try {
@@ -1572,6 +1609,17 @@
           } catch (_) {}
           try {
             if (UB && typeof UB.hideSmoke === "function") UB.hideSmoke(getCtx());
+          } catch (_) {}
+          if (wasOpen) requestDraw();
+        },
+        onHideSleep: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isSleepOpen === "function") wasOpen = !!UB.isSleepOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.hideSleep === "function") UB.hideSleep(getCtx());
           } catch (_) {}
           if (wasOpen) requestDraw();
         },
@@ -2209,10 +2257,26 @@
       syncFromCtx(ctx);
       return;
     }
-    // Minimal fallback: announce death, add corpse without loot, clear enemy, award XP
+    // Minimal fallback: announce death, add corpse with flavor, clear enemy, award XP
     const name = capitalize(enemy.type || "enemy");
     log(`${name} dies.`, "bad");
-    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
+    const last = enemy._lastHit || null;
+    function flavorFromLastHit(lh) {
+      if (!lh) return null;
+      const part = lh.part || "torso";
+      const killer = lh.by || "unknown";
+      const via = lh.weapon ? lh.weapon : (lh.via || "attack");
+      let wound = "";
+      if (part === "head") wound = lh.crit ? "head crushed into pieces" : "wound to the head";
+      else if (part === "torso") wound = lh.crit ? "deep gash across the torso" : "stab wound in the torso";
+      else if (part === "legs") wound = lh.crit ? "leg shattered beyond use" : "wound to the leg";
+      else if (part === "hands") wound = lh.crit ? "hands mangled" : "cut on the hand";
+      else wound = "fatal wound";
+      const killedBy = (killer === "player") ? "you" : killer;
+      return { killedBy, wound, via };
+    }
+    const meta = flavorFromLastHit(last);
+    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true, meta: meta || undefined });
     enemies = enemies.filter(e => e !== enemy);
     try {
       if (occupancy && typeof occupancy.clearEnemy === "function") {
@@ -2416,37 +2480,81 @@
                 const totalChecked = (typeof res.total === "number")
                   ? res.total
                   : ((res.reachable || 0) + (res.unreachable || 0));
-                const skippedStr = res.skipped ? `, ${res.skipped} skipped` : "";
-                const summaryLine = `Home route check: ${(res.reachable || 0)}/${totalChecked} reachable, ${(res.unreachable || 0)} unreachable${skippedStr}.`;
-                log(summaryLine, (res.unreachable || 0) ? "warn" : "good");
-                let extraLines = [];
+                const skippedCount = (typeof res.skipped === "number") ? res.skipped : 0;
+                const skippedStr = skippedCount ? `, ${skippedCount} skipped` : "";
+                const reachableCount = (typeof res.reachable === "number") ? res.reachable : 0;
+                const unreachableCount = (typeof res.unreachable === "number") ? res.unreachable : 0;
+                const summaryLine = `Home route check: ${reachableCount}/${totalChecked} reachable, ${unreachableCount} unreachable${skippedStr}.`;
+                log(summaryLine, unreachableCount ? "warn" : "good");
+
+                const extraLines = [];
+                // Type breakdown (helps explain differences between on-screen NPCs vs residents counted)
+                try {
+                  const counts = res.counts || null;
+                  if (counts) {
+                    const npcTotalAll = (typeof counts.npcTotal === "number") ? counts.npcTotal : (totalChecked + skippedCount);
+                    const pets = (typeof counts.pets === "number") ? counts.pets : skippedCount;
+                    const shopTotal = (typeof counts.shopkeepersTotal === "number") ? counts.shopkeepersTotal : 0;
+                    const greetTotal = (typeof counts.greetersTotal === "number") ? counts.greetersTotal : 0;
+                    const resTotal = (res.residents && typeof res.residents.total === "number") ? res.residents.total
+                                     : ((typeof counts.residentsTotal === "number") ? counts.residentsTotal : 0);
+                    const roamersTotal = (typeof counts.roamersTotal === "number")
+                      ? counts.roamersTotal
+                      : Math.max(0, totalChecked - resTotal - shopTotal - greetTotal);
+                    extraLines.push(`NPCs: ${totalChecked} checked (excluding pets), ${pets} pet(s) skipped. Total in town: ${npcTotalAll}.`);
+                    extraLines.push(`By type: residents ${resTotal}, shopkeepers ${shopTotal}, greeters ${greetTotal}, roamers ${roamersTotal}.`);
+                  } else {
+                    const npcTotalAll = totalChecked + skippedCount;
+                    extraLines.push(`NPCs: ${totalChecked} checked (excluding pets). Total in town: ${npcTotalAll}.`);
+                  }
+                } catch (_) {}
+
                 if (res.residents && typeof res.residents.total === "number") {
                   const r = res.residents;
-                  // TownAI returns atTavern; display as "inn" for consistency
-                  extraLines.push(`Residents: ${r.atHome}/${r.total} at home, ${r.atTavern}/${r.total} at inn.`);
+                  const atHome = (typeof r.atHome === "number") ? r.atHome : 0;
+                  const atInn = (typeof r.atTavern === "number") ? r.atTavern : 0; // display as "inn"
+                  extraLines.push(`Residents: ${atHome}/${r.total} at home, ${atInn}/${r.total} at inn.`);
                 } else {
                   // Provide a hint if no residents were counted
                   extraLines.push("No residents were counted; ensure town NPCs are populated.");
                 }
+                // Inn/Tavern occupancy summary across all NPCs (not just residents)
+                if (res.tavern && (typeof res.tavern.any === "number")) {
+                  const innAny = res.tavern.any | 0;
+                  const innSleep = (typeof res.tavern.sleeping === "number") ? res.tavern.sleeping | 0 : 0;
+                  extraLines.push(`Inn status: ${innAny} NPC(s) inside; sleeping: ${innSleep}.`);
+                }
+                // Show first few sleepers by name for quick verification
+                if (Array.isArray(res.sleepersAtTavern) && res.sleepersAtTavern.length) {
+                  res.sleepersAtTavern.slice(0, 8).forEach(d => {
+                    const nm = (typeof d.name === "string" && d.name) ? d.name : `NPC ${String((d.index | 0) + 1)}`;
+                    extraLines.push(`- Sleeping: ${nm} at (${d.x},${d.y})`);
+                  });
+                  if (res.sleepersAtTavern.length > 8) extraLines.push(`...and ${res.sleepersAtTavern.length - 8} more.`);
+                }
+
                 // Per-resident list of late-night away residents
                 if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
                   extraLines.push(`Late-night (02:00–05:00): ${res.residentsAwayLate.length} resident(s) away from home and inn:`);
                   res.residentsAwayLate.slice(0, 10).forEach(d => {
-                    extraLines.push(`- ${d.name} at (${d.x},${d.y})`);
+                    const name = (typeof d.name === "string" && d.name) ? d.name : "Resident";
+                    extraLines.push(`- ${name} at (${d.x},${d.y})`);
                   });
                   if (res.residentsAwayLate.length > 10) {
                     extraLines.push(`...and ${res.residentsAwayLate.length - 10} more.`);
                   }
                 }
-                if (res.skipped) {
-                  extraLines.push(`Skipped ${res.skipped} NPCs not expected to have homes (e.g., pets).`);
+                if (skippedCount) {
+                  extraLines.push(`Skipped ${skippedCount} NPCs not expected to have homes (e.g., pets).`);
                 }
-                if (res.unreachable && Array.isArray(res.details)) {
+                if (unreachableCount && Array.isArray(res.details)) {
                   res.details.slice(0, 8).forEach(d => {
-                    extraLines.push(`- ${d.name}: ${d.reason}`);
+                    const name = (typeof d.name === "string" && d.name) ? d.name : `NPC ${String((d.index | 0) + 1)}`;
+                    extraLines.push(`- ${name}: ${d.reason}`);
                   });
                   if (res.details.length > 8) extraLines.push(`...and ${res.details.length - 8} more.`);
                 }
+
                 // Mirror summary inside GOD panel output area for visibility while modal is open
                 try {
                   const el = document.getElementById("god-check-output");
@@ -2455,9 +2563,14 @@
                     el.innerHTML = html;
                   }
                 } catch (_) {}
+
                 // Also write all extra lines to the main log
                 extraLines.forEach(line => log(line, "info"));
-                // Request draw to show updated debug paths (if enabled)
+
+                // Do not change Home Paths overlay state here; this action only logs results.
+                // Users can toggle the overlay via the GOD panel control.
+
+                // Request draw to show updated debug paths
                 requestDraw();
               } else {
                 log("TownAI.checkHomeRoutes not available.", "warn");
@@ -2467,25 +2580,56 @@
           onGodCheckInnTavern: () => {
             const ctx = getCtx();
             if (ctx.mode !== "town") {
-              log("Inn check is available in town mode only.", "warn");
+              log("Inn/Plaza check is available in town mode only.", "warn");
               requestDraw();
               return;
             }
             const list = Array.isArray(shops) ? shops : [];
             const inns = list.filter(s => (s.name || "").toLowerCase().includes("inn"));
-            const line = `Inn: ${inns.length} inn(s).`;
-            log(line, inns.length ? "info" : "warn");
+            const plaza = ctx.townPlaza || null;
+
+            const header = `Inn/Plaza: ${inns.length} inn(s).`;
+            log(header, inns.length ? "info" : "warn");
+
             const lines = [];
-            inns.slice(0, 6).forEach((s, i) => {
-              lines.push(`- Inn ${i + 1} at door (${s.x},${s.y})`);
+
+            // Plaza/Square coordinates
+            if (plaza && typeof plaza.x === "number" && typeof plaza.y === "number") {
+              lines.push(`Plaza/Square center: (${plaza.x},${plaza.y})`);
+            } else {
+              lines.push("Plaza/Square: (unknown)");
+            }
+
+            // Inn coordinates (door + building rect) + overlap diagnostics
+            function rectOverlap(ax0, ay0, ax1, ay1, bx0, by0, bx1, by1) {
+              const sepX = (ax1 < bx0) || (bx1 < ax0);
+              const sepY = (ay1 < by0) || (by1 < ay0);
+              return !(sepX || sepY);
+            }
+            const pRect = (ctx.townPlazaRect && typeof ctx.townPlazaRect.x0 === "number")
+              ? ctx.townPlazaRect
+              : null;
+
+            inns.slice(0, 8).forEach((s, i) => {
+              const b = s && s.building ? s.building : null;
+              const doorStr = `door (${s.x},${s.y})`;
+              if (b && typeof b.x === "number" && typeof b.y === "number" && typeof b.w === "number" && typeof b.h === "number") {
+                const bx0 = b.x, by0 = b.y, bx1 = b.x + b.w - 1, by1 = b.y + b.h - 1;
+                const overlapStr = (pRect ? (rectOverlap(bx0, by0, bx1, by1, pRect.x0, pRect.y0, pRect.x1, pRect.y1) ? "OVERLAPS plaza" : "no overlap") : "");
+                lines.push(`Inn ${i + 1}: ${doorStr}, building (${b.x},${b.y}) size ${b.w}x${b.h}${overlapStr ? ` — ${overlapStr}` : ""}`);
+              } else {
+                lines.push(`Inn ${i + 1}: ${doorStr}`);
+              }
             });
+
             try {
               const el = document.getElementById("god-check-output");
               if (el) {
-                const html = [line].concat(lines).map(s => `<div>${s}</div>`).join("");
+                const html = [header].concat(lines).map(s => `<div>${s}</div>`).join("");
                 el.innerHTML = html;
               }
             } catch (_) {}
+
             lines.forEach(l => log(l, "info"));
             requestDraw();
           },

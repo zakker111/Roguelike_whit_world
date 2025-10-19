@@ -31,9 +31,7 @@
       <span id="floor">Floor: 1</span>
       <button id="wait-btn" class="btn" title="Spend one turn doing nothing" style="margin-left:10px; padding:4px 8px; font-size:12px;">Wait</button>
       <button id="god-open-btn" class="btn" title="Open GOD panel (keyboard: P)" style="margin-left:6px; padding:4px 8px; font-size:12px;">GOD</button>
-    </div>
-    <div class="help">
-      Move: Arrows or Numpad (7/8/9/4/6/1/2/3). Wait: Numpad5 or button. Bump to attack. G to interact (loot, talk, enter/exit). I to inventory. Press G on town/dungeon tiles to enter; in dungeons press G on '>' to leave.
+      <button id="help-open-btn" class="btn" title="Open Help panel (keyboard: F1)" style="margin-left:6px; padding:4px 8px; font-size:12px;">Help</button>
     </div>
   </div>
 
@@ -113,7 +111,7 @@
       <button id="god-toggle-perf-btn" class="btn" title="Show turn/draw perf timings in HUD top bar">Perf: On</button>
       <button id="god-toggle-minimap-btn" class="btn" title="Show or hide the overworld minimap">Minimap: On</button>
       <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
-      <button id="god-check-inn-tavern-btn" class="btn" title="Report if this town has an Inn/Tavern and where">Check Inn/Tavern</button>
+      <button id="god-check-inn-tavern-btn" class="btn" title="Report coordinates for Inn and Plaza/Square">Check Inn/Plaza</button>
       <button id="god-diagnostics-btn" class="btn" title="Show system diagnostics (determinism source, seed, module handles) in log">Diagnostics</button>
       <button id="god-newgame-btn" class="btn" title="Start a new game immediately">Start New Game</button>
       <div style="display:flex; gap:6px; align-items:center;">
@@ -293,6 +291,7 @@
 
   <!-- Core runtime -->
   <script src="/core/actions.js" type="module" defer></script>
+  <script src="/core/town_state.js" type="module" defer></script>
   <script src="/core/modes.js" type="module" defer></script>
   <script src="/core/game_loop.js" type="module" defer></script>
   <script src="/core/input.js" type="module" defer></script>

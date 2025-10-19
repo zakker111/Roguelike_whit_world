@@ -245,66 +245,93 @@ export function returnToWorldIfAtExit(ctx) {
 export function lootHere(ctx) {
   if (!ctx || (ctx.mode !== "dungeon" && ctx.mode !== "encounter")) return false;
 
-  // QoL: if adjacent to a corpse/chest, step onto it (only if not on exit)
-  try {
-    const onExit =
-      (ctx.dungeonExitAt &&
-        ctx.player.x === ctx.dungeonExitAt.x &&
-        ctx.player.y === ctx.dungeonExitAt.y) ||
-      (ctx.inBounds && ctx.inBounds(ctx.player.x, ctx.player.y) &&
-        ctx.map && ctx.map[ctx.player.y] &&
-        ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
+  // Exact-tile only: do not auto-step onto adjacent corpses/chests. Looting and flavor apply only if standing on the body tile.
 
-    if (!onExit) {
-      const neighbors = [
-        { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-      ];
-      const hereList = Array.isArray(ctx.corpses) ? ctx.corpses : [];
-      let target = null;
-      for (const d of neighbors) {
-        const tx = ctx.player.x + d.dx, ty = ctx.player.y + d.dy;
-        const c = hereList.find(c => c && c.x === tx && c.y === ty);
-        if (c) { target = { x: tx, y: ty }; break; }
-      }
-      if (target) {
-        const walkable = (ctx.inBounds(target.x, target.y) &&
-          (ctx.map[target.y][target.x] === ctx.TILES.FLOOR || ctx.map[target.y][target.x] === ctx.TILES.DOOR));
-        const enemyBlocks = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === target.x && e.y === target.y);
-        if (walkable && !enemyBlocks) {
-          ctx.player.x = target.x; ctx.player.y = target.y;
-        }
-      }
-    }
-  } catch (_) {}
-
-  // Delegate to Loot.lootHere if available
-  try {
-    if (ctx.Loot && typeof ctx.Loot.lootHere === "function") {
-      ctx.Loot.lootHere(ctx);
-      return true;
-    }
-    if (typeof window !== "undefined" && window.Loot && typeof window.Loot.lootHere === "function") {
-      window.Loot.lootHere(ctx);
-      return true;
-    }
-  } catch (_) {}
-
-  // Minimal fallback: transfer items from corpse underfoot into inventory; auto-equip when better
+  // Minimal unified handling: determine what's underfoot first, then delegate when there is actual loot
   try {
     const list = Array.isArray(ctx.corpses) ? ctx.corpses.filter(c => c && c.x === ctx.player.x && c.y === ctx.player.y) : [];
     if (list.length === 0) {
       ctx.log && ctx.log("There is no corpse here to loot.");
       return true;
     }
+
+    // Flavor: show death notes if present on any corpse underfoot
+    try {
+      for (const c of list) {
+        const meta = c && c.meta;
+        if (meta && (meta.killedBy || meta.wound)) {
+          const FS = (typeof window !== "undefined" ? window.FlavorService : null);
+          const line = (FS && typeof FS.describeCorpse === "function")
+            ? FS.describeCorpse(meta)
+            : (() => {
+                const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
+                const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
+                const viaStr = meta.via ? `(${meta.via})` : "";
+                const parts = [woundStr, killerStr].filter(Boolean).join(" ");
+                return `${parts} ${viaStr}`.trim();
+              })();
+          if (line) ctx.log && ctx.log(line, "info");
+        }
+      }
+    } catch (_) {}
+
     const container = list.find(c => Array.isArray(c.loot) && c.loot.length > 0);
     if (!container) {
-      list.forEach(c => c.looted = true);
-      ctx.log && ctx.log("Nothing of value here.");
+      // No loot left underfoot; show flavor per fresh examination and avoid repeated spam
+      let newlyExamined = 0;
+      let examinedChestCount = 0;
+      let examinedCorpseCount = 0;
+      for (const c of list) {
+        c.looted = true;
+        if (!c._examined) {
+          c._examined = true;
+          // Flavor line for this corpse if available
+          try {
+            const meta = c && c.meta;
+            if (meta && (meta.killedBy || meta.wound)) {
+              const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
+              const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
+              const viaStr = meta.via ? `(${meta.via})` : "";
+              const parts = [woundStr, killerStr].filter(Boolean).join(" ");
+              if (parts) ctx.log && ctx.log(`${parts} ${viaStr}`.trim(), "info");
+            }
+          } catch (_) {}
+          newlyExamined++;
+          if (String(c.kind || "").toLowerCase() === "chest") examinedChestCount++;
+          else examinedCorpseCount++;
+        }
+      }
+      if (newlyExamined > 0) {
+        let line = "";
+        if (examinedChestCount > 0 && examinedCorpseCount === 0) {
+          line = examinedChestCount === 1 ? "You search the chest but find nothing."
+                                          : "You search the chests but find nothing.";
+        } else if (examinedCorpseCount > 0 && examinedChestCount === 0) {
+          line = newlyExamined === 1 ? "You search the corpse but find nothing."
+                                     : "You search the corpses but find nothing.";
+        } else {
+          // Mixed containers underfoot
+          line = "You search the area but find nothing.";
+        }
+        ctx.log && ctx.log(line);
+      }
       try { save(ctx, false); } catch (_) {}
       ctx.updateUI && ctx.updateUI();
       ctx.turn && ctx.turn();
       return true;
     }
+
+    // Delegate to Loot.lootHere for actual loot transfer if available
+    try {
+      if (ctx.Loot && typeof ctx.Loot.lootHere === "function") {
+        ctx.Loot.lootHere(ctx);
+        return true;
+      }
+      if (typeof window !== "undefined" && window.Loot && typeof window.Loot.lootHere === "function") {
+        window.Loot.lootHere(ctx);
+        return true;
+      }
+    } catch (_) {}
     const acquired = [];
     for (const item of container.loot) {
       if (!item) continue;
@@ -353,10 +380,44 @@ export function killEnemy(ctx, enemy) {
     }
   } catch (_) { loot = []; }
 
-  // Place corpse
+  // Build flavor metadata from last hit info if available (JSON-driven via FlavorService)
+  const last = enemy._lastHit || null;
+  let meta = null;
+  try {
+    const FS = (typeof window !== "undefined" ? window.FlavorService : null);
+    if (FS && typeof FS.buildCorpseMeta === "function") {
+      meta = FS.buildCorpseMeta(ctx, enemy, last);
+    }
+  } catch (_) { meta = null; }
+  if (!meta) {
+    // Fallback inline flavor
+    function flavorFromLastHit(lh) {
+      if (!lh) return null;
+      const part = lh.part || "torso";
+      const killer = lh.by || "unknown";
+      const via = lh.weapon ? lh.weapon : (lh.via || "attack");
+      let wound = "";
+      if (part === "head") wound = lh.crit ? "head crushed into pieces" : "wound to the head";
+      else if (part === "torso") wound = lh.crit ? "deep gash across the torso" : "bleeding cut in torso";
+      else if (part === "legs") wound = lh.crit ? "leg shattered beyond use" : "wound to the leg";
+      else if (part === "hands") wound = lh.crit ? "hands mangled" : "cut on the hand";
+      else wound = "fatal wound";
+      const killedBy = (killer === "player") ? "you" : killer;
+      return { killedBy, wound, via };
+    }
+    meta = flavorFromLastHit(last);
+  }
+
+  // Place corpse with flavor meta
   try {
     ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
-    ctx.corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0 });
+    ctx.corpses.push({
+      x: enemy.x,
+      y: enemy.y,
+      loot,
+      looted: loot.length === 0,
+      meta: meta || undefined
+    });
   } catch (_) {}
 
   // Remove enemy from list
@@ -543,9 +604,17 @@ export function tryMoveDungeon(ctx, dx, dy) {
     try {
       const name = (enemy.type || "enemy");
       if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit");
-      else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`);
-      if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
+    else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`);
+    if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
+    // Record last hit for death flavor
+    try {
+      const eq = ctx.player && ctx.player.equipment ? ctx.player.equipment : {};
+      const weaponName = (eq.right && eq.right.name) ? eq.right.name
+                       : (eq.left && eq.left.name) ? eq.left.name
+                       : null;
+      enemy._lastHit = { by: "player", part: loc.part, crit: isCrit, dmg, weapon: weaponName, via: weaponName ? `with ${weaponName}` : "melee" };
     } catch (_) {}
+  } catch (_) {}
 
     // Status effects on crit
     try {
@@ -632,6 +701,34 @@ export function tick(ctx) {
     const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
     if (ST && typeof ST.tick === "function") {
       ST.tick(ctx);
+    }
+  } catch (_) {}
+
+  // Cleanup: if any enemy died from status effects this turn, handle corpse + flavor
+  try {
+    const list = Array.isArray(ctx.enemies) ? ctx.enemies.slice(0) : [];
+    for (const enemy of list) {
+      if (!enemy) continue;
+      if (typeof enemy.hp === "number" && enemy.hp <= 0) {
+        // Ensure last-hit meta indicates status-based kill if none recorded
+        if (!enemy._lastHit) {
+          enemy._lastHit = { by: "status", part: "torso", crit: false, dmg: 0, weapon: null, via: "bleed" };
+        }
+        if (typeof ctx.onEnemyDied === "function") {
+          ctx.onEnemyDied(enemy);
+        } else {
+          // Fallback removal
+          try {
+            const loot = (ctx.Loot && typeof ctx.Loot.generate === "function") ? (ctx.Loot.generate(ctx, enemy) || []) : [];
+            ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+            ctx.corpses.push({ x: enemy.x, y: enemy.y, loot, looted: loot.length === 0, meta: null });
+          } catch (_) {}
+          try {
+            ctx.enemies = ctx.enemies.filter(e => e !== enemy);
+            if (ctx.occupancy && typeof ctx.occupancy.clearEnemy === "function") ctx.occupancy.clearEnemy(enemy.x, enemy.y);
+          } catch (_) {}
+        }
+      }
     }
   } catch (_) {}
   // Visual: decals fade each turn

@@ -84,6 +84,17 @@ export function init(handlers) {
       }
       return;
     }
+    // Sleep panel (Inn beds) gating after Smoke
+    if (_handlers.isSleepOpen && _handlers.isSleepOpen()) {
+      const isEsc = e.key === "Escape" || e.key === "Esc";
+      if (isEsc) {
+        e.preventDefault();
+        _handlers.onHideSleep && _handlers.onHideSleep();
+      } else {
+        e.preventDefault();
+      }
+      return;
+    }
 
     if (_handlers.isInventoryOpen && _handlers.isInventoryOpen()) {
       const isEsc = e.key === "Escape" || e.key === "Esc";

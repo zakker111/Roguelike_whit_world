@@ -1,0 +1,43 @@
+{
+  "apothecary": {
+    "sells": ["potion", "antidote", "tonic"],
+    "buys": ["potion", "material", "reagent"],
+    "buyMultiplier": 0.65,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "dusk": 1.10 }
+  },
+  "blacksmith": {
+    "sells": ["weapon", "repair_kit"],
+    "buys": ["weapon"],
+    "buyMultiplier": 0.70,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "morning": 0.95, "dusk": 1.05 }
+  },
+  "armorer": {
+    "sells": ["armor", "shield"],
+    "buys": ["armor", "shield"],
+    "buyMultiplier": 0.70,
+    "sellMultiplier": 1.0
+  },
+  "trader": {
+    "sells": ["tool", "material", "potion", "curio", "low_tier_equip"],
+    "buys": ["any"],
+    "buyMultiplier": 0.50,
+    "sellMultiplier": 1.0,
+    "dailySlots": 4
+  },
+  "carpenter": {
+    "sells": ["material", "tool"],
+    "buys": ["material"],
+    "buyMultiplier": 0.75,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "morning": 0.95 }
+  },
+  "inn": {
+    "sells": ["drink"],
+    "buys": [],
+    "buyMultiplier": 0.50,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "afternoon": 1.05, "dusk": 1.10 }
+  }
+}

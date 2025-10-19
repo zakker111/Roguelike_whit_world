@@ -50,6 +50,7 @@ export const UI = {
 
     // GOD mode elements
     this.els.godOpenBtn = document.getElementById("god-open-btn");
+    this.els.helpOpenBtn = document.getElementById("help-open-btn");
     this.els.godPanel = document.getElementById("god-panel");
     this.els.godHealBtn = document.getElementById("god-heal-btn");
     this.els.godSpawnBtn = document.getElementById("god-spawn-btn");
@@ -173,6 +174,8 @@ export const UI = {
 
     // GOD panel open + actions
     this.els.godOpenBtn?.addEventListener("click", () => this.showGod());
+    // Help panel open (same as F1)
+    this.els.helpOpenBtn?.addEventListener("click", () => this.showHelp());
     this.els.godHealBtn?.addEventListener("click", () => {
       if (typeof this.handlers.onGodHeal === "function") this.handlers.onGodHeal();
     });
@@ -528,7 +531,7 @@ export const UI = {
           ev.preventDefault();
           if (typeof this.handlers.onEquip === "function") this.handlers.onEquip(idx);
         }
-      } else if (kind === "potion") {
+      } else if (kind === "potion" || kind === "drink") {
         ev.preventDefault();
         if (typeof this.handlers.onDrink === "function") this.handlers.onDrink(idx);
       }
@@ -809,7 +812,7 @@ export const UI = {
           const baseLabel = (typeof describeItem === "function") ? describeItem(it) : (it.name || "item");
           let label = baseLabel;
 
-          if (it.kind === "potion") {
+          if (it.kind === "potion" || it.kind === "drink") {
             const count = (it.count && it.count > 1) ? ` x${it.count}` : "";
             label = `${baseLabel}${count}`;
           } else if (it.kind === "gold") {
@@ -843,7 +846,7 @@ export const UI = {
             const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
             li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
             li.style.cursor = "pointer";
-          } else if (it.kind === "potion") {
+          } else if (it.kind === "potion" || it.kind === "drink") {
             li.style.cursor = "pointer";
             li.title = "Click to drink";
           } else {

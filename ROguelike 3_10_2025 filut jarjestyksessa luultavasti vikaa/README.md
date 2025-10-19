@@ -11,6 +11,7 @@ Play it
   - Action (G): interact, loot, enter/exit
   - Inventory: I
   - GOD panel: P
+  - Help: F1 (or Help button in the HUD)
   - Region Map: M (toggle overview map/modal)
   - Wait: Numpad5
   - Brace: B (dungeon only; raises block chance this turn if holding a defensive hand item)

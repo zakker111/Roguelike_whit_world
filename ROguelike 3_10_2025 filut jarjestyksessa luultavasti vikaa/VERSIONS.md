@@ -1,5 +1,16 @@
 # Game Version History
-Last updated: 2025-10-18 00:15 UTC
+Last updated: 2025-10-19 00:00 UTC
+
+v1.36.5 — Underfoot loot consolidation + Help button in HUD
+- Changed: entities/loot.js
+  - lootHere now loots all containers underfoot in one action (corpses and chests on the same tile).
+  - Marks every container as looted and empties their loot lists; shows a single consolidated loot panel.
+  - Effect: eliminates repeat-loot on the same tile in encounters.
+- UI: index.html, ui/ui.js
+  - Removed redundant inline help sentence from the header.
+  - Added Help button next to GOD; opens the same Help / Character Sheet panel as F1.
+- Docs: README updated with Help control; smoketest/runner/README.md notes consolidated loot behavior.
+- Deployment: https://odzmle76xdf6.cosine.page
 
 v1.36.4 — Difficulty scaling, injuries/skills, animals, and denser world
 - Added: Encounter difficulty scaling (services/encounter_service.js, core/encounter_runtime.js, core/game.js)

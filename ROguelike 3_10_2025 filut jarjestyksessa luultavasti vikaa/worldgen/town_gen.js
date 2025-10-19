@@ -146,9 +146,82 @@
       case "chair":
         ctx.log("A simple wooden chair.", "info");
         break;
-      case "bed":
-        ctx.log("Looks comfy. Residents sleep here at night.", "info");
+      case "bed": {
+        // Inn beds: open sleep slider modal allowing the player to rest for a chosen duration
+        const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+        const insideInn = tav ? (p.x > tav.x && p.x < tav.x + tav.w - 1 && p.y > tav.y && p.y < tav.y + tav.h - 1) : false;
+        if (insideInn) {
+          const UB = (typeof window !== "undefined" ? window.UIBridge : (ctx.UIBridge || null));
+          const defaultMins = 240; // 4 hours
+          // Determine current day index for rental
+          const tc = (ctx.time && typeof ctx.time.turnCounter === "number") ? ctx.time.turnCounter : 0;
+          const ct = (ctx.time && typeof ctx.time.cycleTurns === "number") ? ctx.time.cycleTurns : 360;
+          const dayIdx = Math.floor(tc / Math.max(1, ct));
+
+          const openSleepModal = () => {
+            if (UB && typeof UB.showSleep === "function") {
+              UB.showSleep(ctx, {
+                min: 30,
+                max: 720,   // up to 12 hours
+                step: 30,
+                value: defaultMins,
+                onConfirm: (mins) => {
+                  try {
+                    const prev = ctx.player.hp;
+                    const afterTime = (m) => {
+                      // Heal proportionally to duration, capped at 60% of max HP for 10h+ sleep
+                      const healFrac = Math.min(0.6, Math.max(0.08, m / 600)); // 60% at 10h, minimum 8%
+                      const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
+                      ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
+                      const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
+                      ctx.log(`You sleep for ${m} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+                      if (typeof ctx.updateUI === "function") ctx.updateUI();
+                    };
+                    if (UB && typeof UB.animateSleep === "function") {
+                      UB.animateSleep(ctx, mins, afterTime);
+                    } else {
+                      // Fallback without animation
+                      try { if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(mins); } catch (_) {}
+                      afterTime(mins);
+                      if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+                    }
+                  } catch (_) {}
+                }
+              });
+            } else {
+              // Fallback: simple short rest without modal
+              const prev = ctx.player.hp;
+              const afterTime = (m) => {
+                const healFrac = Math.min(0.6, Math.max(0.08, m / 600));
+                const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
+                ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
+                const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
+                ctx.log(`You sleep for ${m} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+                if (typeof ctx.updateUI === "function") ctx.updateUI();
+              };
+              if (UB && typeof UB.animateSleep === "function") {
+                UB.animateSleep(ctx, defaultMins, afterTime);
+              } else {
+                if (typeof ctx.fastForwardMinutes === "function") ctx.fastForwardMinutes(defaultMins);
+                else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(defaultMins);
+                afterTime(defaultMins);
+                if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+              }
+            }
+          };
+
+          if (ctx.player && ctx.player._innStayDay === dayIdx) {
+            // Already rented for tonight: allow sleeping
+            openSleepModal();
+          } else {
+            // Not rented: instruct the player to buy from the innkeeper
+            ctx.log("You need to rent a room from the innkeeper for the night.", "warn");
+          }
+        } else {
+          ctx.log("Looks comfy. Residents sleep here at night.", "info");
+        }
         break;
+      }
       case "chest":
         ctx.log("The chest is locked.", "warn");
         break;
@@ -444,6 +517,8 @@
       try { if (info) info.name = townName; } catch (_) {}
     }
     ctx.townName = townName;
+    // Expose size to other modules (AI, UI)
+    ctx.townSize = townSize;
 
     // Plaza
     const plaza = { x: (W / 2) | 0, y: (H / 2) | 0 };
@@ -463,6 +538,15 @@
         ctx.map[yy][xx] = ctx.TILES.FLOOR;
       }
     }
+    // Persist exact plaza rectangle bounds for diagnostics and overlay checks
+    try {
+      ctx.townPlazaRect = {
+        x0: ((plaza.x - (plazaW / 2)) | 0),
+        y0: ((plaza.y - (plazaH / 2)) | 0),
+        x1: ((plaza.x + (plazaW / 2)) | 0),
+        y1: ((plaza.y + (plazaH / 2)) | 0),
+      };
+    } catch (_) {}
 
     // Roads
     const carveRoad = (x1, y1, x2, y2) => {
@@ -495,6 +579,38 @@
     const blockW = Math.max(4, (cfgB.blockW | 0) || 8);
     const blockH = Math.max(3, (cfgB.blockH | 0) || 6);
 
+    // Ensure a margin of clear floor around buildings so walls never touch between buildings
+    function isAreaClearForBuilding(bx, by, bw, bh, margin = 1) {
+      const x0 = Math.max(1, bx - margin);
+      const y0 = Math.max(1, by - margin);
+      const x1 = Math.min(W - 2, bx + bw - 1 + margin);
+      const y1 = Math.min(H - 2, by + bh - 1 + margin);
+      for (let yy = y0; yy <= y1; yy++) {
+        for (let xx = x0; xx <= x1; xx++) {
+          const t = ctx.map[yy][xx];
+          if (t !== ctx.TILES.FLOOR) return false;
+        }
+      }
+      return true;
+    }
+
+    // Prevent any building rectangle from overlapping the town plaza footprint (optionally with a small buffer)
+    function overlapsPlazaRect(bx, by, bw, bh, margin = 0) {
+      // Compute plaza rectangle bounds exactly as carved earlier
+      const px0 = ((plaza.x - (plazaW / 2)) | 0);
+      const px1 = ((plaza.x + (plazaW / 2)) | 0);
+      const py0 = ((plaza.y - (plazaH / 2)) | 0);
+      const py1 = ((plaza.y + (plazaH / 2)) | 0);
+      const ax0 = bx, ay0 = by;
+      const ax1 = bx + bw - 1, ay1 = by + bh - 1;
+      const bx0 = Math.max(1, px0 - margin), by0 = Math.max(1, py0 - margin);
+      const bx1 = Math.min(W - 2, px1 + margin), by1 = Math.min(H - 2, py1 + margin);
+      // Axis-aligned rectangle overlap check
+      const sepX = (ax1 < bx0) || (bx1 < ax0);
+      const sepY = (ay1 < by0) || (by1 < ay0);
+      return !(sepX || sepY);
+    }
+
     for (let by = 2; by < H - (blockH + 4) && buildings.length < maxBuildings; by += Math.max(6, blockH + 2)) {
       for (let bx = 2; bx < W - (blockW + 4) && buildings.length < maxBuildings; bx += Math.max(8, blockW + 2)) {
         let clear = true;
@@ -504,11 +620,65 @@
           }
         }
         if (!clear) continue;
-        const w = Math.max(6, Math.min(blockW, 6 + ((Math.floor(ctx.rng() * 3)))));   // 6..blockW
-        const h = Math.max(4, Math.min(blockH, 4 + ((Math.floor(ctx.rng() * 3)))));   // 4..blockH
+        // Strongly varied house sizes:
+        // Mixture of small cottages, medium houses (wide spread), and large/longhouses,
+        // while respecting per-block bounds and minimums.
+        const wMin = 6, hMin = 4;
+        const wMax = Math.max(wMin, blockW);
+        const hMax = Math.max(hMin, blockH);
+        const randint = (min, max) => min + Math.floor(ctx.rng() * (Math.max(0, (max - min + 1))));
+        let w, h;
+        const r = ctx.rng();
+        if (r < 0.35) {
+          // Small cottage cluster (near minimums)
+          w = randint(wMin, Math.min(wMin + 2, wMax));
+          h = randint(hMin, Math.min(hMin + 2, hMax));
+        } else if (r < 0.75) {
+          // Medium: uniform across full range with aspect ratio nudges
+          w = randint(wMin, wMax);
+          h = randint(hMin, hMax);
+          if (ctx.rng() < 0.5) {
+            const bias = randint(-2, 3);
+            h = Math.max(hMin, Math.min(hMax, h + bias));
+          } else {
+            const bias = randint(-2, 3);
+            w = Math.max(wMin, Math.min(wMax, w + bias));
+          }
+        } else {
+          // Large: near max with occasional longhouses
+          w = Math.max(wMin, Math.min(wMax, wMax - randint(0, Math.min(3, wMax - wMin))));
+          h = Math.max(hMin, Math.min(hMax, hMax - randint(0, Math.min(3, hMax - hMin))));
+          // Longhouse variant: one dimension near max, the other skewed small/medium
+          if (ctx.rng() < 0.4) {
+            if (ctx.rng() < 0.5) {
+              w = Math.max(w, Math.min(wMax, wMax - randint(0, 1)));
+              h = Math.max(hMin, Math.min(hMax, hMin + randint(0, Math.min(4, hMax - hMin))));
+            } else {
+              h = Math.max(h, Math.min(hMax, hMax - randint(0, 1)));
+              w = Math.max(wMin, Math.min(wMax, wMin + randint(0, Math.min(4, wMax - wMin))));
+            }
+          }
+        }
+        // Rare outliers: either tiny footprint or very large (still within block bounds)
+        if (ctx.rng() < 0.08) {
+          if (ctx.rng() < 0.5) {
+            w = wMin;
+            h = Math.max(hMin, Math.min(hMax, hMin + randint(0, Math.min(2, hMax - hMin))));
+          } else {
+            w = Math.max(wMin, Math.min(wMax, wMax - randint(0, 1)));
+            h = Math.max(hMin, Math.min(hMax, hMax - randint(0, 1)));
+          }
+        }
+
         const ox = Math.floor(ctx.rng() * Math.max(1, blockW - w));
         const oy = Math.floor(ctx.rng() * Math.max(1, blockH - h));
-        placeBuilding(bx + 1 + ox, by + 1 + oy, w, h);
+        const fx = bx + 1 + ox;
+        const fy = by + 1 + oy;
+        // Avoid overlapping the town plaza footprint (with a 1-tile walkway buffer)
+        if (overlapsPlazaRect(fx, fy, w, h, 1)) continue;
+        // Enforce at least one tile of floor margin between buildings
+        if (!isAreaClearForBuilding(fx, fy, w, h, 1)) continue;
+        placeBuilding(fx, fy, w, h);
       }
     }
 
@@ -537,6 +707,186 @@
       return { x: dd.x, y: dd.y };
     }
 
+    // Enlarge and position the Inn next to the plaza, with size almost as big as the plaza and double doors facing it
+    (function enlargeInnBuilding() {
+      // Always carve the Inn even if no other buildings exist, to guarantee at least one building
+
+      // Target size: scale from plaza dims and ensure larger minimums by town size
+      const sizeKey = townSize;
+      // Make inn a bit smaller than before to keep plaza spacious
+      let minW = 18, minH = 12, scaleW = 1.20, scaleH = 1.10; // defaults for "big"
+      if (sizeKey === "small") { minW = 14; minH = 10; scaleW = 1.15; scaleH = 1.08; }
+      else if (sizeKey === "city") { minW = 24; minH = 16; scaleW = 1.35; scaleH = 1.25; }
+      const targetW = Math.max(minW, Math.floor(plazaW * scaleW));
+      const targetH = Math.max(minH, Math.floor(plazaH * scaleH));
+
+      // Require a clear one-tile floor margin around the Inn so it never connects to other buildings
+      function hasMarginClear(x, y, w, h, margin = 1) {
+        const x0 = Math.max(1, x - margin);
+        const y0 = Math.max(1, y - margin);
+        const x1 = Math.min(W - 2, x + w - 1 + margin);
+        const y1 = Math.min(H - 2, y + h - 1 + margin);
+        for (let yy = y0; yy <= y1; yy++) {
+          for (let xx = x0; xx <= x1; xx++) {
+            // Outside the rect or inside, we require current tiles to be FLOOR (roads/plaza),
+            // not walls/doors/windows of other buildings.
+            if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
+          }
+        }
+        return true;
+      }
+
+      // Try to place the Inn on one of the four sides adjacent to the plaza, ensuring margin clear
+      function placeInnRect() {
+        // Start with desired target size and shrink if we cannot find a margin-clear slot
+        let tw = targetW, th = targetH;
+
+        // Attempt multiple shrink steps to satisfy margin without touching other buildings
+        for (let shrink = 0; shrink < 4; shrink++) {
+          const candidates = [];
+
+          // East of plaza
+          candidates.push({
+            side: "westFacing",
+            x: Math.min(W - 2 - tw, ((plaza.x + (plazaW / 2)) | 0) + 2),
+            y: Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0))
+          });
+          // West of plaza
+          candidates.push({
+            side: "eastFacing",
+            x: Math.max(1, ((plaza.x - (plazaW / 2)) | 0) - 2 - tw),
+            y: Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0))
+          });
+          // South of plaza
+          candidates.push({
+            side: "northFacing",
+            x: Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0)),
+            y: Math.min(H - 2 - th, ((plaza.y + (plazaH / 2)) | 0) + 2)
+          });
+          // North of plaza
+          candidates.push({
+            side: "southFacing",
+            x: Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0)),
+            y: Math.max(1, ((plaza.y - (plazaH / 2)) | 0) - 2 - th)
+          });
+
+          // Pick the first candidate that fits fully in bounds and has a clear margin
+          for (const c of candidates) {
+            const nx = Math.max(1, Math.min(W - 2 - tw, c.x));
+            const ny = Math.max(1, Math.min(H - 2 - th, c.y));
+            const fits = (nx >= 1 && ny >= 1 && nx + tw < W - 1 && ny + th < H - 1);
+            // Also ensure the Inn never overlaps the plaza footprint
+            if (fits && hasMarginClear(nx, ny, tw, th, 1) && !overlapsPlazaRect(nx, ny, tw, th, 1)) {
+              return { x: nx, y: ny, w: tw, h: th, facing: c.side };
+            }
+          }
+
+          // If none fit with current size, shrink slightly and try again
+          tw = Math.max(minW, tw - 2);
+          th = Math.max(minH, th - 2);
+        }
+
+        // As a last resort, place near plaza center with current (possibly shrunken) size
+        const nx = Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0));
+        const ny = Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0));
+        return { x: nx, y: ny, w: tw, h: th, facing: "southFacing" };
+      }
+
+      const innRect = placeInnRect();
+
+      // Carve the Inn: wall perimeter and floor interior
+      for (let yy = innRect.y; yy < innRect.y + innRect.h; yy++) {
+        for (let xx = innRect.x; xx < innRect.x + innRect.w; xx++) {
+          if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
+          const isBorder = (yy === innRect.y || yy === innRect.y + innRect.h - 1 || xx === innRect.x || xx === innRect.x + innRect.w - 1);
+          ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
+        }
+      }
+
+      // Double doors centered on the side facing the plaza
+      function carveDoubleDoors(rect) {
+        if (rect.facing === "westFacing") {
+          const x = rect.x; // left wall faces west (toward plaza)
+          const cy = (rect.y + (rect.h / 2)) | 0;
+          ctx.map[cy][x] = ctx.TILES.DOOR;
+          ctx.map[cy + 1][x] = ctx.TILES.DOOR;
+        } else if (rect.facing === "eastFacing") {
+          const x = rect.x + rect.w - 1; // right wall faces east
+          const cy = (rect.y + (rect.h / 2)) | 0;
+          ctx.map[cy][x] = ctx.TILES.DOOR;
+          ctx.map[cy + 1][x] = ctx.TILES.DOOR;
+        } else if (rect.facing === "northFacing") {
+          const y = rect.y; // top wall faces north
+          const cx = (rect.x + (rect.w / 2)) | 0;
+          ctx.map[y][cx] = ctx.TILES.DOOR;
+          ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+        } else {
+          const y = rect.y + rect.h - 1; // bottom wall faces south
+          const cx = (rect.x + (rect.w / 2)) | 0;
+          ctx.map[y][cx] = ctx.TILES.DOOR;
+          ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+        }
+      }
+      carveDoubleDoors(innRect);
+
+      // Additional opposite-side door to provide a rear entrance
+      function carveOppositeDoor(rect) {
+        if (rect.facing === "westFacing") {
+          const x = rect.x + rect.w - 1;
+          const cy = (rect.y + (rect.h / 2)) | 0;
+          ctx.map[cy][x] = ctx.TILES.DOOR;
+        } else if (rect.facing === "eastFacing") {
+          const x = rect.x;
+          const cy = (rect.y + (rect.h / 2)) | 0;
+          ctx.map[cy][x] = ctx.TILES.DOOR;
+        } else if (rect.facing === "northFacing") {
+          const y = rect.y + rect.h - 1;
+          const cx = (rect.x + (rect.w / 2)) | 0;
+          ctx.map[y][cx] = ctx.TILES.DOOR;
+        } else {
+          const y = rect.y;
+          const cx = (rect.x + (rect.w / 2)) | 0;
+          ctx.map[y][cx] = ctx.TILES.DOOR;
+        }
+      }
+      carveOppositeDoor(innRect);
+
+      // Choose an existing building to replace/represent the inn, prefer the one closest to rect center
+      let targetIdx = -1, bestD = Infinity;
+      const cx = (innRect.x + (innRect.w / 2)) | 0;
+      const cy = (innRect.y + (innRect.h / 2)) | 0;
+      for (let i = 0; i < buildings.length; i++) {
+        const b = buildings[i];
+        const d = Math.abs((b.x + (b.w / 2)) - cx) + Math.abs((b.y + (b.h / 2)) - cy);
+        if (d < bestD) { bestD = d; targetIdx = i; }
+      }
+      if (targetIdx === -1) {
+        // If none available (shouldn't happen), push a new building record
+        buildings.push({ x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h });
+      } else {
+        buildings[targetIdx] = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
+      }
+
+      // Record the tavern (Inn) building and its preferred door (closest to plaza)
+      try {
+        const cds = candidateDoors(innRect);
+        let bestDoor = null, bestD = Infinity;
+        for (const d of cds) {
+          if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
+            const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
+            if (dd < bestD) { bestD = dd; bestDoor = { x: d.x, y: d.y }; }
+          }
+        }
+        if (!bestDoor) {
+          const dd = ensureDoor(innRect);
+          bestDoor = { x: dd.x, y: dd.y };
+        }
+        ctx.tavern = { building: { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
+      } catch (_) {}
+    })();
+
+    // Ensure props container exists before any early prop placement (e.g., shop signs)
+    ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
     ctx.shops = [];
 
     // Data-first shop selection: use GameData.shops when available
@@ -565,23 +915,100 @@
       return { openMin: o, closeMin: c, alwaysOpen: false };
     }
 
-    const shopDefs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops.slice(0) : [
+    // Shop definitions: ensure Inn appears first so it's included even in small towns.
+    let shopDefs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops.slice(0) : [
+      { type: "inn", name: "Inn", alwaysOpen: true },
       { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
       { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
       { type: "armorer", name: "Armorer", open: "08:00", close: "17:00" },
       { type: "trader", name: "Trader", open: "08:00", close: "18:00" },
-      { type: "inn", name: "Inn", alwaysOpen: true },
     ];
+    try {
+      const idxInn = shopDefs.findIndex(d => String(d.type || "").toLowerCase() === "inn" || /inn/i.test(String(d.name || "")));
+      if (idxInn > 0) {
+        const innDef = shopDefs.splice(idxInn, 1)[0];
+        shopDefs.unshift(innDef);
+      }
+    } catch (_) {}
 
     // Score buildings by distance to plaza and assign shops to closest buildings
     const scored = buildings.map(b => ({ b, d: Math.abs((b.x + (b.w / 2)) - plaza.x) + Math.abs((b.y + (b.h / 2)) - plaza.y) }));
     scored.sort((a, b) => a.d - b.d);
-    const shopCount = Math.min(shopDefs.length, scored.length);
+    // Track largest building by area for assigning the inn
+    const largest = buildings.reduce((best, cur) => {
+      const area = cur.w * cur.h;
+      if (!best || area > (best.w * best.h)) return cur;
+      return best;
+    }, null);
+
+    // Vary number of shops by town size
+    function shopLimitBySize(sizeKey) {
+      if (sizeKey === "small") return 3;
+      if (sizeKey === "city") return 8;
+      return 5; // big
+    }
+    const shopCount = Math.min(shopDefs.length, scored.length, shopLimitBySize(townSize));
+
+    // Avoid assigning multiple shops to the same building
+    const usedBuildings = new Set();
 
     for (let i = 0; i < shopCount; i++) {
-      const b = scored[i].b;
-      const door = ensureDoor(b);
       const def = shopDefs[i % shopDefs.length];
+      let b = scored[i].b;
+
+      // Prefer the enlarged tavern building for the Inn if available; else nearest to plaza
+      if (def.type === "inn") {
+        if (ctx.tavern && ctx.tavern.building) {
+          b = ctx.tavern.building;
+        } else {
+          // Pick the closest unused building
+          let candidate = null;
+          for (const s of scored) {
+            const key = `${s.b.x},${s.b.y}`;
+            if (!usedBuildings.has(key)) { candidate = s.b; break; }
+          }
+          b = candidate || scored[0].b;
+        }
+      }
+
+      // If chosen building is already used, pick the next nearest unused
+      if (usedBuildings.has(`${b.x},${b.y}`)) {
+        const alt = scored.find(s => !usedBuildings.has(`${s.b.x},${s.b.y}`));
+        if (alt) b = alt.b;
+      }
+
+      // Extra guard: non-inn shops should never occupy the tavern building
+      if (def.type !== "inn" && ctx.tavern && ctx.tavern.building) {
+        const tb = ctx.tavern.building;
+        const isTavernBld = (b.x === tb.x && b.y === tb.y && b.w === tb.w && b.h === tb.h);
+        if (isTavernBld) {
+          const alt = scored.find(s => {
+            const key = `${s.b.x},${s.b.y}`;
+            const isTavern = (s.b.x === tb.x && s.b.y === tb.y && s.b.w === tb.w && s.b.h === tb.h);
+            return !usedBuildings.has(key) && !isTavern;
+          });
+          if (alt) b = alt.b;
+        }
+      }
+
+      usedBuildings.add(`${b.x},${b.y}`);
+
+      // For Inn: prefer using existing double doors on the side facing the plaza if present
+      let door = null;
+      if (def.type === "inn") {
+        // check for any door on the inn building perimeter and pick one closest to plaza
+        const cds = candidateDoors(b);
+        let best = null, bestD = Infinity;
+        for (const d of cds) {
+          if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
+            const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
+            if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+          }
+        }
+        door = best || ensureDoor(b);
+      } else {
+        door = ensureDoor(b);
+      }
       const sched = scheduleFromData(def);
       const name = def.name || def.type || "Shop";
 
@@ -610,17 +1037,98 @@
         building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: door.x, y: door.y } },
         inside
       });
+      // Ensure a sign near the shop door with the correct shop name (e.g., Inn), prefer placing it outside the building
+      try { addShopSign(b, { x: door.x, y: door.y }, name); } catch (_) {}
     }
+
+    // Ensure there is always one Inn in town (fallback if not added above)
+    try {
+      const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (s.type === "inn") || (/inn/i.test(String(s.name || ""))));
+      if (!hasInn) {
+        // Pick an unused building near the plaza that does NOT overlap the plaza footprint
+        let bInn = null;
+        for (const s of scored) {
+          const key = `${s.b.x},${s.b.y}`;
+          if (usedBuildings.has(key)) continue;
+          if (overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 1)) continue;
+          bInn = s.b;
+          break;
+        }
+        if (!bInn) {
+          // Fallback: first building that doesn't overlap (with 1-tile buffer), even if already used (will be re-used as inn)
+          for (const s of scored) {
+            if (!overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 1)) { bInn = s.b; break; }
+          }
+        }
+        if (!bInn) bInn = scored.length ? scored[0].b : null;
+        if (bInn) {
+          // Prefer existing door closest to plaza; else carve one
+          const cds = candidateDoors(bInn);
+          let best = null, bestD = Infinity;
+          for (const d of cds) {
+            if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
+              const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
+              if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+            }
+          }
+          const doorInn = best || ensureDoor(bInn);
+          // Ensure double doors for inn: add adjacent door tile along the wall orientation if missing
+          (function ensureDoubleInnDoors() {
+            const x = doorInn.x, y = doorInn.y;
+            const leftEdge = (x === bInn.x);
+            const rightEdge = (x === bInn.x + bInn.w - 1);
+            const topEdge = (y === bInn.y);
+            const bottomEdge = (y === bInn.y + bInn.h - 1);
+            if (topEdge || bottomEdge) {
+              const x2 = Math.min(bInn.x + bInn.w - 1, x + 1);
+              if (inBounds(ctx, x2, y) && ctx.map[y][x2] === ctx.TILES.WALL) ctx.map[y][x2] = ctx.TILES.DOOR;
+            } else if (leftEdge || rightEdge) {
+              const y2 = Math.min(bInn.y + bInn.h - 1, y + 1);
+              if (inBounds(ctx, x, y2) && ctx.map[y2][x] === ctx.TILES.WALL) ctx.map[y2][x] = ctx.TILES.DOOR;
+            }
+          })();
+
+          const nameInn = "Inn";
+          const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
+          let insideInn = null;
+          for (const dxy of inward) {
+            const ix = doorInn.x + dxy.dx, iy = doorInn.y + dxy.dy;
+            const insideB = (ix > bInn.x && ix < bInn.x + bInn.w - 1 && iy > bInn.y && iy < bInn.y + bInn.h - 1);
+            if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { insideInn = { x: ix, y: iy }; break; }
+          }
+          if (!insideInn) {
+            const cx = Math.max(bInn.x + 1, Math.min(bInn.x + bInn.w - 2, Math.floor(bInn.x + bInn.w / 2)));
+            const cy = Math.max(bInn.y + 1, Math.min(bInn.y + bInn.h - 2, Math.floor(bInn.y + bInn.h / 2)));
+            insideInn = { x: cx, y: cy };
+          }
+
+          ctx.shops.push({
+            x: doorInn.x,
+            y: doorInn.y,
+            type: "inn",
+            name: nameInn,
+            openMin: 0,
+            closeMin: 0,
+            alwaysOpen: true,
+            building: { x: bInn.x, y: bInn.y, w: bInn.w, h: bInn.h, door: { x: doorInn.x, y: doorInn.y } },
+            inside: insideInn
+          });
+          try { addShopSign(bInn, doorInn, nameInn); } catch (_) {}
+          usedBuildings.add(`${bInn.x},${bInn.y}`);
+          try { ctx.tavern = { building: { x: bInn.x, y: bInn.y, w: bInn.w, h: bInn.h }, door: { x: doorInn.x, y: doorInn.y } }; } catch (_) {}
+        }
+      }
+    } catch (_) {}
 
     // Town buildings metadata
     ctx.townBuildings = buildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: getExistingDoor(b) }));
 
     // Props
-    ctx.townProps = [];
+    ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
     function addProp(x, y, type, name) {
       if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
       if (ctx.map[y][x] !== ctx.TILES.FLOOR) return false;
-      if (ctx.townProps.some(p => p.x === x && p.y === y)) return false;
+      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
       ctx.townProps.push({ x, y, type, name });
       return true;
     }
@@ -632,6 +1140,45 @@
         if (ctx.map[sy][sx] !== ctx.TILES.FLOOR) continue;
         if (ctx.townProps.some(p => p.x === sx && p.y === sy)) continue;
         addProp(sx, sy, "sign", text);
+        return true;
+      }
+      return false;
+    }
+    // Prefer placing shop signs outside the building, not inside
+    function addShopSign(b, door, text) {
+      function isInside(bld, x, y) {
+        return x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
+      }
+      // Ensure we never place a sign inside ANY building interior (not just this shop's building)
+      function isInsideAnyBuilding(x, y) {
+        for (let i = 0; i < buildings.length; i++) {
+          const B = buildings[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      let dx = 0, dy = 0;
+      if (door.y === b.y) dy = -1;
+      else if (door.y === b.y + b.h - 1) dy = +1;
+      else if (door.x === b.x) dx = -1;
+      else if (door.x === b.x + b.w - 1) dx = +1;
+      const sx = door.x + dx, sy = door.y + dy;
+      if (sx > 0 && sy > 0 && sx < W - 1 && sy < H - 1) {
+        if (!isInside(b, sx, sy) && !isInsideAnyBuilding(sx, sy) && ctx.map[sy][sx] === ctx.TILES.FLOOR && !ctx.townProps.some(p => p.x === sx && p.y === sy)) {
+          addProp(sx, sy, "sign", text);
+          return true;
+        }
+      }
+      // Fallback: nearby floor tile that is outside the building and not inside any other building
+      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+      for (const d of dirs) {
+        const nx = door.x + d.dx, ny = door.y + d.dy;
+        if (nx <= 0 || ny <= 0 || nx >= W - 1 || ny >= H - 1) continue;
+        if (isInside(b, nx, ny)) continue;
+        if (isInsideAnyBuilding(nx, ny)) continue;
+        if (ctx.map[ny][nx] !== ctx.TILES.FLOOR) continue;
+        if (ctx.townProps.some(p => p.x === nx && p.y === ny)) continue;
+        addProp(nx, ny, "sign", text);
         return true;
       }
       return false;
@@ -781,11 +1328,21 @@
           if (!occupiedTile(f.x, f.y)) addProp(f.x, f.y, "fireplace", "Fireplace");
         }
 
-        // Beds scaled by area
+        // Beds scaled by area (Inn gets more beds)
         const area = b.w * b.h;
         let bedTarget = Math.max(1, Math.min(3, Math.floor(area / 24)));
+        try {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          const isTavern = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
+          if (isTavern) {
+            // Inn/Tavern: significantly more beds based on area, capped to avoid clutter
+            bedTarget = Math.max(bedTarget, Math.min(14, Math.floor(area / 10)));
+          } else {
+            // Non-inn buildings keep default scaling
+          }
+        } catch (_) {}
         let bedsPlaced = 0, triesBed = 0;
-        while (bedsPlaced < bedTarget && triesBed++ < 120) {
+        while (bedsPlaced < bedTarget && triesBed++ < 200) {
           const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
           const yy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
           if (!insideFloor(b, xx, yy)) continue;
@@ -794,26 +1351,65 @@
         }
 
         // Tables and chairs
-        if (ctx.rng() < 0.8) {
-          let placedT = false, triesT = 0;
-          while (!placedT && triesT++ < 60) {
-            const tx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-            const ty = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-            if (!insideFloor(b, tx, ty) || occupiedTile(tx, ty)) continue;
-            addProp(tx, ty, "table", "Table"); placedT = true;
+        (function placeTablesAndChairs() {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          const isTavern = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
+
+          if (!isTavern) {
+            // Default: 0-1 table, 1-2 chairs
+            if (ctx.rng() < 0.8) {
+              let placedT = false, triesT = 0;
+              while (!placedT && triesT++ < 60) {
+                const tx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
+                const ty = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
+                if (!insideFloor(b, tx, ty) || occupiedTile(tx, ty)) continue;
+                addProp(tx, ty, "table", "Table"); placedT = true;
+              }
+            }
+            let chairCount = ctx.rng() < 0.5 ? 2 : 1;
+            let triesC = 0;
+            while (chairCount > 0 && triesC++ < 80) {
+              const cx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
+              const cy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
+              if (!insideFloor(b, cx, cy) || occupiedTile(cx, cy)) continue;
+              addProp(cx, cy, "chair", "Chair"); chairCount--;
+            }
+          } else {
+            // Tavern: multiple tables and lots of chairs for seating
+            const tableTarget = Math.max(2, Math.min(6, Math.floor(area / 40)));
+            let placedT = 0, triesT = 0;
+            while (placedT < tableTarget && triesT++ < 300) {
+              const tx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
+              const ty = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
+              if (!insideFloor(b, tx, ty) || occupiedTile(tx, ty)) continue;
+              addProp(tx, ty, "table", "Table"); placedT++;
+            }
+            const chairTarget = Math.max(6, Math.min(20, Math.floor(area / 6)));
+            let chairsPlaced = 0, triesC = 0;
+            while (chairsPlaced < chairTarget && triesC++ < 600) {
+              const cx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
+              const cy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
+              if (!insideFloor(b, cx, cy) || occupiedTile(cx, cy)) continue;
+              addProp(cx, cy, "chair", "Chair"); chairsPlaced++;
+            }
           }
-        }
-        let chairCount = ctx.rng() < 0.5 ? 2 : 1;
-        let triesC = 0;
-        while (chairCount > 0 && triesC++ < 80) {
-          const cx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-          const cy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-          if (!insideFloor(b, cx, cy) || occupiedTile(cx, cy)) continue;
-          addProp(cx, cy, "chair", "Chair"); chairCount--;
-        }
+        })();
 
         // Storage: chests, crates, barrels
         let chestCount = ctx.rng() < 0.5 ? 2 : 1;
+        let crates = ctx.rng() < 0.6 ? 2 : 1;
+        let barrels = ctx.rng() < 0.6 ? 2 : 1;
+
+        // Boost storage props for tavern to feel stocked
+        (function boostStorageForTavern() {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          if (tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h) {
+            chestCount = Math.max(chestCount, 2);
+            crates = Math.max(crates, 3);
+            barrels = Math.max(barrels, 4);
+          }
+        })();
+
         let placedC = 0, triesChest = 0;
         while (placedC < chestCount && triesChest++ < 80) {
           const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
@@ -821,7 +1417,6 @@
           if (!insideFloor(b, xx, yy) || occupiedTile(xx, yy)) continue;
           addProp(xx, yy, "chest", "Chest"); placedC++;
         }
-        let crates = ctx.rng() < 0.6 ? 2 : 1;
         let triesCr = 0;
         while (crates > 0 && triesCr++ < 120) {
           const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
@@ -829,7 +1424,6 @@
           if (!insideFloor(b, xx, yy) || occupiedTile(xx, yy)) continue;
           addProp(xx, yy, "crate", "Crate"); crates--;
         }
-        let barrels = ctx.rng() < 0.6 ? 2 : 1;
         let triesBrl = 0;
         while (barrels > 0 && triesBrl++ < 120) {
           const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
@@ -840,6 +1434,14 @@
 
         // Shelves against inner walls
         let shelves = Math.min(2, Math.floor(area / 30));
+        // Tavern: increase shelf count for a stocked look
+        (function boostShelvesForTavern() {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          if (tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h) {
+            shelves = Math.max(shelves, Math.min(5, Math.floor(area / 25)));
+          }
+        })();
+
         const shelfSpots = borderAdj.slice();
         while (shelves-- > 0 && shelfSpots.length) {
           const s = shelfSpots.splice(Math.floor(ctx.rng() * shelfSpots.length), 1)[0];
@@ -885,7 +1487,8 @@
       `Welcome to ${ctx.townName || "our town"}.`,
       ...baseLines
     ];
-    const roamTarget = Math.min(14, Math.max(6, Math.floor((ctx.townBuildings?.length || 12) / 2)));
+    const tbCount = Array.isArray(ctx.townBuildings) ? ctx.townBuildings.length : 12;
+    const roamTarget = Math.min(14, Math.max(6, Math.floor(tbCount / 2)));
     let placed = 0, tries = 0;
     while (placed < roamTarget && tries++ < 800) {
       const onRoad = ctx.rng() < 0.4;
@@ -904,14 +1507,26 @@
       if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
       if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;
       if (ctx.townProps.some(p => p.x === x && p.y === y)) continue;
-      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesTavern: ctx.rng() < 0.45 });
+      // Assign a home immediately to avoid "no-home" diagnostics for roamers
+      let homeRef = null;
+      try {
+        const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+        if (tbs.length) {
+          const b = tbs[Math.floor(ctx.rng() * tbs.length)];
+          const hx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, (b.x + ((b.w / 2) | 0))));
+          const hy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, (b.y + ((b.h / 2) | 0))));
+          const door = (b && b.door && typeof b.door.x === "number" && typeof b.door.y === "number") ? { x: b.door.x, y: b.door.y } : null;
+          homeRef = { building: b, x: hx, y: hy, door };
+        }
+      } catch (_) {}
+      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesTavern: ctx.rng() < 0.45, _home: homeRef });
       placed++;
     }
 
     // Visibility reset for town
-    // Make the entire town "seen" on entry so NPCs and props are discoverable immediately,
-    // while visibility still respects FOV and walls during movement.
-    ctx.seen = Array.from({ length: H }, () => Array(W).fill(true));
+    // Start unseen; player FOV will reveal tiles and mark memory.
+    // This prevents props from showing unless the player has actually seen them.
+    ctx.seen = Array.from({ length: H }, () => Array(W).fill(false));
     ctx.visible = Array.from({ length: H }, () => Array(W).fill(false));
     ctx.enemies = [];
     ctx.corpses = [];

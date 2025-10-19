@@ -77,14 +77,15 @@ export function drinkByIndex(ctx, idx, hooks) {
   const inv = ctx.player.inventory || [];
   if (!inv || idx < 0 || idx >= inv.length) return;
   const it = inv[idx];
-  if (!it || it.kind !== "potion") return;
+  if (!it || (it.kind !== "potion" && it.kind !== "drink")) return;
 
-  const heal = it.heal ?? 3;
+  const heal = it.heal ?? (it.kind === "drink" ? 2 : 3);
   const prev = ctx.player.hp;
   ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal);
   const gained = ctx.player.hp - prev;
-  if (gained > 0) ctx.log(`You drink a potion and restore ${gained.toFixed(1)} HP (HP ${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)}).`, "good");
-  else ctx.log(`You drink a potion but feel no different (HP ${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)}).`, "warn");
+  const label = it.name ? it.name : (it.kind === "drink" ? "drink" : "potion");
+  if (gained > 0) ctx.log(`You drink ${label} and restore ${gained.toFixed(1)} HP (HP ${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)}).`, "good");
+  else ctx.log(`You drink ${label} but feel no different (HP ${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)}).`, "warn");
 
   if (it.count && it.count > 1) it.count -= 1;
   else inv.splice(idx, 1);
