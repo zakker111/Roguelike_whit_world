@@ -89,8 +89,30 @@ export function enterTownIfOnTile(ctx) {
   }
 
   if (WT && t === ctx.World.TILES.TOWN) {
-      ctx.worldReturnPos = { x: ctx.player.x, y: ctx.player.y };
+      const enterWX = ctx.player.x, enterWY = ctx.player.y;
+      ctx.worldReturnPos = { x: enterWX, y: enterWY };
       ctx.mode = "town";
+
+      // First, try to load a persisted town state for this overworld tile
+      try {
+        const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
+        if (TS && typeof TS.load === "function") {
+          const loaded = !!TS.load(ctx, enterWX, enterWY);
+          if (loaded) {
+            // Ensure occupancy and UI
+            try {
+              if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
+            } catch (_) {}
+            try {
+              if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
+              else if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
+            } catch (_) {}
+            if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            syncAfterMutation(ctx);
+            return true;
+          }
+        }
+      } catch (_) {}
 
       // Prefer centralized TownRuntime generation/helpers
       try {

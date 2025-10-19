@@ -193,6 +193,12 @@ export function returnToWorldIfAtGate(ctx) {
 export function applyLeaveSync(ctx) {
   if (!ctx || !ctx.world) return false;
 
+  // Persist current town state (map + visibility + entities) before leaving
+  try {
+    const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
+    if (TS && typeof TS.save === "function") TS.save(ctx);
+  } catch (_) {}
+
   // Switch mode and restore overworld map
   ctx.mode = "world";
   ctx.map = ctx.world.map;
