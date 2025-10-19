@@ -189,13 +189,13 @@ export function draw(ctx, view) {
     }
   }
 
-  // Props: draw when seen, full opacity if visible; otherwise slightly dim.
+  // Props: draw only when currently visible (respect FOV/LOS). Do not draw props when occluded by walls.
   if (Array.isArray(ctx.townProps)) {
     for (const p of ctx.townProps) {
       if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
-      const wasSeen = !!(seen[p.y] && seen[p.y][p.x]);
-      if (!wasSeen) continue;
       const visNow = !!(visible[p.y] && visible[p.y][p.x]);
+      if (!visNow) continue; // skip drawing props that are not currently visible
+
       const screenX = (p.x - startX) * TILE - tileOffsetX;
       const screenY = (p.y - startY) * TILE - tileOffsetY;
 
@@ -247,14 +247,7 @@ export function draw(ctx, view) {
         }
       }
 
-      if (visNow) {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-      } else {
-        ctx2d.save();
-        ctx2d.globalAlpha = 0.65;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-        ctx2d.restore();
-      }
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
     }
   }
 
