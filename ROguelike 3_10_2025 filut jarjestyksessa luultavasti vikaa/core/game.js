@@ -2516,16 +2516,6 @@
                 // Users can toggle the overlay via the GOD panel control.
 
                 // Request draw to show updated debug paths
-                requestDraw()</f UIH.setHomePathsState === "function") {
-                    const on = !!UIH.getHomePathsState();
-                    if (!on) {
-                      UIH.setHomePathsState(true);
-                      if (typeof UIH.updateHomePathsButton === "function") UIH.updateHomePathsButton();
-                    }
-                  }
-                } catch (_) {}
-
-                // Request draw to show updated debug paths
                 requestDraw();
               } else {
                 log("TownAI.checkHomeRoutes not available.", "warn");
