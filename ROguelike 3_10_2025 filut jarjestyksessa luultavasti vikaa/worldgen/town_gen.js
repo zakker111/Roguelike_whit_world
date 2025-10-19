@@ -675,7 +675,7 @@
 
     // Enlarge and position the Inn next to the plaza, with size almost as big as the plaza and double doors facing it
     (function enlargeInnBuilding() {
-      if (!buildings.length) return;
+      // Always carve the Inn even if no other buildings exist, to guarantee at least one building
 
       // Target size: scale from plaza dims and ensure larger minimums by town size
       const sizeKey = townSize;
@@ -1472,7 +1472,15 @@
       if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
       if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;
       if (ctx.townProps.some(p => p.x === x && p.y === y)) continue;
-      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesTavern: ctx.rng() < 0.45 });
+      // Assign a home immediately to avoid \"no-home\" diagnostics for roamers
+      let homeRef = null;
+      try {
+        const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+        if (tbs.length) {
+          const b = tbs[Math.floor(ctx.rng() * tbs.length)];
+          const hx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, (b.x + ((b.w / 2) | 0))));
+          const hy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, (b.y + ((b.h / 2) | 0))));
+          homeRef = { building: b, x: hx, y: hy, door: { x: b.door);
       placed++;
     }
 
