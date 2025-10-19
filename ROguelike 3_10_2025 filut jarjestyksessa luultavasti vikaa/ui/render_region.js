@@ -167,8 +167,16 @@ export function draw(ctx, view) {
           try { color = ctx.enemyColor(e.type || "enemy"); } catch (_) {}
         }
         ctx2d.save();
-        ctx2d.fillStyle = color;
-        ctx2d.fillRect(sx + 6, sy + 6, TILE - 12, TILE - 12);
+        // Draw a circle for animals; square for hostiles
+        if (faction === "animal") {
+          ctx2d.beginPath();
+          ctx2d.arc(sx + TILE / 2, sy + TILE / 2, Math.max(6, (TILE - 12) / 2), 0, Math.PI * 2);
+          ctx2d.fillStyle = color;
+          ctx2d.fill();
+        } else {
+          ctx2d.fillStyle = color;
+          ctx2d.fillRect(sx + 6, sy + 6, TILE - 12, TILE - 12);
+        }
         // Optional glyph letter inside marker for identification
         try {
           const half = TILE / 2;
@@ -182,7 +190,7 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Corpses overlay: show lootable bodies (neutral gray; darker when looted)
+  // Corpses overlay: show lootable bodies as a '%' glyph (neutral gray; darker when looted)
   try {
     if (Array.isArray(ctx.corpses)) {
       for (const c of ctx.corpses) {
@@ -193,8 +201,8 @@ export function draw(ctx, view) {
         const sx = (cx - startX) * TILE - tileOffsetX;
         const sy = (cy - startY) * TILE - tileOffsetY;
         ctx2d.save();
-        ctx2d.fillStyle = c.looted ? (COLORS.corpseEmpty || "#6b7280") : (COLORS.corpse || "#c3cad9");
-        ctx2d.fillRect(sx + 8, sy + 8, TILE - 16, TILE - 16);
+        const fg = c.looted ? (COLORS.corpseEmpty || "#6b7280") : (COLORS.corpse || "#c3cad9");
+        RenderCore.drawGlyph(ctx2d, sx, sy, "%", fg, TILE);
         ctx2d.restore();
       }
     }

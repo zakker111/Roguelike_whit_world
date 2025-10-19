@@ -789,10 +789,21 @@ function onAction(ctx) {
               gained++;
             }
           }
+          // Compose a loot summary for the log
+          let summary = [];
+          try {
+            summary = items.map(it => {
+              if (!it) return null;
+              if (it.kind === "gold") return `${it.amount | 0} gold`;
+              if (it.kind === "material") return `${(it.amount | 0) || 1} ${String(it.name || it.type || "material")}`;
+              if (it.kind === "potion") return `${(it.count | 0) || 1} ${it.name || `potion (+${it.heal || 3} HP)`}`;
+              return it.name || it.kind || "item";
+            }).filter(Boolean);
+          } catch (_) {}
           corpseHere.loot = [];
           corpseHere.looted = true;
           ctx.updateUI && ctx.updateUI();
-          ctx.log && ctx.log("You loot the corpse.", gained ? "good" : "info");
+          ctx.log && ctx.log(summary.length ? `You loot the corpse: ${summary.join(", ")}.` : "You loot the corpse.", summary.length ? "good" : "info");
         } catch (_) {
           ctx.log && ctx.log("Loot failed.", "warn");
         }
