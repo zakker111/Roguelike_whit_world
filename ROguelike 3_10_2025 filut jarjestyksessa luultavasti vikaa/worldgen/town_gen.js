@@ -821,10 +821,14 @@
         if (ctx.tavern && ctx.tavern.building) {
           b = ctx.tavern.building;
         } else {
-          // Pick the closest unused building${s.b.x},${s.b.y}`;
-          if (!usedBuildings.has(key)) { candidate = s.b; break; }
+          // Pick the closest unused building
+          let candidate = null;
+          for (const s of scored) {
+            const key = `${s.b.x},${s.b.y}`;
+            if (!usedBuildings.has(key)) { candidate = s.b; break; }
+          }
+          b = candidate || scored[0].b;
         }
-        b = candidate || scored[0].b;
       }
 
       // If chosen building is already used, pick the next nearest unused
@@ -832,6 +836,21 @@
         const alt = scored.find(s => !usedBuildings.has(`${s.b.x},${s.b.y}`));
         if (alt) b = alt.b;
       }
+
+      // Extra guard: non-inn shops should never occupy the tavern building
+      if (def.type !== "inn" && ctx.tavern && ctx.tavern.building) {
+        const tb = ctx.tavern.building;
+        const isTavernBld = (b.x === tb.x && b.y === tb.y && b.w === tb.w && b.h === tb.h);
+        if (isTavernBld) {
+          const alt = scored.find(s => {
+            const key = `${s.b.x},${s.b.y}`;
+            const isTavern = (s.b.x === tb.x && s.b.y === tb.y && s.b.w === tb.w && s.b.h === tb.h);
+            return !usedBuildings.has(key) && !isTavern;
+          });
+          if (alt) b = alt.b;
+        }
+      }
+
       usedBuildings.add(`${b.x},${b.y}`);
 
       // For Inn: prefer using existing double doors on the side facing the plaza if present
