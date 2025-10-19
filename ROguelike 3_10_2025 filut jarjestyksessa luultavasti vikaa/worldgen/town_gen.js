@@ -770,7 +770,7 @@
         inside
       });
       // Ensure a sign near the shop door with the correct shop name (e.g., Inn)
-      try { addSignNear(door.x, door.y, name); } catch (__code) new{</}
+      try { addSignNear(door.x, door.y, name); } catch (_) {}
     }
 
     // Town buildings metadata
