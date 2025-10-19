@@ -168,26 +168,44 @@
                 onConfirm: (mins) => {
                   try {
                     const prev = ctx.player.hp;
-                    if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(mins);
-                    // Heal proportionally to duration, capped at 60% of max HP for 10h+ sleep
-                    const healFrac = Math.min(0.6, Math.max(0.08, mins / 600)); // 60% at 10h, minimum 8%
-                    const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
-                    ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
-                    const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
-                    ctx.log(`You sleep for ${mins} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
-                    if (typeof ctx.updateUI === "function") ctx.updateUI();
-                    if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+                    const afterTime = (m) => {
+                      // Heal proportionally to duration, capped at 60% of max HP for 10h+ sleep
+                      const healFrac = Math.min(0.6, Math.max(0.08, m / 600)); // 60% at 10h, minimum 8%
+                      const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
+                      ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
+                      const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
+                      ctx.log(`You sleep for ${m} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+                      if (typeof ctx.updateUI === "function") ctx.updateUI();
+                    };
+                    if (UB && typeof UB.animateSleep === "function") {
+                      UB.animateSleep(ctx, mins, afterTime);
+                    } else {
+                      // Fallback without animation
+                      try { if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(mins); } catch (_) {}
+                      afterTime(mins);
+                      if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+                    }
                   } catch (_) {}
                 }
               });
             } else {
               // Fallback: simple short rest without modal
               const prev = ctx.player.hp;
-              if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(defaultMins);
-              const heal = Math.max(1, Math.floor(ctx.player.maxHp * 0.25));
-              ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal);
-              ctx.log(`You sleep at the inn. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
-              if (typeof ctx.updateUI === "function") ctx.updateUI();
+              const afterTime = (m) => {
+                const healFrac = Math.min(0.6, Math.max(0.08, m / 600));
+                const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
+                ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
+                const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
+                ctx.log(`You sleep for ${m} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+                if (typeof ctx.updateUI === "function") ctx.updateUI();
+              };
+              if (UB && typeof UB.animateSleep === "function") {
+                UB.animateSleep(ctx, defaultMins, afterTime);
+              } else {
+                if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(defaultMins);
+                afterTime(defaultMins);
+                if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+              }
             }
           };
 

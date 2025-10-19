@@ -197,6 +197,8 @@ let _sleepPanel = null;
 let _sleepSlider = null;
 let _sleepValueEl = null;
 let _sleepConfirmCb = null;
+// Fullscreen fade overlay used for sleep animation
+let _sleepFadeEl = null;
 
 function ensureSleepPanel() {
   if (_sleepPanel) return _sleepPanel;
@@ -357,6 +359,67 @@ export function hideSleep(ctx) {
   } catch (_) {}
 }
 
+// Sleep animation: fade to black, advance time, then fade back in
+function ensureSleepFade() {
+  if (_sleepFadeEl) return _sleepFadeEl;
+  try {
+    const el = document.createElement("div");
+    el.id = "sleep-fade-overlay";
+    el.style.position = "fixed";
+    el.style.left = "0";
+    el.style.top = "0";
+    el.style.width = "100vw";
+    el.style.height = "100vh";
+    el.style.background = "#000";
+    el.style.opacity = "0";
+    el.style.display = "none";
+    el.style.zIndex = "50000"; // above panels
+    el.style.pointerEvents = "none";
+    document.body.appendChild(el);
+    _sleepFadeEl = el;
+  } catch (_) {}
+  return _sleepFadeEl;
+}
+
+export function animateSleep(ctx, minutes, afterTimeCb) {
+  const el = ensureSleepFade();
+  if (!el) {
+    // Fallback: advance time without animation
+    try { if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes); } catch (_) {}
+    try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
+    try { ctx.updateUI && ctx.updateUI(); ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+    return;
+  }
+  try {
+    el.style.transition = "opacity 460ms ease-in-out";
+    el.style.display = "block";
+    el.style.opacity = "0";
+    // fade to black
+    requestAnimationFrame(() => {
+      el.style.opacity = "1";
+      // once fully black, adjust time and run callback
+      setTimeout(() => {
+        try { if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes); } catch (_) {}
+        try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
+        try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+        // small hold before fade back up
+        setTimeout(() => {
+          el.style.opacity = "0";
+          setTimeout(() => {
+            el.style.display = "none";
+            try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+          }, 480);
+        }, 220);
+      }, 500);
+    });
+  } catch (_) {
+    // hard fallback
+    try { if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes); } catch (_) {}
+    try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
+    try { ctx.updateUI && ctx.updateUI(); ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  }
+}
+
 // Confirm modal wrappers
 export function isConfirmOpen() {
   try { return !!(hasUI() && window.UI.isConfirmOpen && window.UI.isConfirmOpen()); } catch (_) { return false; }
@@ -446,6 +509,8 @@ if (typeof window !== "undefined") {
     isAnyModalOpen,
     showConfirm,
     showTownExitButton,
-    hideTownExitButton
+    hideTownExitButton,
+    // Sleep animation
+    animateSleep
   };
 }
