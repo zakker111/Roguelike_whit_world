@@ -1014,6 +1014,8 @@
 
   // Simple perf counters (DEV-only visible in console) + EMA smoothing
   const PERF = { lastTurnMs: 0, lastDrawMs: 0, avgTurnMs: 0, avgDrawMs: 0 };
+  // Hint cooldown to avoid spamming animal proximity logs
+  let lastAnimalHintTurn = -100;
 
   function requestDraw() {
     if (_suppressDraw) return;
@@ -1771,6 +1773,35 @@
       if (walkable) {
         player.x = nx; player.y = ny;
         updateCamera();
+
+        // Log animal proximity hint based on biome and clear-state (cooldown-protected)
+        try {
+          const W = modHandle("World");
+          const WT = W && W.TILES ? W.TILES : null;
+          const tileHere = world && world.map ? world.map[ny][nx] : null;
+          const isAnimalBiome = WT ? (tileHere === WT.FOREST || tileHere === WT.GRASS || tileHere === WT.BEACH) : true;
+          // Check cleared state via RegionMapRuntime to avoid hints in cleared regions
+          let cleared = false;
+          try {
+            if (typeof window !== "undefined" && window.RegionMapRuntime && typeof window.RegionMapRuntime.animalsClearedHere === "function") {
+              cleared = !!window.RegionMapRuntime.animalsClearedHere(nx | 0, ny | 0);
+            }
+          } catch (_) {}
+          if (isAnimalBiome && !cleared) {
+            const gap = turnCounter - lastAnimalHintTurn;
+            if (gap > 30) {
+              const chanceP = 0.35; // base chance to hint
+              const roll = (typeof window !== "undefined" && window.RNG && typeof window.RNG.chance === "function")
+                ? window.RNG.chance(chanceP)
+                : ((Math.random() < chanceP));
+              if (roll) {
+                log("There might be creatures nearby.", "notice");
+                lastAnimalHintTurn = turnCounter;
+              }
+            }
+          }
+        } catch (_) {}
+
         // Encounter roll before advancing time so acceptance can switch mode first
         try {
           const ES = modHandle("EncounterService");

@@ -971,10 +971,12 @@ function tick(ctx) {
 
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
-  window.RegionMapRuntime = { open, close, tryMove, onAction, tick };
-}
-
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.RegionMapRuntime = { open, close, tryMove, onAction, tick };
+  window.RegionMapRuntime = {
+    open, close, tryMove, onAction, tick,
+    // Persistence helpers for animals memory/clear state
+    markAnimalsCleared,
+    animalsClearedHere,
+    markAnimalsSeen,
+    animalsSeenHere
+  };
 }
