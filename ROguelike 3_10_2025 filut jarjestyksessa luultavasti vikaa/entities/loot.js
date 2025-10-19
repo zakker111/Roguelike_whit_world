@@ -245,15 +245,15 @@ export function lootHere(ctx) {
     return;
   }
 
-  const container = here.find(c => Array.isArray(c.loot) && c.loot.length > 0);
-  if (!container) {
+  const containers = here.filter(c => Array.isArray(c.loot) && c.loot.length > 0);
+  if (containers.length === 0) {
     here.forEach(c => c.looted = true);
     const chests = here.filter(c => String(c.kind || "").toLowerCase() === "chest").length;
-    const corpses = here.length - chests;
-    if (chests > 0 && corpses === 0) {
+    const corpsesCount = here.length - chests;
+    if (chests > 0 && corpsesCount === 0) {
       ctx.log(chests === 1 ? "You search the chest but find nothing." : "You search the chests but find nothing.");
-    } else if (corpses > 0 && chests === 0) {
-      ctx.log(corpses === 1 ? "You search the corpse but find nothing." : "You search the corpses but find nothing.");
+    } else if (corpsesCount > 0 && chests === 0) {
+      ctx.log(corpsesCount === 1 ? "You search the corpse but find nothing." : "You search the corpses but find nothing.");
     } else {
       ctx.log("You search the area but find nothing.");
     }
@@ -269,54 +269,58 @@ export function lootHere(ctx) {
     return;
   }
 
-  if (container.kind === "chest") {
+  // If any chest underfoot, announce opening once
+  if (containers.some(c => String(c.kind || "").toLowerCase() === "chest")) {
     ctx.log("You open the chest.", "info");
   }
 
   const acquired = [];
-  for (const item of container.loot) {
-    if (item && item.kind === "equip") {
-      const equipped = ctx.equipIfBetter(item);
-      acquired.push(equipped ? `equipped ${ctx.describeItem(item)}` : ctx.describeItem(item));
-      if (!equipped) {
+  for (const container of containers) {
+    for (const item of container.loot) {
+      if (item && item.kind === "equip") {
+        const equipped = ctx.equipIfBetter(item);
+        acquired.push(equipped ? `equipped ${ctx.describeItem(item)}` : ctx.describeItem(item));
+        if (!equipped) {
+          player.inventory.push(item);
+        } else {
+          // Rerender inventory if open (prefer UIBridge)
+          let invOpen = false;
+          try {
+            const UB = (ctx && ctx.UIBridge) || null;
+            if (UB && typeof UB.isInventoryOpen === "function") {
+              invOpen = !!UB.isInventoryOpen();
+            }
+          } catch (_) {}
+          if (invOpen && typeof ctx.renderInventory === "function") ctx.renderInventory();
+        }
+      } else if (item && item.kind === "gold") {
+        const existing = player.inventory.find(i => i && i.kind === "gold");
+        if (existing) existing.amount += item.amount;
+        else player.inventory.push({ kind: "gold", amount: item.amount, name: "gold" });
+        acquired.push(item.name || `${item.amount} gold`);
+      } else if (item && item.kind === "potion") {
+        const heal = item.heal || 3;
+        if (player.hp >= player.maxHp) {
+          ctx.addPotionToInventory(heal, item.name);
+          acquired.push(`${item.name || `potion (+${heal} HP)`}`);
+        } else {
+          const before = player.hp;
+          player.hp = Math.min(player.maxHp, player.hp + heal);
+          const gained = player.hp - before;
+          ctx.log(`You drink a potion and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
+          acquired.push(item.name || `potion (+${heal} HP)`);
+        }
+      } else if (item) {
         player.inventory.push(item);
-      } else {
-        // Rerender inventory if open (prefer UIBridge)
-        let invOpen = false;
-        try {
-          const UB = (ctx && ctx.UIBridge) || null;
-          if (UB && typeof UB.isInventoryOpen === "function") {
-            invOpen = !!UB.isInventoryOpen();
-          }
-        } catch (_) {}
-        if (invOpen && typeof ctx.renderInventory === "function") ctx.renderInventory();
+        acquired.push(item.name || (item.kind || "item"));
       }
-    } else if (item && item.kind === "gold") {
-      const existing = player.inventory.find(i => i && i.kind === "gold");
-      if (existing) existing.amount += item.amount;
-      else player.inventory.push({ kind: "gold", amount: item.amount, name: "gold" });
-      acquired.push(item.name || `${item.amount} gold`);
-    } else if (item && item.kind === "potion") {
-      const heal = item.heal || 3;
-      if (player.hp >= player.maxHp) {
-        ctx.addPotionToInventory(heal, item.name);
-        acquired.push(`${item.name || `potion (+${heal} HP)`}`);
-      } else {
-        const before = player.hp;
-        player.hp = Math.min(player.maxHp, player.hp + heal);
-        const gained = player.hp - before;
-        ctx.log(`You drink a potion and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
-        acquired.push(item.name || `potion (+${heal} HP)`);
-      }
-    } else if (item) {
-      player.inventory.push(item);
-      acquired.push(item.name || (item.kind || "item"));
     }
+    // Mark this container emptied
+    container.loot = [];
+    container.looted = true;
   }
 
   ctx.updateUI();
-  container.loot = [];
-  container.looted = true;
   // Persist dungeon state immediately so revisits remember emptied chest/corpse
   try {
     if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
