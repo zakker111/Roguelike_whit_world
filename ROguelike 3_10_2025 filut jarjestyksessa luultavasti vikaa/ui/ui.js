@@ -50,6 +50,7 @@ export const UI = {
 
     // GOD mode elements
     this.els.godOpenBtn = document.getElementById("god-open-btn");
+    this.els.helpOpenBtn = document.getElementById("help-open-btn");
     this.els.godPanel = document.getElementById("god-panel");
     this.els.godHealBtn = document.getElementById("god-heal-btn");
     this.els.godSpawnBtn = document.getElementById("god-spawn-btn");
@@ -173,6 +174,8 @@ export const UI = {
 
     // GOD panel open + actions
     this.els.godOpenBtn?.addEventListener("click", () => this.showGod());
+    // Help panel open (same as F1)
+    this.els.helpOpenBtn?.addEventListener("click", () => this.showHelp());
     this.els.godHealBtn?.addEventListener("click", () => {
       if (typeof this.handlers.onGodHeal === "function") this.handlers.onGodHeal();
     });
