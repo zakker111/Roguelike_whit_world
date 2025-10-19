@@ -2566,12 +2566,23 @@
               lines.push("Plaza/Square: (unknown)");
             }
 
-            // Inn coordinates (door + building rect)
+            // Inn coordinates (door + building rect) + overlap diagnostics
+            function rectOverlap(ax0, ay0, ax1, ay1, bx0, by0, bx1, by1) {
+              const sepX = (ax1 < bx0) || (bx1 < ax0);
+              const sepY = (ay1 < by0) || (by1 < ay0);
+              return !(sepX || sepY);
+            }
+            const pRect = (ctx.townPlazaRect && typeof ctx.townPlazaRect.x0 === "number")
+              ? ctx.townPlazaRect
+              : null;
+
             inns.slice(0, 8).forEach((s, i) => {
               const b = s && s.building ? s.building : null;
               const doorStr = `door (${s.x},${s.y})`;
               if (b && typeof b.x === "number" && typeof b.y === "number" && typeof b.w === "number" && typeof b.h === "number") {
-                lines.push(`Inn ${i + 1}: ${doorStr}, building (${b.x},${b.y}) size ${b.w}x${b.h}`);
+                const bx0 = b.x, by0 = b.y, bx1 = b.x + b.w - 1, by1 = b.y + b.h - 1;
+                const overlapStr = (pRect ? (rectOverlap(bx0, by0, bx1, by1, pRect.x0, pRect.y0, pRect.x1, pRect.y1) ? "OVERLAPS plaza" : "no overlap") : "");
+                lines.push(`Inn ${i + 1}: ${doorStr}, building (${b.x},${b.y}) size ${b.w}x${b.h}${overlapStr ? ` — ${overlapStr}` : ""}`);
               } else {
                 lines.push(`Inn ${i + 1}: ${doorStr}`);
               }

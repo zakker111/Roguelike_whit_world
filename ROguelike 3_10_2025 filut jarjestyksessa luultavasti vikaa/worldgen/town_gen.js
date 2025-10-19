@@ -504,6 +504,15 @@
         ctx.map[yy][xx] = ctx.TILES.FLOOR;
       }
     }
+    // Persist exact plaza rectangle bounds for diagnostics and overlay checks
+    try {
+      ctx.townPlazaRect = {
+        x0: ((plaza.x - (plazaW / 2)) | 0),
+        y0: ((plaza.y - (plazaH / 2)) | 0),
+        x1: ((plaza.x + (plazaW / 2)) | 0),
+        y1: ((plaza.y + (plazaH / 2)) | 0),
+      };
+    } catch (_) {}
 
     // Roads
     const carveRoad = (x1, y1, x2, y2) => {
@@ -1001,10 +1010,20 @@
     try {
       const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (s.type === "inn") || (/inn/i.test(String(s.name || ""))));
       if (!hasInn) {
+        // Pick an unused building near the plaza that does NOT overlap the plaza footprint
         let bInn = null;
         for (const s of scored) {
           const key = `${s.b.x},${s.b.y}`;
-          if (!usedBuildings.has(key)) { bInn = s.b; break; }
+          if (usedBuildings.has(key)) continue;
+          if (overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 0)) continue;
+          bInn = s.b;
+          break;
+        }
+        if (!bInn) {
+          // Fallback: first building that doesn't overlap, even if already used (will be re-used as inn)
+          for (const s of scored) {
+            if (!overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 0)) { bInn = s.b; break; }
+          }
         }
         if (!bInn) bInn = scored.length ? scored[0].b : null;
         if (bInn) {
