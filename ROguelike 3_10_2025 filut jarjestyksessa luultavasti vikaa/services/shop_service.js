@@ -118,6 +118,10 @@ function _priceFor(item) {
       var h = item.heal != null ? item.heal : 5;
       return Math.max(5, Math.min(50, Math.round(h * 2)));
     }
+    if (item.kind === "drink") {
+      var dh = item.heal != null ? item.heal : 2;
+      return Math.max(2, Math.min(30, Math.round(dh * 1.5)));
+    }
     // weapon/armor heuristics
     var base = (item.atk || 0) * 10 + (item.def || 0) * 10;
     var tier = (item.tier || 1);
@@ -131,6 +135,10 @@ function _materializeItem(ctx, entry) {
   var kind = String(entry.kind || "").toLowerCase();
   if (kind === "potion") {
     return { kind: "potion", heal: entry.heal || 5, count: 1, name: "potion (+" + (entry.heal || 5) + " HP)" };
+  }
+  if (kind === "drink") {
+    var nm = entry.name || entry.id || "drink";
+    return { kind: "drink", heal: entry.heal || 2, count: 1, name: nm };
   }
   if (kind === "antidote") {
     return { kind: "antidote", name: "antidote" };
@@ -319,7 +327,7 @@ export function restockIfNeeded(ctx, shop) {
       var idx = -1;
       for (var i = 0; i < st.rows.length; i++) {
         var it = st.rows[i] && st.rows[i].item;
-        if (it && (it.kind === "potion" || it.kind === "antidote" || it.kind === "tool")) { idx = i; break; }
+        if (it && (it.kind === "potion" || it.kind === "drink" || it.kind === "antidote" || it.kind === "tool")) { idx = i; break; }
       }
       if (idx !== -1 && pools2 && pools2.categories) {
         var catKeys = Object.keys(pools2.categories);

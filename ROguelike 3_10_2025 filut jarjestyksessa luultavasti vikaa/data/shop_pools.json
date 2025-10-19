@@ -112,5 +112,26 @@
         ]
       }
     }
+  },
+  "inn": {
+    "categories": {
+      "drinks": {
+        "capPerDay": 8,
+        "entries": [
+          { "id": "ale",  "kind": "drink", "heal": 2,
+            "phaseWeights": { "morning": 1, "midday": 3, "afternoon": 4, "dusk": 5 },
+            "maxPerRestock": 2, "stack": { "min": 1, "max": 2 }
+          },
+          { "id": "mead", "kind": "drink", "heal": 3,
+            "phaseWeights": { "morning": 1, "midday": 4, "afternoon": 4, "dusk": 5 },
+            "maxPerRestock": 2, "stack": { "min": 1, "max": 2 }
+          },
+          { "id": "wine", "kind": "drink", "heal": 4,
+            "phaseWeights": { "morning": 0, "midday": 2, "afternoon": 3, "dusk": 5 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
+          }
+        ]
+      }
+    }
   }
 }

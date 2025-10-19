@@ -663,16 +663,17 @@
     }
     if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
     const it = player.inventory[idx];
-    if (!it || it.kind !== "potion") return;
+    if (!it || (it.kind !== "potion" && it.kind !== "drink")) return;
 
-    const heal = it.heal ?? 3;
+    const heal = it.heal ?? (it.kind === "drink" ? 2 : 3);
     const prev = player.hp;
     player.hp = Math.min(player.maxHp, player.hp + heal);
     const gained = player.hp - prev;
+    const label = it.name ? it.name : (it.kind === "drink" ? "drink" : "potion");
     if (gained > 0) {
-      log(`You drink a potion and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
+      log(`You drink ${label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
     } else {
-      log(`You drink a potion but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
+      log(`You drink ${label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
     }
 
     if (it.count && it.count > 1) {

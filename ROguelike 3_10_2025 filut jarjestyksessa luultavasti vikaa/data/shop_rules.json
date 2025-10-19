@@ -32,5 +32,12 @@
     "buyMultiplier": 0.75,
     "sellMultiplier": 1.0,
     "phasePriceMods": { "morning": 0.95 }
+  },
+  "inn": {
+    "sells": ["drink"],
+    "buys": [],
+    "buyMultiplier": 0.50,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "afternoon": 1.05, "dusk": 1.10 }
   }
 }
