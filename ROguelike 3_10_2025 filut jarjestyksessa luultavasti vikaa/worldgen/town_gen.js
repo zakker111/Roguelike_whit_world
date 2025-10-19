@@ -202,7 +202,8 @@
               if (UB && typeof UB.animateSleep === "function") {
                 UB.animateSleep(ctx, defaultMins, afterTime);
               } else {
-                if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(defaultMins);
+                if (typeof ctx.fastForwardMinutes === "function") ctx.fastForwardMinutes(defaultMins);
+                else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(defaultMins);
                 afterTime(defaultMins);
                 if (typeof ctx.requestDraw === "function") ctx.requestDraw();
               }

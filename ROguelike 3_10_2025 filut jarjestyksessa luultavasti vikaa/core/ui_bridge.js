@@ -384,8 +384,11 @@ function ensureSleepFade() {
 export function animateSleep(ctx, minutes, afterTimeCb) {
   const el = ensureSleepFade();
   if (!el) {
-    // Fallback: advance time without animation
-    try { if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes); } catch (_) {}
+    // Fallback: advance time without animation, but let NPCs act if possible
+    try {
+      if (typeof ctx.fastForwardMinutes === "function") ctx.fastForwardMinutes(minutes);
+      else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
+    } catch (_) {}
     try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
     try { ctx.updateUI && ctx.updateUI(); ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
     return;
@@ -399,7 +402,10 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
       el.style.opacity = "1";
       // once fully black, adjust time and run callback
       setTimeout(() => {
-        try { if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes); } catch (_) {}
+        try {
+          if (typeof ctx.fastForwardMinutes === "function") ctx.fastForwardMinutes(minutes);
+          else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
+        } catch (_) {}
         try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
         try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
         // small hold before fade back up
@@ -414,7 +420,10 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
     });
   } catch (_) {
     // hard fallback
-    try { if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes); } catch (_) {}
+    try {
+      if (typeof ctx.fastForwardMinutes === "function") ctx.fastForwardMinutes(minutes);
+      else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
+    } catch (_) {}
     try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
     try { ctx.updateUI && ctx.updateUI(); ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
   }

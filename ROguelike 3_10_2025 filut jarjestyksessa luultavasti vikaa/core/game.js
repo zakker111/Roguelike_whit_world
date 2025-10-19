@@ -294,6 +294,8 @@
       showLoot: (list) => showLootPanel(list),
       hideLoot: () => hideLootPanel(),
       turn: () => turn(),
+      // Fast-forward helper: run turns to simulate minutes (NPCs act each turn)
+      fastForwardMinutes: (mins) => fastForwardMinutes(mins),
       // World/dungeon generation
       initWorld: () => initWorld(),
       generateLevel: (depth) => generateLevel(depth),
@@ -1007,11 +1009,14 @@
   // Batch multiple draw requests within a frame to avoid redundant renders.
   let _drawQueued = false;
   let _rafId = null;
+  // Suppress draw flag used for fast-forward time (sleep/wait simulations)
+  let _suppressDraw = false;
 
   // Simple perf counters (DEV-only visible in console) + EMA smoothing
   const PERF = { lastTurnMs: 0, lastDrawMs: 0, avgTurnMs: 0, avgDrawMs: 0 };
 
   function requestDraw() {
+    if (_suppressDraw) return;
     const GL = modHandle("GameLoop");
     if (GL && typeof GL.requestDraw === "function") {
       GL.requestDraw();
@@ -1122,6 +1127,21 @@
   }
   function advanceTimeMinutes(mins) {
     turnCounter = TS.advanceMinutes(turnCounter, mins);
+  }
+  // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
+  function fastForwardMinutes(mins) {
+    const total = Math.max(0, (Number(mins) || 0) | 0);
+    if (total <= 0) return 0;
+    const turns = Math.max(1, Math.ceil(total / MINUTES_PER_TURN));
+    _suppressDraw = true;
+    for (let i = 0; i < turns; i++) {
+      try { turn(); } catch (_) { break; }
+    }
+    _suppressDraw = false;
+    // Ensure clock/UI/FOV are consistent after fast-forward
+    recomputeFOV();
+    updateUI();
+    return turns;
   }
 
   
