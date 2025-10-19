@@ -640,8 +640,8 @@
         const oy = Math.floor(ctx.rng() * Math.max(1, blockH - h));
         const fx = bx + 1 + ox;
         const fy = by + 1 + oy;
-        // Avoid overlapping the town plaza footprint
-        if (overlapsPlazaRect(fx, fy, w, h, 0)) continue;
+        // Avoid overlapping the town plaza footprint (with a 1-tile walkway buffer)
+        if (overlapsPlazaRect(fx, fy, w, h, 1)) continue;
         // Enforce at least one tile of floor margin between buildings
         if (!isAreaClearForBuilding(fx, fy, w, h, 1)) continue;
         placeBuilding(fx, fy, w, h);
@@ -679,9 +679,10 @@
 
       // Target size: scale from plaza dims and ensure larger minimums by town size
       const sizeKey = townSize;
-      let minW = 22, minH = 16, scaleW = 1.4, scaleH = 1.25; // defaults for "big"
-      if (sizeKey === "small") { minW = 16; minH = 12; scaleW = 1.25; scaleH = 1.20; }
-      else if (sizeKey === "city") { minW = 28; minH = 18; scaleW = 1.6; scaleH = 1.40; }
+      // Make inn a bit smaller than before to keep plaza spacious
+      let minW = 18, minH = 12, scaleW = 1.20, scaleH = 1.10; // defaults for "big"
+      if (sizeKey === "small") { minW = 14; minH = 10; scaleW = 1.15; scaleH = 1.08; }
+      else if (sizeKey === "city") { minW = 24; minH = 16; scaleW = 1.35; scaleH = 1.25; }
       const targetW = Math.max(minW, Math.floor(plazaW * scaleW));
       const targetH = Math.max(minH, Math.floor(plazaH * scaleH));
 
@@ -741,7 +742,7 @@
             const ny = Math.max(1, Math.min(H - 2 - th, c.y));
             const fits = (nx >= 1 && ny >= 1 && nx + tw < W - 1 && ny + th < H - 1);
             // Also ensure the Inn never overlaps the plaza footprint
-            if (fits && hasMarginClear(nx, ny, tw, th, 1) && !overlapsPlazaRect(nx, ny, tw, th, 0)) {
+            if (fits && hasMarginClear(nx, ny, tw, th, 1) && !overlapsPlazaRect(nx, ny, tw, th, 1)) {
               return { x: nx, y: ny, w: tw, h: th, facing: c.side };
             }
           }
@@ -1015,14 +1016,14 @@
         for (const s of scored) {
           const key = `${s.b.x},${s.b.y}`;
           if (usedBuildings.has(key)) continue;
-          if (overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 0)) continue;
+          if (overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 1)) continue;
           bInn = s.b;
           break;
         }
         if (!bInn) {
-          // Fallback: first building that doesn't overlap, even if already used (will be re-used as inn)
+          // Fallback: first building that doesn't overlap (with 1-tile buffer), even if already used (will be re-used as inn)
           for (const s of scored) {
-            if (!overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 0)) { bInn = s.b; break; }
+            if (!overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 1)) { bInn = s.b; break; }
           }
         }
         if (!bInn) bInn = scored.length ? scored[0].b : null;
