@@ -872,13 +872,11 @@ function tick(ctx) {
         ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
       }
     } catch (_) {}
-    // Victory: no enemies remain
+    // Victory: no enemies remain — keep player in Region Map (no auto-close or victory log)
     try {
       if (!Array.isArray(ctx.enemies) || ctx.enemies.length === 0) {
         ctx.region._isEncounter = false;
         ctx.encounterInfo = null;
-        if (ctx.log) ctx.log("You prevail and return to the overworld.", "good");
-        close(ctx);
         return true;
       }
     } catch (_) {}
