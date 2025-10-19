@@ -841,6 +841,21 @@
             }
           }
           const doorInn = best || ensureDoor(bInn);
+          // Ensure double doors for inn: add adjacent door tile along the wall orientation if missing
+          (function ensureDoubleInnDoors() {
+            const x = doorInn.x, y = doorInn.y;
+            const leftEdge = (x === bInn.x);
+            const rightEdge = (x === bInn.x + bInn.w - 1);
+            const topEdge = (y === bInn.y);
+            const bottomEdge = (y === bInn.y + bInn.h - 1);
+            if (topEdge || bottomEdge) {
+              const x2 = Math.min(bInn.x + bInn.w - 1, x + 1);
+              if (inBounds(ctx, x2, y) && ctx.map[y][x2] === ctx.TILES.WALL) ctx.map[y][x2] = ctx.TILES.DOOR;
+            } else if (leftEdge || rightEdge) {
+              const y2 = Math.min(bInn.y + bInn.h - 1, y + 1);
+              if (inBounds(ctx, x, y2) && ctx.map[y2][x] === ctx.TILES.WALL) ctx.map[y2][x] = ctx.TILES.DOOR;
+            }
+          })();
 
           const nameInn = "Inn";
           const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];

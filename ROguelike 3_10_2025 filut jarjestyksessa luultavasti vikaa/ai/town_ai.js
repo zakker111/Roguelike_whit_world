@@ -205,7 +205,15 @@
         const keyNext = `${next.x},${next.y}`;
         // Allow shopkeepers to step onto their own reserved shop door
         const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
-        const isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
+        let isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
+        // Inn: allow shopkeeper to step onto either of the double door tiles on their building perimeter
+        if (!isOwnDoor && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
+          const B = n._shopRef.building;
+          if (B && ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR) {
+            const onPerimeter = (next.y === B.y || next.y === B.y + B.h - 1 || next.x === B.x || next.x === B.x + B.w - 1);
+            if (onPerimeter) isOwnDoor = true;
+          }
+        }
         const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
         if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
           if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
@@ -243,7 +251,14 @@
       const next = full[1];
       const keyNext = `${next.x},${next.y}`;
       const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
-      const isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
+      let isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
+      if (!isOwnDoor && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
+        const B = n._shopRef.building;
+        if (B && ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR) {
+          const onPerimeter = (next.y === B.y || next.y === B.y + B.h - 1 || next.x === B.x || next.x === B.x + B.w - 1);
+          if (onPerimeter) isOwnDoor = true;
+        }
+      }
       const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
       if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
         occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
@@ -266,7 +281,14 @@
       if (ctx.player.x === nx && ctx.player.y === ny) continue;
       const keyN = `${nx},${ny}`;
       const isReservedN = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyN);
-      const isOwnDoorN = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === nx && n._shopRef.y === ny);
+      let isOwnDoorN = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === nx && n._shopRef.y === ny);
+      if (!isOwnDoorN && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
+        const B = n._shopRef.building;
+        if (B && ctx.map[ny] && ctx.map[ny][nx] === ctx.TILES.DOOR) {
+          const onPerimeter = (ny === B.y || ny === B.y + B.h - 1 || nx === B.x || nx === B.x + B.w - 1);
+          if (onPerimeter) isOwnDoorN = true;
+        }
+      }
       if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
         // Single-step nudge visualization
@@ -359,7 +381,14 @@
           const nx = s.x + d.dx, ny = s.y + d.dy;
           if (isFreeTownFloor(ctx, nx, ny)) { spot = { x: nx, y: ny }; break; }
         }
-        if (!spot) { spot = { x: s.x, y: s.y }; }
+        if (!spot) {
+          // Inn: prefer spawning inside rather than on the door tile to keep entrance clear
+          if (String(s.type || "").toLowerCase() === "inn" && s.inside) {
+            spot = { x: s.inside.x, y: s.inside.y };
+          } else {
+            spot = { x: s.x, y: s.y };
+          }
+        }
         if (npcs.some(n => n.x === spot.x && n.y === spot.y)) continue;
 
         // In smaller towns shopkeepers more often live in their shop; in cities less often
@@ -440,7 +469,7 @@
         let created = 0;
         let tries = 0;
         while (created < residentCount && tries++ < 200) {
-          const pos = randomInteriorSpot(ctx, b) || firstFreeInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
+          const pos = randomInteriorSpot(ctx, b) || firstFreeInteriorSpot(ctx, b) || { x: Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2))), y: Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2))) };
           if (!pos) break;
           if (npcs.some(n => n.x === pos.x && n.y === pos.y)) continue;
           let errand = null;
@@ -545,14 +574,34 @@
         if (propBlocks(p.type)) occ.add(`${p.x},${p.y}`);
       }
     }
-    // Reserve shop door tiles to avoid door blocking by non-shopkeepers
+    // Reserve shop door tiles to avoid door blocking by non-shopkeepers.
+    // For inns, also reserve both tiles of the double door when present.
     const reservedDoors = new Set();
     try {
       const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      const rows = ctx.map.length, cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+      function inB(x, y) { return x >= 0 && y >= 0 && x < cols && y < rows; }
       for (const s of shops) {
         const key = `${s.x},${s.y}`;
         reservedDoors.add(key);
         occ.add(key); // treat as blocked by default
+        // Inn: reserve adjacent DOOR tile to create an unobstructed double-door entry
+        if (String(s.type || "").toLowerCase() === "inn") {
+          const neigh = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
+          ];
+          for (const d of neigh) {
+            const nx = s.x + d.dx, ny = s.y + d.dy;
+            if (!inB(nx, ny)) continue;
+            if (ctx.map[ny][nx] === ctx.TILES.DOOR) {
+              const k2 = `${nx},${ny}`;
+              reservedDoors.add(k2);
+              occ.add(k2);
+              break; // only need one adjacent door to complete the pair
+            }
+          }
+        }
       }
     } catch (_) {}
     ctx._reservedShopDoors = reservedDoors;
