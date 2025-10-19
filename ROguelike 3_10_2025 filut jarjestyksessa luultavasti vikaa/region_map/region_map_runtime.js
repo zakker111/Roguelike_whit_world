@@ -250,8 +250,8 @@ function addRegionCut(key, x, y) {
   _saveCutsMap(map);
 }
 
-// ---- Persistence of animal presence per region (remember areas where animals were seen) ----
-const REGION_ANIMALS_LS_KEY = "REGION_ANIMALS_V1";
+// ---- Persistence of animal presence per region (remember areas where animals were seen and cleared) ----
+const REGION_ANIMALS_LS_KEY = "REGION_ANIMALS_V2";
 function _loadAnimalsMap() {
   try {
     const raw = localStorage.getItem(REGION_ANIMALS_LS_KEY);
@@ -260,6 +260,27 @@ function _loadAnimalsMap() {
     return (obj && typeof obj === "object") ? obj : {};
   } catch (_) { return {}; }
 }
+// Back-compat: migrate old boolean entries from V1 if present
+(function migrateAnimalsV1() {
+  try {
+    const rawOld = localStorage.getItem("REGION_ANIMALS_V1");
+    if (!rawOld) return;
+    const oldMap = JSON.parse(rawOld);
+    if (!oldMap || typeof oldMap !== "object") return;
+    const newMap = _loadAnimalsMap();
+    Object.keys(oldMap).forEach(k => {
+      const v = oldMap[k];
+      if (v) {
+        const cur = newMap[k];
+        if (!cur || typeof cur !== "object") newMap[k] = { seen: true, cleared: false };
+        else newMap[k].seen = true;
+      }
+    });
+    localStorage.setItem(REGION_ANIMALS_LS_KEY, JSON.stringify(newMap));
+    // Optionally clear old key
+    // localStorage.removeItem("REGION_ANIMALS_V1");
+  } catch (_) {}
+})();
 function _saveAnimalsMap(map) {
   try { localStorage.setItem(REGION_ANIMALS_LS_KEY, JSON.stringify(map || {})); } catch (_) {}
 }
@@ -269,13 +290,33 @@ function regionAnimalsKey(worldX, worldY) {
 function markAnimalsSeen(worldX, worldY) {
   const map = _loadAnimalsMap();
   const k = regionAnimalsKey(worldX | 0, worldY | 0);
-  map[k] = true;
+  const cur = (map[k] && typeof map[k] === "object") ? map[k] : { seen: false, cleared: false };
+  cur.seen = true;
+  map[k] = cur;
+  _saveAnimalsMap(map);
+}
+function markAnimalsCleared(worldX, worldY) {
+  const map = _loadAnimalsMap();
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
+  const cur = (map[k] && typeof map[k] === "object") ? map[k] : { seen: false, cleared: false };
+  cur.seen = true;
+  cur.cleared = true;
+  map[k] = cur;
   _saveAnimalsMap(map);
 }
 function animalsSeenHere(worldX, worldY) {
   const map = _loadAnimalsMap();
   const k = regionAnimalsKey(worldX | 0, worldY | 0);
-  return !!map[k];
+  const v = map[k];
+  if (v && typeof v === "object") return !!v.seen;
+  return !!v; // back-compat: boolean true means seen
+}
+function animalsClearedHere(worldX, worldY) {
+  const map = _loadAnimalsMap();
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
+  const v = map[k];
+  if (v && typeof v === "object") return !!v.cleared;
+  return false;
 }
 
 // Robust directional sampling around the player using angular sectors (8-way).
@@ -495,6 +536,9 @@ function open(ctx, size) {
   // Build local sample reflecting biomes near the player.
   let sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
 
+  // If animals were previously cleared for this region, do not spawn new ones this session.
+  const animalsCleared = animalsClearedHere(worldX, worldY);
+
   // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile).
   const playerTile = tile;
   const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, worldX, worldY);
@@ -596,6 +640,8 @@ function open(ctx, size) {
   // Rare neutral animals in region: deer/boar/fox that wander; become hostile only if attacked.
   (function spawnNeutralAnimals() {
     try {
+      // If animals were cleared previously in this region, skip spawning
+      if (animalsCleared) return;
       const WT = World.TILES;
       const rng = getRegionRng(ctx);
       const sample = ctx.region.map;

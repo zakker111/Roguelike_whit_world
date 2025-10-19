@@ -2298,6 +2298,20 @@
       }
     } catch (_) {}
     gainXP(enemy.xp || 5);
+    // If in Region Map and this was an animal, mark region cleared to prevent future spawns
+    try {
+      const inRegion = (typeof window !== "undefined" ? (window.Game && window.Game.getCtx ? window.Game.getCtx().mode === "region" : (this && this.mode === "region")) : false) || (typeof mode === "string" && mode === "region");
+      const wasAnimal = String(enemy.faction || "").startsWith("animal");
+      if (inRegion && wasAnimal) {
+        const ctxRef = getCtx && typeof getCtx === "function" ? getCtx() : null;
+        const pos = ctxRef && ctxRef.region && ctxRef.region.enterWorldPos ? ctxRef.region.enterWorldPos : null;
+        if (pos && typeof window !== "undefined" && window.RegionMapRuntime && typeof window.RegionMapRuntime.markAnimalsCleared === "function") {
+          window.RegionMapRuntime.markAnimalsCleared(pos.x | 0, pos.y | 0);
+          // Update flag immediately
+          try { ctxRef.region._hasKnownAnimals = true; } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 
   
