@@ -297,6 +297,9 @@ export function draw(ctx, view) {
       } else if (n.isSeppo || n.seppo) {
         glyph = "S";
         color = "#f6c177";
+      } else if (n.isShopkeeper || n._shopRef) {
+        // Highlight shopkeepers so the player can spot them easily
+        color = "#ffd166"; // warm gold
       }
 
       // Always draw at full opacity to ensure discoverability, regardless of FOV memory.
