@@ -279,6 +279,8 @@ export function lootHere(ctx) {
     if (!container) {
       // No loot left underfoot; show flavor per fresh examination and avoid repeated spam
       let newlyExamined = 0;
+      let examinedChestCount = 0;
+      let examinedCorpseCount = 0;
       for (const c of list) {
         c.looted = true;
         if (!c._examined) {
@@ -295,11 +297,22 @@ export function lootHere(ctx) {
             }
           } catch (_) {}
           newlyExamined++;
+          if (String(c.kind || "").toLowerCase() === "chest") examinedChestCount++;
+          else examinedCorpseCount++;
         }
       }
       if (newlyExamined > 0) {
-        const line = newlyExamined === 1 ? "You search the corpse but find nothing."
-                                         : "You search the corpses but find nothing.";
+        let line = "";
+        if (examinedChestCount > 0 && examinedCorpseCount === 0) {
+          line = examinedChestCount === 1 ? "You search the chest but find nothing."
+                                          : "You search the chests but find nothing.";
+        } else if (examinedCorpseCount > 0 && examinedChestCount === 0) {
+          line = newlyExamined === 1 ? "You search the corpse but find nothing."
+                                     : "You search the corpses but find nothing.";
+        } else {
+          // Mixed containers underfoot
+          line = "You search the area but find nothing.";
+        }
         ctx.log && ctx.log(line);
       }
       try { save(ctx, false); } catch (_) {}

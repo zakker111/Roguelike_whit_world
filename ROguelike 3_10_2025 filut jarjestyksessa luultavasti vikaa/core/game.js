@@ -1283,6 +1283,14 @@
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
   function doAction() {
+    // Toggle behavior: if Loot UI is open, close it and do nothing else (do not consume a turn)
+    try {
+      const UB = modHandle("UIBridge");
+      if (UB && typeof UB.isLootOpen === "function" && UB.isLootOpen()) {
+        hideLootPanel();
+        return;
+      }
+    } catch (_) {}
     hideLootPanel();
 
     // Town gate exit takes priority over other interactions

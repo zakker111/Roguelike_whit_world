@@ -248,8 +248,15 @@ export function lootHere(ctx) {
   const container = here.find(c => Array.isArray(c.loot) && c.loot.length > 0);
   if (!container) {
     here.forEach(c => c.looted = true);
-    if (here.some(c => c.kind === "chest")) ctx.log("The chest is empty.");
-    else ctx.log("All corpses here have nothing of value.");
+    const chests = here.filter(c => String(c.kind || "").toLowerCase() === "chest").length;
+    const corpses = here.length - chests;
+    if (chests > 0 && corpses === 0) {
+      ctx.log(chests === 1 ? "You search the chest but find nothing." : "You search the chests but find nothing.");
+    } else if (corpses > 0 && chests === 0) {
+      ctx.log(corpses === 1 ? "You search the corpse but find nothing." : "You search the corpses but find nothing.");
+    } else {
+      ctx.log("You search the area but find nothing.");
+    }
     // Persist the looted state immediately and consume a turn,
     // so revisiting the dungeon remembers emptied chests/corpses.
     try {
