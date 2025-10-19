@@ -182,7 +182,7 @@
     return computePath(ctx, occ, sx, sy, tx, ty, opts);
   }
 
-  function stepTowards(ctx, occ, n, tx, ty) {
+  function stepTowards(ctx, occ, n, tx, ty, opts = {}) {
     if (typeof tx !== "number" || typeof ty !== "number") return false;
 
     // Consume existing plan if valid and targeted to the same goal
@@ -239,8 +239,9 @@
       }
     }
 
-    // No valid plan; compute new plan (budgeted)
-    const full = computePathBudgeted(ctx, occ, n.x, n.y, tx, ty);
+    // No valid plan; compute new plan (budgeted or urgent)
+    const pathFn = (opts && opts.urgent) ? computePath : computePathBudgeted;
+    const full = pathFn(ctx, occ, n.x, n.y, tx, ty);
     if (full && full.length >= 2) {
       n._plan = full.slice(0);
       n._planGoal = { x: tx, y: ty };
@@ -686,6 +687,14 @@
     // Defaults: residents/shopkeepers every 2 ticks, pets every 3 ticks, generic 2.
     const tickMod = ((t && typeof t.turnCounter === "number") ? t.turnCounter : 0) | 0;
     function shouldSkipThisTick(n, idx) {
+      // Shopkeepers: during arrive-to-leave window, act every tick (no stride skip)
+      if (n.isShopkeeper && n._shopRef) {
+        const o = (typeof n._shopRef.openMin === "number") ? n._shopRef.openMin : 8 * 60;
+        const c = (typeof n._shopRef.closeMin === "number") ? n._shopRef.closeMin : 18 * 60;
+        const arriveStart = (o - 120 + 1440) % 1440; // same window as work intent
+        const leaveEnd = (c + 10) % 1440;
+        if (inWindow(arriveStart, leaveEnd, minutes, 1440)) return false;
+      }
       if (typeof n._stride !== "number") {
         // Pets act less often, shopkeepers at a moderate rate, residents/generic every tick
         n._stride = n.isPet ? 3 : (n.isShopkeeper ? 2 : 1);
@@ -949,12 +958,13 @@
           if (n.x === door.x && n.y === door.y) {
             // Step just inside to a free interior tile (planned)
             const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, building) || adjTarget || { x: door.x, y: door.y };
-            stepTowards(ctx, occ, n, inSpot.x, inSpot.y);
+            stepTowards(ctx, occ, n, inSpot.x, inSpot.y, { urgent: !!n.isShopkeeper });
             return true;
           }
           // Plan/step toward the door, persist plan across turns
-          stepTowards(ctx, occ, n, door.x, door.y);
-          return true;
+          stepTowards(ctx, occ, n, door.x, door.y, { urgent: !!n.isShopkeeper });
+          return t_coderunewe</;
+e;
         }
       } else {
         // Already inside: go to targetInside or nearest free interior tile
@@ -1026,7 +1036,7 @@
           if (openNow && n._workInside && shop && shop.building) {
             handled = routeIntoBuilding(ctx, occ, n, shop.building, n._workInside);
           } else if (n._work) {
-            handled = stepTowards(ctx, occ, n, n._work.x, n._work.y);
+            handled = stepTowards(ctx, occ, n, n._work.x, n._work.y, { urgent: true });
           }
         } else if (n._home && n._home.building) {
           // Off hours: stagger departure between 18:00-21:00
