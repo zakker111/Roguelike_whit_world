@@ -701,8 +701,11 @@ function open(ctx, size) {
   // Rare neutral animals in region: deer/boar/fox that wander; become hostile only if attacked.
   (function spawnNeutralAnimals() {
     try {
-      // If animals were cleared previously in this region, skip spawning
-      if (animalsCleared) return;
+      // If animals were cleared previously in this region, skip spawning and inform player
+      if (animalsCleared) {
+        try { ctx.log && ctx.log("This area has been cleared; creatures won’t respawn here.", "info"); } catch (_) {}
+        return;
+      }
       const WT = World.TILES;
       const rng = getRegionRng(ctx);
       const sample = ctx.region.map;
@@ -716,8 +719,13 @@ function open(ctx, size) {
       const base = 0
         + (rng() < (0.35 + forestBias * 0.50 + grassBias * 0.35 + beachBias * 0.20) ? 1 : 0)
         + (rng() < (forestBias * 0.45 + grassBias * 0.25) ? 1 : 0);
-      const count = Math.min(3, base);
-      if (count <= 0) return;
+      let count = Math.min(3, base);
+      // Ensure at least one spawn in reasonably wild areas
+      if (count <= 0 && (forestBias + grassBias) > 0.25) count = 1;
+      if (count <= 0) {
+        try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
+        return;
+      }
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
       const types = ["deer","boar","fox"];
       function pickType() {
@@ -754,6 +762,9 @@ function open(ctx, size) {
           markAnimalsSeen(ctx.region.enterWorldPos.x | 0, ctx.region.enterWorldPos.y | 0);
           // Also update flag in this session
           ctx.region._hasKnownAnimals = true;
+          try { ctx.log && ctx.log(`Creatures spotted (${spawned}).`, "notice"); } catch (_) {}
+        } else {
+          try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         }
       } catch (_) {}
     } catch (_) {}
