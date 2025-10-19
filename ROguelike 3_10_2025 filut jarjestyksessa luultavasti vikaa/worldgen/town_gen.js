@@ -1473,7 +1473,7 @@
       if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
       if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;
       if (ctx.townProps.some(p => p.x === x && p.y === y)) continue;
-      // Assign a home immediately to avoid \"no-home\" diagnostics for roamers
+      // Assign a home immediately to avoid "no-home" diagnostics for roamers
       let homeRef = null;
       try {
         const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
@@ -1481,7 +1481,11 @@
           const b = tbs[Math.floor(ctx.rng() * tbs.length)];
           const hx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, (b.x + ((b.w / 2) | 0))));
           const hy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, (b.y + ((b.h / 2) | 0))));
-          homeRef = { building: b, x: hx, y: hy, door: { x: b.door);
+          const door = (b && b.door && typeof b.door.x === "number" && typeof b.door.y === "number") ? { x: b.door.x, y: b.door.y } : null;
+          homeRef = { building: b, x: hx, y: hy, door };
+        }
+      } catch (_) {}
+      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesTavern: ctx.rng() < 0.45, _home: homeRef });
       placed++;
     }
 
