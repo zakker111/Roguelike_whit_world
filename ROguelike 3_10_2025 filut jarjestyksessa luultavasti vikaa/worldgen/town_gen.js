@@ -1453,7 +1453,8 @@
       `Welcome to ${ctx.townName || "our town"}.`,
       ...baseLines
     ];
-    const roamTarget = Math.min(14, Math.max(6, Math.floor((ctx.townBuildings?.length || 12) / 2)));
+    const tbCount = Array.isArray(ctx.townBuildings) ? ctx.townBuildings.length : 12;
+    const roamTarget = Math.min(14, Math.max(6, Math.floor(tbCount / 2)));
     let placed = 0, tries = 0;
     while (placed < roamTarget && tries++ < 800) {
       const onRoad = ctx.rng() < 0.4;
