@@ -674,10 +674,11 @@
     const tickMod = ((t && typeof t.turnCounter === "number") ? t.turnCounter : 0) | 0;
     function shouldSkipThisTick(n, idx) {
       if (typeof n._stride !== "number") {
-        n._stride = n.isPet ? 3 : 2;
+        // Pets act less often, shopkeepers at a moderate rate, residents/generic every tick
+        n._stride = n.isPet ? 3 : (n.isShopkeeper ? 2 : 1);
       }
       if (typeof n._strideOffset !== "number") {
-        // Deterministic offset from index to evenly stagger across the stride
+        // Deterministic offset from initial index to evenly stagger across the stride
         n._strideOffset = idx % n._stride;
       }
       return (tickMod % n._stride) !== n._strideOffset;
@@ -1041,8 +1042,11 @@
 
         if (handled) continue;
 
-        // idle jiggle
-        if (ctx.rng() < 0.9) continue;
+        // idle jiggle: occasionally take a small step to avoid total idling
+        if (ctx.rng() < 0.3) {
+          stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+        }
+        continue;
       }
 
       // Residents: sleep system
@@ -1162,14 +1166,19 @@
       }
 
       // Generic NPCs
-      if (ctx.rng( << 0.25) continue;
+      if (ctx.rng() < 0.2) continue;
       // Occasional tavern visit during the day for roamers who like the tavern
       if (phase === "day" && ctx.tavern && n._likesTavern) {
         const tvB = ctx.tavern.building;
         const seat = chooseTavernSeat(ctx);
         if (tvB && seat) {
           if (routeIntoBuilding(ctx, occ, n, tvB, seat)) {
-            n._tavernStayTurns = randInt(ctx, ;
+            n._tavernStayTurns = randInt(ctx, 2, 6);
+            continue;
+          }
+        }
+      }
+      let target = null;
       if (phase === "morning") target = n._home ? { x: n._home.x, y: n._home.y } : null;
       else if (phase === "day") target = (n._work || ctx.townPlaza);
       else target = (ctx.tavern && n._likesTavern) ? { x: ctx.tavern.door.x, y: ctx.tavern.door.y }
