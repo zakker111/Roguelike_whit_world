@@ -189,12 +189,25 @@ export function draw(ctx, view) {
     }
   }
 
-  // Props: draw only when currently visible (respect FOV/LOS). Do not draw props when occluded by walls.
+  // Props: draw only when currently visible and with a direct LOS from player (no walls between).
   if (Array.isArray(ctx.townProps)) {
     for (const p of ctx.townProps) {
       if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
+
+      // Respect FOV
       const visNow = !!(visible[p.y] && visible[p.y][p.x]);
-      if (!visNow) continue; // skip drawing props that are not currently visible
+      if (!visNow) continue;
+
+      // Extra occlusion: require LOS from player to prop to avoid peeking props behind walls/corners
+      let hasLine = true;
+      try {
+        if (ctx.los && typeof ctx.los.hasLOS === "function") {
+          hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, p.x, p.y);
+        } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
+          hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, p.x, p.y);
+        }
+      } catch (_) {}
+      if (!hasLine) continue;
 
       const screenX = (p.x - startX) * TILE - tileOffsetX;
       const screenY = (p.y - startY) * TILE - tileOffsetY;
