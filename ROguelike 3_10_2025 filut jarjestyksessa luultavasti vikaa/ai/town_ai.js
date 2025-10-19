@@ -372,21 +372,23 @@
       for (const s of shops) {
         // Shop signs are placed during town generation (worldgen/town_gen.js) with outward placement.
         // Avoid duplicating signs here to prevent incorrect sign placement inside buildings like the Inn.
-        // choose spawn near door (prefer not blocking the door tile itself)
+        // choose spawn location:
+        // Inn: always spawn inside to keep entrance clear and ensure availability
+        const isInn = String(s.type || "").toLowerCase() === "inn";
         let spot = null;
-        const neigh = [
-          { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
-          { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
-        ];
-        for (const d of neigh) {
-          const nx = s.x + d.dx, ny = s.y + d.dy;
-          if (isFreeTownFloor(ctx, nx, ny)) { spot = { x: nx, y: ny }; break; }
-        }
-        if (!spot) {
-          // Inn: prefer spawning inside rather than on the door tile to keep entrance clear
-          if (String(s.type || "").toLowerCase() === "inn" && s.inside) {
-            spot = { x: s.inside.x, y: s.inside.y };
-          } else {
+        if (isInn && s.inside) {
+          spot = { x: s.inside.x, y: s.inside.y };
+        } else {
+          // Other shops: prefer adjacent free tile near door (avoid blocking the door tile itself)
+          const neigh = [
+            { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+            { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
+          ];
+          for (const d of neigh) {
+            const nx = s.x + d.dx, ny = s.y + d.dy;
+            if (isFreeTownFloor(ctx, nx, ny)) { spot = { x: nx, y: ny }; break; }
+          }
+          if (!spot) {
             spot = { x: s.x, y: s.y };
           }
         }
@@ -397,7 +399,7 @@
         let baseLive = 0.4;
         if (size === "small") baseLive = 0.6;
         else if (size === "city") baseLive = 0.25;
-        const livesInShop = rng() < baseLive && s.building;
+        const livesInShop = (isInn && s.building) ? true : (rng() < baseLive && s.building);
         let home = null;
         if (livesInShop && s.building) {
           const h = randomInteriorSpot(ctx, s.building) || s.inside || { x: s.x, y: s.y };
@@ -406,6 +408,11 @@
           const b = townBuildings[randInt(ctx, 0, townBuildings.length - 1)];
           const pos = randomInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
           home = { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y } };
+        }
+        // Special-case: innkeeper should always have home at inn as well
+        if (isInn && s.building && !home) {
+          const h2 = randomInteriorSpot(ctx, s.building) || s.inside || { x: s.x, y: s.y };
+          home = { building: s.building, x: h2.x, y: h2.y, door: { x: s.x, y: s.y } };
         }
 
         const shopBase = s.name ? `${s.name} ` : "";
@@ -993,6 +1000,19 @@
       // Shopkeepers with schedule
       if (n.isShopkeeper) {
         const shop = n._shopRef || null;
+        const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
+        if (isInnKeeper && shop && shop.building) {
+          // Innkeeper: always stay inside the inn, regardless of open/close windows
+          const targetInside = n._workInside || shop.inside || { x: shop.x, y: shop.y };
+          const handledInn = routeIntoBuilding(ctx, occ, n, shop.building, targetInside);
+          if (handledInn) continue;
+          // Minor fidget to avoid complete idling
+          if (ctx.rng() < 0.2) {
+            stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          }
+          continue;
+        }
+
         const o = shop ? shop.openMin : 8 * 60;
         const c = shop ? shop.closeMin : 18 * 60;
         // Arrive earlier and leave shortly after close to avoid lingering

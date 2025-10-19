@@ -153,35 +153,83 @@
         if (insideInn) {
           const UB = (typeof window !== "undefined" ? window.UIBridge : (ctx.UIBridge || null));
           const defaultMins = 240; // 4 hours
-          if (UB && typeof UB.showSleep === "function") {
-            UB.showSleep(ctx, {
-              min: 30,
-              max: 720,   // up to 12 hours
-              step: 30,
-              value: defaultMins,
-              onConfirm: (mins) => {
-                try {
-                  const prev = ctx.player.hp;
-                  if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(mins);
-                  // Heal proportionally to duration, capped at 60% of max HP for 10h+ sleep
-                  const healFrac = Math.min(0.6, Math.max(0.08, mins / 600)); // 60% at 10h, minimum 8%
-                  const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
-                  ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
-                  const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
-                  ctx.log(`You sleep for ${mins} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
-                  if (typeof ctx.updateUI === "function") ctx.updateUI();
-                  if (typeof ctx.requestDraw === "function") ctx.requestDraw();
-                } catch (_) {}
-              }
-            });
+          // Determine current day index for \"one night\" rental
+          const tc = (ctx.time && typeof ctx.time.turnCounter === "number") ? ctx.time.turnCounter : 0;
+          const ct = (ctx.time && typeof ctx.time.cycleTurns === "number") ? ctx.time.cycleTurns : 360;
+          const dayIdx = Math.floor(tc / Math.max(1, ct));
+          const price = 8; // gold required for one night
+          const ensurePaidAndSleep = () => {
+            // Helper to open sleep panel with healing callback
+            if (UB && typeof UB.showSleep === "function") {
+              UB.showSleep(ctx, {
+                min: 30,
+                max: 720,   // up to 12 hours
+                step: 30,
+                value: defaultMins,
+                onConfirm: (mins) => {
+                  try {
+                    const prev = ctx.player.hp;
+                    if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(mins);
+                    // Heal proportionally to duration, capped at 60% of max HP for 10h+ sleep
+                    const healFrac = Math.min(0.6, Math.max(0.08, mins / 600)); // 60% at 10h, minimum 8%
+                    const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
+                    ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
+                    const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
+                    ctx.log(`You sleep for ${mins} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+                    if (typeof ctx.updateUI === "function") ctx.updateUI();
+                    if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+                  } catch (_) {}
+                }
+              });
+            } else {
+              // Fallback: simple short rest without modal
+              const prev = ctx.player.hp;
+              if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(defaultMins);
+              const heal = Math.max(1, Math.floor(ctx.player.maxHp * 0.25));
+              ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal);
+              ctx.log(`You sleep at the inn. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+              if (typeof ctx.updateUI === "function") ctx.updateUI();
+            }
+          };
+          // If already paid for this night, allow sleeping
+          if (ctx.player && ctx.player._innStayDay === dayIdx) {
+            ensurePaidAndSleep();
           } else {
-            // Fallback: simple short rest without modal
-            const prev = ctx.player.hp;
-            if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(defaultMins);
-            const heal = Math.max(1, Math.floor(ctx.player.maxHp * 0.25));
-            ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal);
-            ctx.log(`You sleep at the inn. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
-            if (typeof ctx.updateUI === "function") ctx.updateUI();
+            // Require purchasing a night from the innkeeper
+            const innkeeperName = (function () {
+              try {
+                const tv = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+                const found = (ctx.npcs || []).find(n => n && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn");
+                return (found && found.name) ? found.name : "Innkeeper";
+              } catch (_) { return "Innkeeper"; }
+            })();
+            const payText = `Rent a room for the night from the ${innkeeperName} for ${price} gold?`;
+            const pos = { x: p.x, y: p.y };
+            const tryPay = () => {
+              const gold = (ctx.player && typeof ctx.player.gold === "number") ? ctx.player.gold : 0;
+              if (gold < price) {
+                ctx.log(`You need ${price} gold to rent a room. (You have ${gold})`, "warn");
+                return;
+              }
+              // Deduct and mark as paid for the night
+              ctx.player.gold = gold - price;
+              ctx.player._innStayDay = dayIdx;
+              ctx.log(`You pay ${price} gold to the ${innkeeperName} for a room.`, "good");
+              if (typeof ctx.updateUI === "function") ctx.updateUI();
+              ensurePaidAndSleep();
+            };
+            try {
+              if (UB && typeof UB.showConfirm === "function") {
+                UB.showConfirm(ctx, payText, pos, () => tryPay(), () => { /* cancel */ });
+              } else {
+                // Fallback: browser confirm
+                const ok = (typeof window !== "undefined" && window.confirm) ? window.confirm(payText) : true;
+                if (ok) tryPay();
+              }
+            } catch (_) {
+              // If confirm fails, attempt direct pay
+              tryPay();
+            }
           }
         } else {
           ctx.log("Looks comfy. Residents sleep here at night.", "info");
