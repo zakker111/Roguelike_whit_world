@@ -560,26 +560,54 @@
           }
         }
         if (!clear) continue;
-        // Varied house sizes: choose width/height with a triangular distribution favoring mid sizes,
-        // with occasional small cottages and larger homes. Always respect block bounds and minimums.
+        // Strongly varied house sizes:
+        // Mixture of small cottages, medium houses (wide spread), and large/longhouses,
+        // while respecting per-block bounds and minimums.
         const wMin = 6, hMin = 4;
         const wMax = Math.max(wMin, blockW);
         const hMax = Math.max(hMin, blockH);
-        const tri = (range) => Math.max(0, Math.min(range, Math.floor(((ctx.rng() + ctx.rng()) * range) / 2)));
-        let w = wMin + tri(wMax - wMin);
-        let h = hMin + tri(hMax - hMin);
-        // Occasional extremes for more visual variety
+        const randint = (min, max) => min + Math.floor(ctx.rng() * (Math.max(0, (max - min + 1))));
+        let w, h;
         const r = ctx.rng();
-        if (r < 0.15) { // small cottage
-          w = Math.max(wMin, Math.min(wMax, wMin + Math.floor((wMax - wMin) * 0.2)));
-          h = Math.max(hMin, Math.min(hMax, hMin + tri(hMax - hMin)));
-        } else if (r > 0.85) { // larger home
-          w = Math.max(wMin, Math.min(wMax, wMin + Math.floor((wMax - wMin) * 0.9)));
-          h = Math.max(hMin, Math.min(hMax, hMin + tri(hMax - hMin)));
+        if (r < 0.35) {
+          // Small cottage cluster (near minimums)
+          w = randint(wMin, Math.min(wMin + 2, wMax));
+          h = randint(hMin, Math.min(hMin + 2, hMax));
+        } else if (r < 0.75) {
+          // Medium: uniform across full range with aspect ratio nudges
+          w = randint(wMin, wMax);
+          h = randint(hMin, hMax);
+          if (ctx.rng() < 0.5) {
+            const bias = randint(-2, 3);
+            h = Math.max(hMin, Math.min(hMax, h + bias));
+          } else {
+            const bias = randint(-2, 3);
+            w = Math.max(wMin, Math.min(wMax, w + bias));
+          }
+        } else {
+          // Large: near max with occasional longhouses
+          w = Math.max(wMin, Math.min(wMax, wMax - randint(0, Math.min(3, wMax - wMin))));
+          h = Math.max(hMin, Math.min(hMax, hMax - randint(0, Math.min(3, hMax - hMin))));
+          // Longhouse variant: one dimension near max, the other skewed small/medium
+          if (ctx.rng() < 0.4) {
+            if (ctx.rng() < 0.5) {
+              w = Math.max(w, Math.min(wMax, wMax - randint(0, 1)));
+              h = Math.max(hMin, Math.min(hMax, hMin + randint(0, Math.min(4, hMax - hMin))));
+            } else {
+              h = Math.max(h, Math.min(hMax, hMax - randint(0, 1)));
+              w = Math.max(wMin, Math.min(wMax, wMin + randint(0, Math.min(4, wMax - wMin))));
+            }
+          }
         }
-        // Slight aspect ratio bias: nudge height up/down sometimes
-        if (ctx.rng() < 0.5) {
-          h = Math.max(hMin, Math.min(hMax, h + (ctx.rng() < 0.5 ? -1 : +1)));
+        // Rare outliers: either tiny footprint or very large (still within block bounds)
+        if (ctx.rng() < 0.08) {
+          if (ctx.rng() < 0.5) {
+            w = wMin;
+            h = Math.max(hMin, Math.min(hMax, hMin + randint(0, Math.min(2, hMax - hMin))));
+          } else {
+            w = Math.max(wMin, Math.min(wMax, wMax - randint(0, 1)));
+            h = Math.max(hMin, Math.min(hMax, hMax - randint(0, 1)));
+          }
         }
 
         const ox = Math.floor(ctx.rng() * Math.max(1, blockW - w));
