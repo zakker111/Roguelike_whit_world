@@ -1205,8 +1205,9 @@
     const res = { total: 0, reachable: 0, unreachable: 0, skipped: 0, details: [] };
     const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
 
-    // Track resident presence
+    // Track resident presence and type counts
     let residentsTotal = 0, residentsAtHome = 0, residentsAtTavern = 0;
+    let shopkeepersTotal = 0, greetersTotal = 0, petsTotal = 0;
     const tavernB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
 
     // Late-night window determination (02:00–05:00)
@@ -1272,6 +1273,11 @@
     for (let i = 0; i < npcs.length; i++) {
       const n = npcs[i];
 
+      // Type counters
+      if (n.isShopkeeper || n._shopRef) shopkeepersTotal++;
+      if (n.greeter) greetersTotal++;
+      if (n.isPet) petsTotal++;
+
       // Count residents' current locations
       if (n.isResident) {
         residentsTotal++;
@@ -1327,6 +1333,19 @@
     res.total = Math.max(0, npcs.length - res.skipped);
     res.residents = { total: residentsTotal, atHome: residentsAtHome, atTavern: residentsAtTavern };
     res.residentsAwayLate = residentsAwayLate;
+
+    // Type breakdown (for GOD panel diagnostics)
+    const roamersTotal = Math.max(0, res.total - residentsTotal - shopkeepersTotal - greetersTotal);
+    res.counts = {
+      npcTotal: npcs.length,
+      checkedTotal: res.total,
+      pets: petsTotal,
+      residentsTotal,
+      shopkeepersTotal,
+      greetersTotal,
+      roamersTotal
+    };
+
     return res;
   }
 

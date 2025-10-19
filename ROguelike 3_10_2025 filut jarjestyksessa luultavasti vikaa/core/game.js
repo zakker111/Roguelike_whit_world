@@ -2468,6 +2468,27 @@
                 log(summaryLine, unreachableCount ? "warn" : "good");
 
                 const extraLines = [];
+                // Type breakdown (helps explain differences between on-screen NPCs vs residents counted)
+                try {
+                  const counts = res.counts || null;
+                  if (counts) {
+                    const npcTotalAll = (typeof counts.npcTotal === "number") ? counts.npcTotal : (totalChecked + skippedCount);
+                    const pets = (typeof counts.pets === "number") ? counts.pets : skippedCount;
+                    const shopTotal = (typeof counts.shopkeepersTotal === "number") ? counts.shopkeepersTotal : 0;
+                    const greetTotal = (typeof counts.greetersTotal === "number") ? counts.greetersTotal : 0;
+                    const resTotal = (res.residents && typeof res.residents.total === "number") ? res.residents.total
+                                     : ((typeof counts.residentsTotal === "number") ? counts.residentsTotal : 0);
+                    const roamersTotal = (typeof counts.roamersTotal === "number")
+                      ? counts.roamersTotal
+                      : Math.max(0, totalChecked - resTotal - shopTotal - greetTotal);
+                    extraLines.push(`NPCs: ${totalChecked} checked (excluding pets), ${pets} pet(s) skipped. Total in town: ${npcTotalAll}.`);
+                    extraLines.push(`By type: residents ${resTotal}, shopkeepers ${shopTotal}, greeters ${greetTotal}, roamers ${roamersTotal}.`);
+                  } else {
+                    const npcTotalAll = totalChecked + skippedCount;
+                    extraLines.push(`NPCs: ${totalChecked} checked (excluding pets). Total in town: ${npcTotalAll}.`);
+                  }
+                } catch (_) {}
+
                 if (res.residents && typeof res.residents.total === "number") {
                   const r = res.residents;
                   const atHome = (typeof r.atHome === "number") ? r.atHome : 0;
