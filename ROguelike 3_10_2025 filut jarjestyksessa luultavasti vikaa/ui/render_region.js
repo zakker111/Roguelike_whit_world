@@ -230,7 +230,7 @@ export function draw(ctx, view) {
     ctx2d.restore();
   }
 
-  // Label + clock + hint
+  // Label + clock + hint (+ animals memory badge)
   try {
     const prevAlign = ctx2d.textAlign;
     const prevBaseline = ctx2d.textBaseline;
@@ -241,6 +241,13 @@ export function draw(ctx, view) {
     ctx2d.fillText(`Region Map${clock}`, 8, 8);
     ctx2d.fillStyle = "#a1a1aa";
     ctx2d.fillText("Move with arrows. Press G on orange edge to return.", 8, 26);
+    // Animals memory badge
+    try {
+      if (ctx.region && ctx.region._hasKnownAnimals) {
+        ctx2d.fillStyle = "#f0abfc"; // soft magenta accent
+        ctx2d.fillText("Animals known in this area", 8, 44);
+      }
+    } catch (_) {}
     ctx2d.textAlign = prevAlign;
     ctx2d.textBaseline = prevBaseline;
   } catch (_) {}

@@ -250,6 +250,34 @@ function addRegionCut(key, x, y) {
   _saveCutsMap(map);
 }
 
+// ---- Persistence of animal presence per region (remember areas where animals were seen) ----
+const REGION_ANIMALS_LS_KEY = "REGION_ANIMALS_V1";
+function _loadAnimalsMap() {
+  try {
+    const raw = localStorage.getItem(REGION_ANIMALS_LS_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch (_) { return {}; }
+}
+function _saveAnimalsMap(map) {
+  try { localStorage.setItem(REGION_ANIMALS_LS_KEY, JSON.stringify(map || {})); } catch (_) {}
+}
+function regionAnimalsKey(worldX, worldY) {
+  return `a:${worldX},${worldY}`;
+}
+function markAnimalsSeen(worldX, worldY) {
+  const map = _loadAnimalsMap();
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
+  map[k] = true;
+  _saveAnimalsMap(map);
+}
+function animalsSeenHere(worldX, worldY) {
+  const map = _loadAnimalsMap();
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
+  return !!map[k];
+}
+
 // Robust directional sampling around the player using angular sectors (8-way).
 // Bins tiles within a radius into N, NE, E, SE, S, SW, W, NW by angle.
 // Returns predominant tile per sector and a dominance weight (0..1) per cardinal.
@@ -519,6 +547,7 @@ function open(ctx, size) {
     exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
+    _hasKnownAnimals: animalsSeenHere(worldX, worldY)
   };
 
   // Region behaves like a normal mode: use region map as active map and player follows cursor
@@ -602,6 +631,7 @@ function open(ctx, size) {
         }
         return null;
       }
+      let spawned = 0;
       for (let i = 0; i < count; i++) {
         const pos = randomWalkable();
         if (!pos) break;
@@ -609,7 +639,16 @@ function open(ctx, size) {
         const hp = t === "deer" ? 3 : t === "fox" ? 2 : 4;
         const atk = t === "deer" ? 0.6 : t === "fox" ? 0.7 : 0.9;
         ctx.enemies.push({ x: pos.x, y: pos.y, type: t, glyph: (t[0] || "?"), hp, atk, xp: 0, level: 1, faction: "animal", announced: false });
+        spawned++;
       }
+      // Persist animal presence for this region (world coordinates) so we remember later
+      try {
+        if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {
+          markAnimalsSeen(ctx.region.enterWorldPos.x | 0, ctx.region.enterWorldPos.y | 0);
+          // Also update flag in this session
+          ctx.region._hasKnownAnimals = true;
+        }
+      } catch (_) {}
     } catch (_) {}
   })();
 
