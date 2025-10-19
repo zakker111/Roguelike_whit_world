@@ -146,9 +146,48 @@
       case "chair":
         ctx.log("A simple wooden chair.", "info");
         break;
-      case "bed":
-        ctx.log("Looks comfy. Residents sleep here at night.", "info");
+      case "bed": {
+        // Inn beds: open sleep slider modal allowing the player to rest for a chosen duration
+        const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+        const insideInn = tav ? (p.x > tav.x && p.x < tav.x + tav.w - 1 && p.y > tav.y && p.y < tav.y + tav.h - 1) : false;
+        if (insideInn) {
+          const UB = (typeof window !== "undefined" ? window.UIBridge : (ctx.UIBridge || null));
+          const defaultMins = 240; // 4 hours
+          if (UB && typeof UB.showSleep === "function") {
+            UB.showSleep(ctx, {
+              min: 30,
+              max: 720,   // up to 12 hours
+              step: 30,
+              value: defaultMins,
+              onConfirm: (mins) => {
+                try {
+                  const prev = ctx.player.hp;
+                  if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(mins);
+                  // Heal proportionally to duration, capped at 60% of max HP for 10h+ sleep
+                  const healFrac = Math.min(0.6, Math.max(0.08, mins / 600)); // 60% at 10h, minimum 8%
+                  const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
+                  ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
+                  const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
+                  ctx.log(`You sleep for ${mins} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+                  if (typeof ctx.updateUI === "function") ctx.updateUI();
+                  if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+                } catch (_) {}
+              }
+            });
+          } else {
+            // Fallback: simple short rest without modal
+            const prev = ctx.player.hp;
+            if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(defaultMins);
+            const heal = Math.max(1, Math.floor(ctx.player.maxHp * 0.25));
+            ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal);
+            ctx.log(`You sleep at the inn. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
+            if (typeof ctx.updateUI === "function") ctx.updateUI();
+          }
+        } else {
+          ctx.log("Looks comfy. Residents sleep here at night.", "info");
+        }
         break;
+      }
       case "chest":
         ctx.log("The chest is locked.", "warn");
         break;
@@ -1004,11 +1043,18 @@
           if (!occupiedTile(f.x, f.y)) addProp(f.x, f.y, "fireplace", "Fireplace");
         }
 
-        // Beds scaled by area
+        // Beds scaled by area (Inn gets more beds)
         const area = b.w * b.h;
         let bedTarget = Math.max(1, Math.min(3, Math.floor(area / 24)));
+        try {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          if (tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h) {
+            // Ensure a generous number of beds in the inn; cap to avoid clutter
+            bedTarget = Math.max(bedTarget, Math.min(8, Math.floor(area / 12)));
+          }
+        } catch (_) {}
         let bedsPlaced = 0, triesBed = 0;
-        while (bedsPlaced < bedTarget && triesBed++ < 120) {
+        while (bedsPlaced < bedTarget && triesBed++ < 200) {
           const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
           const yy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
           if (!insideFloor(b, xx, yy)) continue;

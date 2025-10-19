@@ -1529,6 +1529,14 @@
           } catch (_) {}
           return false;
         },
+        // Sleep modal (Inn beds)
+        isSleepOpen: () => {
+          try {
+            const UB = modHandle("UIBridge");
+            if (UB && typeof UB.isSleepOpen === "function") return !!UB.isSleepOpen();
+          } catch (_) {}
+          return false;
+        },
         // Confirm dialog gating
         isConfirmOpen: () => {
           try {
@@ -1572,6 +1580,17 @@
           } catch (_) {}
           try {
             if (UB && typeof UB.hideSmoke === "function") UB.hideSmoke(getCtx());
+          } catch (_) {}
+          if (wasOpen) requestDraw();
+        },
+        onHideSleep: () => {
+          const UB = modHandle("UIBridge");
+          let wasOpen = false;
+          try {
+            if (UB && typeof UB.isSleepOpen === "function") wasOpen = !!UB.isSleepOpen();
+          } catch (_) {}
+          try {
+            if (UB && typeof UB.hideSleep === "function") UB.hideSleep(getCtx());
           } catch (_) {}
           if (wasOpen) requestDraw();
         },
