@@ -474,12 +474,13 @@
           if (!pos) break;
           if (npcs.some(n => n.x === pos.x && n.y === pos.y)) continue;
           let errand = null;
+          let errandIsShopDoor = false;
           if (rng() < 0.5) {
             const pb = pickBenchNearPlaza();
-            if (pb) errand = { x: pb.x, y: pb.y };
+            if (pb) { errand = { x: pb.x, y: pb.y }; errandIsShopDoor = false; }
           } else {
             const sd = pickRandomShopDoor();
-            if (sd) errand = sd;
+            if (sd) { errand = sd; errandIsShopDoor = true; }
           }
           let sleepSpot = null;
           if (bedList.length) {
@@ -494,6 +495,7 @@
             isResident: true,
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: sleepSpot },
             _work: errand,
+            _workIsShopDoor: !!errandIsShopDoor,
             _likesTavern: ctx.rng() < 0.45
           });
           created++;
@@ -502,14 +504,17 @@
         if (created === 0) {
           const pos = firstFreeInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
           const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
+          const workToShop = (rng() < 0.5 && shops && shops.length);
+          const workTarget = workToShop ? { x: shops[0].x, y: shops[0].y }
+                                        : (townPlaza ? { x: townPlaza.x, y: townPlaza.y } : null);
           npcs.push({
             x: pos.x, y: pos.y,
             name: rname,
             lines: linesHome,
             isResident: true,
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: null },
-            _work: (rng() < 0.5 && shops && shops.length) ? { x: shops[0].x, y: shops[0].y }
-                  : (townPlaza ? { x: townPlaza.x, y: townPlaza.y } : null),
+            _work: workTarget,
+            _workIsShopDoor: !!workToShop,
             _likesTavern: ctx.rng() < 0.45
           });
         }
@@ -990,8 +995,9 @@
         const shop = n._shopRef || null;
         const o = shop ? shop.openMin : 8 * 60;
         const c = shop ? shop.closeMin : 18 * 60;
-        const arriveStart = (o - 60 + 1440) % 1440;
-        const leaveEnd = (c + 30) % 1440;
+        // Arrive earlier and leave shortly after close to avoid lingering
+        const arriveStart = (o - 120 + 1440) % 1440; // 2 hours before open
+        const leaveEnd = (c + 10) % 1440;           // 10 minutes after close
         const shouldBeAtWorkZone = inWindow(arriveStart, leaveEnd, minutes, 1440);
         const openNow = isOpenAt(shop, minutes, 1440);
 
@@ -1016,11 +1022,11 @@
           }
 
           if (!handled && !departReady) {
-            // Not yet time: linger around shop door or nearby plaza
-            const linger = n._work || (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
+            // Not yet time: linger briefly near the plaza (avoid lingering at shop door)
+            const linger = (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
             if (linger) {
               if (n.x === linger.x && n.y === linger.y) {
-                if (ctx.rng() < 0.9) continue;
+                if (ctx.rng() < 0.7) continue; // reduce idle chance to avoid long lingering
                 stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
               } else {
                 stepTowards(ctx, occ, n, linger.x, linger.y);
@@ -1141,13 +1147,44 @@
               }
             }
           }
-          // Default day behavior
+          // Default day behavior with limited shop-door lingering
           const target = n._work || (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
           if (target) {
             if (n.x === target.x && n.y === target.y) {
-              if (ctx.rng() < 0.9) continue;
-              stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
-              continue;
+              if (n._workIsShopDoor) {
+                if (typeof n._errandStayTurns !== "number" || n._errandStayTurns <= 0) {
+                  n._errandStayTurns = randInt(ctx, 1, 3); // short stay at shop door
+                }
+                n._errandStayTurns--;
+                if (n._errandStayTurns <= 0) {
+                  // Move on: clear errand and pick a bench near plaza if available
+                  n._work = null; n._workIsShopDoor = false;
+                  // Find nearest bench to plaza center
+                  let bench = null;
+                  try {
+                    const benches = (ctx.townProps || []).filter(p => p.type === "bench");
+                    if (benches.length) {
+                      benches.sort((a, b) => manhattan(a.x, a.y, ctx.townPlaza.x, ctx.townPlaza.y) - manhattan(b.x, b.y, ctx.townPlaza.x, ctx.townPlaza.y));
+                      bench = benches[0];
+                    }
+                  } catch (_) {}
+                  if (bench) {
+                    stepTowards(ctx, occ, n, bench.x, bench.y);
+                  } else {
+                    stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                  }
+                  continue;
+                } else {
+                  // brief fidget while waiting
+                  if (ctx.rng() < 0.2) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                  continue;
+                }
+              } else {
+                // Non-shop errand: reduced idle lingering
+                if (ctx.rng() < 0.6) continue;
+                stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                continue;
+              }
             }
             stepTowards(ctx, occ, n, target.x, target.y);
             continue;
