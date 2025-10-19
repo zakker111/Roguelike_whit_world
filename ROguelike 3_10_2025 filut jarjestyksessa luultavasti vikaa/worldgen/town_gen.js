@@ -1380,9 +1380,9 @@
     }
 
     // Visibility reset for town
-    // Make the entire town "seen" on entry so NPCs and props are discoverable immediately,
-    // while visibility still respects FOV and walls during movement.
-    ctx.seen = Array.from({ length: H }, () => Array(W).fill(true));
+    // Start unseen; player FOV will reveal tiles and mark memory.
+    // This prevents props from showing unless the player has actually seen them.
+    ctx.seen = Array.from({ length: H }, () => Array(W).fill(false));
     ctx.visible = Array.from({ length: H }, () => Array(W).fill(false));
     ctx.enemies = [];
     ctx.corpses = [];
