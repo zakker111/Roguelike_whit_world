@@ -536,6 +536,21 @@
     const blockW = Math.max(4, (cfgB.blockW | 0) || 8);
     const blockH = Math.max(3, (cfgB.blockH | 0) || 6);
 
+    // Ensure a margin of clear floor around buildings so walls never touch between buildings
+    function isAreaClearForBuilding(bx, by, bw, bh, margin = 1) {
+      const x0 = Math.max(1, bx - margin);
+      const y0 = Math.max(1, by - margin);
+      const x1 = Math.min(W - 2, bx + bw - 1 + margin);
+      const y1 = Math.min(H - 2, by + bh - 1 + margin);
+      for (let yy = y0; yy <= y1; yy++) {
+        for (let xx = x0; xx <= x1; xx++) {
+          const t = ctx.map[yy][xx];
+          if (t !== ctx.TILES.FLOOR) return false;
+        }
+      }
+      return true;
+    }
+
     for (let by = 2; by < H - (blockH + 4) && buildings.length < maxBuildings; by += Math.max(6, blockH + 2)) {
       for (let bx = 2; bx < W - (blockW + 4) && buildings.length < maxBuildings; bx += Math.max(8, blockW + 2)) {
         let clear = true;
@@ -549,7 +564,11 @@
         const h = Math.max(4, Math.min(blockH, 4 + ((Math.floor(ctx.rng() * 3)))));   // 4..blockH
         const ox = Math.floor(ctx.rng() * Math.max(1, blockW - w));
         const oy = Math.floor(ctx.rng() * Math.max(1, blockH - h));
-        placeBuilding(bx + 1 + ox, by + 1 + oy, w, h);
+        const fx = bx + 1 + ox;
+        const fy = by + 1 + oy;
+        // Enforce at least one tile of floor margin between buildings
+        if (!isAreaClearForBuilding(fx, fy, w, h, 1)) continue;
+        placeBuilding(fx, fy, w, h);
       }
     }
 
@@ -669,6 +688,28 @@
         }
       }
       carveDoubleDoors(innRect);
+
+      // Additional opposite-side door to provide a rear entrance
+      function carveOppositeDoor(rect) {
+        if (rect.facing === "westFacing") {
+          const x = rect.x + rect.w - 1;
+          const cy = (rect.y + (rect.h / 2)) | 0;
+          ctx.map[cy][x] = ctx.TILES.DOOR;
+        } else if (rect.facing === "eastFacing") {
+          const x = rect.x;
+          const cy = (rect.y + (rect.h / 2)) | 0;
+          ctx.map[cy][x] = ctx.TILES.DOOR;
+        } else if (rect.facing === "northFacing") {
+          const y = rect.y + rect.h - 1;
+          const cx = (rect.x + (rect.w / 2)) | 0;
+          ctx.map[y][cx] = ctx.TILES.DOOR;
+        } else {
+          const y = rect.y;
+          const cx = (rect.x + (rect.w / 2)) | 0;
+          ctx.map[y][cx] = ctx.TILES.DOOR;
+        }
+      }
+      carveOppositeDoor(innRect);
 
       // Choose an existing building to replace/represent the inn, prefer the one closest to rect center
       let targetIdx = -1, bestD = Infinity;
@@ -820,8 +861,8 @@
         building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: door.x, y: door.y } },
         inside
       });
-      // Ensure a sign near the shop door with the correct shop name (e.g., Inn)
-      try { addSignNear(door.x, door.y, name); } catch (_) {}
+      // Ensure a sign near the shop door with the correct shop name (e.g., Inn), prefer placing it outside the building
+      try { addShopSign(b, { x: door.x, y: door.y }, name); } catch (_) {}
     }
 
     // Ensure there is always one Inn in town (fallback if not added above)
@@ -886,7 +927,7 @@
             building: { x: bInn.x, y: bInn.y, w: bInn.w, h: bInn.h, door: { x: doorInn.x, y: doorInn.y } },
             inside: insideInn
           });
-          try { addSignNear(doorInn.x, doorInn.y, nameInn); } catch (_) {}
+          try { addShopSign(bInn, doorInn, nameInn); } catch (_) {}
           usedBuildings.add(`${bInn.x},${bInn.y}`);
           try { ctx.tavern = { building: { x: bInn.x, y: bInn.y, w: bInn.w, h: bInn.h }, door: { x: doorInn.x, y: doorInn.y } }; } catch (_) {}
         }
@@ -913,6 +954,36 @@
         if (ctx.map[sy][sx] !== ctx.TILES.FLOOR) continue;
         if (ctx.townProps.some(p => p.x === sx && p.y === sy)) continue;
         addProp(sx, sy, "sign", text);
+        return true;
+      }
+      return false;
+    }
+    // Prefer placing shop signs outside the building, not inside
+    function addShopSign(b, door, text) {
+      function isInside(bld, x, y) {
+        return x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
+      }
+      let dx = 0, dy = 0;
+      if (door.y === b.y) dy = -1;
+      else if (door.y === b.y + b.h - 1) dy = +1;
+      else if (door.x === b.x) dx = -1;
+      else if (door.x === b.x + b.w - 1) dx = +1;
+      const sx = door.x + dx, sy = door.y + dy;
+      if (sx > 0 && sy > 0 && sx < W - 1 && sy < H - 1) {
+        if (!isInside(b, sx, sy) && ctx.map[sy][sx] === ctx.TILES.FLOOR && !ctx.townProps.some(p => p.x === sx && p.y === sy)) {
+          addProp(sx, sy, "sign", text);
+          return true;
+        }
+      }
+      // Fallback: nearby floor tile that is outside the building
+      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+      for (const d of dirs) {
+        const nx = door.x + d.dx, ny = door.y + d.dy;
+        if (nx <= 0 || ny <= 0 || nx >= W - 1 || ny >= H - 1) continue;
+        if (isInside(b, nx, ny)) continue;
+        if (ctx.map[ny][nx] !== ctx.TILES.FLOOR) continue;
+        if (ctx.townProps.some(p => p.x === nx && p.y === ny)) continue;
+        addProp(nx, ny, "sign", text);
         return true;
       }
       return false;
