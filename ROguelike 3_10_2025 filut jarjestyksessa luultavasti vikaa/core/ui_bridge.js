@@ -394,7 +394,7 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
     return;
   }
   try {
-    el.style.transition = "opacity 460ms ease-in-out";
+    el.style.transition = "opacity 260ms ease-in-out";
     el.style.display = "block";
     el.style.opacity = "0";
     // fade to black
@@ -414,9 +414,9 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
           setTimeout(() => {
             el.style.display = "none";
             try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
-          }, 480);
-        }, 220);
-      }, 500);
+          }, 260);
+        }, 140);
+      }, 320);
     });
   } catch (_) {
     // hard fallback
