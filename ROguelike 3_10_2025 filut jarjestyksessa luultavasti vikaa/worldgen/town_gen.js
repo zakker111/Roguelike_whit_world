@@ -1027,6 +1027,14 @@
       function isInside(bld, x, y) {
         return x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
       }
+      // Ensure we never place a sign inside ANY building interior (not just this shop's building)
+      function isInsideAnyBuilding(x, y) {
+        for (let i = 0; i < buildings.length; i++) {
+          const B = buildings[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
       let dx = 0, dy = 0;
       if (door.y === b.y) dy = -1;
       else if (door.y === b.y + b.h - 1) dy = +1;
@@ -1034,17 +1042,18 @@
       else if (door.x === b.x + b.w - 1) dx = +1;
       const sx = door.x + dx, sy = door.y + dy;
       if (sx > 0 && sy > 0 && sx < W - 1 && sy < H - 1) {
-        if (!isInside(b, sx, sy) && ctx.map[sy][sx] === ctx.TILES.FLOOR && !ctx.townProps.some(p => p.x === sx && p.y === sy)) {
+        if (!isInside(b, sx, sy) && !isInsideAnyBuilding(sx, sy) && ctx.map[sy][sx] === ctx.TILES.FLOOR && !ctx.townProps.some(p => p.x === sx && p.y === sy)) {
           addProp(sx, sy, "sign", text);
           return true;
         }
       }
-      // Fallback: nearby floor tile that is outside the building
+      // Fallback: nearby floor tile that is outside the building and not inside any other building
       const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
       for (const d of dirs) {
         const nx = door.x + d.dx, ny = door.y + d.dy;
         if (nx <= 0 || ny <= 0 || nx >= W - 1 || ny >= H - 1) continue;
         if (isInside(b, nx, ny)) continue;
+        if (isInsideAnyBuilding(nx, ny)) continue;
         if (ctx.map[ny][nx] !== ctx.TILES.FLOOR) continue;
         if (ctx.townProps.some(p => p.x === nx && p.y === ny)) continue;
         addProp(nx, ny, "sign", text);
