@@ -182,6 +182,24 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
+  // Corpses overlay: show lootable bodies (neutral gray; darker when looted)
+  try {
+    if (Array.isArray(ctx.corpses)) {
+      for (const c of ctx.corpses) {
+        if (!c) continue;
+        const cx = c.x | 0, cy = c.y | 0;
+        if (cx < startX || cx > endX || cy < startY || cy > endY) continue;
+        if (!visible[cy] || !visible[cy][cx]) continue;
+        const sx = (cx - startX) * TILE - tileOffsetX;
+        const sy = (cy - startY) * TILE - tileOffsetY;
+        ctx2d.save();
+        ctx2d.fillStyle = c.looted ? (COLORS.corpseEmpty || "#6b7280") : (COLORS.corpse || "#c3cad9");
+        ctx2d.fillRect(sx + 8, sy + 8, TILE - 16, TILE - 16);
+        ctx2d.restore();
+      }
+    }
+  } catch (_) {}
+
   // Player marker (cursor) with backdrop (only if visible)
   const px = ctx.player.x, py = ctx.player.y;
   if (px >= startX && px <= endX && py >= startY && py <= endY && visible[py] && visible[py][px]) {

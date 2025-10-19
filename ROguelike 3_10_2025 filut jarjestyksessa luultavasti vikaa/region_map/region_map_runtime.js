@@ -745,7 +745,65 @@ function onAction(ctx) {
     return true;
   }
 
-  // Context action inside region: chop tree if standing on a TREE tile
+  // Context actions inside region:
+  // 1) Loot corpse if standing on one
+  try {
+    const list = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+    const corpseHere = list.find(c => c && c.x === cursor.x && c.y === cursor.y);
+    if (corpseHere) {
+      if (corpseHere.looted) {
+        ctx.log && ctx.log("Nothing to loot here.", "info");
+      } else {
+        // Transfer loot to player inventory; mark looted
+        try {
+          const inv = ctx.player.inventory || (ctx.player.inventory = []);
+          const items = Array.isArray(corpseHere.loot) ? corpseHere.loot.slice() : [];
+          let gained = 0;
+          for (const it of items) {
+            if (!it) continue;
+            // Stack gold/materials smartly
+            if (it.kind === "gold") {
+              let g = inv.find(x => x && x.kind === "gold");
+              if (!g) { g = { kind: "gold", amount: 0, name: "gold" }; inv.push(g); }
+              g.amount = (g.amount | 0) + (it.amount | 0);
+              gained++;
+            } else if (it.kind === "material") {
+              const key = String(it.name || it.type || "material").toLowerCase();
+              const existing = inv.find(x => x && x.kind === "material" && String(x.name || x.type || "").toLowerCase() === key);
+              if (existing) {
+                if (typeof existing.amount === "number") existing.amount += (it.amount | 0) || 1;
+                else if (typeof existing.count === "number") existing.count += (it.amount | 0) || 1;
+                else existing.amount = (it.amount | 0) || 1;
+              } else {
+                inv.push({ kind: "material", type: it.type || "material", name: it.name || "material", amount: (it.amount | 0) || 1 });
+              }
+              gained++;
+            } else if (it.kind === "potion" && typeof it.count === "number") {
+              // Stack same-heal potions
+              const existing = inv.find(x => x && x.kind === "potion" && ((x.heal | 0) === (it.heal | 0)));
+              if (existing) existing.count = (existing.count | 0) + (it.count | 0 || 1);
+              else inv.push({ kind: "potion", heal: it.heal || 3, count: it.count || 1, name: it.name || `potion (+${it.heal || 3} HP)` });
+              gained++;
+            } else {
+              inv.push(it);
+              gained++;
+            }
+          }
+          corpseHere.loot = [];
+          corpseHere.looted = true;
+          ctx.updateUI && ctx.updateUI();
+          ctx.log && ctx.log("You loot the corpse.", gained ? "good" : "info");
+        } catch (_) {
+          ctx.log && ctx.log("Loot failed.", "warn");
+        }
+      }
+      // Request redraw to update corpse color
+      try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+      return true;
+    }
+  } catch (_) {}
+
+  // 2) Chop tree if standing on a TREE tile
   try {
     const WT = World.TILES;
     const t = (ctx.region.map[cursor.y] && ctx.region.map[cursor.y][cursor.x]);

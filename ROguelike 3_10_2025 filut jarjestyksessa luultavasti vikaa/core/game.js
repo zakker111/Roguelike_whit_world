@@ -2276,7 +2276,21 @@
       return { killedBy, wound, via };
     }
     const meta = flavorFromLastHit(last);
-    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true, meta: meta || undefined });
+    // Basic loot: animals drop meat/hide; others drop generic coin scrap
+    let loot = [];
+    try {
+      const isAnimal = String(enemy.faction || "").startsWith("animal");
+      if (isAnimal) {
+        // Simple animal loot (stackable material)
+        const meatAmt = 1 + Math.floor(rng() * 2); // 1–2
+        loot.push({ kind: "material", type: "meat", name: "meat", amount: meatAmt });
+        if (rng() < 0.35) loot.push({ kind: "material", type: "hide", name: "hide", amount: 1 });
+      } else {
+        // Fallback: small gold scrap
+        loot.push({ kind: "gold", amount: 1, name: "gold" });
+      }
+    } catch (_) {}
+    corpses.push({ x: enemy.x, y: enemy.y, loot: loot, looted: loot.length === 0, meta: meta || undefined });
     enemies = enemies.filter(e => e !== enemy);
     try {
       if (occupancy && typeof occupancy.clearEnemy === "function") {
