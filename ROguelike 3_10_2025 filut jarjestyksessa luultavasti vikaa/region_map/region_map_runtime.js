@@ -1036,6 +1036,11 @@ function tick(ctx) {
       if (!Array.isArray(ctx.enemies) || ctx.enemies.length === 0) {
         ctx.region._isEncounter = false;
         ctx.encounterInfo = null;
+        // Also mark this overworld tile as cleared to prevent future animal spawns
+        try {
+          const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
+          if (pos) markAnimalsCleared(pos.x | 0, pos.y | 0);
+        } catch (_) {}
         return true;
       }
     } catch (_) {}
