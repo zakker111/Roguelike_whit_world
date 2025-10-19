@@ -1421,7 +1421,80 @@
           } else if (type === "barrel") log("You stand next to a barrel.", "info");
           else if (type === "crate") log("You stand next to a crate.", "info");
           else if (type === "bench") log("You stand next to a bench.", "info");
-          else if (type === "campfire") log("You stand by a campfire.", "info");
+          else if (type === "campfire") {
+            // Prompt to cook raw meat if available
+            try {
+              const UB = modHandle("UIBridge");
+              // Count raw meat in inventory
+              const inv = ctxMod.player.inventory || [];
+              let rawMeatIdxs = [];
+              let rawCount = 0;
+              for (let i = 0; i < inv.length; i++) {
+                const it = inv[i];
+                if (!it || it.kind !== "material") continue;
+                const nm = String(it.name || it.type || "").toLowerCase();
+                if (nm === "meat") {
+                  const amt = (it.amount | 0) || (it.count | 0) || 1;
+                  rawCount += amt;
+                  rawMeatIdxs.push(i);
+                }
+              }
+              if (rawCount > 0) {
+                const prompt = `You stand by a campfire. Cook ${rawCount} meat?`;
+                const onOk = () => {
+                  // Remove raw meat entries
+                  let remaining = rawCount;
+                  // Remove from largest stacks first
+                  rawMeatIdxs.sort((a, b) => {
+                    const aa = ((inv[a]?.amount | 0) || (inv[a]?.count | 0) || 1);
+                    const bb = ((inv[b]?.amount | 0) || (inv[b]?.count | 0) || 1);
+                    return bb - aa;
+                  });
+                  for (const idx of rawMeatIdxs) {
+                    const it = inv[idx];
+                    if (!it || remaining <= 0) continue;
+                    const amt = (it.amount | 0) || (it.count | 0) || 1;
+                    const take = Math.min(amt, remaining);
+                    const left = amt - take;
+                    if (typeof it.amount === "number") it.amount = left;
+                    else if (typeof it.count === "number") it.count = left;
+                    // remove entry if zero
+                    if (((it.amount | 0) || (it.count | 0) || 0) <= 0) {
+                      inv.splice(idx, 1);
+                    }
+                    remaining -= take;
+                  }
+                  // Add cooked meat stack
+                  const cookedName = "meat (cooked)";
+                  const existingCooked = inv.find(x => x && x.kind === "material" && String(x.name || x.type || "").toLowerCase() === cookedName);
+                  if (existingCooked) {
+                    if (typeof existingCooked.amount === "number") existingCooked.amount += rawCount;
+                    else if (typeof existingCooked.count === "number") existingCooked.count += rawCount;
+                    else existingCooked.amount = rawCount;
+                  } else {
+                    inv.push({ kind: "material", type: "meat_cooked", name: cookedName, amount: rawCount });
+                  }
+                  log(`You cook ${rawCount} meat into ${rawCount} meat (cooked).`, "good");
+                  updateUI();
+                  // Re-render inventory panel if open
+                  try { const UB2 = modHandle("UIBridge"); if (UB2 && typeof UB2.renderInventory === "function") UB2.renderInventory(getCtx()); } catch (_) {}
+                };
+                const onCancel = () => {
+                  log("You warm your hands by the fire.", "info");
+                };
+                if (UB && typeof UB.showConfirm === "function") {
+                  UB.showConfirm(ctxMod, prompt, null, onOk, onCancel);
+                } else {
+                  // Fallback: immediate cook without UI
+                  onOk();
+                }
+              } else {
+                log("You stand by a campfire.", "info");
+              }
+            } catch (_) {
+              log("You stand by a campfire.", "info");
+            }
+          }
           else if (type === "merchant") {
             try {
               const UB = modHandle("UIBridge");
