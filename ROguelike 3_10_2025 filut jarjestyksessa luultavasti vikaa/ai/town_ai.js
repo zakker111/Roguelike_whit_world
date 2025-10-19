@@ -963,8 +963,7 @@
           }
           // Plan/step toward the door, persist plan across turns
           stepTowards(ctx, occ, n, door.x, door.y, { urgent: !!n.isShopkeeper });
-          return t_coderunewe</;
-e;
+          return true;
         }
       } else {
         // Already inside: go to targetInside or nearest free interior tile
