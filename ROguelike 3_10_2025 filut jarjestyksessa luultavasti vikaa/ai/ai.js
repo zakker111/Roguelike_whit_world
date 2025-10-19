@@ -137,8 +137,13 @@ export function enemiesAct(ctx) {
     const eFac = factionOf(e);
 
     // Choose a target among player and hostile factions
-    let target = { kind: "player", x: player.x, y: player.y, ref: null, faction: "player" };
-    let bestDist = Math.abs(player.x - e.x) + Math.abs(player.y - e.y);
+    // Neutral animals do not target or pursue the player unless made hostile.
+    let target = null;
+    let bestDist = Infinity;
+    if (eFac !== "animal") {
+      target = { kind: "player", x: player.x, y: player.y, ref: null, faction: "player" };
+      bestDist = Math.abs(player.x - e.x) + Math.abs(player.y - e.y);
+    }
 
     for (const other of enemies) {
       if (!other || other === e) continue;
@@ -269,6 +274,20 @@ export function enemiesAct(ctx) {
           if (moved) continue;
         }
       }
+    }
+
+    // If no target (e.g., neutral animal), optionally wander and skip attacks
+    if (!target) {
+      if (chance(0.4)) {
+        const d = WANDER_DIRS[randInt(0, WANDER_DIRS.length - 1)];
+        const nx = e.x + d.x, ny = e.y + d.y;
+        if (isFree(nx, ny)) {
+          occClearEnemy(occ, e.x, e.y);
+          e.x = nx; e.y = ny;
+          occSetEnemy(occ, e.x, e.y);
+        }
+      }
+      continue;
     }
 
     // Adjacent attack vs chosen target

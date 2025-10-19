@@ -1014,6 +1014,8 @@
 
   // Simple perf counters (DEV-only visible in console) + EMA smoothing
   const PERF = { lastTurnMs: 0, lastDrawMs: 0, avgTurnMs: 0, avgDrawMs: 0 };
+  // Hint cooldown to avoid spamming animal proximity logs
+  let lastAnimalHintTurn = -100;
 
   function requestDraw() {
     if (_suppressDraw) return;
@@ -1419,7 +1421,80 @@
           } else if (type === "barrel") log("You stand next to a barrel.", "info");
           else if (type === "crate") log("You stand next to a crate.", "info");
           else if (type === "bench") log("You stand next to a bench.", "info");
-          else if (type === "campfire") log("You stand by a campfire.", "info");
+          else if (type === "campfire") {
+            // Prompt to cook raw meat if available
+            try {
+              const UB = modHandle("UIBridge");
+              // Count raw meat in inventory
+              const inv = ctxMod.player.inventory || [];
+              let rawMeatIdxs = [];
+              let rawCount = 0;
+              for (let i = 0; i < inv.length; i++) {
+                const it = inv[i];
+                if (!it || it.kind !== "material") continue;
+                const nm = String(it.name || it.type || "").toLowerCase();
+                if (nm === "meat") {
+                  const amt = (it.amount | 0) || (it.count | 0) || 1;
+                  rawCount += amt;
+                  rawMeatIdxs.push(i);
+                }
+              }
+              if (rawCount > 0) {
+                const prompt = `You stand by a campfire. Cook ${rawCount} meat?`;
+                const onOk = () => {
+                  // Remove raw meat entries
+                  let remaining = rawCount;
+                  // Remove from largest stacks first
+                  rawMeatIdxs.sort((a, b) => {
+                    const aa = ((inv[a]?.amount | 0) || (inv[a]?.count | 0) || 1);
+                    const bb = ((inv[b]?.amount | 0) || (inv[b]?.count | 0) || 1);
+                    return bb - aa;
+                  });
+                  for (const idx of rawMeatIdxs) {
+                    const it = inv[idx];
+                    if (!it || remaining <= 0) continue;
+                    const amt = (it.amount | 0) || (it.count | 0) || 1;
+                    const take = Math.min(amt, remaining);
+                    const left = amt - take;
+                    if (typeof it.amount === "number") it.amount = left;
+                    else if (typeof it.count === "number") it.count = left;
+                    // remove entry if zero
+                    if (((it.amount | 0) || (it.count | 0) || 0) <= 0) {
+                      inv.splice(idx, 1);
+                    }
+                    remaining -= take;
+                  }
+                  // Add cooked meat stack
+                  const cookedName = "meat (cooked)";
+                  const existingCooked = inv.find(x => x && x.kind === "material" && String(x.name || x.type || "").toLowerCase() === cookedName);
+                  if (existingCooked) {
+                    if (typeof existingCooked.amount === "number") existingCooked.amount += rawCount;
+                    else if (typeof existingCooked.count === "number") existingCooked.count += rawCount;
+                    else existingCooked.amount = rawCount;
+                  } else {
+                    inv.push({ kind: "material", type: "meat_cooked", name: cookedName, amount: rawCount });
+                  }
+                  log(`You cook ${rawCount} meat into ${rawCount} meat (cooked).`, "good");
+                  updateUI();
+                  // Re-render inventory panel if open
+                  try { const UB2 = modHandle("UIBridge"); if (UB2 && typeof UB2.renderInventory === "function") UB2.renderInventory(getCtx()); } catch (_) {}
+                };
+                const onCancel = () => {
+                  log("You warm your hands by the fire.", "info");
+                };
+                if (UB && typeof UB.showConfirm === "function") {
+                  UB.showConfirm(ctxMod, prompt, null, onOk, onCancel);
+                } else {
+                  // Fallback: immediate cook without UI
+                  onOk();
+                }
+              } else {
+                log("You stand by a campfire.", "info");
+              }
+            } catch (_) {
+              log("You stand by a campfire.", "info");
+            }
+          }
           else if (type === "merchant") {
             try {
               const UB = modHandle("UIBridge");
@@ -1771,6 +1846,35 @@
       if (walkable) {
         player.x = nx; player.y = ny;
         updateCamera();
+
+        // Log animal proximity hint based on biome and clear-state (cooldown-protected)
+        try {
+          const W = modHandle("World");
+          const WT = W && W.TILES ? W.TILES : null;
+          const tileHere = world && world.map ? world.map[ny][nx] : null;
+          const isAnimalBiome = WT ? (tileHere === WT.FOREST || tileHere === WT.GRASS || tileHere === WT.BEACH) : true;
+          // Check cleared state via RegionMapRuntime to avoid hints in cleared regions
+          let cleared = false;
+          try {
+            if (typeof window !== "undefined" && window.RegionMapRuntime && typeof window.RegionMapRuntime.animalsClearedHere === "function") {
+              cleared = !!window.RegionMapRuntime.animalsClearedHere(nx | 0, ny | 0);
+            }
+          } catch (_) {}
+          if (isAnimalBiome && !cleared) {
+            const gap = turnCounter - lastAnimalHintTurn;
+            if (gap > 30) {
+              const chanceP = 0.35; // base chance to hint
+              const roll = (typeof window !== "undefined" && window.RNG && typeof window.RNG.chance === "function")
+                ? window.RNG.chance(chanceP)
+                : ((Math.random() < chanceP));
+              if (roll) {
+                log("There might be creatures nearby.", "notice");
+                lastAnimalHintTurn = turnCounter;
+              }
+            }
+          }
+        } catch (_) {}
+
         // Encounter roll before advancing time so acceptance can switch mode first
         try {
           const ES = modHandle("EncounterService");
@@ -2276,7 +2380,21 @@
       return { killedBy, wound, via };
     }
     const meta = flavorFromLastHit(last);
-    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true, meta: meta || undefined });
+    // Basic loot: animals drop meat/hide; others drop generic coin scrap
+    let loot = [];
+    try {
+      const isAnimal = String(enemy.faction || "").startsWith("animal");
+      if (isAnimal) {
+        // Simple animal loot (stackable material)
+        const meatAmt = 1 + Math.floor(rng() * 2); // 1–2
+        loot.push({ kind: "material", type: "meat", name: "meat", amount: meatAmt });
+        if (rng() < 0.35) loot.push({ kind: "material", type: "hide", name: "hide", amount: 1 });
+      } else {
+        // Fallback: small gold scrap
+        loot.push({ kind: "gold", amount: 1, name: "gold" });
+      }
+    } catch (_) {}
+    corpses.push({ x: enemy.x, y: enemy.y, loot: loot, looted: loot.length === 0, meta: meta || undefined });
     enemies = enemies.filter(e => e !== enemy);
     try {
       if (occupancy && typeof occupancy.clearEnemy === "function") {
@@ -2284,6 +2402,18 @@
       }
     } catch (_) {}
     gainXP(enemy.xp || 5);
+    // If in Region Map and this was an animal, mark region cleared to prevent future spawns
+    try {
+      const wasAnimal = String(enemy.faction || "").startsWith("animal");
+      if (mode === "region" && wasAnimal && region && region.enterWorldPos) {
+        const pos = region.enterWorldPos;
+        if (typeof window !== "undefined" && window.RegionMapRuntime && typeof window.RegionMapRuntime.markAnimalsCleared === "function") {
+          window.RegionMapRuntime.markAnimalsCleared(pos.x | 0, pos.y | 0);
+        }
+        // Update flag immediately in current session
+        try { region._hasKnownAnimals = true; } catch (_) {}
+      }
+    } catch (_) {}
   }
 
   

@@ -149,9 +149,9 @@ export function draw(ctx, view) {
     ctx2d.restore();
   } catch (_) {}
 
-  // Enemies overlay (draw simple markers for active region-encounter)
+  // Entities overlay: draw markers for any enemies/animals in the region when visible
   try {
-    if (ctx.region && ctx.region._isEncounter && Array.isArray(ctx.enemies)) {
+    if (Array.isArray(ctx.enemies)) {
       for (const e of ctx.enemies) {
         if (!e) continue;
         const ex = e.x | 0, ey = e.y | 0;
@@ -159,10 +159,50 @@ export function draw(ctx, view) {
         if (!visible[ey] || !visible[ey][ex]) continue;
         const sx = (ex - startX) * TILE - tileOffsetX;
         const sy = (ey - startY) * TILE - tileOffsetY;
-        const c = (typeof ctx.enemyColor === "function") ? ctx.enemyColor(e.type || "enemy") : "#f7768e";
+        // Color scheme: neutral animals are amber; hostile use enemyColor fallback to red
+        const faction = String(e.faction || "");
+        let color = "#f7768e"; // hostile default
+        if (faction === "animal") color = "#e9d5a1";            // neutral animal (deer/fox/boar)
+        else if (typeof ctx.enemyColor === "function") {
+          try { color = ctx.enemyColor(e.type || "enemy"); } catch (_) {}
+        }
         ctx2d.save();
-        ctx2d.fillStyle = c;
-        ctx2d.fillRect(sx + 6, sy + 6, TILE - 12, TILE - 12);
+        // Draw a circle for animals; square for hostiles
+        if (faction === "animal") {
+          ctx2d.beginPath();
+          ctx2d.arc(sx + TILE / 2, sy + TILE / 2, Math.max(6, (TILE - 12) / 2), 0, Math.PI * 2);
+          ctx2d.fillStyle = color;
+          ctx2d.fill();
+        } else {
+          ctx2d.fillStyle = color;
+          ctx2d.fillRect(sx + 6, sy + 6, TILE - 12, TILE - 12);
+        }
+        // Optional glyph letter inside marker for identification
+        try {
+          const half = TILE / 2;
+          ctx2d.textAlign = "center";
+          ctx2d.textBaseline = "middle";
+          ctx2d.fillStyle = "#0b0f16";
+          ctx2d.fillText(String((e.glyph && String(e.glyph).trim()) ? e.glyph : (e.type ? e.type.charAt(0) : "?")), sx + half, sy + half);
+        } catch (_) {}
+        ctx2d.restore();
+      }
+    }
+  } catch (_) {}
+
+  // Corpses overlay: show lootable bodies as a '%' glyph (neutral gray; darker when looted)
+  try {
+    if (Array.isArray(ctx.corpses)) {
+      for (const c of ctx.corpses) {
+        if (!c) continue;
+        const cx = c.x | 0, cy = c.y | 0;
+        if (cx < startX || cx > endX || cy < startY || cy > endY) continue;
+        if (!visible[cy] || !visible[cy][cx]) continue;
+        const sx = (cx - startX) * TILE - tileOffsetX;
+        const sy = (cy - startY) * TILE - tileOffsetY;
+        ctx2d.save();
+        const fg = c.looted ? (COLORS.corpseEmpty || "#6b7280") : (COLORS.corpse || "#c3cad9");
+        RenderCore.drawGlyph(ctx2d, sx, sy, "%", fg, TILE);
         ctx2d.restore();
       }
     }
@@ -190,7 +230,7 @@ export function draw(ctx, view) {
     ctx2d.restore();
   }
 
-  // Label + clock + hint
+  // Label + clock + hint (+ animals memory badge)
   try {
     const prevAlign = ctx2d.textAlign;
     const prevBaseline = ctx2d.textBaseline;
@@ -201,6 +241,13 @@ export function draw(ctx, view) {
     ctx2d.fillText(`Region Map${clock}`, 8, 8);
     ctx2d.fillStyle = "#a1a1aa";
     ctx2d.fillText("Move with arrows. Press G on orange edge to return.", 8, 26);
+    // Animals memory badge
+    try {
+      if (ctx.region && ctx.region._hasKnownAnimals) {
+        ctx2d.fillStyle = "#f0abfc"; // soft magenta accent
+        ctx2d.fillText("Animals known in this area", 8, 44);
+      }
+    } catch (_) {}
     ctx2d.textAlign = prevAlign;
     ctx2d.textBaseline = prevBaseline;
   } catch (_) {}

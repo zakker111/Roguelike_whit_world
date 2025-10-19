@@ -1,5 +1,22 @@
 # Game Version History
-Last updated: 2025-10-19 00:00 UTC
+Last updated: 2025-10-19 12:00 UTC
+
+v1.36.6 — Region Map persistence, animals cleared (no respawn), overworld hints, corpse glyph, and campfire cooking
+- Region Map
+  - Persistent per-overworld-tile state: saves/restores map and corpses when reopening from the same world tile.
+  - Animals memory: stores “seen” and “cleared” flags per tile; skips animal spawning on tiles marked cleared.
+  - Corpses render with a '%' glyph; looting logs a concise summary of items picked up.
+  - Victory flow: removing all enemies no longer auto-closes or logs “You prevail…”. You remain in Region Map.
+- Animal behavior
+  - Neutral animals (deer/fox/boar) wander and do not attack unless the player attacks them; only the attacked animal turns hostile.
+  - No respawn rule enforced: killing animals in Region Map or ending an encounter with no enemies marks the tile as cleared; future re-entries skip spawns.
+  - Overworld proximity hint: when entering forest/grass/beach tiles that aren’t cleared, occasionally logs “There might be creatures nearby.” (cooldown-protected).
+- UI/Render
+  - Region Map UI shows “Animals known in this area” when applicable.
+  - Region Map entities: neutral animals render as circles; hostiles as squares.
+- Campfire cooking (encounters)
+  - Standing on a campfire with raw meat prompts: “Cook N meat?”. On confirm, converts raw “meat” to “meat (cooked)” in inventory and logs the result.
+- Deployment: https://mcjmwd0u5cks.cosine.page
 
 v1.36.5 — Underfoot loot consolidation + Help button in HUD
 - Changed: entities/loot.js

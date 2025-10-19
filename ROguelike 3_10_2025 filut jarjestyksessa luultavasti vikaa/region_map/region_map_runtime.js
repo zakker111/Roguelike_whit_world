@@ -250,6 +250,119 @@ function addRegionCut(key, x, y) {
   _saveCutsMap(map);
 }
 
+// ---- Persistence of animal presence per region (remember areas where animals were seen and cleared) ----
+const REGION_ANIMALS_LS_KEY = "REGION_ANIMALS_V2";
+function _loadAnimalsMap() {
+  try {
+    const raw = localStorage.getItem(REGION_ANIMALS_LS_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch (_) { return {}; }
+}
+// Back-compat: migrate old boolean entries from V1 if present
+(function migrateAnimalsV1() {
+  try {
+    const rawOld = localStorage.getItem("REGION_ANIMALS_V1");
+    if (!rawOld) return;
+    const oldMap = JSON.parse(rawOld);
+    if (!oldMap || typeof oldMap !== "object") return;
+    const newMap = _loadAnimalsMap();
+    Object.keys(oldMap).forEach(k => {
+      const v = oldMap[k];
+      if (v) {
+        const cur = newMap[k];
+        if (!cur || typeof cur !== "object") newMap[k] = { seen: true, cleared: false };
+        else newMap[k].seen = true;
+      }
+    });
+    localStorage.setItem(REGION_ANIMALS_LS_KEY, JSON.stringify(newMap));
+    // Optionally clear old key
+    // localStorage.removeItem("REGION_ANIMALS_V1");
+  } catch (_) {}
+})();
+function _saveAnimalsMap(map) {
+  try { localStorage.setItem(REGION_ANIMALS_LS_KEY, JSON.stringify(map || {})); } catch (_) {}
+}
+function regionAnimalsKey(worldX, worldY) {
+  return `a:${worldX},${worldY}`;
+}
+function markAnimalsSeen(worldX, worldY) {
+  const map = _loadAnimalsMap();
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
+  const cur = (map[k] && typeof map[k] === "object") ? map[k] : { seen: false, cleared: false };
+  cur.seen = true;
+  map[k] = cur;
+  _saveAnimalsMap(map);
+}
+function markAnimalsCleared(worldX, worldY) {
+  const map = _loadAnimalsMap();
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
+  const cur = (map[k] && typeof map[k] === "object") ? map[k] : { seen: false, cleared: false };
+  cur.seen = true;
+  cur.cleared = true;
+  map[k] = cur;
+  _saveAnimalsMap(map);
+}
+function animalsSeenHere(worldX, worldY) {
+  const map = _loadAnimalsMap();
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
+  const v = map[k];
+  if (v && typeof v === "object") return !!v.seen;
+  return !!v; // back-compat: boolean true means seen
+}
+function animalsClearedHere(worldX, worldY) {
+  const map = _loadAnimalsMap();
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
+  const v = map[k];
+  if (v && typeof v === "object") return !!v.cleared;
+  return false;
+}
+
+// ---- Persistence of per-tile Region Map state (map + corpses) ----
+const REGION_STATE_LS_KEY = "REGION_STATE_V1";
+function _loadRegionStateMap() {
+  try {
+    const raw = localStorage.getItem(REGION_STATE_LS_KEY);
+    if (!raw) return {};
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch (_) { return {}; }
+}
+function _saveRegionStateMap(map) {
+  try { localStorage.setItem(REGION_STATE_LS_KEY, JSON.stringify(map || {})); } catch (_) {}
+}
+function regionStateKey(worldX, worldY) {
+  return `s:${worldX},${worldY}`;
+}
+function saveRegionState(ctx) {
+  try {
+    const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
+    if (!pos) return;
+    const key = regionStateKey(pos.x | 0, pos.y | 0);
+    const mapObj = _loadRegionStateMap();
+    // Filter corpses within the region bounds
+    const corpses = Array.isArray(ctx.corpses) ? ctx.corpses.map(c => ({ x: c.x|0, y: c.y|0, looted: !!c.looted, loot: Array.isArray(c.loot) ? c.loot : [] })) : [];
+    const st = {
+      w: (ctx.region.width | 0),
+      h: (ctx.region.height | 0),
+      map: ctx.region.map, // small numeric grid
+      corpses
+    };
+    mapObj[key] = st;
+    _saveRegionStateMap(mapObj);
+  } catch (_) {}
+}
+function loadRegionState(worldX, worldY) {
+  try {
+    const key = regionStateKey(worldX | 0, worldY | 0);
+    const mapObj = _loadRegionStateMap();
+    const st = mapObj[key];
+    if (st && typeof st === "object" && Array.isArray(st.map) && st.w && st.h) return st;
+  } catch (_) {}
+  return null;
+}
+
 // Robust directional sampling around the player using angular sectors (8-way).
 // Bins tiles within a radius into N, NE, E, SE, S, SW, W, NW by angle.
 // Returns predominant tile per sector and a dominance weight (0..1) per cardinal.
@@ -464,8 +577,20 @@ function open(ctx, size) {
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
 
-  // Build local sample reflecting biomes near the player.
-  let sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
+  // If persisted state exists for this tile, load it; else build a fresh sample.
+  const persisted = loadRegionState(worldX, worldY);
+  let sample = null;
+  let restoredCorpses = null;
+  if (persisted && Array.isArray(persisted.map) && (persisted.w | 0) === width && (persisted.h | 0) === height) {
+    sample = persisted.map;
+    restoredCorpses = Array.isArray(persisted.corpses) ? persisted.corpses : [];
+  } else {
+    // Build local sample reflecting biomes near the player.
+    sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
+  }
+
+  // If animals were previously cleared for this region, do not spawn new ones this session.
+  const animalsCleared = animalsClearedHere(worldX, worldY);
 
   // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile).
   const playerTile = tile;
@@ -519,6 +644,7 @@ function open(ctx, size) {
     exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
+    _hasKnownAnimals: animalsSeenHere(worldX, worldY)
   };
 
   // Region behaves like a normal mode: use region map as active map and player follows cursor
@@ -526,6 +652,14 @@ function open(ctx, size) {
   // Initialize FOV memory and visibility (unseen by default; recomputeFOV will fill visible)
   ctx.seen = Array.from({ length: height }, () => Array(width).fill(false));
   ctx.visible = Array.from({ length: height }, () => Array(width).fill(false));
+  // Restore corpses saved for this region if present
+  try {
+    if (restoredCorpses && Array.isArray(restoredCorpses)) {
+      ctx.corpses = restoredCorpses;
+    } else {
+      ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+    }
+  } catch (_) {}
   // Move player to region cursor (camera centers on player)
   ctx.player.x = ctx.region.cursor.x | 0;
   ctx.player.y = ctx.region.cursor.y | 0;
@@ -567,6 +701,11 @@ function open(ctx, size) {
   // Rare neutral animals in region: deer/boar/fox that wander; become hostile only if attacked.
   (function spawnNeutralAnimals() {
     try {
+      // If animals were cleared previously in this region, skip spawning and inform player
+      if (animalsCleared) {
+        try { ctx.log && ctx.log("This area has been cleared; creatures won’t respawn here.", "info"); } catch (_) {}
+        return;
+      }
       const WT = World.TILES;
       const rng = getRegionRng(ctx);
       const sample = ctx.region.map;
@@ -580,8 +719,13 @@ function open(ctx, size) {
       const base = 0
         + (rng() < (0.35 + forestBias * 0.50 + grassBias * 0.35 + beachBias * 0.20) ? 1 : 0)
         + (rng() < (forestBias * 0.45 + grassBias * 0.25) ? 1 : 0);
-      const count = Math.min(3, base);
-      if (count <= 0) return;
+      let count = Math.min(3, base);
+      // Ensure at least one spawn in reasonably wild areas
+      if (count <= 0 && (forestBias + grassBias) > 0.25) count = 1;
+      if (count <= 0) {
+        try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
+        return;
+      }
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
       const types = ["deer","boar","fox"];
       function pickType() {
@@ -602,6 +746,7 @@ function open(ctx, size) {
         }
         return null;
       }
+      let spawned = 0;
       for (let i = 0; i < count; i++) {
         const pos = randomWalkable();
         if (!pos) break;
@@ -609,7 +754,19 @@ function open(ctx, size) {
         const hp = t === "deer" ? 3 : t === "fox" ? 2 : 4;
         const atk = t === "deer" ? 0.6 : t === "fox" ? 0.7 : 0.9;
         ctx.enemies.push({ x: pos.x, y: pos.y, type: t, glyph: (t[0] || "?"), hp, atk, xp: 0, level: 1, faction: "animal", announced: false });
+        spawned++;
       }
+      // Persist animal presence for this region (world coordinates) so we remember later
+      try {
+        if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {
+          markAnimalsSeen(ctx.region.enterWorldPos.x | 0, ctx.region.enterWorldPos.y | 0);
+          // Also update flag in this session
+          ctx.region._hasKnownAnimals = true;
+          try { ctx.log && ctx.log(`Creatures spotted (${spawned}).`, "notice"); } catch (_) {}
+        } else {
+          try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
+        }
+      } catch (_) {}
     } catch (_) {}
   })();
 
@@ -623,6 +780,8 @@ function open(ctx, size) {
 
 function close(ctx) {
   if (!ctx || ctx.mode !== "region") return false;
+  // Save current region state so reopening at this tile restores it
+  try { saveRegionState(ctx); } catch (_) {}
   // Restore world view and player position at the exact coordinates where G was pressed
   const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
   // Restore previous LOS transparency (object and original function) to avoid breaking dungeon FOV.
@@ -745,7 +904,76 @@ function onAction(ctx) {
     return true;
   }
 
-  // Context action inside region: chop tree if standing on a TREE tile
+  // Context actions inside region:
+  // 1) Loot corpse if standing on one
+  try {
+    const list = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+    const corpseHere = list.find(c => c && c.x === cursor.x && c.y === cursor.y);
+    if (corpseHere) {
+      if (corpseHere.looted) {
+        ctx.log && ctx.log("Nothing to loot here.", "info");
+      } else {
+        // Transfer loot to player inventory; mark looted
+        try {
+          const inv = ctx.player.inventory || (ctx.player.inventory = []);
+          const items = Array.isArray(corpseHere.loot) ? corpseHere.loot.slice() : [];
+          let gained = 0;
+          for (const it of items) {
+            if (!it) continue;
+            // Stack gold/materials smartly
+            if (it.kind === "gold") {
+              let g = inv.find(x => x && x.kind === "gold");
+              if (!g) { g = { kind: "gold", amount: 0, name: "gold" }; inv.push(g); }
+              g.amount = (g.amount | 0) + (it.amount | 0);
+              gained++;
+            } else if (it.kind === "material") {
+              const key = String(it.name || it.type || "material").toLowerCase();
+              const existing = inv.find(x => x && x.kind === "material" && String(x.name || x.type || "").toLowerCase() === key);
+              if (existing) {
+                if (typeof existing.amount === "number") existing.amount += (it.amount | 0) || 1;
+                else if (typeof existing.count === "number") existing.count += (it.amount | 0) || 1;
+                else existing.amount = (it.amount | 0) || 1;
+              } else {
+                inv.push({ kind: "material", type: it.type || "material", name: it.name || "material", amount: (it.amount | 0) || 1 });
+              }
+              gained++;
+            } else if (it.kind === "potion" && typeof it.count === "number") {
+              // Stack same-heal potions
+              const existing = inv.find(x => x && x.kind === "potion" && ((x.heal | 0) === (it.heal | 0)));
+              if (existing) existing.count = (existing.count | 0) + (it.count | 0 || 1);
+              else inv.push({ kind: "potion", heal: it.heal || 3, count: it.count || 1, name: it.name || `potion (+${it.heal || 3} HP)` });
+              gained++;
+            } else {
+              inv.push(it);
+              gained++;
+            }
+          }
+          // Compose a loot summary for the log
+          let summary = [];
+          try {
+            summary = items.map(it => {
+              if (!it) return null;
+              if (it.kind === "gold") return `${it.amount | 0} gold`;
+              if (it.kind === "material") return `${(it.amount | 0) || 1} ${String(it.name || it.type || "material")}`;
+              if (it.kind === "potion") return `${(it.count | 0) || 1} ${it.name || `potion (+${it.heal || 3} HP)`}`;
+              return it.name || it.kind || "item";
+            }).filter(Boolean);
+          } catch (_) {}
+          corpseHere.loot = [];
+          corpseHere.looted = true;
+          ctx.updateUI && ctx.updateUI();
+          ctx.log && ctx.log(summary.length ? `You loot the corpse: ${summary.join(", ")}.` : "You loot the corpse.", summary.length ? "good" : "info");
+        } catch (_) {
+          ctx.log && ctx.log("Loot failed.", "warn");
+        }
+      }
+      // Request redraw to update corpse color
+      try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+      return true;
+    }
+  } catch (_) {}
+
+  // 2) Chop tree if standing on a TREE tile
   try {
     const WT = World.TILES;
     const t = (ctx.region.map[cursor.y] && ctx.region.map[cursor.y][cursor.x]);
@@ -803,13 +1031,16 @@ function tick(ctx) {
         ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
       }
     } catch (_) {}
-    // Victory: no enemies remain
+    // Victory: no enemies remain — keep player in Region Map (no auto-close or victory log)
     try {
       if (!Array.isArray(ctx.enemies) || ctx.enemies.length === 0) {
         ctx.region._isEncounter = false;
         ctx.encounterInfo = null;
-        if (ctx.log) ctx.log("You prevail and return to the overworld.", "good");
-        close(ctx);
+        // Also mark this overworld tile as cleared to prevent future animal spawns
+        try {
+          const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
+          if (pos) markAnimalsCleared(pos.x | 0, pos.y | 0);
+        } catch (_) {}
         return true;
       }
     } catch (_) {}
@@ -819,10 +1050,12 @@ function tick(ctx) {
 
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
-  window.RegionMapRuntime = { open, close, tryMove, onAction, tick };
-}
-
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.RegionMapRuntime = { open, close, tryMove, onAction, tick };
+  window.RegionMapRuntime = {
+    open, close, tryMove, onAction, tick,
+    // Persistence helpers for animals memory/clear state
+    markAnimalsCleared,
+    animalsClearedHere,
+    markAnimalsSeen,
+    animalsSeenHere
+  };
 }
