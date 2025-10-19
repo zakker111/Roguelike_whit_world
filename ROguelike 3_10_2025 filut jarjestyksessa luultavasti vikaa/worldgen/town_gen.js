@@ -153,13 +153,12 @@
         if (insideInn) {
           const UB = (typeof window !== "undefined" ? window.UIBridge : (ctx.UIBridge || null));
           const defaultMins = 240; // 4 hours
-          // Determine current day index for \"one night\" rental
+          // Determine current day index for rental
           const tc = (ctx.time && typeof ctx.time.turnCounter === "number") ? ctx.time.turnCounter : 0;
           const ct = (ctx.time && typeof ctx.time.cycleTurns === "number") ? ctx.time.cycleTurns : 360;
           const dayIdx = Math.floor(tc / Math.max(1, ct));
-          const price = 8; // gold required for one night
-          const ensurePaidAndSleep = () => {
-            // Helper to open sleep panel with healing callback
+
+          const openSleepModal = () => {
             if (UB && typeof UB.showSleep === "function") {
               UB.showSleep(ctx, {
                 min: 30,
@@ -191,45 +190,13 @@
               if (typeof ctx.updateUI === "function") ctx.updateUI();
             }
           };
-          // If already paid for this night, allow sleeping
+
           if (ctx.player && ctx.player._innStayDay === dayIdx) {
-            ensurePaidAndSleep();
+            // Already rented for tonight: allow sleeping
+            openSleepModal();
           } else {
-            // Require purchasing a night from the innkeeper
-            const innkeeperName = (function () {
-              try {
-                const tv = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-                const found = (ctx.npcs || []).find(n => n && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn");
-                return (found && found.name) ? found.name : "Innkeeper";
-              } catch (_) { return "Innkeeper"; }
-            })();
-            const payText = `Rent a room for the night from the ${innkeeperName} for ${price} gold?`;
-            const pos = { x: p.x, y: p.y };
-            const tryPay = () => {
-              const gold = (ctx.player && typeof ctx.player.gold === "number") ? ctx.player.gold : 0;
-              if (gold < price) {
-                ctx.log(`You need ${price} gold to rent a room. (You have ${gold})`, "warn");
-                return;
-              }
-              // Deduct and mark as paid for the night
-              ctx.player.gold = gold - price;
-              ctx.player._innStayDay = dayIdx;
-              ctx.log(`You pay ${price} gold to the ${innkeeperName} for a room.`, "good");
-              if (typeof ctx.updateUI === "function") ctx.updateUI();
-              ensurePaidAndSleep();
-            };
-            try {
-              if (UB && typeof UB.showConfirm === "function") {
-                UB.showConfirm(ctx, payText, pos, () => tryPay(), () => { /* cancel */ });
-              } else {
-                // Fallback: browser confirm
-                const ok = (typeof window !== "undefined" && window.confirm) ? window.confirm(payText) : true;
-                if (ok) tryPay();
-              }
-            } catch (_) {
-              // If confirm fails, attempt direct pay
-              tryPay();
-            }
+            // Not rented: instruct the player to buy from the innkeeper
+            ctx.log("You need to rent a room from the innkeeper for the night.", "warn");
           }
         } else {
           ctx.log("Looks comfy. Residents sleep here at night.", "info");

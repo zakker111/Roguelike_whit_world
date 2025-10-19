@@ -314,6 +314,32 @@ export function restockIfNeeded(ctx, shop) {
     st.rows = rows;
   }
 
+  // Inject inn service: "Rent room (one night)"
+  try {
+    if (shop && String(shop.type || "").toLowerCase() === "inn") {
+      // Compute current day index to disable if already bought
+      var tc = (t && typeof t.turnCounter === "number") ? (t.turnCounter | 0) : 0;
+      var ct = (t && typeof t.cycleTurns === "number") ? (t.cycleTurns | 0) : 360;
+      var dayIdx = Math.floor(tc / Math.max(1, ct));
+      var already = !!(ctx.player && (ctx.player._innStayDay === dayIdx));
+      // Determine price from rules if available, else default to 8g
+      var rulesInn = gd && gd.shopRules && gd.shopRules.inn ? gd.shopRules.inn : null;
+      var priceRent = (rulesInn && typeof rulesInn.roomPrice === "number") ? (rulesInn.roomPrice | 0) : 8;
+      // Ensure only one service row exists; place at top
+      var svcIdx = -1;
+      for (var si = 0; si < st.rows.length; si++) {
+        var it0 = st.rows[si] && st.rows[si].item;
+        if (it0 && it0.kind === "service" && (String(it0.id || "").toLowerCase() === "rent_room")) { svcIdx = si; break; }
+      }
+      var svcRow = { item: { kind: "service", id: "rent_room", name: "Rent room (one night)" }, price: priceRent, qty: already ? 0 : 1 };
+      if (svcIdx === -1) {
+        st.rows.unshift(svcRow);
+      } else {
+        st.rows[svcIdx] = svcRow;
+      }
+    }
+  } catch (_) {}
+
   // Mini restock at configured time: replace one consumable-like slot
   if (rest && typeof rest.miniRestockAt === "string") {
     var miniMin = _parseHHMMToMinutes(rest.miniRestockAt);
@@ -383,6 +409,34 @@ export function buyItem(ctx, shop, idx) {
   if (!st.rows || idx < 0 || idx >= st.rows.length) return false;
   var row = st.rows[idx];
   if (!row || (row.qty | 0) <= 0) { try { ctx.log && ctx.log("Sold out.", "warn"); } catch (_) {} return false; }
+
+  // Special-case: inn service purchase (rent room for one night)
+  try {
+    var it = row.item || null;
+    if (it && it.kind === "service" && String(it.id || "").toLowerCase() === "rent_room") {
+      // Determine current day index
+      var tc = (ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+      var ct = (ctx.time && typeof ctx.time.cycleTurns === "number") ? (ctx.time.cycleTurns | 0) : 360;
+      var dayIdx = Math.floor(tc / Math.max(1, ct));
+      if (ctx.player && ctx.player._innStayDay === dayIdx) {
+        try { ctx.log && ctx.log("You've already rented a room for tonight.", "warn"); } catch (_) {}
+        return false;
+      }
+      // Pay with gold item
+      var gsvc = _playerGold(ctx);
+      if ((gsvc.cur | 0) < (row.price | 0)) { try { ctx.log && ctx.log("You don't have enough gold.", "warn"); } catch (_) {} return false; }
+      if (!gsvc.goldObj) { gsvc.goldObj = { kind: "gold", amount: 0, name: "gold" }; (ctx.player.inventory || (ctx.player.inventory = [])).push(gsvc.goldObj); }
+      gsvc.goldObj.amount = (gsvc.goldObj.amount | 0) - (row.price | 0);
+      // Mark rental for current day
+      ctx.player._innStayDay = dayIdx;
+      // Decrement/disable purchase for this phase/day
+      row.qty = 0;
+      try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+      try { ctx.log && ctx.log("You rent a room for the night. Find a bed inside the inn to sleep.", "good"); } catch (_) {}
+      return true;
+    }
+  } catch (_) {}
+
   var g = _playerGold(ctx);
   if ((g.cur | 0) < (row.price | 0)) { try { ctx.log && ctx.log("You don't have enough gold.", "warn"); } catch (_) {} return false; }
   if (!g.goldObj) { g.goldObj = { kind: "gold", amount: 0, name: "gold" }; (ctx.player.inventory || (ctx.player.inventory = [])).push(g.goldObj); }
