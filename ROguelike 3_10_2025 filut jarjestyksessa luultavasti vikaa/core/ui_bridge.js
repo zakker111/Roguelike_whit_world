@@ -368,7 +368,18 @@ export function cancelConfirm(ctx) {
 // Aggregate modal state for simple gating
 export function isAnyModalOpen() {
   try {
-    return !!(isConfirmOpen() || isLootOpen() || isInventoryOpen() || isGodOpen() || isShopOpen() || isSmokeOpen() || isRegionMapOpen() || isHelpOpen() || is catch (_) { return false; }
+    return !!(
+      isConfirmOpen() ||
+      isLootOpen() ||
+      isInventoryOpen() ||
+      isGodOpen() ||
+      isShopOpen() ||
+      isSmokeOpen() ||
+      isRegionMapOpen() ||
+      isHelpOpen() ||
+      isSleepOpen()
+    );
+  } catch (_) { return false; }
 }
 
 export function showConfirm(ctx, text, pos, onOk, onCancel) {

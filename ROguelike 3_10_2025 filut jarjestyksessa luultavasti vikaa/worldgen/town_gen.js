@@ -582,9 +582,13 @@
     (function enlargeInnBuilding() {
       if (!buildings.length) return;
 
-      // Target size: scale from plaza dims
-      const targetW = Math.max(10, Math.floor(plazaW * 0.9));
-      const targetH = Math.max(8, Math.floor(plazaH * 0.8));
+      // Target size: scale from plaza dims and ensure larger minimums by town size
+      const sizeKey = townSize;
+      let minW = 22, minH = 16, scaleW = 1.4, scaleH = 1.25; // defaults for "big"
+      if (sizeKey === "small") { minW = 16; minH = 12; scaleW = 1.25; scaleH = 1.20; }
+      else if (sizeKey === "city") { minW = 28; minH = 18; scaleW = 1.6; scaleH = 1.40; }
+      const targetW = Math.max(minW, Math.floor(plazaW * scaleW));
+      const targetH = Math.max(minH, Math.floor(plazaH * scaleH));
 
       // Try to place the Inn on one of the four sides adjacent to the plaza
       function placeInnRect() {
