@@ -609,47 +609,75 @@
       const targetW = Math.max(minW, Math.floor(plazaW * scaleW));
       const targetH = Math.max(minH, Math.floor(plazaH * scaleH));
 
-      // Try to place the Inn on one of the four sides adjacent to the plaza
-      function placeInnRect() {
-        const candidates = [];
-
-        // East of plaza
-        candidates.push({
-          side: "westFacing",
-          x: Math.min(W - 2 - targetW, ((plaza.x + (plazaW / 2)) | 0) + 2),
-          y: Math.max(1, Math.min(H - 2 - targetH, (plaza.y - (targetH / 2)) | 0))
-        });
-        // West of plaza
-        candidates.push({
-          side: "eastFacing",
-          x: Math.max(1, ((plaza.x - (plazaW / 2)) | 0) - 2 - targetW),
-          y: Math.max(1, Math.min(H - 2 - targetH, (plaza.y - (targetH / 2)) | 0))
-        });
-        // South of plaza
-        candidates.push({
-          side: "northFacing",
-          x: Math.max(1, Math.min(W - 2 - targetW, (plaza.x - (targetW / 2)) | 0)),
-          y: Math.min(H - 2 - targetH, ((plaza.y + (plazaH / 2)) | 0) + 2)
-        });
-        // North of plaza
-        candidates.push({
-          side: "southFacing",
-          x: Math.max(1, Math.min(W - 2 - targetW, (plaza.x - (targetW / 2)) | 0)),
-          y: Math.max(1, ((plaza.y - (plazaH / 2)) | 0) - 2 - targetH)
-        });
-
-        // Pick the first candidate that fits fully in bounds
-        for (const c of candidates) {
-          const nx = Math.max(1, Math.min(W - 2 - targetW, c.x));
-          const ny = Math.max(1, Math.min(H - 2 - targetH, c.y));
-          if (nx >= 1 && ny >= 1 && nx + targetW < W - 1 && ny + targetH < H - 1) {
-            return { x: nx, y: ny, w: targetW, h: targetH, facing: c.side };
+      // Require a clear one-tile floor margin around the Inn so it never connects to other buildings
+      function hasMarginClear(x, y, w, h, margin = 1) {
+        const x0 = Math.max(1, x - margin);
+        const y0 = Math.max(1, y - margin);
+        const x1 = Math.min(W - 2, x + w - 1 + margin);
+        const y1 = Math.min(H - 2, y + h - 1 + margin);
+        for (let yy = y0; yy <= y1; yy++) {
+          for (let xx = x0; xx <= x1; xx++) {
+            // Outside the rect or inside, we require current tiles to be FLOOR (roads/plaza),
+            // not walls/doors/windows of other buildings.
+            if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
           }
         }
-        // Fallback: nearest to plaza in bounds
-        const nx = Math.max(1, Math.min(W - 2 - targetW, (plaza.x - (targetW / 2)) | 0));
-        const ny = Math.max(1, Math.min(H - 2 - targetH, (plaza.y - (targetH / 2)) | 0));
-        return { x: nx, y: ny, w: targetW, h: targetH, facing: "southFacing" };
+        return true;
+      }
+
+      // Try to place the Inn on one of the four sides adjacent to the plaza, ensuring margin clear
+      function placeInnRect() {
+        // Start with desired target size and shrink if we cannot find a margin-clear slot
+        let tw = targetW, th = targetH;
+
+        // Attempt multiple shrink steps to satisfy margin without touching other buildings
+        for (let shrink = 0; shrink < 4; shrink++) {
+          const candidates = [];
+
+          // East of plaza
+          candidates.push({
+            side: "westFacing",
+            x: Math.min(W - 2 - tw, ((plaza.x + (plazaW / 2)) | 0) + 2),
+            y: Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0))
+          });
+          // West of plaza
+          candidates.push({
+            side: "eastFacing",
+            x: Math.max(1, ((plaza.x - (plazaW / 2)) | 0) - 2 - tw),
+            y: Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0))
+          });
+          // South of plaza
+          candidates.push({
+            side: "northFacing",
+            x: Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0)),
+            y: Math.min(H - 2 - th, ((plaza.y + (plazaH / 2)) | 0) + 2)
+          });
+          // North of plaza
+          candidates.push({
+            side: "southFacing",
+            x: Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0)),
+            y: Math.max(1, ((plaza.y - (plazaH / 2)) | 0) - 2 - th)
+          });
+
+          // Pick the first candidate that fits fully in bounds and has a clear margin
+          for (const c of candidates) {
+            const nx = Math.max(1, Math.min(W - 2 - tw, c.x));
+            const ny = Math.max(1, Math.min(H - 2 - th, c.y));
+            const fits = (nx >= 1 && ny >= 1 && nx + tw < W - 1 && ny + th < H - 1);
+            if (fits && hasMarginClear(nx, ny, tw, th, 1)) {
+              return { x: nx, y: ny, w: tw, h: th, facing: c.side };
+            }
+          }
+
+          // If none fit with current size, shrink slightly and try again
+          tw = Math.max(minW, tw - 2);
+          th = Math.max(minH, th - 2);
+        }
+
+        // As a last resort, place near plaza center with current (possibly shrunken) size
+        const nx = Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0));
+        const ny = Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0));
+        return { x: nx, y: ny, w: tw, h: th, facing: "southFacing" };
       }
 
       const innRect = placeInnRect();
