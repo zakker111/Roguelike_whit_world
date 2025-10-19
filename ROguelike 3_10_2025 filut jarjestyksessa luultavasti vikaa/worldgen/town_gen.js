@@ -674,13 +674,21 @@
       return { openMin: o, closeMin: c, alwaysOpen: false };
     }
 
-    const shopDefs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops.slice(0) : [
+    // Shop definitions: ensure Inn appears first so it's included even in small towns.
+    let shopDefs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops.slice(0) : [
+      { type: "inn", name: "Inn", alwaysOpen: true },
       { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
       { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
       { type: "armorer", name: "Armorer", open: "08:00", close: "17:00" },
       { type: "trader", name: "Trader", open: "08:00", close: "18:00" },
-      { type: "inn", name: "Inn", alwaysOpen: true },
     ];
+    try {
+      const idxInn = shopDefs.findIndex(d => String(d.type || "").toLowerCase() === "inn" || /inn/i.test(String(d.name || "")));
+      if (idxInn > 0) {
+        const innDef = shopDefs.splice(idxInn, 1)[0];
+        shopDefs.unshift(innDef);
+      }
+    } catch (_) {}
 
     // Score buildings by distance to plaza and assign shops to closest buildings
     const scored = buildings.map(b => ({ b, d: Math.abs((b.x + (b.w / 2)) - plaza.x) + Math.abs((b.y + (b.h / 2)) - plaza.y) }));
@@ -772,6 +780,60 @@
       // Ensure a sign near the shop door with the correct shop name (e.g., Inn)
       try { addSignNear(door.x, door.y, name); } catch (_) {}
     }
+
+    // Ensure there is always one Inn in town (fallback if not added above)
+    try {
+      const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (s.type === "inn") || (/inn/i.test(String(s.name || ""))));
+      if (!hasInn) {
+        let bInn = null;
+        for (const s of scored) {
+          const key = `${s.b.x},${s.b.y}`;
+          if (!usedBuildings.has(key)) { bInn = s.b; break; }
+        }
+        if (!bInn) bInn = scored.length ? scored[0].b : null;
+        if (bInn) {
+          // Prefer existing door closest to plaza; else carve one
+          const cds = candidateDoors(bInn);
+          let best = null, bestD = Infinity;
+          for (const d of cds) {
+            if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
+              const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
+              if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+            }
+          }
+          const doorInn = best || ensureDoor(bInn);
+
+          const nameInn = "Inn";
+          const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
+          let insideInn = null;
+          for (const dxy of inward) {
+            const ix = doorInn.x + dxy.dx, iy = doorInn.y + dxy.dy;
+            const insideB = (ix > bInn.x && ix < bInn.x + bInn.w - 1 && iy > bInn.y && iy < bInn.y + bInn.h - 1);
+            if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { insideInn = { x: ix, y: iy }; break; }
+          }
+          if (!insideInn) {
+            const cx = Math.max(bInn.x + 1, Math.min(bInn.x + bInn.w - 2, Math.floor(bInn.x + bInn.w / 2)));
+            const cy = Math.max(bInn.y + 1, Math.min(bInn.y + bInn.h - 2, Math.floor(bInn.y + bInn.h / 2)));
+            insideInn = { x: cx, y: cy };
+          }
+
+          ctx.shops.push({
+            x: doorInn.x,
+            y: doorInn.y,
+            type: "inn",
+            name: nameInn,
+            openMin: 0,
+            closeMin: 0,
+            alwaysOpen: true,
+            building: { x: bInn.x, y: bInn.y, w: bInn.w, h: bInn.h, door: { x: doorInn.x, y: doorInn.y } },
+            inside: insideInn
+          });
+          try { addSignNear(doorInn.x, doorInn.y, nameInn); } catch (_) {}
+          usedBuildings.add(`${bInn.x},${bInn.y}`);
+          try { ctx.tavern = { building: { x: bInn.x, y: bInn.y, w: bInn.w, h: bInn.h }, door: { x: doorInn.x, y: doorInn.y } }; } catch (_) {}
+        }
+      }
+    } catch (_) {}
 
     // Town buildings metadata
     ctx.townBuildings = buildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: getExistingDoor(b) }));
