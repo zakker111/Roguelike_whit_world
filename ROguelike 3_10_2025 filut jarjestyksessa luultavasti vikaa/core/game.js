@@ -2546,25 +2546,45 @@
           onGodCheckInnTavern: () => {
             const ctx = getCtx();
             if (ctx.mode !== "town") {
-              log("Inn check is available in town mode only.", "warn");
+              log("Inn/Plaza check is available in town mode only.", "warn");
               requestDraw();
               return;
             }
             const list = Array.isArray(shops) ? shops : [];
             const inns = list.filter(s => (s.name || "").toLowerCase().includes("inn"));
-            const line = `Inn: ${inns.length} inn(s).`;
-            log(line, inns.length ? "info" : "warn");
+            const plaza = ctx.townPlaza || null;
+
+            const header = `Inn/Plaza: ${inns.length} inn(s).`;
+            log(header, inns.length ? "info" : "warn");
+
             const lines = [];
-            inns.slice(0, 6).forEach((s, i) => {
-              lines.push(`- Inn ${i + 1} at door (${s.x},${s.y})`);
+
+            // Plaza/Square coordinates
+            if (plaza && typeof plaza.x === "number" && typeof plaza.y === "number") {
+              lines.push(`Plaza/Square center: (${plaza.x},${plaza.y})`);
+            } else {
+              lines.push("Plaza/Square: (unknown)");
+            }
+
+            // Inn coordinates (door + building rect)
+            inns.slice(0, 8).forEach((s, i) => {
+              const b = s && s.building ? s.building : null;
+              const doorStr = `door (${s.x},${s.y})`;
+              if (b && typeof b.x === "number" && typeof b.y === "number" && typeof b.w === "number" && typeof b.h === "number") {
+                lines.push(`Inn ${i + 1}: ${doorStr}, building (${b.x},${b.y}) size ${b.w}x${b.h}`);
+              } else {
+                lines.push(`Inn ${i + 1}: ${doorStr}`);
+              }
             });
+
             try {
               const el = document.getElementById("god-check-output");
               if (el) {
-                const html = [line].concat(lines).map(s => `<div>${s}</div>`).join("");
+                const html = [header].concat(lines).map(s => `<div>${s}</div>`).join("");
                 el.innerHTML = html;
               }
             } catch (_) {}
+
             lines.forEach(l => log(l, "info"));
             requestDraw();
           },
