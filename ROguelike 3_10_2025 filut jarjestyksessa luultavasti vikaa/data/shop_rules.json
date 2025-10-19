@@ -39,5 +39,12 @@
     "buyMultiplier": 0.50,
     "sellMultiplier": 1.0,
     "phasePriceMods": { "afternoon": 1.05, "dusk": 1.10 }
+  },
+  "seppo": {
+    "sells": ["tool", "material", "potion", "curio", "low_tier_equip", "weapon", "armor", "shield"],
+    "buys": ["any"],
+    "buyMultiplier": 0.55,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "dusk": 1.10 }
   }
 }

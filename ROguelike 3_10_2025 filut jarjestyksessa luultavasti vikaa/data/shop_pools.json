@@ -133,5 +133,38 @@
         ]
       }
     }
+  },
+  "seppo": {
+    "categories": {
+      "premium": {
+        "capPerDay": 6,
+        "entries": [
+          { "id": "potion_hp_10", "kind": "potion", "heal": 10,
+            "phaseWeights": { "morning": 2, "midday": 3, "afternoon": 4, "dusk": 4 },
+            "maxPerRestock": 2, "stack": { "min": 1, "max": 2 }
+          },
+          { "id": "simple_dagger", "kind": "low_tier_equip", "slot": "hand", "tier": 1,
+            "phaseWeights": { "morning": 2, "midday": 3, "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1
+          },
+          { "id": "sword_simple", "kind": "weapon", "tier": 2,
+            "phaseWeights": { "afternoon": 4, "dusk": 3 },
+            "maxPerRestock": 1
+          },
+          { "id": "leather_armor", "kind": "armor", "slot": "torso", "tier": 1,
+            "phaseWeights": { "midday": 3, "afternoon": 3 },
+            "maxPerRestock": 1
+          },
+          { "id": "steel_shield", "kind": "shield", "slot": "hand", "tier": 2,
+            "phaseWeights": { "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1
+          },
+          { "id": "curio_odd_stone", "kind": "curio",
+            "phaseWeights": { "dusk": 2 },
+            "maxPerRestock": 1
+          }
+        ]
+      }
+    }
   }
 }
