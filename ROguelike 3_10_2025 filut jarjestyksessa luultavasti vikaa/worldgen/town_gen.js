@@ -560,8 +560,28 @@
           }
         }
         if (!clear) continue;
-        const w = Math.max(6, Math.min(blockW, 6 + ((Math.floor(ctx.rng() * 3)))));   // 6..blockW
-        const h = Math.max(4, Math.min(blockH, 4 + ((Math.floor(ctx.rng() * 3)))));   // 4..blockH
+        // Varied house sizes: choose width/height with a triangular distribution favoring mid sizes,
+        // with occasional small cottages and larger homes. Always respect block bounds and minimums.
+        const wMin = 6, hMin = 4;
+        const wMax = Math.max(wMin, blockW);
+        const hMax = Math.max(hMin, blockH);
+        const tri = (range) => Math.max(0, Math.min(range, Math.floor(((ctx.rng() + ctx.rng()) * range) / 2)));
+        let w = wMin + tri(wMax - wMin);
+        let h = hMin + tri(hMax - hMin);
+        // Occasional extremes for more visual variety
+        const r = ctx.rng();
+        if (r < 0.15) { // small cottage
+          w = Math.max(wMin, Math.min(wMax, wMin + Math.floor((wMax - wMin) * 0.2)));
+          h = Math.max(hMin, Math.min(hMax, hMin + tri(hMax - hMin)));
+        } else if (r > 0.85) { // larger home
+          w = Math.max(wMin, Math.min(wMax, wMin + Math.floor((wMax - wMin) * 0.9)));
+          h = Math.max(hMin, Math.min(hMax, hMin + tri(hMax - hMin)));
+        }
+        // Slight aspect ratio bias: nudge height up/down sometimes
+        if (ctx.rng() < 0.5) {
+          h = Math.max(hMin, Math.min(hMax, h + (ctx.rng() < 0.5 ? -1 : +1)));
+        }
+
         const ox = Math.floor(ctx.rng() * Math.max(1, blockW - w));
         const oy = Math.floor(ctx.rng() * Math.max(1, blockH - h));
         const fx = bx + 1 + ox;
