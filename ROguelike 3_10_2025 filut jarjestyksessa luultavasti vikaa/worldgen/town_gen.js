@@ -551,6 +551,23 @@
       return true;
     }
 
+    // Prevent any building rectangle from overlapping the town plaza footprint (optionally with a small buffer)
+    function overlapsPlazaRect(bx, by, bw, bh, margin = 0) {
+      // Compute plaza rectangle bounds exactly as carved earlier
+      const px0 = ((plaza.x - (plazaW / 2)) | 0);
+      const px1 = ((plaza.x + (plazaW / 2)) | 0);
+      const py0 = ((plaza.y - (plazaH / 2)) | 0);
+      const py1 = ((plaza.y + (plazaH / 2)) | 0);
+      const ax0 = bx, ay0 = by;
+      const ax1 = bx + bw - 1, ay1 = by + bh - 1;
+      const bx0 = Math.max(1, px0 - margin), by0 = Math.max(1, py0 - margin);
+      const bx1 = Math.min(W - 2, px1 + margin), by1 = Math.min(H - 2, py1 + margin);
+      // Axis-aligned rectangle overlap check
+      const sepX = (ax1 < bx0) || (bx1 < ax0);
+      const sepY = (ay1 < by0) || (by1 < ay0);
+      return !(sepX || sepY);
+    }
+
     for (let by = 2; by < H - (blockH + 4) && buildings.length < maxBuildings; by += Math.max(6, blockH + 2)) {
       for (let bx = 2; bx < W - (blockW + 4) && buildings.length < maxBuildings; bx += Math.max(8, blockW + 2)) {
         let clear = true;
@@ -614,6 +631,8 @@
         const oy = Math.floor(ctx.rng() * Math.max(1, blockH - h));
         const fx = bx + 1 + ox;
         const fy = by + 1 + oy;
+        // Avoid overlapping the town plaza footprint
+        if (overlapsPlazaRect(fx, fy, w, h, 0)) continue;
         // Enforce at least one tile of floor margin between buildings
         if (!isAreaClearForBuilding(fx, fy, w, h, 1)) continue;
         placeBuilding(fx, fy, w, h);
@@ -712,7 +731,8 @@
             const nx = Math.max(1, Math.min(W - 2 - tw, c.x));
             const ny = Math.max(1, Math.min(H - 2 - th, c.y));
             const fits = (nx >= 1 && ny >= 1 && nx + tw < W - 1 && ny + th < H - 1);
-            if (fits && hasMarginClear(nx, ny, tw, th, 1)) {
+            // Also ensure the Inn never overlaps the plaza footprint
+            if (fits && hasMarginClear(nx, ny, tw, th, 1) && !overlapsPlazaRect(nx, ny, tw, th, 0)) {
               return { x: nx, y: ny, w: tw, h: th, facing: c.side };
             }
           }
