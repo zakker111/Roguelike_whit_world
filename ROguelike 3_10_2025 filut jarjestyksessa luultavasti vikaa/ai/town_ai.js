@@ -493,6 +493,7 @@
             isResident: true,
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: sleepSpot },
             _work: errand,
+            _likesTavern: ctx.rng() < 0.45
           });
           created++;
         }
@@ -508,6 +509,7 @@
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: null },
             _work: (rng() < 0.5 && shops && shops.length) ? { x: shops[0].x, y: shops[0].y }
                   : (townPlaza ? { x: townPlaza.x, y: townPlaza.y } : null),
+            _likesTavern: ctx.rng() < 0.45
           });
         }
       }
@@ -645,6 +647,26 @@
       const door = ctx.tavern.door || { x: tv.x + ((tv.w / 2) | 0), y: tv.y + ((tv.h / 2) | 0) };
       const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, tv);
       return inSpot || { x: door.x, y: door.y };
+    }
+
+    // Tavern seating: pick floor tiles adjacent to chairs/tables inside the tavern
+    function tavernSeatSpots(ctx) {
+      const tv = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+      if (!tv) return [];
+      const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      const seats = [];
+      for (const p of props) {
+        if (p.type !== "chair" && p.type !== "table") continue;
+        if (!(p.x > tv.x && p.x < tv.x + tv.w - 1 && p.y > tv.y && p.y < tv.y + tv.h - 1)) continue;
+        const adj = nearestFreeAdjacent(ctx, p.x, p.y, tv);
+        if (adj) seats.push(adj);
+      }
+      return seats;
+    }
+    function chooseTavernSeat(ctx) {
+      const seats = tavernSeatSpots(ctx);
+      if (!seats.length) return chooseTavernTarget(ctx);
+      return seats[randInt(ctx, 0, seats.length - 1)];
     }
 
     // Lightweight per-NPC rate limiting: each NPC only acts every N ticks.
@@ -1087,6 +1109,34 @@
           // If no home data for some reason, stop wandering at evening
           continue;
         } else if (phase === "day") {
+          // Daytime tavern visit behavior: sit for a short while if at a seat
+          const tvB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          if (tvB) {
+            if (n._tavernSeatGoal && insideBuilding(tvB, n.x, n.y) &&
+                n.x === n._tavernSeatGoal.x && n.y === n._tavernSeatGoal.y) {
+              // Arrived at seat: sit for a few turns
+              n._tavernStayTurns = randInt(ctx, 3, 9);
+              n._tavernSeatGoal = null;
+            }
+            if (n._tavernStayTurns && n._tavernStayTurns > 0) {
+              n._tavernStayTurns--;
+              // Occasionally fidget while seated
+              if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+              continue;
+            }
+          }
+          // Occasionally go to the tavern for a drink and sit
+          if (tvB) {
+            const wantTavern = n._likesTavern ? (ctx.rng() < 0.25) : (ctx.rng() < 0.08);
+            if (wantTavern) {
+              const seat = chooseTavernSeat(ctx);
+              if (seat) {
+                n._tavernSeatGoal = { x: seat.x, y: seat.y };
+                if (routeIntoBuilding(ctx, occ, n, tvB, seat)) continue;
+              }
+            }
+          }
+          // Default day behavior
           const target = n._work || (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
           if (target) {
             if (n.x === target.x && n.y === target.y) {
@@ -1112,8 +1162,14 @@
       }
 
       // Generic NPCs
-      if (ctx.rng() < 0.25) continue;
-      let target = null;
+      if (ctx.rng( << 0.25) continue;
+      // Occasional tavern visit during the day for roamers who like the tavern
+      if (phase === "day" && ctx.tavern && n._likesTavern) {
+        const tvB = ctx.tavern.building;
+        const seat = chooseTavernSeat(ctx);
+        if (tvB && seat) {
+          if (routeIntoBuilding(ctx, occ, n, tvB, seat)) {
+            n._tavernStayTurns = randInt(ctx, ;
       if (phase === "morning") target = n._home ? { x: n._home.x, y: n._home.y } : null;
       else if (phase === "day") target = (n._work || ctx.townPlaza);
       else target = (ctx.tavern && n._likesTavern) ? { x: ctx.tavern.door.x, y: ctx.tavern.door.y }

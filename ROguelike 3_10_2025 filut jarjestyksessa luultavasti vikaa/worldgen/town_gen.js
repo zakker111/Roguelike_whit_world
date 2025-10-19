@@ -1138,9 +1138,12 @@
         let bedTarget = Math.max(1, Math.min(3, Math.floor(area / 24)));
         try {
           const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-          if (tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h) {
-            // Ensure a generous number of beds in the inn; cap to avoid clutter
-            bedTarget = Math.max(bedTarget, Math.min(8, Math.floor(area / 12)));
+          const isTavern = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
+          if (isTavern) {
+            // Inn/Tavern: significantly more beds based on area, capped to avoid clutter
+            bedTarget = Math.max(bedTarget, Math.min(14, Math.floor(area / 10)));
+          } else {
+            // Non-inn buildings keep default scaling
           }
         } catch (_) {}
         let bedsPlaced = 0, triesBed = 0;
@@ -1153,26 +1156,65 @@
         }
 
         // Tables and chairs
-        if (ctx.rng() < 0.8) {
-          let placedT = false, triesT = 0;
-          while (!placedT && triesT++ < 60) {
-            const tx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-            const ty = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-            if (!insideFloor(b, tx, ty) || occupiedTile(tx, ty)) continue;
-            addProp(tx, ty, "table", "Table"); placedT = true;
+        (function placeTablesAndChairs() {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          const isTavern = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
+
+          if (!isTavern) {
+            // Default: 0-1 table, 1-2 chairs
+            if (ctx.rng() < 0.8) {
+              let placedT = false, triesT = 0;
+              while (!placedT && triesT++ < 60) {
+                const tx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
+                const ty = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
+                if (!insideFloor(b, tx, ty) || occupiedTile(tx, ty)) continue;
+                addProp(tx, ty, "table", "Table"); placedT = true;
+              }
+            }
+            let chairCount = ctx.rng() < 0.5 ? 2 : 1;
+            let triesC = 0;
+            while (chairCount > 0 && triesC++ < 80) {
+              const cx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
+              const cy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
+              if (!insideFloor(b, cx, cy) || occupiedTile(cx, cy)) continue;
+              addProp(cx, cy, "chair", "Chair"); chairCount--;
+            }
+          } else {
+            // Tavern: multiple tables and lots of chairs for seating
+            const tableTarget = Math.max(2, Math.min(6, Math.floor(area / 40)));
+            let placedT = 0, triesT = 0;
+            while (placedT < tableTarget && triesT++ < 300) {
+              const tx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
+              const ty = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
+              if (!insideFloor(b, tx, ty) || occupiedTile(tx, ty)) continue;
+              addProp(tx, ty, "table", "Table"); placedT++;
+            }
+            const chairTarget = Math.max(6, Math.min(20, Math.floor(area / 6)));
+            let chairsPlaced = 0, triesC = 0;
+            while (chairsPlaced < chairTarget && triesC++ < 600) {
+              const cx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
+              const cy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
+              if (!insideFloor(b, cx, cy) || occupiedTile(cx, cy)) continue;
+              addProp(cx, cy, "chair", "Chair"); chairsPlaced++;
+            }
           }
-        }
-        let chairCount = ctx.rng() < 0.5 ? 2 : 1;
-        let triesC = 0;
-        while (chairCount > 0 && triesC++ < 80) {
-          const cx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-          const cy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-          if (!insideFloor(b, cx, cy) || occupiedTile(cx, cy)) continue;
-          addProp(cx, cy, "chair", "Chair"); chairCount--;
-        }
+        })();
 
         // Storage: chests, crates, barrels
         let chestCount = ctx.rng() < 0.5 ? 2 : 1;
+        let crates = ctx.rng() < 0.6 ? 2 : 1;
+        let barrels = ctx.rng() < 0.6 ? 2 : 1;
+
+        // Boost storage props for tavern to feel stocked
+        (function boostStorageForTavern() {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          if (tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h) {
+            chestCount = Math.max(chestCount, 2);
+            crates = Math.max(crates, 3);
+            barrels = Math.max(barrels, 4);
+          }
+        })();
+
         let placedC = 0, triesChest = 0;
         while (placedC < chestCount && triesChest++ < 80) {
           const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
@@ -1180,7 +1222,6 @@
           if (!insideFloor(b, xx, yy) || occupiedTile(xx, yy)) continue;
           addProp(xx, yy, "chest", "Chest"); placedC++;
         }
-        let crates = ctx.rng() < 0.6 ? 2 : 1;
         let triesCr = 0;
         while (crates > 0 && triesCr++ < 120) {
           const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
@@ -1188,7 +1229,6 @@
           if (!insideFloor(b, xx, yy) || occupiedTile(xx, yy)) continue;
           addProp(xx, yy, "crate", "Crate"); crates--;
         }
-        let barrels = ctx.rng() < 0.6 ? 2 : 1;
         let triesBrl = 0;
         while (barrels > 0 && triesBrl++ < 120) {
           const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
@@ -1199,6 +1239,14 @@
 
         // Shelves against inner walls
         let shelves = Math.min(2, Math.floor(area / 30));
+        // Tavern: increase shelf count for a stocked look
+        (function boostShelvesForTavern() {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          if (tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h) {
+            shelves = Math.max(shelves, Math.min(5, Math.floor(area / 25)));
+          }
+        })();
+
         const shelfSpots = borderAdj.slice();
         while (shelves-- > 0 && shelfSpots.length) {
           const s = shelfSpots.splice(Math.floor(ctx.rng() * shelfSpots.length), 1)[0];
