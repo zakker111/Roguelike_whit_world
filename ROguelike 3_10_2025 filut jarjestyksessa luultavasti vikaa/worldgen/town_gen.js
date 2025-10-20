@@ -1082,33 +1082,52 @@
         if (addProp(p.x, p.y, "bench", "Bench")) placed++;
       }
 
-      // Small market stalls on four sides of the plaza (not blocking the center)
+      // Single market stall near the plaza (not blocking the center)
       const stallOffsets = [
         { dx: -((plazaW / 2) | 0) + 2, dy: 0 },
         { dx: ((plazaW / 2) | 0) - 2, dy: 0 },
         { dx: 0, dy: -((plazaH / 2) | 0) + 2 },
         { dx: 0, dy: ((plazaH / 2) | 0) - 2 },
       ];
-      for (const o of stallOffsets) {
-        const sx = Math.max(1, Math.min(W - 2, plaza.x + o.dx));
-        const sy = Math.max(1, Math.min(H - 2, plaza.y + o.dy));
-        if (ctx.map[sy][sx] === ctx.TILES.FLOOR) {
-          addProp(sx, sy, "stall", "Market Stall");
-          // scatter a crate/barrel next to each stall if space allows
-          const neighbors = [
-            { x: sx + 1, y: sy }, { x: sx - 1, y: sy },
-            { x: sx, y: sy + 1 }, { x: sx, y: sy - 1 },
-          ];
-          for (const n of neighbors) {
-            if (n.x <= 0 || n.y <= 0 || n.x >= W - 1 || n.y >= H - 1) continue;
-            if (ctx.map[n.y][n.x] !== ctx.TILES.FLOOR) continue;
-            if (ctx.townProps.some(p => p.x === n.x && p.y === n.y)) continue;
-            const kind = ctx.rng() < 0.5 ? "crate" : "barrel";
-            addProp(n.x, n.y, kind, kind === "crate" ? "Crate" : "Barrel");
-            break;
-          }
+      const pickIdx = Math.floor(ctx.rng() * stallOffsets.length) % stallOffsets.length;
+      const o = stallOffsets[pickIdx];
+      const sx = Math.max(1, Math.min(W - 2, plaza.x + o.dx));
+      const sy = Math.max(1, Math.min(H - 2, plaza.y + o.dy));
+      if (ctx.map[sy][sx] === ctx.TILES.FLOOR) {
+        addProp(sx, sy, "stall", "Market Stall");
+        // scatter a crate/barrel next to the stall if space allows
+        const neighbors = [
+          { x: sx + 1, y: sy }, { x: sx - 1, y: sy },
+          { x: sx, y: sy + 1 }, { x: sx, y: sy - 1 },
+        ];
+        for (const n of neighbors) {
+          if (n.x <= 0 || n.y <= 0 || n.x >= W - 1 || n.y >= H - 1) continue;
+          if (ctx.map[n.y][n.x] !== ctx.TILES.FLOOR) continue;
+          if (ctx.townProps.some(p => p.x === n.x && p.y === n.y)) continue;
+          const kind = ctx.rng() < 0.5 ? "crate" : "barrel";
+          addProp(n.x, n.y, kind, kind === "crate" ? "Crate" : "Barrel");
+          break;
         }
       }
+
+      // Quest Board near the plaza (single)
+      (function placeQuestBoard() {
+        const candidates = [
+          { x: plaza.x - 2, y: plaza.y },
+          { x: plaza.x + 2, y: plaza.y },
+          { x: plaza.x, y: plaza.y - 2 },
+          { x: plaza.x, y: plaza.y + 2 },
+          { x: Math.max(1, ((plaza.x - (plazaW / 2)) | 0) + 2), y: plaza.y },
+          { x: Math.min(W - 2, ((plaza.x + (plazaW / 2)) | 0) - 2), y: plaza.y },
+        ];
+        for (const q of candidates) {
+          if (q.x <= 0 || q.y <= 0 || q.x >= W - 1 || q.y >= H - 1) continue;
+          if (ctx.map[q.y][q.x] !== ctx.TILES.FLOOR) continue;
+          if (ctx.townProps.some(p => p.x === q.x && p.y === q.y)) continue;
+          addProp(q.x, q.y, "quest_board", "Quest Board");
+          break;
+        }
+      })();
 
       // A few plants to soften the plaza
       const plantFactor = ((TOWNCFG && TOWNCFG.props && (TOWNCFG.props.plantTryFactor | 0)) || 10);

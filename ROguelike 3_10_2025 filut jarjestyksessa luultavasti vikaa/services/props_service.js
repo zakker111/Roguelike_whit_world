@@ -229,6 +229,18 @@ export function interact(ctx, prop) {
     _log(ctx, variant.message || "You lay down to sleep.", variant.style || "good");
     return true;
   }
+  if (eff && eff.type === "questBoard") {
+    // Open Quest Board panel (placeholder UI)
+    try {
+      const UB = (typeof window !== "undefined" ? window.UIBridge : (ctx.UIBridge || null));
+      const wasOpen = UB && typeof UB.isQuestBoardOpen === "function" ? !!UB.isQuestBoardOpen() : false;
+      if (UB && typeof UB.showQuestBoard === "function") UB.showQuestBoard(ctx);
+      // Request draw only if open-state changed
+      try { if (!wasOpen && typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+    } catch (_) {}
+    _log(ctx, variant.message || "Quest Board", variant.style || "info");
+    return true;
+  }
 
   // Default: just log the message
   _log(ctx, _renderTemplate(variant.message || "", { title: prop.name || "" }), variant.style || "info");

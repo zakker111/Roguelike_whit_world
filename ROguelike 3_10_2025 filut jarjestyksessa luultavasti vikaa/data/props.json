@@ -145,6 +145,13 @@
         },
         { "message": "Sign: ${title}", "style": "info" }
       ]
+    },
+    {
+      "id": "quest_board",
+      "glyph": "▤",
+      "variants": [
+        { "message": "Quest Board", "style": "info", "effect": { "type": "questBoard" } }
+      ]
     }
   ]
 }
