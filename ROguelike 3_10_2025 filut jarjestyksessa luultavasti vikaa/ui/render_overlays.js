@@ -216,11 +216,38 @@ export function drawLampGlow(ctx, view) {
     if (!(time && (time.phase === "night" || time.phase === "dusk" || time.phase === "dawn"))) return;
     if (!Array.isArray(ctx.townProps)) return;
 
+    // Helper: lookup prop def by id and return colors
+    function propDefFor(type) {
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+        if (!arr) return null;
+        const key = String(type || "").toLowerCase();
+        for (let i = 0; i < arr.length; i++) {
+          const e = arr[i];
+          if (String(e.id || "").toLowerCase() === key) return e;
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    // Helper: convert hex "#rrggbb" to rgba string with given alpha
+    function rgba(hex, a) {
+      const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+      if (!m) return `rgba(255, 220, 120, ${a})`;
+      const v = parseInt(m[1], 16);
+      const r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
+      return `rgba(${r}, ${g}, ${b}, ${a})`;
+    }
+
     const { ctx2d, TILE } = Object.assign({}, view);
     ctx2d.save();
     ctx2d.globalCompositeOperation = "lighter";
     for (const p of ctx.townProps) {
-      if (p.type !== "lamp") continue;
+      const def = propDefFor(p.type);
+      const emits = !!(def && def.properties && def.properties.emitsLight);
+      if (!emits) continue;
+
       const px = p.x, py = p.y;
       if (px < view.startX || px > view.endX || py < view.startY || py > view.endY) continue;
       if (!ctx.visible[py] || !ctx.visible[py][px]) continue;
@@ -228,10 +255,12 @@ export function drawLampGlow(ctx, view) {
       const cx = (px - view.startX) * TILE - view.tileOffsetX + TILE / 2;
       const cy = (py - view.startY) * TILE - view.tileOffsetY + TILE / 2;
       const r = TILE * 2.2;
+
+      const base = (def && def.colors && def.colors.fg) ? def.colors.fg : "#ffd166";
       const grad = ctx2d.createRadialGradient(cx, cy, 4, cx, cy, r);
-      grad.addColorStop(0, "rgba(255, 220, 120, 0.60)");
-      grad.addColorStop(0.4, "rgba(255, 180, 80, 0.25)");
-      grad.addColorStop(1, "rgba(255, 160, 40, 0.0)");
+      grad.addColorStop(0, rgba(base, 0.60));
+      grad.addColorStop(0.4, rgba(base, 0.25));
+      grad.addColorStop(1, rgba(base, 0.0));
       ctx2d.fillStyle = grad;
       ctx2d.beginPath();
       ctx2d.arc(cx, cy, r, 0, Math.PI * 2);

@@ -112,20 +112,40 @@ export function recomputeFOV(ctx) {
   castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, 1, 0, true);  // N-NE
   castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, -1, 0, true); // N-NW
 
-  // Dynamic lamp lighting in towns at night/dawn/dusk: extend visibility from lamps
+  // Dynamic prop lighting in towns at night/dawn/dusk: extend visibility from any prop with emitsLight
   try {
     const isTown = ctx.mode === "town";
     const phase = ctx.time && ctx.time.phase;
-    const lampActive = isTown && (phase === "night" || phase === "dusk" || phase === "dawn");
-    if (lampActive && Array.isArray(ctx.townProps)) {
+    const lightActive = isTown && (phase === "night" || phase === "dusk" || phase === "dawn");
+    if (lightActive && Array.isArray(ctx.townProps)) {
       const lampRadius = Math.max(2, Math.min(6, Math.floor((radius + 2) / 3))); // small local glow (typically 3-4)
+
+      // Helper: lookup prop definition by id
+      function propDefFor(type) {
+        try {
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+          if (!arr) return null;
+          const key = String(type || "").toLowerCase();
+          for (let i = 0; i < arr.length; i++) {
+            const e = arr[i];
+            if (String(e.id || "").toLowerCase() === key) return e;
+          }
+        } catch (_) {}
+        return null;
+      }
+
       for (const p of ctx.townProps) {
-        if (!p || p.type !== "lamp") continue;
+        if (!p) continue;
+        const def = propDefFor(p.type);
+        const emits = !!(def && def.properties && def.properties.emitsLight);
+        if (!emits) continue;
+
         const lx = p.x | 0, ly = p.y | 0;
         if (!ctx.inBounds(lx, ly)) continue;
-        // Mark lamp tile itself visible (do not mark as 'seen' to avoid memory from non-player vision)
+        // Mark prop tile itself visible (do not mark as 'seen' to avoid memory from non-player vision)
         visible[ly][lx] = true;
-        // Cast limited light from lamp (respecting walls/windows via isTransparent); do not mark seen memory
+        // Cast limited light from prop (respecting walls/windows via isTransparent); do not mark seen memory
         castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, 1, false);
         castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, -1, false);
         castLight(lx, ly, 1, 1.0, 0.0, lampRadius, -1, 0, 0, 1, false);
