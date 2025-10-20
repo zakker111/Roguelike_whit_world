@@ -6,23 +6,10 @@
  */
 import * as RenderCore from "./render_core.js";
 import * as World from "../world/world.js";
+import { getTileDef } from "../data/tile_lookup.js";
+import { attachGlobal } from "../utils/global.js";
 
-// Helper: get tile def from GameData.tiles for a given mode and numeric id
-function getTileDef(mode, id) {
-  try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-    if (!arr) return null;
-    const m = String(mode || "").toLowerCase();
-    for (let i = 0; i < arr.length; i++) {
-      const t = arr[i];
-      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
-      }
-    }
-  } catch (_) {}
-  return null;
-}
+// getTileDef centralized in ../data/tile_lookup.js
 
 // Robust fallback fill color mapping when tiles.json is missing/incomplete
 function fallbackFillRegion(WT, id) {
@@ -274,6 +261,4 @@ export function draw(ctx, view) {
   RenderCore.drawGridOverlay(view);
 }
 
-if (typeof window !== "undefined") {
-  window.RenderRegion = { draw };
-}
+attachGlobal("RenderRegion", { draw });

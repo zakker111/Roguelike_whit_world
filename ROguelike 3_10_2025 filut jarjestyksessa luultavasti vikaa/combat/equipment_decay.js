@@ -7,6 +7,8 @@
  * - decayAttackHands(player, rng, opts?, hooks?)  // opts: { twoHanded?: boolean, light?: boolean }
  * - decayBlockingHands(player, rng, opts?, hooks?)
  */
+import { getRng as getFallbackRng } from "../utils/rng_fallback.js";
+import { attachGlobal } from "../utils/global.js";
 
 function round1(n) { return Math.round(n * 10) / 10; }
 
@@ -117,21 +119,7 @@ export function decayBlockingHands(player, rng, opts, hooks) {
       ? rng()
       : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
           ? window.RNG.rng()
-          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-              ? window.RNGFallback.getRng()()
-              : (function () {
-                  // deterministic last resort
-                  const seed = ((Date.now() % 0xffffffff) >>> 0);
-                  function mulberry32(a) {
-                    return function () {
-                      let t = a += 0x6D2B79F5;
-                      t = Math.imul(t ^ (t >>> 15), t | 1);
-                      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-                      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-                    };
-                  }
-                  return mulberry32(seed)();
-                })()));
+          : getFallbackRng()());
     const v = min + r * (max - min);
     return Math.round(v * 10) / 10;
   };
@@ -151,12 +139,10 @@ export function decayBlockingHands(player, rng, opts, hooks) {
   }
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.EquipmentDecay = {
-    initialDecay,
-    decayEquipped,
-    decayAttackHands,
-    decayBlockingHands,
-  };
-}
+// Back-compat: attach to window via helper
+attachGlobal("EquipmentDecay", {
+  initialDecay,
+  decayEquipped,
+  decayAttackHands,
+  decayBlockingHands,
+});
