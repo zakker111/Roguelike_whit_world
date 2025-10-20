@@ -622,25 +622,24 @@ function open(ctx, size) {
   const exitWest = { x: 0, y: (height / 2) | 0 };
   const exitEast = { x: width - 1, y: (height / 2) | 0 };
 
-  // Choose spawn exit closest to the player's overworld position relative to world edges
+  // Compute region-map coordinate corresponding to the player's world position within the sampled window
   const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
   const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
-  const dNorth = worldY;
-  const dSouth = Math.max(0, (worldH - 1) - worldY);
-  const dWest = worldX;
-  const dEast = Math.max(0, (worldW - 1) - worldX);
-  let spawnExit = exitNorth;
-  const minD = Math.min(dNorth, dSouth, dWest, dEast);
-  if (minD === dSouth) spawnExit = exitSouth;
-  else if (minD === dWest) spawnExit = exitWest;
-  else if (minD === dEast) spawnExit = exitEast;
+  const winW = clamp(Math.floor(worldW * 0.35), 12, worldW);
+  const winH = clamp(Math.floor(worldH * 0.35), 8, worldH);
+  const minX = clamp(worldX - Math.floor(winW / 2), 0, Math.max(0, worldW - winW));
+  const minY = clamp(worldY - Math.floor(winH / 2), 0, Math.max(0, worldH - winH));
+  let spawnX = Math.round(((worldX - minX) * (width - 1)) / Math.max(1, (winW - 1)));
+  let spawnY = Math.round(((worldY - minY) * (height - 1)) / Math.max(1, (winH - 1)));
+  spawnX = clamp(spawnX, 0, width - 1);
+  spawnY = clamp(spawnY, 0, height - 1);
 
   ctx.region = {
     ...(ctx.region || {}),
     width,
     height,
     map: sample,
-    cursor: { x: spawnExit.x | 0, y: spawnExit.y | 0 },
+    cursor: { x: spawnX | 0, y: spawnY | 0 },
     exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
