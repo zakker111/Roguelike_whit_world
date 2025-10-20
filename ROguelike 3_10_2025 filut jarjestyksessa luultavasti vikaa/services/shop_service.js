@@ -312,7 +312,7 @@ export function restockIfNeeded(ctx, shop) {
       });
     }
 
-    // For inn shops: stack identical drinks (ale/mead) into single rows showing total qty
+    // For inn shops: stack identical drinks (by name) into single rows showing total qty
     try {
       if (shop && String(shop.type || "").toLowerCase() === "inn" && Array.isArray(rows)) {
         var groups = {};
@@ -322,15 +322,12 @@ export function restockIfNeeded(ctx, shop) {
           var it = r && r.item ? r.item : null;
           var nm = it && it.name ? String(it.name).toLowerCase() : "";
           var kind = it ? String(it.kind || "") : "";
-          // Only stack drinks; specifically ale and mead
-          var keyStack = (kind === "drink" && (nm === "ale" || nm === "mead")) ? nm : null;
+          var keyStack = (kind === "drink" && nm) ? nm : null;
           if (!keyStack) {
-            // keep as-is
             order.push({ key: null, row: r });
           } else {
             if (!groups[keyStack]) { groups[keyStack] = { base: r, qty: 0, price: r.price | 0 }; order.push({ key: keyStack, row: null }); }
             groups[keyStack].qty += (r.qty | 0);
-            // keep base item/price; if differing prices ever occur, prefer min
             if ((r.price | 0) < groups[keyStack].price) groups[keyStack].price = (r.price | 0);
           }
         }
@@ -342,10 +339,8 @@ export function restockIfNeeded(ctx, shop) {
           } else {
             var g = groups[ent.key];
             if (g) {
-              // ensure qty at least 1
               var qsum = Math.max(1, g.qty | 0);
               stacked.push({ item: g.base.item, price: g.price, qty: qsum });
-              // mark consumed
               groups[ent.key] = null;
             }
           }
@@ -421,17 +416,40 @@ export function getInventoryForShop(ctx, shop) {
 function _giveItemToPlayer(ctx, item) {
   try {
     var inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : (ctx.player.inventory = []);
-    if (item.kind === "potion") {
+    var k = String(item.kind || "").toLowerCase();
+
+    // Ensure a count field for stackables
+    if (k === "potion" || k === "drink") {
+      item.count = (item.count | 0) || 1;
+    }
+
+    if (k === "potion") {
       var same = null;
       for (var j = 0; j < inv.length; j++) {
         var it2 = inv[j];
         if (it2 && it2.kind === "potion" && ((it2.heal || 0) === (item.heal || 0))) { same = it2; break; }
       }
-      if (same) same.count = (same.count || 1) + (item.count || 1);
-      else inv.push(item);
+      if (same) {
+        same.count = (same.count | 0) + (item.count | 0);
+      } else {
+        inv.push(item);
+      }
+    } else if (k === "drink") {
+      var nmNew = String(item.name || "").toLowerCase();
+      var sameD = null;
+      for (var i = 0; i < inv.length; i++) {
+        var it3 = inv[i];
+        if (it3 && it3.kind === "drink" && String(it3.name || "").toLowerCase() === nmNew) { sameD = it3; break; }
+      }
+      if (sameD) {
+        sameD.count = (sameD.count | 0) + (item.count | 0);
+      } else {
+        inv.push(item);
+      }
     } else {
       inv.push(item);
     }
+
     if (typeof ctx.updateUI === "function") ctx.updateUI();
     if (ctx.renderInventory) ctx.renderInventory();
   } catch (_) {}
@@ -516,7 +534,7 @@ export function sellItem(ctx, shop, playerInvIdx) {
   goldObj.amount = (goldObj.amount | 0) + pay;
 
   // decrement/remove stack
-  if (it.kind === "potion" && (it.count || 1) > 1) {
+  if ((it.kind === "potion" || it.kind === "drink") && (it.count || 1) > 1) {
     it.count = (it.count | 0) - 1;
   } else {
     inv.splice(playerInvIdx, 1);
