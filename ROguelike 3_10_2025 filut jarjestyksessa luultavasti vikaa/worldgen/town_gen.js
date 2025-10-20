@@ -829,24 +829,28 @@
       }
       carveDoubleDoors(innRect);
 
-      // Additional opposite-side door to provide a rear entrance
+      // Additional opposite-side double doors to provide a rear entrance
       function carveOppositeDoor(rect) {
         if (rect.facing === "westFacing") {
           const x = rect.x + rect.w - 1;
           const cy = (rect.y + (rect.h / 2)) | 0;
           ctx.map[cy][x] = ctx.TILES.DOOR;
+          if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
         } else if (rect.facing === "eastFacing") {
           const x = rect.x;
           const cy = (rect.y + (rect.h / 2)) | 0;
           ctx.map[cy][x] = ctx.TILES.DOOR;
+          if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
         } else if (rect.facing === "northFacing") {
           const y = rect.y + rect.h - 1;
           const cx = (rect.x + (rect.w / 2)) | 0;
           ctx.map[y][cx] = ctx.TILES.DOOR;
+          if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
         } else {
           const y = rect.y;
           const cx = (rect.x + (rect.w / 2)) | 0;
           ctx.map[y][cx] = ctx.TILES.DOOR;
+          if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
         }
       }
       carveOppositeDoor(innRect);
