@@ -16,6 +16,9 @@
  */
 
 const DATA_FILES = {
+  // Combined assets file (tiles + props) — preferred if present
+  assetsCombined: "data/world_assets.json",
+  // Individual registries (fallbacks)
   items: "data/items.json",
   enemies: "data/enemies.json",
   npcs: "data/npcs.json",
@@ -83,9 +86,11 @@ function runningFromFile() {
 GameData.ready = (async function loadAll() {
   try {
     const [
+      assetsCombined,
       items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters, config, palette, messages, props,
       shopPhases, shopPools, shopRules, shopRestock, progression
     ] = await Promise.all([
+      fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
       fetchJson(DATA_FILES.enemies).catch(() => null),
       fetchJson(DATA_FILES.npcs).catch(() => null),
@@ -125,6 +130,16 @@ GameData.ready = (async function loadAll() {
     GameData.shopRules = (shopRules && typeof shopRules === "object") ? shopRules : null;
     GameData.shopRestock = (shopRestock && typeof shopRestock === "object") ? shopRestock : null;
     GameData.progression = (progression && typeof progression === "object") ? progression : null;
+
+    // Prefer combined assets file (tiles + props) if present
+    try {
+      if (assetsCombined && typeof assetsCombined === "object") {
+        const combinedTiles = assetsCombined.tiles;
+        const combinedProps = assetsCombined.props;
+        if (combinedTiles && Array.isArray(combinedTiles.tiles)) GameData.tiles = combinedTiles;
+        if (combinedProps && typeof combinedProps === "object") GameData.props = combinedProps;
+      }
+    } catch (_) {}
 
     // If running under file://, note that JSON may not load due to fetch/CORS
     if (runningFromFile()) {
