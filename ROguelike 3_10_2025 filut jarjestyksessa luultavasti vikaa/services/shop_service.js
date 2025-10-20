@@ -362,6 +362,49 @@ export function restockIfNeeded(ctx, shop) {
     if (!rows || !rows.length) {
       rows = _generateFallbackStock(ctx, shop, phase);
     }
+
+    // For inn shops: stack identical drinks (ale/mead) into single rows showing total qty
+    try {
+      if (shop && String(shop.type || "").toLowerCase() === "inn" && Array.isArray(rows)) {
+        var groups = {};
+        var order = [];
+        for (var ri = 0; ri < rows.length; ri++) {
+          var r = rows[ri];
+          var it = r && r.item ? r.item : null;
+          var nm = it && it.name ? String(it.name).toLowerCase() : "";
+          var kind = it ? String(it.kind || "") : "";
+          // Only stack drinks; specifically ale and mead
+          var keyStack = (kind === "drink" && (nm === "ale" || nm === "mead")) ? nm : null;
+          if (!keyStack) {
+            // keep as-is
+            order.push({ key: null, row: r });
+          } else {
+            if (!groups[keyStack]) { groups[keyStack] = { base: r, qty: 0, price: r.price | 0 }; order.push({ key: keyStack, row: null }); }
+            groups[keyStack].qty += (r.qty | 0);
+            // keep base item/price; if differing prices ever occur, prefer min
+            if ((r.price | 0) < groups[keyStack].price) groups[keyStack].price = (r.price | 0);
+          }
+        }
+        var stacked = [];
+        for (var oi = 0; oi < order.length; oi++) {
+          var ent = order[oi];
+          if (!ent.key) {
+            stacked.push(ent.row);
+          } else {
+            var g = groups[ent.key];
+            if (g) {
+              // ensure qty at least 1
+              var qsum = Math.max(1, g.qty | 0);
+              stacked.push({ item: g.base.item, price: g.price, qty: qsum });
+              // mark consumed
+              groups[ent.key] = null;
+            }
+          }
+        }
+        rows = stacked;
+      }
+    } catch (_) {}
+
     st.rows = rows;
   }
 
