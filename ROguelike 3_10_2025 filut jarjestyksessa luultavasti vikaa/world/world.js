@@ -8,6 +8,8 @@
  * - pickTownStart(world, rng): returns a {x,y} start at/near a town
  * - biomeName(tile): returns a human-readable biome string
  */
+import { getTileDef } from "../data/tile_lookup.js";
+import { attachGlobal } from "../utils/global.js";
 
 export const TILES = {
   WATER: 0,
@@ -25,22 +27,6 @@ export const TILES = {
 };
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-function getTileDef(mode, id) {
-  try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-    if (!arr) return null;
-    const m = String(mode || "").toLowerCase();
-    for (let i = 0; i < arr.length; i++) {
-      const t = arr[i];
-      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
-      }
-    }
-  } catch (_) {}
-  return null;
-}
 
 export function isWalkable(tile) {
   // Prefer tiles.json property when available for overworld mode, then fallback.
@@ -494,9 +480,8 @@ export function pickTownStart(world, rng) {
     }
   }
   return { x: 1, y: 1 };
-}
-
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
+}>
+// Back-compat: attach to window via helper
+attachGlobal("World", { {
   window.World = { TILES, generate, isWalkable, pickTownStart, biomeName };
 }

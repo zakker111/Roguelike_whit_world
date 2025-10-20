@@ -10,11 +10,15 @@
  * - tick(ctx): optional no-op hook.
  */
 import * as World from "../world/world.js";
+import { getTileDef } from "../data/tile_lookup.js";
+import { attachGlobal } from "../utils/global.js";
 
 const DEFAULT_WIDTH = 28;
 const DEFAULT_HEIGHT = 18;
 
-// Deterministic RNG for region map based on global seed and world position
+/**
+ * Deterministic RNG for region map based on global seed and world position
+ */
 function _mulberry32(a) {
   return function() {
     let t = a += 0x6D2B79F5;
@@ -40,23 +44,6 @@ function getRegionRng(ctx) {
   const py = (ctx && ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
   const mix = (((px & 0xffff) | ((py & 0xffff) << 16)) ^ base) >>> 0;
   return _mulberry32(mix);
-}
-
-// Helper: get tile def from GameData.tiles for a given mode and numeric id
-function getTileDef(mode, id) {
-  try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-    if (!arr) return null;
-    const m = String(mode || "").toLowerCase();
-    for (let i = 0; i < arr.length; i++) {
-      const t = arr[i];
-      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
-      }
-    }
-  } catch (_) {}
-  return null;
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -1072,11 +1059,11 @@ function tick(ctx) {
 }
 
 // Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.RegionMapRuntime = {
-    open, close, tryMove, onAction, tick,
-    // Persistence helpers for animals memory/clear state
-    markAnimalsCleared,
+attachGlobal("RegionMapRuntime", {
+  open, close, tryMove, onAction, tick,
+  // Persistence helpers for animals memory/clear state
+  markAnimalsCleared,
+  animalsCleared  markAnimalsCleared,
     animalsClearedHere,
     markAnimalsSeen,
     animalsSeenHere

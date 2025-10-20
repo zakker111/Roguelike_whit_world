@@ -8,6 +8,7 @@
  * - drawTownRoutePaths(ctx, view)
  * - drawLampGlow(ctx, view)
  */
+import { attachGlobal } from "../utils/global.js";
 
 export function drawTownDebugOverlay(ctx, view) {
   const { ctx2d, TILE, cam, shops, townBuildings } = Object.assign({}, view, ctx);
@@ -337,14 +338,12 @@ export function drawDungeonGlow(ctx, view) {
   } catch (_) {}
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.RenderOverlays = {
-    drawTownDebugOverlay,
-    drawTownPaths,
-    drawTownHomePaths,
-    drawTownRoutePaths,
-    drawLampGlow,
-    drawDungeonGlow
-  };
-}
+// Back-compat: attach to window via helper
+attachGlobal("RenderOverlays", {
+  drawTownDebugOverlay,
+  drawTownPaths,
+  drawTownHomePaths,
+  drawTownRoutePaths,
+  drawLampGlow,
+  drawDungeonGlow
+});

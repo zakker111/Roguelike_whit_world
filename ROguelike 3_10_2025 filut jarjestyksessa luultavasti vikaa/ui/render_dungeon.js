@@ -6,26 +6,13 @@
  */
 import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
+import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
+import { attachGlobal } from "../utils/global.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
 let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
 
-// Helper: get tile def from GameData.tiles for a given mode and numeric id
-function getTileDef(mode, id) {
-  try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-    if (!arr) return null;
-    const m = String(mode || "").toLowerCase();
-    for (let i = 0; i < arr.length; i++) {
-      const t = arr[i];
-      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
-      }
-    }
-  } catch (_) {}
-  return null;
-}
+// getTileDef moved to centralized helper in ../data/tile_lookup.js
 
 // Helper: robust fallback fill for dungeon tiles when tiles.json is missing/incomplete
 function fallbackFillDungeon(TILES, type, COLORS) {
@@ -39,23 +26,7 @@ function fallbackFillDungeon(TILES, type, COLORS) {
   return "#0b0c10";
 }
 
-// Helper: get tile def by key for a given mode
-function getTileDefByKey(mode, key) {
-  try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-    if (!arr) return null;
-    const m = String(mode || "").toLowerCase();
-    const k = String(key || "").toUpperCase();
-    for (let i = 0; i < arr.length; i++) {
-      const t = arr[i];
-      if (String(t.key || "").toUpperCase() === k && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
-      }
-    }
-  } catch (_) {}
-  return null;
-}
+// getTileDefByKey moved to centralized helper in ../data/tile_lookup.js
 
 export function draw(ctx, view) {
   const {
@@ -692,7 +663,5 @@ export function draw(ctx, view) {
   RenderCore.drawGridOverlay(view);
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.RenderDungeon = { draw };
-}
+// Back-compat: attach to window via helper
+attachGlobal("RenderDungeon", { draw });
