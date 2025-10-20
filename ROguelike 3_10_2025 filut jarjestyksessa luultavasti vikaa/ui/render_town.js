@@ -206,15 +206,16 @@ export function draw(ctx, view) {
       let glyph = "";
       let color = null;
 
-      // Prefer glyph from props.json if present (data-driven props styling)
+      // Prefer glyph and color from props registry if present (data-driven props styling)
       try {
         const GD = (typeof window !== "undefined" ? window.GameData : null);
         const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
         if (arr) {
           const entry = arr.find(pp => String(pp.id || "").toLowerCase() === String(p.type || "").toLowerCase());
           if (entry && typeof entry.glyph === "string") glyph = entry.glyph;
-          // Optional: allow props.json to provide color if defined
-          if (entry && typeof entry.color === "string") color = entry.color;
+          if (entry && entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg;
+          // Back-compat: allow plain 'color' field if present
+          if (!color && entry && typeof entry.color === "string") color = entry.color;
         }
       } catch (_) {}
 

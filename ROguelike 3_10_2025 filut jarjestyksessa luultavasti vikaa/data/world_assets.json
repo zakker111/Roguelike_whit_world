@@ -197,6 +197,7 @@
       {
         "id": "well",
         "glyph": "◍",
+        "colors": { "fg": "#7aa2f7" },
         "variants": [
           { "message": "You draw some cool water from the well. Refreshing.", "style": "good" }
         ]
@@ -204,6 +205,7 @@
       {
         "id": "fountain",
         "glyph": "⛲",
+        "colors": { "fg": "#89ddff" },
         "variants": [
           { "message": "You watch the fountain for a moment. You feel calmer.", "style": "info" }
         ]
@@ -211,6 +213,7 @@
       {
         "id": "bench",
         "glyph": "=",
+        "colors": { "fg": "#8b7355" },
         "variants": [
           { "message": "You rest a while.", "style": "info", "effect": { "type": "restTurn" } }
         ]
@@ -218,6 +221,7 @@
       {
         "id": "lamp",
         "glyph": "†",
+        "colors": { "fg": "#ffd166" },
         "variants": [
           { "message": "The lamp flickers warmly.", "style": "info" }
         ]
@@ -225,6 +229,7 @@
       {
         "id": "stall",
         "glyph": "▣",
+        "colors": { "fg": "#d7ba7d" },
         "variants": [
           { "message": "Stal: Fresh wares soon", "style": "notice" }
         ]
@@ -232,6 +237,7 @@
       {
         "id": "tree",
         "glyph": "♣",
+        "colors": { "fg": "#3fa650" },
         "variants": [
           {
             "message": "You cut the tree.",
@@ -243,6 +249,7 @@
       {
         "id": "fireplace",
         "glyph": "♨",
+        "colors": { "fg": "#ff6d00" },
         "variants": [
           { "message": "You warm your hands by the fireplace.", "style": "info" }
         ]
@@ -250,6 +257,7 @@
       {
         "id": "table",
         "glyph": "⊔",
+        "colors": { "fg": "#cbd5e1" },
         "variants": [
           { "message": "A sturdy wooden table. Nothing of note on it.", "style": "info" }
         ]
@@ -257,6 +265,7 @@
       {
         "id": "chair",
         "glyph": "⟂",
+        "colors": { "fg": "#cbd5e1" },
         "variants": [
           { "message": "A simple wooden chair.", "style": "info" }
         ]
@@ -264,6 +273,7 @@
       {
         "id": "bed",
         "glyph": "‗",
+        "colors": { "fg": "#cbd5e1" },
         "variants": [
           {
             "when": { "insideInn": true, "requiresInnStay": true },
@@ -282,6 +292,7 @@
       {
         "id": "chest",
         "glyph": "□",
+        "colors": { "fg": "#d7ba7d" },
         "variants": [
           { "message": "The chest is locked.", "style": "warn" }
         ]
@@ -289,6 +300,7 @@
       {
         "id": "crate",
         "glyph": "▢",
+        "colors": { "fg": "#b59b6a" },
         "variants": [
           { "message": "A wooden crate. Might hold supplies.", "style": "info" }
         ]
@@ -296,6 +308,7 @@
       {
         "id": "barrel",
         "glyph": "◍",
+        "colors": { "fg": "#a07c4b" },
         "variants": [
           { "message": "A barrel. Smells of ale.", "style": "info" }
         ]
@@ -303,6 +316,7 @@
       {
         "id": "shelf",
         "glyph": "≡",
+        "colors": { "fg": "#cbd5e1" },
         "variants": [
           { "message": "A shelf with assorted goods.", "style": "info" }
         ]
@@ -310,6 +324,7 @@
       {
         "id": "plant",
         "glyph": "*",
+        "colors": { "fg": "#84cc16" },
         "variants": [
           { "message": "A potted plant adds some life.", "style": "info" }
         ]
@@ -317,6 +332,7 @@
       {
         "id": "rug",
         "glyph": "░",
+        "colors": { "fg": "#b59b6a" },
         "variants": [
           { "message": "A cozy rug warms the floor.", "style": "info" }
         ]
@@ -324,6 +340,7 @@
       {
         "id": "sign",
         "glyph": "⚑",
+        "colors": { "fg": "#d7ba7d" },
         "variants": [
           {
             "when": { "nearShop": true },
@@ -337,6 +354,7 @@
       {
         "id": "quest_board",
         "glyph": "▤",
+        "colors": { "fg": "#cbd5e1" },
         "variants": [
           { "message": "Quest Board", "style": "info", "effect": { "type": "questBoard" } }
         ]

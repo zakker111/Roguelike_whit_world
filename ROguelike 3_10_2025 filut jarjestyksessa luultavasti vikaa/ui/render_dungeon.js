@@ -506,24 +506,39 @@ export function draw(ctx, view) {
             }
           }
         } else if (p.type === "crate" || p.type === "barrel" || p.type === "bench") {
-          // Draw simple decor props with tileset fallback to JSON keys, then robust glyph/color fallback
+          // Draw simple decor props: prefer props registry (unified schema), then tileset, then tile JSON, then robust fallback
           let key = p.type;
           let drawn = false;
           if (tilesetReady && TS && typeof TS.draw === "function") {
             drawn = TS.draw(ctx2d, key, sx, sy, TILE);
           }
           if (!drawn) {
-            let jsonKey = (p.type === "crate") ? "CRATE" : (p.type === "barrel") ? "BARREL" : "BENCH";
             let glyph = "";
             let color = COLORS.corpse || "#cbd5e1";
-            // Prefer dungeon tile if exists, fall back to town definitions
+            // Prefer GameData.props for glyph/color
             try {
-              const td = getTileDefByKey("dungeon", jsonKey) || getTileDefByKey("town", jsonKey);
-              if (td) {
-                if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
-                if (td.colors && td.colors.fg) color = td.colors.fg || color;
+              const GD = (typeof window !== "undefined" ? window.GameData : null);
+              const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+              if (arr) {
+                const entry = arr.find(pp => String(pp.id || "").toLowerCase() === String(p.type || "").toLowerCase());
+                if (entry) {
+                  if (typeof entry.glyph === "string") glyph = entry.glyph;
+                  if (entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg || color;
+                  if (!color && typeof entry.color === "string") color = entry.color;
+                }
               }
             } catch (_) {}
+            // Next, consult tile JSON by key as backup
+            if (!glyph || !color) {
+              try {
+                const jsonKey = (p.type === "crate") ? "CRATE" : (p.type === "barrel") ? "BARREL" : "BENCH";
+                const td = getTileDefByKey("dungeon", jsonKey) || getTileDefByKey("town", jsonKey);
+                if (td) {
+                  if (!glyph && Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
+                  if (!color && td.colors && td.colors.fg) color = td.colors.fg || color;
+                }
+              } catch (_) {}
+            }
             // Robust fallback glyphs/colors
             if (!glyph) {
               if (p.type === "crate") glyph = "□";
