@@ -6,7 +6,10 @@
     "explore": "You explore the dungeon.",
     "noDeeper": "This dungeon has no deeper levels. Return to the entrance (the hole '>') and press G to leave.",
     "needStairs": "You need to stand on the staircase (brown tile marked with '>').",
-    "noDescendHere": "There is nowhere to go down from here."
+    "noDescendHere": "There is nowhere to go down from here.",
+    "floorEnemyCount0": "You sense no enemies on this floor.",
+    "floorEnemyCount1": "You sense 1 enemy on this floor.",
+    "floorEnemyCountMany": "You sense {n} enemies on this floor."
   },
   "town": {
     "exitHint": "Return to the town gate to exit to the overworld."
