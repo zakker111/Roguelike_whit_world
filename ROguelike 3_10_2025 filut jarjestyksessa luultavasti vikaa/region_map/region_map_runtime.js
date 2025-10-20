@@ -785,7 +785,25 @@ function open(ctx, size) {
           markAnimalsSeen(ctx.region.enterWorldPos.x | 0, ctx.region.enterWorldPos.y | 0);
           // Also update flag in this session
           ctx.region._hasKnownAnimals = true;
-          try { ctx.log && ctx.log(`Creatures spotted (${spawned}).`, "notice"); } catch (_) {}
+
+          // Determine if any spawned creatures are near the player's current region position (likely visible soon)
+          const cx = (ctx.region.cursor && typeof ctx.region.cursor.x === "number") ? (ctx.region.cursor.x | 0) : 0;
+          const cy = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
+          const NEAR_R = 8;
+          let near = 0;
+          try {
+            for (const e of ctx.enemies) {
+              if (!e) continue;
+              const d = Math.abs((e.x | 0) - cx) + Math.abs((e.y | 0) - cy);
+              if (d <= NEAR_R) { near++; if (near > 0) break; }
+            }
+          } catch (_) {}
+
+          if (near > 0) {
+            try { ctx.log && ctx.log(`Creatures spotted (${spawned}).`, "notice"); } catch (_) {}
+          } else {
+            try { ctx.log && ctx.log("Creatures are present in this area, but not nearby.", "info"); } catch (_) {}
+          }
         } else {
           try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         }
