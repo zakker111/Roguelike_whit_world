@@ -711,17 +711,41 @@ function open(ctx, size) {
       const sample = ctx.region.map;
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
-      // Base rarity: 0–3 animals, more likely in forest/grass/beach; very rare in desert/snow/swamp.
+      // Base rarity: 0–2 animals, spawn only in sufficiently wild areas; rare in desert/snow/swamp/mountain.
       const { counts } = countBiomes(sample);
-      const forestBias = (counts[WT.FOREST] || 0) / (w * h);
-      const grassBias = (counts[WT.GRASS] || 0) / (w * h);
-      const beachBias = (counts[WT.BEACH] || 0) / (w * h);
+      const totalCells = w * h;
+      const forestBias = (counts[WT.FOREST] || 0) / totalCells;
+      const grassBias = (counts[WT.GRASS] || 0) / totalCells;
+      const beachBias = (counts[WT.BEACH] || 0) / totalCells;
+      const desertBias = (counts[WT.DESERT] || 0) / totalCells;
+      const snowBias = (counts[WT.SNOW] || 0) / totalCells;
+      const swampBias = (counts[WT.SWAMP] || 0) / totalCells;
+      const mountainBias = (counts[WT.MOUNTAIN] || 0) / totalCells;
+      const wildFrac = forestBias + grassBias + beachBias;
+
+      // Gate: skip spawns unless area is predominantly wild or the player stands on a wild tile
+      const playerTileWild = (function () {
+        try {
+          const tHere = ctx.world.map[worldY][worldX];
+          return (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
+        } catch (_) { return false; }
+      })();
+      if (wildFrac < 0.40 && !playerTileWild) {
+        try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
+        return;
+      }
+      // Heavily non-wild or rugged biomes suppress spawns
+      if (desertBias + snowBias + swampBias > 0.45 || mountainBias > 0.20) {
+        try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
+        return;
+      }
+
+      // Compute base spawn and clamp to 0..2
       const base = 0
-        + (rng() < (0.35 + forestBias * 0.50 + grassBias * 0.35 + beachBias * 0.20) ? 1 : 0)
-        + (rng() < (forestBias * 0.45 + grassBias * 0.25) ? 1 : 0);
-      let count = Math.min(3, base);
-      // Ensure at least one spawn in reasonably wild areas
-      if (count <= 0 && (forestBias + grassBias) > 0.25) count = 1;
+        + (rng() < (0.25 + forestBias * 0.40 + grassBias * 0.25 + beachBias * 0.15) ? 1 : 0)
+        + (rng() < (forestBias * 0.30 + grassBias * 0.20) ? 1 : 0);
+      let count = Math.min(2, base);
+      // Do not force at least one; keep some regions empty
       if (count <= 0) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
