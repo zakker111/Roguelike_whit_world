@@ -5,6 +5,7 @@
  * - draw(ctx, view)
  */
 import * as RenderCore from "./render_core.js";
+import * as RenderOverlays from "./render_overlays.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
 let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
@@ -664,6 +665,9 @@ export function draw(ctx, view) {
       RenderCore.drawGlyph(ctx2d, screenX, screenY, "@", COLORS.player, TILE);
     }
   }
+
+  // Dungeon glow overlays (e.g., wall torches)
+  RenderOverlays.drawDungeonGlow(ctx, view);
 
   // Day/night tint overlay for encounters (lighter to preserve biome styling)
   try {
