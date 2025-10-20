@@ -450,6 +450,20 @@
         "variants": [
           { "message": "Quest Board", "style": "info", "effect": { "type": "questBoard" } }
         ]
+      },
+      {
+        "id": "wall_torch",
+        "key": "WALL_TORCH",
+        "name": "Wall Torch",
+        "glyph": "†",
+        "colors": { "fg": "#ffb84d" },
+        "properties": { "walkable": false, "blocksFOV": false, "emitsLight": true },
+        "appearsIn": ["dungeon"],
+        "tags": ["decor", "light"],
+        "light": { "castRadius": 4, "glowTiles": 1.8, "color": "#ffb84d" },
+        "variants": [
+          { "message": "A wall-mounted torch crackles softly.", "style": "info" }
+        ]
       }
     ]
   }

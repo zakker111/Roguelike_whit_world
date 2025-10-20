@@ -112,27 +112,30 @@ export function recomputeFOV(ctx) {
   castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, 1, 0, true);  // N-NE
   castLight(player.x, player.y, 1, 1.0, 0.0, radius, 0, -1, -1, 0, true); // N-NW
 
-  // Dynamic prop lighting in towns at night/dawn/dusk: extend visibility from any prop with emitsLight
+  // Dynamic lighting from props: town lamps/fireplaces at night; dungeon wall torches always
   try {
-    const isTown = ctx.mode === "town";
-    const phase = ctx.time && ctx.time.phase;
-    const lightActive = isTown && (phase === "night" || phase === "dusk" || phase === "dawn");
-    if (lightActive && Array.isArray(ctx.townProps)) {
-      // Helper: lookup prop definition by id/key
-      function propDefFor(type) {
-        try {
-          const GD = (typeof window !== "undefined" ? window.GameData : null);
-          const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
-          if (!arr) return null;
-          const key = String(type || "").toLowerCase();
-          for (let i = 0; i < arr.length; i++) {
-            const e = arr[i];
-            if (String(e.id || "").toLowerCase() === key || String(e.key || "").toLowerCase() === key) return e;
-          }
-        } catch (_) {}
-        return null;
-      }
+    // Helper: lookup prop definition by id/key
+    function propDefFor(type) {
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+        if (!arr) return null;
+        const key = String(type || "").toLowerCase();
+        for (let i = 0; i < arr.length; i++) {
+          const e = arr[i];
+          if (String(e.id || "").toLowerCase() === key || String(e.key || "").toLowerCase() === key) return e;
+        }
+      } catch (_) {}
+      return null;
+    }
 
+    const isTown = ctx.mode === "town";
+    const isDungeon = ctx.mode === "dungeon";
+    const phase = ctx.time && ctx.time.phase;
+    const townLightActive = isTown && (phase === "night" || phase === "dusk" || phase === "dawn");
+    const dungeonLightActive = isDungeon; // torches glow regardless of time
+
+    if (townLightActive && Array.isArray(ctx.townProps)) {
       for (const p of ctx.townProps) {
         if (!p) continue;
         const def = propDefFor(p.type);
@@ -142,16 +145,39 @@ export function recomputeFOV(ctx) {
         const lx = p.x | 0, ly = p.y | 0;
         if (!ctx.inBounds(lx, ly)) continue;
 
-        // Choose cast radius: prefer prop.def light.castRadius if provided, otherwise derive from player FOV
         const baseR = Math.max(2, Math.min(6, Math.floor((radius + 2) / 3))); // default small local glow (typically 3-4)
         const castR = (def && def.light && typeof def.light.castRadius === "number")
           ? Math.max(1, Math.min(12, Math.floor(def.light.castRadius)))
           : baseR;
 
-        // Mark prop tile itself visible (do not mark as 'seen' to avoid memory from non-player vision)
         visible[ly][lx] = true;
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, 1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, -1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, -1, 0, 0, 1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, -1, 0, 0, -1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, 1, 1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, 1, -1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, -1, 1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, -1, -1, 0, false);
+      }
+    }
 
-        // Cast limited light from prop (respecting walls/windows via isTransparent); do not mark seen memory
+    if (dungeonLightActive && Array.isArray(ctx.dungeonProps)) {
+      for (const p of ctx.dungeonProps) {
+        if (!p) continue;
+        const def = propDefFor(p.type);
+        const emits = !!(def && def.properties && def.properties.emitsLight);
+        if (!emits) continue;
+
+        const lx = p.x | 0, ly = p.y | 0;
+        if (!ctx.inBounds(lx, ly)) continue;
+
+        const baseR = Math.max(2, Math.min(6, Math.floor((radius + 2) / 3))); // default small local glow (typically 3-4)
+        const castR = (def && def.light && typeof def.light.castRadius === "number")
+          ? Math.max(1, Math.min(12, Math.floor(def.light.castRadius)))
+          : baseR;
+
+        visible[ly][lx] = true;
         castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, 1, false);
         castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, -1, false);
         castLight(lx, ly, 1, 1.0, 0.0, castR, -1, 0, 0, 1, false);

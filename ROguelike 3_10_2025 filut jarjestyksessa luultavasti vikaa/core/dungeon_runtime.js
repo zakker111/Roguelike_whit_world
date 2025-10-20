@@ -17,6 +17,46 @@ export function keyFromWorldPos(x, y) {
   return `${x},${y}`;
 }
 
+// Spawn sparse wall torches on WALL tiles adjacent to FLOOR/DOOR/STAIRS.
+// Options: { density:number (0..1), minSpacing:number (tiles) }
+function spawnWallTorches(ctx, options = {}) {
+  const density = typeof options.density === "number" ? Math.max(0, Math.min(1, options.density)) : 0.006;
+  const minSpacing = Math.max(1, (options.minSpacing | 0) || 2);
+  const list = [];
+  const rows = ctx.map.length;
+  const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+  const rng = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+
+  const isWall = (x, y) => ctx.inBounds(x, y) && ctx.map[y][x] === ctx.TILES.WALL;
+  const isWalkableTile = (x, y) => ctx.inBounds(x, y) && (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR || ctx.map[y][x] === ctx.TILES.STAIRS);
+
+  function nearTorch(x, y, r = minSpacing) {
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i];
+      const dx = Math.abs(p.x - x);
+      const dy = Math.abs(p.y - y);
+      if (dx <= r && dy <= r) return true;
+    }
+    return false;
+  }
+
+  for (let y = 1; y < rows - 1; y++) {
+    for (let x = 1; x < cols - 1; x++) {
+      if (!isWall(x, y)) continue;
+      // Must border at least one walkable tile (corridor/room edge)
+      const bordersWalkable =
+        isWalkableTile(x + 1, y) || isWalkableTile(x - 1, y) ||
+        isWalkableTile(x, y + 1) || isWalkableTile(x, y - 1);
+      if (!bordersWalkable) continue;
+      // Sparse random placement with spacing constraint
+      if (rng() < density && !nearTorch(x, y)) {
+        list.push({ x, y, type: "wall_torch", name: "Wall Torch" });
+      }
+    }
+  }
+  return list;
+}
+
 export function save(ctx, logOnce) {
   if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
     try { if (typeof window !== "undefined" && window.DEV && logOnce) console.log("[TRACE] Calling ctx.DungeonState.save"); } catch (_) {}
@@ -37,6 +77,7 @@ export function save(ctx, logOnce) {
     enemies: ctx.enemies,
     corpses: ctx.corpses,
     decals: ctx.decals,
+    dungeonProps: Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps.slice(0) : [],
     dungeonExitAt: { x: ctx.dungeonExitAt.x, y: ctx.dungeonExitAt.y },
     info: ctx.dungeonInfo,
     level: ctx.floor
@@ -95,6 +136,7 @@ export function load(ctx, x, y) {
   ctx.enemies = st.enemies;
   ctx.corpses = st.corpses;
   ctx.decals = st.decals || [];
+  ctx.dungeonProps = Array.isArray(st.dungeonProps) ? st.dungeonProps : [];
   ctx.dungeonExitAt = st.dungeonExitAt || { x, y };
 
   // Place player at the entrance hole
@@ -121,6 +163,10 @@ export function generate(ctx, depth) {
     D.generateLevel(ctx, depth);
     // Clear decals on new floor
     ctx.decals = [];
+    // Spawn sparse wall torches along walls adjacent to floor tiles
+    try {
+      ctx.dungeonProps = spawnWallTorches(ctx, { density: 0.006, minSpacing: 2 });
+    } catch (_) { ctx.dungeonProps = []; }
     // FOV + Camera
     try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
     try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
@@ -147,7 +193,8 @@ export function generate(ctx, depth) {
     try {
       if (window.DEV) {
         const visCount = ctx.enemies.filter(e => ctx.inBounds(e.x, e.y) && ctx.visible[e.y][e.x]).length;
-        ctx.log && ctx.log(`[DEV] Enemies spawned: ${ctx.enemies.length}, visible now: ${visCount}.`, "notice");
+        const torchCount = Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps.filter(p => p && p.type === "wall_torch").length : 0;
+        ctx.log && ctx.log(`[DEV] Enemies spawned: ${ctx.enemies.length}, visible now: ${visCount}. Torches: ${torchCount}.`, "notice");
       }
     } catch (_) {}
     // UI and message
@@ -168,6 +215,7 @@ export function generate(ctx, depth) {
   ctx.enemies = [];
   ctx.corpses = [];
   ctx.decals = [];
+  ctx.dungeonProps = [];
   ctx.recomputeFOV && ctx.recomputeFOV();
   ctx.updateCamera && ctx.updateCamera();
   ctx.updateUI && ctx.updateUI();
