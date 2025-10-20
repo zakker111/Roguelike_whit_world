@@ -622,25 +622,24 @@ function open(ctx, size) {
   const exitWest = { x: 0, y: (height / 2) | 0 };
   const exitEast = { x: width - 1, y: (height / 2) | 0 };
 
-  // Choose spawn exit closest to the player's overworld position relative to world edges
+  // Compute region-map coordinate corresponding to the player's world position within the sampled window
   const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
   const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
-  const dNorth = worldY;
-  const dSouth = Math.max(0, (worldH - 1) - worldY);
-  const dWest = worldX;
-  const dEast = Math.max(0, (worldW - 1) - worldX);
-  let spawnExit = exitNorth;
-  const minD = Math.min(dNorth, dSouth, dWest, dEast);
-  if (minD === dSouth) spawnExit = exitSouth;
-  else if (minD === dWest) spawnExit = exitWest;
-  else if (minD === dEast) spawnExit = exitEast;
+  const winW = clamp(Math.floor(worldW * 0.35), 12, worldW);
+  const winH = clamp(Math.floor(worldH * 0.35), 8, worldH);
+  const minX = clamp(worldX - Math.floor(winW / 2), 0, Math.max(0, worldW - winW));
+  const minY = clamp(worldY - Math.floor(winH / 2), 0, Math.max(0, worldH - winH));
+  let spawnX = Math.round(((worldX - minX) * (width - 1)) / Math.max(1, (winW - 1)));
+  let spawnY = Math.round(((worldY - minY) * (height - 1)) / Math.max(1, (winH - 1)));
+  spawnX = clamp(spawnX, 0, width - 1);
+  spawnY = clamp(spawnY, 0, height - 1);
 
   ctx.region = {
     ...(ctx.region || {}),
     width,
     height,
     map: sample,
-    cursor: { x: spawnExit.x | 0, y: spawnExit.y | 0 },
+    cursor: { x: spawnX | 0, y: spawnY | 0 },
     exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
@@ -711,17 +710,41 @@ function open(ctx, size) {
       const sample = ctx.region.map;
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
-      // Base rarity: 0–3 animals, more likely in forest/grass/beach; very rare in desert/snow/swamp.
+      // Base rarity: 0–2 animals, spawn only in sufficiently wild areas; rare in desert/snow/swamp/mountain.
       const { counts } = countBiomes(sample);
-      const forestBias = (counts[WT.FOREST] || 0) / (w * h);
-      const grassBias = (counts[WT.GRASS] || 0) / (w * h);
-      const beachBias = (counts[WT.BEACH] || 0) / (w * h);
+      const totalCells = w * h;
+      const forestBias = (counts[WT.FOREST] || 0) / totalCells;
+      const grassBias = (counts[WT.GRASS] || 0) / totalCells;
+      const beachBias = (counts[WT.BEACH] || 0) / totalCells;
+      const desertBias = (counts[WT.DESERT] || 0) / totalCells;
+      const snowBias = (counts[WT.SNOW] || 0) / totalCells;
+      const swampBias = (counts[WT.SWAMP] || 0) / totalCells;
+      const mountainBias = (counts[WT.MOUNTAIN] || 0) / totalCells;
+      const wildFrac = forestBias + grassBias + beachBias;
+
+      // Gate: skip spawns unless area is predominantly wild or the player stands on a wild tile
+      const playerTileWild = (function () {
+        try {
+          const tHere = ctx.world.map[worldY][worldX];
+          return (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
+        } catch (_) { return false; }
+      })();
+      if (wildFrac < 0.40 && !playerTileWild) {
+        try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
+        return;
+      }
+      // Heavily non-wild or rugged biomes suppress spawns
+      if (desertBias + snowBias + swampBias > 0.45 || mountainBias > 0.20) {
+        try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
+        return;
+      }
+
+      // Compute base spawn and clamp to 0..2
       const base = 0
-        + (rng() < (0.35 + forestBias * 0.50 + grassBias * 0.35 + beachBias * 0.20) ? 1 : 0)
-        + (rng() < (forestBias * 0.45 + grassBias * 0.25) ? 1 : 0);
-      let count = Math.min(3, base);
-      // Ensure at least one spawn in reasonably wild areas
-      if (count <= 0 && (forestBias + grassBias) > 0.25) count = 1;
+        + (rng() < (0.25 + forestBias * 0.40 + grassBias * 0.25 + beachBias * 0.15) ? 1 : 0)
+        + (rng() < (forestBias * 0.30 + grassBias * 0.20) ? 1 : 0);
+      let count = Math.min(2, base);
+      // Do not force at least one; keep some regions empty
       if (count <= 0) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;

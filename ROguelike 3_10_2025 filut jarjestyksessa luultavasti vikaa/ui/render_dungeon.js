@@ -5,6 +5,7 @@
  * - draw(ctx, view)
  */
 import * as RenderCore from "./render_core.js";
+import * as RenderOverlays from "./render_overlays.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
 let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
@@ -506,24 +507,40 @@ export function draw(ctx, view) {
             }
           }
         } else if (p.type === "crate" || p.type === "barrel" || p.type === "bench") {
-          // Draw simple decor props with tileset fallback to JSON keys, then robust glyph/color fallback
+          // Draw simple decor props: prefer props registry (unified schema), then tileset, then tile JSON, then robust fallback
           let key = p.type;
           let drawn = false;
           if (tilesetReady && TS && typeof TS.draw === "function") {
             drawn = TS.draw(ctx2d, key, sx, sy, TILE);
           }
           if (!drawn) {
-            let jsonKey = (p.type === "crate") ? "CRATE" : (p.type === "barrel") ? "BARREL" : "BENCH";
             let glyph = "";
             let color = COLORS.corpse || "#cbd5e1";
-            // Prefer dungeon tile if exists, fall back to town definitions
+            // Prefer GameData.props for glyph/color
             try {
-              const td = getTileDefByKey("dungeon", jsonKey) || getTileDefByKey("town", jsonKey);
-              if (td) {
-                if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
-                if (td.colors && td.colors.fg) color = td.colors.fg || color;
+              const GD = (typeof window !== "undefined" ? window.GameData : null);
+              const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+              if (arr) {
+                const tId = String(p.type || "").toLowerCase();
+                const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
+                if (entry) {
+                  if (typeof entry.glyph === "string") glyph = entry.glyph;
+                  if (entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg || color;
+                  if (!color && typeof entry.color === "string") color = entry.color;
+                }
               }
             } catch (_) {}
+            // Next, consult tile JSON by key as backup
+            if (!glyph || !color) {
+              try {
+                const jsonKey = (p.type === "crate") ? "CRATE" : (p.type === "barrel") ? "BARREL" : "BENCH";
+                const td = getTileDefByKey("dungeon", jsonKey) || getTileDefByKey("town", jsonKey);
+                if (td) {
+                  if (!glyph && Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
+                  if (!color && td.colors && td.colors.fg) color = td.colors.fg || color;
+                }
+              } catch (_) {}
+            }
             // Robust fallback glyphs/colors
             if (!glyph) {
               if (p.type === "crate") glyph = "□";
@@ -584,6 +601,48 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
+  // Dungeon props (e.g., wall torches): draw when the tile has been seen; dim if not currently visible
+  try {
+    const props = Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps : [];
+    if (props.length) {
+      for (const p of props) {
+        const px = p.x | 0, py = p.y | 0;
+        if (px < startX || px > endX || py < startY || py > endY) continue;
+        const everSeen = !!(seen[py] && seen[py][px]);
+        if (!everSeen) continue;
+        const visNow = !!(visible[py] && visible[py][px]);
+        const sx = (px - startX) * TILE - tileOffsetX;
+        const sy = (py - startY) * TILE - tileOffsetY;
+
+        let glyph = "";
+        let color = "#ffd166";
+        // Prefer GameData.props for glyph/color
+        try {
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+          if (arr) {
+            const tId = String(p.type || "").toLowerCase();
+            const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
+            if (entry) {
+              if (typeof entry.glyph === "string") glyph = entry.glyph;
+              if (entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg || color;
+            }
+          }
+        } catch (_) {}
+        if (!glyph) glyph = "†";
+
+        if (!visNow) {
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.70;
+          RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+          ctx2d.restore();
+        } else {
+          RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+        }
+      }
+    }
+  } catch (_) {}
+
   // enemies
   for (const e of enemies) {
     if (!visible[e.y] || !visible[e.y][e.x]) continue;
@@ -606,6 +665,9 @@ export function draw(ctx, view) {
       RenderCore.drawGlyph(ctx2d, screenX, screenY, "@", COLORS.player, TILE);
     }
   }
+
+  // Dungeon glow overlays (e.g., wall torches)
+  RenderOverlays.drawDungeonGlow(ctx, view);
 
   // Day/night tint overlay for encounters (lighter to preserve biome styling)
   try {

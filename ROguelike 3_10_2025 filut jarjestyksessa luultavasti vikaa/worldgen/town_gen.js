@@ -74,201 +74,12 @@
     }
     if (!candidates.length) return false;
     const p = candidates[0];
-    switch (p.type) {
-      case "well":
-        ctx.log("You draw some cool water from the well. Refreshing.", "good");
-        break;
-      case "fountain":
-        ctx.log("You watch the fountain for a moment. You feel calmer.", "info");
-        break;
-      case "bench": {
-        const phase = (ctx.time && ctx.time.phase) || "day";
-        if (phase !== "day") {
-          ctx.log("You relax on the bench and drift to sleep...", "info");
-          if (typeof ctx.advanceTimeMinutes === "function") {
-            // rest until 06:00 with light heal
-            const TS = (ctx.TimeService && typeof ctx.TimeService.create === "function")
-              ? ctx.TimeService.create({ dayMinutes: 24 * 60, cycleTurns: 360 })
-              : null;
-            const clock = ctx.time;
-            const curMin = clock ? (clock.hours * 60 + clock.minutes) : 0;
-            const goalMin = 6 * 60;
-            let delta = goalMin - curMin; if (delta <= 0) delta += 24 * 60;
-            ctx.advanceTimeMinutes(delta);
-          }
-          const heal = Math.max(1, Math.floor(ctx.player.maxHp * 0.25));
-          const prev = ctx.player.hp;
-          ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal);
-          ctx.log(`You rest until morning (${(ctx.time && ctx.time.hhmm) || "06:00"}). HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
-          if (typeof ctx.updateUI === "function") ctx.updateUI();
-        } else {
-          ctx.log("You sit on the bench and rest a moment.", "info");
-        }
-        break;
-      }
-      case "lamp":
-        ctx.log("The lamp flickers warmly.", "info");
-        break;
-      case "stall":
-        ctx.log("A vendor waves: 'Fresh wares soon!'", "notice");
-        break;
-      case "tree": {
-        // Chop the tree for materials
-        ctx.log("You cut the tree.", "notice");
-        // Remove the tree prop so it can't be farmed infinitely
-        try {
-          const idx = ctx.townProps.findIndex(tp => tp && tp.x === p.x && tp.y === p.y && tp.type === "tree");
-          if (idx !== -1) ctx.townProps.splice(idx, 1);
-        } catch (_) {}
-        // Grant planks (material: wood) to inventory, 10 per tree
-        try {
-          const inv = ctx.player.inventory || (ctx.player.inventory = []);
-          // Prefer a single stackable entry using amount (like gold)
-          const existing = inv.find(it => it && it.kind === "material" && (it.type === "wood" || it.material === "wood") && (String(it.name || "").toLowerCase() === "planks"));
-          if (existing) {
-            // use amount if present, else count
-            if (typeof existing.amount === "number") existing.amount += 10;
-            else if (typeof existing.count === "number") existing.count += 10;
-            else existing.amount = 10; // establish amount field going forward
-          } else {
-            inv.push({ kind: "material", type: "wood", name: "planks", amount: 10 });
-          }
-          if (typeof ctx.updateUI === "function") ctx.updateUI();
-        } catch (_) {}
-        break;
-      }
-      case "fireplace":
-        ctx.log("You warm your hands by the fireplace.", "info");
-        break;
-      case "table":
-        ctx.log("A sturdy wooden table. Nothing of note on it.", "info");
-        break;
-      case "chair":
-        ctx.log("A simple wooden chair.", "info");
-        break;
-      case "bed": {
-        // Inn beds: open sleep slider modal allowing the player to rest for a chosen duration
-        const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-        const insideInn = tav ? (p.x > tav.x && p.x < tav.x + tav.w - 1 && p.y > tav.y && p.y < tav.y + tav.h - 1) : false;
-        if (insideInn) {
-          const UB = (typeof window !== "undefined" ? window.UIBridge : (ctx.UIBridge || null));
-          const defaultMins = 240; // 4 hours
-          // Determine current day index for rental
-          const tc = (ctx.time && typeof ctx.time.turnCounter === "number") ? ctx.time.turnCounter : 0;
-          const ct = (ctx.time && typeof ctx.time.cycleTurns === "number") ? ctx.time.cycleTurns : 360;
-          const dayIdx = Math.floor(tc / Math.max(1, ct));
 
-          const openSleepModal = () => {
-            if (UB && typeof UB.showSleep === "function") {
-              UB.showSleep(ctx, {
-                min: 30,
-                max: 720,   // up to 12 hours
-                step: 30,
-                value: defaultMins,
-                onConfirm: (mins) => {
-                  try {
-                    const prev = ctx.player.hp;
-                    const afterTime = (m) => {
-                      // Heal proportionally to duration, capped at 60% of max HP for 10h+ sleep
-                      const healFrac = Math.min(0.6, Math.max(0.08, m / 600)); // 60% at 10h, minimum 8%
-                      const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
-                      ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
-                      const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
-                      ctx.log(`You sleep for ${m} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
-                      if (typeof ctx.updateUI === "function") ctx.updateUI();
-                    };
-                    if (UB && typeof UB.animateSleep === "function") {
-                      UB.animateSleep(ctx, mins, afterTime);
-                    } else {
-                      // Fallback without animation
-                      try { if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(mins); } catch (_) {}
-                      afterTime(mins);
-                      if (typeof ctx.requestDraw === "function") ctx.requestDraw();
-                    }
-                  } catch (_) {}
-                }
-              });
-            } else {
-              // Fallback: simple short rest without modal
-              const prev = ctx.player.hp;
-              const afterTime = (m) => {
-                const healFrac = Math.min(0.6, Math.max(0.08, m / 600));
-                const healAmt = Math.max(1, Math.floor(ctx.player.maxHp * healFrac));
-                ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + healAmt);
-                const timeStr = (ctx.time && ctx.time.hhmm) ? ` (${ctx.time.hhmm})` : "";
-                ctx.log(`You sleep for ${m} minutes${timeStr}. HP ${prev.toFixed(1)} -> ${ctx.player.hp.toFixed(1)}.`, "good");
-                if (typeof ctx.updateUI === "function") ctx.updateUI();
-              };
-              if (UB && typeof UB.animateSleep === "function") {
-                UB.animateSleep(ctx, defaultMins, afterTime);
-              } else {
-                if (typeof ctx.fastForwardMinutes === "function") ctx.fastForwardMinutes(defaultMins);
-                else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(defaultMins);
-                afterTime(defaultMins);
-                if (typeof ctx.requestDraw === "function") ctx.requestDraw();
-              }
-            }
-          };
-
-          if (ctx.player && ctx.player._innStayDay === dayIdx) {
-            // Already rented for tonight: allow sleeping
-            openSleepModal();
-          } else {
-            // Not rented: instruct the player to buy from the innkeeper
-            ctx.log("You need to rent a room from the innkeeper for the night.", "warn");
-          }
-        } else {
-          ctx.log("Looks comfy. Residents sleep here at night.", "info");
-        }
-        break;
-      }
-      case "chest":
-        ctx.log("The chest is locked.", "warn");
-        break;
-      case "crate":
-        ctx.log("A wooden crate. Might hold supplies.", "info");
-        break;
-      case "barrel":
-        ctx.log("A barrel. Smells of ale.", "info");
-        break;
-      case "shelf":
-        ctx.log("A shelf with assorted goods.", "info");
-        break;
-      case "plant":
-        ctx.log("A potted plant adds some life.", "info");
-        break;
-      case "rug":
-        ctx.log("A cozy rug warms the floor.", "info");
-        break;
-      case "sign": {
-        const title = p.name || "Sign";
-        // If this sign is next to a shop door, show its schedule
-        const near = [
-          { x: p.x, y: p.y },
-          { x: p.x + 1, y: p.y },
-          { x: p.x - 1, y: p.y },
-          { x: p.x, y: p.y + 1 },
-          { x: p.x, y: p.y - 1 },
-        ];
-        let shop = null;
-        for (const c of near) {
-          const s = shopAt(ctx, c.x, c.y);
-          if (s) { shop = s; break; }
-        }
-        if (shop) {
-          const openNow = isShopOpenNow(ctx, shop);
-          const sched = shopScheduleStr(ctx, shop);
-          ctx.log(`Sign: ${title}. ${sched} — ${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
-        } else {
-          ctx.log(`Sign: ${title}`, "info");
-        }
-        break;
-      }
-      default:
-        ctx.log("There's nothing special here.");
+    // Data-driven interactions strictly via PropsService + props.json
+    if (typeof window !== "undefined" && window.PropsService && typeof window.PropsService.interact === "function") {
+      return window.PropsService.interact(ctx, p);
     }
-    // No visual change; rely on HUD/log updates without forcing a draw
-    return true;
+    return false;
   }
 
   // ---- Spawn helpers ----
@@ -829,24 +640,28 @@
       }
       carveDoubleDoors(innRect);
 
-      // Additional opposite-side door to provide a rear entrance
+      // Additional opposite-side double doors to provide a rear entrance
       function carveOppositeDoor(rect) {
         if (rect.facing === "westFacing") {
           const x = rect.x + rect.w - 1;
           const cy = (rect.y + (rect.h / 2)) | 0;
           ctx.map[cy][x] = ctx.TILES.DOOR;
+          if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
         } else if (rect.facing === "eastFacing") {
           const x = rect.x;
           const cy = (rect.y + (rect.h / 2)) | 0;
           ctx.map[cy][x] = ctx.TILES.DOOR;
+          if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
         } else if (rect.facing === "northFacing") {
           const y = rect.y + rect.h - 1;
           const cx = (rect.x + (rect.w / 2)) | 0;
           ctx.map[y][cx] = ctx.TILES.DOOR;
+          if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
         } else {
           const y = rect.y;
           const cx = (rect.x + (rect.w / 2)) | 0;
           ctx.map[y][cx] = ctx.TILES.DOOR;
+          if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
         }
       }
       carveOppositeDoor(innRect);
@@ -1267,33 +1082,35 @@
         if (addProp(p.x, p.y, "bench", "Bench")) placed++;
       }
 
-      // Small market stalls on four sides of the plaza (not blocking the center)
+      // Single market stall near the plaza (not blocking the center)
       const stallOffsets = [
         { dx: -((plazaW / 2) | 0) + 2, dy: 0 },
         { dx: ((plazaW / 2) | 0) - 2, dy: 0 },
         { dx: 0, dy: -((plazaH / 2) | 0) + 2 },
         { dx: 0, dy: ((plazaH / 2) | 0) - 2 },
       ];
-      for (const o of stallOffsets) {
-        const sx = Math.max(1, Math.min(W - 2, plaza.x + o.dx));
-        const sy = Math.max(1, Math.min(H - 2, plaza.y + o.dy));
-        if (ctx.map[sy][sx] === ctx.TILES.FLOOR) {
-          addProp(sx, sy, "stall", "Market Stall");
-          // scatter a crate/barrel next to each stall if space allows
-          const neighbors = [
-            { x: sx + 1, y: sy }, { x: sx - 1, y: sy },
-            { x: sx, y: sy + 1 }, { x: sx, y: sy - 1 },
-          ];
-          for (const n of neighbors) {
-            if (n.x <= 0 || n.y <= 0 || n.x >= W - 1 || n.y >= H - 1) continue;
-            if (ctx.map[n.y][n.x] !== ctx.TILES.FLOOR) continue;
-            if (ctx.townProps.some(p => p.x === n.x && p.y === n.y)) continue;
-            const kind = ctx.rng() < 0.5 ? "crate" : "barrel";
-            addProp(n.x, n.y, kind, kind === "crate" ? "Crate" : "Barrel");
-            break;
-          }
+      const pickIdx = Math.floor(ctx.rng() * stallOffsets.length) % stallOffsets.length;
+      const o = stallOffsets[pickIdx];
+      const sx = Math.max(1, Math.min(W - 2, plaza.x + o.dx));
+      const sy = Math.max(1, Math.min(H - 2, plaza.y + o.dy));
+      if (ctx.map[sy][sx] === ctx.TILES.FLOOR) {
+        addProp(sx, sy, "stall", "Market Stall");
+        // scatter a crate/barrel next to the stall if space allows
+        const neighbors = [
+          { x: sx + 1, y: sy }, { x: sx - 1, y: sy },
+          { x: sx, y: sy + 1 }, { x: sx, y: sy - 1 },
+        ];
+        for (const n of neighbors) {
+          if (n.x <= 0 || n.y <= 0 || n.x >= W - 1 || n.y >= H - 1) continue;
+          if (ctx.map[n.y][n.x] !== ctx.TILES.FLOOR) continue;
+          if (ctx.townProps.some(p => p.x === n.x && p.y === n.y)) continue;
+          const kind = ctx.rng() < 0.5 ? "crate" : "barrel";
+          addProp(n.x, n.y, kind, kind === "crate" ? "Crate" : "Barrel");
+          break;
         }
       }
+
+      // Quest Board is placed inside the Inn during interior furnishing; no plaza placement here.
 
       // A few plants to soften the plaza
       const plantFactor = ((TOWNCFG && TOWNCFG.props && (TOWNCFG.props.plantTryFactor | 0)) || 10);
@@ -1327,6 +1144,42 @@
           const f = borderAdj[Math.floor(ctx.rng() * borderAdj.length)];
           if (!occupiedTile(f.x, f.y)) addProp(f.x, f.y, "fireplace", "Fireplace");
         }
+        // Ensure a single Quest Board inside the Inn
+        try {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          const isTavernBld = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
+          if (isTavernBld) {
+            // Already has a quest board inside this building?
+            let hasQB = ctx.townProps.some(p =>
+              p && p.type === "quest_board" &&
+              p.x > b.x && p.x < b.x + b.w - 1 &&
+              p.y > b.y && p.y < b.y + b.h - 1
+            );
+            if (!hasQB) {
+              const tavDoor = (ctx.tavern && ctx.tavern.door) ? ctx.tavern.door : null;
+              let best = null, bestD = Infinity;
+              // Prefer a spot near an inner wall, closest to the tavern door
+              for (const spot of borderAdj) {
+                if (occupiedTile(spot.x, spot.y)) continue;
+                const d = tavDoor ? Math.abs(spot.x - tavDoor.x) + Math.abs(spot.y - tavDoor.y) : 0;
+                if (d < bestD) { bestD = d; best = spot; }
+              }
+              let s = best || (borderAdj.length ? borderAdj[Math.floor(ctx.rng() * borderAdj.length)] : null);
+              // Fallback: any free interior floor tile
+              if (!s || occupiedTile(s.x, s.y)) {
+                for (let yy = b.y + 1; yy < b.y + b.h - 1 && !s; yy++) {
+                  for (let xx = b.x + 1; xx < b.x + b.w - 1; xx++) {
+                    if (!insideFloor(b, xx, yy)) continue;
+                    if (occupiedTile(xx, yy)) continue;
+                    s = { x: xx, y: yy };
+                    break;
+                  }
+                }
+              }
+              if (s && !occupiedTile(s.x, s.y)) addProp(s.x, s.y, "quest_board", "Quest Board");
+            }
+          }
+        } catch (_) {}
 
         // Beds scaled by area (Inn gets more beds)
         const area = b.w * b.h;

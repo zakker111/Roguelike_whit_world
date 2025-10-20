@@ -14,8 +14,11 @@
  * When running from file:// where fetch() of local JSON is often blocked,
  * we provide compact, hardcoded defaults so the game remains playable.
  */
-
+ 
 const DATA_FILES = {
+  // Combined assets file (tiles + props) — required in strict mode
+  assetsCombined: "data/world_assets.json",
+  // Individual registries
   items: "data/items.json",
   enemies: "data/enemies.json",
   npcs: "data/npcs.json",
@@ -23,7 +26,6 @@ const DATA_FILES = {
   shops: "data/shops.json",
   town: "data/town.json",
   flavor: "data/flavor.json",
-  tiles: "data/tiles.json",
   encounters: "data/encounters.json",
   config: "data/config.json",
   palette: "data/palette.json",
@@ -56,6 +58,7 @@ export const GameData = {
   config: null,
   palette: null,
   messages: null,
+  props: null,
   shopPhases: null,
   shopPools: null,
   shopRules: null,
@@ -81,9 +84,11 @@ function runningFromFile() {
 GameData.ready = (async function loadAll() {
   try {
     const [
-      items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters, config, palette, messages,
+      assetsCombined,
+      items, enemies, npcs, consumables, shops, town, flavor, encounters, config, palette, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression
     ] = await Promise.all([
+      fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
       fetchJson(DATA_FILES.enemies).catch(() => null),
       fetchJson(DATA_FILES.npcs).catch(() => null),
@@ -91,7 +96,6 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.shops).catch(() => null),
       fetchJson(DATA_FILES.town).catch(() => null),
       fetchJson(DATA_FILES.flavor).catch(() => null),
-      fetchJson(DATA_FILES.tiles).catch(() => null),
       fetchJson(DATA_FILES.encounters).catch(() => null),
       fetchJson(DATA_FILES.config).catch(() => null),
       fetchJson(DATA_FILES.palette).catch(() => null),
@@ -110,7 +114,6 @@ GameData.ready = (async function loadAll() {
     GameData.shops = Array.isArray(shops) ? shops : null;
     GameData.town = (town && typeof town === "object") ? town : null;
     GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
-    GameData.tiles = (tiles && typeof tiles === "object" && Array.isArray(tiles.tiles)) ? tiles : null;
     GameData.encounters = (encounters && typeof encounters === "object") ? encounters : null;
     GameData.config = (config && typeof config === "object") ? config : null;
     GameData.palette = (palette && typeof palette === "object") ? palette : null;
@@ -121,6 +124,21 @@ GameData.ready = (async function loadAll() {
     GameData.shopRules = (shopRules && typeof shopRules === "object") ? shopRules : null;
     GameData.shopRestock = (shopRestock && typeof shopRestock === "object") ? shopRestock : null;
     GameData.progression = (progression && typeof progression === "object") ? progression : null;
+
+    // Strict: require combined assets file (tiles + props)
+    try {
+      if (assetsCombined && typeof assetsCombined === "object") {
+        const combinedTiles = assetsCombined.tiles;
+        const combinedProps = assetsCombined.props;
+        if (combinedTiles && Array.isArray(combinedTiles.tiles)) GameData.tiles = combinedTiles;
+        if (combinedProps && typeof combinedProps === "object") GameData.props = combinedProps;
+      }
+    } catch (_) {}
+
+    if (!GameData.tiles || !GameData.props) {
+      logNotice("Combined assets missing or invalid (data/world_assets.json). tiles/props not loaded (strict mode).");
+      try { console.warn("[GameData] Combined assets missing; tiles/props unavailable in strict mode."); } catch (_) {}
+    }
 
     // If running under file://, note that JSON may not load due to fetch/CORS
     if (runningFromFile()) {
@@ -172,7 +190,7 @@ GameData.ready = (async function loadAll() {
     })();
 
     if (window.DEV) {
-      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression }); } catch (_) {}
+      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, props: !!GameData.props, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression }); } catch (_) {}
     }
 
     // If any registry failed to load, modules will use internal fallbacks.

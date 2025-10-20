@@ -149,8 +149,8 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
 
-      // Suppress door/stairs glyphs in town mode; retain fill colors so doors remain visually distinct.
-      if (type === TILES.DOOR || type === TILES.STAIRS) continue;
+      // Draw glyphs for all tiles in town, including doors and stairs, to avoid confusing visuals.
+      // (Previously suppressed door/stairs glyphs caused the view to look odd for some players.)
 
       const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
       if (!td) continue;
@@ -205,13 +205,29 @@ export function draw(ctx, view) {
 
       let glyph = "";
       let color = null;
+
+      // Prefer glyph and color from props registry if present (data-driven props styling)
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+        if (arr) {
+          const tId = String(p.type || "").toLowerCase();
+          const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
+          if (entry && typeof entry.glyph === "string") glyph = entry.glyph;
+          if (entry && entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg;
+          // Back-compat: allow plain 'color' field if present
+          if (!color && entry && typeof entry.color === "string") color = entry.color;
+        }
+      } catch (_) {}
+
+      // Next, consult tiles.json by key to fill in missing glyph/color
       let tdProp = null;
       try {
         const key = String(p.type || "").toUpperCase();
         tdProp = getTileDefByKey("town", key) || getTileDefByKey("dungeon", key) || getTileDefByKey("overworld", key);
         if (tdProp) {
-          if (Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph || glyph;
-          if (tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
+          if (!glyph && Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph || glyph;
+          if (!color && tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
         }
       } catch (_) {}
 
@@ -219,15 +235,15 @@ export function draw(ctx, view) {
       if (!glyph || !color) {
         const t = String(p.type || "").toLowerCase();
         if (!glyph) {
-          if (t === "well") glyph = "O";
-          else if (t === "lamp") glyph = "✦";
-          else if (t === "bench") glyph = "≡";
-          else if (t === "stall") glyph = "S";
-          else if (t === "crate") glyph = "□";
+          if (t === "well") glyph = "◍";
+          else if (t === "lamp") glyph = "†";
+          else if (t === "bench") glyph = "=";
+          else if (t === "stall") glyph = "▣";
+          else if (t === "crate") glyph = "▢";
           else if (t === "barrel") glyph = "◍";
           else if (t === "chest") glyph = "□";
           else if (t === "shelf") glyph = "≡";
-          else if (t === "plant") glyph = "❀";
+          else if (t === "plant") glyph = "*";
           else if (t === "rug") glyph = "░";
           else if (t === "fireplace") glyph = "♨";
           else if (t === "sign") glyph = "⚑";
@@ -275,16 +291,29 @@ export function draw(ctx, view) {
     }
   }
 
-  // NPCs
+  // NPCs: draw when the tile has been seen; dim if not currently visible or no LOS.
+  // This avoids \"disappearing\" when visibility is affected by lamp-light or corners.
   if (Array.isArray(ctx.npcs)) {
     for (const n of ctx.npcs) {
       if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
 
-      const isVisible = !!(visible[n.y] && visible[n.y][n.x]);
-      const wasSeen = !!(seen[n.y] && seen[n.y][n.x]);
+      const everSeen = !!(seen[n.y] && seen[n.y][n.x]);
+      if (!everSeen) continue;
 
-      // Always draw town NPCs for discoverability.
-      // Use alpha to indicate visibility state: full when visible, dim when not.
+      const isVisible = !!(visible[n.y] && visible[n.y][n.x]);
+
+      // Only check LOS when currently visible; otherwise we'll draw dim without LOS gating
+      let hasLine = true;
+      if (isVisible) {
+        try {
+          if (ctx.los && typeof ctx.los.hasLOS === "function") {
+            hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, n.x, n.y);
+          } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
+            hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, n.x, n.y);
+          }
+        } catch (_) {}
+      }
+
       const screenX = (n.x - startX) * TILE - tileOffsetX;
       const screenY = (n.y - startY) * TILE - tileOffsetY;
 
@@ -302,11 +331,19 @@ export function draw(ctx, view) {
         color = "#ffd166"; // warm gold
       }
 
-      // Always draw at full opacity to ensure discoverability, regardless of FOV memory.
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+      // Dim draw when not visible or visible-without-LOS; full draw when visible with LOS
+      const drawDim = (!isVisible || !hasLine);
+      if (drawDim) {
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.70;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+        ctx2d.restore();
+      } else {
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+      }
 
-      // Sleeping indicator: animated z/Z above sleeping NPCs (only when visible to avoid noise)
-      if (isVisible && n._sleeping) {
+      // Sleeping indicator: only when fully visible with LOS to avoid floating Z's through walls
+      if (!drawDim && n._sleeping) {
         const t = Date.now();
         const phase = Math.floor(t / 600) % 2; // toggle every ~0.6s
         const zChar = phase ? "Z" : "z";

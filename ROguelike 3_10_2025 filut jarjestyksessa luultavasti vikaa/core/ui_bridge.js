@@ -449,7 +449,8 @@ export function isAnyModalOpen() {
       isSmokeOpen() ||
       isRegionMapOpen() ||
       isHelpOpen() ||
-      isSleepOpen()
+      isSleepOpen() ||
+      isQuestBoardOpen()
     );
   } catch (_) { return false; }
 }
@@ -475,6 +476,32 @@ export function showTownExitButton(ctx) {
 export function hideTownExitButton(ctx) {
   if (!hasUI()) return;
   try { window.UI.hideTownExitButton && window.UI.hideTownExitButton(); } catch (_) {}
+}
+
+// ---- Quest Board panel wrappers ----
+export function isQuestBoardOpen() {
+  try {
+    if (typeof window !== "undefined" && window.QuestBoardUI && typeof window.QuestBoardUI.isOpen === "function") {
+      return !!window.QuestBoardUI.isOpen();
+    }
+  } catch (_) {}
+  return false;
+}
+export function showQuestBoard(ctx) {
+  try {
+    if (typeof window !== "undefined" && window.QuestBoardUI && typeof window.QuestBoardUI.open === "function") {
+      window.QuestBoardUI.open(ctx);
+      return;
+    }
+  } catch (_) {}
+}
+export function hideQuestBoard(ctx) {
+  try {
+    if (typeof window !== "undefined" && window.QuestBoardUI && typeof window.QuestBoardUI.hide === "function") {
+      window.QuestBoardUI.hide();
+      return;
+    }
+  } catch (_) {}
 }
 
 // Back-compat: attach to window for classic scripts
@@ -511,6 +538,10 @@ if (typeof window !== "undefined") {
     isSleepOpen,
     showSleep,
     hideSleep,
+    // Quest Board panel
+    isQuestBoardOpen,
+    showQuestBoard,
+    hideQuestBoard,
     // Confirm modal
     isConfirmOpen,
     cancelConfirm,

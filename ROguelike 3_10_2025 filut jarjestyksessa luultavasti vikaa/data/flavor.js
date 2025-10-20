@@ -99,9 +99,22 @@ export function logPlayerHit(ctx, opts) {
 export function announceFloorEnemyCount(ctx) {
   if (!ctx || typeof ctx.log !== "function" || !Array.isArray(ctx.enemies)) return;
   const n = ctx.enemies.length | 0;
-  if (n <= 0) ctx.log("You sense no enemies on this floor.", "notice");
-  else if (n === 1) ctx.log("You sense 1 enemy on this floor.", "notice");
-  else ctx.log(`You sense ${n} enemies on this floor.`, "notice");
+  try {
+    const M = (typeof window !== "undefined" ? window.Messages : null);
+    if (M && typeof M.get === "function") {
+      if (n <= 0) {
+        const text = M.get("dungeon.floorEnemyCount0");
+        if (text) ctx.log(text, "notice");
+      } else if (n === 1) {
+        const text = M.get("dungeon.floorEnemyCount1");
+        if (text) ctx.log(text, "notice");
+      } else {
+        const text = M.get("dungeon.floorEnemyCountMany", { n });
+        if (text) ctx.log(text, "notice");
+      }
+      return;
+    }
+  } catch (_) {}
 }
 
 // Back-compat: attach to window

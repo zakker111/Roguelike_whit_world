@@ -1,5 +1,23 @@
 # Game Version History
-Last updated: 2025-10-19 12:00 UTC
+Last updated: 2025-10-20 12:00 UTC
+
+v1.36.7 — Dungeon wall torches, unified props lighting, combined assets (strict), and glow overlays
+- Added: Wall Torch prop (data/world_assets.json)
+  - id/key/name: "wall_torch" / "WALL_TORCH" / "Wall Torch"
+  - glyph "†", warm color "#ffb84d"
+  - properties: emitsLight=true (non-blocking FOV), appearsIn=["dungeon"]
+  - light: castRadius=4, glowTiles=1.8, color="#ffb84d"
+- Added: Sparse dungeon wall torches
+  - DungeonRuntime.generate spawns torches on WALL tiles adjacent to walkable tiles with low density and spacing.
+  - Stored in ctx.dungeonProps and persisted via DungeonRuntime.save/load.
+- Rendering/FOV
+  - ui/render_dungeon.js draws dungeon props and calls RenderOverlays.drawDungeonGlow.
+  - ui/render_overlays.js adds drawDungeonGlow (lighter radial glow around torches).
+  - world/fov.js extends visibility from props that emitLight in dungeon mode (always active).
+- Combined assets (strict)
+  - data/world_assets.json is now the single source of tiles + props; loader requires it in strict mode.
+  - Tiles/props are not loaded without the combined assets file; other registries still fall back safely.
+- Deployment: https://qztezok9bdxu.cosine.page
 
 v1.36.6 — Region Map persistence, animals cleared (no respawn), overworld hints, corpse glyph, and campfire cooking
 - Region Map

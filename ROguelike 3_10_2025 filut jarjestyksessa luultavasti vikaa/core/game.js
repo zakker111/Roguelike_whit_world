@@ -190,6 +190,8 @@
   let encounterProps = [];
   let encounterBiome = null;
   let encounterObjective = null;
+  // Dungeon decorative props (e.g., wall torches)
+  let dungeonProps = [];
   // Occupancy Grid (entities on tiles)
   let occupancy = null;
   
@@ -244,6 +246,7 @@
       player, enemies, corpses, decals, map, seen, visible, occupancy,
       // encounter visuals
       encounterProps, encounterBiome, encounterObjective,
+      dungeonProps,
       floor, depth: floor,
       fovRadius,
       // world/overworld
@@ -999,6 +1002,7 @@
       // encounter visuals for RenderDungeon
       encounterProps,
       encounterBiome,
+      dungeonProps,
       enemyColor: (t) => enemyColor(t),
       time: getClock(),
       // GameLoop can measure draw time and report via this sink
@@ -1164,6 +1168,7 @@
     npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
     // Encounter visuals
     encounterProps = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : encounterProps;
+    dungeonProps = Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps : dungeonProps;
     if (Object.prototype.hasOwnProperty.call(ctx, "encounterBiome")) {
       encounterBiome = ctx.encounterBiome;
     }

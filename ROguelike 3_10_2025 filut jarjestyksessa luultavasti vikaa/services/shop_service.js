@@ -230,6 +230,53 @@ export function calculatePrice(shopType, item, phase, demandState) {
   return Math.max(1, Math.round(base * mult));
 }
 
+// Stack identical consumables (potions by heal, drinks by name) into single rows with summed qty and lowest price.
+// Preserves relative order based on first occurrence.
+function _stackRows(rows) {
+  try {
+    if (!Array.isArray(rows) || rows.length === 0) return rows || [];
+    var groups = {};
+    var order = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var it = r && r.item ? r.item : null;
+      var kind = it ? String(it.kind || "") : "";
+      var key = null;
+      if (kind === "potion") {
+        key = "potion:" + String((it.heal != null ? it.heal : 0) | 0);
+      } else if (kind === "drink") {
+        key = "drink:" + String(it.name || "").toLowerCase();
+      }
+      if (!key) {
+        // non-stackable: keep as-is
+        order.push({ key: null, row: r });
+      } else {
+        if (!groups[key]) {
+          groups[key] = { base: r, qty: 0, price: (r.price | 0) };
+          order.push({ key: key, row: null });
+        }
+        groups[key].qty += (r.qty | 0);
+        if ((r.price | 0) < groups[key].price) groups[key].price = (r.price | 0);
+      }
+    }
+    var out = [];
+    for (var j = 0; j < order.length; j++) {
+      var ent = order[j];
+      if (!ent.key) {
+        out.push(ent.row);
+      } else {
+        var g = groups[ent.key];
+        if (g) {
+          var qsum = Math.max(1, g.qty | 0);
+          out.push({ item: g.base.item, price: g.price, qty: qsum });
+          groups[ent.key] = null;
+        }
+      }
+    }
+    return out;
+  } catch (_) { return rows || []; }
+}
+
 // ----- Inventory generation / restock -----
 function _weightedPick(rng, entries, phase) {
   if (!Array.isArray(entries) || !entries.length) return null;
@@ -256,53 +303,6 @@ function _getPools(shopType) {
     var pools = gd && gd.shopPools ? gd.shopPools[shopType] : null;
     return pools || null;
   } catch (_) { return null; }
-}
-
-// Fallback stock when JSON pools are unavailable (e.g., file:// or missing registries)
-function _generateFallbackStock(ctx, shop, phase) {
-  var rng = _rng(ctx);
-  var type = String(shop && shop.type || "").toLowerCase();
-  var rows = [];
-  function push(item, qty) {
-    try {
-      var price = calculatePrice(type || "trader", item, phase, null);
-      rows.push({ item: item, price: price, qty: Math.max(1, qty | 0) });
-    } catch (_) {
-      rows.push({ item: item, price: 10, qty: Math.max(1, qty | 0) });
-    }
-  }
-  if (type === "apothecary") {
-    push({ kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, 2);
-    push({ kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, 1);
-    push({ kind: "antidote", name: "antidote" }, 1);
-  } else if (type === "blacksmith") {
-    push({ kind: "equip", slot: "hand", name: "simple sword", atk: 1.2, tier: 1, twoHanded: false, decay: 0 }, 1);
-    push({ kind: "equip", slot: "hand", name: "heavy axe", atk: 1.6, tier: 2, twoHanded: false, decay: 0 }, (rng() < 0.4 ? 1 : 0) || 1);
-  } else if (type === "armorer") {
-    push({ kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: 0 }, 1);
-    push({ kind: "equip", slot: "hand", name: "steel shield", def: 1.1, tier: 2, decay: 0 }, 1);
-  } else if (type === "inn") {
-    push({ kind: "drink", name: "ale", heal: 2, count: 1 }, 2);
-    push({ kind: "drink", name: "mead", heal: 3, count: 1 }, 2);
-    push({ kind: "drink", name: "wine", heal: 4, count: 1 }, 1);
-  } else if (type === "carpenter") {
-    push({ kind: "material", material: "wood", name: "planks", amount: 5 }, 2);
-    push({ kind: "tool", name: "saw" }, 1);
-  } else if (type === "trader") {
-    push({ kind: "tool", name: "torch" }, 1);
-    push({ kind: "tool", name: "lockpick" }, 1);
-    push({ kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, 1);
-    push({ kind: "equip", slot: "hand", name: "simple dagger", atk: 1.0, tier: 1, twoHanded: false, decay: 0 }, 1);
-    push({ kind: "material", material: "wood", name: "planks", amount: 3 }, (rng() < 0.5 ? 1 : 0) || 1);
-  } else {
-    // Generic fallback: a few curios/tools
-    push({ kind: "tool", name: "rope" }, 1);
-    push({ kind: "curio", name: "odd stone" }, 1);
-    push({ kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, 1);
-  }
-  // Limit the list length to keep UI tidy
-  if (rows.length > 6) rows = rows.slice(0, 6);
-  return rows;
 }
 
 export function ensureShopState(ctx, shop) {
@@ -333,7 +333,7 @@ export function restockIfNeeded(ctx, shop) {
   }
 
   if (shouldPrimary) {
-    // generate inventory from pools; when unavailable, use fallback
+    // generate inventory from pools (strict JSON; no fallback)
     var pools = _getPools(shop.type);
     var rng = _rng(ctx);
     var rows = [];
@@ -358,10 +358,10 @@ export function restockIfNeeded(ctx, shop) {
         }
       });
     }
-    // Fallback stock when pools are missing or produced no rows
-    if (!rows || !rows.length) {
-      rows = _generateFallbackStock(ctx, shop, phase);
-    }
+
+    // Stack identical consumables across all shops for cleaner lists (potions by heal, drinks by name)
+    try { rows = _stackRows(rows); } catch (_) {}
+
     st.rows = rows;
   }
 
@@ -416,6 +416,8 @@ export function restockIfNeeded(ctx, shop) {
           st.rows[idx] = { item: item2, price: calculatePrice(shop.type, item2, phase, null), qty: Math.max(1, (pick2 && pick2.stack && pick2.stack.max) ? pick2.stack.max : 1) };
         }
       }
+      // Re-stack after mini restock to keep duplicate consumables merged
+      try { st.rows = _stackRows(st.rows); } catch (_) {}
     }
   }
   return st;
@@ -429,17 +431,40 @@ export function getInventoryForShop(ctx, shop) {
 function _giveItemToPlayer(ctx, item) {
   try {
     var inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : (ctx.player.inventory = []);
-    if (item.kind === "potion") {
+    var k = String(item.kind || "").toLowerCase();
+
+    // Ensure a count field for stackables
+    if (k === "potion" || k === "drink") {
+      item.count = (item.count | 0) || 1;
+    }
+
+    if (k === "potion") {
       var same = null;
       for (var j = 0; j < inv.length; j++) {
         var it2 = inv[j];
         if (it2 && it2.kind === "potion" && ((it2.heal || 0) === (item.heal || 0))) { same = it2; break; }
       }
-      if (same) same.count = (same.count || 1) + (item.count || 1);
-      else inv.push(item);
+      if (same) {
+        same.count = (same.count | 0) + (item.count | 0);
+      } else {
+        inv.push(item);
+      }
+    } else if (k === "drink") {
+      var nmNew = String(item.name || "").toLowerCase();
+      var sameD = null;
+      for (var i = 0; i < inv.length; i++) {
+        var it3 = inv[i];
+        if (it3 && it3.kind === "drink" && String(it3.name || "").toLowerCase() === nmNew) { sameD = it3; break; }
+      }
+      if (sameD) {
+        sameD.count = (sameD.count | 0) + (item.count | 0);
+      } else {
+        inv.push(item);
+      }
     } else {
       inv.push(item);
     }
+
     if (typeof ctx.updateUI === "function") ctx.updateUI();
     if (ctx.renderInventory) ctx.renderInventory();
   } catch (_) {}
@@ -524,7 +549,7 @@ export function sellItem(ctx, shop, playerInvIdx) {
   goldObj.amount = (goldObj.amount | 0) + pay;
 
   // decrement/remove stack
-  if (it.kind === "potion" && (it.count || 1) > 1) {
+  if ((it.kind === "potion" || it.kind === "drink") && (it.count || 1) > 1) {
     it.count = (it.count | 0) - 1;
   } else {
     inv.splice(playerInvIdx, 1);
