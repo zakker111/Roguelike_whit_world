@@ -480,8 +480,7 @@ export function pickTownStart(world, rng) {
     }
   }
   return { x: 1, y: 1 };
-}>
-// Back-compat: attach to window via helper
-attachGlobal("World", { {
-  window.World = { TILES, generate, isWalkable, pickTownStart, biomeName };
 }
+
+// Back-compat: attach to window via helper
+attachGlobal("World", { TILES, generate, isWalkable, pickTownStart, biomeName });

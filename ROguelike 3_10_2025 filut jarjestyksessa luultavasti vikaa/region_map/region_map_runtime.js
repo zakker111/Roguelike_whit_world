@@ -1060,12 +1060,14 @@ function tick(ctx) {
 
 // Back-compat: attach to window
 attachGlobal("RegionMapRuntime", {
-  open, close, tryMove, onAction, tick,
+  open,
+  close,
+  tryMove,
+  onAction,
+  tick,
   // Persistence helpers for animals memory/clear state
   markAnimalsCleared,
-  animalsCleared  markAnimalsCleared,
-    animalsClearedHere,
-    markAnimalsSeen,
-    animalsSeenHere
-  };
-}
+  animalsClearedHere,
+  markAnimalsSeen,
+  animalsSeenHere
+});
