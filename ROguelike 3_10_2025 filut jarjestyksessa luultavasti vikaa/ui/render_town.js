@@ -205,13 +205,27 @@ export function draw(ctx, view) {
 
       let glyph = "";
       let color = null;
+
+      // Prefer glyph from props.json if present (data-driven props styling)
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+        if (arr) {
+          const entry = arr.find(pp => String(pp.id || "").toLowerCase() === String(p.type || "").toLowerCase());
+          if (entry && typeof entry.glyph === "string") glyph = entry.glyph;
+          // Optional: allow props.json to provide color if defined
+          if (entry && typeof entry.color === "string") color = entry.color;
+        }
+      } catch (_) {}
+
+      // Next, consult tiles.json by key to fill in missing glyph/color
       let tdProp = null;
       try {
         const key = String(p.type || "").toUpperCase();
         tdProp = getTileDefByKey("town", key) || getTileDefByKey("dungeon", key) || getTileDefByKey("overworld", key);
         if (tdProp) {
-          if (Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph || glyph;
-          if (tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
+          if (!glyph && Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph || glyph;
+          if (!color && tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
         }
       } catch (_) {}
 
@@ -219,15 +233,15 @@ export function draw(ctx, view) {
       if (!glyph || !color) {
         const t = String(p.type || "").toLowerCase();
         if (!glyph) {
-          if (t === "well") glyph = "O";
-          else if (t === "lamp") glyph = "✦";
-          else if (t === "bench") glyph = "≡";
-          else if (t === "stall") glyph = "S";
-          else if (t === "crate") glyph = "□";
+          if (t === "well") glyph = "◍";
+          else if (t === "lamp") glyph = "†";
+          else if (t === "bench") glyph = "=";
+          else if (t === "stall") glyph = "▣";
+          else if (t === "crate") glyph = "▢";
           else if (t === "barrel") glyph = "◍";
           else if (t === "chest") glyph = "□";
           else if (t === "shelf") glyph = "≡";
-          else if (t === "plant") glyph = "❀";
+          else if (t === "plant") glyph = "*";
           else if (t === "rug") glyph = "░";
           else if (t === "fireplace") glyph = "♨";
           else if (t === "sign") glyph = "⚑";

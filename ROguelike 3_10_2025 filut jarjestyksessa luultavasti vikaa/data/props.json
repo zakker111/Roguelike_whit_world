@@ -2,18 +2,21 @@
   "props": [
     {
       "id": "well",
+      "glyph": "◍",
       "variants": [
         { "message": "You draw some cool water from the well. Refreshing.", "style": "good" }
       ]
     },
     {
       "id": "fountain",
+      "glyph": "⛲",
       "variants": [
         { "message": "You watch the fountain for a moment. You feel calmer.", "style": "info" }
       ]
     },
     {
       "id": "bench",
+      "glyph": "=",
       "variants": [
         {
           "when": { "phaseNot": "day" },
@@ -26,18 +29,21 @@
     },
     {
       "id": "lamp",
+      "glyph": "†",
       "variants": [
         { "message": "The lamp flickers warmly.", "style": "info" }
       ]
     },
     {
       "id": "stall",
+      "glyph": "▣",
       "variants": [
         { "message": "Stal: Fresh wares soon", "style": "notice" }
       ]
     },
     {
       "id": "tree",
+      "glyph": "♣",
       "variants": [
         {
           "message": "You cut the tree.",
@@ -48,24 +54,28 @@
     },
     {
       "id": "fireplace",
+      "glyph": "♨",
       "variants": [
         { "message": "You warm your hands by the fireplace.", "style": "info" }
       ]
     },
     {
       "id": "table",
+      "glyph": "⊔",
       "variants": [
         { "message": "A sturdy wooden table. Nothing of note on it.", "style": "info" }
       ]
     },
     {
       "id": "chair",
+      "glyph": "⟂",
       "variants": [
         { "message": "A simple wooden chair.", "style": "info" }
       ]
     },
     {
       "id": "bed",
+      "glyph": "‗",
       "variants": [
         {
           "when": { "insideInn": true, "requiresInnStay": true },
@@ -83,42 +93,49 @@
     },
     {
       "id": "chest",
+      "glyph": "□",
       "variants": [
         { "message": "The chest is locked.", "style": "warn" }
       ]
     },
     {
       "id": "crate",
+      "glyph": "▢",
       "variants": [
         { "message": "A wooden crate. Might hold supplies.", "style": "info" }
       ]
     },
     {
       "id": "barrel",
+      "glyph": "◍",
       "variants": [
         { "message": "A barrel. Smells of ale.", "style": "info" }
       ]
     },
     {
       "id": "shelf",
+      "glyph": "≡",
       "variants": [
         { "message": "A shelf with assorted goods.", "style": "info" }
       ]
     },
     {
       "id": "plant",
+      "glyph": "*",
       "variants": [
         { "message": "A potted plant adds some life.", "style": "info" }
       ]
     },
     {
       "id": "rug",
+      "glyph": "░",
       "variants": [
         { "message": "A cozy rug warms the floor.", "style": "info" }
       ]
     },
     {
       "id": "sign",
+      "glyph": "⚑",
       "variants": [
         {
           "when": { "nearShop": true },
