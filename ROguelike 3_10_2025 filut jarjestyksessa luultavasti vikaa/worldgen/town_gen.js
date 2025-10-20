@@ -1110,24 +1110,7 @@
         }
       }
 
-      // Quest Board near the plaza (single)
-      (function placeQuestBoard() {
-        const candidates = [
-          { x: plaza.x - 2, y: plaza.y },
-          { x: plaza.x + 2, y: plaza.y },
-          { x: plaza.x, y: plaza.y - 2 },
-          { x: plaza.x, y: plaza.y + 2 },
-          { x: Math.max(1, ((plaza.x - (plazaW / 2)) | 0) + 2), y: plaza.y },
-          { x: Math.min(W - 2, ((plaza.x + (plazaW / 2)) | 0) - 2), y: plaza.y },
-        ];
-        for (const q of candidates) {
-          if (q.x <= 0 || q.y <= 0 || q.x >= W - 1 || q.y >= H - 1) continue;
-          if (ctx.map[q.y][q.x] !== ctx.TILES.FLOOR) continue;
-          if (ctx.townProps.some(p => p.x === q.x && p.y === q.y)) continue;
-          addProp(q.x, q.y, "quest_board", "Quest Board");
-          break;
-        }
-      })();
+      // Quest Board is placed inside the Inn during interior furnishing; no plaza placement here.
 
       // A few plants to soften the plaza
       const plantFactor = ((TOWNCFG && TOWNCFG.props && (TOWNCFG.props.plantTryFactor | 0)) || 10);
@@ -1161,6 +1144,42 @@
           const f = borderAdj[Math.floor(ctx.rng() * borderAdj.length)];
           if (!occupiedTile(f.x, f.y)) addProp(f.x, f.y, "fireplace", "Fireplace");
         }
+        // Ensure a single Quest Board inside the Inn
+        try {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          const isTavernBld = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
+          if (isTavernBld) {
+            // Already has a quest board inside this building?
+            let hasQB = ctx.townProps.some(p =>
+              p && p.type === "quest_board" &&
+              p.x > b.x && p.x < b.x + b.w - 1 &&
+              p.y > b.y && p.y < b.y + b.h - 1
+            );
+            if (!hasQB) {
+              const tavDoor = (ctx.tavern && ctx.tavern.door) ? ctx.tavern.door : null;
+              let best = null, bestD = Infinity;
+              // Prefer a spot near an inner wall, closest to the tavern door
+              for (const spot of borderAdj) {
+                if (occupiedTile(spot.x, spot.y)) continue;
+                const d = tavDoor ? Math.abs(spot.x - tavDoor.x) + Math.abs(spot.y - tavDoor.y) : 0;
+                if (d < bestD) { bestD = d; best = spot; }
+              }
+              let s = best || (borderAdj.length ? borderAdj[Math.floor(ctx.rng() * borderAdj.length)] : null);
+              // Fallback: any free interior floor tile
+              if (!s || occupiedTile(s.x, s.y)) {
+                for (let yy = b.y + 1; yy < b.y + b.h - 1 && !s; yy++) {
+                  for (let xx = b.x + 1; xx < b.x + b.w - 1; xx++) {
+                    if (!insideFloor(b, xx, yy)) continue;
+                    if (occupiedTile(xx, yy)) continue;
+                    s = { x: xx, y: yy };
+                    break;
+                  }
+                }
+              }
+              if (s && !occupiedTile(s.x, s.y)) addProp(s.x, s.y, "quest_board", "Quest Board");
+            }
+          }
+        } catch (_) {}
 
         // Beds scaled by area (Inn gets more beds)
         const area = b.w * b.h;
