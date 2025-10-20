@@ -149,8 +149,8 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
 
-      // Suppress door/stairs glyphs in town mode; retain fill colors so doors remain visually distinct.
-      if (type === TILES.DOOR || type === TILES.STAIRS) continue;
+      // Draw glyphs for all tiles in town, including doors and stairs, to avoid confusing visuals.
+      // (Previously suppressed door/stairs glyphs caused the view to look odd for some players.)
 
       const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
       if (!td) continue;
