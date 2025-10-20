@@ -17,15 +17,17 @@ Play it
   - Brace: B (dungeon only; raises block chance this turn if holding a defensive hand item)
 
 Data-driven configuration
-- JSON files under data/ drive most content:
-  - items.json: equipment types and stat ranges
-  - enemies.json: enemy types, glyphs/colors, spawn weights, stat formulas
-  - npcs.json: names and flavor lines
-  - consumables.json: potions/consumables
-  - shops.json: shop names/types and open/close schedules
-  - town.json: map size, plaza size, roads, buildings, props
-- These are loaded by data/loader.js and adapted at runtime; missing fields fall back safely.
-- When running via file://, the loader provides built-in defaults so the game remains playable without HTTP.
+- Combined assets (strict): data/world_assets.json contains tiles and props and is required in strict mode.
+  - tiles: structural and terrain entries (e.g., FLOOR, WALL, DOOR, STAIRS, WINDOW).
+  - props: furniture/decor entries (e.g., lamp, bench, chest) with unified fields:
+    - glyph, colors.fg
+    - properties: walkable, blocksFOV, emitsLight
+    - appearsIn, tags
+    - light: castRadius, glowTiles, color (optional)
+- Other JSON registries under data/:
+  - items.json, enemies.json, npcs.json, consumables.json, shops.json, town.json
+- Loader: data/loader.js loads and exposes GameData.*; logs a warning if world_assets.json is missing/invalid; tiles/props are not loaded in strict mode without it.
+- file://: you can still open index.html directly; minimal defaults keep the game playable, but tiles/props require the combined assets file for full visuals.
 
 Determinism and seeds
 - RNG is centralized; apply seeds in the GOD panel.
@@ -76,6 +78,9 @@ Key features at a glance
 - Towns with shops and NPCs:
   - Shops, schedules, and greeters; basic bump-buy test hooks (if enabled).
   - NPC bump dialogue; home/prop checks; ESC closes the Shop panel.
+- Lighting from props:
+  - Town: lamps and fireplaces emit light at night/dawn/dusk; small warm glow overlay.
+  - Dungeon: wall torches spawn sparsely on walls, always emit light; subtle glow overlay.
 - UI/UX:
   - FOV and LOS consistent; seen tiles dim when not visible.
   - Escape closes modals; movement is ignored while any modal is open.
