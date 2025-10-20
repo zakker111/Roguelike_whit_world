@@ -230,6 +230,53 @@ export function calculatePrice(shopType, item, phase, demandState) {
   return Math.max(1, Math.round(base * mult));
 }
 
+// Stack identical consumables (potions by heal, drinks by name) into single rows with summed qty and lowest price.
+// Preserves relative order based on first occurrence.
+function _stackRows(rows) {
+  try {
+    if (!Array.isArray(rows) || rows.length === 0) return rows || [];
+    var groups = {};
+    var order = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var it = r && r.item ? r.item : null;
+      var kind = it ? String(it.kind || "") : "";
+      var key = null;
+      if (kind === "potion") {
+        key = "potion:" + String((it.heal != null ? it.heal : 0) | 0);
+      } else if (kind === "drink") {
+        key = "drink:" + String(it.name || "").toLowerCase();
+      }
+      if (!key) {
+        // non-stackable: keep as-is
+        order.push({ key: null, row: r });
+      } else {
+        if (!groups[key]) {
+          groups[key] = { base: r, qty: 0, price: (r.price | 0) };
+          order.push({ key: key, row: null });
+        }
+        groups[key].qty += (r.qty | 0);
+        if ((r.price | 0) < groups[key].price) groups[key].price = (r.price | 0);
+      }
+    }
+    var out = [];
+    for (var j = 0; j < order.length; j++) {
+      var ent = order[j];
+      if (!ent.key) {
+        out.push(ent.row);
+      } else {
+        var g = groups[ent.key];
+        if (g) {
+          var qsum = Math.max(1, g.qty | 0);
+          out.push({ item: g.base.item, price: g.price, qty: qsum });
+          groups[ent.key] = null;
+        }
+      }
+    }
+    return out;
+  } catch (_) { return rows || []; }
+}
+
 // ----- Inventory generation / restock -----
 function _weightedPick(rng, entries, phase) {
   if (!Array.isArray(entries) || !entries.length) return null;
@@ -312,42 +359,8 @@ export function restockIfNeeded(ctx, shop) {
       });
     }
 
-    // For inn shops: stack identical drinks (by name) into single rows showing total qty
-    try {
-      if (shop && String(shop.type || "").toLowerCase() === "inn" && Array.isArray(rows)) {
-        var groups = {};
-        var order = [];
-        for (var ri = 0; ri < rows.length; ri++) {
-          var r = rows[ri];
-          var it = r && r.item ? r.item : null;
-          var nm = it && it.name ? String(it.name).toLowerCase() : "";
-          var kind = it ? String(it.kind || "") : "";
-          var keyStack = (kind === "drink" && nm) ? nm : null;
-          if (!keyStack) {
-            order.push({ key: null, row: r });
-          } else {
-            if (!groups[keyStack]) { groups[keyStack] = { base: r, qty: 0, price: r.price | 0 }; order.push({ key: keyStack, row: null }); }
-            groups[keyStack].qty += (r.qty | 0);
-            if ((r.price | 0) < groups[keyStack].price) groups[keyStack].price = (r.price | 0);
-          }
-        }
-        var stacked = [];
-        for (var oi = 0; oi < order.length; oi++) {
-          var ent = order[oi];
-          if (!ent.key) {
-            stacked.push(ent.row);
-          } else {
-            var g = groups[ent.key];
-            if (g) {
-              var qsum = Math.max(1, g.qty | 0);
-              stacked.push({ item: g.base.item, price: g.price, qty: qsum });
-              groups[ent.key] = null;
-            }
-          }
-        }
-        rows = stacked;
-      }
-    } catch (_) {}
+    // Stack identical consumables across all shops for cleaner lists (potions by heal, drinks by name)
+    try { rows = _stackRows(rows); } catch (_) {}
 
     st.rows = rows;
   }
@@ -403,6 +416,8 @@ export function restockIfNeeded(ctx, shop) {
           st.rows[idx] = { item: item2, price: calculatePrice(shop.type, item2, phase, null), qty: Math.max(1, (pick2 && pick2.stack && pick2.stack.max) ? pick2.stack.max : 1) };
         }
       }
+      // Re-stack after mini restock to keep duplicate consumables merged
+      try { st.rows = _stackRows(st.rows); } catch (_) {}
     }
   }
   return st;
