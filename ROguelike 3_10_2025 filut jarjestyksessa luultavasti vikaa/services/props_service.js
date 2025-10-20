@@ -209,6 +209,10 @@ export function interact(ctx, prop) {
     const res = _healByPercent(ctx, eff.healPercent || 0);
     const msg = _renderTemplate(eff.logTemplate || "You rest until morning (${time}). HP ${prev} -> ${hp}.", { time: _timeHHMM(ctx), prev: (res.prev.toFixed ? res.prev.toFixed(1) : res.prev), hp: (res.hp.toFixed ? res.hp.toFixed(1) : res.hp) });
     _log(ctx, msg, variant.style || "info");
+    // Ensure HUD/time reflect changes immediately
+    try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+    try { if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV(); } catch (_) {}
+    try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
     return true;
   }
   if (eff && eff.type === "grantMaterial") {
