@@ -275,16 +275,26 @@ export function draw(ctx, view) {
     }
   }
 
-  // NPCs
+  // NPCs: draw only when currently visible AND with line-of-sight from player.
+  // Prevents seeing NPCs through walls or outside FOV.
   if (Array.isArray(ctx.npcs)) {
     for (const n of ctx.npcs) {
       if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
 
       const isVisible = !!(visible[n.y] && visible[n.y][n.x]);
-      const wasSeen = !!(seen[n.y] && seen[n.y][n.x]);
+      if (!isVisible) continue;
 
-      // Always draw town NPCs for discoverability.
-      // Use alpha to indicate visibility state: full when visible, dim when not.
+      // Require LOS to the NPC from player to avoid seeing through walls
+      let hasLine = true;
+      try {
+        if (ctx.los && typeof ctx.los.hasLOS === "function") {
+          hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, n.x, n.y);
+        } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
+          hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, n.x, n.y);
+        }
+      } catch (_) {}
+      if (!hasLine) continue;
+
       const screenX = (n.x - startX) * TILE - tileOffsetX;
       const screenY = (n.y - startY) * TILE - tileOffsetY;
 
@@ -302,11 +312,11 @@ export function draw(ctx, view) {
         color = "#ffd166"; // warm gold
       }
 
-      // Always draw at full opacity to ensure discoverability, regardless of FOV memory.
+      // Draw at full opacity only when visible with LOS
       RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
 
-      // Sleeping indicator: animated z/Z above sleeping NPCs (only when visible to avoid noise)
-      if (isVisible && n._sleeping) {
+      // Sleeping indicator: only when visible (and thus LOS ensured above)
+      if (n._sleeping) {
         const t = Date.now();
         const phase = Math.floor(t / 600) % 2; // toggle every ~0.6s
         const zChar = phase ? "Z" : "z";
