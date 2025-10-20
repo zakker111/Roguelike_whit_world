@@ -621,6 +621,17 @@ function open(ctx, size) {
   spawnX = clamp(spawnX, 0, width - 1);
   spawnY = clamp(spawnY, 0, height - 1);
 
+  // On enter: spawn the cursor at the nearest exit tile (edge), not at the mapped interior point.
+  const exits = [exitNorth, exitSouth, exitWest, exitEast];
+  let bestExit = exits[0];
+  let bestDist = Infinity;
+  for (const e of exits) {
+    const d = Math.abs((e.x | 0) - spawnX) + Math.abs((e.y | 0) - spawnY);
+    if (d < bestDist) { bestDist = d; bestExit = e; }
+  }
+  spawnX = bestExit.x | 0;
+  spawnY = bestExit.y | 0;
+
   ctx.region = {
     ...(ctx.region || {}),
     width,
