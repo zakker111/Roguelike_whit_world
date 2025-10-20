@@ -149,7 +149,6 @@ export const Logger = {
 try { Logger.init(); } catch (e) { /* ignore */ }
 try { Logger.captureGlobalErrors(); } catch (_) {}
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.Logger = Logger;
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("Logger", Logger);

@@ -83,7 +83,6 @@ export function open(ctx) {
   // No quest logic yet — placeholder panel only
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.QuestBoardUI = { ensurePanel, hide, isOpen, open };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("QuestBoardUI", { ensurePanel, hide, isOpen, open });

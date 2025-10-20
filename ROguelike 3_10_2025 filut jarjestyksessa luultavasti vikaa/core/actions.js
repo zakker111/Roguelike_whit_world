@@ -263,7 +263,6 @@ export function descend(ctx) {
   return true;
 }
 
-// Back-compat: attach to window for classic scripts
-if (typeof window !== "undefined") {
-  window.Actions = { doAction, loot, descend };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("Actions", { doAction, loot, descend });

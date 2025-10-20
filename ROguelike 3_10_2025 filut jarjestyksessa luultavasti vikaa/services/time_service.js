@@ -64,7 +64,6 @@ export function create(opts = {}) {
   };
 }
 
-// Back-compat: attach to window for classic scripts
-if (typeof window !== "undefined") {
-  window.TimeService = { create };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("TimeService", { create });
