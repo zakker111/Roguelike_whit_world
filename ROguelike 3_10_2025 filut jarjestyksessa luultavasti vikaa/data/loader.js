@@ -14,11 +14,11 @@
  * When running from file:// where fetch() of local JSON is often blocked,
  * we provide compact, hardcoded defaults so the game remains playable.
  */
-
+ 
 const DATA_FILES = {
-  // Combined assets file (tiles + props) — preferred if present
+  // Combined assets file (tiles + props) — required in strict mode
   assetsCombined: "data/world_assets.json",
-  // Individual registries (fallbacks)
+  // Individual registries
   items: "data/items.json",
   enemies: "data/enemies.json",
   npcs: "data/npcs.json",
@@ -26,12 +26,10 @@ const DATA_FILES = {
   shops: "data/shops.json",
   town: "data/town.json",
   flavor: "data/flavor.json",
-  tiles: "data/tiles.json",
   encounters: "data/encounters.json",
   config: "data/config.json",
   palette: "data/palette.json",
   messages: "data/messages.json",
-  props: "data/props.json",
   shopPhases: "data/shop_phases.json",
   shopPools: "data/shop_pools.json",
   shopRules: "data/shop_rules.json",
@@ -87,7 +85,7 @@ GameData.ready = (async function loadAll() {
   try {
     const [
       assetsCombined,
-      items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters, config, palette, messages, props,
+      items, enemies, npcs, consumables, shops, town, flavor, encounters, config, palette, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
@@ -98,12 +96,10 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.shops).catch(() => null),
       fetchJson(DATA_FILES.town).catch(() => null),
       fetchJson(DATA_FILES.flavor).catch(() => null),
-      fetchJson(DATA_FILES.tiles).catch(() => null),
       fetchJson(DATA_FILES.encounters).catch(() => null),
       fetchJson(DATA_FILES.config).catch(() => null),
       fetchJson(DATA_FILES.palette).catch(() => null),
       fetchJson(DATA_FILES.messages).catch(() => null),
-      fetchJson(DATA_FILES.props).catch(() => null),
       fetchJson(DATA_FILES.shopPhases).catch(() => null),
       fetchJson(DATA_FILES.shopPools).catch(() => null),
       fetchJson(DATA_FILES.shopRules).catch(() => null),
@@ -118,12 +114,10 @@ GameData.ready = (async function loadAll() {
     GameData.shops = Array.isArray(shops) ? shops : null;
     GameData.town = (town && typeof town === "object") ? town : null;
     GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
-    GameData.tiles = (tiles && typeof tiles === "object" && Array.isArray(tiles.tiles)) ? tiles : null;
     GameData.encounters = (encounters && typeof encounters === "object") ? encounters : null;
     GameData.config = (config && typeof config === "object") ? config : null;
     GameData.palette = (palette && typeof palette === "object") ? palette : null;
     GameData.messages = (messages && typeof messages === "object") ? messages : null;
-    GameData.props = (props && typeof props === "object") ? props : null;
 
     GameData.shopPhases = (shopPhases && typeof shopPhases === "object") ? shopPhases : null;
     GameData.shopPools = (shopPools && typeof shopPools === "object") ? shopPools : null;
@@ -131,7 +125,7 @@ GameData.ready = (async function loadAll() {
     GameData.shopRestock = (shopRestock && typeof shopRestock === "object") ? shopRestock : null;
     GameData.progression = (progression && typeof progression === "object") ? progression : null;
 
-    // Prefer combined assets file (tiles + props) if present
+    // Strict: require combined assets file (tiles + props)
     try {
       if (assetsCombined && typeof assetsCombined === "object") {
         const combinedTiles = assetsCombined.tiles;
@@ -140,6 +134,11 @@ GameData.ready = (async function loadAll() {
         if (combinedProps && typeof combinedProps === "object") GameData.props = combinedProps;
       }
     } catch (_) {}
+
+    if (!GameData.tiles || !GameData.props) {
+      logNotice("Combined assets missing or invalid (data/world_assets.json). tiles/props not loaded (strict mode).");
+      try { console.warn("[GameData] Combined assets missing; tiles/props unavailable in strict mode."); } catch (_) {}
+    }
 
     // If running under file://, note that JSON may not load due to fetch/CORS
     if (runningFromFile()) {
