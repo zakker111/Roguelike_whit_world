@@ -18,13 +18,7 @@
       "id": "bench",
       "glyph": "=",
       "variants": [
-        {
-          "when": { "phaseNot": "day" },
-          "message": "You relax on the bench and drift to sleep...",
-          "style": "info",
-          "effect": { "type": "restUntil", "hhmm": "06:00", "healPercent": 0.25, "logTemplate": "You rest until morning (${time}). HP ${prev} -> ${hp}." }
-        },
-        { "message": "You sit on the bench and rest a moment.", "style": "info" }
+        { "message": "You rest a while.", "style": "info", "effect": { "type": "restTurn" } }
       ]
     },
     {

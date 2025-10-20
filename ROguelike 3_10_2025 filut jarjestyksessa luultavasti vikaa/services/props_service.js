@@ -215,6 +215,12 @@ export function interact(ctx, prop) {
     try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
     return true;
   }
+  if (eff && eff.type === "restTurn") {
+    // Simple one-turn rest with a log; consistent with Wait semantics.
+    _log(ctx, variant.message || "You rest a while.", variant.style || "info");
+    try { if (typeof ctx.turn === "function") ctx.turn(); else if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+    return true;
+  }
   if (eff && eff.type === "grantMaterial") {
     _grantMaterial(ctx, eff.material || "wood", eff.name || "planks", eff.amount || 1);
     if (eff.removeProp) _removeProp(ctx, prop.x, prop.y, prop.type);
