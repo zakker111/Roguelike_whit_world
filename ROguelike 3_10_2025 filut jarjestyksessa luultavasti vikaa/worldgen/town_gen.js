@@ -110,7 +110,8 @@
         ctx.log("The lamp flickers warmly.", "info");
         break;
       case "stall":
-        ctx.log("A vendor waves: 'Fresh wares soon!'", "notice");
+        // Interaction message only; stalls do not affect visibility or FOV.
+        ctx.log("Stal: Fresh wares soon", "notice");
         break;
       case "tree": {
         // Chop the tree for materials
