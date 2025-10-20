@@ -649,14 +649,16 @@ function open(ctx, size) {
   // Initialize FOV memory and visibility (unseen by default; recomputeFOV will fill visible)
   ctx.seen = Array.from({ length: height }, () => Array(width).fill(false));
   ctx.visible = Array.from({ length: height }, () => Array(width).fill(false));
-  // Restore corpses saved for this region if present
+  // Reset transient region entities state; enemies are per-region-session only
+  ctx.enemies = [];
+  // Restore corpses saved for this region if present; otherwise clear to avoid bleed from previous region tiles
   try {
     if (restoredCorpses && Array.isArray(restoredCorpses)) {
       ctx.corpses = restoredCorpses;
     } else {
-      ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+      ctx.corpses = [];
     }
-  } catch (_) {}
+  } catch (_) { ctx.corpses = []; }
   // Move player to region cursor (camera centers on player)
   ctx.player.x = ctx.region.cursor.x | 0;
   ctx.player.y = ctx.region.cursor.y | 0;
