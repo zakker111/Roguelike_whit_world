@@ -258,53 +258,6 @@ function _getPools(shopType) {
   } catch (_) { return null; }
 }
 
-// Fallback stock when JSON pools are unavailable (e.g., file:// or missing registries)
-function _generateFallbackStock(ctx, shop, phase) {
-  var rng = _rng(ctx);
-  var type = String(shop && shop.type || "").toLowerCase();
-  var rows = [];
-  function push(item, qty) {
-    try {
-      var price = calculatePrice(type || "trader", item, phase, null);
-      rows.push({ item: item, price: price, qty: Math.max(1, qty | 0) });
-    } catch (_) {
-      rows.push({ item: item, price: 10, qty: Math.max(1, qty | 0) });
-    }
-  }
-  if (type === "apothecary") {
-    push({ kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, 2);
-    push({ kind: "potion", heal: 10, count: 1, name: "potion (+10 HP)" }, 1);
-    push({ kind: "antidote", name: "antidote" }, 1);
-  } else if (type === "blacksmith") {
-    push({ kind: "equip", slot: "hand", name: "simple sword", atk: 1.2, tier: 1, twoHanded: false, decay: 0 }, 1);
-    push({ kind: "equip", slot: "hand", name: "heavy axe", atk: 1.6, tier: 2, twoHanded: false, decay: 0 }, (rng() < 0.4 ? 1 : 0) || 1);
-  } else if (type === "armorer") {
-    push({ kind: "equip", slot: "torso", name: "leather armor", def: 1.0, tier: 1, decay: 0 }, 1);
-    push({ kind: "equip", slot: "hand", name: "steel shield", def: 1.1, tier: 2, decay: 0 }, 1);
-  } else if (type === "inn") {
-    push({ kind: "drink", name: "ale", heal: 2, count: 1 }, 2);
-    push({ kind: "drink", name: "mead", heal: 3, count: 1 }, 2);
-    push({ kind: "drink", name: "wine", heal: 4, count: 1 }, 1);
-  } else if (type === "carpenter") {
-    push({ kind: "material", material: "wood", name: "planks", amount: 5 }, 2);
-    push({ kind: "tool", name: "saw" }, 1);
-  } else if (type === "trader") {
-    push({ kind: "tool", name: "torch" }, 1);
-    push({ kind: "tool", name: "lockpick" }, 1);
-    push({ kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, 1);
-    push({ kind: "equip", slot: "hand", name: "simple dagger", atk: 1.0, tier: 1, twoHanded: false, decay: 0 }, 1);
-    push({ kind: "material", material: "wood", name: "planks", amount: 3 }, (rng() < 0.5 ? 1 : 0) || 1);
-  } else {
-    // Generic fallback: a few curios/tools
-    push({ kind: "tool", name: "rope" }, 1);
-    push({ kind: "curio", name: "odd stone" }, 1);
-    push({ kind: "potion", heal: 5, count: 1, name: "potion (+5 HP)" }, 1);
-  }
-  // Limit the list length to keep UI tidy
-  if (rows.length > 6) rows = rows.slice(0, 6);
-  return rows;
-}
-
 export function ensureShopState(ctx, shop) {
   var key = _shopKey(shop);
   if (!_state[key]) {
@@ -333,7 +286,7 @@ export function restockIfNeeded(ctx, shop) {
   }
 
   if (shouldPrimary) {
-    // generate inventory from pools; when unavailable, use fallback
+    // generate inventory from pools (strict JSON; no fallback)
     var pools = _getPools(shop.type);
     var rng = _rng(ctx);
     var rows = [];
@@ -357,10 +310,6 @@ export function restockIfNeeded(ctx, shop) {
           if (rows.length > 6) break;
         }
       });
-    }
-    // Fallback stock when pools are missing or produced no rows
-    if (!rows || !rows.length) {
-      rows = _generateFallbackStock(ctx, shop, phase);
     }
 
     // For inn shops: stack identical drinks (ale/mead) into single rows showing total qty
