@@ -1,0 +1,133 @@
+{
+  "props": [
+    {
+      "id": "well",
+      "variants": [
+        { "message": "You draw some cool water from the well. Refreshing.", "style": "good" }
+      ]
+    },
+    {
+      "id": "fountain",
+      "variants": [
+        { "message": "You watch the fountain for a moment. You feel calmer.", "style": "info" }
+      ]
+    },
+    {
+      "id": "bench",
+      "variants": [
+        {
+          "when": { "phaseNot": "day" },
+          "message": "You relax on the bench and drift to sleep...",
+          "style": "info",
+          "effect": { "type": "restUntil", "hhmm": "06:00", "healPercent": 0.25, "logTemplate": "You rest until morning (${time}). HP ${prev} -> ${hp}." }
+        },
+        { "message": "You sit on the bench and rest a moment.", "style": "info" }
+      ]
+    },
+    {
+      "id": "lamp",
+      "variants": [
+        { "message": "The lamp flickers warmly.", "style": "info" }
+      ]
+    },
+    {
+      "id": "stall",
+      "variants": [
+        { "message": "Stal: Fresh wares soon", "style": "notice" }
+      ]
+    },
+    {
+      "id": "tree",
+      "variants": [
+        {
+          "message": "You cut the tree.",
+          "style": "notice",
+          "effect": { "type": "grantMaterial", "material": "wood", "name": "planks", "amount": 10, "removeProp": true }
+        }
+      ]
+    },
+    {
+      "id": "fireplace",
+      "variants": [
+        { "message": "You warm your hands by the fireplace.", "style": "info" }
+      ]
+    },
+    {
+      "id": "table",
+      "variants": [
+        { "message": "A sturdy wooden table. Nothing of note on it.", "style": "info" }
+      ]
+    },
+    {
+      "id": "chair",
+      "variants": [
+        { "message": "A simple wooden chair.", "style": "info" }
+      ]
+    },
+    {
+      "id": "bed",
+      "variants": [
+        {
+          "when": { "insideInn": true, "requiresInnStay": true },
+          "message": "You lay down to sleep.",
+          "style": "good",
+          "effect": { "type": "sleepModal", "defaultMinutes": 240, "logTemplate": "You sleep for ${minutes} minutes (${time}). HP ${prev} -> ${hp}." }
+        },
+        {
+          "when": { "insideInn": true },
+          "message": "You need to rent a room from the innkeeper for the night.",
+          "style": "warn"
+        },
+        { "message": "Looks comfy. Residents sleep here at night.", "style": "info" }
+      ]
+    },
+    {
+      "id": "chest",
+      "variants": [
+        { "message": "The chest is locked.", "style": "warn" }
+      ]
+    },
+    {
+      "id": "crate",
+      "variants": [
+        { "message": "A wooden crate. Might hold supplies.", "style": "info" }
+      ]
+    },
+    {
+      "id": "barrel",
+      "variants": [
+        { "message": "A barrel. Smells of ale.", "style": "info" }
+      ]
+    },
+    {
+      "id": "shelf",
+      "variants": [
+        { "message": "A shelf with assorted goods.", "style": "info" }
+      ]
+    },
+    {
+      "id": "plant",
+      "variants": [
+        { "message": "A potted plant adds some life.", "style": "info" }
+      ]
+    },
+    {
+      "id": "rug",
+      "variants": [
+        { "message": "A cozy rug warms the floor.", "style": "info" }
+      ]
+    },
+    {
+      "id": "sign",
+      "variants": [
+        {
+          "when": { "nearShop": true },
+          "message": "Sign: ${title}. ${schedule} — ${openNowStatus}",
+          "style": "auto",
+          "effect": { "type": "signSchedule" }
+        },
+        { "message": "Sign: ${title}", "style": "info" }
+      ]
+    }
+  ]
+}

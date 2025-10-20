@@ -74,7 +74,14 @@
     }
     if (!candidates.length) return false;
     const p = candidates[0];
-    switch (p.type) {
+    // Data-driven interactions: delegate to PropsService using data/props.json.
+    // No code fallbacks; if props.json or service is missing, interaction is ignored.
+    if (typeof window !== "undefined" && window.PropsService && typeof window.PropsService.interact === "function") {
+      return window.PropsService.interact(ctx, p);
+    } else {
+      return false;
+    }
+    // (legacy switch removed in favor of PropsService)
       case "well":
         ctx.log("You draw some cool water from the well. Refreshing.", "good");
         break;

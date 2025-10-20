@@ -28,6 +28,7 @@ const DATA_FILES = {
   config: "data/config.json",
   palette: "data/palette.json",
   messages: "data/messages.json",
+  props: "data/props.json",
   shopPhases: "data/shop_phases.json",
   shopPools: "data/shop_pools.json",
   shopRules: "data/shop_rules.json",
@@ -56,6 +57,7 @@ export const GameData = {
   config: null,
   palette: null,
   messages: null,
+  props: null,
   shopPhases: null,
   shopPools: null,
   shopRules: null,
@@ -81,7 +83,7 @@ function runningFromFile() {
 GameData.ready = (async function loadAll() {
   try {
     const [
-      items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters, config, palette, messages,
+      items, enemies, npcs, consumables, shops, town, flavor, tiles, encounters, config, palette, messages, props,
       shopPhases, shopPools, shopRules, shopRestock, progression
     ] = await Promise.all([
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -96,6 +98,7 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.config).catch(() => null),
       fetchJson(DATA_FILES.palette).catch(() => null),
       fetchJson(DATA_FILES.messages).catch(() => null),
+      fetchJson(DATA_FILES.props).catch(() => null),
       fetchJson(DATA_FILES.shopPhases).catch(() => null),
       fetchJson(DATA_FILES.shopPools).catch(() => null),
       fetchJson(DATA_FILES.shopRules).catch(() => null),
@@ -115,6 +118,7 @@ GameData.ready = (async function loadAll() {
     GameData.config = (config && typeof config === "object") ? config : null;
     GameData.palette = (palette && typeof palette === "object") ? palette : null;
     GameData.messages = (messages && typeof messages === "object") ? messages : null;
+    GameData.props = (props && typeof props === "object") ? props : null;
 
     GameData.shopPhases = (shopPhases && typeof shopPhases === "object") ? shopPhases : null;
     GameData.shopPools = (shopPools && typeof shopPools === "object") ? shopPools : null;
@@ -172,7 +176,7 @@ GameData.ready = (async function loadAll() {
     })();
 
     if (window.DEV) {
-      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression }); } catch (_) {}
+      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, props: !!GameData.props, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression }); } catch (_) {}
     }
 
     // If any registry failed to load, modules will use internal fallbacks.
