@@ -289,25 +289,28 @@ export function draw(ctx, view) {
     }
   }
 
-  // NPCs: draw only when currently visible AND with line-of-sight from player.
-  // Prevents seeing NPCs through walls or outside FOV.
+  // NPCs: draw when the tile has been seen; dim if not currently visible or no LOS.
+  // This avoids \"disappearing\" when visibility is affected by lamp-light or corners.
   if (Array.isArray(ctx.npcs)) {
     for (const n of ctx.npcs) {
       if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
 
-      const isVisible = !!(visible[n.y] && visible[n.y][n.x]);
-      if (!isVisible) continue;
+      const everSeen = !!(seen[n.y] && seen[n.y][n.x]);
+      if (!everSeen) continue;
 
-      // Require LOS to the NPC from player to avoid seeing through walls
+      const isVisible = !!(visible[n.y] && visible[n.y][n.x]);
+
+      // Only check LOS when currently visible; otherwise we'll draw dim without LOS gating
       let hasLine = true;
-      try {
-        if (ctx.los && typeof ctx.los.hasLOS === "function") {
-          hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, n.x, n.y);
-        } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
-          hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, n.x, n.y);
-        }
-      } catch (_) {}
-      if (!hasLine) continue;
+      if (isVisible) {
+        try {
+          if (ctx.los && typeof ctx.los.hasLOS === "function") {
+            hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, n.x, n.y);
+          } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
+            hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, n.x, n.y);
+          }
+        } catch (_) {}
+      }
 
       const screenX = (n.x - startX) * TILE - tileOffsetX;
       const screenY = (n.y - startY) * TILE - tileOffsetY;
@@ -326,11 +329,19 @@ export function draw(ctx, view) {
         color = "#ffd166"; // warm gold
       }
 
-      // Draw at full opacity only when visible with LOS
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+      // Dim draw when not visible or visible-without-LOS; full draw when visible with LOS
+      const drawDim = (!isVisible || !hasLine);
+      if (drawDim) {
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.70;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+        ctx2d.restore();
+      } else {
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+      }
 
-      // Sleeping indicator: only when visible (and thus LOS ensured above)
-      if (n._sleeping) {
+      // Sleeping indicator: only when fully visible with LOS to avoid floating Z's through walls
+      if (!drawDim && n._sleeping) {
         const t = Date.now();
         const phase = Math.floor(t / 600) % 2; // toggle every ~0.6s
         const zChar = phase ? "Z" : "z";
