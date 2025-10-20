@@ -118,9 +118,7 @@ export function recomputeFOV(ctx) {
     const phase = ctx.time && ctx.time.phase;
     const lightActive = isTown && (phase === "night" || phase === "dusk" || phase === "dawn");
     if (lightActive && Array.isArray(ctx.townProps)) {
-      const lampRadius = Math.max(2, Math.min(6, Math.floor((radius + 2) / 3))); // small local glow (typically 3-4)
-
-      // Helper: lookup prop definition by id
+      // Helper: lookup prop definition by id/key
       function propDefFor(type) {
         try {
           const GD = (typeof window !== "undefined" ? window.GameData : null);
@@ -129,7 +127,7 @@ export function recomputeFOV(ctx) {
           const key = String(type || "").toLowerCase();
           for (let i = 0; i < arr.length; i++) {
             const e = arr[i];
-            if (String(e.id || "").toLowerCase() === key) return e;
+            if (String(e.id || "").toLowerCase() === key || String(e.key || "").toLowerCase() === key) return e;
           }
         } catch (_) {}
         return null;
@@ -143,17 +141,25 @@ export function recomputeFOV(ctx) {
 
         const lx = p.x | 0, ly = p.y | 0;
         if (!ctx.inBounds(lx, ly)) continue;
+
+        // Choose cast radius: prefer prop.def light.castRadius if provided, otherwise derive from player FOV
+        const baseR = Math.max(2, Math.min(6, Math.floor((radius + 2) / 3))); // default small local glow (typically 3-4)
+        const castR = (def && def.light && typeof def.light.castRadius === "number")
+          ? Math.max(1, Math.min(12, Math.floor(def.light.castRadius)))
+          : baseR;
+
         // Mark prop tile itself visible (do not mark as 'seen' to avoid memory from non-player vision)
         visible[ly][lx] = true;
+
         // Cast limited light from prop (respecting walls/windows via isTransparent); do not mark seen memory
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, 1, false);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 1, 0, 0, -1, false);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, -1, 0, 0, 1, false);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, -1, 0, 0, -1, false);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, 1, 1, 0, false);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, 1, -1, 0, false);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, -1, 1, 0, false);
-        castLight(lx, ly, 1, 1.0, 0.0, lampRadius, 0, -1, -1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, 1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 1, 0, 0, -1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, -1, 0, 0, 1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, -1, 0, 0, -1, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, 1, 1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, 1, -1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, -1, 1, 0, false);
+        castLight(lx, ly, 1, 1.0, 0.0, castR, 0, -1, -1, 0, false);
       }
     }
   } catch (_) {}

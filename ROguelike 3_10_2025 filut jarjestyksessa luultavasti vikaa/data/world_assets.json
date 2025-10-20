@@ -196,6 +196,8 @@
     "props": [
       {
         "id": "well",
+        "key": "WELL",
+        "name": "Well",
         "glyph": "◍",
         "colors": { "fg": "#7aa2f7" },
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
@@ -207,6 +209,8 @@
       },
       {
         "id": "fountain",
+        "key": "FOUNTAIN",
+        "name": "Fountain",
         "glyph": "⛲",
         "colors": { "fg": "#89ddff" },
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
@@ -218,6 +222,8 @@
       },
       {
         "id": "bench",
+        "key": "BENCH",
+        "name": "Bench",
         "glyph": "=",
         "colors": { "fg": "#8b7355" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -229,17 +235,22 @@
       },
       {
         "id": "lamp",
+        "key": "LAMP",
+        "name": "Lamp",
         "glyph": "†",
         "colors": { "fg": "#ffd166" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": true },
         "appearsIn": ["town"],
         "tags": ["decor", "light"],
+        "light": { "castRadius": 4, "glowTiles": 2.2, "color": "#ffd166" },
         "variants": [
           { "message": "The lamp flickers warmly.", "style": "info" }
         ]
       },
       {
         "id": "stall",
+        "key": "STALL",
+        "name": "Market Stall",
         "glyph": "▣",
         "colors": { "fg": "#d7ba7d" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -251,6 +262,8 @@
       },
       {
         "id": "tree",
+        "key": "TREE",
+        "name": "Tree",
         "glyph": "♣",
         "colors": { "fg": "#3fa650" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -266,17 +279,22 @@
       },
       {
         "id": "fireplace",
+        "key": "FIREPLACE",
+        "name": "Fireplace",
         "glyph": "♨",
         "colors": { "fg": "#ff6d00" },
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": true },
         "appearsIn": ["town"],
         "tags": ["decor", "light"],
+        "light": { "castRadius": 3, "glowTiles": 1.8, "color": "#ff6d00" },
         "variants": [
           { "message": "You warm your hands by the fireplace.", "style": "info" }
         ]
       },
       {
         "id": "table",
+        "key": "TABLE",
+        "name": "Table",
         "glyph": "⊔",
         "colors": { "fg": "#cbd5e1" },
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
@@ -288,6 +306,8 @@
       },
       {
         "id": "chair",
+        "key": "CHAIR",
+        "name": "Chair",
         "glyph": "⟂",
         "colors": { "fg": "#cbd5e1" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -299,6 +319,8 @@
       },
       {
         "id": "bed",
+        "key": "BED",
+        "name": "Bed",
         "glyph": "‗",
         "colors": { "fg": "#cbd5e1" },
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
@@ -321,6 +343,8 @@
       },
       {
         "id": "chest",
+        "key": "CHEST",
+        "name": "Chest",
         "glyph": "□",
         "colors": { "fg": "#d7ba7d" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -332,6 +356,8 @@
       },
       {
         "id": "crate",
+        "key": "CRATE",
+        "name": "Crate",
         "glyph": "▢",
         "colors": { "fg": "#b59b6a" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -343,6 +369,8 @@
       },
       {
         "id": "barrel",
+        "key": "BARREL",
+        "name": "Barrel",
         "glyph": "◍",
         "colors": { "fg": "#a07c4b" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -354,6 +382,8 @@
       },
       {
         "id": "shelf",
+        "key": "SHELF",
+        "name": "Shelf",
         "glyph": "≡",
         "colors": { "fg": "#cbd5e1" },
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
@@ -365,6 +395,8 @@
       },
       {
         "id": "plant",
+        "key": "PLANT",
+        "name": "Potted Plant",
         "glyph": "*",
         "colors": { "fg": "#84cc16" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -376,6 +408,8 @@
       },
       {
         "id": "rug",
+        "key": "RUG",
+        "name": "Rug",
         "glyph": "░",
         "colors": { "fg": "#b59b6a" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -387,6 +421,8 @@
       },
       {
         "id": "sign",
+        "key": "SIGN",
+        "name": "Sign",
         "glyph": "⚑",
         "colors": { "fg": "#d7ba7d" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
@@ -404,6 +440,8 @@
       },
       {
         "id": "quest_board",
+        "key": "QUEST_BOARD",
+        "name": "Quest Board",
         "glyph": "▤",
         "colors": { "fg": "#cbd5e1" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },

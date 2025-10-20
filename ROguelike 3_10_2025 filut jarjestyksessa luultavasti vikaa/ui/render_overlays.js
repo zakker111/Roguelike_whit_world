@@ -254,9 +254,14 @@ export function drawLampGlow(ctx, view) {
 
       const cx = (px - view.startX) * TILE - view.tileOffsetX + TILE / 2;
       const cy = (py - view.startY) * TILE - view.tileOffsetY + TILE / 2;
-      const r = TILE * 2.2;
 
-      const base = (def && def.colors && def.colors.fg) ? def.colors.fg : "#ffd166";
+      const glowTiles = (def && def.light && typeof def.light.glowTiles === "number") ? def.light.glowTiles : 2.2;
+      const r = TILE * glowTiles;
+
+      const base = (def && def.light && typeof def.light.color === "string")
+        ? def.light.color
+        : (def && def.colors && def.colors.fg) ? def.colors.fg : "#ffd166";
+
       const grad = ctx2d.createRadialGradient(cx, cy, 4, cx, cy, r);
       grad.addColorStop(0, rgba(base, 0.60));
       grad.addColorStop(0.4, rgba(base, 0.25));

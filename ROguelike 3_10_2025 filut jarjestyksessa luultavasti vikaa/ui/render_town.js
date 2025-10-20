@@ -211,7 +211,8 @@ export function draw(ctx, view) {
         const GD = (typeof window !== "undefined" ? window.GameData : null);
         const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
         if (arr) {
-          const entry = arr.find(pp => String(pp.id || "").toLowerCase() === String(p.type || "").toLowerCase());
+          const tId = String(p.type || "").toLowerCase();
+          const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
           if (entry && typeof entry.glyph === "string") glyph = entry.glyph;
           if (entry && entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg;
           // Back-compat: allow plain 'color' field if present
