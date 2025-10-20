@@ -230,6 +230,11 @@ export function applyLeaveSync(ctx) {
 
   // Hide UI elements
   hideExitButton(ctx);
+  // Ensure Quest Board (and similar town-only modals) are closed on exit
+  try {
+    const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
+    if (UB && typeof UB.hideQuestBoard === "function") UB.hideQuestBoard(ctx);
+  } catch (_) {}
 
   // Ensure camera is centered on player
   try {

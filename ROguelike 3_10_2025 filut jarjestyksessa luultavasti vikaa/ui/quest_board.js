@@ -5,11 +5,24 @@
  */
 
 let _panel = null;
+let _escBound = false;
+
+function bindEsc() {
+  if (_escBound) return;
+  try {
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && isOpen()) {
+        try { hide(); e.preventDefault(); } catch (_) {}
+      }
+    });
+    _escBound = true;
+  } catch (_) {}
+}
 
 function ensurePanel() {
   try {
     let el = document.getElementById("questboard-panel");
-    if (el) return el;
+    if (el) { bindEsc(); return el; }
     el = document.createElement("div");
     el.id = "questboard-panel";
     el.hidden = true;
@@ -37,6 +50,7 @@ function ensurePanel() {
       };
     } catch (_) {}
     _panel = el;
+    bindEsc();
     return el;
   } catch (_) {
     return null;
