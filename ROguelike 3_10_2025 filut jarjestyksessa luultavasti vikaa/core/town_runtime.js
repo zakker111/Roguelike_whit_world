@@ -334,9 +334,9 @@ export function tick(ctx) {
     // Spawn conditions
     const canSpawn = !ctx._seppo.active && t >= (ctx._seppo.cooldownUntil | 0) && (phase === "day" || phase === "dusk");
     if (canSpawn) {
-      // Very small chance per town tick
+      // Chance per town tick (increased slightly to be observable)
       const roll = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-      if (roll < 0.003) { // ~0.3% per tick while conditions hold
+      if (roll < 0.01) { // ~1% per tick while conditions hold
         // Find a free spot near the plaza (or gate as fallback)
         const within = 5;
         let best = null;

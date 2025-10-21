@@ -998,7 +998,19 @@
       }
       return false;
     }
-    // Welcome sign
+    // Welcome sign: ensure only one near the gate (dedupe within a small radius), then add single canonical sign
+    try {
+      if (Array.isArray(ctx.townProps)) {
+        const R = 3;
+        for (let i = ctx.townProps.length - 1; i >= 0; i--) {
+          const p = ctx.townProps[i];
+          if (p && p.type === "sign") {
+            const d = Math.abs(p.x - gate.x) + Math.abs(p.y - gate.y);
+            if (d <= R) ctx.townProps.splice(i, 1);
+          }
+        }
+      }
+    } catch (_) {}
     addSignNear(gate.x, gate.y, `Welcome to ${ctx.townName}`);
 
     // Windows along building walls (limited and spaced out)
