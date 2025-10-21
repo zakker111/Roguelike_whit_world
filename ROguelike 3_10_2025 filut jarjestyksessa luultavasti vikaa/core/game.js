@@ -1360,8 +1360,10 @@
     }
 
     if (mode === "town") {
-      if (returnToWorldFromTown()) return;
+      // Prefer local interactions/logs first so guidance hint doesn't drown them out
       lootCorpse();
+      // Then, if standing on the gate, leave town (or show exit hint if applicable)
+      if (returnToWorldFromTown()) return;
       return;
     }
 
