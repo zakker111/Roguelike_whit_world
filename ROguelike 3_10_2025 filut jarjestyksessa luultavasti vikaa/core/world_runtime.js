@@ -400,6 +400,9 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   let nx = ctx.player.x + (dx | 0);
   let ny = ctx.player.y + (dy | 0);
 
+  // Ensure expand-shift is enabled during normal movement (may have been suspended during transitions)
+  if (ctx._suspendExpandShift) ctx._suspendExpandShift = false;
+
   // Expand if outside (only for infinite worlds)
   try {
     if (ctx.world && ctx.world.type === "infinite" && ctx.world.gen && typeof ctx.world.gen.tileAt === "function") {
