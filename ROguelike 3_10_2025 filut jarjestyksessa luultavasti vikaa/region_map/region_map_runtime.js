@@ -570,12 +570,26 @@ function addSparseTreesInForests(sample, density = 0.08, rng) {
 
 function open(ctx, size) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
-  // Capture world position for persistence keying
-  const worldX = ctx.player.x | 0;
-  const worldY = ctx.player.y | 0;
+  // Capture absolute world position for persistence keying when available
+  const origin = (ctx.world && ctx.world.origin) ? ctx.world.origin : { x0: 0, y0: 0 };
+  const absX = (ctx.worldPos && typeof ctx.worldPos.x === "number") ? (ctx.worldPos.x | 0) : ((origin.x0 + (ctx.player.x | 0)) | 0);
+  const absY = (ctx.worldPos && typeof ctx.worldPos.y === "number") ? (ctx.worldPos.y | 0) : ((origin.y0 + (ctx.player.y | 0)) | 0);
+  const worldX = absX, worldY = absY;
+
   // Only allow from walkable, non-town, non-dungeon tiles
   const WT = World.TILES;
-  const tile = ctx.world.map[worldY][worldX];
+  let tile = null;
+  try {
+    if (typeof World.tileAt === "function") {
+      tile = World.tileAt(ctx.world, worldX, worldY);
+    } else {
+      const localX = worldX - origin.x0, localY = worldY - origin.y0;
+      tile = ctx.world.map[localY][localX];
+    }
+  } catch (_) {
+    const localX = worldX - origin.x0, localY = worldY - origin.y0;
+    tile = (ctx.world.map[localY] && ctx.world.map[localY][localX]) || WT.GRASS;
+  }
   if (tile === WT.TOWN || tile === WT.DUNGEON) return false;
   const isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tile) : true;
   if (!isWalkable) return false;
@@ -628,17 +642,9 @@ function open(ctx, size) {
   const exitWest = { x: 0, y: (height / 2) | 0 };
   const exitEast = { x: width - 1, y: (height / 2) | 0 };
 
-  // Compute region-map coordinate corresponding to the player's world position within the sampled window
-  const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
-  const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
-  const winW = clamp(Math.floor(worldW * 0.35), 12, worldW);
-  const winH = clamp(Math.floor(worldH * 0.35), 8, worldH);
-  const minX = clamp(worldX - Math.floor(winW / 2), 0, Math.max(0, worldW - winW));
-  const minY = clamp(worldY - Math.floor(winH / 2), 0, Math.max(0, worldH - winH));
-  let spawnX = Math.round(((worldX - minX) * (width - 1)) / Math.max(1, (winW - 1)));
-  let spawnY = Math.round(((worldY - minY) * (height - 1)) / Math.max(1, (winH - 1)));
-  spawnX = clamp(spawnX, 0, width - 1);
-  spawnY = clamp(spawnY, 0, height - 1);
+  // Compute region-map cursor spawn near nearest edge (no dependency on finite world dims)
+  let spawnX = (width / 2) | 0;
+  let spawnY = 0;
 
   // On enter: spawn the cursor at the nearest exit tile (edge), not at the mapped interior point.
   const exits = [exitNorth, exitSouth, exitWest, exitEast];
@@ -942,19 +948,34 @@ function close(ctx) {
     }
   } catch (_) {}
   ctx.mode = "world";
-  // Restore active map to world
-  if (ctx.world && ctx.world.map) {
-    ctx.map = ctx.world.map;
-    const rows = ctx.map.length;
-    const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-    // Reveal world fully
-    ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
-    ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
-  }
+  // Restore player absolute world position and recompose window if supported
   if (pos) {
-    ctx.player.x = pos.x | 0;
-    ctx.player.y = pos.y | 0;
+    try {
+      ctx.worldPos = { x: pos.x | 0, y: pos.y | 0 };
+      const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+      if (W && typeof W.recompose === "function" && ctx.world) {
+        const rows = ctx.world.map.length;
+        const cols = rows ? (ctx.world.map[0] ? ctx.world.map[0].length : 0) : 0;
+        ctx.world = W.recompose(ctx.world, ctx.worldPos.x, ctx.worldPos.y, cols, rows);
+        ctx.map = ctx.world.map;
+        const origin = ctx.world.origin || { x0: 0, y0: 0 };
+        ctx.player.x = (ctx.worldPos.x - origin.x0) | 0;
+        ctx.player.y = (ctx.worldPos.y - origin.y0) | 0;
+      } else {
+        // Fallback: direct map (finite world)
+        ctx.player.x = pos.x | 0;
+        ctx.player.y = pos.y | 0;
+      }
+    } catch (_) {}
   }
+  // Reveal world fully
+  try {
+    const rows2 = ctx.map.length;
+    const cols2 = rows2 ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+    ctx.seen = Array.from({ length: rows2 }, () => Array(cols2).fill(true));
+    ctx.visible = Array.from({ length: rows2 }, () => Array(cols2).fill(true));
+  } catch (_) {}
+
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
   try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
   try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
