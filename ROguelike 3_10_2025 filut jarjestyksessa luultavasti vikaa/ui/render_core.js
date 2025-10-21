@@ -148,7 +148,7 @@ export function createOffscreen(width, height) {
   el.width = width;
   el.height = height;
   return el;
-}>
-// Back-compat: attach to window via helper
-attachGlobal("RenderCore", { computeView, drawGlyph, enemyColor, drawGridOverlay, bl, drawGridOverlay, blitViewport, createOffscreen };
 }
+
+// Back-compat: attach to window via helper
+attachGlobal("RenderCore", { computeView, drawGlyph, enemyColor, drawGridOverlay, blitViewport, createOffscreen });
