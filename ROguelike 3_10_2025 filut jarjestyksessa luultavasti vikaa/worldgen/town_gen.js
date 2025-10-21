@@ -1013,44 +1013,11 @@
     } catch (_) {}
     addSignNear(gate.x, gate.y, `Welcome to ${ctx.townName}`);
 
-    // Windows along building walls (limited and spaced out)
+    // Windows along building walls — disabled per request to remove odd dash tiles.
     (function placeWindowsOnAll() {
-      function sidePoints(b) {
-        return [
-          Array.from({ length: Math.max(0, b.w - 2) }, (_, i) => ({ x: b.x + 1 + i, y: b.y })),              // top
-          Array.from({ length: Math.max(0, b.w - 2) }, (_, i) => ({ x: b.x + 1 + i, y: b.y + b.h - 1 })),    // bottom
-          Array.from({ length: Math.max(0, b.h - 2) }, (_, i) => ({ x: b.x, y: b.y + 1 + i })),              // left
-          Array.from({ length: Math.max(0, b.h - 2) }, (_, i) => ({ x: b.x + b.w - 1, y: b.y + 1 + i })),    // right
-        ];
-      }
-      function isAdjacent(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) <= 1; }
-      for (const b of buildings) {
-        let candidates = [];
-        const sides = sidePoints(b);
-        for (const pts of sides) {
-          for (const p of pts) {
-            if (!inBounds(ctx, p.x, p.y)) continue;
-            const t = ctx.map[p.y][p.x];
-            if (t !== ctx.TILES.WALL) continue;
-            candidates.push(p);
-          }
-        }
-        if (!candidates.length) continue;
-        const limit = Math.min(3, Math.max(1, Math.floor((b.w + b.h) / 10)));
-        const placed = [];
-        let attempts = 0;
-        while (placed.length < limit && candidates.length > 0 && attempts++ < candidates.length * 2) {
-          const idx = Math.floor(ctx.rng() * candidates.length);
-          const p = candidates[idx];
-          if (placed.some(q => isAdjacent(p, q))) {
-            candidates.splice(idx, 1);
-            continue;
-          }
-          ctx.map[p.y][p.x] = ctx.TILES.WINDOW;
-          placed.push(p);
-          candidates = candidates.filter(c => !isAdjacent(c, p));
-        }
-      }
+      // Intentionally do nothing so all perimeter tiles remain solid WALL.
+      // This removes the dashed window tiles from building exteriors.
+      return;
     })();
 
     // Plaza fixtures
