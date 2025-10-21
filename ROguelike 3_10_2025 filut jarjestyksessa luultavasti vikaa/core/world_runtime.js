@@ -112,32 +112,33 @@ export function generate(ctx, opts = {}) {
 
 export function tryMovePlayerWorld(ctx, dx, dy) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
-  const wmap = ctx.world.map;
-  const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
-
-  // Absolute target
-  const origin = (ctx.world && ctx.world.origin) ? ctx.world.origin : { x0: 0, y0: 0 };
-  const nextAbs = { x: ctx.worldPos.x + (dx | 0), y: ctx.worldPos.y + (dy | 0) };
-
-  // Local indices in current window
-  const nxLocal = nextAbs.x - origin.x0;
-  const nyLocal = nextAbs.y - origin.y0;
-
-  // Recompose window if stepping out of safe margin
-  const MARG = 3;
-  const needsRecompose = (nxLocal < MARG) || (nyLocal < MARG) || (nxLocal > cols - 1 - MARG) || (nyLocal > rows - 1 - MARG);
 
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
   if (!W) return false;
 
-  // Check walkability using sampler if available when recomposing, else current tile
+  // Compute absolute next position
+  const origin = (ctx.world && ctx.world.origin) ? ctx.world.origin : { x0: 0, y0: 0 };
+  const nextAbs = { x: (ctx.worldPos.x | 0) + (dx | 0), y: (ctx.worldPos.y | 0) + (dy | 0) };
+
+  // Determine whether a recompose is needed (outside current window or near its edges)
+  const rows = ctx.world.map.length;
+  const cols = rows ? (ctx.world.map[0] ? ctx.world.map[0].length : 0) : 0;
+  const nxLocal = nextAbs.x - origin.x0;
+  const nyLocal = nextAbs.y - origin.y0;
+  const MARG = 4;
+  const outside = (nxLocal < 0) || (nyLocal < 0) || (nxLocal >= cols) || (nyLocal >= rows);
+  const nearEdge = (nxLocal < MARG) || (nyLocal < MARG) || (nxLocal > cols - 1 - MARG) || (nyLocal > rows - 1 - MARG);
+  const needsRecompose = outside || nearEdge;
+
+  // Walkability check
   let walkable = true;
   try {
-    if (needsRecompose && typeof W.tileAt === "function") {
+    if (typeof W.tileAt === "function") {
       const t = W.tileAt(ctx.world, nextAbs.x, nextAbs.y);
       walkable = !!W.isWalkable(t);
     } else {
-      const t = (nyLocal >= 0 && nyLocal < rows && nxLocal >= 0 && nxLocal < cols) ? wmap[nyLocal][nxLocal] : null;
+      // Finite fallback: use current window tile if inside
+      const t = (!outside) ? ctx.world.map[nyLocal][nxLocal] : null;
       walkable = t == null ? false : !!W.isWalkable(t);
     }
   } catch (_) {}
@@ -145,24 +146,23 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   if (!walkable) return false;
 
   // Apply movement
-  ctx.worldPos = nextAbs;
+  ctx.worldPos = { x: nextAbs.x | 0, y: nextAbs.y | 0 };
 
   if (needsRecompose && typeof W.recompose === "function") {
     // Recenter window on new absolute position
     const nextWorld = W.recompose(ctx.world, ctx.worldPos.x, ctx.worldPos.y, cols, rows);
     ctx.world = nextWorld;
     ctx.map = nextWorld.map;
-    // Update local indices from new origin
     const o2 = nextWorld.origin || { x0: 0, y0: 0 };
     ctx.player.x = (ctx.worldPos.x - o2.x0) | 0;
     ctx.player.y = (ctx.worldPos.y - o2.y0) | 0;
   } else {
-    // No recompose: move local
+    // Move locally within the current window
     ctx.player.x = nxLocal | 0;
     ctx.player.y = nyLocal | 0;
   }
 
-  // Mark explored area around the new absolute position for minimap reveal.
+  // Mark explored at absolute position
   _markExplored(ctx, ctx.worldPos.x, ctx.worldPos.y, 2);
 
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
