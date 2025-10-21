@@ -1,5 +1,19 @@
 # Game Version History
-Last updated: 2025-10-20 12:00 UTC
+Last updated: 2025-10-21 12:00 UTC
+
+v1.36.8 — Region Map per-tile persistence, visibility-aware animal logging, and attachGlobal refactor
+- Region Map
+  - Per-tile persistence reinstated: every overworld tile now has its own distinct Region Map. Trees cut, corpses, and animals “seen/cleared” are saved per tile and restored on re-open.
+  - Animal spawning is unbiased across the region (no forced adjacent spawns). Logs say “Creatures spotted (N)” only when at least one creature is currently visible; otherwise “Creatures are present in this area, but not in sight.”
+  - Region LOS: mountains and trees block FOV; other biomes are transparent. Cursor still starts at the nearest edge, and clearing an encounter no longer auto-closes the map.
+- Refactor: attachGlobal replaces manual window assignments for consistent back-compat in:
+  - ui: render_core.js, tileset.js, logger.js, decals.js, render.js, input_mouse.js, quest_board.js
+  - core: actions.js, ctx.js, fov_camera.js, game_loop.js, game_api.js, input.js, modes.js
+  - services: shop_service.js, time_service.js
+- Bug fixes
+  - ui/render_core.js: removed stray “>” and fixed malformed attachGlobal call.
+  - region_map/region_map_runtime.js: removed stray text fragments that caused ReferenceError/SyntaxError in animals logging.
+- Deployment: https://0mps2ansl1pt.cosine.page
 
 v1.36.7 — Dungeon wall torches, unified props lighting, combined assets (strict), and glow overlays
 - Added: Wall Torch prop (data/world_assets.json)
