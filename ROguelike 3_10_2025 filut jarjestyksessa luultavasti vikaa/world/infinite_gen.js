@@ -126,29 +126,43 @@ function create(seed, opts = {}) {
   }
 
   function placePOI(x, y) {
-    // On coarse lattice, roll for a POI if terrain is suitable
+    // For each coarse lattice cell, pick exactly one anchor coordinate deterministically.
+    // Only that one tile may become a POI (if chance passes and terrain permits).
     const tx = Math.floor(x / cfg.townGrid);
     const ty = Math.floor(y / cfg.townGrid);
     const dx = Math.floor(x / cfg.dungeonGrid);
     const dy = Math.floor(y / cfg.dungeonGrid);
 
-    // Avoid water/river for entrances
-    const t = classify(x, y);
-    if (t === TILES.WATER || t === TILES.RIVER || t === TILES.SWAMP) return null;
+    // Town anchor inside its coarse cell
+    const townAx = tx * cfg.townGrid + Math.floor(hash2(s ^ 0x3311, tx, ty) * cfg.townGrid);
+    const townAy = ty * cfg.townGrid + Math.floor(hash2(s ^ 0x4411, tx, ty) * cfg.townGrid);
 
-    // Towns near coasts/rivers preferred
-    const coastBias = (classify(x + 1, y) === TILES.WATER || classify(x - 1, y) === TILES.WATER
-      || classify(x, y + 1) === TILES.WATER || classify(x, y - 1) === TILES.WATER
-      || classify(x + 1, y) === TILES.RIVER || classify(x - 1, y) === TILES.RIVER
-      || classify(x, y + 1) === TILES.RIVER || classify(x, y - 1) === TILES.RIVER) ? 0.08 : 0.0;
+    // Dungeon anchor inside its coarse cell
+    const dungAx = dx * cfg.dungeonGrid + Math.floor(hash2(s ^ 0x3322, dx, dy) * cfg.dungeonGrid);
+    const dungAy = dy * cfg.dungeonGrid + Math.floor(hash2(s ^ 0x4422, dx, dy) * cfg.dungeonGrid);
 
-    // Town roll
-    const rTown = hash2(s ^ 0x1111, tx, ty);
-    if (rTown < (cfg.townChance + coastBias)) return TILES.TOWN;
+    // Only evaluate chance when we're querying exactly at the anchor
+    if (x === townAx && y === townAy) {
+      // Avoid water/river/swamp for entrances
+      const t0 = classify(x, y);
+      if (t0 !== TILES.WATER && t0 !== TILES.RIVER && t0 !== TILES.SWAMP) {
+        // Towns near coasts/rivers preferred
+        const coastBias = (classify(x + 1, y) === TILES.WATER || classify(x - 1, y) === TILES.WATER
+          || classify(x, y + 1) === TILES.WATER || classify(x, y - 1) === TILES.WATER
+          || classify(x + 1, y) === TILES.RIVER || classify(x - 1, y) === TILES.RIVER
+          || classify(x, y + 1) === TILES.RIVER || classify(x, y - 1) === TILES.RIVER) ? 0.08 : 0.0;
+        const rTown = hash2(s ^ 0x1111, tx, ty);
+        if (rTown < (cfg.townChance + coastBias)) return TILES.TOWN;
+      }
+    }
 
-    // Dungeon roll
-    const rDung = hash2(s ^ 0x2222, dx, dy);
-    if (rDung < cfg.dungeonChance) return TILES.DUNGEON;
+    if (x === dungAx && y === dungAy) {
+      const t1 = classify(x, y);
+      if (t1 !== TILES.WATER && t1 !== TILES.RIVER && t1 !== TILES.SWAMP) {
+        const rDung = hash2(s ^ 0x2222, dx, dy);
+        if (rDung < cfg.dungeonChance) return TILES.DUNGEON;
+      }
+    }
 
     return null;
   }
