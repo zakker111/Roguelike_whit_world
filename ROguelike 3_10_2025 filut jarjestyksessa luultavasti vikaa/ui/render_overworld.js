@@ -340,27 +340,32 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Main-map POI icons: towns and dungeons
+  // Main-map POI icons: towns and dungeons (convert absolute world coords -> local indices using world.origin)
   try {
     const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
     const dungeons = (ctx.world && Array.isArray(ctx.world.dungeons)) ? ctx.world.dungeons : [];
+    const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
+    const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
+
     // Towns: gold glyphs — 't' for towns, 'T' for cities
     for (const t of towns) {
-      const x = t.x, y = t.y;
-      if (x < startX || x > endX || y < startY || y > endY) continue;
-      const sx = (x - startX) * TILE - tileOffsetX;
-      const sy = (y - startY) * TILE - tileOffsetY;
+      const lx = (t.x | 0) - ox;
+      const ly = (t.y | 0) - oy;
+      if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+      const sx = (lx - startX) * TILE - tileOffsetX;
+      const sy = (ly - startY) * TILE - tileOffsetY;
       const glyph = (t.size === "city") ? "T" : "t";
       RenderCore.drawGlyph(ctx2d, sx, sy, glyph, "#ffd166", TILE);
     }
 
-    // Dungeons: red squares (unchanged)
+    // Dungeons: red squares
     ctx2d.save();
     for (const d of dungeons) {
-      const x = d.x, y = d.y;
-      if (x < startX || x > endX || y < startY || y > endY) continue;
-      const sx = (x - startX) * TILE - tileOffsetX;
-      const sy = (y - startY) * TILE - tileOffsetY;
+      const lx = (d.x | 0) - ox;
+      const ly = (d.y | 0) - oy;
+      if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+      const sx = (lx - startX) * TILE - tileOffsetX;
+      const sy = (ly - startY) * TILE - tileOffsetY;
       const s = Math.max(4, Math.floor(TILE * 0.48));
       ctx2d.fillStyle = "#ef4444";
       ctx2d.globalAlpha = 0.85;
@@ -535,18 +540,26 @@ export function draw(ctx, view) {
           ctx2d.drawImage(MINI.canvas, bx, by);
         }
 
-        // POI markers: towns (gold), dungeons (red)
+        // POI markers: towns (gold), dungeons (red) - convert absolute world coords to local indices
         try {
           const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
           const dungeons = Array.isArray(ctx.world?.dungeons) ? ctx.world.dungeons : [];
+          const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
+          const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
           ctx2d.save();
           for (const t of towns) {
+            const lx = (t.x | 0) - ox;
+            const ly = (t.y | 0) - oy;
+            if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
             ctx2d.fillStyle = "#f6c177";
-            ctx2d.fillRect(bx + t.x * scale, by + t.y * scale, Math.max(1, scale), Math.max(1, scale));
+            ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           for (const d of dungeons) {
+            const lx = (d.x | 0) - ox;
+            const ly = (d.y | 0) - oy;
+            if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
             ctx2d.fillStyle = "#f7768e";
-            ctx2d.fillRect(bx + d.x * scale, by + d.y * scale, Math.max(1, scale), Math.max(1, scale));
+            ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           ctx2d.restore();
         } catch (_) {}
@@ -559,15 +572,8 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // NPCs
-  if (Array.isArray(ctx.npcs)) {
-    for (const n of ctx.npcs) {
-      if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
-      const screenX = (n.x - startX) * TILE - tileOffsetX;
-      const screenY = (n.y - startY) * TILE - tileOffsetY;
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, "n", "#b4f9f8", TILE);
-    }
-  }
+  // Do not draw town NPCs in overworld renderer; towns are drawn by render_town.js
+  // (If we later add world-wandering NPCs, render a separate ctx.worldNpcs list instead.)
 
   // player - add backdrop marker + outlined glyph to improve visibility on overworld tiles
   if (player.x >= startX && player.x <= endX && player.y >= startY && player.y <= endY) {
