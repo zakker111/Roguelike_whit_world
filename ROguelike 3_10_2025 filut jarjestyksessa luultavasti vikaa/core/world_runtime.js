@@ -56,7 +56,7 @@ function addDungeon(world, x, y) {
 
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 function scanPOIs(ctx, x0, y0, w, h) {
-  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3 };
+  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, TOWNK: 4, DUNGEONK: 5 };
   const world = ctx.world;
   for (let yy = y0; yy < y0 + h; yy++) {
     if (yy < 0 || yy >= ctx.map.length) continue;
@@ -77,6 +77,169 @@ function scanPOIs(ctx, x0, y0, w, h) {
   }
   // After registering POIs in this strip/window, connect nearby towns with roads and mark bridges.
   try { ensureRoads(ctx); } catch (_) {}
+  // Ensure there are usable river crossings independent of roads: add bridges periodically across long river spans.
+  try { ensureExtraBridges(ctx); } catch (_) {}
+}
+
+// Build roads between nearby towns in current window and mark bridge points where crossing water/river
+function ensureRoads(ctx) {
+  const WT = (ctx.World && ctx.World.TILES) || { WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3 };
+  const world = ctx.world;
+  if (!world) return;
+  world.roads = Array.isArray(world.roads) ? world.roads : [];
+  world.bridges = Array.isArray(world.bridges) ? world.bridges : [];
+  const roadSet = world._roadSet || (world._roadSet = new Set());
+  const bridgeSet = world._bridgeSet || (world._bridgeSet = new Set());
+
+  const ox = world.originX | 0, oy = world.originY | 0;
+  const cols = ctx.map[0] ? ctx.map[0].length : 0;
+  const rows = ctx.map.length;
+
+  function inWin(x, y) {
+    const lx = x - ox, ly = y - oy;
+    return lx >= 0 && ly >= 0 && lx < cols && ly < rows;
+  }
+
+  function addRoadPoint(x, y) {
+    const key = `${x},${y}`;
+    if (!roadSet.has(key)) {
+      roadSet.add(key);
+      world.roads.push({ x, y });
+    }
+  }
+  function addBridgePoint(x, y) {
+    const key = `${x},${y}`;
+    if (!bridgeSet.has(key)) {
+      bridgeSet.add(key);
+      world.bridges.push({ x, y });
+    }
+  }
+
+  function carveRoad(x0, y0, x1, y1) {
+    let x = x0, y = y0;
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    while (true) {
+      if (inWin(x, y)) {
+        const lx = x - ox, ly = y - oy;
+        const t = ctx.map[ly][lx];
+        // Across water/river: carve to BEACH and mark bridge overlay
+        if (t === WT.WATER || t === WT.RIVER) {
+          ctx.map[ly][lx] = WT.BEACH;
+          addBridgePoint(x, y);
+        }
+        addRoadPoint(x, y);
+      }
+      if (x === x1 && y === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 < dx) { err += dx; y += sy; }
+    }
+  }
+
+  const towns = Array.isArray(world.towns) ? world.towns.slice(0) : [];
+  // Connect each town to its nearest neighbor within a reasonable distance
+  for (let i = 0; i < towns.length; i++) {
+    const a = towns[i];
+    if (!inWin(a.x, a.y)) continue;
+    let best = null, bd = Infinity;
+    for (let j = 0; j < towns.length; j++) {
+      if (i === j) continue;
+      const b = towns[j];
+      const d = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+      if (d < bd) { bd = d; best = b; }
+    }
+    if (best && bd <= 100) {
+      carveRoad(a.x, a.y, best.x, best.y);
+    }
+  }
+}
+
+// Add extra bridges so players can always find at least one crossing point over rivers in the current window.
+// Strategy: scan vertical and horizontal spans of RIVER/WATER and place a BEACH + bridge overlay every N tiles.
+function ensureExtraBridges(ctx) {
+  const WT = (ctx.World && ctx.World.TILES) || { WATER: 0, RIVER: 7, BEACH: 8, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6 };
+  const world = ctx.world;
+  const ox = world.originX | 0, oy = world.originY | 0;
+  const cols = ctx.map[0] ? ctx.map[0].length : 0;
+  const rows = ctx.map.length;
+  world.bridges = Array.isArray(world.bridges) ? world.bridges : [];
+  const bridgeSet = world._bridgeSet || (world._bridgeSet = new Set());
+
+  function addBridgeAbs(ax, ay) {
+    const key = `${ax},${ay}`;
+    if (bridgeSet.has(key)) return;
+    const lx = ax - ox, ly = ay - oy;
+    if (lx < 0 || ly < 0 || lx >= cols || ly >= rows) return;
+    // Carve to BEACH to be walkable and record overlay
+    ctx.map[ly][lx] = WT.BEACH;
+    world.bridges.push({ x: ax, y: ay });
+    bridgeSet.add(key);
+  }
+
+  // Helper: local walkable check for land (not water/river)
+  function isLandLocal(lx, ly) {
+    if (lx < 0 || ly < 0 || lx >= cols || ly >= rows) return false;
+    const t = ctx.map[ly][lx];
+    return !(t === WT.WATER || t === WT.RIVER);
+  }
+
+  const stride = 18; // place at most one bridge per ~18 tiles per span to avoid spam
+
+  // Vertical scans (columns)
+  for (let lx = 0; lx < cols; lx += 2) {
+    let y = 0;
+    while (y < rows) {
+      // find start of river span
+      while (y < rows && !(ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) y++;
+      if (y >= rows) break;
+      let y0 = y;
+      while (y < rows && (ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) y++;
+      const y1 = y - 1;
+      const spanLen = y1 - y0 + 1;
+      if (spanLen >= 2) {
+        // place a bridge near the center, and additional every stride
+        for (let k = 0; k * stride < spanLen; k++) {
+          const off = Math.floor(spanLen / 2) + k * stride;
+          const lyBridge = y0 + Math.min(off, spanLen - 1);
+          // ensure adjacent horizontal tiles lead to land within 1 step
+          const hasLandSide = isLandLocal(Math.max(0, lx - 1), lyBridge) || isLandLocal(Math.min(cols - 1, lx + 1), lyBridge);
+          if (hasLandSide) {
+            const ax = ox + lx, ay = oy + lyBridge;
+            addBridgeAbs(ax, ay);
+            break; // one per span in this pass
+          }
+        }
+      }
+    }
+  }
+
+  // Horizontal scans (rows)
+  for (let ly = 0; ly < rows; ly += 2) {
+    let x = 0;
+    while (x < cols) {
+      while (x < cols && !(ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) x++;
+      if (x >= cols) break;
+      const x0 = x;
+      while (x < cols && (ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) x++;
+      const x1 = x - 1;
+      const spanLen = x1 - x0 + 1;
+      if (spanLen >= 2) {
+        for (let k = 0; k * stride < spanLen; k++) {
+          const off = Math.floor(spanLen / 2) + k * stride;
+          const lxBridge = x0 + Math.min(off, spanLen - 1);
+          const hasLandSide = isLandLocal(lxBridge, Math.max(0, ly - 1)) || isLandLocal(lxBridge, Math.min(rows - 1, ly + 1));
+          if (hasLandSide) {
+            const ax = ox + lxBridge, ay = oy + ly;
+            addBridgeAbs(ax, ay);
+            break;
+          }
+        }
+      }
+    }
+  }
 }
 
 // Build roads between nearby towns in current window and mark bridge points where crossing water/river
