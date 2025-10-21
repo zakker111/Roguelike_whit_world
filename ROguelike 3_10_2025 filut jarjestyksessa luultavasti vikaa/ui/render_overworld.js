@@ -557,7 +557,7 @@ export function draw(ctx, view) {
 
   // Minimap (top-right) with offscreen cache (toggleable) + POI markers
   try {
-    const showMini = (typeof window !== "undefined" && typeof window.SHOW_MINIMAP === "boolean") ? window.SHOW_MINIMAP : true;
+    const showMini = (typeof window !== "undefined" && typeof window.SHOW_MINIMAP === "boolean") ? window.SHOW_MINIMAP : false;
     if (showMini) {
       const mw = ctx.world && ctx.world.width ? ctx.world.width : (map[0] ? map[0].length : 0);
       const mh = ctx.world && ctx.world.height ? ctx.world.height : map.length;
