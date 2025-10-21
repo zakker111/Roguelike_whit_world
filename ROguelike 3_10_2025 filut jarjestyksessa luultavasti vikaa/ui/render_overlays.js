@@ -312,13 +312,16 @@ export function drawDungeonGlow(ctx, view) {
 
       const px = p.x, py = p.y;
       if (px < view.startX || px > view.endX || py < view.startY || py > view.endY) continue;
-      if (!ctx.visible[py] || !ctx.visible[py][px]) continue;
+
+      const everSeen = !!(ctx.seen[py] && ctx.seen[py][px]);
+      const visNow = !!(ctx.visible[py] && ctx.visible[py][px]);
+      if (!everSeen) continue;
 
       const cx = (px - view.startX) * TILE - view.tileOffsetX + TILE / 2;
       const cy = (py - view.startY) * TILE - view.tileOffsetY + TILE / 2;
 
-      // Small glow by default; prefer prop.light.glowTiles if present
-      const glowTiles = (def && def.light && typeof def.light.glowTiles === "number") ? def.light.glowTiles : 1.6;
+      // Prefer prop.light.glowTiles; slightly larger default for better visibility
+      const glowTiles = (def && def.light && typeof def.light.glowTiles === "number") ? def.light.glowTiles : 1.9;
       const r = TILE * glowTiles;
 
       const base = (def && def.light && typeof def.light.color === "string")
@@ -326,8 +329,10 @@ export function drawDungeonGlow(ctx, view) {
         : (def && def.colors && def.colors.fg) ? def.colors.fg : "#ffb84d";
 
       const grad = ctx2d.createRadialGradient(cx, cy, 3, cx, cy, r);
-      grad.addColorStop(0, rgba(base, 0.55));
-      grad.addColorStop(0.5, rgba(base, 0.22));
+      // Dim the glow if not currently visible (seen only)
+      const alphaScale = visNow ? 1.0 : 0.6;
+      grad.addColorStop(0, rgba(base, 0.55 * alphaScale));
+      grad.addColorStop(0.5, rgba(base, 0.22 * alphaScale));
       grad.addColorStop(1, rgba(base, 0.0));
       ctx2d.fillStyle = grad;
       ctx2d.beginPath();
