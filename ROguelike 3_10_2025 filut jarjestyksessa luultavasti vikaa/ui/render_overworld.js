@@ -134,15 +134,15 @@ export function draw(ctx, view) {
   }
 
   // Top-edge boundary: render an organic shoreline + water to disguise the hard boundary.
-  // Visual only; world data isn't changed. Movement into y &lt; 0 is blocked in world_runtime.
+  // Visual only; world data isn't changed. Movement into y < 0 is blocked in world_runtime.
   try {
-    if (startY &lt; 0) {
+    if (startY < 0) {
       // Stable 1D hash for column variation
       function h1(n) {
         let x = (n | 0) * 374761393;
-        x = (x ^ (x &gt;&gt;&gt; 13)) | 0;
+        x = (x ^ (x >>> 13)) | 0;
         x = Math.imul(x, 1274126177) | 0;
-        x = (x ^ (x &gt;&gt;&gt; 16)) >>> 0;
+        x = (x ^ (x >>> 16)) >>> 0;
         return (x % 1000003) / 1000003;
       }
       // Colors
@@ -153,12 +153,12 @@ export function draw(ctx, view) {
 
       // Per-column variable band height + subtle wave stripes and foam at the lip
       const minBand = 2, maxBand = 6;
-      for (let x = startX; x &lt;= endX; x++) {
+      for (let x = startX; x <= endX; x++) {
         const r = h1(x * 9176 + 13);
         const bandH = minBand + ((r * (maxBand - minBand + 1)) | 0); // 2..6 tiles
         // Draw water tiles for rows [-bandH .. -1]
-        for (let y = -bandH; y &lt; 0; y++) {
-          if (y &lt; startY) continue; // above viewport
+        for (let y = -bandH; y < 0; y++) {
+          if (y < startY) continue; // above viewport
           const sx = (x - startX) * TILE - tileOffsetX;
           const sy = (y - startY) * TILE - tileOffsetY;
           // base water
@@ -166,18 +166,18 @@ export function draw(ctx, view) {
           ctx2d.fillRect(sx, sy, TILE, TILE);
 
           // wave banding (very subtle)
-          const wave = ((x + y) &amp; 1) === 0;
+          const wave = ((x + y) & 1) === 0;
           if (wave) {
             ctx2d.save();
             ctx2d.globalAlpha = 0.10;
             ctx2d.fillStyle = "#103a57";
-            ctx2d.fillRect(sx, sy + Math.max(2, TILE * 0.4) | 0, TILE, 2);
+            ctx2d.fillRect(sx, sy + (Math.max(2, TILE * 0.4) | 0), TILE, 2);
             ctx2d.restore();
           }
         }
 
         // Foam along the lip at y = -1 (if visible), and a thin beach tint on the first on-map row (y=0)
-        if (-1 &gt;= startY) {
+        if (-1 >= startY) {
           const sx = (x - startX) * TILE - tileOffsetX;
           const sy = (-1 - startY) * TILE - tileOffsetY;
           // foam jitter
@@ -193,7 +193,7 @@ export function draw(ctx, view) {
         }
 
         // Beach tint into the first visible on-map row to simulate shore transition
-        if (0 &gt;= startY &amp;&amp; 0 &lt; mapRows) {
+        if (0 >= startY && 0 < mapRows) {
           const sx0 = (x - startX) * TILE - tileOffsetX;
           const sy0 = (0 - startY) * TILE - tileOffsetY;
           ctx2d.save();
@@ -207,10 +207,10 @@ export function draw(ctx, view) {
       // Gentle vignette fade above shoreline to suggest distance/haze instead of void
       ctx2d.save();
       const fadeRows = 2;
-      for (let yy = Math.max(startY, -maxBand - fadeRows); yy &lt; -maxBand + 1; yy++) {
+      for (let yy = Math.max(startY, -maxBand - fadeRows); yy < -maxBand + 1; yy++) {
         const alpha = Math.max(0, Math.min(0.25, 0.15 + (yy + maxBand) * 0.06));
-        if (alpha &lt;= 0) continue;
-        for (let xx = startX; xx &lt;= endX; xx++) {
+        if (alpha <= 0) continue;
+        for (let xx = startX; xx <= endX; xx++) {
           const sx = (xx - startX) * TILE - tileOffsetX;
           const sy = (yy - startY) * TILE - tileOffsetY;
           ctx2d.fillStyle = `rgba(10, 27, 42, ${alpha.toFixed(3)})`;
