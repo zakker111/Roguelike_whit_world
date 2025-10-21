@@ -119,6 +119,8 @@ function expandMap(ctx, side, K) {
 
   world.width = ctx.map[0] ? ctx.map[0].length : 0;
   world.height = ctx.map.length;
+  // Keep world.map in sync for modules that still read from ctx.world.map
+  world.map = ctx.map;
   return true;
 }
 
@@ -183,6 +185,8 @@ export function generate(ctx, opts = {}) {
       originY,
       width,
       height,
+      // Keep a live reference to the current windowed map for modules that read ctx.world.map
+      map,            // note: will be kept in sync on expansion
       towns: [],       // optional: can be populated lazily if we scan tiles
       dungeons: [],
       roads: [],
