@@ -1451,5 +1451,4 @@
   // Back-compat: attach to window via helper and export for ESM
 import { attachGlobal } from "../utils/global.js";
 export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
-attachGlobal("Town", { generate, ensureSpawnClear, spawnGateGreeters, interactProps });;
-  }
+attachGlobal("Town", { generate, ensureSpawnClear, spawnGateGreeters, interactProps });
