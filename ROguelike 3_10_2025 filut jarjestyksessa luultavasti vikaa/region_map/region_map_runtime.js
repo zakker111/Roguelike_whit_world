@@ -657,11 +657,10 @@ function open(ctx, size) {
     height,
     map: sample,
     cursor: { x: spawnX | 0, y: spawnY | 0 },
-    exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
+    exitTiles: [exitNorth, exitSouth, exitEast],
     enterWorldPos: { x: worldX, y: worldY },
-    _anchor: anchor,
     _prevLOS: ctx.los || null,
-    _hasKnownAnimals: animalsSeenHereByAnchor(anchor, worldX, worldY)
+    _hasKnownAnimals: animalsSeenHere(worldX, worldY)
   };
 
   // Region behaves like a normal mode: use region map as active map and player follows cursor
@@ -842,7 +841,7 @@ function open(ctx, size) {
       // Persist animal presence for this region (world coordinates) so we remember later
       try {
         if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {
-          markAnimalsSeenByAnchor(anchor);
+          markAnimalsSeen(worldX | 0, worldY | 0);
           // Also update flag in this session
           ctx.region._hasKnownAnimals = true;
 
