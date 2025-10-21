@@ -452,24 +452,40 @@ export function draw(ctx, view) {
         const bx = cam.width - wpx - pad;
         const by = pad;
 
-        // Build offscreen once per world map reference or dimension change
+        // Build offscreen once per world map reference, dimension change, or exploration progress
         const mapRef = map;
-        const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef();
+        const origin = (ctx.world && ctx.world.origin) ? ctx.world.origin : { x0: 0, y0: 0 };
+        const explored = (ctx.worldExplored && ctx.worldExplored instanceof Set) ? ctx.worldExplored : null;
+        const exploredCount = explored ? explored.size : 0;
+        const needsRebuild = (!MINI.canvas)
+          || MINI.mapRef !== mapRef
+          || MINI.wpx !== wpx
+          || MINI.hpx !== hpx
+          || MINI.scale !== scale
+          || MINI._tilesRef !== tilesRef()
+          || MINI._exploredCount !== exploredCount
+          || MINI._originX0 !== origin.x0
+          || MINI._originY0 !== origin.y0;
         if (needsRebuild) {
           MINI.mapRef = mapRef;
           MINI.wpx = wpx;
           MINI.hpx = hpx;
           MINI.scale = scale;
           MINI._tilesRef = tilesRef();
+          MINI._exploredCount = exploredCount;
+          MINI._originX0 = origin.x0;
+          MINI._originY0 = origin.y0;
+
           const off = RenderCore.createOffscreen(wpx, hpx);
           const oc = off.getContext("2d");
           // Minimap shows explored-overworld only: draw explored tiles in biome color, unexplored as dark.
-          const explored = (ctx.worldExplored && ctx.worldExplored instanceof Set) ? ctx.worldExplored : null;
           const DARK = "#0b0c10";
           for (let yy = 0; yy < mh; yy++) {
             const rowM = map[yy];
             for (let xx = 0; xx < mw; xx++) {
-              const isExplored = explored ? explored.has(`${xx},${yy}`) : false;
+              const wx = origin.x0 + xx;
+              const wy = origin.y0 + yy;
+              const isExplored = explored ? explored.has(`${wx},${wy}`) : false;
               if (!isExplored) {
                 oc.fillStyle = DARK;
                 oc.fillRect(xx * scale, yy * scale, scale, scale);
@@ -513,19 +529,26 @@ export function draw(ctx, view) {
           const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
           const dungeons = Array.isArray(ctx.world?.dungeons) ? ctx.world.dungeons : [];
           const explored = (ctx.worldExplored && ctx.worldExplored instanceof Set) ? ctx.worldExplored : null;
-          function exploredAt(x, y) {
+          const origin = (ctx.world && ctx.world.origin) ? ctx.world.origin : { x0: 0, y0: 0 };
+          function exploredAtAbs(x, y) {
             return explored ? explored.has(`${x | 0},${y | 0}`) : true;
           }
           ctx2d.save();
           for (const t of towns) {
-            if (!exploredAt(t.x, t.y)) continue;
+            const lx = (t.x | 0) - origin.x0;
+            const ly = (t.y | 0) - origin.y0;
+            if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
+            if (!exploredAtAbs(t.x, t.y)) continue;
             ctx2d.fillStyle = "#f6c177";
-            ctx2d.fillRect(bx + t.x * scale, by + t.y * scale, Math.max(1, scale), Math.max(1, scale));
+            ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           for (const d of dungeons) {
-            if (!exploredAt(d.x, d.y)) continue;
+            const lx = (d.x | 0) - origin.x0;
+            const ly = (d.y | 0) - origin.y0;
+            if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
+            if (!exploredAtAbs(d.x, d.y)) continue;
             ctx2d.fillStyle = "#f7768e";
-            ctx2d.fillRect(bx + d.x * scale, by + d.y * scale, Math.max(1, scale), Math.max(1, scale));
+            ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           ctx2d.restore();
         } catch (_) {}
