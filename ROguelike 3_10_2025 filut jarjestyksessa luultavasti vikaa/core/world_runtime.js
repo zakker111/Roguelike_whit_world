@@ -47,10 +47,9 @@ export function generate(ctx, opts = {}) {
   try {
     if (typeof window !== "undefined" && window.ChunkedWorld && typeof window.ChunkedWorld.generate === "function") {
       W = window.ChunkedWorld;
-      // Back-compat: expose as World if not already set so existing modules that import/use window.World continue to work.
-      if (typeof window.World === "undefined") {
-        try { window.World = window.ChunkedWorld; } catch (_) {}
-      }
+      // Ensure all modules use streaming world uniformly
+      try { window.World = window.ChunkedWorld; } catch (_) {}
+      try { if (ctx) ctx.World = window.ChunkedWorld; } catch (_) {}
     } else {
       W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
     }
@@ -146,7 +145,23 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   const nearEdge = (nxLocal < MARG) || (nyLocal < MARG) || (nxLocal > cols - 1 - MARG) || (nyLocal > rows - 1 - MARG);
   const needsRecompose = outside || nearEdge;
 
-  // Walkability check
+  // Proactively recompose window when approaching edges, even if the next tile is not walkable.
+  if (needsRecompose && typeof W.recompose === "function") {
+    const nextWorld = W.recompose(ctx.world, ctx.worldPos.x | 0, ctx.worldPos.y | 0, cols, rows);
+    ctx.world = nextWorld;
+    ctx.map = nextWorld.map;
+    const o2 = nextWorld.origin || { x0: 0, y0: 0 };
+    // Keep local player indices consistent with absolute position
+    ctx.player.x = (ctx.worldPos.x - o2.x0) | 0;
+    ctx.player.y = (ctx.worldPos.y - o2.y0) | 0;
+    // Mark newly visible window explored for minimap update
+    _markWindowExplored(ctx);
+    // Request a redraw so the minimap and viewport reflect the new chunk immediately
+    try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
+    try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+  }
+
+  // Walkability check for the intended step
   let walkable = true;
   try {
     if (typeof W.tileAt === "function") {
@@ -164,20 +179,26 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   // Apply movement
   ctx.worldPos = { x: nextAbs.x | 0, y: nextAbs.y | 0 };
 
-  if (needsRecompose && typeof W.recompose === "function") {
-    // Recenter window on new absolute position
+  // Recompose again if the new absolute position is near the updated window edges
+  const origin2 = (ctx.world && ctx.world.origin) ? ctx.world.origin : { x0: 0, y0: 0 };
+  const nxLocal2 = ctx.worldPos.x - origin2.x0;
+  const nyLocal2 = ctx.worldPos.y - origin2.y0;
+  const outside2 = (nxLocal2 < 0) || (nyLocal2 < 0) || (nxLocal2 >= cols) || (nyLocal2 >= rows);
+  const nearEdge2 = (nxLocal2 < MARG) || (nyLocal2 < MARG) || (nxLocal2 > cols - 1 - MARG) || (nyLocal2 > rows - 1 - MARG);
+  const needsRecompose2 = outside2 || nearEdge2;
+
+  if (needsRecompose2 && typeof W.recompose === "function") {
     const nextWorld = W.recompose(ctx.world, ctx.worldPos.x, ctx.worldPos.y, cols, rows);
     ctx.world = nextWorld;
     ctx.map = nextWorld.map;
     const o2 = nextWorld.origin || { x0: 0, y0: 0 };
     ctx.player.x = (ctx.worldPos.x - o2.x0) | 0;
     ctx.player.y = (ctx.worldPos.y - o2.y0) | 0;
-    // Mark newly visible window as explored for minimap update
     _markWindowExplored(ctx);
   } else {
     // Move locally within the current window
-    ctx.player.x = nxLocal | 0;
-    ctx.player.y = nyLocal | 0;
+    ctx.player.x = nxLocal2 | 0;
+    ctx.player.y = nyLocal2 | 0;
     // Mark explored at absolute position (radius halo) to expand minimap progressively
     _markExplored(ctx, ctx.worldPos.x, ctx.worldPos.y, 2);
   }
@@ -190,6 +211,10 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
       ES.maybeTryEncounter(ctx);
     }
   } catch (_) {}
+  // Advance a turn after the roll (if an encounter opened, next turn will tick region)
+  try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+  return true;
+}
   // Advance a turn after the roll (if an encounter opened, next turn will tick region)
   try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
   return true;
