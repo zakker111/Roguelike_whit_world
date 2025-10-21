@@ -408,7 +408,6 @@ export function tick(ctx) {
             isSeppo: true,
             seppo: true
           };
-          (ctx.npcs = Array.isArray(ctx.npcs) ? ctx.npcs : []).push(npc);
 
           // Temporary shop at Seppo's tile (always open while he's in town)
           const shop = {
@@ -420,6 +419,11 @@ export function tick(ctx) {
             building: null,
             inside: { x: best.x, y: best.y }
           };
+
+          // Attach shop reference to NPC so UI can resolve inventory
+          npc._shopRef = shop;
+
+          (ctx.npcs = Array.isArray(ctx.npcs) ? ctx.npcs : []).push(npc);
           (ctx.shops = Array.isArray(ctx.shops) ? ctx.shops : []).push(shop);
 
           // Lifetime ~2 in-game hours; cooldown ~8 hours before next possible visit
