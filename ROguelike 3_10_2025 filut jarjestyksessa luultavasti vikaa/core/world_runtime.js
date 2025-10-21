@@ -140,7 +140,7 @@ function ensureRoads(ctx) {
   }
 
   const towns = Array.isArray(world.towns) ? world.towns.slice(0) : [];
-  // Connect each town to its nearest neighbor within a reasonable distance
+  // Connect each town to its nearest neighbor within a reasonable distance, but only if BOTH endpoints are within the current window
   for (let i = 0; i < towns.length; i++) {
     const a = towns[i];
     if (!inWin(a.x, a.y)) continue;
@@ -148,6 +148,7 @@ function ensureRoads(ctx) {
     for (let j = 0; j < towns.length; j++) {
       if (i === j) continue;
       const b = towns[j];
+      if (!inWin(b.x, b.y)) continue; // avoid dangling roads that lead off-window
       const d = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
       if (d < bd) { bd = d; best = b; }
     }

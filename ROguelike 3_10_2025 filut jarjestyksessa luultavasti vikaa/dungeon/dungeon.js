@@ -164,7 +164,20 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     const WT = W ? W.TILES : null;
     const gen = world && world.gen;
     const dinfoAbs = ctx.dungeonInfo || ctx.dungeon || null;
-    const isMountainEntrance = !!(gen && WT && typeof gen.tileAt === "function" && dinfoAbs && gen.tileAt(dinfoAbs.x | 0, dinfoAbs.y | 0) === WT.MOUNTAIN);
+
+    function isMountainAt(ax, ay) {
+      try { return gen && typeof gen.tileAt === "function" && WT && gen.tileAt(ax | 0, ay | 0) === WT.MOUNTAIN; } catch (_) { return false; }
+    }
+    function isMountainEntranceNear(abs) {
+      if (!abs) return false;
+      const x0 = abs.x | 0, y0 = abs.y | 0;
+      if (isMountainAt(x0, y0)) return true;
+      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
+      for (const d of dirs) { if (isMountainAt(x0 + d.dx, y0 + d.dy)) return true; }
+      return false;
+    }
+
+    const isMountainEntrance = isMountainEntranceNear(dinfoAbs);
     if (isMountainEntrance) {
       // Pick a different room from the end room (prefer mid/far) to place the mountain pass portal
       let passRoomIdx = Math.max(1, Math.floor(rooms.length / 2));

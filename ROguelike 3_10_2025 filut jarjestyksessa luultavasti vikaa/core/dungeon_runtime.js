@@ -238,10 +238,11 @@ export function generateLoot(ctx, source) {
 
 export function returnToWorldIfAtExit(ctx) {
   if (!ctx || ctx.mode !== "dungeon" || !ctx.world) return false;
-  // Strict: only allow leaving if standing exactly on the designated exit tile
-  if (!ctx.dungeonExitAt || typeof ctx.dungeonExitAt.x !== "number" || typeof ctx.dungeonExitAt.y !== "number") return false;
-  const onExit = (ctx.player.x === ctx.dungeonExitAt.x) && (ctx.player.y === ctx.dungeonExitAt.y);
-  if (!onExit) return false;
+
+  // Allow exit when standing on ANY STAIRS tile (not just the designated entrance),
+  // unless it is the special mountain-pass portal handled elsewhere.
+  const onStairs = (ctx.inBounds(ctx.player.x, ctx.player.y) && ctx.map[ctx.player.y][ctx.player.x] === ctx.TILES.STAIRS);
+  if (!onStairs) return false;
 
   // Save state first
   try { save(ctx, false); } catch (_) {
