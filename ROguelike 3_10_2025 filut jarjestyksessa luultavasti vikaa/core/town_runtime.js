@@ -203,6 +203,12 @@ export function applyLeaveSync(ctx) {
   ctx.mode = "world";
   ctx.map = ctx.world.map;
 
+  // Restore world fog-of-war arrays so minimap remembers explored areas
+  try {
+    if (ctx.world && ctx.world.seenRef && Array.isArray(ctx.world.seenRef)) ctx.seen = ctx.world.seenRef;
+    if (ctx.world && ctx.world.visibleRef && Array.isArray(ctx.world.visibleRef)) ctx.visible = ctx.world.visibleRef;
+  } catch (_) {}
+
   // Clear town-only state
   try {
     if (Array.isArray(ctx.npcs)) ctx.npcs.length = 0;

@@ -188,8 +188,10 @@ function expandMap(ctx, side, K) {
 
   world.width = ctx.map[0] ? ctx.map[0].length : 0;
   world.height = ctx.map.length;
-  // Keep world.map in sync for modules that still read from ctx.world.map
+  // Keep world.map and fog refs in sync
   world.map = ctx.map;
+  world.seenRef = ctx.seen;
+  world.visibleRef = ctx.visible;
   return true;
 }
 
@@ -274,6 +276,9 @@ export function generate(ctx, opts = {}) {
     // Allocate fog-of-war arrays; FOV module will mark seen/visible around player
     ctx.seen = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
     ctx.visible = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
+    // Keep references on world so we can restore them after visiting towns/dungeons
+    ctx.world.seenRef = ctx.seen;
+    ctx.world.visibleRef = ctx.visible;
 
     // Register POIs present in the initial window (sparse anchors only)
     try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch (_) {}

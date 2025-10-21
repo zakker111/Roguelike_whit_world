@@ -255,8 +255,12 @@ export function returnToWorldIfAtExit(ctx) {
   if (Array.isArray(ctx.corpses)) ctx.corpses.length = 0;
   if (Array.isArray(ctx.decals)) ctx.decals.length = 0;
 
-  // Use world map
+  // Use world map and restore fog-of-war so minimap remembers explored areas
   ctx.map = ctx.world.map;
+  try {
+    if (ctx.world && ctx.world.seenRef && Array.isArray(ctx.world.seenRef)) ctx.seen = ctx.world.seenRef;
+    if (ctx.world && ctx.world.visibleRef && Array.isArray(ctx.world.visibleRef)) ctx.visible = ctx.world.visibleRef;
+  } catch (_) {}
 
   // Restore world position: prefer stored worldReturnPos; else dungeon entrance coordinates
   let rx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : null;
@@ -511,6 +515,13 @@ export function killEnemy(ctx, enemy) {
 
 export function enter(ctx, info) {
   if (!ctx || !info) return false;
+  // Preserve world fog-of-war references so we can restore on exit
+  try {
+    if (ctx.world) {
+      ctx.world.seenRef = ctx.seen;
+      ctx.world.visibleRef = ctx.visible;
+    }
+  } catch (_) {}
   ctx.dungeon = info;
   ctx.dungeonInfo = info;
   ctx.floor = Math.max(1, (info.level | 0) || 1);

@@ -134,6 +134,13 @@ export function enterTownIfOnTile(ctx) {
   if (WT && t === ctx.World.TILES.TOWN) {
       const enterWX = ctx.player.x, enterWY = ctx.player.y;
       ctx.worldReturnPos = { x: enterWX, y: enterWY };
+      // Preserve world fog-of-war before switching maps
+      try {
+        if (ctx.world) {
+          ctx.world.seenRef = ctx.seen;
+          ctx.world.visibleRef = ctx.visible;
+        }
+      } catch (_) {}
       ctx.mode = "town";
 
       // First, try to load a persisted town state for this overworld tile
