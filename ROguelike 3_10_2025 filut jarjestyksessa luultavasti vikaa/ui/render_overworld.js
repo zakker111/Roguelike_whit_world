@@ -463,13 +463,21 @@ export function draw(ctx, view) {
           MINI._tilesRef = tilesRef();
           const off = RenderCore.createOffscreen(wpx, hpx);
           const oc = off.getContext("2d");
-          // tiles from JSON only
+          // Minimap shows explored-overworld only: draw explored tiles in biome color, unexplored as dark.
+          const explored = (ctx.worldExplored && ctx.worldExplored instanceof Set) ? ctx.worldExplored : null;
+          const DARK = "#0b0c10";
           for (let yy = 0; yy < mh; yy++) {
             const rowM = map[yy];
             for (let xx = 0; xx < mw; xx++) {
+              const isExplored = explored ? explored.has(`${xx},${yy}`) : false;
+              if (!isExplored) {
+                oc.fillStyle = DARK;
+                oc.fillRect(xx * scale, yy * scale, scale, scale);
+                continue;
+              }
               const t = rowM[xx];
               const td = getTileDef("overworld", t);
-              const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+              const c = (td && td.colors && td.colors.fill) ? td.colors.fill : DARK;
               oc.fillStyle = c;
               oc.fillRect(xx * scale, yy * scale, scale, scale);
             }
@@ -500,16 +508,22 @@ export function draw(ctx, view) {
           ctx2d.drawImage(MINI.canvas, bx, by);
         }
 
-        // POI markers: towns (gold), dungeons (red)
+        // POI markers: towns (gold), dungeons (red) — only show when explored
         try {
           const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
           const dungeons = Array.isArray(ctx.world?.dungeons) ? ctx.world.dungeons : [];
+          const explored = (ctx.worldExplored && ctx.worldExplored instanceof Set) ? ctx.worldExplored : null;
+          function exploredAt(x, y) {
+            return explored ? explored.has(`${x | 0},${y | 0}`) : true;
+          }
           ctx2d.save();
           for (const t of towns) {
+            if (!exploredAt(t.x, t.y)) continue;
             ctx2d.fillStyle = "#f6c177";
             ctx2d.fillRect(bx + t.x * scale, by + t.y * scale, Math.max(1, scale), Math.max(1, scale));
           }
           for (const d of dungeons) {
+            if (!exploredAt(d.x, d.y)) continue;
             ctx2d.fillStyle = "#f7768e";
             ctx2d.fillRect(bx + d.x * scale, by + d.y * scale, Math.max(1, scale), Math.max(1, scale));
           }

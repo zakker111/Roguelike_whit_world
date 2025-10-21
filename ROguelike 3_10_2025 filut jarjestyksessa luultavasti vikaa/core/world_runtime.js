@@ -6,7 +6,25 @@
  * - tryMovePlayerWorld(ctx, dx, dy)
  * - tick(ctx)      // optional per-turn hook for world mode
  */
- 
+
+function _key(x, y) { return `${x | 0},${y | 0}`; }
+function _markExplored(ctx, x, y, radius = 0) {
+  try {
+    if (!ctx.worldExplored || !(ctx.worldExplored instanceof Set)) ctx.worldExplored = new Set();
+    ctx.worldExplored.add(_key(x, y));
+    // Optional: reveal a small radius around player to make exploration feel less pixel-perfect
+    const r = Math.max(0, radius | 0);
+    if (r > 0) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (Math.abs(dx) + Math.abs(dy) <= r) ctx.worldExplored.add(_key(nx, ny));
+        }
+      }
+    }
+  } catch (_) {}
+}
+
 export function generate(ctx, opts = {}) {
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
   if (!(W && typeof W.generate === "function")) {
@@ -43,12 +61,17 @@ export function generate(ctx, opts = {}) {
   ctx.npcs = [];   // no NPCs on overworld
   ctx.shops = [];  // no shops on overworld
 
-  // Apply world map and reveal it fully
+  // Apply world map
   ctx.map = ctx.world.map;
   const rows = ctx.map.length;
   const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+
+  // World exploration tracking (for minimap): initialize and mark start as explored.
+  // Keep seen/visible simple for overworld main view; renderer doesn't rely on them.
   ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
   ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
+  ctx.worldExplored = new Set();
+  _markExplored(ctx, ctx.player.x, ctx.player.y, 2);
 
   // Camera/FOV/UI
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
@@ -78,7 +101,12 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
   const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(wmap[ny][nx]) : true;
   if (!walkable) return false;
+
   ctx.player.x = nx; ctx.player.y = ny;
+
+  // Mark explored area around the new position for minimap reveal.
+  _markExplored(ctx, ctx.player.x, ctx.player.y, 2);
+
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
   // Roll for encounter first so acceptance can switch mode before advancing world time
   try {
