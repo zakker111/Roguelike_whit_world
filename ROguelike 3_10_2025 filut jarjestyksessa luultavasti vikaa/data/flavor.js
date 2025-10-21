@@ -117,7 +117,6 @@ export function announceFloorEnemyCount(ctx) {
   } catch (_) {}
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.Flavor = { logHit, logPlayerHit, announceFloorEnemyCount };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("Flavor", { logHit, logPlayerHit, announceFloorEnemyCount });

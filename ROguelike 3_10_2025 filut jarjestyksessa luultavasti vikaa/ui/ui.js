@@ -1576,7 +1576,6 @@ export const UI = {
   }
 };
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.UI = UI;
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("UI", UI);

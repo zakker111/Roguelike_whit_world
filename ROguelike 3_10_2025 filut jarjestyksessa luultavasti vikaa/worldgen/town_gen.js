@@ -1448,8 +1448,8 @@
     return null;
   }
 
-  // Back-compat: attach to window and export for ESM
-  export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
-  if (typeof window !== "undefined") {
-    window.Town = { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
+  // Back-compat: attach to window via helper and export for ESM
+import { attachGlobal } from "../utils/global.js";
+export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
+attachGlobal("Town", { generate, ensureSpawnClear, spawnGateGreeters, interactProps });;
   }
