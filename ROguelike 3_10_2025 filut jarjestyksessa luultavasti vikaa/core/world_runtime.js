@@ -398,6 +398,11 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   // Ensure expand-shift is enabled during normal movement (may have been suspended during transitions)
   if (ctx._suspendExpandShift) ctx._suspendExpandShift = false;
 
+  // Top-edge water band: treat any attempt to move above row 0 as blocked (like water), do not expand upward
+  if (ny < 0) {
+    return false;
+  }
+
   // Expand if outside (only for infinite worlds)
   try {
     if (ctx.world && ctx.world.type === "infinite" && ctx.world.gen && typeof ctx.world.gen.tileAt === "function") {
