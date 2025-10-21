@@ -217,15 +217,21 @@ export function applyLeaveSync(ctx) {
       const ry = ctx.worldReturnPos.y | 0;
       // Ensure the return position is inside the current window
       if (WR && typeof WR.ensureInBounds === "function") {
-        // Convert to local indices to test
-        let lx = rx - ctx.world.originX;
-        let ly = ry - ctx.world.originY;
-        WR.ensureInBounds(ctx, lx, ly, 32);
+        // Suspend player shifting during expansion to avoid camera/position snaps
+        ctx._suspendExpandShift = true;
+        try {
+          // Convert to local indices to test
+          let lx = rx - ctx.world.originX;
+          let ly = ry - ctx.world.originY;
+          WR.ensureInBounds(ctx, lx, ly, 32);
+        } finally {
+          ctx._suspendExpandShift = false;
+        }
         // Recompute after potential expansion shifts
-        lx = rx - ctx.world.originX;
-        ly = ry - ctx.world.originY;
-        ctx.player.x = lx;
-        ctx.player.y = ly;
+        const lx2 = rx - ctx.world.originX;
+        const ly2 = ry - ctx.world.originY;
+        ctx.player.x = lx2;
+        ctx.player.y = ly2;
       } else {
         // Fallback: clamp
         const lx = rx - ctx.world.originX;

@@ -276,13 +276,19 @@ export function returnToWorldIfAtExit(ctx) {
   try {
     const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
     if (WR && typeof WR.ensureInBounds === "function" && typeof rx === "number" && typeof ry === "number") {
-      let lx = rx - ctx.world.originX;
-      let ly = ry - ctx.world.originY;
-      WR.ensureInBounds(ctx, lx, ly, 32);
-      lx = rx - ctx.world.originX;
-      ly = ry - ctx.world.originY;
-      ctx.player.x = lx;
-      ctx.player.y = ly;
+      // Suspend player shifting during expansion to avoid camera/position snaps
+      ctx._suspendExpandShift = true;
+      try {
+        let lx = rx - ctx.world.originX;
+        let ly = ry - ctx.world.originY;
+        WR.ensureInBounds(ctx, lx, ly, 32);
+      } finally {
+        ctx._suspendExpandShift = false;
+      }
+      const lx2 = rx - ctx.world.originX;
+      const ly2 = ry - ctx.world.originY;
+      ctx.player.x = lx2;
+      ctx.player.y = ly2;
     } else if (typeof rx === "number" && typeof ry === "number") {
       const lx = rx - ctx.world.originX;
       const ly = ry - ctx.world.originY;
