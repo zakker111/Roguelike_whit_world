@@ -26,7 +26,19 @@ function _markExplored(ctx, x, y, radius = 0) {
 }
 
 export function generate(ctx, opts = {}) {
-  const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+  // Choose generator: prefer ChunkedWorld when enabled, else World.
+  let W = null;
+  try {
+    const useChunked = (typeof window !== "undefined" && typeof window.USE_CHUNKED_WORLD === "boolean") ? window.USE_CHUNKED_WORLD : false;
+    if (useChunked && typeof window !== "undefined" && window.ChunkedWorld && typeof window.ChunkedWorld.generate === "function") {
+      W = window.ChunkedWorld;
+    } else {
+      W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+    }
+  } catch (_) {
+    W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+  }
+
   if (!(W && typeof W.generate === "function")) {
     ctx.log && ctx.log("World module missing; generating dungeon instead.", "warn");
     ctx.mode = "dungeon";
