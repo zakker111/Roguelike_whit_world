@@ -83,7 +83,185 @@ function shoreAdjust(segRow, WT) {
   }
 }
 
-// Expand helpers: mutate ctx.world.map in-place and adjust metadata/POIs
+// Expand helpers and overlays: mutate ctx.world.map in-place, add POIs and roads/bridges
+function ensureWorldArrays(ctx) {
+  if (!ctx.world.roads) ctx.world.roads = [];
+  if (!ctx.world.bridges) ctx.world.bridges = [];
+  if (!ctx.world.towns) ctx.world.towns = [];
+  if (!ctx.world.dungeons) ctx.world.dungeons = [];
+}
+
+// Road/bridge overlays (Bresenham-ish path)
+function carveRoadOverlay(ctx, x0, y0, x1, y1) {
+  const Wmod = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+  const WT = Wmod && Wmod.TILES ? Wmod.TILES : null;
+  if (!WT) return false;
+  ensureWorldArrays(ctx);
+  const map = ctx.world.map;
+  const width = map[0] ? map[0].length : 0;
+  const height = map.length;
+
+  const roadSet = new Set((ctx.world.roads || []).map(p => `${p.x},${p.y}`));
+  const bridgeSet = new Set((ctx.world.bridges || []).map(p => `${p.x},${p.y}`));
+
+  const addRoadPoint = (x, y) => {
+    const key = `${x},${y}`;
+    if (!roadSet.has(key)) { roadSet.add(key); ctx.world.roads.push({ x, y }); }
+  };
+  const addBridgePoint = (x, y) => {
+    const key = `${x},${y}`;
+    if (!bridgeSet.has(key)) { bridgeSet.add(key); ctx.world.bridges.push({ x, y }); }
+  };
+
+  let x = x0, y = y0;
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  while (true) {
+    if (x >= 0 && y >= 0 && x < width && y < height) {
+      const t = map[y][x];
+      if (t === WT.WATER || t === WT.RIVER) {
+        map[y][x] = WT.BEACH;
+        addBridgePoint(x, y);
+      } else if (t === WT.MOUNTAIN) {
+        map[y][x] = WT.GRASS;
+      }
+      addRoadPoint(x, y);
+    }
+    if (x === x1 && y === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; }
+    if (e2 < dx) { err += dx; y += sy; }
+  }
+  return true;
+}
+
+function nearestDungeonFor(ctx, p) {
+  let best = null, bd = Infinity;
+  const ds = Array.isArray(ctx.world.dungeons) ? ctx.world.dungeons : [];
+  for (const d of ds) {
+    const dist = Math.abs(d.x - p.x) + Math.abs(d.y - p.y);
+    if (dist < bd) { bd = dist; best = d; }
+  }
+  return best;
+}
+
+function nearestTownFor(ctx, p) {
+  let best = null, bd = Infinity;
+  const ts = Array.isArray(ctx.world.towns) ? ctx.world.towns : [];
+  for (const t of ts) {
+    if (!t) continue;
+    const dist = Math.abs(t.x - p.x) + Math.abs(t.y - p.y);
+    if (dist < bd) { bd = dist; best = t; }
+  }
+  return best;
+}
+
+function pickTownSize(seedNoise) {
+  const r = seedNoise;
+  if (r < 0.60) return "small";
+  if (r < 0.90) return "big";
+  return "city";
+}
+
+function placeTownsInArea(ctx, x0, y0, x1, y1) {
+  const Wmod = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+  const WT = Wmod && Wmod.TILES ? Wmod.TILES : null;
+  if (!WT) return 0;
+  ensureWorldArrays(ctx);
+  const map = ctx.world.map;
+  const seed = currentSeed();
+  let placed = 0;
+
+  for (let y = y0; y <= y1; y++) {
+    const row = map[y];
+    for (let x = x0; x <= x1; x++) {
+      const t = row[x];
+      if (!(t === WT.GRASS || t === WT.BEACH || t === WT.DESERT || t === WT.SNOW)) continue;
+      const noise = h2(x + (ctx.world.originX|0), y + (ctx.world.originY|0), seed ^ 0xa11ce);
+      // Prefer near water within immediate neighborhood
+      let nearWater = false;
+      for (let dy = -2; dy <= 2 && !nearWater; dy++) {
+        for (let dx = -2; dx <= 2 && !nearWater; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (ny < 0 || ny >= map.length || nx < 0 || nx >= row.length) continue;
+          const nt = map[ny][nx];
+          if (nt === WT.WATER || nt === WT.RIVER || nt === WT.BEACH) nearWater = true;
+        }
+      }
+      const pTown = nearWater ? 0.010 : 0.003; // bias near water
+      if (noise < pTown) {
+        // avoid clustering with existing towns
+        const tooClose = (ctx.world.towns || []).some(town => Math.abs(town.x - x) + Math.abs(town.y - y) < 6);
+        if (tooClose) continue;
+        const size = pickTownSize(h2(x*3+7, y*3+11, seed ^ 0xb00));
+        ctx.world.towns.push({ x, y, size });
+        // connect roads: to nearest existing town and nearest dungeon
+        const t2 = nearestTownFor(ctx, { x, y });
+        if (t2) carveRoadOverlay(ctx, x, y, t2.x, t2.y);
+        const d = nearestDungeonFor(ctx, { x, y });
+        if (d) carveRoadOverlay(ctx, x, y, d.x, d.y);
+        placed++;
+      }
+    }
+  }
+  return placed;
+}
+
+function placeDungeonsInArea(ctx, x0, y0, x1, y1) {
+  const Wmod = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+  const WT = Wmod && Wmod.TILES ? Wmod.TILES : null;
+  if (!WT) return 0;
+  ensureWorldArrays(ctx);
+  const map = ctx.world.map;
+  const seed = currentSeed();
+  let placed = 0;
+
+  function pickSizeFor(tile, noise) {
+    // Base weights; adjust per terrain
+    let wS = 0.45, wM = 0.40, wL = 0.15;
+    if (tile === WT.MOUNTAIN) { wL += 0.15; wM += 0.05; wS -= 0.20; }
+    else if (tile === WT.FOREST) { wM += 0.10; wL += 0.05; wS -= 0.15; }
+    else if (tile === WT.GRASS) { wS += 0.10; wM += 0.05; wL -= 0.15; }
+    else if (tile === WT.SWAMP) { wM += 0.10; wS += 0.05; wL -= 0.15; }
+    else if (tile === WT.DESERT) { wM += 0.10; wL += 0.05; wS -= 0.15; }
+    else if (tile === WT.SNOW) { wM += 0.10; wS += 0.05; wL -= 0.15; }
+    const sum = Math.max(0.001, wS + wM + wL);
+    const ps = [wS/sum, wM/sum, wL/sum];
+    if (noise < ps[0]) return "small";
+    if (noise < ps[0] + ps[1]) return "medium";
+    return "large";
+  }
+
+  for (let y = y0; y <= y1; y++) {
+    const row = map[y];
+    for (let x = x0; x <= x1; x++) {
+      const t = row[x];
+      // prefer forest/mountain; allow some grass/desert/snow
+      let ok = (t === WT.FOREST || t === WT.MOUNTAIN);
+      if (!ok && t === WT.GRASS) ok = h2(x + 13, y + 17, seed ^ 0xddd) < 0.16;
+      if (!ok && (t === WT.DESERT || t === WT.SNOW)) ok = h2(x + 19, y + 23, seed ^ 0xeee) < 0.06;
+      if (!ok) continue;
+
+      const noise = h2(x + (ctx.world.originX|0), y + (ctx.world.originY|0), seed ^ 0x5ca1ab1e);
+      const pDungeon = 0.0045;
+      if (noise < pDungeon) {
+        const tooClose = (ctx.world.dungeons || []).some(d => Math.abs(d.x - x) + Math.abs(d.y - y) < 5);
+        if (tooClose) continue;
+        const level = 1 + ((h2(x*5+3, y*7+9, seed ^ 0xabc) * 5) | 0);
+        const size = pickSizeFor(t, h2(x*11+1, y*13+2, seed ^ 0xdef));
+        ctx.world.dungeons.push({ x, y, level, size });
+        // connect to nearest town
+        const t2 = nearestTownFor(ctx, { x, y });
+        if (t2) carveRoadOverlay(ctx, x, y, t2.x, t2.y);
+        placed++;
+      }
+    }
+  }
+  return placed;
+}
+
 function expandLeft(ctx, cw) {
   const Wmod = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
   const WT = Wmod && Wmod.TILES ? Wmod.TILES : null;
@@ -119,6 +297,12 @@ function expandLeft(ctx, cw) {
   // Player and gate/return anchors shift right
   ctx.player.x += cw;
   if (ctx.worldReturnPos) { ctx.worldReturnPos.x += cw; }
+
+  // Populate POIs and roads in the new area
+  ensureWorldArrays(ctx);
+  placeTownsInArea(ctx, 0, 0, cw - 1, H - 1);
+  placeDungeonsInArea(ctx, 0, 0, cw - 1, H - 1);
+
   return true;
 }
 
@@ -144,6 +328,12 @@ function expandRight(ctx, cw) {
     world.map[y] = world.map[y].concat(seg);
   }
   world.width = oldW + cw;
+
+  // Populate POIs and roads in the new area (right band)
+  ensureWorldArrays(ctx);
+  placeTownsInArea(ctx, oldW, 0, oldW + cw - 1, H - 1);
+  placeDungeonsInArea(ctx, oldW, 0, oldW + cw - 1, H - 1);
+
   return true;
 }
 
@@ -183,6 +373,12 @@ function expandTop(ctx, ch) {
   // Player and anchors shift down
   ctx.player.y += ch;
   if (ctx.worldReturnPos) { ctx.worldReturnPos.y += ch; }
+
+  // Populate POIs and roads in the new area (top band)
+  ensureWorldArrays(ctx);
+  placeTownsInArea(ctx, 0, 0, oldW - 1, ch - 1);
+  placeDungeonsInArea(ctx, 0, 0, oldW - 1, ch - 1);
+
   return true;
 }
 
@@ -208,6 +404,12 @@ function expandBottom(ctx, ch) {
     world.map.push(row);
   }
   world.height = (world.height || oldH) + ch;
+
+  // Populate POIs and roads in the new area (bottom band)
+  ensureWorldArrays(ctx);
+  placeTownsInArea(ctx, 0, oldH, oldW - 1, oldH + ch - 1);
+  placeDungeonsInArea(ctx, 0, oldH, oldW - 1, oldH + ch - 1);
+
   return true;
 }
 
