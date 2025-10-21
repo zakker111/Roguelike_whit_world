@@ -788,8 +788,29 @@ function open(ctx, size) {
       let spawned = 0;
       const cx0 = (ctx.region.cursor && typeof ctx.region.cursor.x === "number") ? (ctx.region.cursor.x | 0) : 0;
       const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
+
+      // Try to guarantee at least one creature spawns very close to the player if any spawn at all
+      function randomAdjacent(cx, cy) {
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+        // shuffle to avoid bias
+        for (let i = dirs.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; const tmp = dirs[i]; dirs[i] = dirs[j]; dirs[j] = tmp; }
+        for (const d of dirs) {
+          const x = cx + d.dx, y = cy + d.dy;
+          if (x < 0 || y < 0 || x >= w || y >= h) continue;
+          const t = sample[y][x];
+          const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+          const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
+          if (walkable && !occupied) return { x, y };
+        }
+        return null;
+      }
+
       for (let i = 0; i < count; i++) {
-        let pos = randomNearWalkable(cx0, cy0, 8);
+        let pos = null;
+        if (i === 0) {
+          pos = randomAdjacent(cx0, cy0) || randomNearWalkable(cx0, cy0, 5);
+        }
+        if (!pos) pos = randomNearWalkable(cx0, cy0, 8);
         if (!pos) pos = randomWalkable();
         if (!pos) break;
         const t = pickType();
