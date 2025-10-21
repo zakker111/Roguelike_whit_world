@@ -24,6 +24,22 @@ function _markExplored(ctx, x, y, radius = 0) {
     }
   } catch (_) {}
 }
+// Mark the entire current window as explored using absolute coordinates.
+// This keeps the minimap in sync with the visible world window after streaming/recompose.
+function _markWindowExplored(ctx) {
+  try {
+    const explored = (ctx.worldExplored && ctx.worldExplored instanceof Set) ? ctx.worldExplored : (ctx.worldExplored = new Set());
+    const map = ctx.world && ctx.world.map ? ctx.world.map : ctx.map;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows ? (map[0] ? map[0].length : 0) : 0;
+    const origin = (ctx.world && ctx.world.origin) ? ctx.world.origin : { x0: 0, y0: 0 };
+    for (let yy = 0; yy < rows; yy++) {
+      for (let xx = 0; xx < cols; xx++) {
+        explored.add(_key(origin.x0 + xx, origin.y0 + yy));
+      }
+    }
+  } catch (_) {}
+}
 
 export function generate(ctx, opts = {}) {
   // Default to noise-driven generator (ChunkedWorld) when available. Fallback to World.
@@ -86,11 +102,11 @@ export function generate(ctx, opts = {}) {
   const rows = ctx.map.length;
   const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
 
-  // World exploration tracking (for minimap): initialize and mark start (absolute) as explored.
+  // World exploration tracking (for minimap): initialize and mark visible window explored (absolute).
   ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
   ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
   ctx.worldExplored = new Set();
-  _markExplored(ctx, ctx.worldPos.x, ctx.worldPos.y, 2);
+  _markWindowExplored(ctx);
 
   // Camera/FOV/UI
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
@@ -156,14 +172,15 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
     const o2 = nextWorld.origin || { x0: 0, y0: 0 };
     ctx.player.x = (ctx.worldPos.x - o2.x0) | 0;
     ctx.player.y = (ctx.worldPos.y - o2.y0) | 0;
+    // Mark newly visible window as explored for minimap update
+    _markWindowExplored(ctx);
   } else {
     // Move locally within the current window
     ctx.player.x = nxLocal | 0;
     ctx.player.y = nyLocal | 0;
+    // Mark explored at absolute position (radius halo) to expand minimap progressively
+    _markExplored(ctx, ctx.worldPos.x, ctx.worldPos.y, 2);
   }
-
-  // Mark explored at absolute position
-  _markExplored(ctx, ctx.worldPos.x, ctx.worldPos.y, 2);
 
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
   // Roll for encounter first so acceptance can switch mode before advancing world time
@@ -180,12 +197,43 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
 
 /**
  * Optional per-turn hook for world mode.
- * Keeps the interface consistent with TownRuntime/DungeonRuntime tick hooks.
- * Currently a no-op placeholder for future world-side time/day effects.
+ * Ensures window streaming/recompose when near boundaries, and minimap exploration reflects visible window.
  */
 export function tick(ctx) {
-  // Intentionally minimal; world mode reveals everything and has no occupancy/NPCs.
-  // Modules can extend this later for overlays or time-driven effects.
+  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return true;
+
+  const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+  if (!W) return true;
+
+  try {
+    const origin = (ctx.world && ctx.world.origin) ? ctx.world.origin : { x0: 0, y0: 0 };
+    const rows = ctx.world.map.length;
+    const cols = rows ? (ctx.world.map[0] ? ctx.world.map[0].length : 0) : 0;
+    const nxLocal = (ctx.worldPos.x | 0) - origin.x0;
+    const nyLocal = (ctx.worldPos.y | 0) - origin.y0;
+    const MARG = 4;
+
+    const outside = (nxLocal < 0) || (nyLocal < 0) || (nxLocal >= cols) || (nyLocal >= rows);
+    const nearEdge = (nxLocal < MARG) || (nyLocal < MARG) || (nxLocal > cols - 1 - MARG) || (nyLocal > rows - 1 - MARG);
+    const needsRecompose = outside || nearEdge;
+
+    if (needsRecompose && typeof W.recompose === "function") {
+      const nextWorld = W.recompose(ctx.world, ctx.worldPos.x | 0, ctx.worldPos.y | 0, cols, rows);
+      ctx.world = nextWorld;
+      ctx.map = nextWorld.map;
+      const o2 = nextWorld.origin || { x0: 0, y0: 0 };
+      ctx.player.x = (ctx.worldPos.x - o2.x0) | 0;
+      ctx.player.y = (ctx.worldPos.y - o2.y0) | 0;
+      // Mark the visible window explored so minimap updates immediately
+      _markWindowExplored(ctx);
+
+      // Camera/FOV/UI refresh (draw scheduled by orchestrator after tick)
+      try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+      try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
+      try { typeof ctx.updateUI === "function" && ctx.updateUI(); } catch (_) {}
+    }
+  } catch (_) {}
+
   return true;
 }
 
