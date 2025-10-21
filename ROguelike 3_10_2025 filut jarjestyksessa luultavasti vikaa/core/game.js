@@ -1133,6 +1133,8 @@
     map = ctx.map || map;
     seen = ctx.seen || seen;
     visible = ctx.visible || visible;
+    // Ensure overworld state is synced so movement/renderers have world handles
+    world = ctx.world || world;
     enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
     corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
     decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
