@@ -26,12 +26,15 @@ function _markExplored(ctx, x, y, radius = 0) {
 }
 
 export function generate(ctx, opts = {}) {
-  // Choose generator: prefer ChunkedWorld when enabled, else World.
+  // Default to noise-driven generator (ChunkedWorld) when available. Fallback to World.
   let W = null;
   try {
-    const useChunked = (typeof window !== "undefined" && typeof window.USE_CHUNKED_WORLD === "boolean") ? window.USE_CHUNKED_WORLD : false;
-    if (useChunked && typeof window !== "undefined" && window.ChunkedWorld && typeof window.ChunkedWorld.generate === "function") {
+    if (typeof window !== "undefined" && window.ChunkedWorld && typeof window.ChunkedWorld.generate === "function") {
       W = window.ChunkedWorld;
+      // Back-compat: expose as World if not already set so existing modules that import/use window.World continue to work.
+      if (typeof window.World === "undefined") {
+        try { window.World = window.ChunkedWorld; } catch (_) {}
+      }
     } else {
       W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
     }
