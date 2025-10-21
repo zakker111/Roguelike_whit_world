@@ -463,13 +463,13 @@ export function draw(ctx, view) {
           MINI._tilesRef = tilesRef();
           const off = RenderCore.createOffscreen(wpx, hpx);
           const oc = off.getContext("2d");
-          // tiles from JSON only
+          // tiles from JSON with robust fallback (so minimap isn't dark when tiles.json lacks entries)
           for (let yy = 0; yy < mh; yy++) {
             const rowM = map[yy];
             for (let xx = 0; xx < mw; xx++) {
               const t = rowM[xx];
               const td = getTileDef("overworld", t);
-              const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+              const c = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, t);
               oc.fillStyle = c;
               oc.fillRect(xx * scale, yy * scale, scale, scale);
             }
