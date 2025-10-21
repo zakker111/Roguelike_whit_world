@@ -21,14 +21,16 @@ export function recomputeFOV(ctx) {
   const ROWS = map.length;
   const COLS = map[0] ? map[0].length : 0;
 
-  // Reuse the visible array if shape matches to avoid allocations each turn
+  // Reuse the visible grid if shape matches to avoid allocations each turn.
+  // Use typed arrays for better performance and lower GC pressure.
   let visible = ctx.visible;
   const shapeOk = Array.isArray(visible) && visible.length === ROWS && (ROWS === 0 || (visible[0] && visible[0].length === COLS));
   if (!shapeOk) {
-    visible = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+    visible = Array.from({ length: ROWS }, () => new Uint8Array(COLS));
   } else {
     for (let y = 0; y < ROWS; y++) {
-      visible[y].fill(false);
+      // Typed arrays accept numeric fills; booleans will coerce to 0/1.
+      visible[y].fill(0);
     }
   }
 

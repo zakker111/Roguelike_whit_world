@@ -283,12 +283,21 @@ function expandMap(ctx, side, K) {
   const rows = ctx.map.length;
   const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
 
+  // Helper: normalize a visibility/seen row to a plain Array for safe concat operations.
+  const toRowArray = (row, lenHint) => {
+    if (!row) return new Array(lenHint | 0).fill(false);
+    // Typed arrays (e.g., Uint8Array) need conversion to plain array when concatenating.
+    if (ArrayBuffer.isView(row)) return Array.from(row);
+    // Already a plain array
+    return row;
+  };
+
   if (side === "left") {
     // prepend K columns; shift origin and player by +K to keep world coords aligned, and offset camera to avoid visual snap
     for (let y = 0; y < rows; y++) {
       const row = ctx.map[y];
-      const seenRow = ctx.seen[y] || [];
-      const visRow = ctx.visible[y] || [];
+      const seenRow = toRowArray(ctx.seen[y], cols);
+      const visRow = toRowArray(ctx.visible[y], cols);
       const prepend = new Array(K);
       const seenPre = new Array(K).fill(false);
       const visPre = new Array(K).fill(false);
@@ -323,8 +332,8 @@ function expandMap(ctx, side, K) {
     // append K columns
     for (let y = 0; y < rows; y++) {
       const row = ctx.map[y];
-      const seenRow = ctx.seen[y] || [];
-      const visRow = ctx.visible[y] || [];
+      const seenRow = toRowArray(ctx.seen[y], cols);
+      const visRow = toRowArray(ctx.visible[y], cols);
       const append = new Array(K);
       const seenApp = new Array(K).fill(false);
       const visApp = new Array(K).fill(false);
@@ -356,8 +365,8 @@ function expandMap(ctx, side, K) {
       newVis.push(new Array(cols).fill(false));
     }
     ctx.map = newRows.concat(ctx.map);
-    ctx.seen = newSeen.concat(ctx.seen);
-    ctx.visible = newVis.concat(ctx.visible);
+    ctx.seen = newSeen.concat(ctx.seen.map(r => toRowArray(r, cols)));
+    ctx.visible = newVis.concat(ctx.visible.map(r => toRowArray(r, cols)));
     world.originY -= K;
     // Newly added strip is rows [0..K-1]
     scanPOIs(ctx, 0, 0, cols, K);

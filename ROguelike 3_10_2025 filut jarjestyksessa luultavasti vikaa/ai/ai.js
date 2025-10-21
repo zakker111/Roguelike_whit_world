@@ -104,11 +104,25 @@ export function enemiesAct(ctx) {
         }
       };
 
+  // Build a one-shot occupancy set for this tick when no grid is provided; avoids per-call allocations
+  const occSet = (!occ || typeof occ.isFree !== "function")
+    ? (() => {
+        const s = new Set();
+        for (let i = 0; i < enemies.length; i++) {
+          const en = enemies[i];
+          s.add(occKey(en.x, en.y));
+        }
+        return s;
+      })()
+    : null;
+
   // Occ helpers to update occupancy across implementations (grid or simple Set)
   function occClearEnemy(occRef, x, y) {
     if (!occRef) return;
     if (typeof occRef.clearEnemy === "function") {
       occRef.clearEnemy(x, y);
+    } else if (occSet && typeof occSet.delete === "function") {
+      try { occSet.delete(occKey(x, y)); } catch (_) {}
     } else if (typeof occRef.delete === "function") {
       try { occRef.delete(occKey(x, y)); } catch (_) {}
     }
@@ -117,6 +131,8 @@ export function enemiesAct(ctx) {
     if (!occRef) return;
     if (typeof occRef.setEnemy === "function") {
       occRef.setEnemy(x, y);
+    } else if (occSet && typeof occSet.add === "function") {
+      try { occSet.add(occKey(x, y)); } catch (_) {}
     } else if (typeof occRef.add === "function") {
       try { occRef.add(occKey(x, y)); } catch (_) {}
     }
@@ -129,8 +145,8 @@ export function enemiesAct(ctx) {
     if (occ && typeof occ.isFree === "function") {
       return occ.isFree(x, y, { ignorePlayer: true });
     }
-    // Fallback: check enemies only
-    return !new Set(enemies.map(en => occKey(en.x, en.y))).has(occKey(x, y));
+    // Fallback: check enemies only via precomputed set
+    return !occSet.has(occKey(x, y));
   };
 
   for (const e of enemies) {

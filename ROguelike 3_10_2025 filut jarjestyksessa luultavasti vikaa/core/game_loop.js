@@ -29,11 +29,34 @@ function drawOnce(getRenderCtx) {
 }
 
 export function start(getRenderCtx) {
+  let running = false;
+
   function frame() {
+    if (!running) return;
     drawOnce(getRenderCtx);
     requestAnimationFrame(frame);
   }
+
+  function onVisibilityChange() {
+    const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+    if (hidden) {
+      running = false;
+    } else {
+      if (!running) {
+        running = true;
+        requestAnimationFrame(frame);
+      }
+    }
+  }
+
+  running = true;
   requestAnimationFrame(frame);
+
+  try {
+    if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+      document.addEventListener("visibilitychange", onVisibilityChange);
+    }
+  } catch (_) {}
 }
 
 import { attachGlobal } from "../utils/global.js";
