@@ -102,12 +102,14 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Draw world base: offscreen blit if available, otherwise fallback per-tile loop
+  // Draw world base: offscreen blit if available; if blit fails, fall back to per-tile loop
+  let blitted = false;
   if (WORLD.canvas) {
     try {
-      RenderCore.blitViewport(ctx2d, WORLD.canvas, cam, WORLD.wpx, WORLD.hpx);
-    } catch (_) {}
-  } else {
+      blitted = !!RenderCore.blitViewport(ctx2d, WORLD.canvas, cam, WORLD.wpx, WORLD.hpx);
+    } catch (_) { blitted = false; }
+  }
+  if (!blitted) {
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const row = yIn ? map[y] : null;
@@ -146,7 +148,7 @@ export function draw(ctx, view) {
           const nx = x + d.dx, ny = y + d.dy;
           if (nx < 0 || ny < 0 || nx >= mapCols || ny >= mapRows) continue;
           const nt = map[ny][nx];
-          if (nt === TILES.WATER || nt === TILES.RIVER) continue;
+          if (nt === WT.WATER || nt === WT.RIVER) continue;
           const sx = (nx - startX) * TILE - tileOffsetX;
           const sy = (ny - startY) * TILE - tileOffsetY;
           ctx2d.save();
