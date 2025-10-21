@@ -72,11 +72,11 @@ function create(seed, opts = {}) {
     moistureFreq: 1 / 36,
     detailFreq: 1 / 6,
     riverFreq: 1 / 64,
-    // Placement (denser defaults - further increased)
+    // Placement (slightly denser than before per request)
     townGrid: 42,         // was 48
     dungeonGrid: 32,      // was 36
-    townChance: 0.32,     // was 0.25
-    dungeonChance: 0.42,  // was 0.35
+    townChance: 0.34,     // was 0.32
+    dungeonChance: 0.44,  // was 0.42
     ...opts,
   };
 
