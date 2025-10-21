@@ -769,9 +769,28 @@ function open(ctx, size) {
         }
         return null;
       }
+      function randomNearWalkable(cx, cy, radius = 8) {
+        // Try to find a spot within radius first
+        for (let tries = 0; tries < 120; tries++) {
+          const dx = ((rng() * (radius * 2 + 1)) | 0) - radius;
+          const dy = ((rng() * (radius * 2 + 1)) | 0) - radius;
+          const x = cx + dx;
+          const y = cy + dy;
+          if (x < 0 || y < 0 || x >= w || y >= h) continue;
+          if (Math.abs(dx) + Math.abs(dy) > radius) continue;
+          const t = sample[y][x];
+          const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+          const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
+          if (walkable && !occupied) return { x, y };
+        }
+        return null;
+      }
       let spawned = 0;
+      const cx0 = (ctx.region.cursor && typeof ctx.region.cursor.x === "number") ? (ctx.region.cursor.x | 0) : 0;
+      const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
       for (let i = 0; i < count; i++) {
-        const pos = randomWalkable();
+        let pos = randomNearWalkable(cx0, cy0, 8);
+        if (!pos) pos = randomWalkable();
         if (!pos) break;
         const t = pickType();
         const hp = t === "deer" ? 3 : t === "fox" ? 2 : 4;
@@ -786,24 +805,24 @@ function open(ctx, size) {
           // Also update flag in this session
           ctx.region._hasKnownAnimals = true;
 
-          // Determine if any spawned creatures are near the player's current region position (likely visible soon)
-          const cx = (ctx.region.cursor && typeof ctx.region.cursor.x === "number") ? (ctx.region.cursor.x | 0) : 0;
-          const cy = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
-          const NEAR_R = 8;
-          let near = 0;
+          // Ensure FOV is up to date before logging visibility info
+          try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
+          // Count how many are currently visible to the player
+          let visibleCount = 0;
           try {
+            const vis = Array.isArray(ctx.visible) ? ctx.visible : [];
             for (const e of ctx.enemies) {
               if (!e) continue;
-              const d = Math.abs((e.x | 0) - cx) + Math.abs((e.y | 0) - cy);
-              if (d <= NEAR_R) { near++; if (near > 0) break; }
+              if (vis[e.y] && vis[e.y][e.x]) { visibleCount++; if (visibleCount > 0) break; }
             }
           } catch (_) {}
 
-          if (near > 0) {
+          if (visibleCount > 0) {
             try { ctx.log && ctx.log(`Creatures spotted (${spawned}).`, "notice"); } catch (_) {}
           } else {
-            try { ctx.log && ctx.log("Creatures are present in this area, but not nearby.", "info"); } catch (_) {}
+            try { ctx.log && ctx.log("Creatures are present in this area, but not in sight.", "info"); } catch (_) {}
           }
+          try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
         } else {
           try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         }
