@@ -158,9 +158,14 @@ export function generate(ctx, opts = {}) {
   if (IG && typeof IG.create === "function") {
     const seed = currentSeed();
     const gen = IG.create(seed);
-    // Initial window centered near (0,0)
-    const originX = -Math.floor(width / 2);
-    const originY = -Math.floor(height / 2);
+
+    // Choose a deterministic world start, then center the initial window on it so the player is on screen.
+    const startWorld = gen.pickStart();
+    const centerX = Math.floor(width / 2);
+    const centerY = Math.floor(height / 2);
+    const originX = (startWorld.x | 0) - centerX;
+    const originY = (startWorld.y | 0) - centerY;
+
     const map = Array.from({ length: height }, (_, y) => {
       const wy = originY + y;
       const row = new Array(width);
@@ -184,19 +189,13 @@ export function generate(ctx, opts = {}) {
       bridges: [],
     };
 
-    // Start near a generated town if possible, else first walkable near 0,0
-    const startWorld = gen.pickStart();
-    const sx = startWorld.x - originX; // array coords
-    const sy = startWorld.y - originY;
-    const ax = Math.max(0, Math.min(width - 1, sx | 0));
-    const ay = Math.max(0, Math.min(height - 1, sy | 0));
-
+    // Place player at the center of the initial window
     ctx.map = map;
     ctx.world.width = map[0] ? map[0].length : 0;
     ctx.world.height = map.length;
 
-    ctx.player.x = ax;
-    ctx.player.y = ay;
+    ctx.player.x = centerX;
+    ctx.player.y = centerY;
     ctx.mode = "world";
 
     // Allocate fog-of-war arrays; FOV module will mark seen/visible around player
