@@ -105,6 +105,8 @@ function expandMap(ctx, side, K) {
       ctx.visible[y] = visPre.concat(visRow);
     }
     world.originX -= K;
+    // Newly added strip is columns [0..K-1]
+    scanPOIs(ctx, 0, 0, K, rows);
     // Shift player and any world entities right by K to preserve world position mapping
     try {
       ctx.player.x += K;
@@ -132,6 +134,8 @@ function expandMap(ctx, side, K) {
       ctx.seen[y] = seenRow.concat(seenApp);
       ctx.visible[y] = visRow.concat(visApp);
     }
+    // Newly added strip starts at previous width (cols)
+    scanPOIs(ctx, cols, 0, K, rows);
   } else if (side === "top") {
     // prepend K rows
     const newRows = [];
@@ -152,6 +156,8 @@ function expandMap(ctx, side, K) {
     ctx.seen = newSeen.concat(ctx.seen);
     ctx.visible = newVis.concat(ctx.visible);
     world.originY -= K;
+    // Newly added strip is rows [0..K-1]
+    scanPOIs(ctx, 0, 0, cols, K);
     // Shift player and entities down by K to preserve world position mapping
     try {
       ctx.player.y += K;
@@ -176,6 +182,8 @@ function expandMap(ctx, side, K) {
       ctx.seen.push(seenArr);
       ctx.visible.push(visArr);
     }
+    // Newly added strip starts at previous height (rows)
+    scanPOIs(ctx, 0, rows, cols, K);
   }
 
   world.width = ctx.map[0] ? ctx.map[0].length : 0;
@@ -266,6 +274,9 @@ export function generate(ctx, opts = {}) {
     // Allocate fog-of-war arrays; FOV module will mark seen/visible around player
     ctx.seen = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
     ctx.visible = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
+
+    // Register POIs present in the initial window (sparse anchors only)
+    try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch (_) {}
 
     // Camera/FOV/UI
     try {
