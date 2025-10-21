@@ -317,5 +317,6 @@ export function draw(ctx) {
 }
 
 import { attachGlobal } from "../utils/global.js";
+import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper
-attachGlobal("RegionMap", { draw });
+attachGlobal("RegionMap", { draw }););

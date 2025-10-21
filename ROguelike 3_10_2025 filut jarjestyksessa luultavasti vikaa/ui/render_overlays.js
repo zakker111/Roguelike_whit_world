@@ -306,22 +306,30 @@ export function drawDungeonGlow(ctx, view) {
     ctx2d.save();
     ctx2d.globalCompositeOperation = "lighter";
     for (const p of props) {
-      const def = propDefFor(p.type);
+      let def = propDefFor(p.type);
+      // Fallback for common dungeon light props when registry isn't available
+      if (!def && String(p.type || "").toLowerCase() === "wall_torch") {
+        def = {
+          properties: { emitsLight: true },
+          colors: { fg: "#ffb84d" },
+          light: { glowTiles: 2.2, color: "#ffb84d" }
+        };
+      }
       const emits = !!(def && def.properties && def.properties.emitsLight);
       if (!emits) continue;
 
       const px = p.x, py = p.y;
       if (px < view.startX || px > view.endX || py < view.startY || py > view.endY) continue;
 
-      const everSeen = !!(ctx.seen[py] && ctx.seen[py][px]);
+      // Match town behavior: draw glow only when tile is currently visible
       const visNow = !!(ctx.visible[py] && ctx.visible[py][px]);
-      if (!everSeen) continue;
+      if (!visNow) continue;
 
       const cx = (px - view.startX) * TILE - view.tileOffsetX + TILE / 2;
       const cy = (py - view.startY) * TILE - view.tileOffsetY + TILE / 2;
 
-      // Prefer prop.light.glowTiles; slightly larger default for better visibility
-      const glowTiles = (def && def.light && typeof def.light.glowTiles === "number") ? def.light.glowTiles : 1.9;
+      // Prefer prop.light.glowTiles; align default with town lamps for parity
+      const glowTiles = (def && def.light && typeof def.light.glowTiles === "number") ? def.light.glowTiles : 2.2;
       const r = TILE * glowTiles;
 
       const base = (def && def.light && typeof def.light.color === "string")
@@ -329,10 +337,8 @@ export function drawDungeonGlow(ctx, view) {
         : (def && def.colors && def.colors.fg) ? def.colors.fg : "#ffb84d";
 
       const grad = ctx2d.createRadialGradient(cx, cy, 3, cx, cy, r);
-      // Dim the glow if not currently visible (seen only)
-      const alphaScale = visNow ? 1.0 : 0.6;
-      grad.addColorStop(0, rgba(base, 0.55 * alphaScale));
-      grad.addColorStop(0.5, rgba(base, 0.22 * alphaScale));
+      grad.addColorStop(0, rgba(base, 0.60));
+      grad.addColorStop(0.5, rgba(base, 0.25));
       grad.addColorStop(1, rgba(base, 0.0));
       ctx2d.fillStyle = grad;
       ctx2d.beginPath();
