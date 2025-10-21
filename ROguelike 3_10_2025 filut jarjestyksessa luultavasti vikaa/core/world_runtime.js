@@ -207,7 +207,31 @@ export function generate(ctx, opts = {}) {
     ctx.visible = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
 
     // Camera/FOV/UI
-    try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+    try {
+      if (typeof ctx.updateCamera === "function") {
+        ctx.updateCamera();
+      } else {
+        // Fallback: center camera on player immediately so first frame is centered
+        const cam = (typeof ctx.getCamera === "function") ? ctx.getCamera() : (ctx.camera || null);
+        if (cam) {
+          const TILE = (typeof ctx.TILE === "number") ? ctx.TILE : 32;
+          const rows = ctx.map.length;
+          const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+          const mapWidth = cols * TILE;
+          const mapHeight = rows * TILE;
+          const targetX = ctx.player.x * TILE + TILE / 2 - cam.width / 2;
+          const targetY = ctx.player.y * TILE + TILE / 2 - cam.height / 2;
+          const slackX = Math.max(0, cam.width / 2 - TILE / 2);
+          const slackY = Math.max(0, cam.height / 2 - TILE / 2);
+          const minX = -slackX;
+          const minY = -slackY;
+          const maxX = (mapWidth - cam.width) + slackX;
+          const maxY = (mapHeight - cam.height) + slackY;
+          cam.x = Math.max(minX, Math.min(targetX, maxX));
+          cam.y = Math.max(minY, Math.min(targetY, maxY));
+        }
+      }
+    } catch (_) {}
     try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
     try { typeof ctx.updateUI === "function" && ctx.updateUI(); } catch (_) {}
 

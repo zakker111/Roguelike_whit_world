@@ -441,11 +441,11 @@ export function draw(ctx, view) {
       const mw = ctx.world && ctx.world.width ? ctx.world.width : (map[0] ? map[0].length : 0);
       const mh = ctx.world && ctx.world.height ? ctx.world.height : map.length;
       if (mw && mh) {
-        // Responsive clamp for small screens
-        let maxW = 200, maxH = 150;
+        // Responsive clamp for small screens (larger minimap)
+        let maxW = 280, maxH = 210;
         try {
           if (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700) {
-            maxW = 120; maxH = 90;
+            maxW = 180; maxH = 135;
           }
         } catch (_) {}
         const scale = Math.max(1, Math.floor(Math.min(maxW / mw, maxH / mh)));
