@@ -50,7 +50,8 @@ export function init(opts) {
         } catch (_) {}
 
         var mode = getMode();
-        if (mode !== "dungeon" && mode !== "town") return;
+        // Support click-to-move in world, dungeon and town
+        if (mode !== "dungeon" && mode !== "town" && mode !== "world") return;
 
         var camera = getCamera() || { x: 0, y: 0 };
         var rect = canvasEl.getBoundingClientRect();
@@ -64,6 +65,17 @@ export function init(opts) {
         if (!inBounds(tx, ty)) return;
 
         var p = getPlayer();
+
+        if (mode === "world") {
+          // Adjacent click moves one step via core tryMovePlayer (which defers to WorldRuntime)
+          var mdw = Math.abs(tx - p.x) + Math.abs(ty - p.y);
+          if (mdw === 1) {
+            var dxw = Math.sign(tx - p.x);
+            var dyw = Math.sign(ty - p.y);
+            tryMovePlayer(dxw, dyw);
+          }
+          return;
+        }
 
         if (mode === "dungeon") {
           var targetContainer = hasContainerAt(tx, ty);
