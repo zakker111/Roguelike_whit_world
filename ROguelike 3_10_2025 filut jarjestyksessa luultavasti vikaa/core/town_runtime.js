@@ -87,7 +87,7 @@ export function isFreeTownFloor(ctx, x, y) {
   return true;
 }
 
-export function talk(ctx) {
+export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   if (ctx.mode !== "town") return false;
   const npcs = ctx.npcs || [];
   const near = [];
@@ -99,8 +99,19 @@ export function talk(ctx) {
     ctx.log && ctx.log("There is no one to talk to here.");
     return false;
   }
+
+  // Prefer the NPC occupying the attempted bump tile if provided,
+  // otherwise prefer a shopkeeper among adjacent NPCs, otherwise pick randomly.
+  let npc = null;
+  if (typeof bumpAtX === "number" && typeof bumpAtY === "number") {
+    npc = near.find(n => n.x === bumpAtX && n.y === bumpAtY) || null;
+  }
+  if (!npc) {
+    npc = near.find(n => (n.isShopkeeper || n._shopRef)) || null;
+  }
   const pick = (arr, rng) => arr[(arr.length === 1) ? 0 : Math.floor((rng ? rng() : Math.random()) * arr.length) % arr.length];
-  const npc = pick(near, ctx.rng);
+  npc = npc || pick(near, ctx.rng);
+
   const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
   const line = pick(lines, ctx.rng);
   ctx.log && ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
@@ -176,7 +187,7 @@ export function tryMoveTown(ctx, dx, dy) {
 
   if (npcBlocked) {
     if (typeof talk === "function") {
-      talk(ctx);
+      talk(ctx, nx, ny);
     } else if (ctx.log) {
       ctx.log("Excuse me!", "info");
     }
