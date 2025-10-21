@@ -133,21 +133,91 @@ export function draw(ctx, view) {
     }
   }
 
-  // Top-edge water band: if camera reveals rows above y=0, paint a few rows of water before the dark void
+  // Top-edge boundary: render an organic shoreline + water to disguise the hard boundary.
+  // Visual only; world data isn't changed. Movement into y &lt; 0 is blocked in world_runtime.
   try {
-    const bandTiles = 4;
-    const waterDef = getTileDef("overworld", WT.WATER);
-    const waterFill = (waterDef && waterDef.colors && waterDef.colors.fill) ? waterDef.colors.fill : fallbackFillOverworld(WT, WT.WATER);
-    if (startY < 0) {
-      const yStart = Math.max(startY, -bandTiles);
-      for (let y = yStart; y < 0; y++) {
-        for (let x = startX; x <= endX; x++) {
+    if (startY &lt; 0) {
+      // Stable 1D hash for column variation
+      function h1(n) {
+        let x = (n | 0) * 374761393;
+        x = (x ^ (x &gt;&gt;&gt; 13)) | 0;
+        x = Math.imul(x, 1274126177) | 0;
+        x = (x ^ (x &gt;&gt;&gt; 16)) >>> 0;
+        return (x % 1000003) / 1000003;
+      }
+      // Colors
+      const waterDef = getTileDef("overworld", WT.WATER);
+      const beachDef = getTileDef("overworld", WT.BEACH);
+      const waterFill = (waterDef && waterDef.colors && waterDef.colors.fill) ? waterDef.colors.fill : fallbackFillOverworld(WT, WT.WATER);
+      const beachFill = (beachDef && beachDef.colors && beachDef.colors.fill) ? beachDef.colors.fill : "#b59b6a";
+
+      // Per-column variable band height + subtle wave stripes and foam at the lip
+      const minBand = 2, maxBand = 6;
+      for (let x = startX; x &lt;= endX; x++) {
+        const r = h1(x * 9176 + 13);
+        const bandH = minBand + ((r * (maxBand - minBand + 1)) | 0); // 2..6 tiles
+        // Draw water tiles for rows [-bandH .. -1]
+        for (let y = -bandH; y &lt; 0; y++) {
+          if (y &lt; startY) continue; // above viewport
           const sx = (x - startX) * TILE - tileOffsetX;
           const sy = (y - startY) * TILE - tileOffsetY;
+          // base water
           ctx2d.fillStyle = waterFill;
+          ctx2d.fillRect(sx, sy, TILE, TILE);
+
+          // wave banding (very subtle)
+          const wave = ((x + y) &amp; 1) === 0;
+          if (wave) {
+            ctx2d.save();
+            ctx2d.globalAlpha = 0.10;
+            ctx2d.fillStyle = "#103a57";
+            ctx2d.fillRect(sx, sy + Math.max(2, TILE * 0.4) | 0, TILE, 2);
+            ctx2d.restore();
+          }
+        }
+
+        // Foam along the lip at y = -1 (if visible), and a thin beach tint on the first on-map row (y=0)
+        if (-1 &gt;= startY) {
+          const sx = (x - startX) * TILE - tileOffsetX;
+          const sy = (-1 - startY) * TILE - tileOffsetY;
+          // foam jitter
+          const fr = h1( (x*31) ^ 0x9e3779 );
+          const fo = 2 + ((fr * (TILE - 6)) | 0);
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.22;
+          ctx2d.fillStyle = "rgba(255,255,255,0.85)";
+          ctx2d.fillRect(sx + 2, sy + (TILE - 3), TILE - 4, 2);
+          ctx2d.globalAlpha = 0.15;
+          ctx2d.fillRect(sx + fo, sy + (TILE - 5), Math.max(2, (TILE * 0.25) | 0), 2);
+          ctx2d.restore();
+        }
+
+        // Beach tint into the first visible on-map row to simulate shore transition
+        if (0 &gt;= startY &amp;&amp; 0 &lt; mapRows) {
+          const sx0 = (x - startX) * TILE - tileOffsetX;
+          const sy0 = (0 - startY) * TILE - tileOffsetY;
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.10; // subtle
+          ctx2d.fillStyle = beachFill;
+          ctx2d.fillRect(sx0, sy0, TILE, Math.max(2, (TILE * 0.35) | 0));
+          ctx2d.restore();
+        }
+      }
+
+      // Gentle vignette fade above shoreline to suggest distance/haze instead of void
+      ctx2d.save();
+      const fadeRows = 2;
+      for (let yy = Math.max(startY, -maxBand - fadeRows); yy &lt; -maxBand + 1; yy++) {
+        const alpha = Math.max(0, Math.min(0.25, 0.15 + (yy + maxBand) * 0.06));
+        if (alpha &lt;= 0) continue;
+        for (let xx = startX; xx &lt;= endX; xx++) {
+          const sx = (xx - startX) * TILE - tileOffsetX;
+          const sy = (yy - startY) * TILE - tileOffsetY;
+          ctx2d.fillStyle = `rgba(10, 27, 42, ${alpha.toFixed(3)})`;
           ctx2d.fillRect(sx, sy, TILE, TILE);
         }
       }
+      ctx2d.restore();
     }
   } catch (_) {}
 
