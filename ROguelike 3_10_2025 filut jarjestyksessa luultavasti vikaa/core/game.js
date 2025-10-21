@@ -61,6 +61,9 @@
   let world = null;          // { map, width, height, towns, dungeons }
   // Region map overlay state (fixed-size downscaled world view)
   let region = null;         // { width, height, map:number[][], cursor:{x,y}, exitTiles:[{x,y}], enterWorldPos:{x,y} }
+  // Overworld absolute position and exploration memory (for minimap and streaming windows)
+  let worldPos = { x: 0, y: 0 };
+  let worldExplored = new Set();
   let npcs = [];             // simple NPCs for town mode: { x, y, name, lines:[] }
   let shops = [];            // shops in town mode: [{x,y,type,name}]
   let townProps = [];        // interactive town props: [{x,y,type,name}]
@@ -252,6 +255,8 @@
       // world/overworld
       mode,
       world,
+      worldPos,
+      worldExplored,
       region,
       worldReturnPos,
       cameFromWorld,
@@ -993,6 +998,8 @@
       camera,
       mode,
       world,
+      worldPos,
+      worldExplored,
       region,
       npcs,
       shops,
@@ -1181,6 +1188,9 @@
     townPlaza = ctx.townPlaza || townPlaza;
     tavern = ctx.tavern || tavern;
     worldReturnPos = ctx.worldReturnPos || worldReturnPos;
+    // Overworld absolute position and exploration memory
+    worldPos = ctx.worldPos || worldPos;
+    worldExplored = ctx.worldExplored || worldExplored;
     region = ctx.region || region;
     townExitAt = ctx.townExitAt || townExitAt;
     dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
