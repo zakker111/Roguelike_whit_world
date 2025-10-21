@@ -1376,12 +1376,8 @@ export const UI = {
       if (v === "1") return true;
       if (v === "0") return false;
     } catch (_) {}
-    // Default OFF on small screens to keep UI uncluttered and reduce draw work
-    try {
-      const smallScreen = (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700);
-      return smallScreen ? false : true;
-    } catch (_) {}
-    return true;
+    // Default OFF (user can enable via GOD panel or localStorage)
+    return false;
   },
 
   setMinimapState(enabled) {
