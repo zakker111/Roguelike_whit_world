@@ -172,12 +172,7 @@ function expandMap(ctx, side, K) {
         if (Array.isArray(ctx.corpses)) for (const c of ctx.corpses) if (c) c.y += K;
         if (Array.isArray(ctx.decals)) for (const d of ctx.decals) if (d) d.y += K;
       } catch (_) {}
-      // Offset camera so the screen doesn't jump this frame
-      try {
-        const cam = (typeof ctx.getCamera === "function") ? ctx.getCamera() : (ctx.camera || null);
-        const TILE = (typeof ctx.TILE === "number") ? ctx.TILE : 32;
-        if (cam) cam.y += K * TILE;
-      } catch (_) {}
+      // Let updateCamera after movement handle centering to keep perceived 1-tile movement consistent
     }
   } else if (side === "bottom") {
     // append K rows
