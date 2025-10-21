@@ -452,25 +452,33 @@ export function draw(ctx, view) {
         const bx = cam.width - wpx - pad;
         const by = pad;
 
-        // Build offscreen once per world map reference or dimension change
+        // Build offscreen once per world map reference or dimension change or player moved (to reflect new seen tiles)
         const mapRef = map;
-        const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef();
+        const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef() || MINI.px !== player.x || MINI.py !== player.y;
         if (needsRebuild) {
           MINI.mapRef = mapRef;
           MINI.wpx = wpx;
           MINI.hpx = hpx;
           MINI.scale = scale;
           MINI._tilesRef = tilesRef();
+          MINI.px = player.x;
+          MINI.py = player.y;
           const off = RenderCore.createOffscreen(wpx, hpx);
           const oc = off.getContext("2d");
-          // tiles from JSON only
+          // Minimap: only draw tiles the player has discovered (ctx.seen)
           for (let yy = 0; yy < mh; yy++) {
             const rowM = map[yy];
+            const seenRow = (ctx.seen && ctx.seen[yy]) ? ctx.seen[yy] : null;
             for (let xx = 0; xx < mw; xx++) {
-              const t = rowM[xx];
-              const td = getTileDef("overworld", t);
-              const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
-              oc.fillStyle = c;
+              const seenHere = seenRow ? !!seenRow[xx] : false;
+              if (seenHere) {
+                const t = rowM[xx];
+                const td = getTileDef("overworld", t);
+                const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+                oc.fillStyle = c;
+              } else {
+                oc.fillStyle = "#0b0c10"; // fog of war
+              }
               oc.fillRect(xx * scale, yy * scale, scale, scale);
             }
           }

@@ -1,23 +1,213 @@
 /**
- * WorldRuntime: generation and helpers for overworld mode.
+ * WorldRuntime: generation and helpers for overworld mode (now supports near-infinite expansion).
  *
  * Exports (ESM + window.WorldRuntime):
  * - generate(ctx, { width, height }?)
  * - tryMovePlayerWorld(ctx, dx, dy)
  * - tick(ctx)      // optional per-turn hook for world mode
  */
- 
+
+function currentSeed() {
+  try {
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.getSeed === "function") {
+      return window.RNG.getSeed();
+    }
+  } catch (_) {}
+  return (Date.now() >>> 0);
+}
+
+// Expand map arrays on any side by K tiles, generating via world.gen.tileAt against world origin offsets.
+function expandMap(ctx, side, K) {
+  const world = ctx.world;
+  const gen = world.gen;
+  const WT = (ctx.World && ctx.World.TILES) || (typeof window !== "undefined" ? (window.World && window.World.TILES) : null);
+
+  const rows = ctx.map.length;
+  const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+
+  if (side === "left") {
+    // prepend K columns
+    for (let y = 0; y < rows; y++) {
+      const row = ctx.map[y];
+      const seenRow = ctx.seen[y] || [];
+      const visRow = ctx.visible[y] || [];
+      const prepend = new Array(K);
+      const seenPre = new Array(K).fill(false);
+      const visPre = new Array(K).fill(false);
+      for (let i = 0; i < K; i++) {
+        const wx = world.originX - (K - i); // new world x
+        const wy = world.originY + y;
+        prepend[i] = gen.tileAt(wx, wy);
+      }
+      ctx.map[y] = prepend.concat(row);
+      ctx.seen[y] = seenPre.concat(seenRow);
+      ctx.visible[y] = visPre.concat(visRow);
+    }
+    world.originX -= K;
+  } else if (side === "right") {
+    // append K columns
+    for (let y = 0; y < rows; y++) {
+      const row = ctx.map[y];
+      const seenRow = ctx.seen[y] || [];
+      const visRow = ctx.visible[y] || [];
+      const append = new Array(K);
+      const seenApp = new Array(K).fill(false);
+      const visApp = new Array(K).fill(false);
+      for (let i = 0; i < K; i++) {
+        const wx = world.originX + cols + i;
+        const wy = world.originY + y;
+        append[i] = gen.tileAt(wx, wy);
+      }
+      ctx.map[y] = row.concat(append);
+      ctx.seen[y] = seenRow.concat(seenApp);
+      ctx.visible[y] = visRow.concat(visApp);
+    }
+  } else if (side === "top") {
+    // prepend K rows
+    const newRows = [];
+    const newSeen = [];
+    const newVis = [];
+    for (let i = 0; i < K; i++) {
+      const arr = new Array(cols);
+      for (let x = 0; x < cols; x++) {
+        const wx = world.originX + x;
+        const wy = world.originY - (K - i);
+        arr[x] = gen.tileAt(wx, wy);
+      }
+      newRows.push(arr);
+      newSeen.push(new Array(cols).fill(false));
+      newVis.push(new Array(cols).fill(false));
+    }
+    ctx.map = newRows.concat(ctx.map);
+    ctx.seen = newSeen.concat(ctx.seen);
+    ctx.visible = newVis.concat(ctx.visible);
+    world.originY -= K;
+  } else if (side === "bottom") {
+    // append K rows
+    for (let i = 0; i < K; i++) {
+      const arr = new Array(cols);
+      const seenArr = new Array(cols).fill(false);
+      const visArr = new Array(cols).fill(false);
+      for (let x = 0; x < cols; x++) {
+        const wx = world.originX + x;
+        const wy = world.originY + rows + i;
+        arr[x] = gen.tileAt(wx, wy);
+      }
+      ctx.map.push(arr);
+      ctx.seen.push(seenArr);
+      ctx.visible.push(visArr);
+    }
+  }
+
+  world.width = ctx.map[0] ? ctx.map[0].length : 0;
+  world.height = ctx.map.length;
+}
+
+// Ensure (nx,ny) is inside map bounds; expand outward by chunk size if needed.
+function ensureInBounds(ctx, nx, ny, CHUNK = 32) {
+  let expanded = false;
+  const rows = ctx.map.length;
+  const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+
+  if (nx < 0) { expandMap(ctx, "left", Math.max(CHUNK, -nx + 4)); expanded = true; }
+  if (ny < 0) { expandMap(ctx, "top", Math.max(CHUNK, -ny + 4)); expanded = true; }
+  // Recompute after potential prepends
+  const rows2 = ctx.map.length;
+  const cols2 = rows2 ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+  if (nx >= cols2) { expandMap(ctx, "right", Math.max(CHUNK, nx - cols2 + 5)); expanded = true; }
+  if (ny >= rows2) { expandMap(ctx, "bottom", Math.max(CHUNK, ny - rows2 + 5)); expanded = true; }
+
+  return expanded;
+}
+
 export function generate(ctx, opts = {}) {
+  // Prefer infinite generator; fall back to finite world if module missing
+  const IG = (typeof window !== "undefined" ? window.InfiniteGen : null);
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+
+  const width = (typeof opts.width === "number") ? opts.width : (ctx.MAP_COLS || 120);
+  const height = (typeof opts.height === "number") ? opts.height : (ctx.MAP_ROWS || 80);
+
+  // Clear non-world entities
+  ctx.enemies = [];
+  ctx.corpses = [];
+  ctx.decals = [];
+  ctx.npcs = [];
+  ctx.shops = [];
+
+  // Create generator (infinite) or fall back
+  if (IG && typeof IG.create === "function") {
+    const seed = currentSeed();
+    const gen = IG.create(seed);
+    // Initial window centered near (0,0)
+    const originX = -Math.floor(width / 2);
+    const originY = -Math.floor(height / 2);
+    const map = Array.from({ length: height }, (_, y) => {
+      const wy = originY + y;
+      const row = new Array(width);
+      for (let x = 0; x < width; x++) {
+        const wx = originX + x;
+        row[x] = gen.tileAt(wx, wy);
+      }
+      return row;
+    });
+
+    ctx.world = {
+      type: "infinite",
+      gen,
+      originX,
+      originY,
+      width,
+      height,
+      towns: [],       // optional: can be populated lazily if we scan tiles
+      dungeons: [],
+      roads: [],
+      bridges: [],
+    };
+
+    // Start near a generated town if possible, else first walkable near 0,0
+    const startWorld = gen.pickStart();
+    const sx = startWorld.x - originX; // array coords
+    const sy = startWorld.y - originY;
+    const ax = Math.max(0, Math.min(width - 1, sx | 0));
+    const ay = Math.max(0, Math.min(height - 1, sy | 0));
+
+    ctx.map = map;
+    ctx.world.width = map[0] ? map[0].length : 0;
+    ctx.world.height = map.length;
+
+    ctx.player.x = ax;
+    ctx.player.y = ay;
+    ctx.mode = "world";
+
+    // Allocate fog-of-war arrays; FOV module will mark seen/visible around player
+    ctx.seen = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
+    ctx.visible = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
+
+    // Camera/FOV/UI
+    try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+    try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
+    try { typeof ctx.updateUI === "function" && ctx.updateUI(); } catch (_) {}
+
+    // Arrival log
+    ctx.log && ctx.log("You arrive in the overworld. The world expands as you explore. Minimap shows discovered tiles.", "notice");
+
+    // Hide town exit button via TownRuntime
+    try {
+      const TR = (ctx && ctx.TownRuntime) || (typeof window !== "undefined" ? window.TownRuntime : null);
+      if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(ctx);
+    } catch (_) {}
+
+    return true;
+  }
+
+  // Fallback to finite world (existing module)
   if (!(W && typeof W.generate === "function")) {
     ctx.log && ctx.log("World module missing; generating dungeon instead.", "warn");
     ctx.mode = "dungeon";
     try { if (typeof ctx.generateLevel === "function") ctx.generateLevel(ctx.floor || 1); } catch (_) {}
     return false;
   }
-
-  const width = (typeof opts.width === "number") ? opts.width : (ctx.MAP_COLS || 120);
-  const height = (typeof opts.height === "number") ? opts.height : (ctx.MAP_ROWS || 80);
 
   try {
     ctx.world = W.generate(ctx, { width, height });
@@ -36,58 +226,68 @@ export function generate(ctx, opts = {}) {
   ctx.player.y = start.y;
   ctx.mode = "world";
 
-  // Clear non-world entities
   ctx.enemies = [];
   ctx.corpses = [];
   ctx.decals = [];
-  ctx.npcs = [];   // no NPCs on overworld
-  ctx.shops = [];  // no shops on overworld
+  ctx.npcs = [];
+  ctx.shops = [];
 
-  // Apply world map and reveal it fully
   ctx.map = ctx.world.map;
   const rows = ctx.map.length;
   const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-  ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
-  ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
+  // Fog-of-war: start unseen; FOV will reveal around player
+  ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(false));
+  ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(false));
 
-  // Camera/FOV/UI
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
   try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
   try { typeof ctx.updateUI === "function" && ctx.updateUI(); } catch (_) {}
 
-  // Arrival log
-  ctx.log && ctx.log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
+  ctx.log && ctx.log("You arrive in the overworld.", "notice");
 
-  // Hide town exit button via TownRuntime
   try {
     const TR = (ctx && ctx.TownRuntime) || (typeof window !== "undefined" ? window.TownRuntime : null);
     if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(ctx);
   } catch (_) {}
 
-  // Draw is handled by the orchestrator (core/game.js) after sync; avoid redundant frames here.
   return true;
 }
 
 export function tryMovePlayerWorld(ctx, dx, dy) {
-  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
+  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.map) return false;
   const nx = ctx.player.x + (dx | 0);
   const ny = ctx.player.y + (dy | 0);
-  const wmap = ctx.world.map;
-  const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
+
+  // Expand if outside
+  ensureInBounds(ctx, nx, ny, 32);
+
+  const rows = ctx.map.length, cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
   if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return false;
-  const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
-  const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(wmap[ny][nx]) : true;
+
+  let walkable = true;
+  try {
+    // Prefer World.isWalkable for compatibility with tiles.json overrides
+    const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+    if (W && typeof W.isWalkable === "function") {
+      walkable = !!W.isWalkable(ctx.map[ny][nx]);
+    } else if (ctx.world && ctx.world.gen && typeof ctx.world.gen.isWalkable === "function") {
+      walkable = !!ctx.world.gen.isWalkable(ctx.map[ny][nx]);
+    }
+  } catch (_) {}
+
   if (!walkable) return false;
+
   ctx.player.x = nx; ctx.player.y = ny;
+
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
-  // Roll for encounter first so acceptance can switch mode before advancing world time
+
+  // Encounter roll before advancing time (modules may switch mode)
   try {
     const ES = ctx.EncounterService || (typeof window !== "undefined" ? window.EncounterService : null);
     if (ES && typeof ES.maybeTryEncounter === "function") {
       ES.maybeTryEncounter(ctx);
     }
   } catch (_) {}
-  // Advance a turn after the roll (if an encounter opened, next turn will tick region)
   try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
   return true;
 }
@@ -95,11 +295,9 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
 /**
  * Optional per-turn hook for world mode.
  * Keeps the interface consistent with TownRuntime/DungeonRuntime tick hooks.
- * Currently a no-op placeholder for future world-side time/day effects.
  */
 export function tick(ctx) {
-  // Intentionally minimal; world mode reveals everything and has no occupancy/NPCs.
-  // Modules can extend this later for overlays or time-driven effects.
+  // Placeholder for future day/night effects or ambient overlays in world mode
   return true;
 }
 

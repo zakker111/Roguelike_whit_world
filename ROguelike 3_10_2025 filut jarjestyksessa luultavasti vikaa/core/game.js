@@ -896,36 +896,8 @@
     const modeChanged = (mode !== _lastMode);
     const mapChanged = (rows !== _lastMapRows) || (cols !== _lastMapCols);
 
-    // In overworld, visible/seen are fully true; only recompute when mode or map shape changed.
-    // This avoids re-filling arrays on every movement turn.
-    if (mode === "world" && !modeChanged && !mapChanged) {
-      _lastPlayerX = player.x; _lastPlayerY = player.y;
-      _lastFovRadius = fovRadius; _lastMode = mode;
-      _lastMapCols = cols; _lastMapRows = rows;
-      return;
-    }
-    // Non-world: skip recompute when nothing relevant changed.
+    // Skip recompute when nothing relevant changed.
     if (!modeChanged && !mapChanged && !fovChanged && !moved) {
-      return;
-    }
-
-    if (mode === "world") {
-      // In overworld, reveal entire map (no fog-of-war)
-      const shapeOk = Array.isArray(visible) && visible.length === rows && (rows === 0 || (visible[0] && visible[0].length === cols));
-      if (!shapeOk) {
-        visible = Array.from({ length: rows }, () => Array(cols).fill(true));
-        seen = Array.from({ length: rows }, () => Array(cols).fill(true));
-      } else {
-        for (let y = 0; y < rows; y++) {
-          visible[y].fill(true);
-          if (!seen[y]) seen[y] = Array(cols).fill(true);
-          else seen[y].fill(true);
-        }
-      }
-      // update cache and return
-      _lastPlayerX = player.x; _lastPlayerY = player.y;
-      _lastFovRadius = fovRadius; _lastMode = mode;
-      _lastMapCols = cols; _lastMapRows = rows;
       return;
     }
 
