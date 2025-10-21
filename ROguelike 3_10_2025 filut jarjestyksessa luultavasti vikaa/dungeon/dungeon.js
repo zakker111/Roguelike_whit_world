@@ -157,6 +157,26 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
   const STAIRS = typeof TILES.STAIRS === "number" ? TILES.STAIRS : TILES.DOOR;
   ctx.map[end.y][end.x] = STAIRS;
 
+  // If this dungeon entrance is in a mountain biome, place a second portal inside leading to a dungeon across the mountain.
+  try {
+    const W = (typeof window !== "undefined" ? window.World : null);
+    const world = ctx.world || null;
+    const WT = W ? W.TILES : null;
+    const gen = world && world.gen;
+    const dinfoAbs = ctx.dungeonInfo || ctx.dungeon || null;
+    const isMountainEntrance = !!(gen && WT && typeof gen.tileAt === "function" && dinfoAbs && gen.tileAt(dinfoAbs.x | 0, dinfoAbs.y | 0) === WT.MOUNTAIN);
+    if (isMountainEntrance) {
+      // Pick a different room from the end room (prefer mid/far) to place the mountain pass portal
+      let passRoomIdx = Math.max(1, Math.floor(rooms.length / 2));
+      if (passRoomIdx === endRoomIndex) passRoomIdx = Math.max(1, Math.min(rooms.length - 1, passRoomIdx - 1));
+      const passC = center(rooms[passRoomIdx] || rooms[rooms.length - 1] || { x: 2, y: 2, w: 1, h: 1 });
+      // Mark with STAIRS tile as well (distinct behavior handled by runtime)
+      ctx.map[passC.y][passC.x] = STAIRS;
+      // Record portal location for runtime to detect
+      ctx._mountainPassAt = { x: passC.x, y: passC.y };
+    }
+  } catch (_) {}
+
   // Safety net: ensure at least one stairs exists
   let stairsCount = 0;
   for (let yy = 1; yy < rRows - 1; yy++) {

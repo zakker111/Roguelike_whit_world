@@ -591,6 +591,24 @@ export function tryMoveDungeon(ctx, dx, dy) {
   const ny = ctx.player.y + (dy | 0);
   if (!ctx.inBounds(nx, ny)) return false;
 
+  // Special: stepping on a mountain-pass portal (if present) transfers to a dungeon across the mountain
+  try {
+    const pass = ctx._mountainPassAt || null;
+    if (pass && nx === pass.x && ny === pass.y && ctx.map[ny][nx] === ctx.TILES.STAIRS) {
+      // Compute an across-mountain target in world coordinates
+      const tgt = computeAcrossMountainTarget(ctx);
+      if (tgt) {
+        // Persist current dungeon and enter the destination dungeon directly
+        try { save(ctx, false); } catch (_) {}
+        const size = (ctx.dungeonInfo && ctx.dungeonInfo.size) ? ctx.dungeonInfo.size : "medium";
+        const level = Math.max(1, ctx.floor | 0);
+        const info = { x: tgt.x, y: tgt.y, level, size };
+        ctx.log && ctx.log("You find a hidden passage through the mountain...", "notice");
+        return enter(ctx, info);
+      }
+    }
+  } catch (_) {}
+
   // Is there an enemy at target tile?
   let enemy = null;
   try {
@@ -683,8 +701,8 @@ export function tryMoveDungeon(ctx, dx, dy) {
     try {
       const eq = ctx.player && ctx.player.equipment ? ctx.player.equipment : {};
       const weaponName = (eq.right && eq.right.name) ? eq.right.name
-                       : (eq.left && eq.left.name) ? eq.left.name
-                       : null;
+                   : (eq.left && eq.left.name) ? eq.left.name
+                   : null;
       enemy._lastHit = { by: "player", part: loc.part, crit: isCrit, dmg, weapon: weaponName, via: weaponName ? `with ${weaponName}` : "melee" };
     } catch (_) {}
   } catch (_) {}
@@ -751,6 +769,56 @@ export function tryMoveDungeon(ctx, dx, dy) {
   } catch (_) {}
 
   return false;
+}
+
+// Determine a target world coordinate across a mountain from this dungeon's entrance.
+function computeAcrossMountainTarget(ctx) {
+  try {
+    const world = ctx.world || null;
+    const gen = world && world.gen;
+    const W = (typeof window !== "undefined" ? window.World : null);
+    const WT = W ? W.TILES : null;
+    const dinfo = ctx.dungeonInfo || ctx.dungeon || null;
+    if (!gen || !WT || !dinfo) return null;
+    // Mountain id
+    const M = WT.MOUNTAIN;
+    const wx0 = dinfo.x | 0, wy0 = dinfo.y | 0;
+
+    // Directions to probe (N,E,S,W and diagonals) to find longest mountain run
+    const dirs = [
+      { dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+      { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 }
+    ];
+
+    function mountainRunLen(dx, dy) {
+      let len = 0;
+      let x = wx0, y = wy0;
+      for (let i = 0; i < 300; i++) {
+        const t = gen.tileAt(x, y);
+        if (t === M) { len++; x += dx; y += dy; continue; }
+        break;
+      }
+      return { len, endX: x, endY: y };
+    }
+
+    let best = null, bestLen = -1;
+    for (const d of dirs) {
+      const res = mountainRunLen(d.dx, d.dy);
+      if (res.len > bestLen) { bestLen = res.len; best = { d, res }; }
+    }
+    if (!best) return null;
+    // Move one more step beyond the last mountain tile to ensure we are across
+    let tx = best.res.endX, ty = best.res.endY;
+    // Nudge a few tiles further into non-mountain terrain for safety
+    for (let k = 0; k < 5; k++) {
+      const nx = tx + best.d.dx;
+      const ny = ty + best.d.dy;
+      const t = gen.tileAt(nx, ny);
+      if (t === M) break;
+      tx = nx; ty = ny;
+    }
+    return { x: tx, y: ty };
+  } catch (_) { return null; }
 }
 
 export function tick(ctx) {
