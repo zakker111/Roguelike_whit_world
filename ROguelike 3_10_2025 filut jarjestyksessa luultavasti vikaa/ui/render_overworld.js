@@ -139,7 +139,7 @@ export function draw(ctx, view) {
       for (let x = startX; x <= endX; x++) {
         if (x < 0 || x >= mapCols) continue;
         const t = map[y][x];
-        if (t !== TILES.WATER && t !== TILES.RIVER) continue;
+        if (t !== WT.WATER && t !== WT.RIVER) continue;
         // If adjacent to land (grass, forest, beach, swamp, desert, snow, town, dungeon), draw a light border on the land side
         const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
         for (const d of dirs) {
@@ -177,7 +177,7 @@ export function draw(ctx, view) {
         const sy = (y - startY) * TILE - tileOffsetY;
 
         // Forest canopy dots
-        if (t === TILES.FOREST) {
+        if (t === WT.FOREST) {
           const r = h2(x, y);
           if (r < 0.75) {
             const dots = 1 + ((r * 3) | 0);
@@ -194,7 +194,7 @@ export function draw(ctx, view) {
         }
 
         // Mountain ridge highlight (top-left light)
-        if (t === TILES.MOUNTAIN) {
+        if (t === WT.MOUNTAIN) {
           ctx2d.save();
           ctx2d.globalAlpha = 0.20;
           ctx2d.fillStyle = "#2a3342";
@@ -204,7 +204,7 @@ export function draw(ctx, view) {
         }
 
         // Desert specks
-        if (t === TILES.DESERT) {
+        if (t === WT.DESERT) {
           const r = h2(x, y);
           if (r > 0.25) {
             ctx2d.save();
@@ -221,7 +221,7 @@ export function draw(ctx, view) {
         }
 
         // Snow subtle blue shade variation
-        if (t === TILES.SNOW) {
+        if (t === WT.SNOW) {
           ctx2d.save();
           ctx2d.globalAlpha = 0.08;
           ctx2d.fillStyle = "#94b7ff";
@@ -232,7 +232,7 @@ export function draw(ctx, view) {
         }
 
         // River shimmer (thin highlight line)
-        if (t === TILES.RIVER) {
+        if (t === WT.RIVER) {
           const r = ((x + y) & 1) === 0;
           ctx2d.save();
           ctx2d.globalAlpha = 0.12;
@@ -598,7 +598,30 @@ export function draw(ctx, view) {
 
   // Grid overlay (if enabled)
   RenderCore.drawGridOverlay(view);
+
+  // Topmost: ensure player marker is above grid/tints for maximum visibility
+  try {
+    if (player.x >= startX && player.x <= endX && player.y >= startY && player.y <= endY) {
+      const screenX = (player.x - startX) * TILE - tileOffsetX;
+      const screenY = (player.y - startY) * TILE - tileOffsetY;
+      ctx2d.save();
+      // Bright outline square around the tile
+      ctx2d.globalAlpha = 0.9;
+      ctx2d.strokeStyle = "#ffffff";
+      ctx2d.lineWidth = 2;
+      ctx2d.strokeRect(screenX + 3.5, screenY + 3.5, TILE - 7, TILE - 7);
+      // Glyph on top
+      const half = TILE / 2;
+      ctx2d.lineWidth = 3;
+      ctx2d.strokeStyle = "#0b0f16";
+      ctx2d.strokeText("@", screenX + half, screenY + half + 1);
+      ctx2d.fillStyle = COLORS.player || "#9ece6a";
+      ctx2d.fillText("@", screenX + half, screenY + half + 1);
+      ctx2d.restore();
+    }
+  } catch (_) {}
+
 }
 
-// Back-compat: attach to window via helper
+ // Back-compat: attach to window via helper
 attachGlobal("RenderOverworld", { draw });
