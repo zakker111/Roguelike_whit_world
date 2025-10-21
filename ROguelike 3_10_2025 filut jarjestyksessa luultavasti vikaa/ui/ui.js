@@ -67,6 +67,10 @@ export const UI = {
     this.els.godApplySeedBtn = document.getElementById("god-apply-seed-btn");
     this.els.godRerollSeedBtn = document.getElementById("god-reroll-seed-btn");
     this.els.godSeedHelp = document.getElementById("god-seed-help");
+    // Status effect test buttons
+    this.els.godApplyBleedBtn = document.getElementById("god-apply-bleed-btn");
+    this.els.godApplyDazedBtn = document.getElementById("god-apply-dazed-btn");
+    this.els.godClearEffectsBtn = document.getElementById("god-clear-effects-btn");
     // Check Home Routes button
     this.els.godCheckHomeBtn = document.getElementById("god-check-home-btn");
     // Check Inn/Tavern button
@@ -193,6 +197,16 @@ export const UI = {
     });
     this.els.godCheckInnTavernBtn?.addEventListener("click", () => {
       if (typeof this.handlers.onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern();
+    });
+    // Status effect test buttons
+    this.els.godApplyBleedBtn?.addEventListener("click", () => {
+      if (typeof this.handlers.onGodApplyBleed === "function") this.handlers.onGodApplyBleed(3);
+    });
+    this.els.godApplyDazedBtn?.addEventListener("click", () => {
+      if (typeof this.handlers.onGodApplyDazed === "function") this.handlers.onGodApplyDazed(2);
+    });
+    this.els.godClearEffectsBtn?.addEventListener("click", () => {
+      if (typeof this.handlers.onGodClearEffects === "function") this.handlers.onGodClearEffects();
     });
     const diagBtn = document.getElementById("god-diagnostics-btn");
     diagBtn?.addEventListener("click", () => {
@@ -690,7 +704,7 @@ export const UI = {
     if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
   },
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -712,6 +726,9 @@ export const UI = {
     if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
     if (typeof onGodDiagnostics === "function") this.handlers.onGodDiagnostics = onGodDiagnostics;
     if (typeof onGodToggleGrid === "function") this.handlers.onGodToggleGrid = onGodToggleGrid;
+    if (typeof onGodApplyBleed === "function") this.handlers.onGodApplyBleed = onGodApplyBleed;
+    if (typeof onGodApplyDazed === "function") this.handlers.onGodApplyDazed = onGodApplyDazed;
+    if (typeof onGodClearEffects === "function") this.handlers.onGodClearEffects = onGodClearEffects;
   },
 
   updateStats(player, floor, getAtk, getDef, time, perf) {

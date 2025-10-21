@@ -9,6 +9,9 @@
  * - setCritPart(getCtx, part)
  * - applySeed(getCtx, seedUint32)
  * - rerollSeed(getCtx)
+ * - applyBleedToPlayer(getCtx, durationTurns)
+ * - applyDazedToPlayer(getCtx, durationTurns)
+ * - clearPlayerEffects(getCtx)
  */
 
 export function heal(getCtx) {
@@ -67,6 +70,32 @@ export function rerollSeed(getCtx) {
   ctx.log("GOD: rerollSeed not available.", "warn");
 }
 
+export function applyBleedToPlayer(getCtx, duration = 3) {
+  const ctx = getCtx();
+  const ST = (ctx.Status || (typeof window !== "undefined" ? window.Status : null));
+  if (ST && typeof ST.applyBleedToPlayer === "function") return ST.applyBleedToPlayer(ctx, duration);
+  ctx.player.bleedTurns = Math.max(ctx.player.bleedTurns || 0, (duration | 0));
+  ctx.log && ctx.log(`You are bleeding (${ctx.player.bleedTurns}).`, "warn");
+}
+
+export function applyDazedToPlayer(getCtx, duration = 2) {
+  const ctx = getCtx();
+  const ST = (ctx.Status || (typeof window !== "undefined" ? window.Status : null));
+  if (ST && typeof ST.applyDazedToPlayer === "function") return ST.applyDazedToPlayer(ctx, duration);
+  ctx.player.dazedTurns = Math.max(ctx.player.dazedTurns || 0, (duration | 0));
+  ctx.log && ctx.log(`You are dazed and might lose your next action${duration > 1 ? "s" : ""}.`, "warn");
+}
+
+export function clearPlayerEffects(getCtx) {
+  const ctx = getCtx();
+  try {
+    ctx.player.bleedTurns = 0;
+    ctx.player.dazedTurns = 0;
+    ctx.log && ctx.log("Status effects cleared (Bleed, Dazed).", "info");
+    ctx.updateUI && ctx.updateUI();
+  } catch (_) {}
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
   window.GodControls = {
@@ -78,5 +107,8 @@ if (typeof window !== "undefined") {
     setCritPart,
     applySeed,
     rerollSeed,
+    applyBleedToPlayer,
+    applyDazedToPlayer,
+    clearPlayerEffects,
   };
 }

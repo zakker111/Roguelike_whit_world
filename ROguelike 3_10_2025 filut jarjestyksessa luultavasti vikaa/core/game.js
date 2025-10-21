@@ -2512,6 +2512,14 @@
       }
     }
 
+    // Apply status effects globally each turn (bleed, dazed)
+    try {
+      const ST = modHandle("Status");
+      if (ST && typeof ST.tick === "function") {
+        ST.tick(getCtx());
+      }
+    } catch (_) {}
+
     recomputeFOV();
     updateUI();
     requestDraw();
@@ -2559,6 +2567,52 @@
           onGodSetCritPart: (part) => setCritPart(part),
           onGodApplySeed: (seed) => applySeed(seed),
           onGodRerollSeed: () => rerollSeed(),
+          // Status effect test hooks
+          onGodApplyBleed: (dur = 3) => {
+            const GC = modHandle("GodControls");
+            if (GC && typeof GC.applyBleedToPlayer === "function") {
+              GC.applyBleedToPlayer(() => getCtx(), dur);
+              updateUI();
+            } else {
+              const ST = modHandle("Status");
+              if (ST && typeof ST.applyBleedToPlayer === "function") {
+                ST.applyBleedToPlayer(getCtx(), dur);
+                updateUI();
+              } else {
+                player.bleedTurns = Math.max(player.bleedTurns || 0, (dur | 0));
+                log(`You are bleeding (${player.bleedTurns}).`, "warn");
+                updateUI();
+              }
+            }
+          },
+          onGodApplyDazed: (dur = 2) => {
+            const GC = modHandle("GodControls");
+            if (GC && typeof GC.applyDazedToPlayer === "function") {
+              GC.applyDazedToPlayer(() => getCtx(), dur);
+              updateUI();
+            } else {
+              const ST = modHandle("Status");
+              if (ST && typeof ST.applyDazedToPlayer === "function") {
+                ST.applyDazedToPlayer(getCtx(), dur);
+                updateUI();
+              } else {
+                player.dazedTurns = Math.max(player.dazedTurns || 0, (dur | 0));
+                log(`You are dazed and might lose your next action${dur > 1 ? "s" : ""}.`, "warn");
+                updateUI();
+              }
+            }
+          },
+          onGodClearEffects: () => {
+            const GC = modHandle("GodControls");
+            if (GC && typeof GC.clearPlayerEffects === "function") {
+              GC.clearPlayerEffects(() => getCtx());
+            } else {
+              player.bleedTurns = 0;
+              player.dazedTurns = 0;
+              updateUI();
+              log("Status effects cleared (Bleed, Dazed).", "info");
+            }
+          },
           onTownExit: () => requestLeaveTown(),
           // Panels for ESC-close default behavior
           isShopOpen: () => {
