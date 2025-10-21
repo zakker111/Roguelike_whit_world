@@ -825,12 +825,8 @@ function open(ctx, size) {
       }
 
       for (let i = 0; i < count; i++) {
-        let pos = null;
-        if (i === 0) {
-          pos = randomAdjacent(cx0, cy0) || randomNearWalkable(cx0, cy0, 5);
-        }
-        if (!pos) pos = randomNearWalkable(cx0, cy0, 8);
-        if (!pos) pos = randomWalkable();
+        // Spawn creatures anywhere within the region map (no bias toward the player)
+        const pos = randomWalkable();
         if (!pos) break;
         const t = pickType();
         const hp = t === "deer" ? 3 : t === "fox" ? 2 : 4;
