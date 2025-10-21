@@ -729,7 +729,15 @@ function open(ctx, size) {
       const sample = ctx.region.map;
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
-      // Base rarity: 0–2 animals, spawn only in sufficiently wild areas; rare in desert/snow/swamp/mountain.
+
+      // If animals were already seen here in a prior visit, drastically reduce the chance to spawn again (10%)
+      const seenBefore = animalsSeenHere(worldX, worldY);
+      if (seenBefore && rng() >= 0.10) {
+        try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
+        return;
+      }
+
+      // Base rarity: prefer zero animals; only 0–1 may spawn in sufficiently wild areas.
       const { counts } = countBiomes(sample);
       const totalCells = w * h;
       const forestBias = (counts[WT.FOREST] || 0) / totalCells;
@@ -741,36 +749,33 @@ function open(ctx, size) {
       const mountainBias = (counts[WT.MOUNTAIN] || 0) / totalCells;
       const wildFrac = forestBias + grassBias + beachBias;
 
-      // Gate: skip spawns unless area is predominantly wild or the player stands on a wild tile
+      // Gate: skip spawns unless area is fairly wild or the player stands on a wild tile
       const playerTileWild = (function () {
         try {
           const tHere = ctx.world.map[worldY][worldX];
           return (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
         } catch (_) { return false; }
       })();
-      if (wildFrac < 0.40 && !playerTileWild) {
+      if (wildFrac < 0.55 && !playerTileWild) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
       // Heavily non-wild or rugged biomes suppress spawns
-      if (desertBias + snowBias + swampBias > 0.45 || mountainBias > 0.20) {
+      if (desertBias + snowBias + swampBias > 0.30 || mountainBias > 0.15) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
 
-      // Compute base spawn and clamp to 0..2
-      const base = 0
-        + (rng() < (0.25 + forestBias * 0.40 + grassBias * 0.25 + beachBias * 0.15) ? 1 : 0)
-        + (rng() < (forestBias * 0.30 + grassBias * 0.20) ? 1 : 0);
-      let count = Math.min(2, base);
-      // Ensure at least one creature in wild areas (without forcing adjacency)
-      if (count <= 0 && (playerTileWild || wildFrac >= 0.25)) {
-        count = 1;
-      }
+      // Probability for at most a single animal
+      const pOne = Math.max(0, Math.min(0.35, 0.08 + forestBias * 0.20 + grassBias * 0.12 + beachBias * 0.06));
+      const spawnOne = rng() < pOne;
+      let count = spawnOne ? 1 : 0;
+
       if (count <= 0) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
+
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
       // Pick animal definition from GameData.animals using biome-weighted selection (with sensible fallbacks)
       function pickAnimalDef() {
@@ -861,10 +866,10 @@ function open(ctx, size) {
       const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
 
       for (let i = 0; i < count; i++) {
-        // Small chance to spawn the first creature closer to the player to improve visibility
+        // Small chance to spawn the creature closer to the player to improve visibility
         let pos = null;
-        if (i === 0 && rng() < 0.30) {
-          pos = randomNearWalkable(cx0, cy0, 6);
+        if (i === 0 && rng() < 0.25) {
+          pos = randomNearWalkable(cx0, cy0, 5);
         }
         if (!pos) pos = randomWalkable();
         if (!pos) break;
@@ -891,7 +896,7 @@ function open(ctx, size) {
             const vis = Array.isArray(ctx.visible) ? ctx.visible : [];
             for (const e of ctx.enemies) {
               if (!e) continue;
-              if (vis[e.y] && vis[e.y][e.x]) { visibleCount++; if (visibleCount > 0) break; }
+              if (vis[e.y] && vis[e.x]) { visibleCount++; if (visibleCount > 0) break; }
             }
           } catch (_) {}
 
