@@ -87,7 +87,7 @@ function expandMap(ctx, side, K) {
   const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
 
   if (side === "left") {
-    // prepend K columns (do NOT shift player or origin; keep window indexed coords stable)
+    // prepend K columns; shift origin and player by +K to keep world coords aligned, and offset camera to avoid visual snap
     for (let y = 0; y < rows; y++) {
       const row = ctx.map[y];
       const seenRow = ctx.seen[y] || [];
@@ -104,8 +104,22 @@ function expandMap(ctx, side, K) {
       ctx.seen[y] = seenPre.concat(seenRow);
       ctx.visible[y] = visPre.concat(visRow);
     }
+    world.originX -= K;
     // Newly added strip is columns [0..K-1]
     scanPOIs(ctx, 0, 0, K, rows);
+    // Shift player and entities right by K to preserve world position mapping
+    try { ctx.player.x += K; } catch (_) {}
+    try {
+      if (Array.isArray(ctx.enemies)) for (const e of ctx.enemies) if (e) e.x += K;
+      if (Array.isArray(ctx.corpses)) for (const c of ctx.corpses) if (c) c.x += K;
+      if (Array.isArray(ctx.decals)) for (const d of ctx.decals) if (d) d.x += K;
+    } catch (_) {}
+    // Offset camera so the screen doesn't jump this frame
+    try {
+      const cam = (typeof ctx.getCamera === "function") ? ctx.getCamera() : (ctx.camera || null);
+      const TILE = (typeof ctx.TILE === "number") ? ctx.TILE : 32;
+      if (cam) cam.x += K * TILE;
+    } catch (_) {}
   } else if (side === "right") {
     // append K columns
     for (let y = 0; y < rows; y++) {
@@ -127,7 +141,7 @@ function expandMap(ctx, side, K) {
     // Newly added strip starts at previous width (cols)
     scanPOIs(ctx, cols, 0, K, rows);
   } else if (side === "top") {
-    // prepend K rows (do NOT shift player or origin)
+    // prepend K rows; shift origin and player by +K to keep world coords aligned, and offset camera to avoid visual snap
     const newRows = [];
     const newSeen = [];
     const newVis = [];
@@ -145,8 +159,22 @@ function expandMap(ctx, side, K) {
     ctx.map = newRows.concat(ctx.map);
     ctx.seen = newSeen.concat(ctx.seen);
     ctx.visible = newVis.concat(ctx.visible);
+    world.originY -= K;
     // Newly added strip is rows [0..K-1]
     scanPOIs(ctx, 0, 0, cols, K);
+    // Shift player and entities down by K to preserve world position mapping
+    try { ctx.player.y += K; } catch (_) {}
+    try {
+      if (Array.isArray(ctx.enemies)) for (const e of ctx.enemies) if (e) e.y += K;
+      if (Array.isArray(ctx.corpses)) for (const c of ctx.corpses) if (c) c.y += K;
+      if (Array.isArray(ctx.decals)) for (const d of ctx.decals) if (d) d.y += K;
+    } catch (_) {}
+    // Offset camera so the screen doesn't jump this frame
+    try {
+      const cam = (typeof ctx.getCamera === "function") ? ctx.getCamera() : (ctx.camera || null);
+      const TILE = (typeof ctx.TILE === "number") ? ctx.TILE : 32;
+      if (cam) cam.y += K * TILE;
+    } catch (_) {}
   } else if (side === "bottom") {
     // append K rows
     for (let i = 0; i < K; i++) {

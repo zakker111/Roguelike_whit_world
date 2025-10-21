@@ -161,6 +161,31 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
+  // Fog of war overlay: hide undiscovered tiles, dim seen-but-not-visible
+  try {
+    for (let y = startY; y <= endY; y++) {
+      if (y < 0 || y >= mapRows) continue;
+      const seenRow = ctx.seen && ctx.seen[y];
+      const visRow = ctx.visible && ctx.visible[y];
+      for (let x = startX; x <= endX; x++) {
+        if (x < 0 || x >= mapCols) continue;
+        const sx = (x - startX) * TILE - tileOffsetX;
+        const sy = (y - startY) * TILE - tileOffsetY;
+        const seenHere = !!(seenRow && seenRow[x]);
+        const visHere = !!(visRow && visRow[x]);
+        if (!seenHere) {
+          // Full fog
+          ctx2d.fillStyle = "#0b0c10";
+          ctx2d.fillRect(sx, sy, TILE, TILE);
+        } else if (!visHere) {
+          // Dim explored but not currently visible
+          ctx2d.fillStyle = "rgba(0,0,0,0.35)";
+          ctx2d.fillRect(sx, sy, TILE, TILE);
+        }
+      }
+    }
+  } catch (_) {}
+
   // Subtle biome embellishments to reduce flat look
   try {
     // Stable hash for x,y -> [0,1)
