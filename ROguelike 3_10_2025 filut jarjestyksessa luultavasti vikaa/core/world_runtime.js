@@ -168,11 +168,11 @@ function ensureExtraBridges(ctx) {
   world.bridges = Array.isArray(world.bridges) ? world.bridges : [];
   const bridgeSet = world._bridgeSet || (world._bridgeSet = new Set());
 
-  function addBridgeAbs(ax, ay) {
+  function markBridgeLocal(lx, ly) {
+    if (lx < 0 || ly < 0 || lx >= cols || ly >= rows) return;
+    const ax = ox + lx, ay = oy + ly;
     const key = `${ax},${ay}`;
     if (bridgeSet.has(key)) return;
-    const lx = ax - ox, ly = ay - oy;
-    if (lx < 0 || ly < 0 || lx >= cols || ly >= rows) return;
     // Carve to BEACH to be walkable and record overlay
     ctx.map[ly][lx] = WT.BEACH;
     world.bridges.push({ x: ax, y: ay });
@@ -186,29 +186,59 @@ function ensureExtraBridges(ctx) {
     return !(t === WT.WATER || t === WT.RIVER);
   }
 
+  // Carve a full horizontal bridge at (lx, ly) across all contiguous WATER/RIVER tiles, ensuring a continuous span from land to land.
+  function carveAcrossRow(lx, ly) {
+    // Extend left
+    let x = lx;
+    while (x >= 0 && (ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) {
+      markBridgeLocal(x, ly);
+      x--;
+    }
+    // Also extend right
+    x = lx + 1;
+    while (x < cols && (ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) {
+      markBridgeLocal(x, ly);
+      x++;
+    }
+  }
+
+  // Carve a full vertical bridge at (lx, ly) across all contiguous WATER/RIVER tiles
+  function carveAcrossCol(lx, ly) {
+    // Up
+    let y = ly;
+    while (y >= 0 && (ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) {
+      markBridgeLocal(lx, y);
+      y--;
+    }
+    // Down
+    y = ly + 1;
+    while (y < rows && (ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) {
+      markBridgeLocal(lx, y);
+      y++;
+    }
+  }
+
   const stride = 18; // place at most one bridge per ~18 tiles per span to avoid spam
 
-  // Vertical scans (columns)
+  // Vertical scans (columns) — choose a row and carve horizontally across the whole river thickness
   for (let lx = 0; lx < cols; lx += 2) {
     let y = 0;
     while (y < rows) {
       // find start of river span
       while (y < rows && !(ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) y++;
       if (y >= rows) break;
-      let y0 = y;
+      const y0 = y;
       while (y < rows && (ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) y++;
       const y1 = y - 1;
       const spanLen = y1 - y0 + 1;
       if (spanLen >= 2) {
-        // place a bridge near the center, and additional every stride
         for (let k = 0; k * stride < spanLen; k++) {
           const off = Math.floor(spanLen / 2) + k * stride;
           const lyBridge = y0 + Math.min(off, spanLen - 1);
           // ensure adjacent horizontal tiles lead to land within 1 step
           const hasLandSide = isLandLocal(Math.max(0, lx - 1), lyBridge) || isLandLocal(Math.min(cols - 1, lx + 1), lyBridge);
           if (hasLandSide) {
-            const ax = ox + lx, ay = oy + lyBridge;
-            addBridgeAbs(ax, ay);
+            carveAcrossRow(lx, lyBridge);
             break; // one per span in this pass
           }
         }
@@ -216,7 +246,7 @@ function ensureExtraBridges(ctx) {
     }
   }
 
-  // Horizontal scans (rows)
+  // Horizontal scans (rows) — choose a column and carve vertically across the whole river thickness
   for (let ly = 0; ly < rows; ly += 2) {
     let x = 0;
     while (x < cols) {
@@ -232,8 +262,7 @@ function ensureExtraBridges(ctx) {
           const lxBridge = x0 + Math.min(off, spanLen - 1);
           const hasLandSide = isLandLocal(lxBridge, Math.max(0, ly - 1)) || isLandLocal(lxBridge, Math.min(rows - 1, ly + 1));
           if (hasLandSide) {
-            const ax = ox + lxBridge, ay = oy + ly;
-            addBridgeAbs(ax, ay);
+            carveAcrossCol(lxBridge, ly);
             break;
           }
         }
