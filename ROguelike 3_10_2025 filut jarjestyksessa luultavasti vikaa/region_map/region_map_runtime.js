@@ -850,7 +850,6 @@ function open(ctx, size) {
         if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {
           markAnimalsSeenByAnchor(anchor);
           // Also update flag in this session
-          ctx.regionupdate flag in this session
           ctx.region._hasKnownAnimals = true;
 
           // Ensure FOV is up to date before logging visibility info
@@ -1164,9 +1163,9 @@ attachGlobal("RegionMapRuntime", {
   tryMove,
   onAction,
   tick,
-  // Persistence helpers for animals memory/clear state
-  markAnimalsCleared,
-  animalsClearedHere,
-  markAnimalsSeen,
-  animalsSeenHere
+  // Persistence helpers for animals memory/clear state (anchor-based exports)
+  markAnimalsClearedByAnchor,
+  animalsClearedHereByAnchor,
+  markAnimalsSeenByAnchor,
+  animalsSeenHereByAnchor
 });
