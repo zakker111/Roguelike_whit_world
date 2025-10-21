@@ -450,8 +450,8 @@ function ensureExpandedAroundPlayer(ctx) {
       const startY = Math.floor((cam.y || 0) / TILE);
       const endX = startX + (COLS - 1);
       const endY = startY + (ROWS - 1);
-      const padX = Math.max(3, Math.floor(COLS * 0.25)); // expand when within ~25% of viewport from edge
-      const padY = Math.max(2, Math.floor(ROWS * 0.25));
+      const padX = Math.max(3, Math.floor(COLS * 0.45)); // expand when within ~45% of viewport from edge
+      const padY = Math.max(2, Math.floor(ROWS * 0.45));
       if (startX <= padX) { changed = expandLeft(ctx, cw) || changed; }
       if (endX >= cols - 1 - padX) { changed = expandRight(ctx, cw) || changed; }
       if (startY <= padY) { changed = expandTop(ctx, ch) || changed; }
@@ -518,8 +518,11 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
     return false;
   }
 
-  const width = (typeof opts.width === "number") ? opts.width : (ctx.MAP_COLS || 120);
-  const height = (typeof opts.height === "number") ? opts.height : (ctx.MAP_ROWS || 80);
+  // Start with a small initial world roughly the size of the viewport + margin.
+  const startW = Math.max(48, (ctx.COLS || 30) + 20);
+  const startH = Math.max(48, (ctx.ROWS || 20) + 20);
+  const width = startW;
+  const height = startH;
 
   try {
     ctx.world = W.generate(ctx, { width, height });
@@ -559,17 +562,25 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
 
   // Apply world map and reveal it fully
   ctx.map = ctx.world.map;
-  {
-    const rows = ctx.map.length;
-    const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-    ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
-    ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
-  }
+  const rows = ctx.map.length;
+  const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+  ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
+  ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
 
   // Camera/FOV/UI
   try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
   try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
   try { typeof ctx.updateUI === "function" && ctx.updateUI(); } catch (_) {}
+
+  // Pre-expand so the viewport starts comfortably away from edges.
+  try {
+    typeof ctx.updateCamera === "function" && ctx.updateCamera();
+    for (let i = 0; i < 6; i++) {
+      const changed = !!ensureExpandedAroundPlayer(ctx);
+      if (!changed) break;
+      typeof ctx.updateCamera === "function" && ctx.updateCamera();
+    }
+  } catch (_) {}
 
   // Arrival log
   ctx.log && ctx.log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
@@ -580,20 +591,15 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
     if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(ctx);
   } catch (_) {}
 
-  // Draw handled by orchestrator after sync; avoid redundant frames here.
+  // Draw is handled by the orchestrator (core/game.js) after sync; avoid redundant frames here.
   return true;
 }
 
-/**
- * Optional per-turn hook for world mode.
- * Keeps the interface consistent with TownRuntime/DungeonRuntime tick hooks.
- * Currently a no-op placeholder for future world-side time/day effects.
- */
 export function tick(ctx) {
+  // Keep expanding around the player as they explore; world mode reveals everything.
   try {
-    typeof ctx.updateCamera === "function" && ctx.updateCamera();
+    if (ctx && ctx.mode === "world") ensureExpandedAroundPlayer(ctx);
   } catch (_) {}
-  ensureExpandedAroundPlayer(ctx);
   return true;
 }
 
@@ -601,3 +607,5 @@ export function tick(ctx) {
 if (typeof window !== "undefined") {
   window.WorldRuntime = { generate, tryMovePlayerWorld, tick };
 }
+
+  
