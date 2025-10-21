@@ -126,15 +126,34 @@ function create(seed, opts = {}) {
   }
 
   function placePOI(x, y) {
-    // On coarse lattice, roll for a POI if terrain is suitable
-    const tx = Math.floor(x / cfg.townGrid);
-    const ty = Math.floor(y / cfg.townGrid);
-    const dx = Math.floor(x / cfg.dungeonGrid);
-    const dy = Math.floor(y / cfg.dungeonGrid);
+    // Deterministic per-cell anchor so at most ONE tile in a coarse cell becomes a POI.
+    const cellTownX = Math.floor(x / cfg.townGrid), cellTownY = Math.floor(y / cfg.townGrid);
+    const cellDungX = Math.floor(x / cfg.dungeonGrid), cellDungY = Math.floor(y / cfg.dungeonGrid);
 
-    // Avoid water/river for entrances
-    const t = classify(x, y);
-    if (t === TILES.WATER || t === TILES.RIVER || t === TILES.SWAMP) return null;
+    // Pick an anchor within each cell using a margin so it isn't right on the edges.
+    const marginTown = 3;
+    const baseTownX = cellTownX * cfg.townGrid;
+    const baseTownY = cellTownY * cfg.townGrid;
+    const offTownX = marginTown + Math.floor(hash2(s ^ 0x3333, cellTownX, cellTownY) * Math.max(1, cfg.townGrid - marginTown * 2));
+    const offTownY = marginTown + Math.floor(hash2(s ^ 0x4444, cellTownX, cellTownY) * Math.max(1, cfg.townGrid - marginTown * 2));
+    const anchorTownX = baseTownX + offTownX;
+    const anchorTownY = baseTownY + offTownY;
+
+    const marginDung = 3;
+    const baseDungX = cellDungX * cfg.dungeonGrid;
+    const baseDungY = cellDungY * cfg.dungeonGrid;
+    const offDungX = marginDung + Math.floor(hash2(s ^ 0x5555, cellDungX, cellDungY) * Math.max(1, cfg.dungeonGrid - marginDung * 2));
+    const offDungY = marginDung + Math.floor(hash2(s ^ 0x6666, cellDungX, cellDungY) * Math.max(1, cfg.dungeonGrid - marginDung * 2));
+    const anchorDungX = baseDungX + offDungX;
+    const anchorDungY = baseDungY + offDungY;
+
+    // Only consider POI placement when queried exactly at the anchor coordinate
+    const atTownAnchor = (x === anchorTownX && y === anchorTownY);
+    const atDungAnchor = (x === anchorDungX && y === anchorDungY);
+
+    // Avoid water/river/swamp for entrances
+    const tHere = classify(x, y);
+    if (tHere === TILES.WATER || tHere === TILES.RIVER || tHere === TILES.SWAMP) return null;
 
     // Towns near coasts/rivers preferred
     const coastBias = (classify(x + 1, y) === TILES.WATER || classify(x - 1, y) === TILES.WATER
@@ -142,13 +161,17 @@ function create(seed, opts = {}) {
       || classify(x + 1, y) === TILES.RIVER || classify(x - 1, y) === TILES.RIVER
       || classify(x, y + 1) === TILES.RIVER || classify(x, y - 1) === TILES.RIVER) ? 0.08 : 0.0;
 
-    // Town roll
-    const rTown = hash2(s ^ 0x1111, tx, ty);
-    if (rTown < (cfg.townChance + coastBias)) return TILES.TOWN;
+    // Town roll (only at the town anchor of the cell)
+    if (atTownAnchor) {
+      const rTown = hash2(s ^ 0x1111, cellTownX, cellTownY);
+      if (rTown < (cfg.townChance + coastBias)) return TILES.TOWN;
+    }
 
-    // Dungeon roll
-    const rDung = hash2(s ^ 0x2222, dx, dy);
-    if (rDung < cfg.dungeonChance) return TILES.DUNGEON;
+    // Dungeon roll (only at the dungeon anchor of the cell)
+    if (atDungAnchor) {
+      const rDung = hash2(s ^ 0x2222, cellDungX, cellDungY);
+      if (rDung < cfg.dungeonChance) return TILES.DUNGEON;
+    }
 
     return null;
   }
