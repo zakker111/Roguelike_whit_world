@@ -46,13 +46,12 @@ export function isFreeTownFloor(ctx, x, y) {
   return true;
 }
 
-// Back-compat: attach to window for classic scripts
-if (typeof window !== "undefined") {
-  window.Utils = {
-    manhattan,
-    inBounds,
-    isWalkableTile,
-    isFreeFloor,
-    isFreeTownFloor,
-  };
-}
+import { attachGlobal } from "./global.js";
+// Back-compat: attach to window via helper
+attachGlobal("Utils", {
+  manhattan,
+  inBounds,
+  isWalkableTile,
+  isFreeFloor,
+  isFreeTownFloor,
+});
