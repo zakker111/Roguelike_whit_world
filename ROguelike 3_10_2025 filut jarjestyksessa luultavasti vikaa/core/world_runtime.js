@@ -209,13 +209,13 @@ function ensureInBounds(ctx, nx, ny, CHUNK = 32) {
   const rows = ctx.map.length;
   const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
 
-  if (nx &lt; 0) { expandMap(ctx, "left", Math.max(CHUNK, -nx + 4)); expanded = true; }
-  if (ny &lt; 0) { expandMap(ctx, "top", Math.max(CHUNK, -ny + 4)); expanded = true; }
+  if (nx < 0) { expandMap(ctx, "left", Math.max(CHUNK, -nx + 4)); expanded = true; }
+  if (ny < 0) { expandMap(ctx, "top", Math.max(CHUNK, -ny + 4)); expanded = true; }
   // Recompute after potential prepends
   const rows2 = ctx.map.length;
   const cols2 = rows2 ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-  if (nx &gt;= cols2) { expandMap(ctx, "right", Math.max(CHUNK, nx - cols2 + 5)); expanded = true; }
-  if (ny &gt;= rows2) { expandMap(ctx, "bottom", Math.max(CHUNK, ny - rows2 + 5)); expanded = true; }
+  if (nx >= cols2) { expandMap(ctx, "right", Math.max(CHUNK, nx - cols2 + 5)); expanded = true; }
+  if (ny >= rows2) { expandMap(ctx, "bottom", Math.max(CHUNK, ny - rows2 + 5)); expanded = true; }
 
   return expanded;
 }
@@ -450,5 +450,5 @@ export function tick(ctx) {
 
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
-  window.WorldRuntime = { generate, tryMovePlayerWorld, tick, ensure};
+  window.WorldRuntime = { generate, tryMovePlayerWorld, tick, ensureInBounds: _ensureInBounds };
 }
