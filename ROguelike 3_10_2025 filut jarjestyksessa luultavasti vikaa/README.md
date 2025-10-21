@@ -16,6 +16,38 @@ Play it
   - Wait: Numpad5
   - Brace: B (dungeon only; raises block chance this turn if holding a defensive hand item)
 
+Overworld and exploration (infinite world)
+- Infinite, deterministic overworld streaming in 32-tile chunks as you explore beyond the current edges.
+- Real FOV/LOS on the overworld: only tiles you’ve seen are revealed; unseen tiles are fogged.
+- Minimap reflects fog-of-war and grows as the map expands. Toggle in the GOD panel (persists).
+- Roads and bridges:
+  - Roads connect nearby towns within the currently streamed window (no dangling roads off-screen).
+  - Bridges carve fully across river width (1–3 tiles) for complete crossings.
+- POIs (towns/dungeons) are placed sparsely and deterministically; density slightly increased (~1–2%).
+- Mountain pass dungeons:
+  - If a dungeon entrance is on/adjacent to a Mountain tile, a special portal is placed deeper inside.
+  - Stepping on that portal tunnels to a new dungeon “across” the mountain.
+  - Any regular STAIRS tile returns you to the overworld (press G).
+
+Encounters
+- While traveling on the overworld, you may be prompted with a random encounter. Accept to enter a small tactical map themed by the current biome.
+- Default encounter rate is 5% (tunable via the GOD panel “Encounter rate” slider; persists).
+- Exit: stand on the '>' tile and press G to return to the overworld (no auto-exit).
+- Props: pressing G while standing on a prop logs a context message (barrel/crate/bench/campfire, etc.). Lootable containers (chests/corpses) use G to open loot.
+- Merchants: some encounters feature a wandering merchant. Bumping into the merchant opens the Shop UI; premium stock is available.
+
+Towns and Wild Seppo
+- Shops, schedules, plaza, greeters; bump-shop at the door to trade when open.
+- Wild Seppo (wandering merchant) may arrive at the plaza rarely during day/dusk.
+  - Only one Seppo can be in town at a time; no duplicates will spawn.
+
+Region Map (local tactical overlay)
+- Open with M on a walkable overworld tile.
+- Neutral animals (deer/fox/boar) are rare:
+  - At most one spawns in sufficiently wild areas; many tiles have none.
+  - If animals were seen here previously, future visits re‑spawn only with a 10% chance.
+  - Clearing animals marks the tile as cleared; future spawns are skipped.
+
 Data-driven configuration
 - Combined assets (strict): data/world_assets.json contains tiles and props and is required in strict mode.
   - tiles: structural and terrain entries (e.g., FLOOR, WALL, DOOR, STAIRS, WINDOW).
@@ -33,19 +65,11 @@ Determinism and seeds
 - RNG is centralized; apply seeds in the GOD panel.
 - With the same seed and context, generation and item rolls are repeatable.
 
-Encounters
-- While traveling on the overworld, you may be prompted with a random encounter. Accept to enter a small tactical map themed by the current biome.
-- Exit: stand on the '>' tile and press G to return to the overworld (no auto-exit).
-- Props: pressing G while standing on a prop logs a context message (barrel/crate/bench/campfire, etc.). Lootable containers (chests/corpses) use G to open loot.
-- Merchants: some encounters feature a wandering merchant (e.g., Seppo). Bumping into the merchant opens the Shop UI; premium stock is available.
-- Encounter rate: adjustable in the GOD panel via the “Encounter rate” slider (0–100). Setting persists per-browser.
-
 Smoketest (optional)
 - Orchestrator default: append ?smoketest=1 to the URL; add &dev=1 for diagnostics.
 - Scenario filter: &scenarios=world,dungeon,inventory,combat,town,overlays,determinism (legacy style &smoke= also supported).
 - Multiple runs: &smokecount=N.
 - Legacy thin shim: &legacy=1 (orchestrator skips auto‑run; shim delegates to orchestrator).
-- DEV-only JSON validation injection: &validatebad=1 (or &badjson=1) + &dev=1.
 - The GOD panel shows:
   - Step Details (OK/FAIL/SKIP)
   - Key Checklist (entered dungeon, chest/persistence, enemy spawn/types/glyphs, town/NPC/shop checks)
@@ -68,6 +92,7 @@ Bundling (optional, Vite)
   - You can deploy either the raw repo (native ESM) or the dist/ folder produced by Vite.
 
 Key features at a glance
+- Infinite, deterministic overworld with chunk streaming and fog-of-war.
 - Single-floor dungeons with connected rooms, guaranteed stairs, and data-driven enemies.
 - Interaction-first gameplay: bump-to-attack, G to loot/interact/enter/exit.
 - HUD perf overlay: shows last turn and draw timings (ms) next to the clock for optimization visibility.
@@ -75,9 +100,7 @@ Key features at a glance
   - Two-handed items occupy both hands; unequipping one removes both.
   - One-handed items auto-equip to the empty hand or can be equipped explicitly left/right.
   - Decay increases through combat; breakage is supported.
-- Towns with shops and NPCs:
-  - Shops, schedules, and greeters; basic bump-buy test hooks (if enabled).
-  - NPC bump dialogue; home/prop checks; ESC closes the Shop panel.
+- Towns with shops and NPCs; Seppo spawns at most once at a time.
 - Lighting from props:
   - Town: lamps and fireplaces emit light at night/dawn/dusk; small warm glow overlay.
   - Dungeon: wall torches spawn sparsely on walls, always emit light; subtle glow overlay.
