@@ -133,6 +133,24 @@ export function draw(ctx, view) {
     }
   }
 
+  // Top-edge water band: if camera reveals rows above y=0, paint a few rows of water before the dark void
+  try {
+    const bandTiles = 4;
+    const waterDef = getTileDef("overworld", WT.WATER);
+    const waterFill = (waterDef && waterDef.colors && waterDef.colors.fill) ? waterDef.colors.fill : fallbackFillOverworld(WT, WT.WATER);
+    if (startY < 0) {
+      const yStart = Math.max(startY, -bandTiles);
+      for (let y = yStart; y < 0; y++) {
+        for (let x = startX; x <= endX; x++) {
+          const sx = (x - startX) * TILE - tileOffsetX;
+          const sy = (y - startY) * TILE - tileOffsetY;
+          ctx2d.fillStyle = waterFill;
+          ctx2d.fillRect(sx, sy, TILE, TILE);
+        }
+      }
+    }
+  } catch (_) {}
+
   // Coastline/shoreline outlines for water/river adjacency (visual polish)
   try {
     for (let y = startY; y <= endY; y++) {
