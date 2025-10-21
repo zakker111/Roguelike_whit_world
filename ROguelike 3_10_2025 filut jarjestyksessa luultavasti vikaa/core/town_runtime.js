@@ -108,6 +108,20 @@ export function talk(ctx) {
   // Only shopkeepers can open shops; villagers should not trigger trading.
   const isKeeper = !!(npc && (npc.isShopkeeper || npc._shopRef));
 
+  // Determine if keeper is physically at their shop (on the door tile or inside the building)
+  function isKeeperAtShop(n, shop) {
+    if (!n || !shop) return false;
+    const atDoor = (n.x === shop.x && n.y === shop.y);
+    let inside = false;
+    try {
+      const b = shop.building || null;
+      if (b) {
+        inside = (n.x > b.x && n.x < b.x + b.w - 1 && n.y > b.y && n.y < b.y + b.h - 1);
+      }
+    } catch (_) {}
+    return atDoor || inside;
+  }
+
   // Helper to open a shop reference (if open), showing schedule when closed
   function tryOpenShopRef(shopRef, sourceNpc) {
     try {
@@ -130,35 +144,18 @@ export function talk(ctx) {
   }
 
   if (isKeeper) {
-    // Prefer the explicit reference from the NPC; else fallback to nearest door shop
     try {
       const shopRef = npc._shopRef || null;
-      let targetShop = shopRef;
-      if (!targetShop) {
-        const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-        for (const s of shops) {
-          const dd = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
-          if (dd <= 1) { targetShop = s; break; }
-        }
-      }
-      if (targetShop) {
-        tryOpenShopRef(targetShop, npc);
+      if (shopRef && isKeeperAtShop(npc, shopRef)) {
+        tryOpenShopRef(shopRef, npc);
+      } else if (shopRef) {
+        ctx.log && ctx.log(`${npc.name || "Shopkeeper"} is away from the ${shopRef.name || "shop"}.`, "info");
       }
     } catch (_) {}
     return true;
   }
 
-  // Fallback: if player is bumping a non-keeper but standing adjacent to a shop door, open that shop.
-  try {
-    const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-    for (const s of shops) {
-      const dp = Math.abs(s.x - ctx.player.x) + Math.abs(s.y - ctx.player.y);
-      if (dp <= 1) {
-        if (tryOpenShopRef(s, npc)) return true;
-      }
-    }
-  } catch (_) {}
-
+  // Do not auto-open shops when bumping non-keepers, even if near a door.
   return true;
 }
 
