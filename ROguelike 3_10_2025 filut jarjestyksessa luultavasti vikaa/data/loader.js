@@ -34,7 +34,8 @@ const DATA_FILES = {
   shopPools: "data/shop_pools.json",
   shopRules: "data/shop_rules.json",
   shopRestock: "data/shop_restock.json",
-  progression: "data/progression.json"
+  progression: "data/progression.json",
+  animals: "data/animals.json"
 };
 
 function fetchJson(url) {
@@ -86,7 +87,7 @@ GameData.ready = (async function loadAll() {
     const [
       assetsCombined,
       items, enemies, npcs, consumables, shops, town, flavor, encounters, config, palette, messages,
-      shopPhases, shopPools, shopRules, shopRestock, progression
+      shopPhases, shopPools, shopRules, shopRestock, progression, animals
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -104,7 +105,8 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.shopPools).catch(() => null),
       fetchJson(DATA_FILES.shopRules).catch(() => null),
       fetchJson(DATA_FILES.shopRestock).catch(() => null),
-      fetchJson(DATA_FILES.progression).catch(() => null)
+      fetchJson(DATA_FILES.progression).catch(() => null),
+      fetchJson(DATA_FILES.animals).catch(() => null)
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -124,6 +126,7 @@ GameData.ready = (async function loadAll() {
     GameData.shopRules = (shopRules && typeof shopRules === "object") ? shopRules : null;
     GameData.shopRestock = (shopRestock && typeof shopRestock === "object") ? shopRestock : null;
     GameData.progression = (progression && typeof progression === "object") ? progression : null;
+    GameData.animals = Array.isArray(animals) ? animals : null;
 
     // Strict: require combined assets file (tiles + props)
     try {

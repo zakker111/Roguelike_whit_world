@@ -769,12 +769,43 @@ function open(ctx, size) {
         return;
       }
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
-      const types = ["deer","boar","fox"];
-      function pickType() {
-        const r = rng();
-        if (r < 0.45) return "deer";
-        if (r < 0.75) return "fox";
-        return "boar";
+      // Pick animal definition from GameData.animals using biome-weighted selection
+      function pickAnimalDef() {
+        try {
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          const arr = GD && Array.isArray(GD.animals) ? GD.animals : null;
+          if (!arr || !arr.length) return null;
+          const WT2 = World.TILES;
+          // Compute biome fractions for spawn weighting
+          const { counts: cnts, total } = countBiomes(sample);
+          function frac(key) {
+            try {
+              const tileId = WT2[key];
+              const c = cnts[tileId] || 0;
+              return total ? (c / total) : 0;
+            } catch (_) { return 0; }
+          }
+          // Score each animal by sum(weight[biome] * fraction(biome))
+          const scores = arr.map((a) => {
+            const sw = (a && a.spawnWeight && typeof a.spawnWeight === "object") ? a.spawnWeight : {};
+            let s = 0;
+            for (const k in sw) {
+              const wv = Number(sw[k] || 0);
+              if (wv > 0) s += wv * frac(k);
+            }
+            // Small base weight to avoid zero-probability when biome is sparse
+            s += 0.01;
+            return Math.max(0, s);
+          });
+          const sum = scores.reduce((acc, v) => acc + v, 0);
+          if (sum <= 0) return arr[((rng() * arr.length) | 0)];
+          let r = rng() * sum;
+          for (let i = 0; i < arr.length; i++) {
+            r -= scores[i];
+            if (r <= 0) return arr[i];
+          }
+          return arr[arr.length - 1];
+        } catch (_) { return null; }
       }
       function randomWalkable() {
         for (let tries = 0; tries < 200; tries++) {
@@ -788,50 +819,17 @@ function open(ctx, size) {
         }
         return null;
       }
-      function randomNearWalkable(cx, cy, radius = 8) {
-        // Try to find a spot within radius first
-        for (let tries = 0; tries < 120; tries++) {
-          const dx = ((rng() * (radius * 2 + 1)) | 0) - radius;
-          const dy = ((rng() * (radius * 2 + 1)) | 0) - radius;
-          const x = cx + dx;
-          const y = cy + dy;
-          if (x < 0 || y < 0 || x >= w || y >= h) continue;
-          if (Math.abs(dx) + Math.abs(dy) > radius) continue;
-          const t = sample[y][x];
-          const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
-          const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
-          if (walkable && !occupied) return { x, y };
-        }
-        return null;
-      }
       let spawned = 0;
-      const cx0 = (ctx.region.cursor && typeof ctx.region.cursor.x === "number") ? (ctx.region.cursor.x | 0) : 0;
-      const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
-
-      // Try to guarantee at least one creature spawns very close to the player if any spawn at all
-      function randomAdjacent(cx, cy) {
-        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-        // shuffle to avoid bias
-        for (let i = dirs.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; const tmp = dirs[i]; dirs[i] = dirs[j]; dirs[j] = tmp; }
-        for (const d of dirs) {
-          const x = cx + d.dx, y = cy + d.dy;
-          if (x < 0 || y < 0 || x >= w || y >= h) continue;
-          const t = sample[y][x];
-          const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
-          const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
-          if (walkable && !occupied) return { x, y };
-        }
-        return null;
-      }
 
       for (let i = 0; i < count; i++) {
-        // Spawn creatures anywhere within the region map (no bias toward the player)
         const pos = randomWalkable();
         if (!pos) break;
-        const t = pickType();
-        const hp = t === "deer" ? 3 : t === "fox" ? 2 : 4;
-        const atk = t === "deer" ? 0.6 : t === "fox" ? 0.7 : 0.9;
-        ctx.enemies.push({ x: pos.x, y: pos.y, type: t, glyph: (t[0] || "?"), hp, atk, xp: 0, level: 1, faction: "animal", announced: false });
+        const def = pickAnimalDef();
+        const typeId = (def && def.id) ? def.id : (def && def.type) ? def.type : null;
+        const glyph = (def && def.glyph) ? def.glyph : (typeId && typeId[0]) ? typeId[0] : "?";
+        const hp = (def && typeof def.hp === "number") ? def.hp : 3;
+        const atk = (def && typeof def.atk === "number") ? def.atk : 0.8;
+        ctx.enemies.push({ x: pos.x, y: pos.y, type: typeId || "animal", glyph, hp, atk, xp: 0, level: 1, faction: "animal", announced: false });
         spawned++;
       }
       // Persist animal presence for this region (world coordinates) so we remember later
