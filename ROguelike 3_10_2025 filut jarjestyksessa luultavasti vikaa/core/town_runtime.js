@@ -107,37 +107,54 @@ export function talk(ctx) {
 
   // Only shopkeepers can open shops; villagers should not trigger trading.
   const isKeeper = !!(npc && (npc.isShopkeeper || npc._shopRef));
-  if (!isKeeper) {
-    return true;
-  }
 
-  // Open shop when bumping the shopkeeper if the shop is open.
-  try {
-    const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
-    const shopRef = npc._shopRef || null;
-
-    // Prefer the explicit reference from the NPC; else fallback to nearest door shop
-    let targetShop = shopRef;
-    if (!targetShop) {
-      const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-      for (const s of shops) {
-        const dd = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
-        if (dd <= 1) { targetShop = s; break; }
-      }
-    }
-
-    if (targetShop) {
-      const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, targetShop) : false;
-      const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(targetShop) : "";
+  // Helper to open a shop reference (if open), showing schedule when closed
+  function tryOpenShopRef(shopRef, sourceNpc) {
+    try {
+      const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
+      const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, shopRef) : false;
+      const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(shopRef) : "";
       if (openNow) {
         let wasOpen = false;
         try { wasOpen = !!(ctx.UIBridge && typeof ctx.UIBridge.isShopOpen === "function" && ctx.UIBridge.isShopOpen()); } catch (_) {}
         if (ctx.UIBridge && typeof ctx.UIBridge.showShop === "function") {
-          ctx.UIBridge.showShop(ctx, npc);
+          ctx.UIBridge.showShop(ctx, sourceNpc || npc);
         }
         if (!wasOpen) { ctx.requestDraw && ctx.requestDraw(); }
+        return true;
       } else {
-        ctx.log && ctx.log(`The ${targetShop.name || "shop"} is closed. ${sched}`, "warn");
+        ctx.log && ctx.log(`The ${shopRef.name || "shop"} is closed. ${sched}`, "warn");
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  if (isKeeper) {
+    // Prefer the explicit reference from the NPC; else fallback to nearest door shop
+    try {
+      const shopRef = npc._shopRef || null;
+      let targetShop = shopRef;
+      if (!targetShop) {
+        const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+        for (const s of shops) {
+          const dd = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
+          if (dd <= 1) { targetShop = s; break; }
+        }
+      }
+      if (targetShop) {
+        tryOpenShopRef(targetShop, npc);
+      }
+    } catch (_) {}
+    return true;
+  }
+
+  // Fallback: if player is bumping a non-keeper but standing adjacent to a shop door, open that shop.
+  try {
+    const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+    for (const s of shops) {
+      const dp = Math.abs(s.x - ctx.player.x) + Math.abs(s.y - ctx.player.y);
+      if (dp <= 1) {
+        if (tryOpenShopRef(s, npc)) return true;
       }
     }
   } catch (_) {}
