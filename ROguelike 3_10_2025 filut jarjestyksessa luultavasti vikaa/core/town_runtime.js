@@ -236,13 +236,7 @@ export function applyLeaveSync(ctx) {
     }
   } catch (_) {}
 
-  // Restore world position if available
-  try {
-    if (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
-      ctx.player.x = ctx.worldReturnPos.x;
-      ctx.player.y = ctx.worldReturnPos.y;
-    }
-  } catch (_) {}
+  
 
   // Clear exit anchors
   try {
