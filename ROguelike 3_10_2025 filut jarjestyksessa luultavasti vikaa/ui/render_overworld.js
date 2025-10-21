@@ -102,12 +102,14 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Draw world base: offscreen blit if available, otherwise fallback per-tile loop
+  // Draw world base: offscreen blit if available; if blit fails, fall back to per-tile loop
+  let blitted = false;
   if (WORLD.canvas) {
     try {
-      RenderCore.blitViewport(ctx2d, WORLD.canvas, cam, WORLD.wpx, WORLD.hpx);
-    } catch (_) {}
-  } else {
+      blitted = !!RenderCore.blitViewport(ctx2d, WORLD.canvas, cam, WORLD.wpx, WORLD.hpx);
+    } catch (_) { blitted = false; }
+  }
+  if (!blitted) {
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const row = yIn ? map[y] : null;
@@ -131,6 +133,94 @@ export function draw(ctx, view) {
     }
   }
 
+  // Top-edge boundary: render an organic shoreline + water to disguise the hard boundary.
+  // Visual only; world data isn't changed. Movement into y < 0 is blocked in world_runtime.
+  try {
+    if (startY < 0) {
+      // Stable 1D hash for column variation
+      function h1(n) {
+        let x = (n | 0) * 374761393;
+        x = (x ^ (x >>> 13)) | 0;
+        x = Math.imul(x, 1274126177) | 0;
+        x = (x ^ (x >>> 16)) >>> 0;
+        return (x % 1000003) / 1000003;
+      }
+      // Colors
+      const waterDef = getTileDef("overworld", WT.WATER);
+      const beachDef = getTileDef("overworld", WT.BEACH);
+      const waterFill = (waterDef && waterDef.colors && waterDef.colors.fill) ? waterDef.colors.fill : fallbackFillOverworld(WT, WT.WATER);
+      const beachFill = (beachDef && beachDef.colors && beachDef.colors.fill) ? beachDef.colors.fill : "#b59b6a";
+
+      // Per-column variable band height + subtle wave stripes and foam at the lip
+      const minBand = 2, maxBand = 6;
+      for (let x = startX; x <= endX; x++) {
+        const r = h1(x * 9176 + 13);
+        const bandH = minBand + ((r * (maxBand - minBand + 1)) | 0); // 2..6 tiles
+        // Draw water tiles for rows [-bandH .. -1]
+        for (let y = -bandH; y < 0; y++) {
+          if (y < startY) continue; // above viewport
+          const sx = (x - startX) * TILE - tileOffsetX;
+          const sy = (y - startY) * TILE - tileOffsetY;
+          // base water
+          ctx2d.fillStyle = waterFill;
+          ctx2d.fillRect(sx, sy, TILE, TILE);
+
+          // wave banding (very subtle)
+          const wave = ((x + y) & 1) === 0;
+          if (wave) {
+            ctx2d.save();
+            ctx2d.globalAlpha = 0.10;
+            ctx2d.fillStyle = "#103a57";
+            ctx2d.fillRect(sx, sy + (Math.max(2, TILE * 0.4) | 0), TILE, 2);
+            ctx2d.restore();
+          }
+        }
+
+        // Foam along the lip at y = -1 (if visible), and a thin beach tint on the first on-map row (y=0)
+        if (-1 >= startY) {
+          const sx = (x - startX) * TILE - tileOffsetX;
+          const sy = (-1 - startY) * TILE - tileOffsetY;
+          // foam jitter
+          const fr = h1( (x*31) ^ 0x9e3779 );
+          const fo = 2 + ((fr * (TILE - 6)) | 0);
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.22;
+          ctx2d.fillStyle = "rgba(255,255,255,0.85)";
+          ctx2d.fillRect(sx + 2, sy + (TILE - 3), TILE - 4, 2);
+          ctx2d.globalAlpha = 0.15;
+          ctx2d.fillRect(sx + fo, sy + (TILE - 5), Math.max(2, (TILE * 0.25) | 0), 2);
+          ctx2d.restore();
+        }
+
+        // Beach tint into the first visible on-map row to simulate shore transition
+        if (0 >= startY && 0 < mapRows) {
+          const sx0 = (x - startX) * TILE - tileOffsetX;
+          const sy0 = (0 - startY) * TILE - tileOffsetY;
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.10; // subtle
+          ctx2d.fillStyle = beachFill;
+          ctx2d.fillRect(sx0, sy0, TILE, Math.max(2, (TILE * 0.35) | 0));
+          ctx2d.restore();
+        }
+      }
+
+      // Gentle vignette fade above shoreline to suggest distance/haze instead of void
+      ctx2d.save();
+      const fadeRows = 2;
+      for (let yy = Math.max(startY, -maxBand - fadeRows); yy < -maxBand + 1; yy++) {
+        const alpha = Math.max(0, Math.min(0.25, 0.15 + (yy + maxBand) * 0.06));
+        if (alpha <= 0) continue;
+        for (let xx = startX; xx <= endX; xx++) {
+          const sx = (xx - startX) * TILE - tileOffsetX;
+          const sy = (yy - startY) * TILE - tileOffsetY;
+          ctx2d.fillStyle = `rgba(10, 27, 42, ${alpha.toFixed(3)})`;
+          ctx2d.fillRect(sx, sy, TILE, TILE);
+        }
+      }
+      ctx2d.restore();
+    }
+  } catch (_) {}
+
   // Coastline/shoreline outlines for water/river adjacency (visual polish)
   try {
     for (let y = startY; y <= endY; y++) {
@@ -139,14 +229,14 @@ export function draw(ctx, view) {
       for (let x = startX; x <= endX; x++) {
         if (x < 0 || x >= mapCols) continue;
         const t = map[y][x];
-        if (t !== TILES.WATER && t !== TILES.RIVER) continue;
+        if (t !== WT.WATER && t !== WT.RIVER) continue;
         // If adjacent to land (grass, forest, beach, swamp, desert, snow, town, dungeon), draw a light border on the land side
         const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
         for (const d of dirs) {
           const nx = x + d.dx, ny = y + d.dy;
           if (nx < 0 || ny < 0 || nx >= mapCols || ny >= mapRows) continue;
           const nt = map[ny][nx];
-          if (nt === TILES.WATER || nt === TILES.RIVER) continue;
+          if (nt === WT.WATER || nt === WT.RIVER) continue;
           const sx = (nx - startX) * TILE - tileOffsetX;
           const sy = (ny - startY) * TILE - tileOffsetY;
           ctx2d.save();
@@ -154,6 +244,31 @@ export function draw(ctx, view) {
           ctx2d.fillStyle = "#a8dadc";
           ctx2d.fillRect(sx, sy, TILE, TILE);
           ctx2d.restore();
+        }
+      }
+    }
+  } catch (_) {}
+
+  // Fog of war overlay: hide undiscovered tiles, dim seen-but-not-visible
+  try {
+    for (let y = startY; y <= endY; y++) {
+      if (y < 0 || y >= mapRows) continue;
+      const seenRow = ctx.seen && ctx.seen[y];
+      const visRow = ctx.visible && ctx.visible[y];
+      for (let x = startX; x <= endX; x++) {
+        if (x < 0 || x >= mapCols) continue;
+        const sx = (x - startX) * TILE - tileOffsetX;
+        const sy = (y - startY) * TILE - tileOffsetY;
+        const seenHere = !!(seenRow && seenRow[x]);
+        const visHere = !!(visRow && visRow[x]);
+        if (!seenHere) {
+          // Full fog
+          ctx2d.fillStyle = "#0b0c10";
+          ctx2d.fillRect(sx, sy, TILE, TILE);
+        } else if (!visHere) {
+          // Dim explored but not currently visible
+          ctx2d.fillStyle = "rgba(0,0,0,0.35)";
+          ctx2d.fillRect(sx, sy, TILE, TILE);
         }
       }
     }
@@ -177,7 +292,7 @@ export function draw(ctx, view) {
         const sy = (y - startY) * TILE - tileOffsetY;
 
         // Forest canopy dots
-        if (t === TILES.FOREST) {
+        if (t === WT.FOREST) {
           const r = h2(x, y);
           if (r < 0.75) {
             const dots = 1 + ((r * 3) | 0);
@@ -194,7 +309,7 @@ export function draw(ctx, view) {
         }
 
         // Mountain ridge highlight (top-left light)
-        if (t === TILES.MOUNTAIN) {
+        if (t === WT.MOUNTAIN) {
           ctx2d.save();
           ctx2d.globalAlpha = 0.20;
           ctx2d.fillStyle = "#2a3342";
@@ -204,7 +319,7 @@ export function draw(ctx, view) {
         }
 
         // Desert specks
-        if (t === TILES.DESERT) {
+        if (t === WT.DESERT) {
           const r = h2(x, y);
           if (r > 0.25) {
             ctx2d.save();
@@ -221,7 +336,7 @@ export function draw(ctx, view) {
         }
 
         // Snow subtle blue shade variation
-        if (t === TILES.SNOW) {
+        if (t === WT.SNOW) {
           ctx2d.save();
           ctx2d.globalAlpha = 0.08;
           ctx2d.fillStyle = "#94b7ff";
@@ -232,7 +347,7 @@ export function draw(ctx, view) {
         }
 
         // River shimmer (thin highlight line)
-        if (t === TILES.RIVER) {
+        if (t === WT.RIVER) {
           const r = ((x + y) & 1) === 0;
           ctx2d.save();
           ctx2d.globalAlpha = 0.12;
@@ -254,35 +369,38 @@ export function draw(ctx, view) {
   try {
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
     const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
+    const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
+    const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
     if (roads.length) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.38;
       ctx2d.fillStyle = "#9aa5b1"; // light slate for road
 
       // Helper: check if near a city to thicken segment
-      function nearCity(x, y) {
+      function nearCityAbs(ax, ay) {
         const R = 4;
         for (const t of towns) {
           if (!t || t.size !== "city") continue;
-          const d = Math.abs(t.x - x) + Math.abs(t.y - y);
+          const d = Math.abs(t.x - ax) + Math.abs(t.y - ay);
           if (d <= R) return true;
         }
         return false;
       }
 
       for (const p of roads) {
-        const x = p.x, y = p.y;
+        const ax = p.x | 0, ay = p.y | 0;      // absolute world coords
+        const x = ax - ox, y = ay - oy;        // local indices
         if (x < startX || x > endX || y < startY || y > endY) continue;
 
         // Dashed: skip every other tile based on parity; keep continuous look when near cities
-        const dashedSkip = ((x + y) % 2) !== 0 && !nearCity(x, y);
+        const dashedSkip = ((x + y) % 2) !== 0 && !nearCityAbs(ax, ay);
         if (dashedSkip) continue;
 
         const sx = (x - startX) * TILE - tileOffsetX;
         const sy = (y - startY) * TILE - tileOffsetY;
 
-        // Thickness scales with proximity to cities
-        const thick = nearCity(x, y);
+        // Thickness scales with proximity to cities (based on absolute coords)
+        const thick = nearCityAbs(ax, ay);
         const w = thick ? Math.max(3, Math.floor(TILE * 0.55)) : Math.max(2, Math.floor(TILE * 0.30));
         const h = thick ? Math.max(2, Math.floor(TILE * 0.40)) : Math.max(2, Math.floor(TILE * 0.30));
 
@@ -313,27 +431,32 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Main-map POI icons: towns and dungeons
+  // Main-map POI icons: towns and dungeons (convert absolute world coords -> local indices using world.origin)
   try {
     const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
     const dungeons = (ctx.world && Array.isArray(ctx.world.dungeons)) ? ctx.world.dungeons : [];
+    const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
+    const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
+
     // Towns: gold glyphs — 't' for towns, 'T' for cities
     for (const t of towns) {
-      const x = t.x, y = t.y;
-      if (x < startX || x > endX || y < startY || y > endY) continue;
-      const sx = (x - startX) * TILE - tileOffsetX;
-      const sy = (y - startY) * TILE - tileOffsetY;
+      const lx = (t.x | 0) - ox;
+      const ly = (t.y | 0) - oy;
+      if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+      const sx = (lx - startX) * TILE - tileOffsetX;
+      const sy = (ly - startY) * TILE - tileOffsetY;
       const glyph = (t.size === "city") ? "T" : "t";
       RenderCore.drawGlyph(ctx2d, sx, sy, glyph, "#ffd166", TILE);
     }
 
-    // Dungeons: red squares (unchanged)
+    // Dungeons: red squares
     ctx2d.save();
     for (const d of dungeons) {
-      const x = d.x, y = d.y;
-      if (x < startX || x > endX || y < startY || y > endY) continue;
-      const sx = (x - startX) * TILE - tileOffsetX;
-      const sy = (y - startY) * TILE - tileOffsetY;
+      const lx = (d.x | 0) - ox;
+      const ly = (d.y | 0) - oy;
+      if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+      const sx = (lx - startX) * TILE - tileOffsetX;
+      const sy = (ly - startY) * TILE - tileOffsetY;
       const s = Math.max(4, Math.floor(TILE * 0.48));
       ctx2d.fillStyle = "#ef4444";
       ctx2d.globalAlpha = 0.85;
@@ -434,16 +557,16 @@ export function draw(ctx, view) {
 
   // Minimap (top-right) with offscreen cache (toggleable) + POI markers
   try {
-    const showMini = (typeof window !== "undefined" && typeof window.SHOW_MINIMAP === "boolean") ? window.SHOW_MINIMAP : true;
+    const showMini = (typeof window !== "undefined" && typeof window.SHOW_MINIMAP === "boolean") ? window.SHOW_MINIMAP : false;
     if (showMini) {
       const mw = ctx.world && ctx.world.width ? ctx.world.width : (map[0] ? map[0].length : 0);
       const mh = ctx.world && ctx.world.height ? ctx.world.height : map.length;
       if (mw && mh) {
-        // Responsive clamp for small screens
-        let maxW = 200, maxH = 150;
+        // Responsive clamp for small screens (larger minimap)
+        let maxW = 280, maxH = 210;
         try {
           if (typeof window !== "undefined" && window.innerWidth && window.innerWidth < 700) {
-            maxW = 120; maxH = 90;
+            maxW = 180; maxH = 135;
           }
         } catch (_) {}
         const scale = Math.max(1, Math.floor(Math.min(maxW / mw, maxH / mh)));
@@ -452,25 +575,33 @@ export function draw(ctx, view) {
         const bx = cam.width - wpx - pad;
         const by = pad;
 
-        // Build offscreen once per world map reference or dimension change
+        // Build offscreen once per world map reference or dimension change or player moved (to reflect new seen tiles)
         const mapRef = map;
-        const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef();
+        const needsRebuild = (!MINI.canvas) || MINI.mapRef !== mapRef || MINI.wpx !== wpx || MINI.hpx !== hpx || MINI.scale !== scale || MINI._tilesRef !== tilesRef() || MINI.px !== player.x || MINI.py !== player.y;
         if (needsRebuild) {
           MINI.mapRef = mapRef;
           MINI.wpx = wpx;
           MINI.hpx = hpx;
           MINI.scale = scale;
           MINI._tilesRef = tilesRef();
+          MINI.px = player.x;
+          MINI.py = player.y;
           const off = RenderCore.createOffscreen(wpx, hpx);
           const oc = off.getContext("2d");
-          // tiles from JSON only
+          // Minimap: only draw tiles the player has discovered (ctx.seen)
           for (let yy = 0; yy < mh; yy++) {
             const rowM = map[yy];
+            const seenRow = (ctx.seen && ctx.seen[yy]) ? ctx.seen[yy] : null;
             for (let xx = 0; xx < mw; xx++) {
-              const t = rowM[xx];
-              const td = getTileDef("overworld", t);
-              const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
-              oc.fillStyle = c;
+              const seenHere = seenRow ? !!seenRow[xx] : false;
+              if (seenHere) {
+                const t = rowM[xx];
+                const td = getTileDef("overworld", t);
+                const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
+                oc.fillStyle = c;
+              } else {
+                oc.fillStyle = "#0b0c10"; // fog of war
+              }
               oc.fillRect(xx * scale, yy * scale, scale, scale);
             }
           }
@@ -500,18 +631,26 @@ export function draw(ctx, view) {
           ctx2d.drawImage(MINI.canvas, bx, by);
         }
 
-        // POI markers: towns (gold), dungeons (red)
+        // POI markers: towns (gold), dungeons (red) - convert absolute world coords to local indices
         try {
           const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
           const dungeons = Array.isArray(ctx.world?.dungeons) ? ctx.world.dungeons : [];
+          const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
+          const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
           ctx2d.save();
           for (const t of towns) {
+            const lx = (t.x | 0) - ox;
+            const ly = (t.y | 0) - oy;
+            if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
             ctx2d.fillStyle = "#f6c177";
-            ctx2d.fillRect(bx + t.x * scale, by + t.y * scale, Math.max(1, scale), Math.max(1, scale));
+            ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           for (const d of dungeons) {
+            const lx = (d.x | 0) - ox;
+            const ly = (d.y | 0) - oy;
+            if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
             ctx2d.fillStyle = "#f7768e";
-            ctx2d.fillRect(bx + d.x * scale, by + d.y * scale, Math.max(1, scale), Math.max(1, scale));
+            ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           ctx2d.restore();
         } catch (_) {}
@@ -524,15 +663,8 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // NPCs
-  if (Array.isArray(ctx.npcs)) {
-    for (const n of ctx.npcs) {
-      if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
-      const screenX = (n.x - startX) * TILE - tileOffsetX;
-      const screenY = (n.y - startY) * TILE - tileOffsetY;
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, "n", "#b4f9f8", TILE);
-    }
-  }
+  // Do not draw town NPCs in overworld renderer; towns are drawn by render_town.js
+  // (If we later add world-wandering NPCs, render a separate ctx.worldNpcs list instead.)
 
   // player - add backdrop marker + outlined glyph to improve visibility on overworld tiles
   if (player.x >= startX && player.x <= endX && player.y >= startY && player.y <= endY) {
@@ -590,7 +722,30 @@ export function draw(ctx, view) {
 
   // Grid overlay (if enabled)
   RenderCore.drawGridOverlay(view);
+
+  // Topmost: ensure player marker is above grid/tints for maximum visibility
+  try {
+    if (player.x >= startX && player.x <= endX && player.y >= startY && player.y <= endY) {
+      const screenX = (player.x - startX) * TILE - tileOffsetX;
+      const screenY = (player.y - startY) * TILE - tileOffsetY;
+      ctx2d.save();
+      // Bright outline square around the tile
+      ctx2d.globalAlpha = 0.9;
+      ctx2d.strokeStyle = "#ffffff";
+      ctx2d.lineWidth = 2;
+      ctx2d.strokeRect(screenX + 3.5, screenY + 3.5, TILE - 7, TILE - 7);
+      // Glyph on top
+      const half = TILE / 2;
+      ctx2d.lineWidth = 3;
+      ctx2d.strokeStyle = "#0b0f16";
+      ctx2d.strokeText("@", screenX + half, screenY + half + 1);
+      ctx2d.fillStyle = COLORS.player || "#9ece6a";
+      ctx2d.fillText("@", screenX + half, screenY + half + 1);
+      ctx2d.restore();
+    }
+  } catch (_) {}
+
 }
 
-// Back-compat: attach to window via helper
+ // Back-compat: attach to window via helper
 attachGlobal("RenderOverworld", { draw });

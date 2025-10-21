@@ -27,7 +27,13 @@ export function tileTransparent(ctx, x, y) {
       return !td.properties.blocksFOV;
     }
   } catch (_) {}
-  // Fallback: only walls block LOS
+  // Fallback:
+  // - In overworld/region modes, nothing blocks LOS (we don't use tile occlusion there)
+  // - Else, only walls block LOS
+  try {
+    const mode = String(ctx.mode || "").toLowerCase();
+    if (mode === "world" || mode === "region") return true;
+  } catch (_) {}
   return ctx.map[y][x] !== ctx.TILES.WALL;
 }
 

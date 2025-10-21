@@ -118,10 +118,13 @@ export function requestLeaveTown(ctx) {
 export function enterTownIfOnTile(ctx) {
   if (ctx.mode !== "world" || !ctx.world) return false;
   const WT = ctx.World && ctx.World.TILES;
-  const t = ctx.world.map[ctx.player.y][ctx.player.x];
 
-  // Try to move one step into a target tile and capture approach direction
-  // Strict mode: adjacency entry disabled. Require standing exactly on the town tile.
+  // Use the currently active map reference (supports infinite worlds)
+  const mapRef = (Array.isArray(ctx.map) ? ctx.map : (ctx.world && Array.isArray(ctx.world.map) ? ctx.world.map : null));
+  if (!mapRef) return false;
+  const py = ctx.player.y | 0, px = ctx.player.x | 0;
+  if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
+  const t = mapRef[py][px];
 
   // If already on the town tile, there's no clear approach; clear any stale dir
   if (WT && t === ctx.World.TILES.TOWN) {
@@ -129,8 +132,17 @@ export function enterTownIfOnTile(ctx) {
   }
 
   if (WT && t === ctx.World.TILES.TOWN) {
-      const enterWX = ctx.player.x, enterWY = ctx.player.y;
+      // Store absolute world coords for return
+      const enterWX = (ctx.world ? ctx.world.originX : 0) + ctx.player.x;
+      const enterWY = (ctx.world ? ctx.world.originY : 0) + ctx.player.y;
       ctx.worldReturnPos = { x: enterWX, y: enterWY };
+      // Preserve world fog-of-war before switching maps
+      try {
+        if (ctx.world) {
+          ctx.world.seenRef = ctx.seen;
+          ctx.world.visibleRef = ctx.visible;
+        }
+      } catch (_) {}
       ctx.mode = "town";
 
       // First, try to load a persisted town state for this overworld tile
@@ -251,12 +263,18 @@ export function loadDungeonStateFor(ctx, x, y) {
 export function enterDungeonIfOnEntrance(ctx) {
   if (ctx.mode !== "world" || !ctx.world) return false;
   const WT = ctx.World && ctx.World.TILES;
-  const t = ctx.world.map[ctx.player.y][ctx.player.x];
+  const mapRef = (Array.isArray(ctx.map) ? ctx.map : (ctx.world && Array.isArray(ctx.world.map) ? ctx.world.map : null));
+  if (!mapRef) return false;
+  const py = ctx.player.y | 0, px = ctx.player.x | 0;
+  if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
+  const t = mapRef[py][px];
 
   // Strict mode: adjacency entry disabled. Require standing exactly on the dungeon tile.
 
   if (t && WT && t === WT.DUNGEON) {
-    const enterWX = ctx.player.x, enterWY = ctx.player.y;
+    // Use absolute world coords for dungeon key and return position
+    const enterWX = (ctx.world ? ctx.world.originX : 0) + ctx.player.x;
+    const enterWY = (ctx.world ? ctx.world.originY : 0) + ctx.player.y;
     ctx.cameFromWorld = true;
     ctx.worldReturnPos = { x: enterWX, y: enterWY };
 

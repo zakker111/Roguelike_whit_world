@@ -1,5 +1,24 @@
 # Game Version History
-Last updated: 2025-10-21 12:00 UTC
+Last updated: 2025-10-21 18:30 UTC
+
+v1.37.0 — Infinite world polish, 5% encounters, sparse animals, mountain pass, and Seppo uniqueness
+- Overworld/infinite
+  - Roads: avoid dangling “lead-to-nowhere” segments by connecting towns only when both endpoints are inside the current streamed window (core/world_runtime.js).
+  - Bridges: bridge carving now spans the entire river width so crossings are continuous across 1–3 tile rivers (core/world_runtime.js).
+  - POIs: slightly higher density (+~1–2%) for towns and dungeons (world/infinite_gen.js: townChance 0.34, dungeonChance 0.44).
+- Encounters
+  - Default encounter rate set to 5 (percent). GOD panel slider mirrors this and persists (data/config.json, ui/ui.js, services/encounter_service.js reads the value).
+- Region Map animals
+  - Much rarer spawns: at most a single neutral animal and only in fairly wild tiles; if animals were seen here previously, future visits have a 10% chance to spawn (region_map/region_map_runtime.js).
+- Town
+  - Wild Seppo uniqueness: if Seppo is already present (NPC or shop), do not spawn another; presence auto-synchronizes with internal active flag (core/town_runtime.js).
+- Dungeons
+  - Mountain pass: if a dungeon entrance is on or adjacent to a Mountain tile, the generator places a special portal STAIRS deeper inside. Stepping on it tunnels the player to a new dungeon “across” the mountain (dungeon/dungeon.js + core/dungeon_runtime.js).
+  - Usability: standing on any STAIRS tile inside a dungeon now returns to the overworld (unless it’s the special mountain-pass portal which transfers to the remote dungeon).
+- Misc
+  - Minimap/offscreen caches and fog-of-war behavior retained; minimap default remains user-toggleable in the GOD panel.
+
+Deployment: https://79p4vfhuhcsi.cosine.page (Seppo fix), https://i4cscejdjq7a.cosine.page (encounter rate 5 + POI tweak)
 
 v1.36.8 — Region Map per-tile persistence, visibility-aware animal logging, and attachGlobal refactor
 - Region Map

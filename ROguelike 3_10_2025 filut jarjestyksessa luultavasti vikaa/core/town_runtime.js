@@ -107,41 +107,55 @@ export function talk(ctx) {
 
   // Only shopkeepers can open shops; villagers should not trigger trading.
   const isKeeper = !!(npc && (npc.isShopkeeper || npc._shopRef));
-  if (!isKeeper) {
-    return true;
+
+  // Determine if keeper is physically at their shop (on the door tile or inside the building)
+  function isKeeperAtShop(n, shop) {
+    if (!n || !shop) return false;
+    const atDoor = (n.x === shop.x && n.y === shop.y);
+    let inside = false;
+    try {
+      const b = shop.building || null;
+      if (b) {
+        inside = (n.x > b.x && n.x < b.x + b.w - 1 && n.y > b.y && n.y < b.y + b.h - 1);
+      }
+    } catch (_) {}
+    return atDoor || inside;
   }
 
-  // Open shop when bumping the shopkeeper if the shop is open.
-  try {
-    const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
-    const shopRef = npc._shopRef || null;
-
-    // Prefer the explicit reference from the NPC; else fallback to nearest door shop
-    let targetShop = shopRef;
-    if (!targetShop) {
-      const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
-      for (const s of shops) {
-        const dd = Math.abs(s.x - npc.x) + Math.abs(s.y - npc.y);
-        if (dd <= 1) { targetShop = s; break; }
-      }
-    }
-
-    if (targetShop) {
-      const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, targetShop) : false;
-      const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(targetShop) : "";
+  // Helper to open a shop reference (if open), showing schedule when closed
+  function tryOpenShopRef(shopRef, sourceNpc) {
+    try {
+      const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
+      const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, shopRef) : false;
+      const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(shopRef) : "";
       if (openNow) {
         let wasOpen = false;
         try { wasOpen = !!(ctx.UIBridge && typeof ctx.UIBridge.isShopOpen === "function" && ctx.UIBridge.isShopOpen()); } catch (_) {}
         if (ctx.UIBridge && typeof ctx.UIBridge.showShop === "function") {
-          ctx.UIBridge.showShop(ctx, npc);
+          ctx.UIBridge.showShop(ctx, sourceNpc || npc);
         }
         if (!wasOpen) { ctx.requestDraw && ctx.requestDraw(); }
+        return true;
       } else {
-        ctx.log && ctx.log(`The ${targetShop.name || "shop"} is closed. ${sched}`, "warn");
+        ctx.log && ctx.log(`The ${shopRef.name || "shop"} is closed. ${sched}`, "warn");
       }
-    }
-  } catch (_) {}
+    } catch (_) {}
+    return false;
+  }
 
+  if (isKeeper) {
+    try {
+      const shopRef = npc._shopRef || null;
+      if (shopRef && isKeeperAtShop(npc, shopRef)) {
+        tryOpenShopRef(shopRef, npc);
+      } else if (shopRef) {
+        ctx.log && ctx.log(`${npc.name || "Shopkeeper"} is away from the ${shopRef.name || "shop"}.`, "info");
+      }
+    } catch (_) {}
+    return true;
+  }
+
+  // Do not auto-open shops when bumping non-keepers, even if near a door.
   return true;
 }
 
@@ -203,23 +217,46 @@ export function applyLeaveSync(ctx) {
   ctx.mode = "world";
   ctx.map = ctx.world.map;
 
-  // Clear town-only state
+  // Restore world fog-of-war arrays so minimap remembers explored areas
   try {
-    if (Array.isArray(ctx.npcs)) ctx.npcs.length = 0;
-    if (Array.isArray(ctx.shops)) ctx.shops.length = 0;
-    if (Array.isArray(ctx.townProps)) ctx.townProps.length = 0;
-    if (Array.isArray(ctx.townBuildings)) ctx.townBuildings.length = 0;
-    ctx.townPlaza = null;
-    ctx.tavern = null;
+    if (ctx.world && ctx.world.seenRef && Array.isArray(ctx.world.seenRef)) ctx.seen = ctx.world.seenRef;
+    if (ctx.world && ctx.world.visibleRef && Array.isArray(ctx.world.visibleRef)) ctx.visible = ctx.world.visibleRef;
   } catch (_) {}
 
-  // Restore world position if available
+  // Restore world position if available (convert absolute world coords -> local window indices)
   try {
     if (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
-      ctx.player.x = ctx.worldReturnPos.x;
-      ctx.player.y = ctx.worldReturnPos.y;
+      const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+      const rx = ctx.worldReturnPos.x | 0;
+      const ry = ctx.worldReturnPos.y | 0;
+      // Ensure the return position is inside the current window
+      if (WR && typeof WR.ensureInBounds === "function") {
+        // Suspend player shifting during expansion to avoid camera/position snaps
+        ctx._suspendExpandShift = true;
+        try {
+          // Convert to local indices to test
+          let lx = rx - ctx.world.originX;
+          let ly = ry - ctx.world.originY;
+          WR.ensureInBounds(ctx, lx, ly, 32);
+        } finally {
+          ctx._suspendExpandShift = false;
+        }
+        // Recompute after potential expansion shifts
+        const lx2 = rx - ctx.world.originX;
+        const ly2 = ry - ctx.world.originY;
+        ctx.player.x = lx2;
+        ctx.player.y = ly2;
+      } else {
+        // Fallback: clamp
+        const lx = rx - ctx.world.originX;
+        const ly = ry - ctx.world.originY;
+        ctx.player.x = Math.max(0, Math.min((ctx.map[0]?.length || 1) - 1, lx));
+        ctx.player.y = Math.max(0, Math.min((ctx.map.length || 1) - 1, ly));
+      }
     }
   } catch (_) {}
+
+  
 
   // Clear exit anchors
   try {
@@ -308,12 +345,22 @@ export function tick(ctx) {
       }
     }
 
+    // If entities indicate Seppo is present but flag is false (e.g., restored from persistence), mark active
+    if (!ctx._seppo.active) {
+      const hasNPC = Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && (n.isSeppo || n.seppo));
+      const hasShop = Array.isArray(ctx.shops) && ctx.shops.some(s => s && (s.type === "seppo"));
+      if (hasNPC || hasShop) {
+        ctx._seppo.active = true;
+      }
+    }
+
     // Spawn conditions
-    const canSpawn = !ctx._seppo.active && t >= (ctx._seppo.cooldownUntil | 0) && (phase === "day" || phase === "dusk");
+    const alreadyPresent = Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && (n.isSeppo || n.seppo));
+    const canSpawn = !ctx._seppo.active && !alreadyPresent && t >= (ctx._seppo.cooldownUntil | 0) && (phase === "day" || phase === "dusk");
     if (canSpawn) {
-      // Very small chance per town tick
+      // Chance per town tick (increased slightly to be observable)
       const roll = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-      if (roll < 0.003) { // ~0.3% per tick while conditions hold
+      if (roll < 0.01) { // ~1% per tick while conditions hold
         // Find a free spot near the plaza (or gate as fallback)
         const within = 5;
         let best = null;
