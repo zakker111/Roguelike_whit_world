@@ -249,6 +249,10 @@ function addRegionCut(key, x, y) {
   map[k] = arr;
   _saveCutsMap(map);
 }
+// Per-tile region cut key
+function regionCutKey(worldX, worldY, width, height) {
+  return `r:${worldX},${worldY}:${width}x${height}`;
+}
 
 // ---- Persistence of animal presence per region (remember areas where animals were seen and cleared) ----
 const REGION_ANIMALS_LS_KEY = "REGION_ANIMALS_V2";
@@ -284,41 +288,39 @@ function _loadAnimalsMap() {
 function _saveAnimalsMap(map) {
   try { localStorage.setItem(REGION_ANIMALS_LS_KEY, JSON.stringify(map || {})); } catch (_) {}
 }
-function regionAnimalsKeyFromAnchor(anchor) {
-  return `a:${anchor.ax},${anchor.ay}`;
+// Per-tile animal memory keys
+function regionAnimalsKey(worldX, worldY) {
+  return `a:${worldX},${worldY}`;
 }
-function markAnimalsSeenByAnchor(anchor) {
+function markAnimalsSeen(worldX, worldY) {
   const map = _loadAnimalsMap();
-  const k = regionAnimalsKeyFromAnchor(anchor);
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
   const cur = (map[k] && typeof map[k] === "object") ? map[k] : { seen: false, cleared: false };
   cur.seen = true;
   map[k] = cur;
   _saveAnimalsMap(map);
 }
-function markAnimalsClearedByAnchor(anchor) {
+function markAnimalsCleared(worldX, worldY) {
   const map = _loadAnimalsMap();
-  const k = regionAnimalsKeyFromAnchor(anchor);
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
   const cur = (map[k] && typeof map[k] === "object") ? map[k] : { seen: false, cleared: false };
   cur.seen = true;
   cur.cleared = true;
   map[k] = cur;
   _saveAnimalsMap(map);
 }
-function animalsSeenHereByAnchor(anchor, worldX, worldY) {
+function animalsSeenHere(worldX, worldY) {
   const map = _loadAnimalsMap();
-  const k = regionAnimalsKeyFromAnchor(anchor);
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
   const v = map[k];
   if (v && typeof v === "object") return !!v.seen;
-  // Back-compat: fall back to per-tile key if present
-  const legacy = map[`a:${worldX|0},${worldY|0}`];
-  return !!legacy;
+  return !!v; // back-compat: boolean true means seen
 }
-function animalsClearedHereByAnchor(anchor, worldX, worldY) {
+function animalsClearedHere(worldX, worldY) {
   const map = _loadAnimalsMap();
-  const k = regionAnimalsKeyFromAnchor(anchor);
+  const k = regionAnimalsKey(worldX | 0, worldY | 0);
   const v = map[k];
   if (v && typeof v === "object") return !!v.cleared;
-  // Back-compat: legacy never marked cleared per tile, default to false
   return false;
 }
 
@@ -335,15 +337,15 @@ function _loadRegionStateMap() {
 function _saveRegionStateMap(map) {
   try { localStorage.setItem(REGION_STATE_LS_KEY, JSON.stringify(map || {})); } catch (_) {}
 }
-function regionStateKeyFromAnchor(anchor) {
-  return `s:${anchor.ax},${anchor.ay}:${anchor.winW}x${anchor.winH}`;
+// Per-tile region state keys
+function regionStateKey(worldX, worldY) {
+  return `s:${worldX},${worldY}`;
 }
 function saveRegionState(ctx) {
   try {
     const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
     if (!pos) return;
-    const anchor = computeRegionAnchor(ctx, pos.x | 0, pos.y | 0, ctx.region.width | 0, ctx.region.height | 0);
-    const key = regionStateKeyFromAnchor(anchor);
+    const key = regionStateKey(pos.x | 0, pos.y | 0);
     const mapObj = _loadRegionStateMap();
     // Filter corpses within the region bounds
     const corpses = Array.isArray(ctx.corpses) ? ctx.corpses.map(c => ({ x: c.x|0, y: c.y|0, looted: !!c.looted, loot: Array.isArray(c.loot) ? c.loot : [] })) : [];
@@ -357,16 +359,11 @@ function saveRegionState(ctx) {
     _saveRegionStateMap(mapObj);
   } catch (_) {}
 }
-function loadRegionStateByAnchor(anchor, worldX, worldY) {
+function loadRegionState(worldX, worldY) {
   try {
-    const key = regionStateKeyFromAnchor(anchor);
+    const key = regionStateKey(worldX | 0, worldY | 0);
     const mapObj = _loadRegionStateMap();
-    let st = mapObj[key];
-    if (!st) {
-      // Back-compat: try legacy per-tile key
-      const legacyKey = `s:${worldX|0},${worldY|0}`;
-      st = mapObj[legacyKey];
-    }
+    const st = mapObj[key];
     if (st && typeof st === "object" && Array.isArray(st.map) && st.w && st.h) return st;
   } catch (_) {}
   return null;
@@ -586,11 +583,8 @@ function open(ctx, size) {
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
 
-  // Compute region anchor so adjacent overworld tiles share the same Region Map
-  const anchor = computeRegionAnchor(ctx, worldX, worldY, width, height);
-
-  // If persisted state exists for this anchored region, load it; else build a fresh sample.
-  const persisted = loadRegionStateByAnchor(anchor, worldX, worldY);
+  // If persisted state exists for this tile, load it; else build a fresh sample.
+  const persisted = loadRegionState(worldX, worldY);
   let sample = null;
   let restoredCorpses = null;
   if (persisted && Array.isArray(persisted.map) && (persisted.w | 0) === width && (persisted.h | 0) === height) {
@@ -601,8 +595,8 @@ function open(ctx, size) {
     sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
   }
 
-  // If animals were previously cleared for this region anchor, do not spawn new ones this session.
-  const animalsCleared = animalsClearedHereByAnchor(anchor, worldX, worldY);
+  // If animals were previously cleared for this tile, do not spawn new ones this session.
+  const animalsCleared = animalsClearedHere(worldX, worldY);
 
   // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile).
   const playerTile = tile;
@@ -620,9 +614,9 @@ function open(ctx, size) {
   addMinorWaterAndBeaches(sample, rng);
   // Sprinkle sparse trees in forest tiles for region visualization
   addSparseTreesInForests(sample, 0.10, rng);
-  // Apply persisted tree cuts for this anchored region so trees don't respawn
+  // Apply persisted tree cuts for this region so trees don't respawn
   try {
-    const cutKey = regionCutKeyFromAnchor(anchor);
+    const cutKey = regionCutKey(worldX, worldY, width, height);
     applyRegionCuts(sample, cutKey);
     // Stash key for onAction persistence
     if (!ctx.region) ctx.region = {};
@@ -1146,8 +1140,7 @@ function tick(ctx) {
         // Also mark this overworld tile as cleared to prevent future animal spawns
         try {
           const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
-          const anc = ctx.region && ctx.region._anchor ? ctx.region._anchor : (pos ? computeRegionAnchor(ctx, pos.x|0, pos.y|0, ctx.region.width|0, ctx.region.height|0) : null);
-          if (anc) markAnimalsClearedByAnchor(anc);
+          if (pos) markAnimalsCleared(pos.x | 0, pos.y | 0);
         } catch (_) {}
         return true;
       }
@@ -1163,9 +1156,9 @@ attachGlobal("RegionMapRuntime", {
   tryMove,
   onAction,
   tick,
-  // Persistence helpers for animals memory/clear state (anchor-based exports)
-  markAnimalsClearedByAnchor,
-  animalsClearedHereByAnchor,
-  markAnimalsSeenByAnchor,
-  animalsSeenHereByAnchor
+  // Persistence helpers for animals memory/clear state (per-tile exports)
+  markAnimalsCleared,
+  animalsClearedHere,
+  markAnimalsSeen,
+  animalsSeenHere
 });
