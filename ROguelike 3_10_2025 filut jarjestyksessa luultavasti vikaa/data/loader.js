@@ -210,6 +210,4 @@ GameData.ready = (async function loadAll() {
 import { attachGlobal } from "../utils/global.js";
 
 // Back-compat: attach to window via helper
-attachGlobal("GameData", GameData);ack-compat: attach to window via helper
-attachGlobal("GameData", GameData);ack-compat: attach to window
 attachGlobal("GameData", GameData);
