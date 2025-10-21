@@ -209,14 +209,31 @@ export function applyLeaveSync(ctx) {
     if (ctx.world && ctx.world.visibleRef && Array.isArray(ctx.world.visibleRef)) ctx.visible = ctx.world.visibleRef;
   } catch (_) {}
 
-  // Clear town-only state
+  // Restore world position if available (convert absolute world coords -> local window indices)
   try {
-    if (Array.isArray(ctx.npcs)) ctx.npcs.length = 0;
-    if (Array.isArray(ctx.shops)) ctx.shops.length = 0;
-    if (Array.isArray(ctx.townProps)) ctx.townProps.length = 0;
-    if (Array.isArray(ctx.townBuildings)) ctx.townBuildings.length = 0;
-    ctx.townPlaza = null;
-    ctx.tavern = null;
+    if (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
+      const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+      const rx = ctx.worldReturnPos.x | 0;
+      const ry = ctx.worldReturnPos.y | 0;
+      // Ensure the return position is inside the current window
+      if (WR && typeof WR.ensureInBounds === "function") {
+        // Convert to local indices to test
+        let lx = rx - ctx.world.originX;
+        let ly = ry - ctx.world.originY;
+        WR.ensureInBounds(ctx, lx, ly, 32);
+        // Recompute after potential expansion shifts
+        lx = rx - ctx.world.originX;
+        ly = ry - ctx.world.originY;
+        ctx.player.x = lx;
+        ctx.player.y = ly;
+      } else {
+        // Fallback: clamp
+        const lx = rx - ctx.world.originX;
+        const ly = ry - ctx.world.originY;
+        ctx.player.x = Math.max(0, Math.min((ctx.map[0]?.length || 1) - 1, lx));
+        ctx.player.y = Math.max(0, Math.min((ctx.map.length || 1) - 1, ly));
+      }
+    }
   } catch (_) {}
 
   // Restore world position if available

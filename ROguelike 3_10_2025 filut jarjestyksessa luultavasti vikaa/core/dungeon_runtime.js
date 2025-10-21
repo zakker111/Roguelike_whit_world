@@ -262,7 +262,7 @@ export function returnToWorldIfAtExit(ctx) {
     if (ctx.world && ctx.world.visibleRef && Array.isArray(ctx.world.visibleRef)) ctx.visible = ctx.world.visibleRef;
   } catch (_) {}
 
-  // Restore world position: prefer stored worldReturnPos; else dungeon entrance coordinates
+  // Restore world position: prefer stored worldReturnPos; else dungeon entrance coordinates (absolute world coords)
   let rx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : null;
   let ry = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : null;
   if (rx == null || ry == null) {
@@ -271,17 +271,25 @@ export function returnToWorldIfAtExit(ctx) {
       rx = info.x; ry = info.y;
     }
   }
-  // Clamp to bounds as a safety net
+
+  // Ensure the target world cell is in the current window, then convert to local indices
   try {
-    if (rx == null || ry == null) {
-      const cols = ctx.world.map[0].length;
-      const rows = ctx.world.map.length;
-      rx = Math.max(0, Math.min(cols - 1, ctx.player.x));
-      ry = Math.max(0, Math.min(rows - 1, ctx.player.y));
+    const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+    if (WR && typeof WR.ensureInBounds === "function" && typeof rx === "number" && typeof ry === "number") {
+      let lx = rx - ctx.world.originX;
+      let ly = ry - ctx.world.originY;
+      WR.ensureInBounds(ctx, lx, ly, 32);
+      lx = rx - ctx.world.originX;
+      ly = ry - ctx.world.originY;
+      ctx.player.x = lx;
+      ctx.player.y = ly;
+    } else if (typeof rx === "number" && typeof ry === "number") {
+      const lx = rx - ctx.world.originX;
+      const ly = ry - ctx.world.originY;
+      ctx.player.x = Math.max(0, Math.min((ctx.map[0]?.length || 1) - 1, lx));
+      ctx.player.y = Math.max(0, Math.min((ctx.map.length || 1) - 1, ly));
     }
   } catch (_) {}
-
-  ctx.player.x = rx; ctx.player.y = ry;
 
   // Recompute FOV and UI
   try {

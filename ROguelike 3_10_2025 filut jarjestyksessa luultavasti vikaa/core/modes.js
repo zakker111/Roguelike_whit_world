@@ -132,7 +132,9 @@ export function enterTownIfOnTile(ctx) {
   }
 
   if (WT && t === ctx.World.TILES.TOWN) {
-      const enterWX = ctx.player.x, enterWY = ctx.player.y;
+      // Store absolute world coords for return
+      const enterWX = (ctx.world ? ctx.world.originX : 0) + ctx.player.x;
+      const enterWY = (ctx.world ? ctx.world.originY : 0) + ctx.player.y;
       ctx.worldReturnPos = { x: enterWX, y: enterWY };
       // Preserve world fog-of-war before switching maps
       try {
@@ -270,7 +272,9 @@ export function enterDungeonIfOnEntrance(ctx) {
   // Strict mode: adjacency entry disabled. Require standing exactly on the dungeon tile.
 
   if (t && WT && t === WT.DUNGEON) {
-    const enterWX = ctx.player.x, enterWY = ctx.player.y;
+    // Use absolute world coords for dungeon key and return position
+    const enterWX = (ctx.world ? ctx.world.originX : 0) + ctx.player.x;
+    const enterWY = (ctx.world ? ctx.world.originY : 0) + ctx.player.y;
     ctx.cameFromWorld = true;
     ctx.worldReturnPos = { x: enterWX, y: enterWY };
 
