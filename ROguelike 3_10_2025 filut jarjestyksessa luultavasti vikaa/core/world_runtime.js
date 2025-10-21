@@ -221,16 +221,37 @@ function ensureExpandedAroundPlayer(ctx) {
   const py = ctx.player.y | 0;
   if (!rows || !cols) return false;
 
-  const margin = 5; // tiles from edge to trigger expansion
   // Chunk size scales with current world to keep redraw time reasonable
   const cw = Math.max(32, Math.min(80, Math.floor(cols * 0.40)));
   const ch = Math.max(24, Math.min(60, Math.floor(rows * 0.40)));
 
   let changed = false;
-  if (px <= margin) { changed = expandLeft(ctx, cw) || changed; }
-  if (px >= cols - 1 - margin) { changed = expandRight(ctx, cw) || changed; }
-  if (py <= margin) { changed = expandTop(ctx, ch) || changed; }
-  if (py >= rows - 1 - margin) { changed = expandBottom(ctx, ch) || changed; }
+
+  // Player-based triggers (fallback)
+  const marginTiles = 5;
+  if (px <= marginTiles) { changed = expandLeft(ctx, cw) || changed; }
+  if (px >= cols - 1 - marginTiles) { changed = expandRight(ctx, cw) || changed; }
+  if (py <= marginTiles) { changed = expandTop(ctx, ch) || changed; }
+  if (py >= rows - 1 - marginTiles) { changed = expandBottom(ctx, ch) || changed; }
+
+  // Camera-based triggers (prevent viewing off-map because of slack)
+  try {
+    const TILE = ctx.TILE || 32;
+    const COLS = ctx.COLS || 30;
+    const ROWS = ctx.ROWS || 20;
+    const cam = (ctx.getCamera ? ctx.getCamera() : ctx.camera) || null;
+    if (cam) {
+      const startX = Math.floor((cam.x || 0) / TILE);
+      const startY = Math.floor((cam.y || 0) / TILE);
+      const endX = startX + (COLS - 1);
+      const endY = startY + (ROWS - 1);
+      const edgePad = 1; // expand when viewport is within 1 tile of an edge
+      if (startX <= edgePad) { changed = expandLeft(ctx, cw) || changed; }
+      if (endX >= cols - 1 - edgePad) { changed = expandRight(ctx, cw) || changed; }
+      if (startY <= edgePad) { changed = expandTop(ctx, ch) || changed; }
+      if (endY >= rows - 1 - edgePad) { changed = expandBottom(ctx, ch) || changed; }
+    }
+  } catch (_) {}
 
   if (changed) {
     // Sync map reference and visibility arrays to new shape; world mode prefers full reveal
@@ -242,46 +263,45 @@ function ensureExpandedAroundPlayer(ctx) {
   return changed;
 }
 
-export function generate(ctx, opts = {}) {
+export function tryMovePlayerWorld(ctx, dx, dy) {
+  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
+
+  // Update camera first so expansion can react to current viewport
+  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+
+  // Preemptively expand when near edges to avoid void
+  ensureExpandedAroundPlayer(ctx);
+
+  const nx = ctx.player.x + (dx | 0);
+  const ny = ctx.player.y + (dy | 0);
+  const wmap = ctx.world.map;
+  const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
+
+  // If stepping out-of-bounds, attempt expansion on-demand and recompute bounds
+  if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) {
+    const changed = ensureExpandedAroundPlayer(ctx);
+    const rows2 = ctx.world.map.length;
+    const cols2 = rows2 ? (ctx.world.map[0] ? ctx.world.map[0].length : 0) : 0;
+    if (nx < 0 || ny < 0 || nx >= cols2 || ny >= rows2) return false;
+  }
+
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
-  if (!(W && typeof W.generate === "function")) {
-    ctx.log && ctx.log("World module missing; generating dungeon instead.", "warn");
-    ctx.mode = "dungeon";
-    try { if (typeof ctx.generateLevel === "function") ctx.generateLevel(ctx.floor || 1); } catch (_) {}
-    return false;
-  }
+  const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(ctx.world.map[ny][nx]) : true;
+  if (!walkable) return false;
 
-  const width = (typeof opts.width === "number") ? opts.width : (ctx.MAP_COLS || 120);
-  const height = (typeof opts.height === "number") ? opts.height : (ctx.MAP_ROWS || 80);
-
+  ctx.player.x = nx; ctx.player.y = ny;
+  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+  // Roll for encounter first so acceptance can switch mode before advancing world time
   try {
-    ctx.world = W.generate(ctx, { width, height });
-  } catch (e) {
-    ctx.log && ctx.log("World generation failed; falling back to dungeon.", "warn");
-    ctx.mode = "dungeon";
-    try { if (typeof ctx.generateLevel === "function") ctx.generateLevel(ctx.floor || 1); } catch (_) {}
-    return false;
-  }
-
-  const start = (typeof W.pickTownStart === "function")
-    ? W.pickTownStart(ctx.world, (ctx.rng || Math.random))
-    : { x: 1, y: 1 };
-
-  ctx.player.x = start.x;
-  ctx.player.y = start.y;
-  ctx.mode = "world";
-
-  // Initialize expansion metadata
-  try {
-    if (typeof ctx.world.width !== "number") {
-      ctx.world.width = (ctx.world.map[0] ? ctx.world.map[0].length : width);
+    const ES = ctx.EncounterService || (typeof window !== "undefined" ? window.EncounterService : null);
+    if (ES && typeof ES.maybeTryEncounter === "function") {
+      ES.maybeTryEncounter(ctx);
     }
-    if (typeof ctx.world.height !== "number") {
-      ctx.world.height = (ctx.world.map ? ctx.world.map.length : height);
-    }
-    ctx.world.originX = 0;
-    ctx.world.originY = 0;
   } catch (_) {}
+  // Advance a turn after the roll (if an encounter opened, next turn will tick region)
+  try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+  return true;
+}
 
   // Clear non-world entities
   ctx.enemies = [];
