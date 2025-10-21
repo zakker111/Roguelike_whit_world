@@ -345,8 +345,18 @@ export function tick(ctx) {
       }
     }
 
+    // If entities indicate Seppo is present but flag is false (e.g., restored from persistence), mark active
+    if (!ctx._seppo.active) {
+      const hasNPC = Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && (n.isSeppo || n.seppo));
+      const hasShop = Array.isArray(ctx.shops) && ctx.shops.some(s => s && (s.type === "seppo"));
+      if (hasNPC || hasShop) {
+        ctx._seppo.active = true;
+      }
+    }
+
     // Spawn conditions
-    const canSpawn = !ctx._seppo.active && t >= (ctx._seppo.cooldownUntil | 0) && (phase === "day" || phase === "dusk");
+    const alreadyPresent = Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && (n.isSeppo || n.seppo));
+    const canSpawn = !ctx._seppo.active && !alreadyPresent && t >= (ctx._seppo.cooldownUntil | 0) && (phase === "day" || phase === "dusk");
     if (canSpawn) {
       // Chance per town tick (increased slightly to be observable)
       const roll = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
