@@ -66,19 +66,48 @@ function create(seed, opts = {}) {
   const s = (Number(seed) >>> 0) || 1;
   const rng = mulberry32(s);
 
-  const cfg = {
+  let cfg = {
     // Feature scales (bigger -> broader features)
     elevationFreq: 1 / 48,
     moistureFreq: 1 / 36,
     detailFreq: 1 / 6,
     riverFreq: 1 / 64,
-    // Placement
-    townGrid: 64,         // coarse lattice spacing
-    dungeonGrid: 48,
-    townChance: 0.12,     // probability on lattice to place town if terrain permits
-    dungeonChance: 0.16,
+    // Placement (denser defaults)
+    townGrid: 48,         // coarse lattice spacing (was 64)
+    dungeonGrid: 36,      // was 48
+    townChance: 0.25,     // was 0.12
+    dungeonChance: 0.35,  // was 0.16
     ...opts,
   };
+
+  // Optional density tuning knob:
+  // - window.POI_DENSITY (number, e.g. 1.0 default, 1.5 denser, 0.7 sparser)
+  // - or localStorage "POI_DENSITY"
+  try {
+    let dens = 1;
+    if (typeof window !== "undefined") {
+      if (typeof window.POI_DENSITY === "number" && isFinite(window.POI_DENSITY) && window.POI_DENSITY > 0) {
+        dens = window.POI_DENSITY;
+      } else {
+        const raw = localStorage.getItem("POI_DENSITY");
+        if (raw != null) {
+          const v = parseFloat(raw);
+          if (isFinite(v) && v > 0) dens = v;
+        }
+      }
+    }
+    if (dens && dens !== 1) {
+      // Scale grid by ~1/sqrt(dens) so area density scales roughly linearly
+      const gScale = Math.max(0.35, 1 / Math.sqrt(dens));
+      cfg.townGrid = Math.max(16, Math.round(cfg.townGrid * gScale));
+      cfg.dungeonGrid = Math.max(16, Math.round(cfg.dungeonGrid * gScale));
+      // Increase placement chance as well, clipped to below 1
+      const cScale = Math.min(0.95, cfg.townChance * dens);
+      const dScale = Math.min(0.95, cfg.dungeonChance * dens);
+      cfg.townChance = cScale;
+      cfg.dungeonChance = dScale;
+    }
+  } catch (_) {}
 
   function temperatureAt(y) {
     // Latitude proxy: colder near negative y, hotter near positive y
