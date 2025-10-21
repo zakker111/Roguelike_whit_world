@@ -12,6 +12,7 @@
  * - If a seed is provided, uses it; otherwise tries localStorage SEED; else time-based.
  * - Deterministic across a session; not persisted unless seed is applied via RNG.service.
  */
+import { attachGlobal } from "./global.js";
 
 function mulberry32(a) {
   return function () {
@@ -37,7 +38,5 @@ export function getRng(seedOpt) {
   return function () { return f(); };
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.RNGFallback = { getRng };
-}
+// Back-compat: attach to window via helper
+attachGlobal("RNGFallback", { getRng });

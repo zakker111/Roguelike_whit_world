@@ -113,13 +113,21 @@
       <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
       <button id="god-check-inn-tavern-btn" class="btn" title="Report coordinates for Inn and Plaza/Square">Check Inn/Plaza</button>
       <button id="god-diagnostics-btn" class="btn" title="Show system diagnostics (determinism source, seed, module handles) in log">Diagnostics</button>
-      <button id="god-newgame-btn" class="btn" title="Start a new game immediately">Start New Game</button>
+      <button id="god-newgame-btn" class="btn" title="Start New Game">Start New Game</button>
       <div style="display:flex; gap:6px; align-items:center;">
         <button id="god-run-smoke-btn" class="btn" title="Configure and run automated smoke tests">Run Smoke Test</button>
         <label for="god-smoke-count" class="help" style="font-size:12px; color:#8a98b0;">Runs:</label>
         <input id="god-smoke-count" type="number" min="1" max="20" step="1" value="1" style="width:64px; padding:4px 6px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;" />
       </div>
     </div>
+
+    <div class="inv-subtitle">Player Status Effects</div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+      <button id="god-apply-bleed-btn" class="btn" title="Apply Bleed for 3 turns to the player">Apply Bleed (3)</button>
+      <button id="god-apply-dazed-btn" class="btn" title="Apply Dazed for 2 turns to the player">Apply Dazed (2)</button>
+      <button id="god-clear-effects-btn" class="btn" title="Clear Bleed/Dazed from player">Clear Effects</button>
+    </div>
+
     <div id="god-check-output" class="help" style="font-size:12px; color:#cbd5e1; margin:6px 0 12px 0;"></div>
 
     <div class="inv-subtitle">Analysis</div>
