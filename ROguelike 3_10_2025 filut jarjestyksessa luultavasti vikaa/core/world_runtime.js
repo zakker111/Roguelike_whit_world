@@ -19,8 +19,8 @@ function currentSeed() {
 // Expand map arrays on any side by K tiles, generating via world.gen.tileAt against world origin offsets.
 function expandMap(ctx, side, K) {
   const world = ctx.world;
-  const gen = world.gen;
-  const WT = (ctx.World && ctx.World.TILES) || (typeof window !== "undefined" ? (window.World && window.World.TILES) : null);
+  const gen = world && world.gen;
+  if (!gen || typeof gen.tileAt !== "function") return false;
 
   const rows = ctx.map.length;
   const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
@@ -44,6 +44,15 @@ function expandMap(ctx, side, K) {
       ctx.visible[y] = visPre.concat(visRow);
     }
     world.originX -= K;
+    // Shift player and any world entities right by K to preserve world position mapping
+    try {
+      ctx.player.x += K;
+    } catch (_) {}
+    try {
+      if (Array.isArray(ctx.enemies)) for (const e of ctx.enemies) if (e) e.x += K;
+      if (Array.isArray(ctx.corpses)) for (const c of ctx.corpses) if (c) c.x += K;
+      if (Array.isArray(ctx.decals)) for (const d of ctx.decals) if (d) d.x += K;
+    } catch (_) {}
   } else if (side === "right") {
     // append K columns
     for (let y = 0; y < rows; y++) {
@@ -82,6 +91,15 @@ function expandMap(ctx, side, K) {
     ctx.seen = newSeen.concat(ctx.seen);
     ctx.visible = newVis.concat(ctx.visible);
     world.originY -= K;
+    // Shift player and entities down by K to preserve world position mapping
+    try {
+      ctx.player.y += K;
+    } catch (_) {}
+    try {
+      if (Array.isArray(ctx.enemies)) for (const e of ctx.enemies) if (e) e.y += K;
+      if (Array.isArray(ctx.corpses)) for (const c of ctx.corpses) if (c) c.y += K;
+      if (Array.isArray(ctx.decals)) for (const d of ctx.decals) if (d) d.y += K;
+    } catch (_) {}
   } else if (side === "bottom") {
     // append K rows
     for (let i = 0; i < K; i++) {
@@ -101,6 +119,7 @@ function expandMap(ctx, side, K) {
 
   world.width = ctx.map[0] ? ctx.map[0].length : 0;
   world.height = ctx.map.length;
+  return true;
 }
 
 // Ensure (nx,ny) is inside map bounds; expand outward by chunk size if needed.
@@ -255,11 +274,22 @@ export function generate(ctx, opts = {}) {
 
 export function tryMovePlayerWorld(ctx, dx, dy) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.map) return false;
-  const nx = ctx.player.x + (dx | 0);
-  const ny = ctx.player.y + (dy | 0);
 
-  // Expand if outside
-  ensureInBounds(ctx, nx, ny, 32);
+  // Compute intended target
+  let nx = ctx.player.x + (dx | 0);
+  let ny = ctx.player.y + (dy | 0);
+
+  // Expand if outside (only for infinite worlds)
+  try {
+    if (ctx.world && ctx.world.type === "infinite" && ctx.world.gen && typeof ctx.world.gen.tileAt === "function") {
+      const expanded = ensureInBounds(ctx, nx, ny, 32);
+      if (expanded) {
+        // Player may have been shifted by left/top prepends; recompute target
+        nx = ctx.player.x + (dx | 0);
+        ny = ctx.player.y + (dy | 0);
+      }
+    }
+  } catch (_) {}
 
   const rows = ctx.map.length, cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
   if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return false;
