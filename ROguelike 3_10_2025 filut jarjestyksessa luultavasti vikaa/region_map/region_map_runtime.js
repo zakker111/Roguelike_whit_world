@@ -763,7 +763,10 @@ function open(ctx, size) {
         + (rng() < (0.25 + forestBias * 0.40 + grassBias * 0.25 + beachBias * 0.15) ? 1 : 0)
         + (rng() < (forestBias * 0.30 + grassBias * 0.20) ? 1 : 0);
       let count = Math.min(2, base);
-      // Do not force at least one; keep some regions empty
+      // Ensure at least one creature in wild areas (without forcing adjacency)
+      if (count <= 0 && (playerTileWild || wildFrac >= 0.25)) {
+        count = 1;
+      }
       if (count <= 0) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
@@ -819,10 +822,33 @@ function open(ctx, size) {
         }
         return null;
       }
+      function randomNearWalkable(cx, cy, radius = 6) {
+        for (let tries = 0; tries < 120; tries++) {
+          const dx = ((rng() * (radius * 2 + 1)) | 0) - radius;
+          const dy = ((rng() * (radius * 2 + 1)) | 0) - radius;
+          const x = cx + dx;
+          const y = cy + dy;
+          if (x < 0 || y < 0 || x >= w || y >= h) continue;
+          if (Math.abs(dx) + Math.abs(dy) > radius) continue;
+          const t = sample[y][x];
+          const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+          const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
+          const atCursor = (ctx.region.cursor && ctx.region.cursor.x === x && ctx.region.cursor.y === y);
+          if (walkable && !occupied && !atCursor) return { x, y };
+        }
+        return null;
+      }
       let spawned = 0;
+      const cx0 = (ctx.region.cursor && typeof ctx.region.cursor.x === "number") ? (ctx.region.cursor.x | 0) : 0;
+      const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
 
       for (let i = 0; i < count; i++) {
-        const pos = randomWalkable();
+        // Small chance to spawn the first creature closer to the player to improve visibility
+        let pos = null;
+        if (i === 0 && rng() < 0.30) {
+          pos = randomNearWalkable(cx0, cy0, 6);
+        }
+        if (!pos) pos = randomWalkable();
         if (!pos) break;
         const def = pickAnimalDef();
         const typeId = (def && def.id) ? def.id : (def && def.type) ? def.type : null;
