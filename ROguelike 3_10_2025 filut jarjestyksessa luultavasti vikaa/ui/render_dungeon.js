@@ -640,25 +640,6 @@ export function draw(ctx, view) {
   // Dungeon glow overlays (e.g., wall torches)
   RenderOverlays.drawDungeonGlow(ctx, view);
 
-  // Day/night tint overlay for encounters (lighter to preserve biome styling)
-  try {
-    const phase = ctx.time && ctx.time.phase;
-    if (ctx.mode === "encounter" && phase) {
-      ctx2d.save();
-      if (phase === "night") {
-        ctx2d.fillStyle = "rgba(0,0,0,0.15)";
-        ctx2d.fillRect(0, 0, cam.width, cam.height);
-      } else if (phase === "dusk") {
-        ctx2d.fillStyle = "rgba(255,120,40,0.06)";
-        ctx2d.fillRect(0, 0, cam.width, cam.height);
-      } else if (phase === "dawn") {
-        ctx2d.fillStyle = "rgba(120,180,255,0.05)";
-        ctx2d.fillRect(0, 0, cam.width, cam.height);
-      }
-      ctx2d.restore();
-    }
-  } catch (_) {}
-
   // Grid overlay (if enabled)
   RenderCore.drawGridOverlay(view);
 }
