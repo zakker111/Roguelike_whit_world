@@ -36,7 +36,6 @@ export function start(getRenderCtx) {
   requestAnimationFrame(frame);
 }
 
-// Back-compat: attach to window for classic scripts
-if (typeof window !== "undefined") {
-  window.GameLoop = { requestDraw, start };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("GameLoop", { requestDraw, start });

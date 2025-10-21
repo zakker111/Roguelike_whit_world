@@ -41,7 +41,6 @@ export function tick(ctx) {
   ctx.decals = decals.filter(d => d.a > 0.04);
 }
 
-// Back-compat: attach to window for classic scripts
-if (typeof window !== "undefined") {
-  window.Decals = { add, tick };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("Decals", { add, tick });

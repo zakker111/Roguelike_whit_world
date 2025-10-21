@@ -7,6 +7,7 @@
  * - enemyColor(ctx, type, COLORS)
  * - drawGridOverlay(view): draws a light grid aligned to tile boundaries when enabled
  */
+import { attachGlobal } from "../utils/global.js";
 
 // Simple cache for enemy type → color lookups to avoid repeated registry calls in hot paths
 const ENEMY_COLOR_CACHE = Object.create(null);
@@ -149,7 +150,5 @@ export function createOffscreen(width, height) {
   return el;
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.RenderCore = { computeView, drawGlyph, enemyColor, drawGridOverlay, blitViewport, createOffscreen };
-}
+// Back-compat: attach to window via helper
+attachGlobal("RenderCore", { computeView, drawGlyph, enemyColor, drawGridOverlay, blitViewport, createOffscreen });

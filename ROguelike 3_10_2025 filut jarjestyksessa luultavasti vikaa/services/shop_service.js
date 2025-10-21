@@ -560,22 +560,21 @@ export function sellItem(ctx, shop, playerInvIdx) {
   return true;
 }
 
-// Back-compat: attach to window for classic scripts
-if (typeof window !== "undefined") {
-  window.ShopService = {
-    minutesOfDay: minutesOfDay,
-    isOpenAt: isOpenAt,
-    isShopOpenNow: isShopOpenNow,
-    shopScheduleStr: shopScheduleStr,
-    shopAt: shopAt,
-    getPhase: getPhase,
-    ensureShopState: ensureShopState,
-    restockIfNeeded: restockIfNeeded,
-    getInventoryForShop: getInventoryForShop,
-    canBuyFromShop: canBuyFromShop,
-    canSellToShop: canSellToShop,
-    calculatePrice: calculatePrice,
-    buyItem: buyItem,
-    sellItem: sellItem
-  };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("ShopService", {
+  minutesOfDay,
+  isOpenAt,
+  isShopOpenNow,
+  shopScheduleStr,
+  shopAt,
+  getPhase,
+  ensureShopState,
+  restockIfNeeded,
+  getInventoryForShop,
+  canBuyFromShop,
+  canSellToShop,
+  calculatePrice,
+  buyItem,
+  sellItem
+});

@@ -337,15 +337,14 @@ export function returnToWorldIfAtExit(ctx) {
   return false;
 }
 
-// Back-compat: attach to window for classic scripts
-if (typeof window !== "undefined") {
-  window.Modes = {
-    enterTownIfOnTile,
-    enterDungeonIfOnEntrance,
-    returnToWorldIfAtExit,
-    leaveTownNow,
-    requestLeaveTown,
-    saveCurrentDungeonState,
-    loadDungeonStateFor
-  };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("Modes", {
+  enterTownIfOnTile,
+  enterDungeonIfOnEntrance,
+  returnToWorldIfAtExit,
+  leaveTownNow,
+  requestLeaveTown,
+  saveCurrentDungeonState,
+  loadDungeonStateFor
+});

@@ -1,0 +1,59 @@
+[
+  {
+    "id": "deer",
+    "glyph": "d",
+    "color": "#9ece6a",
+    "hp": 3,
+    "atk": 0.6,
+    "faction": "animal",
+    "neutral": true,
+    "sightRadius": 6,
+    "spawnWeight": {
+      "FOREST": 0.7,
+      "GRASS": 0.5,
+      "BEACH": 0.2,
+      "DESERT": 0.0,
+      "SNOW": 0.1,
+      "SWAMP": 0.2,
+      "MOUNTAIN": 0.0
+    }
+  },
+  {
+    "id": "fox",
+    "glyph": "f",
+    "color": "#f7768e",
+    "hp": 2,
+    "atk": 0.7,
+    "faction": "animal",
+    "neutral": true,
+    "sightRadius": 7,
+    "spawnWeight": {
+      "FOREST": 0.6,
+      "GRASS": 0.4,
+      "BEACH": 0.1,
+      "DESERT": 0.0,
+      "SNOW": 0.2,
+      "SWAMP": 0.1,
+      "MOUNTAIN": 0.0
+    }
+  },
+  {
+    "id": "boar",
+    "glyph": "b",
+    "color": "#c586c0",
+    "hp": 4,
+    "atk": 0.9,
+    "faction": "animal",
+    "neutral": true,
+    "sightRadius": 5,
+    "spawnWeight": {
+      "FOREST": 0.5,
+      "GRASS": 0.3,
+      "BEACH": 0.0,
+      "DESERT": 0.0,
+      "SNOW": 0.1,
+      "SWAMP": 0.4,
+      "MOUNTAIN": 0.0
+    }
+  }
+]

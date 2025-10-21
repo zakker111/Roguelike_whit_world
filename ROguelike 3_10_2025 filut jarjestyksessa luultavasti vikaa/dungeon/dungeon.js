@@ -9,6 +9,8 @@
  * - Avoids Math.random; all randomness goes through the local dungeon PRNG so initial generation is reproducible.
  * - Runtime changes (corpses/decals/enemies) should be persisted via DungeonState.
  */
+import { getRng as getFallbackRng } from "../utils/rng_fallback.js";
+import { attachGlobal } from "../utils/global.js";
 
 function mix32(a) {
   a = (a ^ 61) ^ (a >>> 16);
@@ -17,15 +19,6 @@ function mix32(a) {
   a = Math.imul(a, 0x27d4eb2d);
   a = a ^ (a >>> 15);
   return a >>> 0;
-}
-function mulberry32(a) {
-  return function() {
-    a |= 0;
-    a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 function sizeCode(sizeStr) {
   const s = String(sizeStr || "medium").toLowerCase();
@@ -49,7 +42,7 @@ export function generateLevel(ctx, depth) {
     : 0;
   const dinfo = ctx.dungeonInfo || ctx.dungeon || { x: player.x, y: player.y, level: depth, size: "medium" };
   const dseed = deriveDungeonSeed(rootSeed, dinfo.x | 0, dinfo.y | 0, (depth | 0) || (dinfo.level | 0) || 1, dinfo.size);
-  const drng = mulberry32(dseed);
+  const drng = getFallbackRng(dseed);
   const ri = (min, max) => Math.floor(drng() * (Math.max(min|0, max|0) - Math.min(min|0, max|0) + 1)) + Math.min(min|0, max|0);
   const ch = (p) => drng() < p;
 
@@ -410,7 +403,5 @@ function defaultEnemyFactory(x, y, depth, rng) {
   return { x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.Dungeon = { generateLevel };
-}
+// Back-compat: attach to window via helper
+attachGlobal("Dungeon", { generateLevel });

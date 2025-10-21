@@ -11,6 +11,8 @@
  *   applySeed(ctx, seedUint32)
  *   rerollSeed(ctx)
  */
+import { getRng as getFallbackRng } from "../utils/rng_fallback.js";
+import { attachGlobal } from "../utils/global.js";
 
 export function heal(ctx) {
   const prev = ctx.player.hp;
@@ -272,40 +274,8 @@ export function applySeed(ctx, seedUint32) {
     window.RNG.applySeed(s);
     ctx.rng = window.RNG.rng;
   } else {
-    try {
-      if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
-        ctx.rng = window.RNGFallback.getRng(s);
-      } else {
-        // As a last resort, use a time-seeded deterministic fallback
-        ctx.rng = (function () {
-          try { return window.RNGFallback.getRng(s); } catch (_) {}
-          const seed = ((Date.now() % 0xffffffff) >>> 0);
-          function mulberry32(a) {
-            return function () {
-              let t = a += 0x6D2B79F5;
-              t = Math.imul(t ^ (t >>> 15), t | 1);
-              t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-              return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-            };
-          }
-          const f = mulberry32(seed);
-          return function () { return f(); };
-        })();
-      }
-    } catch (_) {
-      // Same last-resort deterministic fallback
-      const seed = ((Date.now() % 0xffffffff) >>> 0);
-      function mulberry32(a) {
-        return function () {
-          let t = a += 0x6D2B79F5;
-          t = Math.imul(t ^ (t >>> 15), t | 1);
-          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
-      }
-      const f = mulberry32(seed);
-      ctx.rng = function () { return f(); };
-    }
+    // Unified fallback via utils/rng_fallback
+    ctx.rng = getFallbackRng(s);
   }
   if (ctx.mode === "world") {
     ctx.log(`GOD: Applied seed ${s}. Regenerating overworld...`, "notice");
@@ -328,7 +298,5 @@ export function rerollSeed(ctx) {
   applySeed(ctx, s);
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.God = { heal, spawnStairsHere, spawnItems, spawnEnemyNearby, setAlwaysCrit, setCritPart, applySeed, rerollSeed };
-}
+// Back-compat: attach to window via helper
+attachGlobal("God", { heal, spawnStairsHere, spawnItems, spawnEnemyNearby, setAlwaysCrit, setCritPart, applySeed, rerollSeed });

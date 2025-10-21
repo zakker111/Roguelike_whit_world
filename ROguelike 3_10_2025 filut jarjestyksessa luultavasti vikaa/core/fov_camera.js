@@ -35,7 +35,6 @@ export function updateCamera(ctx) {
   } catch (_) {}
 }
 
-// Back-compat: attach to window for classic scripts
-if (typeof window !== "undefined") {
-  window.FOVCamera = { updateCamera };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("FOVCamera", { updateCamera });

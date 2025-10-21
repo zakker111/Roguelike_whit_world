@@ -10,11 +10,27 @@
  * - tick(ctx): optional no-op hook.
  */
 import * as World from "../world/world.js";
+import { getTileDef } from "../data/tile_lookup.js";
+import { attachGlobal } from "../utils/global.js";
 
 const DEFAULT_WIDTH = 28;
 const DEFAULT_HEIGHT = 18;
 
-// Deterministic RNG for region map based on global seed and world position
+// Compute a stable region "anchor" in overworld coordinates for persistence.
+// Adjacent overworld tiles that fall within the same sampled window share the same anchor.
+function computeRegionAnchor(ctx, worldX, worldY, width, height) {
+  const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
+  const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
+  const winW = Math.max(12, Math.min(worldW, Math.floor(worldW * 0.35)));
+  const winH = Math.max(8, Math.min(worldH, Math.floor(worldH * 0.35)));
+  const minX = Math.max(0, Math.min(worldW - winW, (worldX | 0) - Math.floor(winW / 2)));
+  const minY = Math.max(0, Math.min(worldH - winH, (worldY | 0) - Math.floor(winH / 2)));
+  return { ax: minX | 0, ay: minY | 0, winW, winH, w: width | 0, h: height | 0 };
+}
+
+/**
+ * Deterministic RNG for region map based on global seed and world position
+ */
 function _mulberry32(a) {
   return function() {
     let t = a += 0x6D2B79F5;
@@ -40,23 +56,6 @@ function getRegionRng(ctx) {
   const py = (ctx && ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
   const mix = (((px & 0xffff) | ((py & 0xffff) << 16)) ^ base) >>> 0;
   return _mulberry32(mix);
-}
-
-// Helper: get tile def from GameData.tiles for a given mode and numeric id
-function getTileDef(mode, id) {
-  try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-    if (!arr) return null;
-    const m = String(mode || "").toLowerCase();
-    for (let i = 0; i < arr.length; i++) {
-      const t = arr[i];
-      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
-      }
-    }
-  } catch (_) {}
-  return null;
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -218,8 +217,9 @@ function _saveCutsMap(map) {
     localStorage.setItem(REGION_CUTS_LS_KEY, JSON.stringify(map || {}));
   } catch (_) {}
 }
-function regionCutKey(worldX, worldY, width, height) {
-  return `r:${worldX},${worldY}:${width}x${height}`;
+function regionCutKeyFromAnchor(anchor) {
+  // Include window extent in key to be robust across different region sizes
+  return `r:${anchor.ax},${anchor.ay}:${anchor.winW}x${anchor.winH}`;
 }
 function applyRegionCuts(sample, key) {
   if (!key) return;
@@ -248,6 +248,10 @@ function addRegionCut(key, x, y) {
   if (!arr.includes(tag)) arr.push(tag);
   map[k] = arr;
   _saveCutsMap(map);
+}
+// Per-tile region cut key
+function regionCutKey(worldX, worldY, width, height) {
+  return `r:${worldX},${worldY}:${width}x${height}`;
 }
 
 // ---- Persistence of animal presence per region (remember areas where animals were seen and cleared) ----
@@ -284,6 +288,7 @@ function _loadAnimalsMap() {
 function _saveAnimalsMap(map) {
   try { localStorage.setItem(REGION_ANIMALS_LS_KEY, JSON.stringify(map || {})); } catch (_) {}
 }
+// Per-tile animal memory keys
 function regionAnimalsKey(worldX, worldY) {
   return `a:${worldX},${worldY}`;
 }
@@ -332,6 +337,7 @@ function _loadRegionStateMap() {
 function _saveRegionStateMap(map) {
   try { localStorage.setItem(REGION_STATE_LS_KEY, JSON.stringify(map || {})); } catch (_) {}
 }
+// Per-tile region state keys
 function regionStateKey(worldX, worldY) {
   return `s:${worldX},${worldY}`;
 }
@@ -589,7 +595,7 @@ function open(ctx, size) {
     sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
   }
 
-  // If animals were previously cleared for this region, do not spawn new ones this session.
+  // If animals were previously cleared for this tile, do not spawn new ones this session.
   const animalsCleared = animalsClearedHere(worldX, worldY);
 
   // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile).
@@ -634,13 +640,24 @@ function open(ctx, size) {
   spawnX = clamp(spawnX, 0, width - 1);
   spawnY = clamp(spawnY, 0, height - 1);
 
+  // On enter: spawn the cursor at the nearest exit tile (edge), not at the mapped interior point.
+  const exits = [exitNorth, exitSouth, exitWest, exitEast];
+  let bestExit = exits[0];
+  let bestDist = Infinity;
+  for (const e of exits) {
+    const d = Math.abs((e.x | 0) - spawnX) + Math.abs((e.y | 0) - spawnY);
+    if (d < bestDist) { bestDist = d; bestExit = e; }
+  }
+  spawnX = bestExit.x | 0;
+  spawnY = bestExit.y | 0;
+
   ctx.region = {
     ...(ctx.region || {}),
     width,
     height,
     map: sample,
     cursor: { x: spawnX | 0, y: spawnY | 0 },
-    exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
+    exitTiles: [exitNorth, exitSouth, exitEast],
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
     _hasKnownAnimals: animalsSeenHere(worldX, worldY)
@@ -651,14 +668,16 @@ function open(ctx, size) {
   // Initialize FOV memory and visibility (unseen by default; recomputeFOV will fill visible)
   ctx.seen = Array.from({ length: height }, () => Array(width).fill(false));
   ctx.visible = Array.from({ length: height }, () => Array(width).fill(false));
-  // Restore corpses saved for this region if present
+  // Reset transient region entities state; enemies are per-region-session only
+  ctx.enemies = [];
+  // Restore corpses saved for this region if present; otherwise clear to avoid bleed from previous region tiles
   try {
     if (restoredCorpses && Array.isArray(restoredCorpses)) {
       ctx.corpses = restoredCorpses;
     } else {
-      ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+      ctx.corpses = [];
     }
-  } catch (_) {}
+  } catch (_) { ctx.corpses = []; }
   // Move player to region cursor (camera centers on player)
   ctx.player.x = ctx.region.cursor.x | 0;
   ctx.player.y = ctx.region.cursor.y | 0;
@@ -744,18 +763,70 @@ function open(ctx, size) {
         + (rng() < (0.25 + forestBias * 0.40 + grassBias * 0.25 + beachBias * 0.15) ? 1 : 0)
         + (rng() < (forestBias * 0.30 + grassBias * 0.20) ? 1 : 0);
       let count = Math.min(2, base);
-      // Do not force at least one; keep some regions empty
+      // Ensure at least one creature in wild areas (without forcing adjacency)
+      if (count <= 0 && (playerTileWild || wildFrac >= 0.25)) {
+        count = 1;
+      }
       if (count <= 0) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
-      const types = ["deer","boar","fox"];
-      function pickType() {
-        const r = rng();
-        if (r < 0.45) return "deer";
-        if (r < 0.75) return "fox";
-        return "boar";
+      // Pick animal definition from GameData.animals using biome-weighted selection (with sensible fallbacks)
+      function pickAnimalDef() {
+        try {
+          const fallbackAnimals = [
+            {
+              id: "deer", glyph: "d", hp: 3, atk: 0.6,
+              spawnWeight: { FOREST: 0.7, GRASS: 0.5, BEACH: 0.2, DESERT: 0.0, SNOW: 0.1, SWAMP: 0.2, MOUNTAIN: 0.0 }
+            },
+            {
+              id: "fox", glyph: "f", hp: 2, atk: 0.7,
+              spawnWeight: { FOREST: 0.6, GRASS: 0.4, BEACH: 0.1, DESERT: 0.0, SNOW: 0.2, SWAMP: 0.1, MOUNTAIN: 0.0 }
+            },
+            {
+              id: "boar", glyph: "b", hp: 4, atk: 0.9,
+              spawnWeight: { FOREST: 0.5, GRASS: 0.3, BEACH: 0.0, DESERT: 0.0, SNOW: 0.1, SWAMP: 0.4, MOUNTAIN: 0.0 }
+            }
+          ];
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          const arrRaw = GD && Array.isArray(GD.animals) ? GD.animals : null;
+          // Ensure minimal shape consistency on loaded rows (id, glyph, hp, atk, spawnWeight)
+          const arr = (arrRaw && arrRaw.length) ? arrRaw : fallbackAnimals;
+          const WT2 = World.TILES;
+          // Compute biome fractions for spawn weighting
+          const { counts: cnts, total } = countBiomes(sample);
+          function frac(key) {
+            try {
+              const tileId = WT2[key];
+              const c = cnts[tileId] || 0;
+              return total ? (c / total) : 0;
+            } catch (_) { return 0; }
+          }
+          // Score each animal by sum(weight[biome] * fraction(biome))
+          const scores = arr.map((a) => {
+            const sw = (a && a.spawnWeight && typeof a.spawnWeight === "object") ? a.spawnWeight : {};
+            let s = 0;
+            for (const k in sw) {
+              const wv = Number(sw[k] || 0);
+              if (wv > 0) s += wv * frac(k);
+            }
+            // Small base weight to avoid zero-probability when biome is sparse
+            s += 0.01;
+            return Math.max(0, s);
+          });
+          const sum = scores.reduce((acc, v) => acc + v, 0);
+          if (sum <= 0) return arr[((rng() * arr.length) | 0)];
+          let r = rng() * sum;
+          for (let i = 0; i < arr.length; i++) {
+            r -= scores[i];
+            if (r <= 0) return arr[i];
+          }
+          return arr[arr.length - 1];
+        } catch (_) {
+          // Fallback hard default if something goes wrong
+          return { id: "deer", glyph: "d", hp: 3, atk: 0.6 };
+        }
       }
       function randomWalkable() {
         for (let tries = 0; tries < 200; tries++) {
@@ -769,23 +840,67 @@ function open(ctx, size) {
         }
         return null;
       }
+      function randomNearWalkable(cx, cy, radius = 6) {
+        for (let tries = 0; tries < 120; tries++) {
+          const dx = ((rng() * (radius * 2 + 1)) | 0) - radius;
+          const dy = ((rng() * (radius * 2 + 1)) | 0) - radius;
+          const x = cx + dx;
+          const y = cy + dy;
+          if (x < 0 || y < 0 || x >= w || y >= h) continue;
+          if (Math.abs(dx) + Math.abs(dy) > radius) continue;
+          const t = sample[y][x];
+          const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+          const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
+          const atCursor = (ctx.region.cursor && ctx.region.cursor.x === x && ctx.region.cursor.y === y);
+          if (walkable && !occupied && !atCursor) return { x, y };
+        }
+        return null;
+      }
       let spawned = 0;
+      const cx0 = (ctx.region.cursor && typeof ctx.region.cursor.x === "number") ? (ctx.region.cursor.x | 0) : 0;
+      const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
+
       for (let i = 0; i < count; i++) {
-        const pos = randomWalkable();
+        // Small chance to spawn the first creature closer to the player to improve visibility
+        let pos = null;
+        if (i === 0 && rng() < 0.30) {
+          pos = randomNearWalkable(cx0, cy0, 6);
+        }
+        if (!pos) pos = randomWalkable();
         if (!pos) break;
-        const t = pickType();
-        const hp = t === "deer" ? 3 : t === "fox" ? 2 : 4;
-        const atk = t === "deer" ? 0.6 : t === "fox" ? 0.7 : 0.9;
-        ctx.enemies.push({ x: pos.x, y: pos.y, type: t, glyph: (t[0] || "?"), hp, atk, xp: 0, level: 1, faction: "animal", announced: false });
+        const def = pickAnimalDef();
+        const typeId = (def && def.id) ? def.id : (def && def.type) ? def.type : null;
+        const glyph = (def && def.glyph) ? def.glyph : (typeId && typeId[0]) ? typeId[0] : "?";
+        const hp = (def && typeof def.hp === "number") ? def.hp : 3;
+        const atk = (def && typeof def.atk === "number") ? def.atk : 0.8;
+        ctx.enemies.push({ x: pos.x, y: pos.y, type: typeId || "animal", glyph, hp, atk, xp: 0, level: 1, faction: "animal", announced: false });
         spawned++;
       }
       // Persist animal presence for this region (world coordinates) so we remember later
       try {
         if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {
-          markAnimalsSeen(ctx.region.enterWorldPos.x | 0, ctx.region.enterWorldPos.y | 0);
+          markAnimalsSeen(worldX | 0, worldY | 0);
           // Also update flag in this session
           ctx.region._hasKnownAnimals = true;
-          try { ctx.log && ctx.log(`Creatures spotted (${spawned}).`, "notice"); } catch (_) {}
+
+          // Ensure FOV is up to date before logging visibility info
+          try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
+          // Count how many are currently visible to the player
+          let visibleCount = 0;
+          try {
+            const vis = Array.isArray(ctx.visible) ? ctx.visible : [];
+            for (const e of ctx.enemies) {
+              if (!e) continue;
+              if (vis[e.y] && vis[e.y][e.x]) { visibleCount++; if (visibleCount > 0) break; }
+            }
+          } catch (_) {}
+
+          if (visibleCount > 0) {
+            try { ctx.log && ctx.log(`Creatures spotted (${spawned}).`, "notice"); } catch (_) {}
+          } else {
+            try { ctx.log && ctx.log("Creatures are present in this area, but not in sight.", "info"); } catch (_) {}
+          }
+          try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
         } else {
           try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         }
@@ -1072,13 +1187,15 @@ function tick(ctx) {
 }
 
 // Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.RegionMapRuntime = {
-    open, close, tryMove, onAction, tick,
-    // Persistence helpers for animals memory/clear state
-    markAnimalsCleared,
-    animalsClearedHere,
-    markAnimalsSeen,
-    animalsSeenHere
-  };
-}
+attachGlobal("RegionMapRuntime", {
+  open,
+  close,
+  tryMove,
+  onAction,
+  tick,
+  // Persistence helpers for animals memory/clear state (per-tile exports)
+  markAnimalsCleared,
+  animalsClearedHere,
+  markAnimalsSeen,
+  animalsSeenHere
+});

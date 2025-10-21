@@ -11,6 +11,7 @@
  * - If no image is configured/loaded or key is unmapped, draw() returns false so callers can fallback.
  * - Coordinates in map are tile coordinates: { x: col, y: row }.
  */
+import { attachGlobal } from "../utils/global.js";
 
 export const Tileset = {
   _img: null,
@@ -99,7 +100,5 @@ Tileset.configure({
   }
 });
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.Tileset = Tileset;
-}
+// Back-compat: attach to window via helper
+attachGlobal("Tileset", Tileset);

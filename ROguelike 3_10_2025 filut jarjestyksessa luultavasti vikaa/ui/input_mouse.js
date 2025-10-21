@@ -123,7 +123,6 @@ export function init(opts) {
   } catch (_) {}
 }
 
-// Back-compat: attach to window for classic scripts
-if (typeof window !== "undefined") {
-  window.InputMouse = { init: init };
-}
+import { attachGlobal } from "../utils/global.js";
+// Back-compat: attach to window via helper
+attachGlobal("InputMouse", { init });

@@ -6,28 +6,15 @@
  */
 import * as RenderCore from "./render_core.js";
 import * as World from "../world/world.js";
+import { getTileDef } from "../data/tile_lookup.js";
+import { attachGlobal } from "../utils/global.js";
 
 // Minimap offscreen cache to avoid redrawing every frame
 let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null };
 // World base layer offscreen cache (full map at TILE resolution)
 let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
 
-// Helper: get tile def from GameData.tiles for a given mode and numeric id
-function getTileDef(mode, id) {
-  try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-    if (!arr) return null;
-    const m = String(mode || "").toLowerCase();
-    for (let i = 0; i < arr.length; i++) {
-      const t = arr[i];
-      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
-      }
-    }
-  } catch (_) {}
-  return null;
-}
+// getTileDef moved to centralized helper in ../data/tile_lookup.js
 
 // Robust fallback fill color mapping when tiles.json is missing/incomplete
 function fallbackFillOverworld(WT, id) {
@@ -605,7 +592,5 @@ export function draw(ctx, view) {
   RenderCore.drawGridOverlay(view);
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.RenderOverworld = { draw };
-}
+// Back-compat: attach to window via helper
+attachGlobal("RenderOverworld", { draw });

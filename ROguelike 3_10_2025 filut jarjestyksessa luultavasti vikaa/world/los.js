@@ -10,22 +10,8 @@
  * - hasLOS uses a Bresenham-style step; checks transparency along the segment,
  *   excluding the start and exact target tile.
  */
-
-function getTileDef(mode, id) {
-  try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
-    if (!arr) return null;
-    const m = String(mode || "").toLowerCase();
-    for (let i = 0; i < arr.length; i++) {
-      const t = arr[i];
-      if ((t.id | 0) === (id | 0) && Array.isArray(t.appearsIn) && t.appearsIn.some(s => String(s).toLowerCase() === m)) {
-        return t;
-      }
-    }
-  } catch (_) {}
-  return null;
-}
+import { getTileDef } from "../data/tile_lookup.js";
+import { attachGlobal } from "../utils/global.js";
 
 export function tileTransparent(ctx, x, y) {
   if (!ctx || typeof ctx.inBounds !== "function") return false;
@@ -60,7 +46,5 @@ export function hasLOS(ctx, x0, y0, x1, y1) {
   return true;
 }
 
-// Back-compat: attach to window
-if (typeof window !== "undefined") {
-  window.LOS = { tileTransparent, hasLOS };
-}
+// Back-compat: attach to window via helper
+attachGlobal("LOS", { tileTransparent, hasLOS });
