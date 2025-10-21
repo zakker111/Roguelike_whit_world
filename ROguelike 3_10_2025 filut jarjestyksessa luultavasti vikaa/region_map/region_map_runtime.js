@@ -772,12 +772,27 @@ function open(ctx, size) {
         return;
       }
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
-      // Pick animal definition from GameData.animals using biome-weighted selection
+      // Pick animal definition from GameData.animals using biome-weighted selection (with sensible fallbacks)
       function pickAnimalDef() {
         try {
+          const fallbackAnimals = [
+            {
+              id: "deer", glyph: "d", hp: 3, atk: 0.6,
+              spawnWeight: { FOREST: 0.7, GRASS: 0.5, BEACH: 0.2, DESERT: 0.0, SNOW: 0.1, SWAMP: 0.2, MOUNTAIN: 0.0 }
+            },
+            {
+              id: "fox", glyph: "f", hp: 2, atk: 0.7,
+              spawnWeight: { FOREST: 0.6, GRASS: 0.4, BEACH: 0.1, DESERT: 0.0, SNOW: 0.2, SWAMP: 0.1, MOUNTAIN: 0.0 }
+            },
+            {
+              id: "boar", glyph: "b", hp: 4, atk: 0.9,
+              spawnWeight: { FOREST: 0.5, GRASS: 0.3, BEACH: 0.0, DESERT: 0.0, SNOW: 0.1, SWAMP: 0.4, MOUNTAIN: 0.0 }
+            }
+          ];
           const GD = (typeof window !== "undefined" ? window.GameData : null);
-          const arr = GD && Array.isArray(GD.animals) ? GD.animals : null;
-          if (!arr || !arr.length) return null;
+          const arrRaw = GD && Array.isArray(GD.animals) ? GD.animals : null;
+          // Ensure minimal shape consistency on loaded rows (id, glyph, hp, atk, spawnWeight)
+          const arr = (arrRaw && arrRaw.length) ? arrRaw : fallbackAnimals;
           const WT2 = World.TILES;
           // Compute biome fractions for spawn weighting
           const { counts: cnts, total } = countBiomes(sample);
@@ -808,7 +823,10 @@ function open(ctx, size) {
             if (r <= 0) return arr[i];
           }
           return arr[arr.length - 1];
-        } catch (_) { return null; }
+        } catch (_) {
+          // Fallback hard default if something goes wrong
+          return { id: "deer", glyph: "d", hp: 3, atk: 0.6 };
+        }
       }
       function randomWalkable() {
         for (let tries = 0; tries < 200; tries++) {
