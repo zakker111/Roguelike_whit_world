@@ -1594,7 +1594,5 @@ export const UI = {
 };
 
 import { attachGlobal } from "../utils/global.js";
-import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper
-attachGlobal("UI", UI);ck-compat: attach to window via helper
 attachGlobal("UI", UI);
