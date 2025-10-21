@@ -16,6 +16,67 @@ function currentSeed() {
   return (Date.now() >>> 0);
 }
 
+// Stable coordinate hash → [0,1). Used to derive deterministic POI metadata.
+function h2(x, y) {
+  const n = (((x | 0) * 73856093) ^ ((y | 0) * 19349663)) >>> 0;
+  return (n % 1000003) / 1000003;
+}
+
+// Ensure POI bookkeeping containers exist on world
+function ensurePOIState(world) {
+  if (!world.towns) world.towns = [];
+  if (!world.dungeons) world.dungeons = [];
+  if (!world._poiSet) world._poiSet = new Set();
+}
+
+// Add a town at world coords if not present; derive size deterministically
+function addTown(world, x, y) {
+  ensurePOIState(world);
+  const key = `${x},${y}`;
+  if (world._poiSet.has(key)) return;
+  // Size distribution: small/big/city via hash
+  const r = h2(x + 11, y - 7);
+  const size = (r < 0.60) ? "small" : (r < 0.90 ? "big" : "city");
+  world.towns.push({ x, y, size });
+  world._poiSet.add(key);
+}
+
+// Add a dungeon at world coords if not present; derive level/size deterministically
+function addDungeon(world, x, y) {
+  ensurePOIState(world);
+  const key = `${x},${y}`;
+  if (world._poiSet.has(key)) return;
+  const r1 = h2(x - 5, y + 13);
+  const level = 1 + Math.floor(r1 * 5); // 1..5
+  const r2 = h2(x + 29, y + 3);
+  const size = (r2 < 0.45) ? "small" : (r2 < 0.85 ? "medium" : "large");
+  world.dungeons.push({ x, y, level, size });
+  world._poiSet.add(key);
+}
+
+// Scan a rectangle of the current window (map space) and register POIs sparsely
+function scanPOIs(ctx, x0, y0, w, h) {
+  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5 };
+  const world = ctx.world;
+  for (let yy = y0; yy < y0 + h; yy++) {
+    if (yy < 0 || yy >= ctx.map.length) continue;
+    const row = ctx.map[yy];
+    for (let xx = x0; xx < x0 + w; xx++) {
+      if (xx < 0 || xx >= row.length) continue;
+      const t = row[xx];
+      if (t === WT.TOWN) {
+        const wx = world.originX + xx;
+        const wy = world.originY + yy;
+        addTown(world, wx, wy);
+      } else if (t === WT.DUNGEON) {
+        const wx = world.originX + xx;
+        const wy = world.originY + yy;
+        addDungeon(world, wx, wy);
+      }
+    }
+  }
+}
+
 // Expand map arrays on any side by K tiles, generating via world.gen.tileAt against world origin offsets.
 function expandMap(ctx, side, K) {
   const world = ctx.world;
