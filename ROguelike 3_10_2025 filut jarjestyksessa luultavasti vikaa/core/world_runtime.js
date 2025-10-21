@@ -56,7 +56,7 @@ function addDungeon(world, x, y) {
 
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 function scanPOIs(ctx, x0, y0, w, h) {
-  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5 };
+  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3 };
   const world = ctx.world;
   for (let yy = y0; yy < y0 + h; yy++) {
     if (yy < 0 || yy >= ctx.map.length) continue;
@@ -73,6 +73,87 @@ function scanPOIs(ctx, x0, y0, w, h) {
         const wy = world.originY + yy;
         addDungeon(world, wx, wy);
       }
+    }
+  }
+  // After registering POIs in this strip/window, connect nearby towns with roads and mark bridges.
+  try { ensureRoads(ctx); } catch (_) {}
+}
+
+// Build roads between nearby towns in current window and mark bridge points where crossing water/river
+function ensureRoads(ctx) {
+  const WT = (ctx.World && ctx.World.TILES) || { WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3 };
+  const world = ctx.world;
+  if (!world) return;
+  world.roads = Array.isArray(world.roads) ? world.roads : [];
+  world.bridges = Array.isArray(world.bridges) ? world.bridges : [];
+  const roadSet = world._roadSet || (world._roadSet = new Set());
+  const bridgeSet = world._bridgeSet || (world._bridgeSet = new Set());
+
+  const ox = world.originX | 0, oy = world.originY | 0;
+  const cols = ctx.map[0] ? ctx.map[0].length : 0;
+  const rows = ctx.map.length;
+
+  function inWin(x, y) {
+    const lx = x - ox, ly = y - oy;
+    return lx >= 0 && ly >= 0 && lx < cols && ly < rows;
+  }
+
+  function addRoadPoint(x, y) {
+    const key = `${x},${y}`;
+    if (!roadSet.has(key)) {
+      roadSet.add(key);
+      world.roads.push({ x, y });
+    }
+  }
+  function addBridgePoint(x, y) {
+    const key = `${x},${y}`;
+    if (!bridgeSet.has(key)) {
+      bridgeSet.add(key);
+      world.bridges.push({ x, y });
+    }
+  }
+
+  function carveRoad(x0, y0, x1, y1) {
+    let x = x0, y = y0;
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    while (true) {
+      if (inWin(x, y)) {
+        const lx = x - ox, ly = y - oy;
+        const t = ctx.map[ly][lx];
+        // Across water/river: carve to BEACH and mark bridge overlay
+        if (t === WT.WATER || t === WT.RIVER) {
+          ctx.map[ly][lx] = WT.BEACH;
+          addBridgePoint(x, y);
+        }
+        // Across mountain: flatten to GRASS (optional) - leave as is to respect impassable terrain
+        addRoadPoint(x, y);
+      }
+      if (x === x1 && y === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 < dx) { err += dx; y += sy; }
+    }
+  }
+
+  const towns = Array.isArray(world.towns) ? world.towns.slice(0) : [];
+  // Connect each town to its nearest neighbor within a reasonable distance
+  for (let i = 0; i < towns.length; i++) {
+    const a = towns[i];
+    // Only consider towns currently in or near the window to limit cost
+    if (!inWin(a.x, a.y)) continue;
+    // Find nearest different town
+    let best = null, bd = Infinity;
+    for (let j = 0; j < towns.length; j++) {
+      if (i === j) continue;
+      const b = towns[j];
+      const d = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+      if (d < bd) { bd = d; best = b; }
+    }
+    if (best && bd <= 80) {
+      carveRoad(a.x, a.y, best.x, best.y);
     }
   }
 }
@@ -292,7 +373,7 @@ export function generate(ctx, opts = {}) {
     ctx.world.seenRef = ctx.seen;
     ctx.world.visibleRef = ctx.visible;
 
-    // Register POIs present in the initial window (sparse anchors only)
+    // Register POIs present in the initial window (sparse anchors only) and lay initial roads/bridges
     try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch (_) {}
 
     // Camera/FOV/UI

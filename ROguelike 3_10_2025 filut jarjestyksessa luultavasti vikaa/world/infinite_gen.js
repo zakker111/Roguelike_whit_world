@@ -72,11 +72,11 @@ function create(seed, opts = {}) {
     moistureFreq: 1 / 36,
     detailFreq: 1 / 6,
     riverFreq: 1 / 64,
-    // Placement (denser defaults)
-    townGrid: 48,         // coarse lattice spacing (was 64)
-    dungeonGrid: 36,      // was 48
-    townChance: 0.25,     // was 0.12
-    dungeonChance: 0.35,  // was 0.16
+    // Placement (denser defaults - further increased)
+    townGrid: 42,         // was 48
+    dungeonGrid: 32,      // was 36
+    townChance: 0.32,     // was 0.25
+    dungeonChance: 0.42,  // was 0.35
     ...opts,
   };
 
@@ -123,9 +123,18 @@ function create(seed, opts = {}) {
     // Add detail for coastline/forest speckle
     const detail = valueNoise2(s ^ 0xC5, x - 11, y + 37, cfg.detailFreq) * 0.25;
 
-    // River mask: pseudo-lines by thresholding low-frequency noise near ~0.5 with slight wobble
-    const rNoise = valueNoise2(s ^ 0xD7, x + 999, y - 999, cfg.riverFreq);
-    const nearRiver = Math.abs(rNoise - 0.5) < 0.02; // narrow band
+    // Rivers: variable width (1..3) bands with slight meander, trending toward the up-ocean (negative y)
+    const rBase = valueNoise2(s ^ 0xD7, x + 999, y - 999, cfg.riverFreq);
+    const rMeander = valueNoise2(s ^ 0xDA, x - 321, y + 777, cfg.riverFreq * 1.8);
+    // Column/row hashed width 1..3
+    const wHash = hash2(s ^ 0xED, Math.floor(x / 3), Math.floor(y / 3));
+    const rWidth = 1 + ((wHash * 3) | 0); // 1..3
+    // Core threshold around 0.5 with width-dependent tolerance
+    let tol = 0.010 + (rWidth - 1) * 0.008; // 0.010..0.026
+    // Bias toward flowing to negative y (up) by tightening band when far from ocean and widening slightly as y gets smaller
+    const flowBias = clamp((0 - y) / 1200, 0, 0.25); // increases as we go up
+    tol += flowBias * 0.02;
+    const nearRiver = Math.abs((rBase * 0.8 + rMeander * 0.2) - 0.5) < tol;
 
     // Temperature bias by latitude
     const temp = temperatureAt(y);
