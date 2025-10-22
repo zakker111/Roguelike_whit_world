@@ -1,15 +1,14 @@
 /**
- * Minimal static HTTP server for local development.
+ * Minimal static HTTP server for local development (ESM).
  * Usage:
- *   1) npm init -y (optional)
- *   2) node server.js
- *   3) Open http://localhost:8080/
+ *   1) node server.js
+ *   2) Open http://localhost:8080/
  *
  * Serves the current directory. No compression, no directory traversal.
  */
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 const ROOT = process.cwd();
