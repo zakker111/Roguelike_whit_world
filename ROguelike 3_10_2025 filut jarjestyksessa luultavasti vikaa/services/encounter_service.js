@@ -125,8 +125,18 @@ export function maybeTryEncounter(ctx) {
     const cap = Math.min(0.35, 0.18 * scale); // raise cap modestly with scale (max 35%)
     const chance = Math.min(cap, baseP + pityBoost);
 
-    const roll = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-    if (roll >= chance) {
+    // Deterministic roll using RNGUtils when available; fallback to direct rng() comparison
+    const willEncounter = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          const rngFn = (typeof ctx.rng === "function") ? ctx.rng : undefined;
+          return window.RNGUtils.chance(chance, rngFn);
+        }
+      } catch (_) {}
+      const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+      return r < chance;
+    })();
+    if (!willEncounter) {
       STATE.movesSinceLast += 1;
       return false;
     }

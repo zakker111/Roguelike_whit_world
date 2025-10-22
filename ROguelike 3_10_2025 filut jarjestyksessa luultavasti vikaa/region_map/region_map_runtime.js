@@ -1017,8 +1017,17 @@ function tryMove(ctx, dx, dy) {
     try {
       const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
       const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
-      const rb = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-      if (rb < blockChance) {
+      // Prefer RNGUtils.chance for determinism; fallback to raw rng comparison
+      const didBlock = (function () {
+        try {
+          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+            return window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
+          }
+        } catch (_) {}
+        const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+        return r < blockChance;
+      })();
+      if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
         const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
