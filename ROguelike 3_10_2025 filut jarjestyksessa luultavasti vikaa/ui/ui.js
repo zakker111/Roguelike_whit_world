@@ -417,36 +417,7 @@ export const UI = {
       });
       this.updateMinimapButton();
     }
-    // Roads toggle
-    this.els.godToggleRoadsBtn = document.getElementById("god-toggle-roads-btn");
-    if (this.els.godToggleRoadsBtn) {
-      this.els.godToggleRoadsBtn.addEventListener("click", () => {
-        const next = !this.getRoadsState();
-        this.setRoadsState(next);
-        this.updateRoadsButton();
-        try {
-          if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
-            window.GameAPI.requestDraw();
-          }
-        } catch (_) {}
-      });
-      this.updateRoadsButton();
-    }
-    // Bridges toggle
-    this.els.godToggleBridgesBtn = document.getElementById("god-toggle-bridges-btn");
-    if (this.els.godToggleBridgesBtn) {
-      this.els.godToggleBridgesBtn.addEventListener("click", () => {
-        const next = !this.getBridgesState();
-        this.setBridgesState(next);
-        this.updateBridgesButton();
-        try {
-          if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
-            window.GameAPI.requestDraw();
-          }
-        } catch (_) {}
-      });
-      this.updateBridgesButton();
-    }
+    
     // RNG seed controls
     if (this.els.godApplySeedBtn) {
       this.els.godApplySeedBtn.addEventListener("click", () => {
@@ -670,14 +641,13 @@ export const UI = {
       if (typeof window.DRAW_GRID !== "boolean") window.DRAW_GRID = this.getGridState();
       if (typeof window.SHOW_PERF !== "boolean") window.SHOW_PERF = this.getPerfState();
       if (typeof window.SHOW_MINIMAP !== "boolean") window.SHOW_MINIMAP = this.getMinimapState();
-      if (typeof window.SHOW_ROADS !== "boolean") window.SHOW_ROADS = this.getRoadsState();
-      if (typeof window.SHOW_BRIDGES !== "boolean") window.SHOW_BRIDGES = this.getBridgesState();
+      // Roads/Bridges always ON by default; UI toggle removed
+      window.SHOW_ROADS = true;
+      window.SHOW_BRIDGES = true;
       // Ensure buttons reflect baseline state
       this.updateGridButton();
       this.updatePerfButton();
       this.updateMinimapButton();
-      this.updateRoadsButton();
-      this.updateBridgesButton();
     } catch (_) {}
 
     return true;

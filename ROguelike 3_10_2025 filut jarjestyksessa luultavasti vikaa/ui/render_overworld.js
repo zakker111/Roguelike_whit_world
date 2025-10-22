@@ -404,7 +404,7 @@ export function draw(ctx, view) {
 
   // Roads overlay — toggleable via UI (SHOW_ROADS)
   try {
-    const showRoads = (typeof window !== "undefined" && typeof window.SHOW_ROADS === "boolean") ? window.SHOW_ROADS : false;
+    const showRoads = (typeof window !== "undefined" && typeof window.SHOW_ROADS === "boolean") ? window.SHOW_ROADS : true;
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
     if (showRoads && roads.length) {
       ctx2d.save();
