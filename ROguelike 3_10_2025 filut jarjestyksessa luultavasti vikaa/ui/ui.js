@@ -1408,59 +1408,9 @@ export const UI = {
     this.els.godToggleMinimapBtn.title = on ? "Hide overworld minimap" : "Show overworld minimap";
   },
 
-  // --- Roads controls ---
-  getRoadsState() {
-    try {
-      if (typeof window.SHOW_ROADS === "boolean") return window.SHOW_ROADS;
-      const v = localStorage.getItem("SHOW_ROADS");
-      if (v === "1") return true;
-      if (v === "0") return false;
-    } catch (_) {}
-    // Default OFF
-    return false;
-  },
+  
 
-  setRoadsState(enabled) {
-    try {
-      window.SHOW_ROADS = !!enabled;
-      localStorage.setItem("SHOW_ROADS", enabled ? "1" : "0");
-    } catch (_) {}
-    this.updateRoadsButton();
-  },
-
-  updateRoadsButton() {
-    if (!this.els.godToggleRoadsBtn) return;
-    const on = this.getRoadsState();
-    this.els.godToggleRoadsBtn.textContent = `Roads: ${on ? "On" : "Off"}`;
-    this.els.godToggleRoadsBtn.title = on ? "Hide overworld road overlay" : "Show subtle overworld road overlay";
-  },
-
-  // --- Bridges controls ---
-  getBridgesState() {
-    try {
-      if (typeof window.SHOW_BRIDGES === "boolean") return window.SHOW_BRIDGES;
-      const v = localStorage.getItem("SHOW_BRIDGES");
-      if (v === "1") return true;
-      if (v === "0") return false;
-    } catch (_) {}
-    // Default OFF
-    return false;
-  },
-
-  setBridgesState(enabled) {
-    try {
-      window.SHOW_BRIDGES = !!enabled;
-      localStorage.setItem("SHOW_BRIDGES", enabled ? "1" : "0");
-    } catch (_) {}
-    this.updateBridgesButton();
-  },
-
-  updateBridgesButton() {
-    if (!this.els.godToggleBridgesBtn) return;
-    const on = this.getBridgesState();
-    this.els.godToggleBridgesBtn.textContent = `Bridges: ${on ? "On" : "Off"}`;
-    this.els.godToggleBridgesBtn.title = on ? "Hide overworld bridge markers" : "Show overworld bridge markers";
-  },
+  
 
   // --- Town debug overlay controls ---
   getTownOverlayState() {

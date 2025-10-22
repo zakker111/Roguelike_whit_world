@@ -2067,30 +2067,10 @@
 
   function tryMovePlayer(dx, dy) {
     if (isDead) return;
-    // Prefer centralized Movement facade for all modes
-    try {
-      const MV = modHandle("Movement");
-      if (MV && typeof MV.tryMove === "function") {
-        MV.tryMove(getCtx(), dx, dy);
-        return;
-      }
-    } catch (_) {}
-    // Minimal fallback by mode to keep basic movement working
-    const ctxMod = getCtx();
-    if (ctxMod.mode === "region") {
-      const RM = modHandle("RegionMapRuntime");
-      if (RM && typeof RM.tryMove === "function") RM.tryMove(ctxMod, dx, dy);
-      return;
-    }
-    if (ctxMod.mode === "world") {
-      const WR = modHandle("WorldRuntime");
-      if (WR && typeof WR.tryMovePlayerWorld === "function") { WR.tryMovePlayerWorld(ctxMod, dx, dy); return; }
-    } else if (ctxMod.mode === "town") {
-      const TR = modHandle("TownRuntime");
-      if (TR && typeof TR.tryMoveTown === "function") { TR.tryMoveTown(ctxMod, dx, dy); return; }
-    } else if (ctxMod.mode === "encounter" || ctxMod.mode === "dungeon") {
-      const DR = modHandle("DungeonRuntime");
-      if (DR && typeof DR.tryMoveDungeon === "function") { DR.tryMoveDungeon(ctxMod, dx, dy); return; }
+    // Centralized movement only
+    const MV = modHandle("Movement");
+    if (MV && typeof MV.tryMove === "function") {
+      MV.tryMove(getCtx(), dx, dy);
     }
   }
 

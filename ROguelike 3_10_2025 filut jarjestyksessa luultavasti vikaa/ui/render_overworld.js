@@ -402,11 +402,10 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Roads overlay — toggleable via UI (SHOW_ROADS)
+  // Roads overlay — always on
   try {
-    const showRoads = (typeof window !== "undefined" && typeof window.SHOW_ROADS === "boolean") ? window.SHOW_ROADS : true;
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
-    if (showRoads && roads.length) {
+    if (roads.length) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.18; // subtle overlay
       ctx2d.fillStyle = "#b0a58a"; // muted road color
@@ -415,7 +414,6 @@ export function draw(ctx, view) {
         if (x < startX || x > endX || y < startY || y > endY) continue;
         const sx = (x - startX) * TILE - tileOffsetX;
         const sy = (y - startY) * TILE - tileOffsetY;
-        // small rectangle in the center of the tile to suggest a road
         const w = Math.max(3, Math.floor(TILE * 0.40));
         const h = Math.max(2, Math.floor(TILE * 0.16));
         ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
