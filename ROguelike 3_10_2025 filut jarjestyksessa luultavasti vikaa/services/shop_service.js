@@ -108,7 +108,13 @@ function _shopKey(shop) {
 }
 
 function _rng(ctx) {
-  try { return typeof ctx.rng === "function" ? ctx.rng : Math.random; } catch (_) { return Math.random; }
+  try {
+    if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+      return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
+    }
+  } catch (_) {}
+  try { return typeof ctx.rng === "function" ? ctx.rng : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random); }
+  catch (_) { return Math.random; }
 }
 
 function _priceFor(item) {

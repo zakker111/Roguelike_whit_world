@@ -58,7 +58,14 @@ function getRegionRng(ctx) {
   return _mulberry32(mix);
 }
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function clamp(v, lo, hi) {
+  try {
+    if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.clamp === "function") {
+      return window.Bounds.clamp(v, lo, hi);
+    }
+  } catch (_) {}
+  return Math.max(lo, Math.min(hi, v));
+}
 
 // Build a local downscaled sample centered around the player's world position.
 // Samples a window ~35% of the world dimensions to reflect nearby biomes rather than the whole map.
@@ -1010,8 +1017,17 @@ function tryMove(ctx, dx, dy) {
     try {
       const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
       const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
-      const rb = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-      if (rb < blockChance) {
+      // Prefer RNGUtils.chance for determinism; fallback to raw rng comparison
+      const didBlock = (function () {
+        try {
+          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+            return window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
+          }
+        } catch (_) {}
+        const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+        return r < blockChance;
+      })();
+      if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
         const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
@@ -1169,9 +1185,13 @@ function tick(ctx) {
       }
     } catch (_) {}
     try {
-      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-      if (OG && typeof OG.build === "function") {
-        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+        window.OccupancyFacade.rebuild(ctx);
+      } else {
+        const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+        if (OG && typeof OG.build === "function") {
+          ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+        }
       }
     } catch (_) {}
     // Victory: no enemies remain — keep player in Region Map (no auto-close or victory log)

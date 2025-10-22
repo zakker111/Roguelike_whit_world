@@ -110,6 +110,7 @@
       <button id="god-toggle-route-paths-btn" class="btn" title="Draw blue line to current destination for each NPC">Routes: Off</button>
       <button id="god-toggle-perf-btn" class="btn" title="Show turn/draw perf timings in HUD top bar">Perf: On</button>
       <button id="god-toggle-minimap-btn" class="btn" title="Show or hide the overworld minimap">Minimap: On</button>
+      
       <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
       <button id="god-check-inn-tavern-btn" class="btn" title="Report coordinates for Inn and Plaza/Square">Check Inn/Plaza</button>
       <button id="god-diagnostics-btn" class="btn" title="Show system diagnostics (determinism source, seed, module handles) in log">Diagnostics</button>
@@ -198,7 +199,10 @@
 
   <!-- Utilities (available early for modules that use shared helpers/RNG fallback) -->
   <script src="/utils/utils.js" type="module" defer></script>
+  <script src="/utils/bounds.js" type="module" defer></script>
+  <script src="/utils/item_describe.js" type="module" defer></script>
   <script src="/utils/rng_fallback.js" type="module" defer></script>
+  <script src="/utils/rng.js" type="module" defer></script>
 
   <!-- Boot diagnostics: log RNG source and seed -->
   <script>
@@ -317,8 +321,21 @@
   <script src="/core/ui_bridge.js" type="module" defer></script>
   <!-- Region Map overlay runtime -->
   <script src="/region_map/region_map_runtime.js" type="module" defer></script>
-  <!-- World runtime (must load before game.js so Game can detect window.WorldRuntime) -->
+  <!-- Core facades and runtimes (must load before game.js so Game can detect them) -->
+  <script src="/core/occupancy_facade.js" type="module" defer></script>
   <script src="/core/world_runtime.js" type="module" defer></script>
+  <!-- New Phase B split modules -->
+  <script src="/core/game_state.js" type="module" defer></script>
+  <script src="/core/turn_loop.js" type="module" defer></script>
+  <script src="/core/game_fov.js" type="module" defer></script>
+  <script src="/core/modes_transitions.js" type="module" defer></script>
+  <script src="/core/ui_orchestration.js" type="module" defer></script>
+  <script src="/core/state_sync.js" type="module" defer></script>
+  <script src="/core/movement.js" type="module" defer></script>
+  <script src="/core/inventory_flow.js" type="module" defer></script>
+  <script src="/core/loot_flow.js" type="module" defer></script>
+  <script src="/core/render_orchestration.js" type="module" defer></script>
+  <script src="/core/death_flow.js" type="module" defer></script>
   <script src="/core/game.js" type="module" defer></script>
 
   <!-- Optional smoke test runner: load when ?smoketest=1 -->

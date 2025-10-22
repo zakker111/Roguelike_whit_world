@@ -14,13 +14,21 @@ export const profiles = {
 };
 
 export function rollHitLocation(rng) {
-  const r = (typeof rng === "function")
-    ? rng()
-    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-        ? window.RNG.rng()
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-            ? window.RNGFallback.getRng()()
-            : Math.random()));
+  const rfn = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng(rng);
+      }
+    } catch (_) {}
+    return (typeof rng === "function")
+      ? rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+          ? window.RNG.rng
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+              ? window.RNGFallback.getRng()
+              : Math.random));
+  })();
+  const r = rfn();
   if (r < 0.50) return profiles.torso;
   if (r < 0.65) return profiles.head;
   if (r < 0.80) return profiles.hands;
@@ -28,13 +36,21 @@ export function rollHitLocation(rng) {
 }
 
 export function critMultiplier(rng) {
-  const r = (typeof rng === "function")
-    ? rng()
-    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-        ? window.RNG.rng()
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-            ? window.RNGFallback.getRng()()
-            : Math.random()));
+  const rfn = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng(rng);
+      }
+    } catch (_) {}
+    return (typeof rng === "function")
+      ? rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+          ? window.RNG.rng
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+              ? window.RNGFallback.getRng()
+              : Math.random));
+  })();
+  const r = rfn();
   return 1.6 + r * 0.4;
 }
 

@@ -219,12 +219,16 @@ function ensureExtraBridges(ctx) {
     }
   }
 
-  const stride = 18; // place at most one bridge per ~18 tiles per span to avoid spam
+  // Reduce frequency and cap per window
+  const stride = 32; // place at most one bridge per ~32 tiles per span
+  const maxBridges = Math.max(1, Math.floor((rows + cols) / 80)); // soft cap per window size
+  let placed = 0;
 
   // Vertical scans (columns) — choose a row and carve horizontally across the whole river thickness
-  for (let lx = 0; lx < cols; lx += 2) {
+  for (let lx = 0; lx < cols; lx += 3) {
+    if (placed >= maxBridges) break;
     let y = 0;
-    while (y < rows) {
+    while (y < rows && placed < maxBridges) {
       // find start of river span
       while (y < rows && !(ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) y++;
       if (y >= rows) break;
@@ -234,12 +238,14 @@ function ensureExtraBridges(ctx) {
       const spanLen = y1 - y0 + 1;
       if (spanLen >= 2) {
         for (let k = 0; k * stride < spanLen; k++) {
+          if (placed >= maxBridges) break;
           const off = Math.floor(spanLen / 2) + k * stride;
           const lyBridge = y0 + Math.min(off, spanLen - 1);
           // ensure adjacent horizontal tiles lead to land within 1 step
           const hasLandSide = isLandLocal(Math.max(0, lx - 1), lyBridge) || isLandLocal(Math.min(cols - 1, lx + 1), lyBridge);
           if (hasLandSide) {
             carveAcrossRow(lx, lyBridge);
+            placed++;
             break; // one per span in this pass
           }
         }
@@ -248,23 +254,29 @@ function ensureExtraBridges(ctx) {
   }
 
   // Horizontal scans (rows) — choose a column and carve vertically across the whole river thickness
-  for (let ly = 0; ly < rows; ly += 2) {
-    let x = 0;
-    while (x < cols) {
-      while (x < cols && !(ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) x++;
-      if (x >= cols) break;
-      const x0 = x;
-      while (x < cols && (ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) x++;
-      const x1 = x - 1;
-      const spanLen = x1 - x0 + 1;
-      if (spanLen >= 2) {
-        for (let k = 0; k * stride < spanLen; k++) {
-          const off = Math.floor(spanLen / 2) + k * stride;
-          const lxBridge = x0 + Math.min(off, spanLen - 1);
-          const hasLandSide = isLandLocal(lxBridge, Math.max(0, ly - 1)) || isLandLocal(lxBridge, Math.min(rows - 1, ly + 1));
-          if (hasLandSide) {
-            carveAcrossCol(lxBridge, ly);
-            break;
+  // Only proceed if we have not reached cap; this halves previous density
+  if (placed < maxBridges) {
+    for (let ly = 0; ly < rows; ly += 3) {
+      if (placed >= maxBridges) break;
+      let x = 0;
+      while (x < cols && placed < maxBridges) {
+        while (x < cols && !(ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) x++;
+        if (x >= cols) break;
+        const x0 = x;
+        while (x < cols && (ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) x++;
+        const x1 = x - 1;
+        const spanLen = x1 - x0 + 1;
+        if (spanLen >= 2) {
+          for (let k = 0; k * stride < spanLen; k++) {
+            if (placed >= maxBridges) break;
+            const off = Math.floor(spanLen / 2) + k * stride;
+            const lxBridge = x0 + Math.min(off, spanLen - 1);
+            const hasLandSide = isLandLocal(lxBridge, Math.max(0, ly - 1)) || isLandLocal(lxBridge, Math.min(rows - 1, ly + 1));
+            if (hasLandSide) {
+              carveAcrossCol(lxBridge, ly);
+              placed++;
+              break;
+            }
           }
         }
       }
@@ -283,12 +295,21 @@ function expandMap(ctx, side, K) {
   const rows = ctx.map.length;
   const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
 
+  // Helper: normalize a visibility/seen row to a plain Array for safe concat operations.
+  const toRowArray = (row, lenHint) => {
+    if (!row) return new Array(lenHint | 0).fill(false);
+    // Typed arrays (e.g., Uint8Array) need conversion to plain array when concatenating.
+    if (ArrayBuffer.isView(row)) return Array.from(row);
+    // Already a plain array
+    return row;
+  };
+
   if (side === "left") {
     // prepend K columns; shift origin and player by +K to keep world coords aligned, and offset camera to avoid visual snap
     for (let y = 0; y < rows; y++) {
       const row = ctx.map[y];
-      const seenRow = ctx.seen[y] || [];
-      const visRow = ctx.visible[y] || [];
+      const seenRow = toRowArray(ctx.seen[y], cols);
+      const visRow = toRowArray(ctx.visible[y], cols);
       const prepend = new Array(K);
       const seenPre = new Array(K).fill(false);
       const visPre = new Array(K).fill(false);
@@ -323,8 +344,8 @@ function expandMap(ctx, side, K) {
     // append K columns
     for (let y = 0; y < rows; y++) {
       const row = ctx.map[y];
-      const seenRow = ctx.seen[y] || [];
-      const visRow = ctx.visible[y] || [];
+      const seenRow = toRowArray(ctx.seen[y], cols);
+      const visRow = toRowArray(ctx.visible[y], cols);
       const append = new Array(K);
       const seenApp = new Array(K).fill(false);
       const visApp = new Array(K).fill(false);
@@ -356,8 +377,8 @@ function expandMap(ctx, side, K) {
       newVis.push(new Array(cols).fill(false));
     }
     ctx.map = newRows.concat(ctx.map);
-    ctx.seen = newSeen.concat(ctx.seen);
-    ctx.visible = newVis.concat(ctx.visible);
+    ctx.seen = newSeen.concat(ctx.seen.map(r => toRowArray(r, cols)));
+    ctx.visible = newVis.concat(ctx.visible.map(r => toRowArray(r, cols)));
     world.originY -= K;
     // Newly added strip is rows [0..K-1]
     scanPOIs(ctx, 0, 0, cols, K);

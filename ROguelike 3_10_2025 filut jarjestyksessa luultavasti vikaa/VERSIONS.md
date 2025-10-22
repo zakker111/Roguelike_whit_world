@@ -1,5 +1,20 @@
 # Game Version History
-Last updated: 2025-10-21 18:30 UTC
+Last updated: 2025-10-22 00:00 UTC
+
+v1.37.1 — Overworld overlays always on, movement delegation cleanup, dead-code removal
+- Overworld renderer
+  - Roads and bridges overlays now always render when data is present (ctx.world.roads/bridges). Removed GOD panel toggles for these overlays.
+  - Deleted a duplicate bridges overlay block in ui/render_overworld.js to avoid redundant drawing.
+- UI
+  - Removed Roads/Bridges toggle buttons and related state helpers from ui/ui.js and index.html.
+  - Eliminated baseline SHOW_ROADS/SHOW_BRIDGES window assignments; overlays no longer depend on flags.
+- Core movement
+  - core/game.js now delegates tryMovePlayer exclusively to Movement.tryMove(ctx, dx, dy).
+  - descendIfPossible and brace also delegate solely to Movement, removing legacy fallback branches.
+- Result
+  - Less code duplication and fewer conditionals; consistent behavior via centralized Movement and always-on overworld overlays.
+
+Deployment: https://c4rgubux2smp.cosine.page, https://b2qm5ih3r6qy.cosine.page, https://vnpdpeiurnyl.cosine.page
 
 v1.37.0 — Infinite world polish, 5% encounters, sparse animals, mountain pass, and Seppo uniqueness
 - Overworld/infinite

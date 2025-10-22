@@ -80,7 +80,16 @@ export function enemyDamageMultiplier(level) {
  */
 export function playerAttackEnemy(ctx, enemy) {
   if (!ctx || !enemy) return;
-  const rng = typeof ctx.rng === "function" ? ctx.rng : Math.random;
+  const rng = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
+      }
+    } catch (_) {}
+    return (typeof ctx.rng === "function")
+      ? ctx.rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  })();
 
   // Helper: classify equipped weapon for skill tracking
   function classifyWeapon(p) {
@@ -116,9 +125,18 @@ export function playerAttackEnemy(ctx, enemy) {
     if (typeof ctx.getEnemyBlockChance === "function") blockChance = ctx.getEnemyBlockChance(enemy, loc);
     else blockChance = getEnemyBlockChance(ctx, enemy, loc);
   } catch (_) { blockChance = 0; }
-  const rBlock = typeof ctx.rng === "function" ? ctx.rng() : rng();
+  // Prefer RNGUtils.chance when available for determinism; fallback to raw rng comparison
+  const didBlock = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+        return window.RNGUtils.chance(blockChance, rng);
+      }
+    } catch (_) {}
+    const r = (typeof ctx.rng === "function") ? ctx.rng() : rng();
+    return r < blockChance;
+  })();
 
-  if (rBlock < blockChance) {
+  if (didBlock) {
     try {
       const name = (enemy.type || "enemy");
       if (ctx.log) ctx.log(`${name.charAt(0).toUpperCase()}${name.slice(1)} blocks your attack to the ${loc.part}.`, "block");
@@ -136,7 +154,10 @@ export function playerAttackEnemy(ctx, enemy) {
     try {
       if (typeof ctx.decayBlockingHands === "function") ctx.decayBlockingHands();
       else if (typeof ctx.decayEquipped === "function") {
-        const rf = (min, max) => (min + (Math.random() * (max - min)));
+        const rf = (min, max) =>
+          (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function")
+            ? window.RNGUtils.float(min, max, 1, rng)
+            : (min + (rng() * (max - min)));
         ctx.decayEquipped("hands", rf(0.2, 0.7));
       }
     } catch (_) {}
@@ -172,8 +193,17 @@ export function playerAttackEnemy(ctx, enemy) {
   const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
   let critMult = 1.8;
   try { if (ctx.Combat && typeof ctx.Combat.critMultiplier === "function") critMult = ctx.Combat.critMultiplier(ctx.rng); } catch (_) {}
-  const rCrit = typeof ctx.rng === "function" ? ctx.rng() : rng();
-  if (alwaysCrit || rCrit < critChance) {
+  const didCrit = (function () {
+    if (alwaysCrit) return true;
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+        return window.RNGUtils.chance(critChance, rng);
+      }
+    } catch (_) {}
+    const r = (typeof ctx.rng === "function") ? ctx.rng() : rng();
+    return r < critChance;
+  })();
+  if (didCrit) {
     isCrit = true;
     dmg *= critMult;
   }
@@ -224,7 +254,10 @@ export function playerAttackEnemy(ctx, enemy) {
   try {
     if (typeof ctx.decayAttackHands === "function") ctx.decayAttackHands(false);
     else if (typeof ctx.decayEquipped === "function") {
-      const rf = (min, max) => (min + (Math.random() * (max - min)));
+      const rf = (min, max) =>
+        (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function")
+          ? window.RNGUtils.float(min, max, 1, rng)
+          : (min + (rng() * (max - min)));
       ctx.decayEquipped("hands", rf(0.3, 1.0));
     }
   } catch (_) {}

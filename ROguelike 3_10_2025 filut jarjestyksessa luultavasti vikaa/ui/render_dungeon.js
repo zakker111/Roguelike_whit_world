@@ -26,6 +26,49 @@ function fallbackFillDungeon(TILES, type, COLORS) {
   return "#0b0c10";
 }
 
+// Tile cache to avoid repeated JSON lookups inside hot loops (depends on tiles.json ref and encounter biome)
+const TILE_CACHE = { ref: null, biome: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
+function cacheResetIfNeeded(encounterBiomeRef) {
+  const ref = (typeof window !== "undefined" && window.GameData) ? window.GameData.tiles : null;
+  const bKey = String(encounterBiomeRef || "");
+  if (TILE_CACHE.ref !== ref || TILE_CACHE.biome !== bKey) {
+    TILE_CACHE.ref = ref;
+    TILE_CACHE.biome = bKey;
+    TILE_CACHE.fill = Object.create(null);
+    TILE_CACHE.glyph = Object.create(null);
+    TILE_CACHE.fg = Object.create(null);
+  }
+}
+function fillDungeonFor(TILES, type, COLORS, themeFn) {
+  cacheResetIfNeeded(typeof themeFn === "function" ? themeFn.__biomeKey : null);
+  const k = type | 0;
+  let v = TILE_CACHE.fill[k];
+  if (v) return v;
+  const td = getTileDef("dungeon", type);
+  const theme = typeof themeFn === "function" ? themeFn(type) : null;
+  v = theme || (td && td.colors && td.colors.fill) || fallbackFillDungeon(TILES, type, COLORS);
+  TILE_CACHE.fill[k] = v;
+  return v;
+}
+function glyphDungeonFor(type) {
+  cacheResetIfNeeded(null);
+  const k = type | 0;
+  let g = TILE_CACHE.glyph[k];
+  let c = TILE_CACHE.fg[k];
+  if (typeof g !== "undefined" && typeof c !== "undefined") return { glyph: g, fg: c };
+  const td = getTileDef("dungeon", type);
+  if (td) {
+    g = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+    c = td.colors && td.colors.fg ? td.colors.fg : null;
+  } else {
+    g = "";
+    c = null;
+  }
+  TILE_CACHE.glyph[k] = g;
+  TILE_CACHE.fg[k] = c;
+  return { glyph: g, fg: c };
+}
+
 // getTileDefByKey moved to centralized helper in ../data/tile_lookup.js
 
 export function draw(ctx, view) {
@@ -37,6 +80,9 @@ export function draw(ctx, view) {
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
+
+  // Hoist tileset capability check outside hot loops
+  const canTileset = !!(tilesetReady && TS && typeof TS.draw === "function" && ctx.mode !== "encounter");
 
   // Helpers: biome-aware fill colors for encounter maps (fallback when no tileset)
   function parseHex(c) {
@@ -99,6 +145,8 @@ export function draw(ctx, view) {
     if (type === TILES.FLOOR || type === TILES.STAIRS) return base;
     return null;
   }
+  // Tag with current biome key for cache invalidation
+  try { encounterFillFor.__biomeKey = String(ctx.encounterBiome || ""); } catch (_) {}
   // Build base offscreen once per map/TILE change
   try {
     if (mapRows && mapCols) {
@@ -131,18 +179,16 @@ export function draw(ctx, view) {
             else if (type === TILES.STAIRS) key = "stairs";
             else if (type === TILES.DOOR) key = "door";
             let drawn = false;
-            if (tilesetReady && TS && typeof TS.draw === "function" && ctx.mode !== "encounter") {
+            if (canTileset) {
               drawn = TS.draw(oc, key, sx, sy, TILE);
             }
             if (!drawn) {
-              // Biome-aware fill (fallback), otherwise tiles.json dungeon fill, else robust fallback color
-              const td = getTileDef("dungeon", type);
-              const theme = encounterFillFor(type);
-              const fill = theme || (td && td.colors && td.colors.fill) || fallbackFillDungeon(TILES, type, COLORS);
+              // Cached fill (biome-aware theme -> dungeon JSON -> robust fallback)
+              const fill = fillDungeonFor(TILES, type, COLORS, encounterFillFor);
               oc.fillStyle = fill;
               oc.fillRect(sx, sy, TILE, TILE);
-              if (type === TILES.STAIRS && !tilesetReady) {
-                const tdStairs = td || getTileDef("dungeon", TILES.STAIRS);
+              if (type === TILES.STAIRS && !canTileset) {
+                const tdStairs = getTileDef("dungeon", type) || getTileDef("dungeon", TILES.STAIRS);
                 const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : ">";
                 const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
                 RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
@@ -187,14 +233,12 @@ export function draw(ctx, view) {
         else if (type === TILES.STAIRS) key = "stairs";
         else if (type === TILES.DOOR) key = "door";
         let drawn = false;
-        if (tilesetReady && typeof TS.draw === "function" && ctx.mode !== "encounter") {
+        if (canTileset) {
           drawn = TS.draw(ctx2d, key, screenX, screenY, TILE);
         }
         if (!drawn) {
-          // JSON-only fill color (biome-aware fallback -> dungeon fallback -> robust fallback color)
-          const td = getTileDef("dungeon", type);
-          const theme = encounterFillFor(type);
-          const fill = theme || (td && td.colors && td.colors.fill) || fallbackFillDungeon(TILES, type, COLORS);
+          // Cached fill color (biome-aware -> dungeon JSON -> robust fallback)
+          const fill = fillDungeonFor(TILES, type, COLORS, encounterFillFor);
           ctx2d.fillStyle = fill;
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
         }
@@ -209,9 +253,9 @@ export function draw(ctx, view) {
     for (let x = startX; x <= endX; x++) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
-      const td = getTileDef("dungeon", type);
-      const glyph = (td && Object.prototype.hasOwnProperty.call(td, "glyph")) ? td.glyph : "";
-      const fg = (td && td.colors && td.colors.fg) || null;
+      const tg = glyphDungeonFor(type);
+      const glyph = tg.glyph;
+      const fg = tg.fg;
       if (glyph && String(glyph).trim().length > 0 && fg) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;

@@ -24,6 +24,9 @@
 
   function inBounds(ctx, x, y) {
     try {
+      if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.inBounds === "function") {
+        return window.Bounds.inBounds(ctx, x, y);
+      }
       if (ctx && ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
       if (typeof window !== "undefined" && window.Utils && typeof window.Utils.inBounds === "function") return window.Utils.inBounds(ctx, x, y);
     } catch (_) {}
@@ -1013,9 +1016,10 @@
     } catch (_) {}
     addSignNear(gate.x, gate.y, `Welcome to ${ctx.townName}`);
 
-    // Windows along building walls (limited and spaced out)
+    // Windows along building walls (spaced, not near doors)
     (function placeWindowsOnAll() {
       function sidePoints(b) {
+        // Exclude corners for aesthetics; only true perimeter segments
         return [
           Array.from({ length: Math.max(0, b.w - 2) }, (_, i) => ({ x: b.x + 1 + i, y: b.y })),              // top
           Array.from({ length: Math.max(0, b.w - 2) }, (_, i) => ({ x: b.x + 1 + i, y: b.y + b.h - 1 })),    // bottom
@@ -1024,6 +1028,15 @@
         ];
       }
       function isAdjacent(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) <= 1; }
+      function nearDoor(x, y) {
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+        for (const d of dirs) {
+          const nx = x + d.dx, ny = y + d.dy;
+          if (!inBounds(ctx, nx, ny)) continue;
+          if (ctx.map[ny][nx] === ctx.TILES.DOOR) return true;
+        }
+        return false;
+      }
       for (const b of buildings) {
         let candidates = [];
         const sides = sidePoints(b);
@@ -1031,23 +1044,28 @@
           for (const p of pts) {
             if (!inBounds(ctx, p.x, p.y)) continue;
             const t = ctx.map[p.y][p.x];
+            // Only convert solid wall tiles, avoid doors and already-placed windows
             if (t !== ctx.TILES.WALL) continue;
+            if (nearDoor(p.x, p.y)) continue;
             candidates.push(p);
           }
         }
         if (!candidates.length) continue;
-        const limit = Math.min(3, Math.max(1, Math.floor((b.w + b.h) / 10)));
+        // Limit by perimeter size so larger buildings get a few more windows but not too many
+        const limit = Math.min(4, Math.max(1, Math.floor((b.w + b.h) / 10)));
         const placed = [];
         let attempts = 0;
         while (placed.length < limit && candidates.length > 0 && attempts++ < candidates.length * 2) {
           const idx = Math.floor(ctx.rng() * candidates.length);
           const p = candidates[idx];
+          // Keep spacing: avoid placing next to already placed windows
           if (placed.some(q => isAdjacent(p, q))) {
             candidates.splice(idx, 1);
             continue;
           }
           ctx.map[p.y][p.x] = ctx.TILES.WINDOW;
           placed.push(p);
+          // Remove adjacent candidates to maintain spacing
           candidates = candidates.filter(c => !isAdjacent(c, p));
         }
       }

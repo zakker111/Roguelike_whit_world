@@ -87,7 +87,7 @@ export function isFreeTownFloor(ctx, x, y) {
   return true;
 }
 
-export function talk(ctx) {
+export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   if (ctx.mode !== "town") return false;
   const npcs = ctx.npcs || [];
   const near = [];
@@ -99,8 +99,19 @@ export function talk(ctx) {
     ctx.log && ctx.log("There is no one to talk to here.");
     return false;
   }
+
+  // Prefer the NPC occupying the attempted bump tile if provided,
+  // otherwise prefer a shopkeeper among adjacent NPCs, otherwise pick randomly.
+  let npc = null;
+  if (typeof bumpAtX === "number" && typeof bumpAtY === "number") {
+    npc = near.find(n => n.x === bumpAtX && n.y === bumpAtY) || null;
+  }
+  if (!npc) {
+    npc = near.find(n => (n.isShopkeeper || n._shopRef)) || null;
+  }
   const pick = (arr, rng) => arr[(arr.length === 1) ? 0 : Math.floor((rng ? rng() : Math.random()) * arr.length) % arr.length];
-  const npc = pick(near, ctx.rng);
+  npc = npc || pick(near, ctx.rng);
+
   const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
   const line = pick(lines, ctx.rng);
   ctx.log && ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
@@ -176,7 +187,7 @@ export function tryMoveTown(ctx, dx, dy) {
 
   if (npcBlocked) {
     if (typeof talk === "function") {
-      talk(ctx);
+      talk(ctx, nx, ny);
     } else if (ctx.log) {
       ctx.log("Excuse me!", "info");
     }
@@ -408,7 +419,6 @@ export function tick(ctx) {
             isSeppo: true,
             seppo: true
           };
-          (ctx.npcs = Array.isArray(ctx.npcs) ? ctx.npcs : []).push(npc);
 
           // Temporary shop at Seppo's tile (always open while he's in town)
           const shop = {
@@ -420,6 +430,11 @@ export function tick(ctx) {
             building: null,
             inside: { x: best.x, y: best.y }
           };
+
+          // Attach shop reference to NPC so UI can resolve inventory
+          npc._shopRef = shop;
+
+          (ctx.npcs = Array.isArray(ctx.npcs) ? ctx.npcs : []).push(npc);
           (ctx.shops = Array.isArray(ctx.shops) ? ctx.shops : []).push(shop);
 
           // Lifetime ~2 in-game hours; cooldown ~8 hours before next possible visit
@@ -433,9 +448,13 @@ export function tick(ctx) {
           try { ctx.log && ctx.log("A rare wanderer, Wild Seppo, arrives at the plaza!", "notice"); } catch (_) {}
           // Ensure occupancy reflects the new NPC immediately
           try {
-            const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-            if (OG && typeof OG.build === "function") {
-              ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+            if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+              window.OccupancyFacade.rebuild(ctx);
+            } else {
+              const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+              if (OG && typeof OG.build === "function") {
+                ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+              }
             }
           } catch (_) {}
         }
@@ -467,9 +486,13 @@ export function tick(ctx) {
         try { ctx.log && ctx.log("Wild Seppo packs up and leaves.", "info"); } catch (_) {}
         // Refresh occupancy after removal
         try {
-          const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-          if (OG && typeof OG.build === "function") {
-            ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+          if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+            window.OccupancyFacade.rebuild(ctx);
+          } else {
+            const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+            if (OG && typeof OG.build === "function") {
+              ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+            }
           }
         } catch (_) {}
       }
@@ -489,9 +512,13 @@ export function tick(ctx) {
     const stride = 2;
     const t = (ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
     if ((t % stride) === 0) {
-      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-      if (OG && typeof OG.build === "function") {
-        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+        window.OccupancyFacade.rebuild(ctx);
+      } else {
+        const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+        if (OG && typeof OG.build === "function") {
+          ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+        }
       }
     }
   } catch (_) {}
@@ -501,10 +528,14 @@ export function tick(ctx) {
 // Explicit occupancy rebuild helper for callers that mutate town entities outside tick cadence.
 export function rebuildOccupancy(ctx) {
   try {
-    const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-    if (OG && typeof OG.build === "function") {
-      ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-      return true;
+    if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+      return !!window.OccupancyFacade.rebuild(ctx);
+    } else {
+      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+      if (OG && typeof OG.build === "function") {
+        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+        return true;
+      }
     }
   } catch (_) {}
   return false;

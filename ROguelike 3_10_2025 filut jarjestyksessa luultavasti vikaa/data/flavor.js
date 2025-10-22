@@ -16,6 +16,18 @@ function pickFrom(arr, ctx) {
   if (ctx && ctx.utils && typeof ctx.utils.pick === "function") {
     return ctx.utils.pick(arr, ctx.rng);
   }
+  // Prefer centralized RNGUtils when available
+  try {
+    if (typeof window !== "undefined" && window.RNGUtils) {
+      const rngFn = (typeof window.RNGUtils.getRng === "function")
+        ? window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
+      if (typeof window.RNGUtils.int === "function" && typeof rngFn === "function") {
+        const idx = window.RNGUtils.int(0, arr.length - 1, rngFn);
+        return arr[idx];
+      }
+    }
+  } catch (_) {}
   const r = (ctx && typeof ctx.rng === "function")
     ? ctx.rng
     : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function"
@@ -41,43 +53,95 @@ function pools() {
 }
 
 export function logHit(ctx, opts) {
-  if (!ctx || typeof ctx.log !== "function" || typeof ctx.rng !== "function") return;
+  if (!ctx || typeof ctx.log !== "function") return;
   const loc = (opts && opts.loc) || {};
   const crit = !!(opts && opts.crit);
   const P = pools(); if (!P) return;
 
+  // Resolve RNG function via RNGUtils if available
+  const rngFn = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
+      }
+    } catch (_) {}
+    return (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+  })();
+
   if (crit && loc.part === "head") {
     const line = pickFrom(P.headCrit, ctx);
-    if (line && ctx.rng() < 0.6) ctx.log(line, "flavor");
+    const ok = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          return window.RNGUtils.chance(0.6, rngFn);
+        }
+      } catch (_) {}
+      return rngFn() < 0.6;
+    })();
+    if (line && ok) ctx.log(line, "flavor");
     return;
   }
   if (loc.part === "torso") {
     const line = pickFrom(P.torsoStingPlayer, ctx);
-    if (line && ctx.rng() < 0.5) ctx.log(line, "info");
+    const ok = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          return window.RNGUtils.chance(0.5, rngFn);
+        }
+      } catch (_) {}
+      return rngFn() < 0.5;
+    })();
+    if (line && ok) ctx.log(line, "info");
     return;
   }
 }
 
 export function logPlayerHit(ctx, opts) {
-  if (!ctx || typeof ctx.log !== "function" || typeof ctx.rng !== "function") return;
+  if (!ctx || typeof ctx.log !== "function") return;
   const target = (opts && opts.target) || {};
   const loc = (opts && opts.loc) || {};
   const crit = !!(opts && opts.crit);
   const dmg = (opts && typeof opts.dmg === "number") ? opts.dmg : null;
   const P = pools(); if (!P) return;
 
+  // Resolve RNG function via RNGUtils if available
+  const rngFn = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
+      }
+    } catch (_) {}
+    return (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+  })();
+
   // Blood spill flavor
   if (dmg != null && dmg > 0) {
     const line = pickFrom(P.bloodSpill, ctx);
     const p = crit ? 0.5 : 0.25;
-    if (line && ctx.rng() < p) ctx.log(line, "flavor");
+    const ok = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          return window.RNGUtils.chance(p, rngFn);
+        }
+      } catch (_) {}
+      return rngFn() < p;
+    })();
+    if (line && ok) ctx.log(line, "flavor");
   }
 
   // Crit head variants
   if (crit && loc.part === "head") {
     const name = (target && target.type) ? target.type : "enemy";
     const tmplStr = pickFrom(P.playerCritHeadVariants, ctx);
-    if (tmplStr && ctx.rng() < 0.6) ctx.log(tmpl(tmplStr, { name }), "notice");
+    const ok = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          return window.RNGUtils.chance(0.6, rngFn);
+        }
+      } catch (_) {}
+      return rngFn() < 0.6;
+    })();
+    if (tmplStr && ok) ctx.log(tmpl(tmplStr, { name }), "notice");
     return;
   }
 
@@ -86,12 +150,28 @@ export function logPlayerHit(ctx, opts) {
     const name = (target && target.type) ? target.type : "enemy";
     const part = (loc && loc.part) ? loc.part : "body";
     const tmplStr = pickFrom(P.playerGoodHitVariants, ctx);
-    if (tmplStr && ctx.rng() < 0.8) ctx.log(tmpl(tmplStr, { name, part }), "good");
+    const ok = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          return window.RNGUtils.chance(0.8, rngFn);
+        }
+      } catch (_) {}
+      return rngFn() < 0.8;
+    })();
+    if (tmplStr && ok) ctx.log(tmpl(tmplStr, { name, part }), "good");
   }
 
   if (loc.part === "torso") {
     const line = pickFrom(P.enemyTorsoSting, ctx);
-    if (line && ctx.rng() < 0.5) ctx.log(line, "info");
+    const ok = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          return window.RNGUtils.chance(0.5, rngFn);
+        }
+      } catch (_) {}
+      return rngFn() < 0.5;
+    })();
+    if (line && ok) ctx.log(line, "info");
     return;
   }
 }

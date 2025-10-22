@@ -9,6 +9,46 @@ import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 
+// Tile cache to avoid repeated JSON lookups inside hot loops
+const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
+function cacheResetIfNeeded() {
+  const ref = tilesRef();
+  if (TILE_CACHE.ref !== ref) {
+    TILE_CACHE.ref = ref;
+    TILE_CACHE.fill = Object.create(null);
+    TILE_CACHE.glyph = Object.create(null);
+    TILE_CACHE.fg = Object.create(null);
+  }
+}
+function fillTownFor(TILES, type, COLORS) {
+  cacheResetIfNeeded();
+  const k = type | 0;
+  let v = TILE_CACHE.fill[k];
+  if (v) return v;
+  const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
+  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+  TILE_CACHE.fill[k] = v;
+  return v;
+}
+function glyphTownFor(type) {
+  cacheResetIfNeeded();
+  const k = type | 0;
+  let g = TILE_CACHE.glyph[k];
+  let c = TILE_CACHE.fg[k];
+  if (typeof g !== "undefined" && typeof c !== "undefined") return { glyph: g, fg: c };
+  const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
+  if (td) {
+    g = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+    c = td.colors && td.colors.fg ? td.colors.fg : null;
+  } else {
+    g = "";
+    c = null;
+  }
+  TILE_CACHE.glyph[k] = g;
+  TILE_CACHE.fg[k] = c;
+  return { glyph: g, fg: c };
+}
+
 // getTileDef moved to centralized helper in ../data/tile_lookup.js
 
 // Robust fallback fill for town tiles when tiles.json is missing/incomplete
@@ -72,9 +112,8 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // JSON fill colors: prefer town, then dungeon; else robust fallback color
-            const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-            const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+            // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
+            const fill = fillTownFor(TILES, type, COLORS);
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -112,7 +151,7 @@ export function draw(ctx, view) {
   }
 
   // Per-frame glyph overlay (drawn before visibility overlays)
-  // Keep town clean: suppress noisy door ('+') and stairs ('>') glyphs; let floors/walls/windows use colors only.
+  // Keep town clean: suppress noisy door ('+'), stairs ('>'), and window glyphs; use tile fill colors for these.
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowMap = yIn ? map[y] : null;
@@ -120,13 +159,13 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
 
-      // Skip glyphs for DOOR/STAIRS in town to avoid clutter
-      if (type === TILES.DOOR || type === TILES.STAIRS) continue;
+      // Skip glyphs for DOOR/STAIRS/WINDOW in town to avoid cluttery dash visuals
+      if (type === TILES.DOOR || type === TILES.STAIRS || type === TILES.WINDOW) continue;
 
-      const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-      if (!td) continue;
-      const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
-      const fg = td.colors && td.colors.fg ? td.colors.fg : null;
+      const tg = glyphTownFor(type);
+      if (!tg) continue;
+      const glyph = tg.glyph;
+      const fg = tg.fg;
       if (glyph && String(glyph).trim().length > 0 && fg) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
@@ -337,17 +376,52 @@ export function draw(ctx, view) {
   RenderOverlays.drawTownRoutePaths(ctx, view);
   RenderOverlays.drawLampGlow(ctx, view);
 
-  // draw gate 'G' at townExitAt (only if visible)
-  if (ctx.townExitAt) {
-    const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
-    if (gx >= startX && gx <= endX && gy >= startY && gy <= endY) {
-      if (visible[gy] && visible[gy][gx]) {
-        const screenX = (gx - startX) * TILE - tileOffsetX;
-        const screenY = (gy - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
-      }
+  // Gate highlight: draw a bright outline and a large 'G' glyph on the gate interior tile.
+  // If ctx.townExitAt is missing, fall back to scanning the perimeter door and computing the adjacent interior tile.
+  (function drawGate() {
+    let gx = null, gy = null;
+    if (ctx.townExitAt && typeof ctx.townExitAt.x === "number" && typeof ctx.townExitAt.y === "number") {
+      gx = ctx.townExitAt.x; gy = ctx.townExitAt.y;
+    } else {
+      try {
+        const rows = mapRows, cols = mapCols;
+        // top row -> inside at y=1
+        for (let x = 0; x < cols && gx == null; x++) {
+          if (map[0][x] === TILES.DOOR) { gx = x; gy = 1; }
+        }
+        // bottom row -> inside at y=rows-2
+        for (let x = 0; x < cols && gx == null; x++) {
+          if (map[rows - 1][x] === TILES.DOOR) { gx = x; gy = rows - 2; }
+        }
+        // left column -> inside at x=1
+        for (let y = 0; y < rows && gx == null; y++) {
+          if (map[y][0] === TILES.DOOR) { gx = 1; gy = y; }
+        }
+        // right column -> inside at x=cols-2
+        for (let y = 0; y < rows && gx == null; y++) {
+          if (map[y][cols - 1] === TILES.DOOR) { gx = cols - 2; gy = y; }
+        }
+      } catch (_) {}
     }
-  }
+    if (gx == null || gy == null) return;
+    if (gx < startX || gx > endX || gy < startY || gy > endY) return;
+
+    const screenX = (gx - startX) * TILE - tileOffsetX;
+    const screenY = (gy - startY) * TILE - tileOffsetY;
+    ctx2d.save();
+    const t = Date.now();
+    const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t / 520));
+    ctx2d.globalAlpha = pulse;
+    ctx2d.lineWidth = 3;
+    ctx2d.strokeStyle = "#9ece6a";
+    ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
+    // Large 'G' glyph centered on the gate tile
+    try {
+      ctx2d.globalAlpha = 0.95;
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+    } catch (_) {}
+    ctx2d.restore();
+  })();
 
   // player - add subtle backdrop + outlined glyph so it stands out in town view
   if (player.x >= startX && player.x <= endX && player.y >= startY && player.y <= endY) {
@@ -368,6 +442,20 @@ export function draw(ctx, view) {
     ctx2d.fillStyle = COLORS.player || "#9ece6a";
     ctx2d.fillText("@", screenX + half, screenY + half + 1);
     ctx2d.restore();
+  }
+
+  // Ensure gate glyph 'G' draws above the player so it's visible even when standing on the gate.
+  if (ctx.townExitAt) {
+    const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
+    if (gx >= startX && gx <= endX && gy >= startY && gy <= endY) {
+      const screenX = (gx - startX) * TILE - tileOffsetX;
+      const screenY = (gy - startY) * TILE - tileOffsetY;
+      ctx2d.save();
+      // Solid glyph above any previous draw calls
+      ctx2d.globalAlpha = 1.0;
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+      ctx2d.restore();
+    }
   }
 
   // Day/night tint overlay

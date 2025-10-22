@@ -54,7 +54,16 @@ function biomeFromTile(tile) {
 function pickTemplate(ctx, biome) {
   const GD = (typeof window !== "undefined" ? window.GameData : null);
   const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : null;
-  const rng = (ctx && typeof ctx.rng === "function") ? ctx.rng : (Math.random);
+  const rng = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
+      }
+    } catch (_) {}
+    return (ctx && typeof ctx.rng === "function")
+      ? ctx.rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  })();
   const fallback = [
     { id: "ambush_forest", name: "Forest Ambush", baseWeight: 1.0, allowedBiomes: ["FOREST","GRASS"], map: { generator: "ambush_forest", w: 24, h: 16 }, groups: [ { type: "bandit", count: { min: 2, max: 4 } } ] },
     { id: "bandit_camp", name: "Bandit Camp", baseWeight: 0.8, allowedBiomes: ["GRASS","DESERT","BEACH"], map: { generator: "camp", w: 26, h: 18 }, groups: [ { type: "bandit", count: { min: 3, max: 6 } } ] },
@@ -125,8 +134,18 @@ export function maybeTryEncounter(ctx) {
     const cap = Math.min(0.35, 0.18 * scale); // raise cap modestly with scale (max 35%)
     const chance = Math.min(cap, baseP + pityBoost);
 
-    const roll = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-    if (roll >= chance) {
+    // Deterministic roll using RNGUtils when available; fallback to direct rng() comparison
+    const willEncounter = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          const rngFn = (typeof ctx.rng === "function") ? ctx.rng : undefined;
+          return window.RNGUtils.chance(chance, rngFn);
+        }
+      } catch (_) {}
+      const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+      return r < chance;
+    })();
+    if (!willEncounter) {
       STATE.movesSinceLast += 1;
       return false;
     }

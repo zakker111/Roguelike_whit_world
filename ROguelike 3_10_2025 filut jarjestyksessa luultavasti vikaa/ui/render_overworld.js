@@ -9,6 +9,46 @@ import * as World from "../world/world.js";
 import { getTileDef } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 
+// Tile cache to avoid repeated JSON lookups inside hot loops
+const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
+function cacheResetIfNeeded() {
+  const ref = tilesRef();
+  if (TILE_CACHE.ref !== ref) {
+    TILE_CACHE.ref = ref;
+    TILE_CACHE.fill = Object.create(null);
+    TILE_CACHE.glyph = Object.create(null);
+    TILE_CACHE.fg = Object.create(null);
+  }
+}
+function fillOverworldFor(WT, id) {
+  cacheResetIfNeeded();
+  const k = id | 0;
+  let v = TILE_CACHE.fill[k];
+  if (v) return v;
+  const td = getTileDef("overworld", id);
+  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, id);
+  TILE_CACHE.fill[k] = v;
+  return v;
+}
+function glyphOverworldFor(id) {
+  cacheResetIfNeeded();
+  const k = id | 0;
+  let g = TILE_CACHE.glyph[k];
+  let c = TILE_CACHE.fg[k];
+  if (typeof g !== "undefined" && typeof c !== "undefined") return { glyph: g, fg: c };
+  const td = getTileDef("overworld", id);
+  if (td) {
+    g = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+    c = td.colors && td.colors.fg ? td.colors.fg : null;
+  } else {
+    g = "";
+    c = null;
+  }
+  TILE_CACHE.glyph[k] = g;
+  TILE_CACHE.fg[k] = c;
+  return { glyph: g, fg: c };
+}
+
 // Minimap offscreen cache to avoid redrawing every frame
 let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null };
 // World base layer offscreen cache (full map at TILE resolution)
@@ -79,10 +119,10 @@ export function draw(ctx, view) {
           const rowM = map[yy];
           for (let xx = 0; xx < mw; xx++) {
             const t = rowM[xx];
-            // JSON fill color for overworld with robust fallback
+            // Cached JSON fill color for overworld with robust fallback
             const td = getTileDef("overworld", t);
             if (!td) { missingDefsCount++; missingSet.add(t); }
-            const c = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, t);
+            const c = fillOverworldFor(WT, t);
             oc.fillStyle = c;
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
             // Note: glyph overlays are drawn per-frame below, not baked into base.
@@ -125,8 +165,7 @@ export function draw(ctx, view) {
         }
 
         const t = row[x];
-        const td = getTileDef("overworld", t);
-        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, t);
+        const fill = fillOverworldFor(WT, t);
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
@@ -363,54 +402,27 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Draw roads as overlays with style variations:
-  // - dashed pattern via parity of (x+y)
-  // - thicker segments near cities
+  // Roads overlay — always on
   try {
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
-    const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
-    const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
-    const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
     if (roads.length) {
       ctx2d.save();
-      ctx2d.globalAlpha = 0.38;
-      ctx2d.fillStyle = "#9aa5b1"; // light slate for road
-
-      // Helper: check if near a city to thicken segment
-      function nearCityAbs(ax, ay) {
-        const R = 4;
-        for (const t of towns) {
-          if (!t || t.size !== "city") continue;
-          const d = Math.abs(t.x - ax) + Math.abs(t.y - ay);
-          if (d <= R) return true;
-        }
-        return false;
-      }
-
+      ctx2d.globalAlpha = 0.18; // subtle overlay
+      ctx2d.fillStyle = "#b0a58a"; // muted road color
       for (const p of roads) {
-        const ax = p.x | 0, ay = p.y | 0;      // absolute world coords
-        const x = ax - ox, y = ay - oy;        // local indices
+        const x = p.x, y = p.y;
         if (x < startX || x > endX || y < startY || y > endY) continue;
-
-        // Dashed: skip every other tile based on parity; keep continuous look when near cities
-        const dashedSkip = ((x + y) % 2) !== 0 && !nearCityAbs(ax, ay);
-        if (dashedSkip) continue;
-
         const sx = (x - startX) * TILE - tileOffsetX;
         const sy = (y - startY) * TILE - tileOffsetY;
-
-        // Thickness scales with proximity to cities (based on absolute coords)
-        const thick = nearCityAbs(ax, ay);
-        const w = thick ? Math.max(3, Math.floor(TILE * 0.55)) : Math.max(2, Math.floor(TILE * 0.30));
-        const h = thick ? Math.max(2, Math.floor(TILE * 0.40)) : Math.max(2, Math.floor(TILE * 0.30));
-
+        const w = Math.max(3, Math.floor(TILE * 0.40));
+        const h = Math.max(2, Math.floor(TILE * 0.16));
         ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
       }
       ctx2d.restore();
     }
   } catch (_) {}
 
-  // Draw bridges as stronger markers across rivers
+  // Bridges overlay — always on
   try {
     const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
     if (bridges.length) {
@@ -469,27 +481,6 @@ export function draw(ctx, view) {
     ctx2d.restore();
   } catch (_) {}
 
-  // Draw bridges as stronger markers across rivers
-  try {
-    const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
-    if (bridges.length) {
-      ctx2d.save();
-      ctx2d.globalAlpha = 0.6;
-      ctx2d.fillStyle = "#c3a37a"; // wood-like color
-      for (const p of bridges) {
-        const x = p.x, y = p.y;
-        if (x < startX || x > endX || y < startY || y > endY) continue;
-        const sx = (x - startX) * TILE - tileOffsetX;
-        const sy = (y - startY) * TILE - tileOffsetY;
-        // small plank-like rectangle
-        const w = Math.max(4, Math.floor(TILE * 0.55));
-        const h = Math.max(3, Math.floor(TILE * 0.20));
-        ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
-      }
-      ctx2d.restore();
-    }
-  } catch (_) {}
-
   // Per-frame glyph overlay for any tile with a non-blank JSON glyph
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
@@ -497,10 +488,9 @@ export function draw(ctx, view) {
     for (let x = startX; x <= endX; x++) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const t = row[x];
-      const td = getTileDef("overworld", t);
-      if (!td) continue;
-      const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
-      const fg = td.colors && td.colors.fg ? td.colors.fg : null;
+      const tg = glyphOverworldFor(t);
+      const glyph = tg.glyph;
+      const fg = tg.fg;
       if (glyph && String(glyph).trim().length > 0 && fg) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
@@ -596,9 +586,8 @@ export function draw(ctx, view) {
               const seenHere = seenRow ? !!seenRow[xx] : false;
               if (seenHere) {
                 const t = rowM[xx];
-                const td = getTileDef("overworld", t);
-                const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
-                oc.fillStyle = c;
+                const c = fillOverworldFor(WT, t);
+                oc.fillStyle = c || "#0b0c10";
               } else {
                 oc.fillStyle = "#0b0c10"; // fog of war
               }

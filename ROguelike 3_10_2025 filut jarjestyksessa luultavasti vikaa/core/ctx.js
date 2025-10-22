@@ -69,24 +69,57 @@ export function attachModules(ctx) {
 }
 
 export function ensureUtils(ctx) {
-  const rng = typeof ctx.rng === "function"
-    ? ctx.rng
-    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-        ? window.RNG.rng
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-            ? window.RNGFallback.getRng()
-            : Math.random));
+  // Unified RNG selection via RNGUtils if available
+  let rng = null;
+  try {
+    if (typeof ctx.rng === "function") {
+      rng = ctx.rng;
+    } else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+      rng = window.RNGUtils.getRng();
+    } else if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") {
+      rng = window.RNG.rng;
+    } else if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
+      rng = window.RNGFallback.getRng();
+    } else {
+      rng = Math.random;
+    }
+  } catch (_) {
+    rng = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+  }
+
   const round1 = (ctx.PlayerUtils && typeof ctx.PlayerUtils.round1 === "function")
     ? ctx.PlayerUtils.round1
     : (n) => Math.round(n * 10) / 10;
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const randInt = (min, max) => Math.floor(rng() * (max - min + 1)) + min;
-  const chance = (p) => rng() < p;
+
+  // Prefer RNGUtils helpers when present to reduce duplication
+  const randInt = (min, max) => {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") {
+        return window.RNGUtils.int(min, max, rng);
+      }
+    } catch (_) {}
+    return Math.floor(rng() * (max - min + 1)) + min;
+  };
+  const chance = (p) => {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+        return window.RNGUtils.chance(p, rng);
+      }
+    } catch (_) {}
+    return rng() < p;
+  };
   const randFloat = (min, max, decimals = 1) => {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
+        return window.RNGUtils.float(min, max, decimals, rng);
+      }
+    } catch (_) {}
     const v = min + rng() * (max - min);
     const p = Math.pow(10, decimals);
     return Math.round(v * p) / p;
   };
+
   const pick = (arr, rfn) => {
     const r = rfn || rng;
     return arr[Math.floor(r() * arr.length)];

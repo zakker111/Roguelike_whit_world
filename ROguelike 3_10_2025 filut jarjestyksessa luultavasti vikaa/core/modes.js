@@ -308,11 +308,15 @@ export function enterDungeonIfOnEntrance(ctx) {
       if (Array.isArray(ctx.seen) && ctx.seen[ctx.player.y]) ctx.seen[ctx.player.y][ctx.player.x] = true;
       if (Array.isArray(ctx.visible) && ctx.visible[ctx.player.y]) ctx.visible[ctx.player.y][ctx.player.x] = true;
     }
-    // Prime occupancy immediately after generation to avoid ghost-blocking
+    // Prime occupancy immediately after generation to avoid ghost-blocking (centralized)
     try {
-      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-      if (OG && typeof OG.build === "function") {
-        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+        window.OccupancyFacade.rebuild(ctx);
+      } else {
+        const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+        if (OG && typeof OG.build === "function") {
+          ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+        }
       }
     } catch (_) {}
     saveCurrentDungeonState(ctx);

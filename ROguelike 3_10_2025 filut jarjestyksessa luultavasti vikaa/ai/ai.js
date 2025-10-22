@@ -104,11 +104,25 @@ export function enemiesAct(ctx) {
         }
       };
 
+  // Build a one-shot occupancy set for this tick when no grid is provided; avoids per-call allocations
+  const occSet = (!occ || typeof occ.isFree !== "function")
+    ? (() => {
+        const s = new Set();
+        for (let i = 0; i < enemies.length; i++) {
+          const en = enemies[i];
+          s.add(occKey(en.x, en.y));
+        }
+        return s;
+      })()
+    : null;
+
   // Occ helpers to update occupancy across implementations (grid or simple Set)
   function occClearEnemy(occRef, x, y) {
     if (!occRef) return;
     if (typeof occRef.clearEnemy === "function") {
       occRef.clearEnemy(x, y);
+    } else if (occSet && typeof occSet.delete === "function") {
+      try { occSet.delete(occKey(x, y)); } catch (_) {}
     } else if (typeof occRef.delete === "function") {
       try { occRef.delete(occKey(x, y)); } catch (_) {}
     }
@@ -117,6 +131,8 @@ export function enemiesAct(ctx) {
     if (!occRef) return;
     if (typeof occRef.setEnemy === "function") {
       occRef.setEnemy(x, y);
+    } else if (occSet && typeof occSet.add === "function") {
+      try { occSet.add(occKey(x, y)); } catch (_) {}
     } else if (typeof occRef.add === "function") {
       try { occRef.add(occKey(x, y)); } catch (_) {}
     }
@@ -129,9 +145,75 @@ export function enemiesAct(ctx) {
     if (occ && typeof occ.isFree === "function") {
       return occ.isFree(x, y, { ignorePlayer: true });
     }
-    // Fallback: check enemies only
-    return !new Set(enemies.map(en => occKey(en.x, en.y))).has(occKey(x, y));
+    // Fallback: check enemies only via precomputed set
+    return !occSet.has(occKey(x, y));
   };
+
+  // Spatial index for enemies to reduce nearest-hostile search from O(n^2) on average.
+  // Bucket enemies into fixed-size grid cells, then scan nearby cells first.
+  const CELL = 6; // tiles per cell (tunable); larger cells fewer buckets, smaller cells more precise
+  function cellKey(cx, cy) { return ((cy & 0xffff) << 16) | (cx & 0xffff); }
+  const buckets = new Map();
+  for (const en of enemies) {
+    const cx = Math.floor(en.x / CELL);
+    const cy = Math.floor(en.y / CELL);
+    const key = cellKey(cx, cy);
+    let arr = buckets.get(key);
+    if (!arr) { arr = []; buckets.set(key, arr); }
+    arr.push(en);
+  }
+  function scanRing(cx, cy, ring = 0) {
+    const list = [];
+    for (let dy = -ring; dy <= ring; dy++) {
+      for (let dx = -ring; dx <= ring; dx++) {
+        const k = cellKey(cx + dx, cy + dy);
+        const arr = buckets.get(k);
+        if (arr && arr.length) list.push(arr);
+      }
+    }
+    return list;
+  }
+  function nearestHostileFor(e) {
+    const eFac = factionOf(e);
+    const cx = Math.floor(e.x / CELL);
+    const cy = Math.floor(e.y / CELL);
+    let best = null;
+    let bestDist = Infinity;
+
+    // Try local ring, then expanded ring
+    for (let ring = 0; ring <= 2; ring++) {
+      const cells = scanRing(cx, cy, ring);
+      if (!cells.length && ring === 0) continue;
+      for (const arr of cells) {
+        for (const other of arr) {
+          if (!other || other === e) continue;
+          const oFac = factionOf(other);
+          if (!isHostileTo(eFac, oFac)) continue;
+          const d = Math.abs(other.x - e.x) + Math.abs(other.y - e.y);
+          if (d < bestDist) {
+            bestDist = d;
+            best = other;
+          }
+        }
+      }
+      if (best) break;
+    }
+
+    // Fallback to global scan if no local candidate found
+    if (!best) {
+      for (const other of enemies) {
+        if (!other || other === e) continue;
+        const oFac = factionOf(other);
+        if (!isHostileTo(eFac, oFac)) continue;
+        const d = Math.abs(other.x - e.x) + Math.abs(other.y - e.y);
+        if (d < bestDist) {
+          bestDist = d;
+          best = other;
+        }
+      }
+    }
+    return best ? { kind: "enemy", x: best.x, y: best.y, ref: best, faction: factionOf(best) } : null;
+  }
 
   for (const e of enemies) {
     const eFac = factionOf(e);
@@ -145,20 +227,19 @@ export function enemiesAct(ctx) {
       bestDist = Math.abs(player.x - e.x) + Math.abs(player.y - e.y);
     }
 
-    for (const other of enemies) {
-      if (!other || other === e) continue;
-      const oFac = factionOf(other);
-      if (!isHostileTo(eFac, oFac)) continue;
-      const d = Math.abs(other.x - e.x) + Math.abs(other.y - e.y);
+    // Use spatial index for nearest hostile enemy
+    const idxCand = nearestHostileFor(e);
+    if (idxCand) {
+      const d = Math.abs(idxCand.x - e.x) + Math.abs(idxCand.y - e.y);
       if (d < bestDist) {
         bestDist = d;
-        target = { kind: "enemy", x: other.x, y: other.y, ref: other, faction: oFac };
+        target = idxCand;
       }
     }
 
-    const dx = target.x - e.x;
-    const dy = target.y - e.y;
-    const dist = Math.abs(dx) + Math.abs(dy);
+    const dx = target ? (target.x - e.x) : 0;
+    const dy = target ? (target.y - e.y) : 0;
+    const dist = target ? (Math.abs(dx) + Math.abs(dy)) : Infinity;
 
     // Low-HP panic/flee (generic for all enemies)
     if (typeof e.hp === "number" && e.hp <= 2) {
