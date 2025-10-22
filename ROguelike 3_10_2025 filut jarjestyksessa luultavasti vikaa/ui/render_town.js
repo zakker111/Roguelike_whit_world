@@ -381,6 +381,20 @@ export function draw(ctx, view) {
     ctx2d.restore();
   }
 
+  // Ensure gate glyph 'G' draws above the player so it's visible even when standing on the gate.
+  if (ctx.townExitAt) {
+    const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
+    if (gx >= startX && gx <= endX && gy >= startY && gy <= endY) {
+      const screenX = (gx - startX) * TILE - tileOffsetX;
+      const screenY = (gy - startY) * TILE - tileOffsetY;
+      ctx2d.save();
+      // Solid glyph above any previous draw calls
+      ctx2d.globalAlpha = 1.0;
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+      ctx2d.restore();
+    }
+  }
+
   // Day/night tint overlay
   try {
     const time = ctx.time;
