@@ -9,6 +9,46 @@ import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 
+// Tile cache to avoid repeated JSON lookups inside hot loops
+const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
+function cacheResetIfNeeded() {
+  const ref = tilesRef();
+  if (TILE_CACHE.ref !== ref) {
+    TILE_CACHE.ref = ref;
+    TILE_CACHE.fill = Object.create(null);
+    TILE_CACHE.glyph = Object.create(null);
+    TILE_CACHE.fg = Object.create(null);
+  }
+}
+function fillTownFor(TILES, type, COLORS) {
+  cacheResetIfNeeded();
+  const k = type | 0;
+  let v = TILE_CACHE.fill[k];
+  if (v) return v;
+  const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
+  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+  TILE_CACHE.fill[k] = v;
+  return v;
+}
+function glyphTownFor(type) {
+  cacheResetIfNeeded();
+  const k = type | 0;
+  let g = TILE_CACHE.glyph[k];
+  let c = TILE_CACHE.fg[k];
+  if (typeof g !== "undefined" && typeof c !== "undefined") return { glyph: g, fg: c };
+  const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
+  if (td) {
+    g = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+    c = td.colors && td.colors.fg ? td.colors.fg : null;
+  } else {
+    g = "";
+    c = null;
+  }
+  TILE_CACHE.glyph[k] = g;
+  TILE_CACHE.fg[k] = c;
+  return { glyph: g, fg: c };
+}
+
 // getTileDef moved to centralized helper in ../data/tile_lookup.js
 
 // Robust fallback fill for town tiles when tiles.json is missing/incomplete
@@ -72,9 +112,8 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // JSON fill colors: prefer town, then dungeon; else robust fallback color
-            const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-            const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+            // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
+            const fill = fillTownFor(TILES, type, COLORS);
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -123,10 +162,10 @@ export function draw(ctx, view) {
       // Skip glyphs for DOOR/STAIRS/WINDOW in town to avoid cluttery dash visuals
       if (type === TILES.DOOR || type === TILES.STAIRS || type === TILES.WINDOW) continue;
 
-      const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-      if (!td) continue;
-      const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
-      const fg = td.colors && td.colors.fg ? td.colors.fg : null;
+      const tg = glyphTownFor(type);
+      if (!tg) continue;
+      const glyph = tg.glyph;
+      const fg = tg.fg;
       if (glyph && String(glyph).trim().length > 0 && fg) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;

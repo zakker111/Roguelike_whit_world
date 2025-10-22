@@ -9,6 +9,46 @@ import * as World from "../world/world.js";
 import { getTileDef } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 
+// Tile cache to avoid repeated JSON lookups inside hot loops
+const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
+function cacheResetIfNeeded() {
+  const ref = tilesRef();
+  if (TILE_CACHE.ref !== ref) {
+    TILE_CACHE.ref = ref;
+    TILE_CACHE.fill = Object.create(null);
+    TILE_CACHE.glyph = Object.create(null);
+    TILE_CACHE.fg = Object.create(null);
+  }
+}
+function fillOverworldFor(WT, id) {
+  cacheResetIfNeeded();
+  const k = id | 0;
+  let v = TILE_CACHE.fill[k];
+  if (v) return v;
+  const td = getTileDef("overworld", id);
+  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, id);
+  TILE_CACHE.fill[k] = v;
+  return v;
+}
+function glyphOverworldFor(id) {
+  cacheResetIfNeeded();
+  const k = id | 0;
+  let g = TILE_CACHE.glyph[k];
+  let c = TILE_CACHE.fg[k];
+  if (typeof g !== "undefined" && typeof c !== "undefined") return { glyph: g, fg: c };
+  const td = getTileDef("overworld", id);
+  if (td) {
+    g = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+    c = td.colors && td.colors.fg ? td.colors.fg : null;
+  } else {
+    g = "";
+    c = null;
+  }
+  TILE_CACHE.glyph[k] = g;
+  TILE_CACHE.fg[k] = c;
+  return { glyph: g, fg: c };
+}
+
 // Minimap offscreen cache to avoid redrawing every frame
 let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null };
 // World base layer offscreen cache (full map at TILE resolution)
@@ -79,10 +119,10 @@ export function draw(ctx, view) {
           const rowM = map[yy];
           for (let xx = 0; xx < mw; xx++) {
             const t = rowM[xx];
-            // JSON fill color for overworld with robust fallback
+            // Cached JSON fill color for overworld with robust fallback
             const td = getTileDef("overworld", t);
             if (!td) { missingDefsCount++; missingSet.add(t); }
-            const c = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, t);
+            const c = fillOverworldFor(WT, t);
             oc.fillStyle = c;
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
             // Note: glyph overlays are drawn per-frame below, not baked into base.
@@ -125,8 +165,7 @@ export function draw(ctx, view) {
         }
 
         const t = row[x];
-        const td = getTileDef("overworld", t);
-        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, t);
+        const fill = fillOverworldFor(WT, t);
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
@@ -456,10 +495,9 @@ export function draw(ctx, view) {
     for (let x = startX; x <= endX; x++) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const t = row[x];
-      const td = getTileDef("overworld", t);
-      if (!td) continue;
-      const glyph = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
-      const fg = td.colors && td.colors.fg ? td.colors.fg : null;
+      const tg = glyphOverworldFor(t);
+      const glyph = tg.glyph;
+      const fg = tg.fg;
       if (glyph && String(glyph).trim().length > 0 && fg) {
         const screenX = (x - startX) * TILE - tileOffsetX;
         const screenY = (y - startY) * TILE - tileOffsetY;
@@ -555,9 +593,8 @@ export function draw(ctx, view) {
               const seenHere = seenRow ? !!seenRow[xx] : false;
               if (seenHere) {
                 const t = rowM[xx];
-                const td = getTileDef("overworld", t);
-                const c = (td && td.colors && td.colors.fill) ? td.colors.fill : "#0b0c10";
-                oc.fillStyle = c;
+                const c = fillOverworldFor(WT, t);
+                oc.fillStyle = c || "#0b0c10";
               } else {
                 oc.fillStyle = "#0b0c10"; // fog of war
               }
