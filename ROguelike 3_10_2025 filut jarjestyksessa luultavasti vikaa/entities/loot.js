@@ -279,7 +279,12 @@ export function lootHere(ctx) {
     for (const item of container.loot) {
       if (item && item.kind === "equip") {
         const equipped = ctx.equipIfBetter(item);
-        acquired.push(equipped ? `equipped ${ctx.describeItem(item)}` : ctx.describeItem(item));
+        const desc = (typeof ctx.describeItem === "function")
+          ? ctx.describeItem(item)
+          : ((typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function")
+              ? window.ItemDescribe.describe(item)
+              : (item.name || item.kind || "item"));
+        acquired.push(equipped ? `equipped ${desc}` : desc);
         if (!equipped) {
           player.inventory.push(item);
         } else {

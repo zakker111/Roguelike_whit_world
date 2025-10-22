@@ -826,7 +826,11 @@ export const UI = {
           li.dataset.kind = it.kind || "misc";
 
           // Build display label with counts/stats where helpful
-          const baseLabel = (typeof describeItem === "function") ? describeItem(it) : (it.name || "item");
+          const baseLabel = (typeof describeItem === "function")
+            ? describeItem(it)
+            : ((typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function")
+                ? window.ItemDescribe.describe(it)
+                : (it.name || "item"));
           let label = baseLabel;
 
           if (it.kind === "potion" || it.kind === "drink") {

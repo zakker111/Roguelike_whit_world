@@ -58,7 +58,14 @@ function getRegionRng(ctx) {
   return _mulberry32(mix);
 }
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function clamp(v, lo, hi) {
+  try {
+    if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.clamp === "function") {
+      return window.Bounds.clamp(v, lo, hi);
+    }
+  } catch (_) {}
+  return Math.max(lo, Math.min(hi, v));
+}
 
 // Build a local downscaled sample centered around the player's world position.
 // Samples a window ~35% of the world dimensions to reflect nearby biomes rather than the whole map.

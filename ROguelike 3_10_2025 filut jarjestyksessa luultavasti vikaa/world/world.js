@@ -26,7 +26,14 @@ export const TILES = {
   TREE: 11, // region-only decorative tree tile; walkable but blocks FOV in region
 };
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function clamp(v, lo, hi) {
+  try {
+    if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.clamp === "function") {
+      return window.Bounds.clamp(v, lo, hi);
+    }
+  } catch (_) {}
+  return Math.max(lo, Math.min(hi, v));
+}
 
 export function isWalkable(tile) {
   // Prefer tiles.json property when available for overworld mode, then fallback.

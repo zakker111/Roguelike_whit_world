@@ -224,7 +224,10 @@ export function playerAttackEnemy(ctx, enemy) {
   try {
     if (typeof ctx.decayAttackHands === "function") ctx.decayAttackHands(false);
     else if (typeof ctx.decayEquipped === "function") {
-      const rf = (min, max) => (min + (Math.random() * (max - min)));
+      const rf = (min, max) =>
+        (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function")
+          ? window.RNGUtils.float(min, max)
+          : (min + (((typeof ctx.rng === "function" ? ctx.rng() : Math.random)) * (max - min)));
       ctx.decayEquipped("hands", rf(0.3, 1.0));
     }
   } catch (_) {}
