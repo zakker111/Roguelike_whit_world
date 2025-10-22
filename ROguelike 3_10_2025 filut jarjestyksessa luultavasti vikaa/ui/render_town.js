@@ -337,14 +337,23 @@ export function draw(ctx, view) {
   RenderOverlays.drawTownRoutePaths(ctx, view);
   RenderOverlays.drawLampGlow(ctx, view);
 
-  // draw gate 'G' at townExitAt (only if visible)
+  // Gate highlight at townExitAt: draw a bright outline so it's visible even when player is on it
   if (ctx.townExitAt) {
     const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
     if (gx >= startX && gx <= endX && gy >= startY && gy <= endY) {
-      if (visible[gy] && visible[gy][gx]) {
+      const seenGate = !!(seen[gy] && seen[gy][gx]);
+      if (seenGate) {
         const screenX = (gx - startX) * TILE - tileOffsetX;
         const screenY = (gy - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+        ctx2d.save();
+        // Pulsing outline to catch attention
+        const t = Date.now();
+        const pulse = 0.6 + 0.4 * Math.abs(Math.sin(t / 500));
+        ctx2d.globalAlpha = pulse;
+        ctx2d.lineWidth = 3;
+        ctx2d.strokeStyle = "#9ece6a"; // same warm green as player, high contrast
+        ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
+        ctx2d.restore();
       }
     }
   }
