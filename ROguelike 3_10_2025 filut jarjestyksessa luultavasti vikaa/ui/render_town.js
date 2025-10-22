@@ -337,28 +337,52 @@ export function draw(ctx, view) {
   RenderOverlays.drawTownRoutePaths(ctx, view);
   RenderOverlays.drawLampGlow(ctx, view);
 
-  // Gate highlight at townExitAt: always draw a bright outline and a large 'G' glyph.
-  // Draw unconditionally when within viewport so it's visible immediately upon entering town.
-  if (ctx.townExitAt) {
-    const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
-    if (gx >= startX && gx <= endX && gy >= startY && gy <= endY) {
-      const screenX = (gx - startX) * TILE - tileOffsetX;
-      const screenY = (gy - startY) * TILE - tileOffsetY;
-      ctx2d.save();
-      const t = Date.now();
-      const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t / 520));
-      ctx2d.globalAlpha = pulse;
-      ctx2d.lineWidth = 3;
-      ctx2d.strokeStyle = "#9ece6a";
-      ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
-      // Large 'G' glyph centered on the gate tile
+  // Gate highlight: draw a bright outline and a large 'G' glyph on the gate interior tile.
+  // If ctx.townExitAt is missing, fall back to scanning the perimeter door and computing the adjacent interior tile.
+  (function drawGate() {
+    let gx = null, gy = null;
+    if (ctx.townExitAt && typeof ctx.townExitAt.x === "number" && typeof ctx.townExitAt.y === "number") {
+      gx = ctx.townExitAt.x; gy = ctx.townExitAt.y;
+    } else {
       try {
-        ctx2d.globalAlpha = 0.95;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+        const rows = mapRows, cols = mapCols;
+        // top row -> inside at y=1
+        for (let x = 0; x < cols && gx == null; x++) {
+          if (map[0][x] === TILES.DOOR) { gx = x; gy = 1; }
+        }
+        // bottom row -> inside at y=rows-2
+        for (let x = 0; x < cols && gx == null; x++) {
+          if (map[rows - 1][x] === TILES.DOOR) { gx = x; gy = rows - 2; }
+        }
+        // left column -> inside at x=1
+        for (let y = 0; y < rows && gx == null; y++) {
+          if (map[y][0] === TILES.DOOR) { gx = 1; gy = y; }
+        }
+        // right column -> inside at x=cols-2
+        for (let y = 0; y < rows && gx == null; y++) {
+          if (map[y][cols - 1] === TILES.DOOR) { gx = cols - 2; gy = y; }
+        }
       } catch (_) {}
-      ctx2d.restore();
     }
-  }
+    if (gx == null || gy == null) return;
+    if (gx < startX || gx > endX || gy < startY || gy > endY) return;
+
+    const screenX = (gx - startX) * TILE - tileOffsetX;
+    const screenY = (gy - startY) * TILE - tileOffsetY;
+    ctx2d.save();
+    const t = Date.now();
+    const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t / 520));
+    ctx2d.globalAlpha = pulse;
+    ctx2d.lineWidth = 3;
+    ctx2d.strokeStyle = "#9ece6a";
+    ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
+    // Large 'G' glyph centered on the gate tile
+    try {
+      ctx2d.globalAlpha = 0.95;
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+    } catch (_) {}
+    ctx2d.restore();
+  })();
 
   // player - add subtle backdrop + outlined glyph so it stands out in town view
   if (player.x >= startX && player.x <= endX && player.y >= startY && player.y <= endY) {
