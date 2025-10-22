@@ -337,24 +337,28 @@ export function draw(ctx, view) {
   RenderOverlays.drawTownRoutePaths(ctx, view);
   RenderOverlays.drawLampGlow(ctx, view);
 
-  // Gate highlight at townExitAt: draw a bright outline so it's visible even when player is on it
+  // Gate highlight at townExitAt: always draw a bright outline; add small return glyph so it's unmistakable.
+  // Draw unconditionally when within viewport so it's visible immediately upon entering town.
   if (ctx.townExitAt) {
     const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
     if (gx >= startX && gx <= endX && gy >= startY && gy <= endY) {
-      const seenGate = !!(seen[gy] && seen[gy][gx]);
-      if (seenGate) {
-        const screenX = (gx - startX) * TILE - tileOffsetX;
-        const screenY = (gy - startY) * TILE - tileOffsetY;
-        ctx2d.save();
-        // Pulsing outline to catch attention
-        const t = Date.now();
-        const pulse = 0.6 + 0.4 * Math.abs(Math.sin(t / 500));
-        ctx2d.globalAlpha = pulse;
-        ctx2d.lineWidth = 3;
-        ctx2d.strokeStyle = "#9ece6a"; // same warm green as player, high contrast
-        ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
-        ctx2d.restore();
-      }
+      const screenX = (gx - startX) * TILE - tileOffsetX;
+      const screenY = (gy - startY) * TILE - tileOffsetY;
+      ctx2d.save();
+      const t = Date.now();
+      const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t / 520));
+      ctx2d.globalAlpha = pulse;
+      ctx2d.lineWidth = 3;
+      ctx2d.strokeStyle = "#9ece6a";
+      ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
+      // Draw a small return symbol in the top-left corner of the tile as a secondary cue
+      try {
+        ctx2d.globalAlpha = 0.95;
+        ctx2d.fillStyle = "#9ece6a";
+        // Position the glyph slightly inset so it doesn't overlap the player glyph completely
+        RenderCore.drawGlyph(ctx2d, screenX + 2, screenY + 2, "⏎", "#9ece6a", Math.max(16, Math.floor(TILE * 0.60)));
+      } catch (_) {}
+      ctx2d.restore();
     }
   }
 
