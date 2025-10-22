@@ -148,7 +148,11 @@ function render(ctx) {
     } else {
       try {
         sellDiv.innerHTML = '<div style="margin:8px 0 6px 0;color:#e2e8f0;">Sell from your inventory</div>' + sellables.map(function (row) {
-          const name = (ctx.describeItem ? ctx.describeItem(row.item) : (row.item && row.item.name) || "item");
+          const name = (ctx.describeItem
+            ? ctx.describeItem(row.item)
+            : ((typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function")
+                ? window.ItemDescribe.describe(row.item)
+                : (row.item && row.item.name) || "item"));
           const p = row.price | 0;
           return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' +
                  '<div>' + name + ' — <span style="color:#93c5fd;">' + p + 'g</span></div>' +
