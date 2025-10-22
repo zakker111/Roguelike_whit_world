@@ -918,6 +918,24 @@
   let _lastPlayerX = -1, _lastPlayerY = -1, _lastFovRadius = -1, _lastMode = "", _lastMapCols = -1, _lastMapRows = -1;
 
   function recomputeFOV() {
+    // Prefer centralized GameFOV guard-based recompute
+    try {
+      const GF = modHandle("GameFOV");
+      if (GF && typeof GF.recomputeWithGuard === "function") {
+        // Ensure ctx carries current seen/visible references
+        const ctx = getCtx();
+        ctx.seen = seen;
+        ctx.visible = visible;
+        const did = !!GF.recomputeWithGuard(ctx);
+        if (did) {
+          visible = ctx.visible;
+          seen = ctx.seen;
+        }
+        return;
+      }
+    } catch (_) {}
+
+    // Legacy inline path
     const rows = map.length;
     const cols = map[0] ? map[0].length : 0;
 
@@ -926,12 +944,19 @@
     const modeChanged = (mode !== _lastMode);
     const mapChanged = (rows !== _lastMapRows) || (cols !== _lastMapCols);
 
-    // Skip recompute when nothing relevant changed.
     if (!modeChanged && !mapChanged && !fovChanged && !moved) {
       return;
     }
 
-    ensureVisibilityShape();
+    // Prefer centralized GameState ensuring grid shape
+    try {
+      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.ensureVisibilityShape === "function") {
+        window.GameState.ensureVisibilityShape(getCtx());
+      } else {
+        ensureVisibilityShape();
+      }
+    } catch (_) { ensureVisibilityShape(); }
+
     {
       const F = modHandle("FOV");
       if (F && typeof F.recomputeFOV === "function") {
@@ -941,7 +966,6 @@
         F.recomputeFOV(ctx);
         visible = ctx.visible;
         seen = ctx.seen;
-        // update cache after recompute
         _lastPlayerX = player.x; _lastPlayerY = player.y;
         _lastFovRadius = fovRadius; _lastMode = mode;
         _lastMapCols = cols; _lastMapRows = rows;
@@ -1200,6 +1224,13 @@
   // Helper: apply ctx sync and refresh visuals/UI in one place
   function applyCtxSyncAndRefresh(ctx) {
     syncFromCtx(ctx);
+    // Prefer centralized GameState refresh helper
+    try {
+      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.applySyncAndRefresh === "function") {
+        window.GameState.applySyncAndRefresh(getCtx());
+        return;
+      }
+    } catch (_) {}
     updateCamera();
     recomputeFOV();
     updateUI();
