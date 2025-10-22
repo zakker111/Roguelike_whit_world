@@ -226,13 +226,18 @@ function create(seed, opts = {}) {
   }
 
   function pickStart() {
-    // Search a spiral around (0,0) for a walkable, non-swamp tile near a town if possible
-    const maxR = 200;
+    // Derive a seed-based search center for more variety across seeds
+    // Offsets in a large square, deterministic from RNG seeded by 's'
+    const offX = Math.floor((rng() - 0.5) * 800); // -400..400 (approx)
+    const offY = Math.floor((rng() - 0.5) * 800); // -400..400 (approx)
+
+    // Spiral search around (offX, offY) for a walkable, non-swamp tile near a town if possible
+    const maxR = 240;
     for (let r = 0; r <= maxR; r++) {
       for (let dy = -r; dy <= r; dy++) {
-        const x = r, y = dy;
+        const x = offX + r, y = offY + dy;
         const cand = [
-          { x, y }, { x: -x, y }, { x: dy, y: r }, { x: dy, y: -r }
+          { x, y }, { x: offX - r, y }, { x: offX + dy, y: offY + r }, { x: offX + dy, y: offY - r }
         ];
         for (const p of cand) {
           const t = tileAt(p.x, p.y);
@@ -247,6 +252,7 @@ function create(seed, opts = {}) {
         }
       }
     }
+    // Fallback: origin
     return { x: 0, y: 0 };
   }
 
