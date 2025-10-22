@@ -24,6 +24,58 @@
       } catch (_) {}
     })();
   </script>
+
+  <!-- Boot loader overlay (progress bar) -->
+  <div id="boot-loader" class="boot-loader" hidden>
+    <div class="boot-title">Loading Tiny Roguelike</div>
+    <div class="boot-bar"><div class="boot-bar-fill" style="width:0%"></div></div>
+    <div class="boot-status">Initializing...</div>
+  </div>
+  <style>
+    .boot-loader {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+      background: rgba(21,22,27,0.96);
+      border: 1px solid rgba(122,162,247,0.3);
+      border-radius: 10px; padding: 12px 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      z-index: 50000; min-width: 280px; max-width: 420px;
+    }
+    .boot-title { color: #7aa2f7; font-weight: 600; margin-bottom: 6px; }
+    .boot-bar { width: 100%; height: 10px; background: rgba(122,162,247,0.08); border: 1px solid rgba(122,162,247,0.2); border-radius: 6px; overflow: hidden; }
+    .boot-bar-fill { height: 100%; background: linear-gradient(90deg, rgba(122,162,247,0.6), rgba(122,162,247,0.3)); width: 0%; transition: width 160ms ease; }
+    .boot-status { color: #8a98b0; font-size: 12px; margin-top: 8px; }
+  </style>
+  <script>
+    // Boot loader controller: exposes window.LoaderProgress API used by data/loader.js
+    (function () {
+      var el = document.getElementById('boot-loader');
+      var fill = null, status = null, shown = false;
+      function ensure() {
+        if (!el) el = document.getElementById('boot-loader');
+        if (!el) return null;
+        if (!shown) { el.hidden = false; shown = true; }
+        fill = el.querySelector('.boot-bar-fill');
+        status = el.querySelector('.boot-status');
+        return el;
+      }
+      function setProgress(total, done, msg) {
+        if (!ensure()) return;
+        var pct = (total > 0) ? Math.round((done / total) * 100) : 0;
+        if (fill) fill.style.width = String(pct) + '%';
+        if (status) status.textContent = (msg || 'Loading...') + ' (' + pct + '%)';
+      }
+      function done() {
+        if (!el) return;
+        el.style.transition = 'opacity 240ms ease';
+        el.style.opacity = '0';
+        setTimeout(function () { el.hidden = true; }, 260);
+      }
+      window.LoaderProgress = { set: setProgress, done: done };
+      ensure();
+      setProgress(1, 0, 'Initializing');
+    })();
+  </script>
+
   <div class="ui">
     <div class="title">Tiny Roguelike</div>
     <div class="stats">

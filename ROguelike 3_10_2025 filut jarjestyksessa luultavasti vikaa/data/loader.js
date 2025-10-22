@@ -46,6 +46,40 @@ function fetchJson(url) {
     });
 }
 
+// Progress tracking (optional). The boot loader overlay in index.html defines window.LoaderProgress.
+// We update the bar after each registry resolves (success or failure).
+const _PROG = (function () {
+  try {
+    const keys = Object.keys(DATA_FILES);
+    const total = keys.length;
+    let done = 0;
+    function labelFor(url) {
+      try { return String(url || "").split("/").pop(); } catch (_) { return String(url || ""); }
+    }
+    function set(url) {
+      try {
+        if (typeof window !== "undefined" && window.LoaderProgress && typeof window.LoaderProgress.set === "function") {
+          window.LoaderProgress.set(total, done, labelFor(url));
+        }
+      } catch (_) {}
+    }
+    function inc(url) { done++; set(url); }
+    function finish() {
+      try {
+        if (typeof window !== "undefined" && window.LoaderProgress && typeof window.LoaderProgress.done === "function") {
+          window.LoaderProgress.done();
+        }
+      } catch (_) {}
+    }
+    // expose tracked fetch wrapper
+    function fetchTracked(url) {
+      set(url);
+      return fetchJson(url).catch(() => null).finally(() => inc(url));
+    }
+    return { fetchTracked, finish };
+  } catch (_) { return { fetchTracked: (u) => fetchJson(u).catch(() => null), finish: function () {} }; }
+})();
+
 export const GameData = {
   items: null,
   enemies: null,
@@ -89,24 +123,24 @@ GameData.ready = (async function loadAll() {
       items, enemies, npcs, consumables, shops, town, flavor, encounters, config, palette, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, animals
     ] = await Promise.all([
-      fetchJson(DATA_FILES.assetsCombined).catch(() => null),
-      fetchJson(DATA_FILES.items).catch(() => null),
-      fetchJson(DATA_FILES.enemies).catch(() => null),
-      fetchJson(DATA_FILES.npcs).catch(() => null),
-      fetchJson(DATA_FILES.consumables).catch(() => null),
-      fetchJson(DATA_FILES.shops).catch(() => null),
-      fetchJson(DATA_FILES.town).catch(() => null),
-      fetchJson(DATA_FILES.flavor).catch(() => null),
-      fetchJson(DATA_FILES.encounters).catch(() => null),
-      fetchJson(DATA_FILES.config).catch(() => null),
-      fetchJson(DATA_FILES.palette).catch(() => null),
-      fetchJson(DATA_FILES.messages).catch(() => null),
-      fetchJson(DATA_FILES.shopPhases).catch(() => null),
-      fetchJson(DATA_FILES.shopPools).catch(() => null),
-      fetchJson(DATA_FILES.shopRules).catch(() => null),
-      fetchJson(DATA_FILES.shopRestock).catch(() => null),
-      fetchJson(DATA_FILES.progression).catch(() => null),
-      fetchJson(DATA_FILES.animals).catch(() => null)
+      _PROG.fetchTracked(DATA_FILES.assetsCombined),
+      _PROG.fetchTracked(DATA_FILES.items),
+      _PROG.fetchTracked(DATA_FILES.enemies),
+      _PROG.fetchTracked(DATA_FILES.npcs),
+      _PROG.fetchTracked(DATA_FILES.consumables),
+      _PROG.fetchTracked(DATA_FILES.shops),
+      _PROG.fetchTracked(DATA_FILES.town),
+      _PROG.fetchTracked(DATA_FILES.flavor),
+      _PROG.fetchTracked(DATA_FILES.encounters),
+      _PROG.fetchTracked(DATA_FILES.config),
+      _PROG.fetchTracked(DATA_FILES.palette),
+      _PROG.fetchTracked(DATA_FILES.messages),
+      _PROG.fetchTracked(DATA_FILES.shopPhases),
+      _PROG.fetchTracked(DATA_FILES.shopPools),
+      _PROG.fetchTracked(DATA_FILES.shopRules),
+      _PROG.fetchTracked(DATA_FILES.shopRestock),
+      _PROG.fetchTracked(DATA_FILES.progression),
+      _PROG.fetchTracked(DATA_FILES.animals)
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -204,6 +238,9 @@ GameData.ready = (async function loadAll() {
     try { console.warn("[GameData] load error", e); } catch (_) {}
     // Keep whatever loaded; modules across the codebase provide sensible fallbacks.
     logNotice("Registry load error; using built-in defaults.");
+  } finally {
+    // Signal boot overlay completion
+    try { _PROG.finish(); } catch (_) {}
   }
 })();
 
