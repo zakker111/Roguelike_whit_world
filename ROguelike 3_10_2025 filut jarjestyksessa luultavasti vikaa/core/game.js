@@ -373,11 +373,25 @@
 
   // Use RNG service if available for helpers
   const randInt = (min, max) => {
-    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.int === "function") return window.RNG.int(min, max);
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") {
+        return window.RNGUtils.int(min, max, rng);
+      }
+    } catch (_) {}
+    try {
+      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.int === "function") return window.RNG.int(min, max);
+    } catch (_) {}
     return Math.floor(rng() * (max - min + 1)) + min;
   };
   const chance = (p) => {
-    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.chance === "function") return window.RNG.chance(p);
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+        return window.RNGUtils.chance(p, rng);
+      }
+    } catch (_) {}
+    try {
+      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.chance === "function") return window.RNG.chance(p);
+    } catch (_) {}
     return rng() < p;
   };
   const capitalize = ((typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.capitalize === "function")
@@ -391,7 +405,14 @@
     return COLORS.enemy;
   };
   const randFloat = (min, max, decimals = 1) => {
-    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.float === "function") return window.RNG.float(min, max, decimals);
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
+        return window.RNGUtils.float(min, max, decimals, rng);
+      }
+    } catch (_) {}
+    try {
+      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.float === "function") return window.RNG.float(min, max, decimals);
+    } catch (_) {}
     const v = min + rng() * (max - min);
     const p = Math.pow(10, decimals);
     return Math.round(v * p) / p;
@@ -767,15 +788,24 @@
       }
       // Rebuild occupancy using TownRuntime helper or direct OccupancyGrid
       {
-        const TR = modHandle("TownRuntime");
-        if (TR && typeof TR.rebuildOccupancy === "function") {
-          TR.rebuildOccupancy(getCtx());
-        } else {
-          const OG = modHandle("OccupancyGrid");
-          if (OG && typeof OG.build === "function") {
-            occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
+        try {
+          const ctx2 = getCtx();
+          if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+            window.OccupancyFacade.rebuild(ctx2);
+            occupancy = ctx2.occupancy || occupancy;
+          } else {
+            const TR = modHandle("TownRuntime");
+            if (TR && typeof TR.rebuildOccupancy === "function") {
+              TR.rebuildOccupancy(ctx2);
+              occupancy = ctx2.occupancy || occupancy;
+            } else {
+              const OG = modHandle("OccupancyGrid");
+              if (OG && typeof OG.build === "function") {
+                occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
+              }
+            }
           }
-        }
+        } catch (_) {}
       }
       if (window.DEV) {
         try {
@@ -2630,13 +2660,18 @@
                 // Sync back any mutations
                 syncFromCtx(ctx);
                 {
-                  const TR = modHandle("TownRuntime");
-                  if (TR && typeof TR.rebuildOccupancy === "function") {
-                    TR.rebuildOccupancy(getCtx());
+                  const ctx2 = getCtx();
+                  if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+                    window.OccupancyFacade.rebuild(ctx2);
                   } else {
-                    const OG = modHandle("OccupancyGrid");
-                    if (OG && typeof OG.build === "function") {
-                      occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
+                    const TR = modHandle("TownRuntime");
+                    if (TR && typeof TR.rebuildOccupancy === "function") {
+                      TR.rebuildOccupancy(ctx2);
+                    } else {
+                      const OG = modHandle("OccupancyGrid");
+                      if (OG && typeof OG.build === "function") {
+                        occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
+                      }
                     }
                   }
                 }

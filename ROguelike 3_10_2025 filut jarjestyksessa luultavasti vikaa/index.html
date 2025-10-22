@@ -199,6 +199,7 @@
   <!-- Utilities (available early for modules that use shared helpers/RNG fallback) -->
   <script src="/utils/utils.js" type="module" defer></script>
   <script src="/utils/rng_fallback.js" type="module" defer></script>
+  <script src="/utils/rng.js" type="module" defer></script>
 
   <!-- Boot diagnostics: log RNG source and seed -->
   <script>
@@ -317,7 +318,8 @@
   <script src="/core/ui_bridge.js" type="module" defer></script>
   <!-- Region Map overlay runtime -->
   <script src="/region_map/region_map_runtime.js" type="module" defer></script>
-  <!-- World runtime (must load before game.js so Game can detect window.WorldRuntime) -->
+  <!-- Core facades and runtimes (must load before game.js so Game can detect them) -->
+  <script src="/core/occupancy_facade.js" type="module" defer></script>
   <script src="/core/world_runtime.js" type="module" defer></script>
   <script src="/core/game.js" type="module" defer></script>
 
