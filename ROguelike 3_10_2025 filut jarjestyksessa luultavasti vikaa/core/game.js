@@ -2067,195 +2067,31 @@
 
   function tryMovePlayer(dx, dy) {
     if (isDead) return;
-    // Prefer centralized Movement facade
+    // Prefer centralized Movement facade for all modes
     try {
       const MV = modHandle("Movement");
       if (MV && typeof MV.tryMove === "function") {
-        const ok = !!MV.tryMove(getCtx(), dx, dy);
-        if (ok) return;
-      }
-    } catch (_) {}
-
-    // REGION MAP MODE (overlay): move cursor only, no time advance
-    if (mode === "region") {
-      const RM = modHandle("RegionMapRuntime");
-      if (RM && typeof RM.tryMove === "function") {
-        const ok = !!RM.tryMove(getCtx(), dx, dy);
-        if (ok) return;
-      }
-      return;
-    }
-
-    // WORLD MODE
-    if (mode === "world") {
-      const WR = modHandle("WorldRuntime");
-      if (WR && typeof WR.tryMovePlayerWorld === "function") {
-        const ok = !!WR.tryMovePlayerWorld(getCtx(), dx, dy);
-        if (ok) return;
-      }
-      // Fallback: direct world map walk if runtime didn't handle
-      const nx = player.x + dx;
-      const ny = player.y + dy;
-      const wmap = world && world.map ? world.map : null;
-      if (!wmap) return;
-      const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
-      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return;
-      const W = modHandle("World");
-      const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(wmap[ny][nx]) : true;
-      if (walkable) {
-        player.x = nx; player.y = ny;
-        updateCamera();
-
-        // Log animal proximity hint based on biome and clear-state (cooldown-protected)
-        try {
-          const W = modHandle("World");
-          const WT = W && W.TILES ? W.TILES : null;
-          const tileHere = world && world.map ? world.map[ny][nx] : null;
-          const isAnimalBiome = WT ? (tileHere === WT.FOREST || tileHere === WT.GRASS || tileHere === WT.BEACH) : true;
-          // Check cleared state via RegionMapRuntime to avoid hints in cleared regions
-          let cleared = false;
-          try {
-            if (typeof window !== "undefined" && window.RegionMapRuntime && typeof window.RegionMapRuntime.animalsClearedHere === "function") {
-              cleared = !!window.RegionMapRuntime.animalsClearedHere(nx | 0, ny | 0);
-            }
-          } catch (_) {}
-          if (isAnimalBiome && !cleared) {
-            const gap = turnCounter - lastAnimalHintTurn;
-            if (gap > 30) {
-              const chanceP = 0.35; // base chance to hint
-              const roll = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function")
-                ? window.RNGUtils.chance(chanceP, rng)
-                : (rng() < chanceP);
-              if (roll) {
-                log("There might be creatures nearby.", "notice");
-                lastAnimalHintTurn = turnCounter;
-              }
-            }
-          }
-        } catch (_) {}
-
-        // Encounter roll before advancing time so acceptance can switch mode first
-        try {
-          const ES = modHandle("EncounterService");
-          if (ES && typeof ES.maybeTryEncounter === "function") {
-            ES.maybeTryEncounter(getCtx());
-          }
-        } catch (_) {}
-        turn();
-      }
-      return;
-    }
-
-    // ENCOUNTER MODE
-    if (mode === "encounter") {
-      // Keep encounter input path identical to dungeon: delegate to DungeonRuntime.tryMoveDungeon.
-      // Do NOT auto-exit on stairs; exiting is only via G on the exit tile.
-      const DR = modHandle("DungeonRuntime");
-      const ctxMod = getCtx();
-      if (DR && typeof DR.tryMoveDungeon === "function") {
-        const acted = !!DR.tryMoveDungeon(ctxMod, dx, dy); // in encounter mode it does NOT call ctx.turn()
-        if (acted) {
-          // Merge enemy/corpse/decals mutations that may have been synced via a different ctx inside callbacks
-          try {
-            ctxMod.enemies = Array.isArray(enemies) ? enemies : ctxMod.enemies;
-            ctxMod.corpses = Array.isArray(corpses) ? corpses : ctxMod.corpses;
-            ctxMod.decals = Array.isArray(decals) ? decals : ctxMod.decals;
-          } catch (_) {}
-          // Sync any mode/map changes
-          applyCtxSyncAndRefresh(ctxMod);
-          // If we just moved onto a merchant (e.g., Seppo), auto-open the shop
-          try {
-            const props = Array.isArray(ctxMod.encounterProps) ? ctxMod.encounterProps : [];
-            const onMerchant = props.find(pr => pr && pr.type === "merchant" && pr.x === ctxMod.player.x && pr.y === ctxMod.player.y);
-            if (onMerchant) {
-              const UB = modHandle("UIBridge");
-              if (UB && typeof UB.showShop === "function") {
-                const already = (typeof UB.isShopOpen === "function") ? !!UB.isShopOpen() : false;
-                if (!already) UB.showShop(ctxMod, { name: onMerchant.name || "Merchant", vendor: onMerchant.vendor || "merchant" });
-              }
-            }
-          } catch (_) {}
-          // Advance the turn so AI/status run on synchronized state
-          turn();
-          return;
-        }
-      }
-      // Fallback: minimal dungeon-like movement (no auto-exit)
-      const nx = player.x + dx;
-      const ny = player.y + dy;
-      if (!inBounds(nx, ny)) return;
-      const blockedByEnemy = (occupancy && typeof occupancy.hasEnemy === "function") ? occupancy.hasEnemy(nx, ny) : enemies.some(e => e && e.x === nx && e.y === ny);
-      if (isWalkable(nx, ny) && !blockedByEnemy) {
-        player.x = nx;
-        player.y = ny;
-        updateCamera();
-        // Auto-open shop if we stepped onto a merchant tile
-        try {
-          const props = Array.isArray(encounterProps) ? encounterProps : [];
-          const onMerchant = props.find(pr => pr && pr.type === "merchant" && pr.x === player.x && pr.y === player.y);
-          if (onMerchant) {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.showShop === "function") {
-              const already = (typeof UB.isShopOpen === "function") ? !!UB.isShopOpen() : false;
-              if (!already) UB.showShop(getCtx(), { name: onMerchant.name || "Merchant", vendor: onMerchant.vendor || "merchant" });
-            }
-          }
-        } catch (_) {}
-        turn();
-      }
-      return;
-    }
-
-    // TOWN MODE
-    if (mode === "town") {
-      const TR = modHandle("TownRuntime");
-      if (TR && typeof TR.tryMoveTown === "function") {
-        const ok = !!TR.tryMoveTown(getCtx(), dx, dy);
-        if (ok) return;
-      }
-      // Fallback: minimal town movement and bump-talk
-      const nx = player.x + dx;
-      const ny = player.y + dy;
-      if (!inBounds(nx, ny)) return;
-      const npcBlocked = (occupancy && typeof occupancy.hasNPC === "function") ? occupancy.hasNPC(nx, ny) : npcs.some(n => n.x === nx && n.y === ny);
-      if (npcBlocked) {
-        const TR2 = modHandle("TownRuntime");
-        if (TR2 && typeof TR2.talk === "function") {
-          TR2.talk(getCtx());
-        } else {
-          log("Excuse me!", "info");
-          // Pure log; no canvas redraw needed
-        }
+        MV.tryMove(getCtx(), dx, dy);
         return;
       }
-      if (isWalkable(nx, ny)) {
-        player.x = nx; player.y = ny;
-        updateCamera();
-        turn();
-      }
+    } catch (_) {}
+    // Minimal fallback by mode to keep basic movement working
+    const ctxMod = getCtx();
+    if (ctxMod.mode === "region") {
+      const RM = modHandle("RegionMapRuntime");
+      if (RM && typeof RM.tryMove === "function") RM.tryMove(ctxMod, dx, dy);
       return;
     }
-
-    // DUNGEON MODE
-    {
+    if (ctxMod.mode === "world") {
+      const WR = modHandle("WorldRuntime");
+      if (WR && typeof WR.tryMovePlayerWorld === "function") { WR.tryMovePlayerWorld(ctxMod, dx, dy); return; }
+    } else if (ctxMod.mode === "town") {
+      const TR = modHandle("TownRuntime");
+      if (TR && typeof TR.tryMoveTown === "function") { TR.tryMoveTown(ctxMod, dx, dy); return; }
+    } else if (ctxMod.mode === "encounter" || ctxMod.mode === "dungeon") {
       const DR = modHandle("DungeonRuntime");
-      if (DR && typeof DR.tryMoveDungeon === "function") {
-        const ok = !!DR.tryMoveDungeon(getCtx(), dx, dy);
-        if (ok) return;
-      }
+      if (DR && typeof DR.tryMoveDungeon === "function") { DR.tryMoveDungeon(ctxMod, dx, dy); return; }
     }
-    // Fallback: minimal dungeon movement into walkable, empty tiles
-    const nx = player.x + dx;
-    const ny = player.y + dy;
-    if (!inBounds(nx, ny)) return;
-    const blockedByEnemy = (occupancy && typeof occupancy.hasEnemy === "function") ? occupancy.hasEnemy(nx, ny) : enemies.some(e => e.x === nx && e.y === ny);
-    if (isWalkable(nx, ny) && !blockedByEnemy) {
-      player.x = nx;
-      player.y = ny;
-      updateCamera();
-      turn();
-    }
-    
   }
 
   

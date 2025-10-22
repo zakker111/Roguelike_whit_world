@@ -402,16 +402,33 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Roads overlay — disabled per request (odd dashed tiles on world map).
-  // Leave the code block intentionally empty to remove road rendering.
+  // Roads overlay — toggleable via UI (SHOW_ROADS)
   try {
-    // no-op
+    const showRoads = (typeof window !== "undefined" && typeof window.SHOW_ROADS === "boolean") ? window.SHOW_ROADS : false;
+    const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
+    if (showRoads && roads.length) {
+      ctx2d.save();
+      ctx2d.globalAlpha = 0.18; // subtle overlay
+      ctx2d.fillStyle = "#b0a58a"; // muted road color
+      for (const p of roads) {
+        const x = p.x, y = p.y;
+        if (x < startX || x > endX || y < startY || y > endY) continue;
+        const sx = (x - startX) * TILE - tileOffsetX;
+        const sy = (y - startY) * TILE - tileOffsetY;
+        // small rectangle in the center of the tile to suggest a road
+        const w = Math.max(3, Math.floor(TILE * 0.40));
+        const h = Math.max(2, Math.floor(TILE * 0.16));
+        ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
+      }
+      ctx2d.restore();
+    }
   } catch (_) {}
 
-  // Draw bridges as stronger markers across rivers
+  // Draw bridges as stronger markers across rivers (toggleable via SHOW_BRIDGES)
   try {
+    const showBridges = (typeof window !== "undefined" && typeof window.SHOW_BRIDGES === "boolean") ? window.SHOW_BRIDGES : false;
     const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
-    if (bridges.length) {
+    if (showBridges && bridges.length) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.6;
       ctx2d.fillStyle = "#c3a37a"; // wood-like color
@@ -467,10 +484,11 @@ export function draw(ctx, view) {
     ctx2d.restore();
   } catch (_) {}
 
-  // Draw bridges as stronger markers across rivers
+  // Draw bridges as stronger markers across rivers (toggleable via SHOW_BRIDGES)
   try {
+    const showBridges = (typeof window !== "undefined" && typeof window.SHOW_BRIDGES === "boolean") ? window.SHOW_BRIDGES : false;
     const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
-    if (bridges.length) {
+    if (showBridges && bridges.length) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.6;
       ctx2d.fillStyle = "#c3a37a"; // wood-like color
