@@ -1240,15 +1240,31 @@
   
 
   function enterTownIfOnTile() {
+    // Prefer unified ModesTransitions facade
+    try {
+      const MT = modHandle("ModesTransitions");
+      if (MT && typeof MT.enterTownIfOnTile === "function") {
+        const ctx = getCtx();
+        const ok = !!MT.enterTownIfOnTile(ctx);
+        if (ok) {
+          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
+          applyCtxSyncAndRefresh(ctx);
+          try {
+            const TR = modHandle("TownRuntime");
+            if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
+          } catch (_) {}
+        }
+        return ok;
+      }
+    } catch (_) {}
+
     const M = modHandle("Modes");
     if (M && typeof M.enterTownIfOnTile === "function") {
       const ctx = getCtx();
       const ok = !!M.enterTownIfOnTile(ctx);
       if (ok) {
-        // Invalidate cache then centralize sync/refresh
         _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         applyCtxSyncAndRefresh(ctx);
-        // Show Town Exit button via TownRuntime
         try {
           const TR = modHandle("TownRuntime");
           if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
@@ -1260,6 +1276,20 @@
   }
 
   function enterDungeonIfOnEntrance() {
+    // Prefer unified ModesTransitions facade
+    try {
+      const MT = modHandle("ModesTransitions");
+      if (MT && typeof MT.enterDungeonIfOnEntrance === "function") {
+        const ctx = getCtx();
+        const ok = !!MT.enterDungeonIfOnEntrance(ctx);
+        if (ok) {
+          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
+          applyCtxSyncAndRefresh(ctx);
+        }
+        return ok;
+      }
+    } catch (_) {}
+
     const M = modHandle("Modes");
     if (M && typeof M.enterDungeonIfOnEntrance === "function") {
       const ctx = getCtx();
@@ -1274,21 +1304,33 @@
   }
 
   function leaveTownNow() {
+    // Prefer unified ModesTransitions facade
+    try {
+      const MT = modHandle("ModesTransitions");
+      if (MT && typeof MT.leaveTownNow === "function") {
+        const ctx = getCtx();
+        MT.leaveTownNow(ctx);
+        applyCtxSyncAndRefresh(ctx);
+        return;
+      }
+    } catch (_) {}
     const M = modHandle("Modes");
     if (M && typeof M.leaveTownNow === "function") {
       const ctx = getCtx();
       M.leaveTownNow(ctx);
-      // Sync mutated ctx back into local state, then center camera and refresh
-      syncFromCtx(ctx);
-      updateCamera();
-      recomputeFOV();
-      updateUI();
-      requestDraw();
+      applyCtxSyncAndRefresh(ctx);
       return;
     }
   }
 
   function requestLeaveTown() {
+    try {
+      const MT = modHandle("ModesTransitions");
+      if (MT && typeof MT.requestLeaveTown === "function") {
+        MT.requestLeaveTown(getCtx());
+        return;
+      }
+    } catch (_) {}
     const M = modHandle("Modes");
     if (M && typeof M.requestLeaveTown === "function") {
       M.requestLeaveTown(getCtx());
@@ -1297,31 +1339,30 @@
 
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
+    // Prefer unified ModesTransitions facade
+    try {
+      const MT = modHandle("ModesTransitions");
+      if (MT && typeof MT.returnToWorldFromTown === "function") {
+        const ok = !!MT.returnToWorldFromTown(getCtx());
+        if (ok) {
+          applyCtxSyncAndRefresh(getCtx());
+          return true;
+        }
+      }
+    } catch (_) {}
     const ctx = getCtx();
     const TR = modHandle("TownRuntime");
     if (TR && typeof TR.returnToWorldIfAtGate === "function") {
       const ok = !!TR.returnToWorldIfAtGate(ctx);
       if (ok) {
-        // Sync mutated ctx references into local state, then center camera on player
-        syncFromCtx(ctx);
-        updateCamera();
-        recomputeFOV();
-        updateUI();
-        requestDraw();
+        applyCtxSyncAndRefresh(ctx);
         return true;
       }
     }
-    // Fallback: if standing at the gate, leave via TownRuntime/Modes
     if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      // Prefer TownRuntime.applyLeaveSync to ensure camera centering under ctx state
       if (TR && typeof TR.applyLeaveSync === "function") {
         TR.applyLeaveSync(ctx);
-        // Sync mutated ctx and refresh camera/FOV/UI against new world map
-        syncFromCtx(ctx);
-        updateCamera();
-        recomputeFOV();
-        updateUI();
-        requestDraw();
+        applyCtxSyncAndRefresh(ctx);
         return true;
       }
     }
@@ -1337,6 +1378,17 @@
   }
 
   function returnToWorldIfAtExit() {
+    try {
+      const MT = modHandle("ModesTransitions");
+      if (MT && typeof MT.returnToWorldIfAtExit === "function") {
+        const ctx = getCtx();
+        const ok = MT.returnToWorldIfAtExit(ctx);
+        if (ok) {
+          applyCtxSyncAndRefresh(ctx);
+        }
+        return ok;
+      }
+    } catch (_) {}
     const M = modHandle("Modes");
     if (M && typeof M.returnToWorldIfAtExit === "function") {
       const ctx = getCtx();
@@ -1347,6 +1399,8 @@
       return ok;
     }
     return false;
+  }
+;
   }
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
