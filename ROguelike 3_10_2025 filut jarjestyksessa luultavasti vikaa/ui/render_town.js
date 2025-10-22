@@ -337,7 +337,7 @@ export function draw(ctx, view) {
   RenderOverlays.drawTownRoutePaths(ctx, view);
   RenderOverlays.drawLampGlow(ctx, view);
 
-  // Gate highlight at townExitAt: always draw a bright outline; add small return glyph so it's unmistakable.
+  // Gate highlight at townExitAt: always draw a bright outline and a large 'G' glyph.
   // Draw unconditionally when within viewport so it's visible immediately upon entering town.
   if (ctx.townExitAt) {
     const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
@@ -351,12 +351,10 @@ export function draw(ctx, view) {
       ctx2d.lineWidth = 3;
       ctx2d.strokeStyle = "#9ece6a";
       ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
-      // Draw a small return symbol in the top-left corner of the tile as a secondary cue
+      // Large 'G' glyph centered on the gate tile
       try {
         ctx2d.globalAlpha = 0.95;
-        ctx2d.fillStyle = "#9ece6a";
-        // Position the glyph slightly inset so it doesn't overlap the player glyph completely
-        RenderCore.drawGlyph(ctx2d, screenX + 2, screenY + 2, "⏎", "#9ece6a", Math.max(16, Math.floor(TILE * 0.60)));
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
       } catch (_) {}
       ctx2d.restore();
     }
