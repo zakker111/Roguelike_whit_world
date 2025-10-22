@@ -363,51 +363,10 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Draw roads as overlays with style variations:
-  // - dashed pattern via parity of (x+y)
-  // - thicker segments near cities
+  // Roads overlay — disabled per request (odd dashed tiles on world map).
+  // Leave the code block intentionally empty to remove road rendering.
   try {
-    const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
-    const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
-    const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
-    const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
-    if (roads.length) {
-      ctx2d.save();
-      ctx2d.globalAlpha = 0.38;
-      ctx2d.fillStyle = "#9aa5b1"; // light slate for road
-
-      // Helper: check if near a city to thicken segment
-      function nearCityAbs(ax, ay) {
-        const R = 4;
-        for (const t of towns) {
-          if (!t || t.size !== "city") continue;
-          const d = Math.abs(t.x - ax) + Math.abs(t.y - ay);
-          if (d <= R) return true;
-        }
-        return false;
-      }
-
-      for (const p of roads) {
-        const ax = p.x | 0, ay = p.y | 0;      // absolute world coords
-        const x = ax - ox, y = ay - oy;        // local indices
-        if (x < startX || x > endX || y < startY || y > endY) continue;
-
-        // Dashed: skip every other tile based on parity; keep continuous look when near cities
-        const dashedSkip = ((x + y) % 2) !== 0 && !nearCityAbs(ax, ay);
-        if (dashedSkip) continue;
-
-        const sx = (x - startX) * TILE - tileOffsetX;
-        const sy = (y - startY) * TILE - tileOffsetY;
-
-        // Thickness scales with proximity to cities (based on absolute coords)
-        const thick = nearCityAbs(ax, ay);
-        const w = thick ? Math.max(3, Math.floor(TILE * 0.55)) : Math.max(2, Math.floor(TILE * 0.30));
-        const h = thick ? Math.max(2, Math.floor(TILE * 0.40)) : Math.max(2, Math.floor(TILE * 0.30));
-
-        ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
-      }
-      ctx2d.restore();
-    }
+    // no-op
   } catch (_) {}
 
   // Draw bridges as stronger markers across rivers
