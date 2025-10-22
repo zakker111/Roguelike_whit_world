@@ -641,9 +641,6 @@ export const UI = {
       if (typeof window.DRAW_GRID !== "boolean") window.DRAW_GRID = this.getGridState();
       if (typeof window.SHOW_PERF !== "boolean") window.SHOW_PERF = this.getPerfState();
       if (typeof window.SHOW_MINIMAP !== "boolean") window.SHOW_MINIMAP = this.getMinimapState();
-      // Roads/Bridges always ON by default; UI toggle removed
-      window.SHOW_ROADS = true;
-      window.SHOW_BRIDGES = true;
       // Ensure buttons reflect baseline state
       this.updateGridButton();
       this.updatePerfButton();

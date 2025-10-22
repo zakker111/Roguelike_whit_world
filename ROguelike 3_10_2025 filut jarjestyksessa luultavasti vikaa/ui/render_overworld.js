@@ -422,11 +422,10 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Draw bridges as stronger markers across rivers (toggleable via SHOW_BRIDGES)
+  // Bridges overlay — always on
   try {
-    const showBridges = (typeof window !== "undefined" && typeof window.SHOW_BRIDGES === "boolean") ? window.SHOW_BRIDGES : false;
     const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
-    if (showBridges && bridges.length) {
+    if (bridges.length) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.6;
       ctx2d.fillStyle = "#c3a37a"; // wood-like color
@@ -480,28 +479,6 @@ export function draw(ctx, view) {
       ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
     }
     ctx2d.restore();
-  } catch (_) {}
-
-  // Draw bridges as stronger markers across rivers (toggleable via SHOW_BRIDGES)
-  try {
-    const showBridges = (typeof window !== "undefined" && typeof window.SHOW_BRIDGES === "boolean") ? window.SHOW_BRIDGES : false;
-    const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
-    if (showBridges && bridges.length) {
-      ctx2d.save();
-      ctx2d.globalAlpha = 0.6;
-      ctx2d.fillStyle = "#c3a37a"; // wood-like color
-      for (const p of bridges) {
-        const x = p.x, y = p.y;
-        if (x < startX || x > endX || y < startY || y > endY) continue;
-        const sx = (x - startX) * TILE - tileOffsetX;
-        const sy = (y - startY) * TILE - tileOffsetY;
-        // small plank-like rectangle
-        const w = Math.max(4, Math.floor(TILE * 0.55));
-        const h = Math.max(3, Math.floor(TILE * 0.20));
-        ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
-      }
-      ctx2d.restore();
-    }
   } catch (_) {}
 
   // Per-frame glyph overlay for any tile with a non-blank JSON glyph
