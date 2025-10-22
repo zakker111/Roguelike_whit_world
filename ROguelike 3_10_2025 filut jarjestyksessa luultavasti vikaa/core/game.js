@@ -2460,6 +2460,33 @@
     // Advance global time (centralized via TimeService)
     turnCounter = TS.tick(turnCounter);
 
+    // Prefer centralized TurnLoop when available
+    try {
+      const TL = modHandle("TurnLoop");
+      if (TL && typeof TL.tick === "function") {
+        const ctxMod = getCtx();
+        TL.tick(ctxMod);
+        // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), sync orchestrator state
+        try {
+          const cPost = getCtx();
+          if (cPost && cPost.mode !== mode) {
+            applyCtxSyncAndRefresh(cPost);
+          }
+        } catch (_) {}
+        const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        PERF.lastTurnMs = t1 - t0;
+        // EMA smoothing for turn time
+        try {
+          const a = 0.35; // smoothing factor
+          if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
+          else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
+        } catch (_) {}
+        try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms (avg ${PERF.avgTurnMs.toFixed(2)}ms)`); } catch (_) {}
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback: inline turn processing (legacy path)
     // Injury healing: healable injuries tick down and disappear when reaching 0
     try {
       if (player && Array.isArray(player.injuries) && player.injuries.length) {
@@ -2484,8 +2511,6 @@
         }
       }
     } catch (_) {}
-
-
 
     if (mode === "dungeon") {
       const DR = modHandle("DungeonRuntime");
