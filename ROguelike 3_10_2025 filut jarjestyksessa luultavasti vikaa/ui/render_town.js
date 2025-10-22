@@ -112,7 +112,7 @@ export function draw(ctx, view) {
   }
 
   // Per-frame glyph overlay (drawn before visibility overlays)
-  // Keep town clean: suppress noisy door ('+') and stairs ('>') glyphs; let floors/walls/windows use colors only.
+  // Keep town clean: suppress noisy door ('+'), stairs ('>'), and window glyphs; use tile fill colors for these.
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowMap = yIn ? map[y] : null;
@@ -120,8 +120,8 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
 
-      // Skip glyphs for DOOR/STAIRS in town to avoid clutter
-      if (type === TILES.DOOR || type === TILES.STAIRS) continue;
+      // Skip glyphs for DOOR/STAIRS/WINDOW in town to avoid cluttery dash visuals
+      if (type === TILES.DOOR || type === TILES.STAIRS || type === TILES.WINDOW) continue;
 
       const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
       if (!td) continue;
