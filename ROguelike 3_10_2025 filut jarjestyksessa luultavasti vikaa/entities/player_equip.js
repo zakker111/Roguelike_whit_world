@@ -16,6 +16,11 @@ const round1 = (typeof window !== "undefined" && window.PlayerUtils && typeof wi
   : (n) => Math.round(n * 10) / 10;
 
 function defaultDescribe(item) {
+  try {
+    if (typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function") {
+      return window.ItemDescribe.describe(item);
+    }
+  } catch (_) {}
   if (!item) return "";
   if (item.kind === "equip") {
     const parts = [];

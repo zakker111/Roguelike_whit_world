@@ -18,15 +18,24 @@ export function initialDecay(tier, rng) {
       return window.Items.initialDecay(tier, rng);
     }
   } catch (_) {}
-  // Fallback (mirrors game.js/items.js behavior)
-  const r = (typeof rng === "function")
-    ? rng
-    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-        ? window.RNG.rng
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-            ? window.RNGFallback.getRng()
-            : Math.random));
+  // Fallback using centralized RNGUtils
+  let r = null;
+  try {
+    r = (typeof rng === "function") ? rng
+      : (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
+        ? window.RNGUtils.getRng()
+        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+            ? window.RNG.rng
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                ? window.RNGFallback.getRng()
+                : Math.random));
+  } catch (_) { r = (typeof rng === "function") ? rng : Math.random; }
   const float = (min, max, decimals = 0) => {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
+        return window.RNGUtils.float(min, max, decimals, r);
+      }
+    } catch (_) {}
     const v = min + r() * (max - min);
     const p = Math.pow(10, decimals);
     return Math.round(v * p) / p;
@@ -77,15 +86,22 @@ export function decayAttackHands(player, rng, opts, hooks) {
   const light = !!opts.light;
 
   const eq = player.equipment || {};
+  const rfn = (typeof rng === "function")
+    ? rng
+    : ((typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
+        ? window.RNGUtils.getRng()
+        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+            ? window.RNG.rng
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                ? window.RNGFallback.getRng()
+                : Math.random)));
   const float = (min, max) => {
-    const rv = (typeof rng === "function")
-      ? rng()
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-          ? window.RNG.rng()
-          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-              ? window.RNGFallback.getRng()()
-              : Math.random()));
-    const v = min + rv * (max - min);
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
+        return window.RNGUtils.float(min, max, 1, rfn);
+      }
+    } catch (_) {}
+    const v = min + rfn() * (max - min);
     return Math.round(v * 10) / 10;
   };
   const amtMain = light ? float(0.6, 1.6) : float(1.0, 2.2);
@@ -114,13 +130,20 @@ export function decayBlockingHands(player, rng, opts, hooks) {
   const twoHanded = !!opts.twoHanded;
 
   const eq = player.equipment || {};
+  const rfn = (typeof rng === "function")
+    ? rng
+    : ((typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
+        ? window.RNGUtils.getRng()
+        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+            ? window.RNG.rng
+            : getFallbackRng()));
   const float = (min, max) => {
-    const r = (typeof rng === "function")
-      ? rng()
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-          ? window.RNG.rng()
-          : getFallbackRng()());
-    const v = min + r * (max - min);
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
+        return window.RNGUtils.float(min, max, 1, rfn);
+      }
+    } catch (_) {}
+    const v = min + rfn() * (max - min);
     return Math.round(v * 10) / 10;
   };
   const amt = float(0.6, 1.6);

@@ -152,7 +152,13 @@ export function getDefense(player) {
 }
 
 export function describeItem(item) {
-  // Prefer centralized description from Items module if available
+  // Prefer centralized item description
+  try {
+    if (typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function") {
+      return window.ItemDescribe.describe(item);
+    }
+  } catch (_) {}
+  // Fallback: use Items.describe if available
   if (typeof window !== "undefined" && window.Items && typeof window.Items.describe === "function") {
     return window.Items.describe(item);
   }

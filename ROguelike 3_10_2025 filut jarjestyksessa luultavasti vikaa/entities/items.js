@@ -454,6 +454,11 @@ export function createEquipment(tier, rng) {
 }
 
 export function describe(item) {
+  try {
+    if (typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function") {
+      return window.ItemDescribe.describe(item);
+    }
+  } catch (_) {}
   if (!item) return "";
   if (item.kind === "equip") {
     const parts = [];
