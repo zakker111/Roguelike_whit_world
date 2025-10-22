@@ -1697,6 +1697,10 @@
         isDead: () => isDead,
         isInventoryOpen: () => {
           try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isInventoryOpen === "function") return !!UIO.isInventoryOpen(getCtx());
+          } catch (_) {}
+          try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isInventoryOpen === "function") return !!UB.isInventoryOpen();
           } catch (_) {}
@@ -1704,12 +1708,20 @@
         },
         isLootOpen: () => {
           try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isLootOpen === "function") return !!UIO.isLootOpen(getCtx());
+          } catch (_) {}
+          try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isLootOpen === "function") return !!UB.isLootOpen();
           } catch (_) {}
           return false;
         },
         isGodOpen: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isGodOpen === "function") return !!UIO.isGodOpen(getCtx());
+          } catch (_) {}
           try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isGodOpen === "function") return !!UB.isGodOpen();
@@ -1719,6 +1731,10 @@
         // Ensure shop modal is part of the modal stack priority
         isShopOpen: () => {
           try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isShopOpen === "function") return !!UIO.isShopOpen(getCtx());
+          } catch (_) {}
+          try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isShopOpen === "function") return !!UB.isShopOpen();
           } catch (_) {}
@@ -1726,6 +1742,10 @@
         },
         // Smoke config modal priority after Shop
         isSmokeOpen: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isSmokeOpen === "function") return !!UIO.isSmokeOpen(getCtx());
+          } catch (_) {}
           try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isSmokeOpen === "function") return !!UB.isSmokeOpen();
@@ -1735,6 +1755,10 @@
         // Sleep modal (Inn beds)
         isSleepOpen: () => {
           try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isSleepOpen === "function") return !!UIO.isSleepOpen(getCtx());
+          } catch (_) {}
+          try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isSleepOpen === "function") return !!UB.isSleepOpen();
           } catch (_) {}
@@ -1742,6 +1766,10 @@
         },
         // Confirm dialog gating
         isConfirmOpen: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isConfirmOpen === "function") return !!UIO.isConfirmOpen(getCtx());
+          } catch (_) {}
           try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isConfirmOpen === "function") return !!UB.isConfirmOpen();
@@ -1754,6 +1782,10 @@
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.hideGod === "function") { UIO.hideGod(getCtx()); return; }
+          } catch (_) {}
           const UB = modHandle("UIBridge");
           let wasOpen = false;
           try {
@@ -1765,6 +1797,10 @@
           if (wasOpen) requestDraw();
         },
         onHideShop: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.hideShop === "function") { UIO.hideShop(getCtx()); return; }
+          } catch (_) {}
           const UB = modHandle("UIBridge");
           let wasOpen = false;
           try {
@@ -1776,6 +1812,10 @@
           }
         },
         onHideSmoke: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.hideSmoke === "function") { UIO.hideSmoke(getCtx()); return; }
+          } catch (_) {}
           const UB = modHandle("UIBridge");
           let wasOpen = false;
           try {
@@ -1787,6 +1827,10 @@
           if (wasOpen) requestDraw();
         },
         onHideSleep: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.hideSleep === "function") { UIO.hideSleep(getCtx()); return; }
+          } catch (_) {}
           const UB = modHandle("UIBridge");
           let wasOpen = false;
           try {
@@ -1798,6 +1842,10 @@
           if (wasOpen) requestDraw();
         },
         onCancelConfirm: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.cancelConfirm === "function") { UIO.cancelConfirm(getCtx()); return; }
+          } catch (_) {}
           const UB = modHandle("UIBridge");
           let wasOpen = false;
           try {
@@ -1809,20 +1857,19 @@
           if (wasOpen) requestDraw();
         },
         onShowGod: () => {
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
           try {
-            if (UB && typeof UB.isGodOpen === "function") wasOpen = !!UB.isGodOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.showGod === "function") UB.showGod(getCtx());
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.showGod === "function") { UIO.showGod(getCtx()); }
           } catch (_) {}
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
-          if (!wasOpen) requestDraw();
         },
         // Region Map
         isRegionMapOpen: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isRegionMapOpen === "function") return !!UIO.isRegionMapOpen(getCtx());
+          } catch (_) {}
           try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isRegionMapOpen === "function") return !!UB.isRegionMapOpen();
@@ -1830,6 +1877,10 @@
           return false;
         },
         onShowRegionMap: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.showRegionMap === "function") { UIO.showRegionMap(getCtx()); return; }
+          } catch (_) {}
           const UB = modHandle("UIBridge");
           let wasOpen = false;
           try {
@@ -1841,6 +1892,10 @@
           if (!wasOpen) requestDraw();
         },
         onHideRegionMap: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.hideRegionMap === "function") { UIO.hideRegionMap(getCtx()); return; }
+          } catch (_) {}
           const UB = modHandle("UIBridge");
           let wasOpen = false;
           try {
@@ -1854,12 +1909,20 @@
         // Help / Controls + Character Sheet (F1)
         isHelpOpen: () => {
           try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isHelpOpen === "function") return !!UIO.isHelpOpen(getCtx());
+          } catch (_) {}
+          try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isHelpOpen === "function") return !!UB.isHelpOpen();
           } catch (_) {}
           return false;
         },
         onShowHelp: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.showHelp === "function") { UIO.showHelp(getCtx()); return; }
+          } catch (_) {}
           const UB = modHandle("UIBridge");
           let wasOpen = false;
           try {
@@ -1871,6 +1934,10 @@
           if (!wasOpen) requestDraw();
         },
         onHideHelp: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.hideHelp === "function") { UIO.hideHelp(getCtx()); return; }
+          } catch (_) {}
           const UB = modHandle("UIBridge");
           let wasOpen = false;
           try {

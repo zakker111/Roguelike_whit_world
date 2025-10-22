@@ -4,16 +4,17 @@
  * Exports (ESM + window.UIOrchestration):
  * - requestDraw(ctx)
  * - renderInventory(ctx)
- * - showInventory(ctx)
- * - hideInventory(ctx)
- * - showLoot(ctx, list)
- * - hideLoot(ctx)
- * - showGameOver(ctx)
- * - hideGameOver(ctx)
- * - showGod(ctx), hideGod(ctx)
- * - showHelp(ctx), hideHelp(ctx)
- * - showRegionMap(ctx), hideRegionMap(ctx)
- * - isAnyModalOpen(ctx): boolean
+ * - showInventory(ctx), hideInventory(ctx), isInventoryOpen(ctx)
+ * - showLoot(ctx, list), hideLoot(ctx), isLootOpen(ctx)
+ * - showGameOver(ctx), hideGameOver(ctx)
+ * - showGod(ctx), hideGod(ctx), isGodOpen(ctx)
+ * - showHelp(ctx), hideHelp(ctx), isHelpOpen(ctx)
+ * - showRegionMap(ctx), hideRegionMap(ctx), isRegionMapOpen(ctx)
+ * - hideShop(ctx), isShopOpen(ctx)
+ * - hideSmoke(ctx), isSmokeOpen(ctx)
+ * - hideSleep(ctx), isSleepOpen(ctx)
+ * - cancelConfirm(ctx), isConfirmOpen(ctx)
+ * - isAnyModalOpen(ctx)
  */
 
 function U(ctx) {
@@ -106,6 +107,12 @@ export function hideInventory(ctx) {
   if (wasOpen) requestDraw(ctx);
 }
 
+export function isInventoryOpen(ctx) {
+  const u = U(ctx);
+  try { if (u && typeof u.isInventoryOpen === "function") return !!u.isInventoryOpen(); } catch (_) {}
+  return false;
+}
+
 export function showLoot(ctx, list) {
   const u = U(ctx);
   let wasOpen = false;
@@ -124,6 +131,12 @@ export function hideLoot(ctx) {
     u.hideLoot(ctx);
     if (wasOpen) requestDraw(ctx);
   }
+}
+
+export function isLootOpen(ctx) {
+  const u = U(ctx);
+  try { if (u && typeof u.isLootOpen === "function") return !!u.isLootOpen(); } catch (_) {}
+  return false;
 }
 
 export function showGameOver(ctx) {
@@ -161,6 +174,12 @@ export function hideGod(ctx) {
   }
 }
 
+export function isGodOpen(ctx) {
+  const u = U(ctx);
+  try { if (u && typeof u.isGodOpen === "function") return !!u.isGodOpen(); } catch (_) {}
+  return false;
+}
+
 export function showHelp(ctx) {
   const u = U(ctx);
   let wasOpen = false;
@@ -179,6 +198,12 @@ export function hideHelp(ctx) {
     u.hideHelp(ctx);
     if (wasOpen) requestDraw(ctx);
   }
+}
+
+export function isHelpOpen(ctx) {
+  const u = U(ctx);
+  try { if (u && typeof u.isHelpOpen === "function") return !!u.isHelpOpen(); } catch (_) {}
+  return false;
 }
 
 export function showRegionMap(ctx) {
@@ -201,6 +226,76 @@ export function hideRegionMap(ctx) {
   }
 }
 
+export function isRegionMapOpen(ctx) {
+  const u = U(ctx);
+  try { if (u && typeof u.isRegionMapOpen === "function") return !!u.isRegionMapOpen(); } catch (_) {}
+  return false;
+}
+
+export function hideShop(ctx) {
+  const u = U(ctx);
+  let wasOpen = false;
+  try { if (u && typeof u.isShopOpen === "function") wasOpen = !!u.isShopOpen(); } catch (_) {}
+  if (u && typeof u.hideShop === "function") {
+    u.hideShop(ctx);
+    if (wasOpen) requestDraw(ctx);
+  }
+}
+
+export function isShopOpen(ctx) {
+  const u = U(ctx);
+  try { if (u && typeof u.isShopOpen === "function") return !!u.isShopOpen(); } catch (_) {}
+  return false;
+}
+
+export function hideSmoke(ctx) {
+  const u = U(ctx);
+  let wasOpen = false;
+  try { if (u && typeof u.isSmokeOpen === "function") wasOpen = !!u.isSmokeOpen(); } catch (_) {}
+  if (u && typeof u.hideSmoke === "function") {
+    u.hideSmoke(ctx);
+    if (wasOpen) requestDraw(ctx);
+  }
+}
+
+export function isSmokeOpen(ctx) {
+  const u = U(ctx);
+  try { if (u && typeof u.isSmokeOpen === "function") return !!u.isSmokeOpen(); } catch (_) {}
+  return false;
+}
+
+export function hideSleep(ctx) {
+  const u = U(ctx);
+  let wasOpen = false;
+  try { if (u && typeof u.isSleepOpen === "function") wasOpen = !!u.isSleepOpen(); } catch (_) {}
+  if (u && typeof u.hideSleep === "function") {
+    u.hideSleep(ctx);
+    if (wasOpen) requestDraw(ctx);
+  }
+}
+
+export function isSleepOpen(ctx) {
+  const u = U(ctx);
+  try { if (u && typeof u.isSleepOpen === "function") return !!u.isSleepOpen(); } catch (_) {}
+  return false;
+}
+
+export function cancelConfirm(ctx) {
+  const u = U(ctx);
+  let wasOpen = false;
+  try { if (u && typeof u.isConfirmOpen === "function") wasOpen = !!u.isConfirmOpen(); } catch (_) {}
+  if (u && typeof u.cancelConfirm === "function") {
+    u.cancelConfirm(ctx);
+    if (wasOpen) requestDraw(ctx);
+  }
+}
+
+export function isConfirmOpen(ctx) {
+  const u = U(ctx);
+  try { if (u && typeof u.isConfirmOpen === "function") return !!u.isConfirmOpen(); } catch (_) {}
+  return false;
+}
+
 export function isAnyModalOpen(ctx) {
   const u = U(ctx);
   try { if (u && typeof u.isAnyModalOpen === "function") return !!u.isAnyModalOpen(); } catch (_) {}
@@ -215,15 +310,28 @@ attachGlobal("UIOrchestration", {
   renderInventory,
   showInventory,
   hideInventory,
+  isInventoryOpen,
   showLoot,
   hideLoot,
+  isLootOpen,
   showGameOver,
   hideGameOver,
   showGod,
   hideGod,
+  isGodOpen,
   showHelp,
   hideHelp,
+  isHelpOpen,
   showRegionMap,
   hideRegionMap,
+  isRegionMapOpen,
+  hideShop,
+  isShopOpen,
+  hideSmoke,
+  isSmokeOpen,
+  hideSleep,
+  isSleepOpen,
+  cancelConfirm,
+  isConfirmOpen,
   isAnyModalOpen
 });
