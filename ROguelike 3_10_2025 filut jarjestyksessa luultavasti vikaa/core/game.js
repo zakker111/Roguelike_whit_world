@@ -656,6 +656,14 @@
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
+    // Prefer centralized InventoryFlow
+    try {
+      const IF = modHandle("InventoryFlow");
+      if (IF && typeof IF.addPotionToInventory === "function") {
+        IF.addPotionToInventory(getCtx(), heal, name);
+        return;
+      }
+    } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.addPotion === "function") {
       return IC.addPotion(getCtx(), heal, name);
@@ -674,6 +682,14 @@
   }
 
   function drinkPotionByIndex(idx) {
+    // Prefer centralized InventoryFlow
+    try {
+      const IF = modHandle("InventoryFlow");
+      if (IF && typeof IF.drinkPotionByIndex === "function") {
+        IF.drinkPotionByIndex(getCtx(), idx);
+        return;
+      }
+    } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.drinkByIndex === "function") {
       return IC.drinkByIndex(getCtx(), idx);
@@ -2041,6 +2057,14 @@
 
   function tryMovePlayer(dx, dy) {
     if (isDead) return;
+    // Prefer centralized Movement facade
+    try {
+      const MV = modHandle("Movement");
+      if (MV && typeof MV.tryMove === "function") {
+        const ok = !!MV.tryMove(getCtx(), dx, dy);
+        if (ok) return;
+      }
+    } catch (_) {}
 
     // REGION MAP MODE (overlay): move cursor only, no time advance
     if (mode === "region") {
@@ -2242,7 +2266,14 @@
 
   function lootCorpse() {
     if (isDead) return;
-
+    // Prefer centralized LootFlow
+    try {
+      const LF = modHandle("LootFlow");
+      if (LF && typeof LF.loot === "function") {
+        const ok = !!LF.loot(getCtx());
+        if (ok) return;
+      }
+    } catch (_) {}
     // Prefer ctx-first Actions module for all interaction/loot flows across modes
     {
       const A = modHandle("Actions");
@@ -2256,7 +2287,6 @@
       }
     }
 
-    // Dungeon-only fallback: loot ground or guide user
     if (mode === "dungeon") {
       const DR = modHandle("DungeonRuntime");
       if (DR && typeof DR.lootHere === "function") {
@@ -2271,15 +2301,21 @@
         }
       }
       log("Return to the entrance (the hole '>') and press G to leave.", "info");
-      // Pure guidance; canvas unchanged -> no redraw
       return;
     }
 
-    // World/town default
     log("Nothing to do here.");
   }
 
   function showLootPanel(list) {
+    // Prefer centralized LootFlow
+    try {
+      const LF = modHandle("LootFlow");
+      if (LF && typeof LF.show === "function") {
+        LF.show(getCtx(), list);
+        return;
+      }
+    } catch (_) {}
     // Prefer centralized UI orchestration
     try {
       const UIO = modHandle("UIOrchestration");
@@ -2300,6 +2336,14 @@
   }
 
   function hideLootPanel() {
+    // Prefer centralized LootFlow
+    try {
+      const LF = modHandle("LootFlow");
+      if (LF && typeof LF.hide === "function") {
+        LF.hide(getCtx());
+        return;
+      }
+    } catch (_) {}
     // Prefer centralized UI orchestration
     try {
       const UIO = modHandle("UIOrchestration");
@@ -2429,6 +2473,14 @@
   }
 
   function equipItemByIndex(idx) {
+    // Prefer centralized InventoryFlow
+    try {
+      const IF = modHandle("InventoryFlow");
+      if (IF && typeof IF.equipItemByIndex === "function") {
+        IF.equipItemByIndex(getCtx(), idx);
+        return;
+      }
+    } catch (_) {}
     // Delegate to InventoryController (which uses Player/PlayerEquip internally)
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.equipByIndex === "function") {
@@ -2449,6 +2501,14 @@
   }
 
   function equipItemByIndexHand(idx, hand) {
+    // Prefer centralized InventoryFlow
+    try {
+      const IF = modHandle("InventoryFlow");
+      if (IF && typeof IF.equipItemByIndexHand === "function") {
+        IF.equipItemByIndexHand(getCtx(), idx, hand);
+        return;
+      }
+    } catch (_) {}
     // Delegate to InventoryController
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.equipByIndexHand === "function") {
@@ -2470,6 +2530,14 @@
   }
 
   function unequipSlot(slot) {
+    // Prefer centralized InventoryFlow
+    try {
+      const IF = modHandle("InventoryFlow");
+      if (IF && typeof IF.unequipSlot === "function") {
+        IF.unequipSlot(getCtx(), slot);
+        return;
+      }
+    } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.unequipSlot === "function") {
       IC.unequipSlot(getCtx(), slot);
