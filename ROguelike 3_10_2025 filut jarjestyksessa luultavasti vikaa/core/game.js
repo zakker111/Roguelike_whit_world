@@ -1027,6 +1027,17 @@
 
   
   function getRenderCtx() {
+    // Prefer centralized RenderOrchestration facade
+    try {
+      const RO = modHandle("RenderOrchestration");
+      if (RO && typeof RO.getRenderCtx === "function") {
+        const base = RO.getRenderCtx(getCtx());
+        // Ensure PERF sink uses local PERF tracker
+        try { base.onDrawMeasured = (ms) => { PERF.lastDrawMs = ms; }; } catch (_) {}
+        return base;
+      }
+    } catch (_) {}
+    // Fallback: inline context builder
     return {
       ctx2d: ctx,
       TILE, ROWS, COLS, COLORS, TILES,
@@ -1047,7 +1058,6 @@
       dungeonProps,
       enemyColor: (t) => enemyColor(t),
       time: getClock(),
-      // GameLoop can measure draw time and report via this sink
       onDrawMeasured: (ms) => { PERF.lastDrawMs = ms; },
     };
   }
@@ -2558,6 +2568,14 @@
   
 
   function showGameOver() {
+    // Prefer centralized DeathFlow
+    try {
+      const DF = modHandle("DeathFlow");
+      if (DF && typeof DF.show === "function") {
+        DF.show(getCtx());
+        return;
+      }
+    } catch (_) {}
     // Prefer centralized UI orchestration
     try {
       const UIO = modHandle("UIOrchestration");
@@ -2650,6 +2668,14 @@
   }
 
   function hideGameOver() {
+    // Prefer centralized DeathFlow
+    try {
+      const DF = modHandle("DeathFlow");
+      if (DF && typeof DF.hide === "function") {
+        DF.hide(getCtx());
+        return;
+      }
+    } catch (_) {}
     // Prefer centralized UI orchestration
     try {
       const UIO = modHandle("UIOrchestration");
@@ -2665,10 +2691,17 @@
   }
 
   function restartGame() {
+    // Prefer centralized DeathFlow
+    try {
+      const DF = modHandle("DeathFlow");
+      if (DF && typeof DF.restart === "function") {
+        DF.restart(getCtx());
+        return;
+      }
+    } catch (_) {}
     hideGameOver();
     floor = 1;
     isDead = false;
-    // Reset player using Player defaults when available; clear transient effects
     try {
       const P = modHandle("Player");
       if (P && typeof P.resetFromDefaults === "function") {
