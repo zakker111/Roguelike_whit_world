@@ -545,9 +545,13 @@ export function enter(ctx, info) {
   // Recompute visibility, occupancy, and center camera
   try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
   try {
-    const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-    if (OG && typeof OG.build === "function") {
-      ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+    if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+      window.OccupancyFacade.rebuild(ctx);
+    } else {
+      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+      if (OG && typeof OG.build === "function") {
+        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      }
     }
   } catch (_) {}
   try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}

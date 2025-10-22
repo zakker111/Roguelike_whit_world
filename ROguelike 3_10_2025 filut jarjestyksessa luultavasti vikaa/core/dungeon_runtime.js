@@ -181,12 +181,15 @@ export function generate(ctx, depth) {
         }
       }
     } catch (_) {}
-    // Occupancy
+    // Occupancy (centralized)
     try {
-      if (ctx.OccupancyGrid && typeof ctx.OccupancyGrid.build === "function") {
-        ctx.occupancy = ctx.OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-      } else if (typeof window !== "undefined" && window.OccupancyGrid && typeof window.OccupancyGrid.build === "function") {
-        ctx.occupancy = window.OccupancyGrid.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+        window.OccupancyFacade.rebuild(ctx);
+      } else {
+        const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+        if (OG && typeof OG.build === "function") {
+          ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+        }
       }
     } catch (_) {}
     // Dev counts
@@ -833,9 +836,13 @@ export function tick(ctx) {
   } catch (_) {}
   // Ensure occupancy reflects enemy movement/deaths this turn
   try {
-    const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-    if (OG && typeof OG.build === "function") {
-      ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+    if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
+      window.OccupancyFacade.rebuild(ctx);
+    } else {
+      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
+      if (OG && typeof OG.build === "function") {
+        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
+      }
     }
   } catch (_) {}
   // Status effects tick (bleed, dazed, etc.)
