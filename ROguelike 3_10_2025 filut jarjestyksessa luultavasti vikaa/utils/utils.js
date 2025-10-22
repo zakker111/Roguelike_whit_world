@@ -23,7 +23,16 @@ export function isWalkableTile(ctx, x, y) {
   if (!inBounds(ctx, x, y)) return false;
   const t = ctx.map[y][x];
   const T = ctx.TILES || {};
-  // Walkable tiles for dungeon/town maps
+  // Walkable tiles for dungeon/town maps, with town door locking support
+  if (t === T.DOOR && ctx && ctx.mode === "town") {
+    try {
+      const lockedSet = ctx.townLockedDoors;
+      if (lockedSet && typeof lockedSet.has === "function") {
+        const key = `${x},${y}`;
+        if (lockedSet.has(key)) return false;
+      }
+    } catch (_) {}
+  }
   return t === T.FLOOR || t === T.DOOR || t === T.STAIRS;
 }
 

@@ -39,6 +39,9 @@ export function generate(ctx) {
         }
       } catch (_) {}
 
+      // Initialize locked doors set for town mode
+      try { ctx.townLockedDoors = new Set(); } catch (_) {}
+
       // Post-gen camera/FOV/UI (draw coalesced by orchestrator)
       try { ctx.updateCamera(); } catch (_) {}
       try { ctx.recomputeFOV(); } catch (_) {}
@@ -268,7 +271,6 @@ export function applyLeaveSync(ctx) {
   } catch (_) {}
 
   
-
   // Clear exit anchors
   try {
     ctx.townExitAt = null;
@@ -336,9 +338,68 @@ export function hideExitButton(ctx) {
   } catch (_) {}
 }
 
+/**
+ * Recompute locked house doors based on NPC home/sleep state.
+ * - Lock a resident's home door while they are sleeping, and generally while they are away from home.
+ * - Do not lock the town gate or tavern/inn doors.
+ * - If a home door is also a shop door, keep it unlocked during shop open hours.
+ */
+function recomputeLockedDoors(ctx) {
+  try {
+    const set = new Set();
+    const tavB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+    const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+    function isShopDoorOpenNow(x, y) {
+      try {
+        const s = shops.find(s => s && s.x === x && s.y === y);
+        if (!s) return false;
+        const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
+        return !!(SS && typeof SS.isShopOpenNow === "function" && SS.isShopOpenNow(ctx, s));
+      } catch (_) { return false; }
+    }
+    function sameBuilding(a, b) {
+      if (!a || !b) return false;
+      return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+    }
+    function insideBuilding(b, x, y) {
+      return b && x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1;
+    }
+    const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+    for (const n of npcs) {
+      const h = n && n._home ? n._home : null;
+      const door = (h && h.door && typeof h.door.x === "number" && typeof h.door.y === "number") ? h.door : null;
+      const b = h ? h.building : null;
+      if (!door || !b) continue;
+
+      // Never lock the town gate
+      if (ctx.townExitAt && door.x === ctx.townExitAt.x && door.y === ctx.townExitAt.y) continue;
+
+      // Never lock tavern doors
+      if (tavB && sameBuilding(b, tavB)) continue;
+
+      // If door belongs to a shop and it's open now, keep it unlocked
+      if (isShopDoorOpenNow(door.x, door.y)) continue;
+
+      // Lock when sleeping or when away from home; otherwise keep locked "mostly"
+      const sleeping = !!n._sleeping;
+      const atHome = insideBuilding(b, n.x, n.y);
+      if (sleeping || !atHome) {
+        set.add(`${door.x},${door.y}`);
+      } else {
+        // Even when at home and awake, keep door mostly locked
+        set.add(`${door.x},${door.y}`);
+      }
+    }
+    ctx.townLockedDoors = set;
+  } catch (_) {}
+}
+
 // Back-compat: attach to window for classic scripts
 export function tick(ctx) {
   if (!ctx || ctx.mode !== "town") return false;
+
+  // Update lock state before NPCs act so movement honors current locks
+  recomputeLockedDoors(ctx);
 
   // Rare event: Wild Seppo (travelling merchant) arrives in town and sells good items.
   try {

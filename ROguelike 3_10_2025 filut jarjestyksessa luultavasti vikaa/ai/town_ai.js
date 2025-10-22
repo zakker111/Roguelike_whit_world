@@ -44,6 +44,37 @@
     return t === TILES.FLOOR || t === TILES.DOOR;
   }
 
+  // Whether a door tile is currently locked for non-owners (based on TownRuntime recompute)
+  function isDoorLockedForOthers(ctx, x, y) {
+    try {
+      if (ctx.mode !== "town") return false;
+      const set = ctx.townLockedDoors;
+      if (set && typeof set.has === "function") {
+        return !!set.has(`${x},${y}`);
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  // Walkability for a specific NPC, allowing them to pass their own locked home/shop door
+  function isWalkTownFor(ctx, actor, x, y) {
+    if (!isWalkTown(ctx, x, y)) return false;
+    const t = ctx.map[y][x];
+    if (t === ctx.TILES.DOOR) {
+      const locked = isDoorLockedForOthers(ctx, x, y);
+      if (locked) {
+        // Allow if this is the actor's own door (home door or their shop door)
+        let own = false;
+        try {
+          if (actor && actor._home && actor._home.door && actor._home.door.x === x && actor._home.door.y === y) own = true;
+          if (!own && actor && actor._shopRef && actor._shopRef.x === x && actor._shopRef.y === y) own = true;
+        } catch (_) { own = false; }
+        if (!own) return false;
+      }
+    }
+    return true;
+  }
+
   function insideBuilding(b, x, y) {
     return x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1;
   }
@@ -90,6 +121,7 @@
   // Pre-planning A* used for path debug and stable routing
   function computePath(ctx, occ, sx, sy, tx, ty, opts = {}) {
     const { map } = ctx;
+    const actor = opts && opts.actor ? opts.actor : { _home: null, _shopRef: null };
     const rows = map.length, cols = map[0] ? map[0].length : 0;
     const inB = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows;
     const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
@@ -132,7 +164,7 @@
       for (const d of dirs4) {
         const nx = cur.x + d.dx, ny = cur.y + d.dy;
         if (!inB(nx, ny)) continue;
-        if (!isWalkTown(ctx, nx, ny)) continue;
+        if (!isWalkTownFor(ctx, actor, nx, ny)) continue;
 
         const nk = startKey(nx, ny);
         // Allow goal even if currently occupied; otherwise avoid occupied nodes
@@ -215,7 +247,7 @@
           }
         }
         const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
-        if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
+        if (isWalkTownFor(ctx, n, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
           if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
             // Show entire planned route, not just remaining slice
             n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
@@ -241,7 +273,7 @@
 
     // No valid plan; compute new plan (budgeted or urgent)
     const pathFn = (opts && opts.urgent) ? computePath : computePathBudgeted;
-    const full = pathFn(ctx, occ, n.x, n.y, tx, ty);
+    const full = pathFn(ctx, occ, n.x, n.y, tx, ty, { actor: n });
     if (full && full.length >= 2) {
       n._plan = full.slice(0);
       n._planGoal = { x: tx, y: ty };
@@ -261,7 +293,7 @@
         }
       }
       const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
-      if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
+      if (isWalkTownFor(ctx, n, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
         occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
         return true;
       }
@@ -278,7 +310,7 @@
     );
     for (const d of dirs) {
       const nx = n.x + d.dx, ny = n.y + d.dy;
-      if (!isWalkTown(ctx, nx, ny)) continue;
+      if (!isWalkTownFor(ctx, n, nx, ny)) continue;
       if (ctx.player.x === nx && ctx.player.y === ny) continue;
       const keyN = `${nx},${ny}`;
       const isReservedN = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyN);
@@ -759,7 +791,7 @@
         if (!door) return null;
 
         // Stage 1: path to door (outside)
-        const p1 = computePath(ctx, relaxedOcc, n.x, n.y, door.x, door.y, { ignorePlayer: true });
+        const p1 = computePath(ctx, relaxedOcc, n.x, n.y, door.x, door.y, { ignorePlayer: true, actor: n });
 
         // Stage 2: step just inside, then path to targetInterior
         let inSpot = nearestFreeAdjacent(ctx, door.x, door.y, B);
@@ -777,13 +809,13 @@
           })();
         }
         inSpot = inSpot || targetInside || { x: door.x, y: door.y };
-        const p2 = computePath(ctx, relaxedOcc, inSpot.x, inSpot.y, targetInside.x, targetInside.y, { ignorePlayer: true });
+        const p2 = computePath(ctx, relaxedOcc, inSpot.x, inSpot.y, targetInside.x, targetInside.y, { ignorePlayer: true, actor: n });
 
         // Combine; if p1 missing, still try to show interior path
         path = concatPaths(p1, p2);
       } else {
         // Already inside: direct interior path
-        path = computePath(ctx, relaxedOcc, n.x, n.y, targetInside.x, targetInside.y, { ignorePlayer: true });
+        path = computePath(ctx, relaxedOcc, n.x, n.y, targetInside.x, targetInside.y, { ignorePlayer: true, actor: n });
       }
       return (path && path.length >= 2) ? path : null;
     }
@@ -819,12 +851,12 @@
         // Memoize door for future calls
         n._homeDoor = { x: door.x, y: door.y };
 
-        const p1 = computePathBudgeted(ctx, occ, n.x, n.y, door.x, door.y);
+        const p1 = computePathBudgeted(ctx, occ, n.x, n.y, door.x, door.y, { actor: n });
         const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, B) || targetInside || { x: door.x, y: door.y };
-        const p2 = computePathBudgeted(ctx, occ, inSpot.x, inSpot.y, targetInside.x, targetInside.y);
+        const p2 = computePathBudgeted(ctx, occ, inSpot.x, inSpot.y, targetInside.x, targetInside.y, { actor: n });
         plan = concatPaths(p1, p2);
       } else {
-        plan = computePathBudgeted(ctx, occ, n.x, n.y, targetInside.x, targetInside.y);
+        plan = computePathBudgeted(ctx, occ, n.x, n.y, targetInside.x, targetInside.y, { actor: n });
       }
 
       if (plan && plan.length >= 2) {
@@ -929,7 +961,7 @@
         for (const n of npcs) {
           const target = currentTargetFor(n);
           if (!target) { n._routeDebugPath = null; continue; }
-          const path = computePath(ctx, relaxedOcc, n.x, n.y, target.x, target.y, { ignorePlayer: true });
+          const path = computePath(ctx, relaxedOcc, n.x, n.y, target.x, target.y, { ignorePlayer: true, actor: n });
           n._routeDebugPath = (path && path.length >= 2) ? path.slice(0) : null;
         }
       } catch (_) {}
