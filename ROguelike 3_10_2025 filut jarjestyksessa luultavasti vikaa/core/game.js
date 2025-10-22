@@ -1188,18 +1188,48 @@
 
   function syncFromCtx(ctx) {
     if (!ctx) return;
+    try {
+      const SS = modHandle("StateSync");
+      if (SS && typeof SS.applyLocal === "function") {
+        SS.applyLocal(ctx, {
+          setMode: (v) => { if (typeof v !== "undefined") mode = v; },
+          setMap: (v) => { if (v) map = v; },
+          setSeen: (v) => { if (v) seen = v; },
+          setVisible: (v) => { if (v) visible = v; },
+          setWorld: (v) => { if (typeof v !== "undefined") world = v; },
+          setEnemies: (v) => { if (Array.isArray(v)) enemies = v; },
+          setCorpses: (v) => { if (Array.isArray(v)) corpses = v; },
+          setDecals: (v) => { if (Array.isArray(v)) decals = v; },
+          setNpcs: (v) => { if (Array.isArray(v)) npcs = v; },
+          setEncounterProps: (v) => { if (Array.isArray(v)) encounterProps = v; },
+          setDungeonProps: (v) => { if (Array.isArray(v)) dungeonProps = v; },
+          setEncounterBiome: (v) => { encounterBiome = v; },
+          setEncounterObjective: (v) => { encounterObjective = v; },
+          setShops: (v) => { if (Array.isArray(v)) shops = v; },
+          setTownProps: (v) => { if (Array.isArray(v)) townProps = v; },
+          setTownBuildings: (v) => { if (Array.isArray(v)) townBuildings = v; },
+          setTownPlaza: (v) => { if (typeof v !== "undefined") townPlaza = v; },
+          setTavern: (v) => { if (typeof v !== "undefined") tavern = v; },
+          setWorldReturnPos: (v) => { if (typeof v !== "undefined") worldReturnPos = v; },
+          setRegion: (v) => { if (typeof v !== "undefined") region = v; },
+          setTownExitAt: (v) => { if (typeof v !== "undefined") townExitAt = v; },
+          setDungeonExitAt: (v) => { if (typeof v !== "undefined") dungeonExitAt = v; },
+          setDungeonInfo: (v) => { if (typeof v !== "undefined") currentDungeon = v; },
+          setFloor: (v) => { if (typeof v === "number") floor = (v | 0); },
+        });
+        return;
+      }
+    } catch (_) {}
+    // Fallback: direct assignment
     mode = ctx.mode || mode;
     map = ctx.map || map;
     seen = ctx.seen || seen;
     visible = ctx.visible || visible;
-    // Ensure overworld state is synced so movement/renderers have world handles
     world = ctx.world || world;
     enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
     corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
     decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-    // Town NPCs
     npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
-    // Encounter visuals
     encounterProps = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : encounterProps;
     dungeonProps = Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps : dungeonProps;
     if (Object.prototype.hasOwnProperty.call(ctx, "encounterBiome")) {
@@ -1224,7 +1254,16 @@
   // Helper: apply ctx sync and refresh visuals/UI in one place
   function applyCtxSyncAndRefresh(ctx) {
     syncFromCtx(ctx);
-    // Prefer centralized GameState refresh helper
+    // Prefer centralized StateSync apply+refresh, then GameState helper
+    try {
+      const SS = modHandle("StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(getCtx(), {
+          // No-op sink here since sync already applied locally
+        });
+        return;
+      }
+    } catch (_) {}
     try {
       if (typeof window !== "undefined" && window.GameState && typeof window.GameState.applySyncAndRefresh === "function") {
         window.GameState.applySyncAndRefresh(getCtx());
