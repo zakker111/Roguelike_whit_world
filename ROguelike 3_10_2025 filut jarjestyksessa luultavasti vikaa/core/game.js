@@ -2154,6 +2154,14 @@
   }
 
   function showLootPanel(list) {
+    // Prefer centralized UI orchestration
+    try {
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.showLoot === "function") {
+        UIO.showLoot(getCtx(), list);
+        return;
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
@@ -2166,6 +2174,14 @@
   }
 
   function hideLootPanel() {
+    // Prefer centralized UI orchestration
+    try {
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.hideLoot === "function") {
+        UIO.hideLoot(getCtx());
+        return;
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideLoot === "function") {
       let wasOpen = true;
@@ -2211,6 +2227,14 @@
 
   
   function renderInventoryPanel() {
+    // Prefer centralized UI orchestration
+    try {
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.renderInventory === "function") {
+        UIO.renderInventory(getCtx());
+        return;
+      }
+    } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.render === "function") {
       IC.render(getCtx());
@@ -2225,6 +2249,14 @@
   }
 
   function showInventoryPanel() {
+    // Prefer centralized UI orchestration
+    try {
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.showInventory === "function") {
+        UIO.showInventory(getCtx());
+        return;
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
@@ -2243,6 +2275,14 @@
   }
 
   function hideInventoryPanel() {
+    // Prefer centralized UI orchestration
+    try {
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.hideInventory === "function") {
+        UIO.hideInventory(getCtx());
+        return;
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
@@ -2324,6 +2364,14 @@
   
 
   function showGameOver() {
+    // Prefer centralized UI orchestration
+    try {
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.showGameOver === "function") {
+        UIO.showGameOver(getCtx());
+        return;
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.showGameOver === "function") {
       UB.showGameOver(getCtx());
@@ -2408,6 +2456,14 @@
   }
 
   function hideGameOver() {
+    // Prefer centralized UI orchestration
+    try {
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.hideGameOver === "function") {
+        UIO.hideGameOver(getCtx());
+        return;
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideGameOver === "function") {
       UB.hideGameOver(getCtx());
@@ -3084,6 +3140,10 @@
         lootCorpse: () => lootCorpse(),
         doAction: () => doAction(),
         isAnyModalOpen: () => {
+          try {
+            const UIO = modHandle("UIOrchestration");
+            if (UIO && typeof UIO.isAnyModalOpen === "function") return !!UIO.isAnyModalOpen(getCtx());
+          } catch (_) {}
           try {
             const UB = modHandle("UIBridge");
             if (UB && typeof UB.isAnyModalOpen === "function") return !!UB.isAnyModalOpen();
