@@ -1167,6 +1167,13 @@
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
+    // Prefer centralized Movement facade
+    try {
+      const MV = modHandle("Movement");
+      if (MV && typeof MV.fastForwardMinutes === "function") {
+        return MV.fastForwardMinutes(getCtx(), mins);
+      }
+    } catch (_) {}
     const total = Math.max(0, (Number(mins) || 0) | 0);
     if (total <= 0) return 0;
     const turns = Math.max(1, Math.ceil(total / MINUTES_PER_TURN));
@@ -1175,7 +1182,6 @@
       try { turn(); } catch (_) { break; }
     }
     _suppressDraw = false;
-    // Ensure clock/UI/FOV are consistent after fast-forward
     recomputeFOV();
     updateUI();
     return turns;
@@ -1669,6 +1675,14 @@
   }
 
   function descendIfPossible() {
+    // Prefer centralized Movement facade
+    try {
+      const MV = modHandle("Movement");
+      if (MV && typeof MV.descendIfPossible === "function") {
+        const handled = MV.descendIfPossible(getCtx());
+        if (handled) return;
+      }
+    } catch (_) {}
     {
       const A = modHandle("Actions");
       if (A && typeof A.descend === "function") {
@@ -1708,8 +1722,15 @@
   }
 
   // Defensive stance: Brace for one turn (dungeon mode).
-  // Increases block chance for the current turn if holding a defensive hand item (any hand item with def > 0).
   function brace() {
+    // Prefer centralized Movement facade
+    try {
+      const MV = modHandle("Movement");
+      if (MV && typeof MV.brace === "function") {
+        MV.brace(getCtx());
+        return;
+      }
+    } catch (_) {}
     if (isDead) return;
     if (mode !== "dungeon") {
       log("You can brace only in the dungeon.", "info");
@@ -1719,7 +1740,6 @@
     const hasDefHand = !!((eq.left && typeof eq.left.def === "number" && eq.left.def > 0) || (eq.right && typeof eq.right.def === "number" && eq.right.def > 0));
     if (!hasDefHand) {
       log("You raise your arms, but without a defensive hand item bracing is ineffective.", "warn");
-      // Still consume the turn to avoid free actions if desired
       turn();
       return;
     }
