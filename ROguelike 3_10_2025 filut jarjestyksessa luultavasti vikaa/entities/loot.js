@@ -139,19 +139,35 @@ export function generate(ctx, source) {
   // Special case: neutral animals drop meat/leather; no gold/equipment
   if (type === "deer" || type === "boar" || type === "fox") {
     const drops = [];
-    const r = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+    const rngFn = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+          return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
+        }
+      } catch (_) {}
+      return (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+    })();
+    const chance = (p) => {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          return window.RNGUtils.chance(p, rngFn);
+        }
+      } catch (_) {}
+      return rngFn() < p;
+    };
+
     // Meat amount: deer 2–3, boar 2–4, fox 1–2
     let meatAmt = 1;
-    if (type === "deer") meatAmt = 2 + ((r() < 0.6) ? 1 : 0);
-    else if (type === "boar") meatAmt = 2 + ((r() < 0.8) ? 2 : (r() < 0.4 ? 1 : 0));
-    else meatAmt = 1 + ((r() < 0.5) ? 1 : 0);
+    if (type === "deer") meatAmt = 2 + (chance(0.6) ? 1 : 0);
+    else if (type === "boar") meatAmt = 2 + (chance(0.8) ? 2 : (chance(0.4) ? 1 : 0));
+    else meatAmt = 1 + (chance(0.5) ? 1 : 0);
     drops.push({ kind: "material", name: "meat", type: "meat", amount: meatAmt });
 
     // Leather chance and amount: higher for boar/deer
     let leatherAmt = 0;
-    if (type === "deer") leatherAmt = (r() < 0.75) ? (1 + ((r() < 0.5) ? 1 : 0)) : 0;
-    else if (type === "boar") leatherAmt = (r() < 0.85) ? (1 + ((r() < 0.6) ? 1 : 0)) : 0;
-    else leatherAmt = (r() < 0.35) ? 1 : 0;
+    if (type === "deer") leatherAmt = chance(0.75) ? (1 + (chance(0.5) ? 1 : 0)) : 0;
+    else if (type === "boar") leatherAmt = chance(0.85) ? (1 + (chance(0.6) ? 1 : 0)) : 0;
+    else leatherAmt = chance(0.35) ? 1 : 0;
     if (leatherAmt > 0) drops.push({ kind: "material", name: "leather", type: "leather", amount: leatherAmt });
 
     return drops;

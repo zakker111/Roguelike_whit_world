@@ -2123,9 +2123,9 @@
             const gap = turnCounter - lastAnimalHintTurn;
             if (gap > 30) {
               const chanceP = 0.35; // base chance to hint
-              const roll = (typeof window !== "undefined" && window.RNG && typeof window.RNG.chance === "function")
-                ? window.RNG.chance(chanceP)
-                : ((Math.random() < chanceP));
+              const roll = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function")
+                ? window.RNGUtils.chance(chanceP, rng)
+                : (rng() < chanceP);
               if (roll) {
                 log("There might be creatures nearby.", "notice");
                 lastAnimalHintTurn = turnCounter;

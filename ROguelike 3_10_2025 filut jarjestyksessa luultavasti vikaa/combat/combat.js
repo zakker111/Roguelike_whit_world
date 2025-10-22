@@ -80,7 +80,16 @@ export function enemyDamageMultiplier(level) {
  */
 export function playerAttackEnemy(ctx, enemy) {
   if (!ctx || !enemy) return;
-  const rng = typeof ctx.rng === "function" ? ctx.rng : Math.random;
+  const rng = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
+      }
+    } catch (_) {}
+    return (typeof ctx.rng === "function")
+      ? ctx.rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  })();
 
   // Helper: classify equipped weapon for skill tracking
   function classifyWeapon(p) {
@@ -148,7 +157,7 @@ export function playerAttackEnemy(ctx, enemy) {
         const rf = (min, max) =>
           (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function")
             ? window.RNGUtils.float(min, max, 1, rng)
-            : (min + ((typeof ctx.rng === "function" ? ctx.rng() : Math.random) * (max - min)));
+            : (min + (rng() * (max - min)));
         ctx.decayEquipped("hands", rf(0.2, 0.7));
       }
     } catch (_) {}
@@ -247,8 +256,8 @@ export function playerAttackEnemy(ctx, enemy) {
     else if (typeof ctx.decayEquipped === "function") {
       const rf = (min, max) =>
         (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function")
-          ? window.RNGUtils.float(min, max)
-          : (min + (((typeof ctx.rng === "function" ? ctx.rng() : Math.random)) * (max - min)));
+          ? window.RNGUtils.float(min, max, 1, rng)
+          : (min + (rng() * (max - min)));
       ctx.decayEquipped("hands", rf(0.3, 1.0));
     }
   } catch (_) {}

@@ -125,18 +125,25 @@ export function pickType(depth, rng) {
   if (!keys.length) return null;
   const entries = keys.map((k) => ({ key: k, w: TYPES[k].weight(depth) }));
   const total = entries.reduce((s, e) => s + e.w, 0);
-  const roll = ((typeof rng === "function")
-    ? rng()
-    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-        ? window.RNG.rng()
-        : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-            ? window.RNGFallback.getRng()()
-            : Math.random())));
+  const rfn = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng(rng);
+      }
+    } catch (_) {}
+    return (typeof rng === "function")
+      ? rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+          ? window.RNG.rng
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+              ? window.RNGFallback.getRng()
+              : Math.random));
+  })();
   if (total <= 0) {
     // choose first when all weights are zero; indicates data issue
     return entries[0]?.key || null;
   }
-  let r = roll * total;
+  let r = rfn() * total;
   for (const e of entries) {
     if (r < e.w) return e.key;
     r -= e.w;

@@ -69,7 +69,18 @@ export function biomeName(tile) {
 }
 
 export function generate(ctx, opts = {}) {
-  const rng = (ctx && typeof ctx.rng === "function") ? ctx.rng : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  const rng = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
+      }
+    } catch (_) {}
+    return (ctx && typeof ctx.rng === "function")
+      ? ctx.rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+          ? window.RNG.rng
+          : Math.random);
+  })();
   const width = clamp((opts.width | 0) || 120, 48, 512);
   const height = clamp((opts.height | 0) || 80, 48, 512);
   const map = Array.from({ length: height }, () => Array(width).fill(TILES.GRASS));
@@ -453,7 +464,16 @@ export function generate(ctx, opts = {}) {
 }
 
 export function pickTownStart(world, rng) {
-  const r = (typeof rng === "function") ? rng : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  const r = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng(rng);
+      }
+    } catch (_) {}
+    return (typeof rng === "function")
+      ? rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  })();
   if (world.towns && world.towns.length) {
     // Prefer towns that have a dungeon within a reasonable walking radius
     const radius = 20;
