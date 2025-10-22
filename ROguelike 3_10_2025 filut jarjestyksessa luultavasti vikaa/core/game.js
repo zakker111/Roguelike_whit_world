@@ -1701,77 +1701,18 @@
   }
 
   function descendIfPossible() {
-    // Prefer centralized Movement facade
-    try {
-      const MV = modHandle("Movement");
-      if (MV && typeof MV.descendIfPossible === "function") {
-        const handled = MV.descendIfPossible(getCtx());
-        if (handled) return;
-      }
-    } catch (_) {}
-    {
-      const A = modHandle("Actions");
-      if (A && typeof A.descend === "function") {
-        const handled = A.descend(getCtx());
-        if (handled) return;
-      }
-    }
-    if (mode === "world" || mode === "town") {
-      doAction();
-      return;
-    }
-    if (mode === "dungeon") {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(getCtx(), "dungeon.noDeeper");
-      } else {
-        log("This dungeon has no deeper levels. Return to the entrance (the hole '>') and press G to leave.", "info");
-      }
-      return;
-    }
-    const here = map[player.y][player.x];
-    if (here === TILES.STAIRS) {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(getCtx(), "dungeon.noDescendHere");
-      } else {
-        log("There is nowhere to go down from here.", "info");
-      }
-    } else {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(getCtx(), "dungeon.needStairs");
-      } else {
-        log("You need to stand on the staircase (brown tile marked with '>').", "info");
-      }
+    const MV = modHandle("Movement");
+    if (MV && typeof MV.descendIfPossible === "function") {
+      MV.descendIfPossible(getCtx());
     }
   }
 
   // Defensive stance: Brace for one turn (dungeon mode).
   function brace() {
-    // Prefer centralized Movement facade
-    try {
-      const MV = modHandle("Movement");
-      if (MV && typeof MV.brace === "function") {
-        MV.brace(getCtx());
-        return;
-      }
-    } catch (_) {}
-    if (isDead) return;
-    if (mode !== "dungeon") {
-      log("You can brace only in the dungeon.", "info");
-      return;
+    const MV = modHandle("Movement");
+    if (MV && typeof MV.brace === "function") {
+      MV.brace(getCtx());
     }
-    const eq = player.equipment || {};
-    const hasDefHand = !!((eq.left && typeof eq.left.def === "number" && eq.left.def > 0) || (eq.right && typeof eq.right.def === "number" && eq.right.def > 0));
-    if (!hasDefHand) {
-      log("You raise your arms, but without a defensive hand item bracing is ineffective.", "warn");
-      turn();
-      return;
-    }
-    player.braceTurns = 1;
-    log("You brace behind your shield. Your block is increased this turn.", "notice");
-    turn();
   }
 
   function setupInput() {
