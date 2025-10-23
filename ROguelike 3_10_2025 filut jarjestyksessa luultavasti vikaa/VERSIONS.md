@@ -1,5 +1,24 @@
 # Game Version History
-Last updated: 2025-10-22 00:00 UTC
+Last updated: 2025-10-23 00:00 UTC
+
+v1.38.0 — Ruins AI fix, non-bleeding undead, '?' fallback enemy, and input simplification
+- Input
+  - Removed N key. G remains the single action/interact key across modes.
+- Combat/visuals
+  - Player blood decal always spawns on any successful hit (not on blocks), improving feedback.
+  - Ghosts and skeletons no longer bleed:
+    - No bleed status is applied to ghost/spirit/wraith/skeleton.
+    - Blood decals are suppressed when these targets are hit.
+    - Existing bleed on such enemies is cleared each tick.
+- Region Map (Ruins)
+  - Enemy AI now respects overworld walkability (World.isWalkable) so enemies move and attack properly inside Ruins.
+  - Blood decals now render in Region Map.
+  - Ruins spawns use mime_ghost (defined in enemies.json) instead of an undefined ghost id.
+- Fallback enemy for missing types
+  - When an enemy type is missing or creation fails, the game now spawns a clear fallback enemy with glyph '?' and logs a warning:
+    - Applied in dungeon generation, encounter spawns, Ruins region spawns, and GOD spawn when the type is undefined.
+
+Deployment: https://fjodtmg7iko1.cosine.page
 
 v1.37.1 — Overworld overlays always on, movement delegation cleanup, dead-code removal
 - Overworld renderer
