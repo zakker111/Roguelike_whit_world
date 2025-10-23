@@ -5,8 +5,9 @@
  * for dungeon and encounter modes, including animals and humanoids.
  *
  * API (ESM + window.FlavorService):
- *  - buildCorpseMeta(ctx, enemy, lastHit) -> { killedBy, wound, via }
- *  - describeCorpse(meta) -> "Wound: ... Killed by ... (via ...)"
+ *  - buildCorpseMeta(ctx, enemy, lastHit) -> { victim, killedBy, wound, via, likely }
+ *  - describeCorpse(meta) -> "<Victim> corpse. Wound: ... Killed by ... (iron mace)" or
+ *                            "<Victim> corpse. Wound: ... Likely caused by sword. Killed by orc."
  */
 
 function pick(obj, path) {
@@ -47,6 +48,20 @@ function resolveEnemyKind(enemy) {
   return "default";
 }
 
+function capitalize(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+function likelyCauseFromKillerName(killerName) {
+  const k = String(killerName || "").toLowerCase();
+  if (!k || k === "unknown" || k === "status") return null;
+  if (/(orc|bandit|knight|soldier|guard|goblin)/.test(k)) return "sword";
+  if (/(troll|ogre|giant|golem)/.test(k)) return "blunt weapon";
+  if (/(wolf|bear|boar|cat|dog|fox)/.test(k)) return "claws or teeth";
+  if (/(archer)/.test(k)) return "arrows";
+  return null;
+}
+
 export function buildCorpseMeta(ctx, enemy, lastHit) {
   const FL = getFlavorRoot();
   const profiles = pick(FL, "death") || {};
@@ -84,18 +99,34 @@ export function buildCorpseMeta(ctx, enemy, lastHit) {
 
   const killerRaw = (lastHit?.by) || "unknown";
   const killedBy = killerNames[killerRaw] || killerRaw;
-  const via = lastHit?.weapon ? `with ${lastHit.weapon}` : (lastHit?.via || "melee");
+  // Prefer exact weapon if known, else try to provide a likely cause phrase
+  const via = lastHit?.weapon ? `${lastHit.weapon}` : null;
+  let likely = null;
+  if (!via) {
+    const fromWeaponKind = weaponKind === "blunt" ? "blunt weapon"
+                        : weaponKind === "sharp" ? "sword or blade"
+                        : weaponKind === "piercing" ? "arrows or bolts"
+                        : weaponKind === "burn" ? "fire"
+                        : weaponKind === "freeze" ? "ice"
+                        : null;
+    likely = fromWeaponKind || likelyCauseFromKillerName(killedBy);
+  }
 
-  return { killedBy, wound, via };
+  const victim = capitalize(String(enemy?.type || "enemy"));
+
+  return { victim, killedBy, wound, via, likely };
 }
 
 export function describeCorpse(meta) {
   if (!meta) return "";
-  const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
+  const victimStr = meta.victim ? `${meta.victim} corpse.` : "Corpse.";
   const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
-  const viaStr = meta.via ? `(${meta.via})` : "";
-  const parts = [woundStr, killerStr].filter(Boolean).join(" ");
-  return `${parts} ${viaStr}`.trim();
+  const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
+  // If exact weapon known, show like "(iron mace)"; otherwise if we have a likely cause, say "Likely caused by sword."
+  const viaExact = meta.via ? `(${meta.via})` : "";
+  const viaLikely = (!meta.via && meta.likely) ? `Likely caused by ${meta.likely}.` : "";
+  const parts = [victimStr, woundStr, viaLikely, killerStr, viaExact].filter(Boolean).join(" ").trim();
+  return parts;
 }
 
 // Back-compat: attach to window

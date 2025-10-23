@@ -491,6 +491,13 @@ export function enemiesAct(ctx) {
           if (isCrit) raw *= (ctx.critMultiplier ? ctx.critMultiplier() : (1.6 + ctx.rng() * 0.4));
           const dmg = Math.max(0.1, Math.round(raw * 10) / 10);
           target.ref.hp -= dmg;
+
+          // Record last hit so death flavor can attribute killer and hit location
+          try {
+            const killerType = String(e.type || "enemy");
+            target.ref._lastHit = { by: killerType, part: loc.part, crit: isCrit, dmg, weapon: null, via: "melee" };
+          } catch (_) {}
+
           try {
             const ttype = String(target.ref.type || "");
             const ethereal = /ghost|spirit|wraith|skeleton/i.test(ttype);
