@@ -69,6 +69,8 @@ function rngFor(ctx) {
     : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
 }
 
+let _loggedEncounterRngFallback = false;
+
 function pickTemplate(ctx, biome) {
   const reg = registry(ctx);
   const rng = rngFor(ctx);
@@ -77,6 +79,7 @@ function pickTemplate(ctx, biome) {
     { id: "bandit_camp", name: "Bandit Camp", baseWeight: 0.8, allowedBiomes: ["GRASS","DESERT","BEACH"], map: { generator: "camp", w: 26, h: 18 }, groups: [ { type: "bandit", count: { min: 3, max: 6 } } ] },
     { id: "wild_seppo", name: "Wild Seppo", baseWeight: 0.06, allowedBiomes: ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"], map: { generator: "camp", w: 24, h: 16 }, merchant: { vendor: "seppo" }, groups: [] },
   ];
+  if (!reg) { try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("encounter", "Using built-in encounter templates (GameData.encounters missing).", { biome }); } catch (_) {} }
   const list = reg || fallback;
   const candidates = list.filter(t => {
     if (!Array.isArray(t.allowedBiomes) || t.allowedBiomes.length === 0) return true;
@@ -197,6 +200,12 @@ export function maybeTryEncounter(ctx) {
           return window.RNGUtils.chance(chance, rngFn);
         }
       } catch (_) {}
+      try {
+        if (!_loggedEncounterRngFallback && typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") {
+          window.Fallback.log("encounter", "Using direct RNG comparison (RNGUtils.chance unavailable).");
+          _loggedEncounterRngFallback = true;
+        }
+      } catch (_) {}
       const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
       return r < chance;
     })();
@@ -261,6 +270,7 @@ export function maybeTryEncounter(ctx) {
       UI.showConfirm(ctx, text, null, () => enter(), () => cancel());
     } else {
       // Fallback: inline confirm
+      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("encounter", "Using window.confirm UI (UIBridge.showConfirm unavailable)."); } catch (_) {}
       if (typeof window !== "undefined" && window.confirm && window.confirm(text)) enter();
       else cancel();
     }

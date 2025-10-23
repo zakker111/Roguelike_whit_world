@@ -159,6 +159,7 @@ function _materializeItem(ctx, entry) {
       }
     } catch (_) {}
     // Fallback simple objects
+    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("shop", "Materializing simple equipment (Items.createEquipment unavailable).", { kind, tier: entry.tier || 1 }); } catch (_) {}
     if (kind === "weapon" || kind === "low_tier_equip") {
       return { kind: "equip", slot: "hand", name: entry.id || "weapon", atk: entry.tier ? (entry.tier * 1.2) : 1.0, tier: entry.tier || 1, twoHanded: false, decay: (ctx.initialDecay ? ctx.initialDecay(entry.tier || 1) : 0) };
     }
@@ -363,6 +364,8 @@ export function restockIfNeeded(ctx, shop) {
           if (rows.length > 6) break;
         }
       });
+    } else {
+      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("shop", "Primary restock skipped: shopPools missing for type.", { type: shop.type }); } catch (_) {}
     }
 
     // Stack identical consumables across all shops for cleaner lists (potions by heal, drinks by name)
@@ -421,6 +424,8 @@ export function restockIfNeeded(ctx, shop) {
         if (item2) {
           st.rows[idx] = { item: item2, price: calculatePrice(shop.type, item2, phase, null), qty: Math.max(1, (pick2 && pick2.stack && pick2.stack.max) ? pick2.stack.max : 1) };
         }
+      } else {
+        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("shop", "Mini restock skipped: shopPools missing for type.", { type: shop.type }); } catch (_) {}
       }
       // Re-stack after mini restock to keep duplicate consumables merged
       try { st.rows = _stackRows(st.rows); } catch (_) {}

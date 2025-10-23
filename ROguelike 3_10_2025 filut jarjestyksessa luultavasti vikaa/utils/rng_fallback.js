@@ -33,9 +33,30 @@ function resolveSeed(seedOpt) {
 }
 
 export function getRng(seedOpt) {
-  const s = resolveSeed(seedOpt);
+  let source = "time";
+  let s;
+  try {
+    if (typeof seedOpt === "number") {
+      s = (seedOpt >>> 0);
+      source = "provided";
+    } else {
+      const raw = (typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
+      if (raw != null) {
+        s = (Number(raw) >>> 0);
+        source = "localStorage";
+      } else {
+        s = ((Date.now() % 0xffffffff) >>> 0);
+        source = "time";
+      }
+    }
+  } catch (_) {
+    s = ((Date.now() % 0xffffffff) >>> 0);
+    source = "time";
+  }
+  try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("rng", "RNGFallback initialized", { seedSource: source, seed: s }); } catch (_) {}
   const f = mulberry32(s);
   return function () { return f(); };
+};
 }
 
 // Back-compat: attach to window via helper
