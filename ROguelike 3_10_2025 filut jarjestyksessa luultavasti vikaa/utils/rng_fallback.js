@@ -55,11 +55,3 @@ export function getRng(seedOpt) {
 
 // Back-compat: attach to window via helper
 attachGlobal("RNGFallback", { getRng });
-  const f = mulberry32(s);
-  return function () { return f(); };
-};
-};
-}
-
-// Back-compat: attach to window via helper
-attachGlobal("RNGFallback", { getRng });
