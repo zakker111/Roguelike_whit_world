@@ -891,8 +891,8 @@ function open(ctx, size) {
         return { x, y, type: type || "skeleton", glyph: (type && type[0]) || "s", hp: 4, atk: 1.0, xp: 6, level: 1, faction: "monster", announced: false };
       }
 
-      // Enemy lineup: a mix of skeleton/bandit/ghost
-      const choices = ["skeleton", "bandit", "ghost"];
+      // Enemy lineup: a mix of skeleton/bandit/mime_ghost (matches enemies.json)
+      const choices = ["skeleton", "bandit", "mime_ghost"];
       const n = 2 + ((rng() * 3) | 0); // 2–4
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
       let placed = 0;
