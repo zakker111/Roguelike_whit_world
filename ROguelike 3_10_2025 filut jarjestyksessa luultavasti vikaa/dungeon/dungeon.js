@@ -249,12 +249,13 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     const p = randomFloor(ctx, rooms, ri);
     let enemy = makeEnemy(p.x, p.y, depth, drng);
 
-    // If factory fails or to enforce diversity, build from registry cycling through types
+    // Enforce JSON-only: if factory failed or we want diversity, build from registry cycling through types
     if (!enemy || typeof enemy.x !== "number" || typeof enemy.y !== "number" || cycleTypes.length) {
+      enemy = null;
       try {
         if (cycleTypes.length) {
-          const pickKey = cycleTypes[i % cycleTypes.length] || "goblin";
-          let td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef(pickKey) : null;
+          const pickKey = cycleTypes[i % cycleTypes.length];
+          const td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef(pickKey) : null;
           if (td) {
             enemy = {
               x: p.x, y: p.y,
@@ -267,33 +268,17 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
               announced: false
             };
           } else {
-            // Build directly from GameData.enemies JSON if registry not yet applied
-            const row = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies))
-              ? window.GameData.enemies.find(e => (e.id || e.key) === pickKey)
-              : null;
-            if (row) {
-              enemy = {
-                x: p.x, y: p.y,
-                type: pickKey,
-                glyph: (row.glyph && row.glyph.length) ? row.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
-                hp: linearAt(row.hp || [], depth, 3),
-                atk: linearAt(row.atk || [], depth, 1),
-                xp: linearAt(row.xp || [], depth, 5),
-                level: depth,
-                announced: false
-              };
-            } else {
-              enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
-            }
+            // No registry definition for this key; skip
+            enemy = null;
           }
-        } else {
-          enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
         }
       } catch (_) {
-        enemy = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+        enemy = null;
       }
     }
-    ctx.enemies.push(enemy);
+    if (enemy && typeof enemy.x === "number" && typeof enemy.y === "number") {
+      ctx.enemies.push(enemy);
+    }
   }
 
   // Extra packs: a portion of rooms get 1–2 additional enemies spawned inside
@@ -317,9 +302,10 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
         // Avoid player tile and occupied enemy tiles
         const occupied = ctx.enemies.some(e => e && e.x === p.x && e.y === p.y) || (p.x === ctx.player.x && p.y === ctx.player.y);
         if (occupied) continue;
-        let e = makeEnemy(p.x, p.y, depth, drng);
-        if (!e) e = { x: p.x, y: p.y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
-        ctx.enemies.push(e);
+        const e = makeEnemy(p.x, p.y, depth, drng);
+        if (e && typeof e.x === "number" && typeof e.y === "number") {
+          ctx.enemies.push(e);
+        }
       }
       placed++;
     }
@@ -433,7 +419,8 @@ function defaultEnemyFactory(x, y, depth, rng) {
   if (EM && typeof EM.createEnemyAt === "function") {
     return EM.createEnemyAt(x, y, depth, rng);
   }
-  return { x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+  // No fallback: enforce JSON-defined enemies only
+  return null;
 }
 
 // Back-compat: attach to window via helper

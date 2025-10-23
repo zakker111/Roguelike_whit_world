@@ -17,7 +17,7 @@ function createDungeonEnemyAt(ctx, x, y, depth) {
       if (e) return e;
     }
   } catch (_) {}
-  // Fallback: use Enemies registry to pick a type by depth
+  // Use Enemies registry to pick a type by depth (JSON-only)
   try {
     const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
     if (EM && typeof EM.pickType === "function") {
@@ -38,11 +38,11 @@ function createDungeonEnemyAt(ctx, x, y, depth) {
       }
     }
   } catch (_) {}
-  // Last resort
-  return { x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+  // No fallback: enforce JSON-defined enemies only
+  return null;
 }
 
-// Create a specific enemy type defined in data/enemies.json; falls back gracefully if unavailable.
+// Create a specific enemy type defined in data/enemies.json; JSON-only (no fallbacks).
 function createEnemyOfType(ctx, x, y, depth, type) {
   try {
     const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
@@ -63,17 +63,8 @@ function createEnemyOfType(ctx, x, y, depth, type) {
       }
     }
   } catch (_) {}
-  // Fallback to dungeon factory then override type label if possible
-  try {
-    if (typeof ctx.enemyFactory === "function") {
-      const e = ctx.enemyFactory(x, y, depth);
-      if (e) {
-        e.type = type || e.type || "goblin";
-        return e;
-      }
-    }
-  } catch (_) {}
-  return { x, y, type: type || "goblin", glyph: (type && type.charAt) ? type.charAt(0) : "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+  // No fallback: enforce JSON-defined enemies only
+  return null;
 }
 
 export function enter(ctx, info) {
@@ -525,6 +516,7 @@ export function enter(ctx, info) {
       const p = placements[pIdx++];
       const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
       let e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      if (!e) { continue; }
       // Difficulty scaling: raise level/HP/ATK with diminishing returns
       try {
         const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
@@ -739,6 +731,7 @@ export function enterRegion(ctx, info) {
       const p = placements[pIdx++];
       const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
       let e = type ? createEnemyOfType(ctx, p.x, p.y, depth, type) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+      if (!e) { continue; }
       // Difficulty scaling: raise level/HP/ATK with diminishing returns
       try {
         const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));

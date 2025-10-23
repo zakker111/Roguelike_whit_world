@@ -862,7 +862,7 @@ function open(ctx, size) {
         return null;
       }
 
-      // Create enemies using Enemies definitions when available
+      // Create enemies using Enemies definitions only (JSON-only)
       function createEnemyOfType(x, y, type) {
         try {
           const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
@@ -887,8 +887,8 @@ function open(ctx, size) {
             }
           }
         } catch (_) {}
-        // Fallback minimal enemy
-        return { x, y, type: type || "skeleton", glyph: (type && type[0]) || "s", hp: 4, atk: 1.0, xp: 6, level: 1, faction: "monster", announced: false };
+        // No fallback
+        return null;
       }
 
       // Enemy lineup: a mix of skeleton/bandit/mime_ghost (matches enemies.json)
@@ -900,8 +900,11 @@ function open(ctx, size) {
         const spot = pickInteriorSpot(200);
         if (!spot) break;
         const t = choices[(rng() * choices.length) | 0];
-        ctx.enemies.push(createEnemyOfType(spot.x, spot.y, t));
-        placed++;
+        const e = createEnemyOfType(spot.x, spot.y, t);
+        if (e) {
+          ctx.enemies.push(e);
+          placed++;
+        }
       }
 
       // Place 1–2 lootable corpses/chests inside
