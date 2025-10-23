@@ -1,5 +1,31 @@
 # Game Version History
-Last updated: 2025-10-23 13:00 UTC
+Last updated: 2025-10-23 14:45 UTC
+
+v1.39.1 — Data folder reorganization and loot equipment fix
+- Data
+  - Reorganized existing JSON files into conventional subfolders:
+    - data/config/config.json
+    - data/balance/progression.json
+    - data/entities/{items.json, enemies.json, animals.json, npcs.json, consumables.json}
+    - data/enemies/enemy_loot_pools.json
+    - data/encounters/encounters.json
+    - data/shops/{shops.json, shop_rules.json, shop_phases.json, shop_restock.json, shop_pools.json}
+    - data/world/{world_assets.json, town.json, palette.json}
+    - data/i18n/{messages.json, flavor.json}
+    - data/docs/README.md
+  - Kept JavaScript modules in data/ to avoid breaking imports for now: loader.js, god.js, flavor.js, tile_lookup.js
+- Loader
+  - data/loader.js updated to read the new paths and to reference the combined assets file at data/world/world_assets.json.
+- Analysis
+  - client_analyzer updated to reference new JSON URLs (analysis-side paths aligned).
+- Loot
+  - Fixed: equipment not dropping due to nested enemy loot pools. entities/loot.js now supports both nested pools ({ weapons, armor }) and flat pools, validating against Items registry before weighted pick.
+- Deployment: https://qvnrd68i0jde.cosine.page
+- Known issue (open bug): Wildlife spawns missing in Region Map
+  - Summary: Neutral animals (deer/fox/boar) do not appear despite data/entities/animals.json having spawn weights.
+  - Status: Investigating; to be resolved in next patch.
+  - Suspected causes: loader path change (ensure GameData.animals loads), spawn gating or “cleared” state in region_map runtime, or biome-matching mismatch.
+  - Plan: Verify GameData.animals availability in Region Map spawner, audit gating and biome weights, add DEV logs, and restore rare wildlife spawns across FOREST/GRASS/BEACH/SWAMP per weights.
 
 v1.39.0 — Night Raid encounter, GOD encounter debugger, and weapon-only kill attribution
 - Encounters
