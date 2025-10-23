@@ -82,7 +82,7 @@ async function collectURLs() {
       }
     });
   // Common JSON registries (best-effort)
-  ["/data/items.json", "/data/enemies.json", "/data/consumables.json", "/data/shops.json", "/data/npcs.json", "/data/town.json"].forEach((u) =>
+  ["/data/entities/items.json", "/data/entities/enemies.json", "/data/entities/consumables.json", "/data/shops/shops.json", "/data/entities/npcs.json", "/data/world/town.json"].forEach((u) =>
     urls.add(u)
   );
   // Core HTML + CSS

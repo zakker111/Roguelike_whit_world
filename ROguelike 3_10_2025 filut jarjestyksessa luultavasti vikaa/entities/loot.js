@@ -138,7 +138,9 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
     const GD = (typeof window !== "undefined" ? window.GameData : null);
     const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
     if (!pools) return null;
-    const pool = pools[String(enemyType || "").toLowerCase()] || pools[enemyType] || pools[String(enemyType || "")];
+
+    const typeKey = String(enemyType || "").toLowerCase();
+    const pool = pools[typeKey] || pools[enemyType] || pools[String(enemyType || "")];
     if (!pool) return null;
 
     const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
@@ -146,14 +148,25 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
 
     // Build candidates that exist in Items registry and have positive weight
     const entries = [];
-    for (const key in pool) {
-      if (!Object.prototype.hasOwnProperty.call(pool, key)) continue;
-      const w = Number(pool[key] || 0);
-      if (!(w > 0)) continue;
-      const def = ItemsMod.getTypeDef(key);
-      if (!def) continue;
-      entries.push({ key, def, w });
+    function pushFrom(obj) {
+      if (!obj || typeof obj !== "object") return;
+      for (const key of Object.keys(obj)) {
+        const w = Number(obj[key] || 0);
+        if (!(w > 0)) continue;
+        const def = ItemsMod.getTypeDef(key);
+        if (!def) continue;
+        entries.push({ key, def, w });
+      }
     }
+
+    // Support nested categories { weapons: {...}, armor: {...} } and flat pools for back-compat
+    if (pool.weapons || pool.armor) {
+      pushFrom(pool.weapons);
+      pushFrom(pool.armor);
+    } else {
+      pushFrom(pool);
+    }
+
     if (!entries.length) return null;
 
     // Weighted pick
@@ -163,11 +176,15 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
           return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
         }
       } catch (_) {}
-      return (typeof ctx.rng === "function") ? ctx.rng : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function" ? window.RNG.rng : Math.random);
+      return (typeof ctx.rng === "function")
+        ? ctx.rng
+        : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function" ? window.RNG.rng : Math.random);
     })();
+
     let total = 0;
     for (const e of entries) total += e.w;
     if (!(total > 0)) return null;
+
     let r = rng() * total;
     let chosen = entries[0];
     for (const e of entries) {

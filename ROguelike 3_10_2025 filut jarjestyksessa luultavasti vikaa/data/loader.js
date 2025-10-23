@@ -17,26 +17,26 @@
  
 const DATA_FILES = {
   // Combined assets file (tiles + props) — required in strict mode
-  assetsCombined: "data/world_assets.json",
-  // Individual registries
-  items: "data/items.json",
-  enemies: "data/enemies.json",
-  npcs: "data/npcs.json",
-  consumables: "data/consumables.json",
-  shops: "data/shops.json",
-  town: "data/town.json",
-  flavor: "data/flavor.json",
-  encounters: "data/encounters.json",
-  config: "data/config.json",
-  palette: "data/palette.json",
-  messages: "data/messages.json",
-  shopPhases: "data/shop_phases.json",
-  shopPools: "data/shop_pools.json",
-  shopRules: "data/shop_rules.json",
-  shopRestock: "data/shop_restock.json",
-  progression: "data/progression.json",
-  animals: "data/animals.json",
-  enemyLoot: "data/enemy_loot_pools.json"
+  assetsCombined: "data/world/world_assets.json",
+  // Individual registries (moved into conventional subfolders)
+  items: "data/entities/items.json",
+  enemies: "data/entities/enemies.json",
+  npcs: "data/entities/npcs.json",
+  consumables: "data/entities/consumables.json",
+  shops: "data/shops/shops.json",
+  town: "data/world/town.json",
+  flavor: "data/i18n/flavor.json",
+  encounters: "data/encounters/encounters.json",
+  config: "data/config/config.json",
+  palette: "data/world/palette.json",
+  messages: "data/i18n/messages.json",
+  shopPhases: "data/shops/shop_phases.json",
+  shopPools: "data/shops/shop_pools.json",
+  shopRules: "data/shops/shop_rules.json",
+  shopRestock: "data/shops/shop_restock.json",
+  progression: "data/balance/progression.json",
+  animals: "data/entities/animals.json",
+  enemyLoot: "data/enemies/enemy_loot_pools.json"
 };
 
 function fetchJson(url) {
@@ -143,7 +143,7 @@ GameData.ready = (async function loadAll() {
     } catch (_) {}
 
     if (!GameData.tiles || !GameData.props) {
-      logNotice("Combined assets missing or invalid (data/world_assets.json). tiles/props not loaded (strict mode).");
+      logNotice("Combined assets missing or invalid (data/world/world_assets.json). tiles/props not loaded (strict mode).");
       try { console.warn("[GameData] Combined assets missing; tiles/props unavailable in strict mode."); } catch (_) {}
     }
 
