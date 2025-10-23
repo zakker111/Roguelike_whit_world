@@ -2678,6 +2678,10 @@
             applyCtxSyncAndRefresh(cPost);
           }
         } catch (_) {}
+        // Overworld wildlife hint even when TurnLoop is active
+        try {
+          if (mode === "world") { maybeEmitOverworldAnimalHint(); }
+        } catch (_) {}
         const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
         PERF.lastTurnMs = t1 - t0;
         // EMA smoothing for turn time
