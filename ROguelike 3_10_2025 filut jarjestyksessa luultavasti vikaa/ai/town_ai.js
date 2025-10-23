@@ -1323,9 +1323,6 @@
       if (inLateWindow && ctx.tavern && ctx.tavern.building && (!n._home || !insideBuilding(n._home.building, n.x, n.y))) {
         const innTarget2 = chooseInnTarget(ctx) || { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
         target = innTarget2;
-   _code  new </}
-vern.door.y };
-        target = tvTarget;
       }
       // If inside the Inn near a bed during late night, sleep until morning
       {
