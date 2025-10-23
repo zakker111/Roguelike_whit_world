@@ -788,7 +788,8 @@
         // Already inside: direct interior path
         path = computePath(ctx, relaxedOcc, n.x, n.y, targetInside.x, targetInside.y, { ignorePlayer: true });
       }
-      return (path && path.length >= 2) ? path : null;
+      // Treat a 1-node path as "already at home"
+      return (path && path.length >= 1) ? path : null;
     }
 
     // Movement path to home with runtime occupancy; NPC will follow this plan strictly and wait if blocked.
@@ -880,7 +881,8 @@
       try {
         for (const n of npcs) {
           const path = computeHomePath(ctx, n);
-          n._homeDebugPath = (path && path.length >= 2) ? path.slice(0) : null;
+          // Consider a 1-node path as "already at home" (reachable)
+          n._homeDebugPath = (path && path.length >= 1) ? path.slice(0) : null;
         }
       } catch (_) {}
     } else {
@@ -1413,10 +1415,12 @@
           for (let i = skipFirst ? 1 : 0; i < b.length; i++) res0.push(b[i]);
           return res0;
         })(p1, p2);
-        return (path && path.length >= 2) ? path : null;
+        // Treat a 1-node path as "already at home"
+        return (path && path.length >= 1) ? path : null;
       } else {
         const path = computePath(ctx, emptyOcc, n.x, n.y, targetInside.x, targetInside.y);
-        return (path && path.length >= 2) ? path : null;
+        // Treat a 1-node path as "already at home"
+        return (path && path.length >= 1) ? path : null;
       }
     }
 
@@ -1478,7 +1482,7 @@
       }
 
       const path = computeHomePathStandalone(ctx, n);
-      if (path && path.length >= 2) {
+      if (path && path.length >= 1) {
         res.reachable++;
         // store for render if desired
         n._homeDebugPath = path.slice(0);

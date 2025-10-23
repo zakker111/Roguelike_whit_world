@@ -123,7 +123,9 @@ export function drawTownHomePaths(ctx, view) {
     ctx2d.lineWidth = 2;
     for (let i = 0; i < ctx.npcs.length; i++) {
       const n = ctx.npcs[i];
-      const path = (n._homePlan && n._homePlan.length >= 2) ? n._homePlan : n._homeDebugPath;
+      // Consider a 1-node plan/debug path as "already at home"
+      const pathPlan = (n._homePlan && n._homePlan.length >= 1) ? n._homePlan : null;
+      const path = pathPlan || n._homeDebugPath;
       ctx2d.strokeStyle = "rgba(60, 120, 255, 0.95)";
       if (path && path.length >= 2) {
         const start = path[0];
@@ -165,6 +167,16 @@ export function drawTownHomePaths(ctx, view) {
         ctx2d.stroke();
         ctx2d.fillStyle = "rgba(60, 120, 255, 0.95)";
         ctx2d.fillText("H", ex + 10, ey - 10);
+      } else if (path && path.length === 1) {
+        // Already at home: draw H marker at the single node
+        const p0 = path[0];
+        const sx2 = (p0.x - view.startX) * TILE - view.tileOffsetX + TILE / 2;
+        const sy2 = (p0.y - view.startY) * TILE - view.tileOffsetY + TILE / 2;
+        ctx2d.fillStyle = "rgba(60, 120, 255, 0.95)";
+        ctx2d.fillText("H", sx2 + 10, sy2 - 10);
+        if (typeof n.name === "string" && n.name) {
+          ctx2d.fillText(n.name, sx2 + 12, sy2 + 4);
+        }
       } else {
         const sx2 = (n.x - view.startX) * TILE - view.tileOffsetX + TILE / 2;
         const sy2 = (n.y - view.startY) * TILE - view.tileOffsetY + TILE / 2;
