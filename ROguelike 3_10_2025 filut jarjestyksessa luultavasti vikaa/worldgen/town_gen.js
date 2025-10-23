@@ -1487,7 +1487,7 @@
           homeRef = { building: b, x: hx, y: hy, door };
         }
       } catch (_) {}
-      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesTavern: ctx.rng() < 0.45, _home: homeRef });
+      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesInn: ctx.rng() < 0.45, _home: homeRef });
       placed++;
     }
 
@@ -1523,6 +1523,7 @@
     try { enforceGateNPCLimit(ctx, 1, 2); } catch (_) {}
 
     // Finish
+    try { ctx.inn = ctx.tavern; } catch (_) {}
     if (ctx.updateUI) ctx.updateUI();
     // Draw is handled by orchestrator after generation; avoid redundant frame
     return true;
