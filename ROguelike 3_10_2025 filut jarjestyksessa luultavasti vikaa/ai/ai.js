@@ -492,10 +492,62 @@ export function enemiesAct(ctx) {
           const dmg = Math.max(0.1, Math.round(raw * 10) / 10);
           target.ref.hp -= dmg;
 
-          // Record last hit so death flavor can attribute killer and hit location
+          // Record last hit so death flavor can attribute killer, hit location, and likely weapon
           try {
             const killerType = String(e.type || "enemy");
-            target.ref._lastHit = { by: killerType, part: loc.part, crit: isCrit, dmg, weapon: null, via: "melee" };
+
+            function rngPick(r) {
+              try {
+                if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+                  return window.RNGUtils.getRng(r || ctx.rng || null);
+                }
+              } catch (_) {}
+              if (typeof ctx.rng === "function") return ctx.rng;
+              try {
+                if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") return window.RNG.rng;
+              } catch (_) {}
+              return Math.random;
+            }
+
+            function pickWeighted(entries, rfn) {
+              if (!Array.isArray(entries) || entries.length === 0) return null;
+              let total = 0;
+              for (const en of entries) total += (en.w || 0);
+              if (total <= 0) return entries[0].key || entries[0].value || entries[0];
+              let roll = rfn() * total;
+              for (const en of entries) {
+                const w = en.w || 0;
+                if (roll < w) return en.key || en.value || null;
+                roll -= w;
+              }
+              return entries[0].key || entries[0].value || entries[0];
+            }
+
+            function weaponNameFromEnemyPool(killer) {
+              try {
+                const GD = (typeof window !== "undefined" ? window.GameData : null);
+                const IT = (typeof window !== "undefined" ? window.Items : null);
+                const EN = (typeof window !== "undefined" ? window.Enemies : null);
+                const pools = GD && GD.enemyLoot ? GD.enemyLoot : null;
+                if (!pools || !killer) return null;
+                const key = String(killer).toLowerCase();
+                const pool = pools[key];
+                if (!pool || typeof pool !== "object") return null;
+                // Build weighted list
+                const entries = Object.keys(pool).map(k => ({ key: k, w: Math.max(0, Number(pool[k] || 0)) }));
+                if (!entries.length) return null;
+                const rfn = rngPick();
+                const chosenKey = pickWeighted(entries, rfn);
+                if (!chosenKey || !IT || typeof IT.createByKey !== "function") return null;
+                const tier = EN && typeof EN.equipTierFor === "function" ? EN.equipTierFor(key) : 1;
+                const item = IT.createByKey(chosenKey, tier, rfn);
+                return item && item.name ? item.name : null;
+              } catch (_) { return null; }
+            }
+
+            const weapName = weaponNameFromEnemyPool(killerType);
+            const viaStr = weapName ? `with ${weapName}` : "melee";
+            target.ref._lastHit = { by: killerType, part: loc.part, crit: isCrit, dmg, weapon: weapName, via: viaStr };
           } catch (_) {}
 
           try {
