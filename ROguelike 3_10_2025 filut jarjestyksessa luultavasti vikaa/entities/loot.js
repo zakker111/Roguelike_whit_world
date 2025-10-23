@@ -243,15 +243,10 @@ export function generate(ctx, source) {
   const tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(type) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
   const equipChance = (EM && typeof EM.equipChanceFor === "function") ? EM.equipChanceFor(type) : (type === "ogre" ? 0.75 : (type === "troll" ? 0.55 : 0.35));
   if (ctx.chance(equipChance)) {
-    const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
-    // Try enemy-biased equipment from JSON pools; fallback to general item generation
+    // Only use enemy-specific loot pool; no general fallback
     const biased = pickEnemyBiasedEquipment(ctx, type, tier);
     if (biased) {
       drops.push(biased);
-    } else if (ItemsMod && typeof ItemsMod.createEquipment === "function") {
-      drops.push(ItemsMod.createEquipment(tier, ctx.rng));
-    } else {
-      drops.push(fallbackEquipment(ctx, tier));
     }
   }
   return drops;
