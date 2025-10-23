@@ -166,12 +166,11 @@
   // ---- Pathfinding budget/throttling ----
   // Limit the number of A* computations per tick to avoid CPU spikes in dense towns.
   function initPathBudget(ctx, npcCount) {
-    const defaultBudget = Math.max(1, Math.floor(npcCount * 0.2)); // ~20% of NPCs may compute a new path per tick
-    ctx._townPathBudgetRemaining = (typeof ctx.townPathBudget === "number")
-      ? Math.max(0, ctx.townPathBudget)
-      : defaultBudget;
-  }
-
+    const phaseNow = (ctx && ctx.time && ctx.time.phase) ? String(ctx.time.phase) : "day";
+    // Raise baseline during daytime to reduce reliance on greedy fallback
+    const baseFrac = (phaseNow === "day") ? 0.30 : 0.20;
+    const defaultBudget = Math.max(1, Math.floor(npcCount * baseFrac)); // 30% by day, 20% otherwise
+    ctx._townPathBudgetRemaining = (
   function computePathBudgeted(ctx, occ, sx, sy, tx, ty, opts = {}) {
     if (typeof ctx._townPathBudgetRemaining !== "number") {
       // If not initialized, allow one and initialize lazily to a conservative value
@@ -222,7 +221,9 @@
           } else {
             n._debugPath = null;
           }
+          const pxPrev = n.x, pyPrev = n.y;
           occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
+          n._lastX = pxPrev; n._lastY = pyPrev;
           return true;
         } else {
           // Blocked: force replan below
@@ -262,7 +263,9 @@
       }
       const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
       if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
+        const pxPrev = n.x, pyPrev = n.y;
         occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
+        n._lastX = pxPrev; n._lastY = pyPrev;
         return true;
       }
       // If first step blocked right away, drop plan and try nudge
@@ -270,16 +273,22 @@
       n._fullPlan = null; n._fullPlanGoal = null;
     }
 
-    // Fallback: greedy nudge step
+    // Fallback: greedy nudge step with anti-oscillation guard
     const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
     const dirs = dirs4.slice().sort((a, b) =>
       (Math.abs((n.x + a.dx) - tx) + Math.abs((n.y + a.dy) - ty)) -
       (Math.abs((n.x + b.dx) - tx) + Math.abs((n.y + b.dy) - ty))
     );
+
+    const prevKey = (typeof n._lastX === "number" && typeof n._lastY === "number") ? `${n._lastX},${n._lastY}` : null;
+    let chosen = null;
+    let backStep = null;
+
     for (const d of dirs) {
       const nx = n.x + d.dx, ny = n.y + d.dy;
       if (!isWalkTown(ctx, nx, ny)) continue;
       if (ctx.player.x === nx && ctx.player.y === ny) continue;
+
       const keyN = `${nx},${ny}`;
       const isReservedN = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyN);
       let isOwnDoorN = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === nx && n._shopRef.y === ny);
@@ -291,17 +300,36 @@
         }
       }
       if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
+
+      const isBack = prevKey && keyN === prevKey;
+      if (isBack) {
+        // Remember the backstep candidate; use only if no other option exists
+        if (!backStep) backStep = { nx, ny };
+        continue;
+      }
+      chosen = { nx, ny };
+      break;
+    }
+
+    if (!chosen && backStep) {
+      chosen = backStep;
+    }
+
+    if (chosen) {
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
         // Single-step nudge visualization
-        n._debugPath = [{ x: n.x, y: n.y }, { x: nx, y: ny }];
+        n._debugPath = [{ x: n.x, y: n.y }, { x: chosen.nx, y: chosen.ny }];
       } else {
         n._debugPath = null;
       }
       n._plan = null; n._planGoal = null;
       n._fullPlan = null; n._fullPlanGoal = null;
-      occ.delete(`${n.x},${n.y}`); n.x = nx; n.y = ny; occ.add(`${nx},${ny}`);
+      const pxPrev = n.x, pyPrev = n.y;
+      occ.delete(`${n.x},${n.y}`); n.x = chosen.nx; n.y = chosen.ny; occ.add(`${n.x},${n.y}`);
+      n._lastX = pxPrev; n._lastY = pyPrev;
       return true;
     }
+
     n._debugPath = null;
     n._plan = null; n._planGoal = null;
     n._fullPlan = null; n._fullPlanGoal = null;
