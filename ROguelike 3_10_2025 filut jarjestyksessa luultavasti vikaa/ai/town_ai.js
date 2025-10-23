@@ -686,6 +686,50 @@
       return seats[randInt(ctx, 0, seats.length - 1)];
     }
 
+    // Bench seating near plaza or first available bench
+    function chooseBenchSeat(ctx) {
+      const benches = Array.isArray(ctx.townProps) ? ctx.townProps.filter(p => p.type === "bench") : [];
+      if (!benches.length) return null;
+      let b = benches[0];
+      if (ctx.townPlaza) {
+        const cx = ctx.townPlaza.x, cy = ctx.townPlaza.y;
+        b = benches.slice().sort((a, bb) =>
+          manhattan(a.x, a.y, cx, cy) - manhattan(bb.x, bb.y, cx, cy)
+        )[0] || benches[0];
+      }
+      const seat = nearestFreeAdjacent(ctx, b.x, b.y, null);
+      return seat ? seat : { x: b.x, y: b.y };
+    }
+
+    // First free interior tile in a building
+    function firstFreeInteriorTile(ctx, b) {
+      const { map, TILES } = ctx;
+      for (let y = b.y + 1; y < b.y + b.h - 1; y++) {
+        for (let x = b.x + 1; x < b.x + b.w - 1; x++) {
+          if (map[y][x] !== TILES.FLOOR) continue;
+          if ((ctx.townProps || []).some(p => p.x === x && p.y === y && p.type && p.type !== "sign" && p.type !== "rug")) continue;
+          if ((ctx.npcs || []).some(n => n.x === x && n.y === y)) continue;
+          return { x, y };
+        }
+      }
+      return null;
+    }
+
+    // Home seating: adjacent to chairs/tables inside the building, fallback to free interior
+    function chooseHomeSeat(ctx, building) {
+      if (!building) return null;
+      const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      const seats = [];
+      for (const p of props) {
+        if (p.type !== "chair" && p.type !== "table") continue;
+        if (!(p.x > building.x && p.x < building.x + building.w - 1 && p.y > building.y && p.y < building.y + building.h - 1)) continue;
+        const adj = nearestFreeAdjacent(ctx, p.x, p.y, building);
+        if (adj) seats.push(adj);
+      }
+      if (seats.length) return seats[randInt(ctx, 0, seats.length - 1)];
+      return firstFreeInteriorTile(ctx, building);
+    }
+
     // Lightweight per-NPC rate limiting: each NPC only acts every N ticks.
     // Defaults: residents/shopkeepers every 2 ticks, pets every 3 ticks, generic 2.
     const tickMod = ((t && typeof t.turnCounter === "number") ? t.turnCounter : 0) | 0;
@@ -1172,7 +1216,7 @@
           }
           // Occasionally visit the tavern (Inn) to sit; plus bench/home sitting options
           if (innB) {
-            const wantTavern = n._likesTavern ? (ctx.rng() < 0.20) : (ctx.rng() < 0.06);
+            const wantTavern = n._likesInn ? (ctx.rng() < 0.20) : (ctx.rng() < 0.06);
             if (wantTavern && !n._innSeatGoal && !n._benchSeatGoal && !n._homeSitGoal) {
               const seat = chooseInnSeat(ctx);
               if (seat) {
@@ -1318,7 +1362,7 @@
       let target = null;
       if (phase === "morning") target = n._home ? { x: n._home.x, y: n._home.y } : null;
       else if (phase === "day") target = (n._work || ctx.townPlaza);
-      else target = (ctx.tavern && n._likesTavern) ? { x: ctx.tavern.door.x, y: ctx.tavern.door.y }
+      else target = (ctx.tavern && (n._likesInn || n._likesTavern)) ? { x: ctx.tavern.door.x, y: ctx.tavern.door.y }
                                                    : (n._home ? { x: n._home.x, y: n._home.y } : null);
 
       // Very late at night: prefer shelter (Inn/tavern) if not at home
