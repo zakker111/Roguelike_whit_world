@@ -44,7 +44,7 @@ export function applyBleedToEnemy(ctx, enemy, duration) {
   // Ethereal foes (ghosts/spirits/wraiths) do not bleed
   try {
     const t = String(enemy.type || "");
-    if (/ghost|spirit|wraith/i.test(t)) return;
+    if (/ghost|spirit|wraith|skeleton/i.test(t)) return;
   } catch (_) {}
   const d = Math.max(1, duration | 0);
   enemy.bleedTurns = Math.max(enemy.bleedTurns || 0, d);
@@ -95,7 +95,7 @@ export function tick(ctx) {
       // Ethereal foes do not bleed
       try {
         const t = String(e.type || "");
-        if (/ghost|spirit|wraith/i.test(t)) { e.bleedTurns = 0; continue; }
+        if (/ghost|spirit|wraith|skeleton/i.test(t)) { e.bleedTurns = 0; continue; }
       } catch (_) {}
       if (e.bleedTurns && e.bleedTurns > 0) {
         e.bleedTurns -= 1;

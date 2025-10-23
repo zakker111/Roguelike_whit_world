@@ -210,10 +210,10 @@ export function playerAttackEnemy(ctx, enemy) {
   dmg = Math.max(0, round1(ctx, dmg));
   enemy.hp = (typeof enemy.hp === "number" ? enemy.hp : 0) - dmg;
 
-  // Visual: blood decal (skip ethereal foes)
+  // Visual: blood decal (skip ethereal/undead foes)
   try {
     const t = String(enemy.type || "");
-    const ethereal = /ghost|spirit|wraith/i.test(t);
+    const ethereal = /ghost|spirit|wraith|skeleton/i.test(t);
     if (!ethereal && typeof ctx.addBloodDecal === "function" && dmg > 0) ctx.addBloodDecal(enemy.x, enemy.y, isCrit ? 1.6 : 1.0);
   } catch (_) {}
 
@@ -234,7 +234,7 @@ export function playerAttackEnemy(ctx, enemy) {
     }
     if (isCrit && enemy.hp > 0) {
       const t = String(enemy.type || "");
-      const ethereal = /ghost|spirit|wraith/i.test(t);
+      const ethereal = /ghost|spirit|wraith|skeleton/i.test(t);
       if (!ethereal && ST && typeof ST.applyBleedToEnemy === "function") ST.applyBleedToEnemy(ctx, enemy, 2);
     }
   } catch (_) {}

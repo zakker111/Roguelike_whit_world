@@ -493,7 +493,7 @@ export function enemiesAct(ctx) {
           target.ref.hp -= dmg;
           try {
             const ttype = String(target.ref.type || "");
-            const ethereal = /ghost|spirit|wraith/i.test(ttype);
+            const ethereal = /ghost|spirit|wraith|skeleton/i.test(ttype);
             if (!ethereal && dmg > 0 && typeof ctx.addBloodDecal === "function") {
               ctx.addBloodDecal(target.ref.x, target.ref.y, isCrit ? 1.2 : 0.9);
             }
