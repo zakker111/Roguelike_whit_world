@@ -1074,13 +1074,21 @@
         }
       } else {
         // Already inside: go to targetInside or nearest free interior tile
+        // If already at the adjusted target, treat as handled and stay put
+        if (adjTarget && n.x === adjTarget.x && n.y === adjTarget.y) {
+          return true;
+        }
         const inSpot = (adjTarget && isFreeTile(ctx, adjTarget.x, adjTarget.y))
           ? adjTarget
           : nearestFreeAdjacent(ctx, adjTarget ? adjTarget.x : n.x, adjTarget ? adjTarget.y : n.y, building);
         if (inSpot) {
+          // If already at the chosen spot, stay put
+          if (n.x === inSpot.x && n.y === inSpot.y) return true;
           stepTowards(ctx, occ, n, inSpot.x, inSpot.y);
           return true;
         }
+        // No viable interior target: staying inside is acceptable
+        return true;
       }
       return false;
     }
@@ -1119,6 +1127,7 @@
         const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
         if (isInnKeeper && shop && shop.building) {
           // Innkeeper: always stay inside the inn, regardless of open/close windows
+          n._atWork = true;
           const targetInside = n._workInside || shop.inside || { x: shop.x, y: shop.y };
           const handledInn = routeIntoBuilding(ctx, occ, n, shop.building, targetInside);
           if (handledInn) continue;
@@ -1139,12 +1148,18 @@
 
         let handled = false;
         if (shouldBeAtWorkZone) {
+          // Mark working state for diagnostics/UI
+          n._atWork = !!openNow;
           if (openNow && n._workInside && shop && shop.building) {
             handled = routeIntoBuilding(ctx, occ, n, shop.building, n._workInside);
           } else if (n._work) {
             handled = stepTowards(ctx, occ, n, n._work.x, n._work.y, { urgent: true });
           }
-        } else if (n._home && n._home.building) {
+        } else {
+          n._atWork = false;
+        }
+
+        if (!handled && !shouldBeAtWorkZone && n._home && n._home.building) {
           // Off hours: stagger departure between 18:00-21:00
           const departReady = typeof n._homeDepartMin === "number" ? (minutes >= n._homeDepartMin) : true;
 
