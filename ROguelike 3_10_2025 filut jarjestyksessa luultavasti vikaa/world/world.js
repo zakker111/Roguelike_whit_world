@@ -295,6 +295,12 @@ export function generate(ctx, opts = {}) {
     }
   );
 
+  // Choose one town to be Jekku's home (only once per world)
+  if (towns.length) {
+    const idx = (rng() * towns.length) | 0;
+    towns[idx].jekkuHome = true;
+  }
+
   // Helper: pick dungeon size with probabilities influenced by terrain
   function pickDungeonSizeFor(tile) {
     // Base weights: small 0.45, medium 0.40, large 0.15

@@ -1359,6 +1359,42 @@
       }
     } catch (_) {}
 
+    // One special cat: Jekku (spawn in the designated town only)
+    (function placeJekku() {
+      try {
+        const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : ctx.player.x;
+        const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : ctx.player.y;
+        const info = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t.x === wx && t.y === wy) : null;
+        if (!info || !info.jekkuHome) return;
+        // Avoid duplicate by name if already present
+        if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => String(n.name || "").toLowerCase() === "jekku")) return;
+        // Prefer a free floor near the plaza
+        const spots = [
+          { x: ctx.townPlaza.x + 1, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x - 1, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y + 1 },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y - 1 },
+          { x: ctx.townPlaza.x + 2, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x - 2, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y + 2 },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y - 2 },
+        ];
+        let pos = null;
+        for (const s of spots) { if (_isFreeTownFloor(ctx, s.x, s.y)) { pos = s; break; } }
+        if (!pos) {
+          // Fallback: any free floor near plaza
+          for (let oy = -3; oy <= 3 && !pos; oy++) {
+            for (let ox = -3; ox <= 3 && !pos; ox++) {
+              const x = ctx.townPlaza.x + ox, y = ctx.townPlaza.y + oy;
+              if (_isFreeTownFloor(ctx, x, y)) pos = { x, y };
+            }
+          }
+        }
+        if (!pos) pos = { x: ctx.townPlaza.x, y: ctx.townPlaza.y };
+        ctx.npcs.push({ x: pos.x, y: pos.y, name: "Jekku", kind: "cat", lines: ["Meow.", "Purr."], pet: true });
+      } catch (_) {}
+    })();
+
     // Roaming villagers near plaza
     const ND = (typeof window !== "undefined" && window.GameData && window.GameData.npcs) ? window.GameData.npcs : null;
     const baseLines = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length)
