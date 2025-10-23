@@ -207,8 +207,9 @@ export function spawnEnemyNearby(ctx, count = 1) {
     }
 
     if (!ee) {
-      ctx.log(`GOD: Cannot spawn '${pickKey}' (not defined in enemies.json).`, "warn");
-      continue;
+      // Fallback enemy: visible '?' for debugging missing types
+      ee = { x: spot.x, y: spot.y, type: pickKey || "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
+      ctx.log(`GOD: Fallback spawned for '${pickKey}' (not defined).`, "warn");
     }
 
     if (typeof ee.hp === "number" && ctx.rng() < 0.7) {

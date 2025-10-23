@@ -887,8 +887,9 @@ function open(ctx, size) {
             }
           }
         } catch (_) {}
-        // No fallback
-        return null;
+        // Fallback enemy: visible '?' for debugging in Ruins
+        try { ctx.log && ctx.log(`Fallback enemy spawned in ruins (type '${type}' not defined).`, "warn"); } catch (_) {}
+        return { x, y, type: type || "fallback_enemy", glyph: "?", hp: 3, atk: 1.0, xp: 5, level: 1, faction: "monster", announced: false };
       }
 
       // Enemy lineup: a mix of skeleton/bandit/mime_ghost (matches enemies.json)

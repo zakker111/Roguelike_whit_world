@@ -278,6 +278,9 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     }
     if (enemy && typeof enemy.x === "number" && typeof enemy.y === "number") {
       ctx.enemies.push(enemy);
+    } else {
+      try { ctx.log && ctx.log("Fallback enemy spawned (dungeon create failed).", "warn"); } catch (_) {}
+      ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
     }
   }
 
@@ -302,9 +305,12 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
         // Avoid player tile and occupied enemy tiles
         const occupied = ctx.enemies.some(e => e && e.x === p.x && e.y === p.y) || (p.x === ctx.player.x && p.y === ctx.player.y);
         if (occupied) continue;
-        const e = makeEnemy(p.x, p.y, depth, drng);
+        let e = makeEnemy(p.x, p.y, depth, drng);
         if (e && typeof e.x === "number" && typeof e.y === "number") {
           ctx.enemies.push(e);
+        } else {
+          try { ctx.log && ctx.log("Fallback enemy spawned (extra pack create failed).", "warn"); } catch (_) {}
+          ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
         }
       }
       placed++;

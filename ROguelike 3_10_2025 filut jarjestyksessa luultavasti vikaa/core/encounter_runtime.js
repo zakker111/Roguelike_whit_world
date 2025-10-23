@@ -38,8 +38,9 @@ function createDungeonEnemyAt(ctx, x, y, depth) {
       }
     }
   } catch (_) {}
-  // No fallback: enforce JSON-defined enemies only
-  return null;
+  // Fallback enemy: visible '?' for debugging
+  try { ctx.log && ctx.log("Fallback enemy spawned (auto-pick failed).", "warn"); } catch (_) {}
+  return { x, y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, faction: "monster", announced: false };
 }
 
 // Create a specific enemy type defined in data/enemies.json; JSON-only (no fallbacks).
@@ -63,8 +64,9 @@ function createEnemyOfType(ctx, x, y, depth, type) {
       }
     }
   } catch (_) {}
-  // No fallback: enforce JSON-defined enemies only
-  return null;
+  // Fallback enemy: visible '?' for debugging
+  try { ctx.log && ctx.log("Fallback enemy spawned (auto-pick failed).", "warn"); } catch (_) {}
+  return { x, y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, faction: "monster", announced: false };
 }
 
 export function enter(ctx, info) {
