@@ -1175,31 +1175,11 @@
               const seat = chooseTavernSeat(ctx);
               if (seat) {
                 n._tavernSeatGoal = { x: seat.x, y: seat.y };
-                if (routeIntoBuilding(ctx, occ, n, tvB, seat)) continue;
+                if (routeIntoBuilding(ctx, occ, n, innB, seat)) continue;
               }
             }
           }
-          // Bench sitting: arrive/stay and occasional bench visit
-          if (n._benchSeatGoal && n.x === n._benchSeatGoal.x && n.y === n._benchSeatGoal.y) {
-            n._benchStayTurns = randInt(ctx, 10, 20); // ~40–80 minutes
-            n._benchSeatGoal = null;
-          }
-          if (n._benchStayTurns && n._benchStayTurns > 0) {
-            n._benchStayTurns--;
-            if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
-            continue;
-          }
-          if (!n._tavernSeatGoal && !n._benchSeatGoal && !n._homeSitGoal) {
-            const wantBench = ctx.rng() < 0.10;
-            if (wantBench) {
-              const seatB = chooseBenchSeat(ctx);
-              if (seatB) {
-                n._benchSeatGoal = { x: seatB.x, y: seatB.y };
-                stepTowards(ctx, occ, n, seatB.x, seatB.y);
-                continue;
-              }
-            }
-          }
+          
           // Home sitting: arrive/stay and occasional
           if (n._homeSitGoal && n.x === n._homeSitGoal.x && n.y === n._homeSitGoal.y) {
             n._homeSitTurns = randInt(ctx, 12, 24); // ~48–96 minutes
@@ -1211,7 +1191,7 @@
             continue;
           }
           if (n._home && n._home.building && !n._homeSitGoal && !n._tavernSeatGoal && !n._benchSeatGoal) {
-            const wantHomeSit = ctx.rng() < 0.08;
+            const wantHomeSit = ctx.rng() < 0.15;
             if (wantHomeSit) {
               const seatH = chooseHomeSeat(ctx, n._home.building);
               if (seatH) {
@@ -1294,7 +1274,7 @@
       }
       // Night/evening bench sit/sleep chance
       if ((phase === "evening" || phase === "night") && !n._benchSeatGoal) {
-        const wantBenchNight = ctx.rng() < 0.20;
+        const wantBenchNight = inLateWindow ? (ctx.rng() < 0.12) : (ctx.rng() < 0.20);
         if (wantBenchNight) {
           const seatB = chooseBenchSeat(ctx);
           if (seatB) {
@@ -1329,9 +1309,20 @@
                                                    : (n._home ? { x: n._home.x, y: n._home.y } : null);
 
       // Very late at night: prefer shelter (Inn/tavern) if not at home
-      if (inLateWindow && ctx.tavern && ctx.tavern.building && (!n._home || !insideBuilding(n._home.building, n.x, n.y))) {
+      if (inLateWindow && ctx.tavern && ctx.tavern.building && (!n._home || !insideBuilding(n._home.building, n.x, n.y)) && !(n._benchStayTurns > 0 || n._benchSeatGoal)) {
         const tvTarget = chooseTavernTarget(ctx) || { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
         target = tvTarget;
+      }
+      // If inside the Inn near a bed during late night, sleep until morning
+      {
+        const innB2 = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+        if (inLateWindow && innB2 && insideBuilding(innB2, n.x, n.y)) {
+          const beds2 = innBedSpots(ctx);
+          for (let i = 0; i < beds2.length; i++) {
+            const b = beds2[i];
+            if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+          }
+        }
       }
 
       if (!target) {
