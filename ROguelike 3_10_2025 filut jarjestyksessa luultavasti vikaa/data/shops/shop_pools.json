@@ -113,6 +113,31 @@
       }
     }
   },
+  "bakery": {
+    "categories": {
+      "baked": {
+        "capPerDay": 6,
+        "entries": [
+          { "id": "bread_loaf", "kind": "food", "heal": 4,
+            "phaseWeights": { "morning": 5, "midday": 4, "afternoon": 1 },
+            "maxPerRestock": 2, "stack": { "min": 1, "max": 2 }
+          },
+          { "id": "sweet_bun", "kind": "food", "heal": 3,
+            "phaseWeights": { "morning": 4, "midday": 5, "afternoon": 2 },
+            "maxPerRestock": 2, "stack": { "min": 1, "max": 3 }
+          },
+          { "id": "meat_pie", "kind": "food", "heal": 6,
+            "phaseWeights": { "midday": 4, "afternoon": 4 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
+          },
+          { "id": "berry_tart", "kind": "food", "heal": 5,
+            "phaseWeights": { "midday": 4, "afternoon": 3 },
+            "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
+          }
+        ]
+      }
+    }
+  },
   "inn": {
     "categories": {
       "drinks": {

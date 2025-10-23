@@ -33,6 +33,13 @@
     "sellMultiplier": 1.0,
     "phasePriceMods": { "morning": 0.95 }
   },
+  "bakery": {
+    "sells": ["food"],
+    "buys": [],
+    "buyMultiplier": 0.60,
+    "sellMultiplier": 1.0,
+    "phasePriceMods": { "morning": 0.95 }
+  },
   "inn": {
     "sells": ["drink"],
     "buys": [],

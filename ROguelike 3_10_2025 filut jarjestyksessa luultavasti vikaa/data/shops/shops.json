@@ -35,6 +35,13 @@
     "chanceBySize": { "small": 0.35, "big": 0.55, "city": 0.75 }
   },
   {
+    "type": "bakery",
+    "name": "Bakery",
+    "open": "06:00",
+    "close": "15:00",
+    "chanceBySize": { "small": 0.65, "big": 0.78, "city": 0.88 }
+  },
+  {
     "type": "inn",
     "name": "Inn",
     "alwaysOpen": true,

@@ -128,6 +128,10 @@ function _priceFor(item) {
       var dh = item.heal != null ? item.heal : 2;
       return Math.max(2, Math.min(30, Math.round(dh * 1.5)));
     }
+    if (item.kind === "food") {
+      var fh = item.heal != null ? item.heal : 2;
+      return Math.max(2, Math.min(40, Math.round(fh * 2)));
+    }
     // weapon/armor heuristics
     var base = (item.atk || 0) * 10 + (item.def || 0) * 10;
     var tier = (item.tier || 1);
@@ -145,6 +149,10 @@ function _materializeItem(ctx, entry) {
   if (kind === "drink") {
     var nm = entry.name || entry.id || "drink";
     return { kind: "drink", heal: entry.heal || 2, count: 1, name: nm };
+  }
+  if (kind === "food") {
+    var nmf = entry.name || entry.id || "food";
+    return { kind: "food", heal: entry.heal || 2, count: 1, name: nmf };
   }
   if (kind === "antidote") {
     return { kind: "antidote", name: "antidote" };
@@ -253,6 +261,8 @@ function _stackRows(rows) {
         key = "potion:" + String((it.heal != null ? it.heal : 0) | 0);
       } else if (kind === "drink") {
         key = "drink:" + String(it.name || "").toLowerCase();
+      } else if (kind === "food") {
+        key = "food:" + String(it.name || "").toLowerCase();
       } else if (kind === "material") {
         // Prefer explicit item name (e.g., "wood_planks"); fallback to material type (e.g., "wood")
         var mk = String(it.name || it.material || "").toLowerCase();
@@ -449,7 +459,7 @@ function _giveItemToPlayer(ctx, item) {
     var k = String(item.kind || "").toLowerCase();
 
     // Ensure a count field for stackables
-    if (k === "potion" || k === "drink") {
+    if (k === "potion" || k === "drink" || k === "food") {
       item.count = (item.count | 0) || 1;
     }
 
@@ -473,6 +483,18 @@ function _giveItemToPlayer(ctx, item) {
       }
       if (sameD) {
         sameD.count = (sameD.count | 0) + (item.count | 0);
+      } else {
+        inv.push(item);
+      }
+    } else if (k === "food") {
+      var nmFood = String(item.name || "").toLowerCase();
+      var sameF = null;
+      for (var ii = 0; ii < inv.length; ii++) {
+        var itF = inv[ii];
+        if (itF && itF.kind === "food" && String(itF.name || "").toLowerCase() === nmFood) { sameF = itF; break; }
+      }
+      if (sameF) {
+        sameF.count = (sameF.count | 0) + (item.count | 0);
       } else {
         inv.push(item);
       }
