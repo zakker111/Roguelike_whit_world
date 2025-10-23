@@ -746,7 +746,7 @@ export const UI = {
     if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
   },
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -771,6 +771,8 @@ export const UI = {
     if (typeof onGodApplyBleed === "function") this.handlers.onGodApplyBleed = onGodApplyBleed;
     if (typeof onGodApplyDazed === "function") this.handlers.onGodApplyDazed = onGodApplyDazed;
     if (typeof onGodClearEffects === "function") this.handlers.onGodClearEffects = onGodClearEffects;
+    if (typeof onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow = onGodStartEncounterNow;
+    if (typeof onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove = onGodArmEncounterNextMove;
   },
 
   updateStats(player, floor, getAtk, getDef, time, perf) {
