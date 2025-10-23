@@ -1126,15 +1126,42 @@
         const shop = n._shopRef || null;
         const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
         if (isInnKeeper && shop && shop.building) {
-          // Innkeeper: always stay inside the inn, regardless of open/close windows
+          // Innkeeper: always inside the Inn, and patrol within it
           n._atWork = true;
-          const targetInside = n._workInside || shop.inside || { x: shop.x, y: shop.y };
-          const handledInn = routeIntoBuilding(ctx, occ, n, shop.building, targetInside);
-          if (handledInn) continue;
-          // Minor fidget to avoid complete idling
-          if (ctx.rng() < 0.2) {
-            stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          const innB = shop.building;
+          const insideNow = insideBuilding(innB, n.x, n.y);
+          if (!insideNow) {
+            const targetInside = n._workInside || shop.inside || { x: shop.x, y: shop.y };
+            routeIntoBuilding(ctx, occ, n, innB, targetInside);
+            continue;
           }
+          // Inside: patrol between interior spots (chairs/tables or free interior)
+          // Arrived at patrol goal?
+          if (n._patrolGoal && n.x === n._patrolGoal.x && n.y === n._patrolGoal.y) {
+            n._patrolStayTurns = randInt(ctx, 3, 7);
+            n._patrolGoal = null;
+          }
+          if (n._patrolStayTurns && n._patrolStayTurns > 0) {
+            n._patrolStayTurns--;
+            // slight fidget to look alive
+            if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+            continue;
+          }
+          if (!n._patrolGoal) {
+            const seat = chooseInnSeat(ctx);
+            const next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
+              try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
+            })() || null;
+            if (next && !(next.x === n.x && next.y === n.y)) {
+              n._patrolGoal = { x: next.x, y: next.y };
+            }
+          }
+          if (n._patrolGoal) {
+            stepTowards(ctx, occ, n, n._patrolGoal.x, n._patrolGoal.y, { urgent: true });
+            continue;
+          }
+          // As a last resort, small idle move
+          stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
           continue;
         }
 
