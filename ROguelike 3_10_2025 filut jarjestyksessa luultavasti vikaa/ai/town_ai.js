@@ -1348,10 +1348,12 @@
           continue;
         }
         const seat2 = chooseInnSeat(ctx);
-        if (innB2 && seat2 && (_innSeatersNo <u _innSeatCap)) {
+        if (innB2 && seat2 && (_innSeatersNow < _innSeatCap)) {
           if (routeIntoBuilding(ctx, occ, n, innB2, seat2)) {
             n._innSeatGoal = { x: seat2.x, y: seat2.y };
             _innSeatersNow++;
+            continue;
+          }
         }
       }
       // Night/evening bench sit/sleep chance
