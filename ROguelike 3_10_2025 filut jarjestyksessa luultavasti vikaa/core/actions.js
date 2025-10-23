@@ -124,6 +124,12 @@ export function doAction(ctx) {
         if (okDun) return true;
       }
     } catch (_) {}
+    try {
+      if (ctx.Modes && typeof ctx.Modes.enterRuinsIfOnTile === "function") {
+        const okRuins = !!ctx.Modes.enterRuinsIfOnTile(ctx);
+        if (okRuins) return true;
+      }
+    } catch (_) {}
     // Unhandled tile in world: allow fallback movement handlers to proceed
     return false;
   }

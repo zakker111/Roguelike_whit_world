@@ -24,6 +24,7 @@ const TILES = {
   BEACH: 8,
   DESERT: 9,
   SNOW: 10,
+  RUINS: 12,
 };
 
 function mulberry32(a) {
@@ -75,8 +76,10 @@ function create(seed, opts = {}) {
     // Placement (slightly denser than before per request)
     townGrid: 42,         // was 48
     dungeonGrid: 32,      // was 36
+    ruinsGrid: 40,        // ruins lattice
     townChance: 0.34,     // was 0.32
     dungeonChance: 0.44,  // was 0.42
+    ruinsChance: 0.30,    // ruins spawn chance at anchor
     ...opts,
   };
 
@@ -101,11 +104,14 @@ function create(seed, opts = {}) {
       const gScale = Math.max(0.35, 1 / Math.sqrt(dens));
       cfg.townGrid = Math.max(16, Math.round(cfg.townGrid * gScale));
       cfg.dungeonGrid = Math.max(16, Math.round(cfg.dungeonGrid * gScale));
+      cfg.ruinsGrid = Math.max(16, Math.round(cfg.ruinsGrid * gScale));
       // Increase placement chance as well, clipped to below 1
       const cScale = Math.min(0.95, cfg.townChance * dens);
       const dScale = Math.min(0.95, cfg.dungeonChance * dens);
+      const rScale = Math.min(0.95, cfg.ruinsChance * dens);
       cfg.townChance = cScale;
       cfg.dungeonChance = dScale;
+      cfg.ruinsChance = rScale;
     }
   } catch (_) {}
 
@@ -167,6 +173,7 @@ function create(seed, opts = {}) {
     // Deterministic per-cell anchor so at most ONE tile in a coarse cell becomes a POI.
     const cellTownX = Math.floor(x / cfg.townGrid), cellTownY = Math.floor(y / cfg.townGrid);
     const cellDungX = Math.floor(x / cfg.dungeonGrid), cellDungY = Math.floor(y / cfg.dungeonGrid);
+    const cellRuinsX = Math.floor(x / cfg.ruinsGrid), cellRuinsY = Math.floor(y / cfg.ruinsGrid);
 
     // Pick an anchor within each cell using a margin so it isn't right on the edges.
     const marginTown = 3;
@@ -185,9 +192,18 @@ function create(seed, opts = {}) {
     const anchorDungX = baseDungX + offDungX;
     const anchorDungY = baseDungY + offDungY;
 
+    const marginRuins = 3;
+    const baseRuinsX = cellRuinsX * cfg.ruinsGrid;
+    const baseRuinsY = cellRuinsY * cfg.ruinsGrid;
+    const offRuinsX = marginRuins + Math.floor(hash2(s ^ 0x7777, cellRuinsX, cellRuinsY) * Math.max(1, cfg.ruinsGrid - marginRuins * 2));
+    const offRuinsY = marginRuins + Math.floor(hash2(s ^ 0x8888, cellRuinsX, cellRuinsY) * Math.max(1, cfg.ruinsGrid - marginRuins * 2));
+    const anchorRuinsX = baseRuinsX + offRuinsX;
+    const anchorRuinsY = baseRuinsY + offRuinsY;
+
     // Only consider POI placement when queried exactly at the anchor coordinate
     const atTownAnchor = (x === anchorTownX && y === anchorTownY);
     const atDungAnchor = (x === anchorDungX && y === anchorDungY);
+    const atRuinsAnchor = (x === anchorRuinsX && y === anchorRuinsY);
 
     // Avoid water/river/swamp for entrances
     const tHere = classify(x, y);
@@ -209,6 +225,12 @@ function create(seed, opts = {}) {
     if (atDungAnchor) {
       const rDung = hash2(s ^ 0x2222, cellDungX, cellDungY);
       if (rDung < cfg.dungeonChance) return TILES.DUNGEON;
+    }
+
+    // Ruins roll (only at the ruins anchor of the cell)
+    if (atRuinsAnchor) {
+      const rRuins = hash2(s ^ 0x9999, cellRuinsX, cellRuinsY);
+      if (rRuins < cfg.ruinsChance) return TILES.RUINS;
     }
 
     return null;

@@ -24,6 +24,7 @@ export const TILES = {
   DESERT: 9,
   SNOW: 10,
   TREE: 11, // region-only decorative tree tile; walkable but blocks FOV in region
+  RUINS: 12, // overworld ruins POI; opens a themed Region Map
 };
 
 function clamp(v, lo, hi) {
@@ -64,6 +65,7 @@ export function biomeName(tile) {
     case TILES.GRASS: return "Plains";
     case TILES.TOWN: return "Town";
     case TILES.DUNGEON: return "Dungeon";
+    case TILES.RUINS: return "Ruins";
     default: return "Unknown";
   }
 }
@@ -226,6 +228,7 @@ export function generate(ctx, opts = {}) {
   // Carve towns and dungeons (prefer towns near water/river/beach)
   const towns = [];
   const dungeons = [];
+  const ruins = [];
   // Increase town density and scale by area for richer worlds
   const area = width * height;
   const baseTowns = Math.max(14, Math.floor(area / 700)); // ~14 for 120x80; grows with area
@@ -233,6 +236,9 @@ export function generate(ctx, opts = {}) {
   // Scale dungeon count with map area and increase baseline density
   const baseDungeons = Math.max(22, Math.floor(area / 500)); // ~22 for 120x80; grows with area
   const wantDungeons = baseDungeons + ((rng() * Math.max(10, Math.floor(baseDungeons * 0.5))) | 0);
+  // Ruins density: between towns and dungeons; scale with area
+  const baseRuins = Math.max(18, Math.floor(area / 600)); // ~18 for 120x80; grows with area
+  const wantRuins = baseRuins + ((rng() * Math.max(8, Math.floor(baseRuins * 0.5))) | 0);
 
   // Decide town size distribution: small ~60%, big ~30%, city ~10%
   function pickTownSize() {
@@ -321,6 +327,23 @@ export function generate(ctx, opts = {}) {
       // Size chosen with terrain-weighted probabilities
       const size = pickDungeonSizeFor(t);
       dungeons.push({ x, y, level, size });
+    }
+  );
+
+  // Place ruins (avoid water/river/swamp; prefer grass/forest/desert/snow)
+  placeWithPredicate(
+    wantRuins,
+    (x, y) => {
+      const t = map[y][x];
+      if (t === TILES.WATER || t === TILES.RIVER || t === TILES.SWAMP) return false;
+      if (t === TILES.GRASS || t === TILES.FOREST) return rng() < 0.25;
+      if (t === TILES.DESERT || t === TILES.SNOW) return rng() < 0.12;
+      if (t === TILES.BEACH) return rng() < 0.05;
+      return false;
+    },
+    (x, y) => {
+      map[y][x] = TILES.RUINS;
+      ruins.push({ x, y });
     }
   );
 
@@ -460,7 +483,7 @@ export function generate(ctx, opts = {}) {
     if (d) carveRoad(t.x, t.y, d.x, d.y);
   }
 
-  return { map, width, height, towns, dungeons, roads, bridges };
+  return { map, width, height, towns, dungeons, ruins, roads, bridges };
 }
 
 export function pickTownStart(world, rng) {

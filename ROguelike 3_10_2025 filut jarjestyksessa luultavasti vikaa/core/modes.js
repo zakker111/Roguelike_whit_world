@@ -4,6 +4,7 @@
  * API:
  *   enterTownIfOnTile(ctx) -> boolean handled
  *   enterDungeonIfOnEntrance(ctx) -> boolean handled
+ *   enterRuinsIfOnTile(ctx) -> boolean handled
  *   returnToWorldIfAtExit(ctx) -> boolean handled
  *   leaveTownNow(ctx) -> void
  *   requestLeaveTown(ctx) -> void
@@ -334,6 +335,33 @@ export function enterDungeonIfOnEntrance(ctx) {
   return false;
 }
 
+export function enterRuinsIfOnTile(ctx) {
+  if (ctx.mode !== "world" || !ctx.world) return false;
+  const WT = ctx.World && ctx.World.TILES;
+  const mapRef = (Array.isArray(ctx.map) ? ctx.map : (ctx.world && Array.isArray(ctx.world.map) ? ctx.world.map : null));
+  if (!mapRef) return false;
+  const py = ctx.player.y | 0, px = ctx.player.x | 0;
+  if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
+  const t = mapRef[py][px];
+
+  if (t && WT && t === WT.RUINS) {
+    // Open Region Map at this location; RegionMapRuntime.open rejects town/dungeon but allows ruins
+    try {
+      const RMR = (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+      if (RMR && typeof RMR.open === "function") {
+        const ok = !!RMR.open(ctx);
+        if (ok) {
+          if (ctx.log) ctx.log("You enter the ancient ruins.", "notice");
+          syncAfterMutation(ctx);
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+  return false;
+}
+
 export function returnToWorldIfAtExit(ctx) {
   // Prefer DungeonRuntime centralization first
   try {
@@ -364,6 +392,7 @@ import { attachGlobal } from "../utils/global.js";
 attachGlobal("Modes", {
   enterTownIfOnTile,
   enterDungeonIfOnEntrance,
+  enterRuinsIfOnTile,
   returnToWorldIfAtExit,
   leaveTownNow,
   requestLeaveTown,
