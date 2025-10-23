@@ -767,17 +767,62 @@
       if (sizeKey === "city") return 8;
       return 5; // big
     }
-    const shopCount = Math.min(shopDefs.length, scored.length, shopLimitBySize(townSize));
+    const limit = Math.min(scored.length, shopLimitBySize(townSize));
+
+    // Deterministic sampling helpers for shop presence
+    function chanceFor(def, sizeKey) {
+      try {
+        const c = def && def.chanceBySize ? def.chanceBySize : null;
+        if (c && typeof c[sizeKey] === "number") {
+          const v = c[sizeKey];
+          return (v < 0 ? 0 : (v > 1 ? 1 : v));
+        }
+      } catch (_) {}
+      // Defaults if not specified in data
+      if (sizeKey === "city") return 0.75;
+      if (sizeKey === "big") return 0.60;
+      return 0.50; // small
+    }
+    function shuffleInPlace(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(ctx.rng() * (i + 1));
+        const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+      }
+    }
+
+    // Build shop selection: Inn always included, others sampled by chanceBySize
+    let innDef = null;
+    let candidateDefs = [];
+    for (let i = 0; i < shopDefs.length; i++) {
+      const d = shopDefs[i];
+      const isInn = String(d.type || "").toLowerCase() === "inn" || /inn/i.test(String(d.name || ""));
+      if (d.required === true || isInn) { innDef = d; continue; }
+      candidateDefs.push(d);
+    }
+    // Sample presence for non-inn shops
+    let sampled = [];
+    for (const d of candidateDefs) {
+      const ch = chanceFor(d, townSize);
+      if (ctx.rng() < ch) sampled.push(d);
+    }
+    // Shuffle and cap to remaining slots
+    shuffleInPlace(sampled);
+    const restCap = Math.max(0, limit - (innDef ? 1 : 0));
+    const finalDefs = [];
+    if (innDef) finalDefs.push(innDef);
+    for (let i = 0; i < Math.min(restCap, sampled.length); i++) finalDefs.push(sampled[i]);
 
     // Avoid assigning multiple shops to the same building
     const usedBuildings = new Set();
 
-    for (let i = 0; i < shopCount; i++) {
-      const def = shopDefs[i % shopDefs.length];
+    // Assign selected shops to nearest buildings
+    const finalCount = Math.min(finalDefs.length, scored.length);
+    for (let i = 0; i < finalCount; i++) {
+      const def = finalDefs[i];
       let b = scored[i].b;
 
       // Prefer the enlarged tavern building for the Inn if available; else nearest to plaza
-      if (def.type === "inn") {
+      if (String(def.type || "").toLowerCase() === "inn") {
         if (ctx.tavern && ctx.tavern.building) {
           b = ctx.tavern.building;
         } else {
@@ -798,7 +843,7 @@
       }
 
       // Extra guard: non-inn shops should never occupy the tavern building
-      if (def.type !== "inn" && ctx.tavern && ctx.tavern.building) {
+      if (String(def.type || "").toLowerCase() !== "inn" && ctx.tavern && ctx.tavern.building) {
         const tb = ctx.tavern.building;
         const isTavernBld = (b.x === tb.x && b.y === tb.y && b.w === tb.w && b.h === tb.h);
         if (isTavernBld) {
@@ -815,7 +860,7 @@
 
       // For Inn: prefer using existing double doors on the side facing the plaza if present
       let door = null;
-      if (def.type === "inn") {
+      if (String(def.type || "").toLowerCase() === "inn") {
         // check for any door on the inn building perimeter and pick one closest to plaza
         const cds = candidateDoors(b);
         let best = null, bestD = Infinity;
