@@ -533,11 +533,26 @@ export function enemiesAct(ctx) {
                 const key = String(killer).toLowerCase();
                 const pool = pools[key];
                 if (!pool || typeof pool !== "object") return null;
-                // Build weighted list
-                const entries = Object.keys(pool).map(k => ({ key: k, w: Math.max(0, Number(pool[k] || 0)) }));
-                if (!entries.length) return null;
+
+                // Prefer explicit weapons pool if present
+                let weaponEntries = null;
+                if (pool.weapons && typeof pool.weapons === "object") {
+                  weaponEntries = Object.keys(pool.weapons).map(k => ({ key: k, w: Math.max(0, Number(pool.weapons[k] || 0)) }));
+                } else {
+                  // Backward compatibility: flat pool; filter only items whose slot is 'hand'
+                  if (!IT || !IT.TYPES) return null;
+                  const flat = [];
+                  for (const k of Object.keys(pool)) {
+                    const w = Math.max(0, Number(pool[k] || 0));
+                    const def = IT.TYPES[k];
+                    if (def && def.slot === "hand" && w > 0) flat.push({ key: k, w });
+                  }
+                  weaponEntries = flat;
+                }
+                if (!weaponEntries || weaponEntries.length === 0) return null;
+
                 const rfn = rngPick();
-                const chosenKey = pickWeighted(entries, rfn);
+                const chosenKey = pickWeighted(weaponEntries, rfn);
                 if (!chosenKey || !IT || typeof IT.createByKey !== "function") return null;
                 const tier = EN && typeof EN.equipTierFor === "function" ? EN.equipTierFor(key) : 1;
                 const item = IT.createByKey(chosenKey, tier, rfn);
