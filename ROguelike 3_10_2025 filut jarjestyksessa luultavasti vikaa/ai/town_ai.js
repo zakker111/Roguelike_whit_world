@@ -170,7 +170,11 @@
     // Raise baseline during daytime to reduce reliance on greedy fallback
     const baseFrac = (phaseNow === "day") ? 0.30 : 0.20;
     const defaultBudget = Math.max(1, Math.floor(npcCount * baseFrac)); // 30% by day, 20% otherwise
-    ctx._townPathBudgetRemaining = (
+    ctx._townPathBudgetRemaining = (typeof ctx.townPathBudget === "number")
+      ? Math.max(0, ctx.townPathBudget)
+      : defaultBudget;
+  }
+
   function computePathBudgeted(ctx, occ, sx, sy, tx, ty, opts = {}) {
     if (typeof ctx._townPathBudgetRemaining !== "number") {
       // If not initialized, allow one and initialize lazily to a conservative value
