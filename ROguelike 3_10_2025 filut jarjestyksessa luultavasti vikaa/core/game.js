@@ -2450,7 +2450,7 @@
   }
 
   function restartGame() {
-    // Prefer centralized DeathFlow (still invoke, but continue to apply a new seed)
+    // Prefer centralized DeathFlow (still invoke), but preserve the current RNG seed unless the user explicitly rerolls.
     try {
       const DF = modHandle("DeathFlow");
       if (DF && typeof DF.restart === "function") {
@@ -2467,27 +2467,8 @@
       }
       if (player) { player.bleedTurns = 0; player.dazedTurns = 0; }
     } catch (_) {}
-    // Enter overworld and reroll seed so each new game starts with a fresh world
+    // Enter overworld with the existing RNG (deterministic if a seed is set in localStorage or via RNG.autoInit)
     mode = "world";
-    // Try GodControls.rerollSeed which applies and persists a new seed, then regenerates overworld
-    try {
-      const GC = modHandle("GodControls");
-      if (GC && typeof GC.rerollSeed === "function") {
-        GC.rerollSeed(() => getCtx());
-        return;
-      }
-    } catch (_) {}
-    // Fallback: apply a time-based seed via RNG service or direct init, then generate world
-    try {
-      const s = (Date.now() % 0xffffffff) >>> 0;
-      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.applySeed === "function") {
-        window.RNG.applySeed(s);
-        rng = window.RNG.rng;
-        initWorld();
-        return;
-      }
-    } catch (_) {}
-    // Ultimate fallback: no RNG service, just init world (non-deterministic)
     initWorld();
   }
 
