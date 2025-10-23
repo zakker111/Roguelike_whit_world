@@ -394,7 +394,7 @@ export function enemiesAct(ctx) {
         }
         const dmg = ctx.enemyDamageAfterDefense(raw);
         player.hp -= dmg;
-        try { if (dmg > 0 && typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
+        try { if (typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
         if (isCrit) ctx.log(`Critical! ${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "crit");
         else ctx.log(`${Cap(e.type)} hits your ${loc.part} for ${dmg}.`);
         const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
