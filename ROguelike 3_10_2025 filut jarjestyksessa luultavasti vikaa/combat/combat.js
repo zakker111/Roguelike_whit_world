@@ -223,6 +223,12 @@ export function playerAttackEnemy(ctx, enemy) {
     if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit");
     else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`);
     if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
+    // Record last hit for death flavor/meta
+    try {
+      const eq = ctx.player && ctx.player.equipment ? ctx.player.equipment : {};
+      const weaponName = (eq.right && eq.right.name) ? eq.right.name : (eq.left && eq.left.name) ? eq.left.name : null;
+      enemy._lastHit = { by: "player", part: loc.part, crit: isCrit, dmg, weapon: weaponName, via: weaponName ? `with ${weaponName}` : "melee" };
+    } catch (_) {}
   } catch (_) {}
 
   // Status effects on crit

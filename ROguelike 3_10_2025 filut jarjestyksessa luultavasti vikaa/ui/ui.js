@@ -60,6 +60,11 @@ export const UI = {
     this.els.godFovValue = document.getElementById("god-fov-value");
     this.els.godEncRate = document.getElementById("god-enc-rate");
     this.els.godEncRateValue = document.getElementById("god-enc-rate-value");
+    // Encounter debug controls
+    this.els.godEncSelect = document.getElementById("god-enc-select");
+    this.els.godEncStartBtn = document.getElementById("god-enc-start-btn");
+    this.els.godEncArmBtn = document.getElementById("god-enc-arm-btn");
+
     this.els.godToggleMirrorBtn = document.getElementById("god-toggle-mirror-btn");
     this.els.godToggleCritBtn = document.getElementById("god-toggle-crit-btn");
     this.els.godToggleGridBtn = document.getElementById("god-toggle-grid-btn");
@@ -312,6 +317,42 @@ export const UI = {
       };
       this.els.godEncRate.addEventListener("input", updateEncRate);
       this.els.godEncRate.addEventListener("change", updateEncRate);
+    }
+    // Populate encounter select with templates once GameData is ready
+    (function initEncounterSelect(self) {
+      try {
+        const apply = () => {
+          const el = self.els.godEncSelect;
+          if (!el) return;
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          const list = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
+          const opts = ['<option value="">(auto)</option>'].concat(
+            list.map(t => {
+              const id = String(t.id || "");
+              const name = String(t.name || id || "encounter");
+              return `<option value="${id}">${name}</option>`;
+            })
+          ).join("");
+          el.innerHTML = opts;
+        };
+        if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
+          window.GameData.ready.then(() => apply());
+        } else {
+          apply();
+        }
+      } catch (_) {}
+    })(this);
+    if (this.els.godEncStartBtn) {
+      this.els.godEncStartBtn.addEventListener("click", () => {
+        const sel = this.els.godEncSelect ? (this.els.godEncSelect.value || "") : "";
+        if (typeof this.handlers.onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow(sel);
+      });
+    }
+    if (this.els.godEncArmBtn) {
+      this.els.godEncArmBtn.addEventListener("click", () => {
+        const sel = this.els.godEncSelect ? (this.els.godEncSelect.value || "") : "";
+        if (typeof this.handlers.onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove(sel);
+      });
     }
     if (this.els.godToggleMirrorBtn) {
       this.els.godToggleMirrorBtn.addEventListener("click", () => {
@@ -705,7 +746,7 @@ export const UI = {
     if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
   },
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -730,6 +771,8 @@ export const UI = {
     if (typeof onGodApplyBleed === "function") this.handlers.onGodApplyBleed = onGodApplyBleed;
     if (typeof onGodApplyDazed === "function") this.handlers.onGodApplyDazed = onGodApplyDazed;
     if (typeof onGodClearEffects === "function") this.handlers.onGodClearEffects = onGodClearEffects;
+    if (typeof onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow = onGodStartEncounterNow;
+    if (typeof onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove = onGodArmEncounterNextMove;
   },
 
   updateStats(player, floor, getAtk, getDef, time, perf) {

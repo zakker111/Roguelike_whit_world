@@ -2596,6 +2596,67 @@
   
 
   
+  // Lightweight hint: in overworld, occasionally inform the player about nearby wildlife so they can open Region Map.
+  let _wildNoHintTurns = 0;
+  function maybeEmitOverworldAnimalHint() {
+    try {
+      if (mode !== "world" || !world || !world.map) { _wildNoHintTurns = 0; return; }
+
+      const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
+      if (!WT) return;
+      const tHere = world.map[player.y] && world.map[player.y][player.x];
+
+      // Only hint on wild-ish tiles
+      const onWild = (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
+      if (!onWild) { _wildNoHintTurns = 0; return; }
+
+      // Respect a cooldown to avoid log spam
+      const MIN_TURNS_BETWEEN_HINTS = 12;
+      if ((turnCounter - lastAnimalHintTurn) < MIN_TURNS_BETWEEN_HINTS) { _wildNoHintTurns++; return; }
+
+      // Skip if this tile has been fully cleared in Region Map
+      try {
+        const RM = (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+        if (RM && typeof RM.animalsClearedHere === "function") {
+          if (RM.animalsClearedHere(player.x | 0, player.y | 0)) { _wildNoHintTurns = 0; return; }
+        }
+      } catch (_) {}
+
+      // Biome-weighted chance (more generous to ensure visibility)
+      const base =
+        (tHere === WT.FOREST) ? 0.55 :
+        (tHere === WT.GRASS)  ? 0.35 :
+        (tHere === WT.BEACH)  ? 0.20 : 0.0;
+
+      // Pity: if we've been on wild tiles a long time without a hint, force one
+      const PITY_TURNS = 40;
+      const force = (_wildNoHintTurns >= PITY_TURNS);
+
+      let success = false;
+      if (force) {
+        success = true;
+      } else if (base > 0) {
+        try {
+          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+            success = !!window.RNGUtils.chance(base, rng);
+          } else {
+            success = rng() < base;
+          }
+        } catch (_) {
+          success = rng() < base;
+        }
+      }
+
+      if (success) {
+        log("You notice signs of wildlife nearby. Press G to open the Region Map.", "notice");
+        lastAnimalHintTurn = turnCounter;
+       wildNoHintTurns = 0;
+      } else {
+        _wildNoHintTurns++;
+      }
+    } catch (_) {}
+  }
+
   function turn() {
     if (isDead) return;
 
@@ -2616,6 +2677,10 @@
           if (cPost && cPost.mode !== mode) {
             applyCtxSyncAndRefresh(cPost);
           }
+        } catch (_) {}
+        // Overworld wildlife hint even when TurnLoop is active
+        try {
+          if (mode === "world") { maybeEmitOverworldAnimalHint(); }
         } catch (_) {}
         const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
         PERF.lastTurnMs = t1 - t0;
@@ -2671,6 +2736,8 @@
       if (WR && typeof WR.tick === "function") {
         WR.tick(getCtx());
       }
+      // After world tick, maybe emit a wildlife hint
+      maybeEmitOverworldAnimalHint();
     } else if (mode === "encounter") {
       const ER = modHandle("EncounterRuntime");
       if (ER && typeof ER.tick === "function") {
@@ -2747,6 +2814,51 @@
           onGodSetCritPart: (part) => setCritPart(part),
           onGodApplySeed: (seed) => applySeed(seed),
           onGodRerollSeed: () => rerollSeed(),
+          // Encounter debug helpers
+          onGodStartEncounterNow: (encId) => {
+            try {
+              const id = String(encId || "").toLowerCase();
+              const GD = (typeof window !== "undefined" ? window.GameData : null);
+              const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
+              const t = reg.find(t => String(t.id || "").toLowerCase() === id) || null;
+              if (!t) {
+                if (id) log(`GOD: Encounter '${id}' not found.`, "warn");
+                return;
+              }
+              if (mode !== "world") {
+                log("GOD: Start Now works in overworld only.", "warn");
+                return;
+              }
+              const tile = world && world.map ? world.map[player.y][player.x] : null;
+              const biome = (function () {
+                try {
+                  const W = (typeof window !== "undefined" && window.World) ? window.World : null;
+                  return (W && typeof W.biomeName === "function") ? (W.biomeName(tile) || "").toUpperCase() : "";
+                } catch (_) { return ""; }
+              })();
+              const diff = 1;
+              const ok = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function")
+                ? window.GameAPI.enterEncounter(t, biome, diff)
+                : false;
+              if (!ok) {
+                const ER = modHandle("EncounterRuntime");
+                if (ER && typeof ER.enter === "function") {
+                  const ctxMod = getCtx();
+                  if (ER.enter(ctxMod, { template: t, biome, difficulty: diff })) {
+                    applyCtxSyncAndRefresh(ctxMod);
+                  }
+                }
+              }
+            } catch (_) {}
+          },
+          onGodArmEncounterNextMove: (encId) => {
+            try {
+              const id = String(encId || "");
+              if (!id) { log("GOD: Select an encounter first.", "warn"); return; }
+              window.DEBUG_ENCOUNTER_ARM = id;
+              log(`GOD: Armed '${id}' — will trigger on next overworld move.`, "notice");
+            } catch (_) {}
+          },
           // Status effect test hooks
           onGodApplyBleed: (dur = 3) => {
             const GC = modHandle("GodControls");
