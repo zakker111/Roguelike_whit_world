@@ -2596,6 +2596,56 @@
   
 
   
+  // Lightweight hint: in overworld, occasionally inform the player about nearby wildlife so they can open Region Map.
+  function maybeEmitOverworldAnimalHint() {
+    try {
+      if (mode !== "world" || !world || !world.map) return;
+      // Respect a cooldown to avoid log spam
+      const MIN_TURNS_BETWEEN_HINTS = 28;
+      if ((turnCounter - lastAnimalHintTurn) < MIN_TURNS_BETWEEN_HINTS) return;
+
+      const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
+      if (!WT) return;
+      const tHere = world.map[player.y] && world.map[player.y][player.x];
+
+      // Only hint on wild-ish tiles
+      const onWild = (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
+      if (!onWild) return;
+
+      // Skip if this tile has been fully cleared in Region Map
+      try {
+        const RM = (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+        if (RM && typeof RM.animalsClearedHere === "function") {
+          if (RM.animalsClearedHere(player.x | 0, player.y | 0)) return;
+        }
+      } catch (_) {}
+
+      // Biome-weighted chance
+      const base =
+        (tHere === WT.FOREST) ? 0.35 :
+        (tHere === WT.GRASS)  ? 0.20 :
+        (tHere === WT.BEACH)  ? 0.12 : 0.0;
+
+      if (base <= 0) return;
+
+      // Deterministic RNG if available
+      let roll = 1;
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          roll = window.RNGUtils.chance(base, rng) ? 0 : 1; // treat as success flag
+        } else {
+          roll = (rng() < base) ? 0 : 1;
+        }
+      } catch (_) {
+        roll = (rng() < base) ? 0 : 1;
+      }
+      if (roll === 0) {
+        log("You notice signs of wildlife nearby. Press G to open the Region Map.", "info");
+        lastAnimalHintTurn = turnCounter;
+      }
+    } catch (_) {}
+  }
+
   function turn() {
     if (isDead) return;
 
@@ -2671,6 +2721,8 @@
       if (WR && typeof WR.tick === "function") {
         WR.tick(getCtx());
       }
+      // After world tick, maybe emit a wildlife hint
+      maybeEmitOverworldAnimalHint();
     } else if (mode === "encounter") {
       const ER = modHandle("EncounterRuntime");
       if (ER && typeof ER.tick === "function") {
