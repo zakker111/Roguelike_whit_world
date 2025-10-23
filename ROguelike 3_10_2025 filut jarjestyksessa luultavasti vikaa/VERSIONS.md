@@ -1,5 +1,31 @@
 # Game Version History
-Last updated: 2025-10-23 00:00 UTC
+Last updated: 2025-10-23 13:00 UTC
+
+v1.39.0 — Night Raid encounter, GOD encounter debugger, and weapon-only kill attribution
+- Encounters
+  - New template: night_raid_goblins (data/encounters.json)
+    - 5–7 bandits (faction: bandit) vs 5–10 goblins (faction: goblin)
+    - Night-only; 3% share of all encounters; at most once per in-game week
+    - Map: camp 28×18; playerSpawn: edge; allowedBiomes: FOREST/GRASS/SWAMP/SNOW/DESERT
+  - services/encounter_service.js
+    - Special-case scheduler for night_raid_goblins with weekly cooldown and 3% probability integrated into the normal roll
+    - Debug hook: window.DEBUG_ENCOUNTER_ARM to force a specific encounter on the next overworld step
+    - Small refactor: registry()/rngFor()/findTemplateById()/tryEnter() helpers
+- GOD panel (Encounters debugger)
+  - index.html + ui/ui.js + core/game.js
+    - New controls under “Encounters”: template dropdown, Start Now (launch immediately in overworld), Arm Next Move (trigger on next step)
+    - ui/ui.js setHandlers now wires onGodStartEncounterNow and onGodArmEncounterNextMove
+    - Fix: “Start Now does not start encounter” — handlers now connected; Start Now works in overworld
+    - Dropdown auto-populates from GameData.encounters.templates
+- Encounter runtime
+  - core/encounter_runtime.js: supports template.playerSpawn = "edge" to place the player at a safe map edge when requested (center otherwise)
+- Corpses and kill attribution
+  - ai/ai.js: non-player kills now pick a concrete weapon from the killer’s loot pool and record it in _lastHit
+  - data/enemy_loot_pools.json: schema split into { weapons: {...}, armor: {...} } so attribution never picks armor as a “weapon”
+  - Back-compat: flat pools are filtered to hand-slot items when present
+  - Corpses display “(with <weapon name>)” when known; fall back to melee/likely cause otherwise
+
+Deployment: https://4eu9dewop4k3.cosine.page
 
 v1.38.0 — Ruins AI fix, non-bleeding undead, '?' fallback enemy, and input simplification
 - Input
