@@ -6,7 +6,10 @@
   },
   "world": {
     "MAP_COLS": 120,
-    "MAP_ROWS": 80
+    "MAP_ROWS": 80,
+    "infinite": false,
+    "roadsEnabled": false,
+    "bridgesEnabled": false
   },
   "fov": {
     "default": 8,

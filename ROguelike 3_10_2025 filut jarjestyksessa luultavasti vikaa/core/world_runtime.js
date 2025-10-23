@@ -16,6 +16,45 @@ function currentSeed() {
   return (Date.now() >>> 0);
 }
 
+// Config helpers (GameData.config overrides, with localStorage flags for quick toggles)
+function _getConfig() {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    if (GD && GD.config && GD.config.world) return GD.config.world;
+  } catch (_) {}
+  return {};
+}
+function _lsBool(key) {
+  try {
+    const v = localStorage.getItem(key);
+    if (typeof v === "string") {
+      const s = v.toLowerCase();
+      return s === "1" || s === "true" || s === "yes" || s === "on";
+    }
+  } catch (_) {}
+  return null;
+}
+function featureEnabled(name, defaultVal) {
+  // LocalStorage override takes precedence, else config value, else default
+  const ls = _lsBool(name);
+  if (ls != null) return !!ls;
+  const cfg = _getConfig();
+  if (name === "WORLD_INFINITE") {
+    // config.world.infinite boolean
+    if (typeof cfg.infinite === "boolean") return !!cfg.infinite;
+    return !!defaultVal;
+  }
+  if (name === "WORLD_ROADS") {
+    if (typeof cfg.roadsEnabled === "boolean") return !!cfg.roadsEnabled;
+    return !!defaultVal;
+  }
+  if (name === "WORLD_BRIDGES") {
+    if (typeof cfg.bridgesEnabled === "boolean") return !!cfg.bridgesEnabled;
+    return !!defaultVal;
+  }
+  return !!defaultVal;
+}
+
 // Stable coordinate hash → [0,1). Used to derive deterministic POI metadata.
 function h2(x, y) {
   const n = (((x | 0) * 73856093) ^ ((y | 0) * 19349663)) >>> 0;
@@ -89,10 +128,14 @@ function scanPOIs(ctx, x0, y0, w, h) {
       }
     }
   }
-  // After registering POIs in this strip/window, connect nearby towns with roads and mark bridges.
-  try { ensureRoads(ctx); } catch (_) {}
-  // Ensure there are usable river crossings independent of roads: add bridges periodically across long river spans.
-  try { ensureExtraBridges(ctx); } catch (_) {}
+  // After registering POIs in this strip/window, connect nearby towns with roads and mark bridges (feature-gated).
+  try {
+    if (featureEnabled("WORLD_ROADS", false)) ensureRoads(ctx);
+  } catch (_) {}
+  // Ensure there are usable river crossings independent of roads (feature-gated).
+  try {
+    if (featureEnabled("WORLD_BRIDGES", false)) ensureExtraBridges(ctx);
+  } catch (_) {}
 }
 
 // Build roads between nearby towns in current window and mark bridge points where crossing water/river
@@ -457,7 +500,7 @@ export function _ensureInBounds(ctx, nx, ny, CHUNK = 32) {
 }
 
 export function generate(ctx, opts = {}) {
-  // Prefer infinite generator; fall back to finite world if module missing
+  // Prefer infinite generator; fall back to finite world if module missing or disabled
   const IG = (typeof window !== "undefined" ? window.InfiniteGen : null);
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
 
@@ -471,8 +514,11 @@ export function generate(ctx, opts = {}) {
   ctx.npcs = [];
   ctx.shops = [];
 
+  // Feature gate for infinite world
+  const infiniteEnabled = featureEnabled("WORLD_INFINITE", true);
+
   // Create generator (infinite) or fall back
-  if (IG && typeof IG.create === "function") {
+  if (infiniteEnabled && IG && typeof IG.create === "function") {
     const seed = currentSeed();
     const gen = IG.create(seed);
 
