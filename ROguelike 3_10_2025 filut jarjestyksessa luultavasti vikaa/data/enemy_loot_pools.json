@@ -1,4 +1,16 @@
 {
+  "__guidelines": [
+    "Purpose: map enemy id -> { itemKey: weight, ... } to bias equipment drops for that enemy.",
+    "When an enemy dies and its equipChance (from data/enemies.json) succeeds, an item is chosen from its pool only.",
+    "There is no fallback to generic items: if the pool is missing/invalid for an enemy, no equipment drops on that roll.",
+    "Weights are relative; they do not need to sum to 1. Any positive numbers work.",
+    "Item keys must exist in the Items registry (data/items.json id, or window.Items.TYPES). Unknown keys are skipped.",
+    "Tiering: item is created at max(item.minTier, enemyTier). Enemy tier is from enemies.json (used via Enemies.equipTierFor).",
+    "Enemy ids should match data/enemies.json 'id' (case-insensitive; lower-case recommended).",
+    "Keep this file strict JSON. This '__guidelines' section is here to document usage without breaking JSON parsing.",
+    "Neutral animals (deer/boar/fox) ignore this; they drop meat/leather only."
+  ],
+
   "goblin": { "dagger": 0.6, "mace": 0.25, "shield": 0.15, "club": 0.3 },
   "bandit": { "sword_simple": 0.5, "dagger": 0.3, "axe": 0.2 },
   "orc": { "axe": 0.5, "greatsword": 0.2, "helmet": 0.15, "torso_armor": 0.15 },
