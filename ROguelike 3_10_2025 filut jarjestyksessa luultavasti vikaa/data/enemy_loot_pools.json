@@ -1,0 +1,8 @@
+{
+  "goblin": { "dagger": 0.6, "mace": 0.25, "shield": 0.15 },
+  "bandit": { "sword_simple": 0.5, "dagger": 0.3, "axe": 0.2 },
+  "orc": { "axe": 0.5, "greatsword": 0.2, "helmet": 0.15, "torso_armor": 0.15 },
+  "troll": { "mace": 0.5, "leg_armor": 0.2, "torso_armor": 0.2, "shield": 0.1 },
+  "skeleton": { "sword_simple": 0.4, "shield": 0.3, "helmet": 0.3 },
+  "ogre": { "greatsword": 0.4, "axe": 0.3, "torso_armor": 0.2, "helmet": 0.1 }
+}

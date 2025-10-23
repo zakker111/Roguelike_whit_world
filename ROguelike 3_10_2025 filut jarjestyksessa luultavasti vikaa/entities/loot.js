@@ -127,6 +127,62 @@ function fallbackEquipment(ctx, tier) {
 }
 
 /**
+ * Enemy-biased equipment picker:
+ * - Uses data/enemy_loot_pools.json (loaded into GameData.enemyLoot) when available.
+ * - Each enemy id maps to { itemKey: weight, ... }.
+ * - Picks an item key by weight, clamps tier to the item's minTier, and creates via Items.createByKey.
+ * Returns: item object or null if no suitable pool/entries.
+ */
+function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
+    if (!pools) return null;
+    const pool = pools[String(enemyType || "").toLowerCase()] || pools[enemyType] || pools[String(enemyType || "")];
+    if (!pool) return null;
+
+    const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
+    if (!ItemsMod || typeof ItemsMod.getTypeDef !== "function" || typeof ItemsMod.createByKey !== "function") return null;
+
+    // Build candidates that exist in Items registry and have positive weight
+    const entries = [];
+    for (const key in pool) {
+      if (!Object.prototype.hasOwnProperty.call(pool, key)) continue;
+      const w = Number(pool[key] || 0);
+      if (!(w > 0)) continue;
+      const def = ItemsMod.getTypeDef(key);
+      if (!def) continue;
+      entries.push({ key, def, w });
+    }
+    if (!entries.length) return null;
+
+    // Weighted pick
+    const rng = (function () {
+      try {
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+          return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
+        }
+      } catch (_) {}
+      return (typeof ctx.rng === "function") ? ctx.rng : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function" ? window.RNG.rng : Math.random);
+    })();
+    let total = 0;
+    for (const e of entries) total += e.w;
+    if (!(total > 0)) return null;
+    let r = rng() * total;
+    let chosen = entries[0];
+    for (const e of entries) {
+      if (r < e.w) { chosen = e; break; }
+      r -= e.w;
+    }
+
+    const minT = Math.max(1, Number(chosen.def.minTier || 1));
+    const finalTier = Math.max(minT, Math.min(3, Number(tier || 1)));
+    const item = ItemsMod.createByKey(chosen.key, finalTier, rng);
+    return item || null;
+  } catch (_) { return null; }
+}
+
+/**
  * Build the drop list for a defeated enemy.
  * Always grants some gold, may add:
  * - a potion (weighted by enemy type)
@@ -188,7 +244,11 @@ export function generate(ctx, source) {
   const equipChance = (EM && typeof EM.equipChanceFor === "function") ? EM.equipChanceFor(type) : (type === "ogre" ? 0.75 : (type === "troll" ? 0.55 : 0.35));
   if (ctx.chance(equipChance)) {
     const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
-    if (ItemsMod && typeof ItemsMod.createEquipment === "function") {
+    // Try enemy-biased equipment from JSON pools; fallback to general item generation
+    const biased = pickEnemyBiasedEquipment(ctx, type, tier);
+    if (biased) {
+      drops.push(biased);
+    } else if (ItemsMod && typeof ItemsMod.createEquipment === "function") {
       drops.push(ItemsMod.createEquipment(tier, ctx.rng));
     } else {
       drops.push(fallbackEquipment(ctx, tier));
