@@ -57,6 +57,7 @@ export function getRng(seedOpt) {
   const f = mulberry32(s);
   return function () { return f(); };
 };
+};
 }
 
 // Back-compat: attach to window via helper
