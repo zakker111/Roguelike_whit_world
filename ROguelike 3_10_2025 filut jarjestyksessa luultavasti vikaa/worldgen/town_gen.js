@@ -790,9 +790,9 @@
       }
     }
 
-    // Build shop selection: Inn always included, others sampled by chanceBySize
+    // Build shop selection: Inn always included, others sampled by chanceBySize (dedup by type)
     let innDef = null;
-    let candidateDefs = [];
+    const candidateDefs = [];
     for (let i = 0; i < shopDefs.length; i++) {
       const d = shopDefs[i];
       const isInn = String(d.type || "").toLowerCase() === "inn" || /inn/i.test(String(d.name || ""));
@@ -805,12 +805,33 @@
       const ch = chanceFor(d, townSize);
       if (ctx.rng() < ch) sampled.push(d);
     }
-    // Shuffle and cap to remaining slots
+    // Shuffle and cap, but avoid duplicate types within a single town
     shuffleInPlace(sampled);
     const restCap = Math.max(0, limit - (innDef ? 1 : 0));
     const finalDefs = [];
-    if (innDef) finalDefs.push(innDef);
-    for (let i = 0; i < Math.min(restCap, sampled.length); i++) finalDefs.push(sampled[i]);
+    const usedTypes = new Set();
+    if (innDef) {
+      finalDefs.push(innDef);
+      usedTypes.add(String(innDef.type || innDef.name || "").toLowerCase());
+    }
+    // Fill with sampled unique types
+    for (let i = 0; i < sampled.length && finalDefs.length < ((innDef ? 1 : 0) + restCap); i++) {
+      const d = sampled[i];
+      const tKey = String(d.type || d.name || "").toLowerCase();
+      if (usedTypes.has(tKey)) continue;
+      finalDefs.push(d);
+      usedTypes.add(tKey);
+    }
+    // If we still have capacity, pull additional unique types from the full candidate list
+    if (finalDefs.length < ((innDef ? 1 : 0) + restCap)) {
+      for (const d of candidateDefs) {
+        const tKey = String(d.type || d.name || "").toLowerCase();
+        if (usedTypes.has(tKey)) continue;
+        finalDefs.push(d);
+        usedTypes.add(tKey);
+        if (finalDefs.length >= ((innDef ? 1 : 0) + restCap)) break;
+      }
+    }
 
     // Avoid assigning multiple shops to the same building
     const usedBuildings = new Set();
