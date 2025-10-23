@@ -491,7 +491,13 @@ export function enemiesAct(ctx) {
           if (isCrit) raw *= (ctx.critMultiplier ? ctx.critMultiplier() : (1.6 + ctx.rng() * 0.4));
           const dmg = Math.max(0.1, Math.round(raw * 10) / 10);
           target.ref.hp -= dmg;
-          try { if (dmg > 0 && typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(target.ref.x, target.ref.y, isCrit ? 1.2 : 0.9); } catch (_) {}
+          try {
+            const ttype = String(target.ref.type || "");
+            const ethereal = /ghost|spirit|wraith/i.test(ttype);
+            if (!ethereal && dmg > 0 && typeof ctx.addBloodDecal === "function") {
+              ctx.addBloodDecal(target.ref.x, target.ref.y, isCrit ? 1.2 : 0.9);
+            }
+          } catch (_) {}
           try {
             ctx.log(`${Cap(e.type)} hits ${Cap(target.ref.type)} for ${dmg}.`, isCrit ? "crit" : "info");
           } catch (_) {}
