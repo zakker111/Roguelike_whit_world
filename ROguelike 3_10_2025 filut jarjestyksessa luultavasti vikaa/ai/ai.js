@@ -70,6 +70,32 @@ export function enemiesAct(ctx) {
 
   const senseRange = 8;
 
+  // Walkability that respects Region Map tiles (overworld semantics) as well as dungeon
+  function walkableAt(x, y) {
+    try {
+      if (!ctx.inBounds || !ctx.inBounds(x, y)) return false;
+    } catch (_) {
+      // best-effort bounds check
+      const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+      const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+      if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+    }
+    // In region mode, prefer World.isWalkable for overworld tile ids
+    try {
+      if (ctx.mode === "region") {
+        const WT = (typeof window !== "undefined" && window.World) ? window.World : (ctx.World || null);
+        const tile = ctx.map[y][x];
+        if (WT && typeof WT.isWalkable === "function") return !!WT.isWalkable(tile);
+        // Fallback: treat water/river/mountain as blocked
+        const WTTiles = WT && WT.TILES ? WT.TILES : null;
+        if (WTTiles) return !(tile === WTTiles.WATER || tile === WTTiles.RIVER || tile === WTTiles.MOUNTAIN);
+      }
+    } catch (_) {}
+    // Default to ctx.isWalkable (dungeon/town)
+    try { return !!ctx.isWalkable(x, y); } catch (_) {}
+    return true;
+  }
+
   // Faction helpers (minimal matrix: different factions are hostile, all hostile to player)
   const factionOf = (en) => {
     if (!en) return "neutral";
@@ -94,7 +120,7 @@ export function enemiesAct(ctx) {
         add() {},
         isFree(x, y, opts) {
           const ignorePlayer = !!(opts && opts.ignorePlayer);
-          const blocked = !ctx.isWalkable(x, y) || (!ignorePlayer && player.x === x && player.y === y);
+          const blocked = !walkableAt(x, y) || (!ignorePlayer && player.x === x && player.y === y);
           if (blocked) return false;
           const key = occKey(x, y);
           for (const en of enemies) {
@@ -140,7 +166,7 @@ export function enemiesAct(ctx) {
 
   // Prefer shared OccupancyGrid if provided in ctx; fallback to per-turn set
   let isFree = (x, y) => {
-    const blocked = !ctx.isWalkable(x, y) || (player.x === x && player.y === y);
+    const blocked = !walkableAt(x, y) || (player.x === x && player.y === y);
     if (blocked) return false;
     if (occ && typeof occ.isFree === "function") {
       return occ.isFree(x, y, { ignorePlayer: true });

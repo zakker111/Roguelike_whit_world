@@ -136,6 +136,34 @@ export function draw(ctx, view) {
     ctx2d.restore();
   } catch (_) {}
 
+  // Blood decals overlay (region)
+  if (ctx.decals && ctx.decals.length) {
+    ctx2d.save();
+    for (let i = 0; i < ctx.decals.length; i++) {
+      const d = ctx.decals[i];
+      const inView = (x, y) => x >= startX && x <= endX && y >= startY && y <= endY;
+      if (!inView(d.x, d.y)) continue;
+      const sx = (d.x - startX) * TILE - tileOffsetX;
+      const sy = (d.y - startY) * TILE - tileOffsetY;
+      const everSeen = seen[d.y] && seen[d.y][d.x];
+      if (!everSeen) continue;
+      const alpha = Math.max(0, Math.min(1, d.a || 0.2));
+      if (alpha <= 0) continue;
+
+      const prev = ctx2d.globalAlpha;
+      ctx2d.globalAlpha = alpha;
+      ctx2d.fillStyle = "#7a1717";
+      const r = Math.max(4, Math.min(TILE - 2, d.r || Math.floor(TILE * 0.4)));
+      const cx = sx + TILE / 2;
+      const cy = sy + TILE / 2;
+      ctx2d.beginPath();
+      ctx2d.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx2d.fill();
+      ctx2d.globalAlpha = prev;
+    }
+    ctx2d.restore();
+  }
+
   // Entities overlay: draw markers for any enemies/animals in the region when visible
   try {
     if (Array.isArray(ctx.enemies)) {
