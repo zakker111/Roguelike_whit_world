@@ -14,6 +14,10 @@ v1.38.0 — Ruins AI fix, non-bleeding undead, '?' fallback enemy, and input sim
   - Enemy AI now respects overworld walkability (World.isWalkable) so enemies move and attack properly inside Ruins.
   - Blood decals now render in Region Map.
   - Ruins spawns use mime_ghost (defined in enemies.json) instead of an undefined ghost id.
+- Loot/Items
+  - Enemy-specific equipment loot pools added (data/enemy_loot_pools.json). On a successful equip drop roll, items are now chosen exclusively from the enemy’s pool; no generic fallback.
+  - New item: club (hand, blunt). Added to goblin’s pool; daggers remain disabled in general item weights but can drop via enemy pools.
+  - The pools file includes a top-level "__guidelines" section documenting safe editing rules.
 - Fallback enemy for missing types
   - When an enemy type is missing or creation fails, the game now spawns a clear fallback enemy with glyph '?' and logs a warning:
     - Applied in dungeon generation, encounter spawns, Ruins region spawns, and GOD spawn when the type is undefined.
