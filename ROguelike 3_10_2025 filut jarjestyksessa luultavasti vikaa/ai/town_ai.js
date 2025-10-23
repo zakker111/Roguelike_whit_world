@@ -641,6 +641,32 @@
     const LATE_START = 2 * 60, LATE_END = 5 * 60;
     const inLateWindow = minutes >= LATE_START && minutes < LATE_END;
 
+    // Evening return window: boost pathfinding budget to smooth mass routing (18:00–21:00)
+    try {
+      const EVENING_START = 18 * 60, EVENING_END = 21 * 60;
+      if (minutes >= EVENING_START && minutes < EVENING_END) {
+        const boosted = Math.max(typeof ctx._townPathBudgetRemaining === "number" ? ctx._townPathBudgetRemaining : 0,
+                                 Math.floor(npcs.length * 0.35));
+        ctx._townPathBudgetRemaining = boosted;
+      }
+    } catch (_) {}
+
+    // Inn seating cap to prevent overcrowding; computed per tick
+    const innBForCap = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+    let _innSeatCap = 0;
+    let _innSeatersNow = 0;
+    if (innBForCap) {
+      try {
+        const seatsCount = innSeatSpots(ctx).length;
+        _innSeatCap = Math.max(2, Math.min(6, Math.floor((seatsCount || 0) * 0.5) || 2));
+        for (const x of npcs) {
+          if ((x._innSeatGoal) || (x._innStayTurns && x._innStayTurns > 0)) _innSeatersNow++;
+        }
+      } catch (_) {
+        _innSeatCap = 4;
+      }
+    }
+
     // Helper: pick a target inside the Inn (prefer a bed, fallback to a free interior near door)
     function innBedSpots(ctx) {
       const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
@@ -1217,11 +1243,11 @@
           // Occasionally visit the tavern (Inn) to sit; plus bench/home sitting options
           if (innB) {
             const wantTavern = n._likesInn ? (ctx.rng() < 0.20) : (ctx.rng() < 0.06);
-            if (wantTavern && !n._innSeatGoal && !n._benchSeatGoal && !n._homeSitGoal) {
+            if (wantTavern && !n._innSeatGoal && !n._benchSeatGoal && !n._homeSitGoal && (_innSeatersNow < _innSeatCap)) {
               const seat = chooseInnSeat(ctx);
               if (seat) {
                 n._innSeatGoal = { x: seat.x, y: seat.y };
-                if (routeIntoBuilding(ctx, occ, n, innB, seat)) continue;
+                if (routeIntoBuilding(ctx, occ, n, innB, seat)) { _innSeatersNow++; continue; }
               }
             }
           }
@@ -1322,11 +1348,10 @@
           continue;
         }
         const seat2 = chooseInnSeat(ctx);
-        if (innB2 && seat2) {
+        if (innB2 && seat2 && (_innSeatersNo <u _innSeatCap)) {
           if (routeIntoBuilding(ctx, occ, n, innB2, seat2)) {
             n._innSeatGoal = { x: seat2.x, y: seat2.y };
-            continue;
-          }
+            _innSeatersNow++;
         }
       }
       // Night/evening bench sit/sleep chance
