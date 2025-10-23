@@ -2597,12 +2597,10 @@
 
   
   // Lightweight hint: in overworld, occasionally inform the player about nearby wildlife so they can open Region Map.
+  let _wildNoHintTurns = 0;
   function maybeEmitOverworldAnimalHint() {
     try {
-      if (mode !== "world" || !world || !world.map) return;
-      // Respect a cooldown to avoid log spam
-      const MIN_TURNS_BETWEEN_HINTS = 28;
-      if ((turnCounter - lastAnimalHintTurn) < MIN_TURNS_BETWEEN_HINTS) return;
+      if (mode !== "world" || !world || !world.map) { _wildNoHintTurns = 0; return; }
 
       const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
       if (!WT) return;
@@ -2610,38 +2608,51 @@
 
       // Only hint on wild-ish tiles
       const onWild = (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
-      if (!onWild) return;
+      if (!onWild) { _wildNoHintTurns = 0; return; }
+
+      // Respect a cooldown to avoid log spam
+      const MIN_TURNS_BETWEEN_HINTS = 12;
+      if ((turnCounter - lastAnimalHintTurn) < MIN_TURNS_BETWEEN_HINTS) { _wildNoHintTurns++; return; }
 
       // Skip if this tile has been fully cleared in Region Map
       try {
         const RM = (typeof window !== "undefined" ? window.RegionMapRuntime : null);
         if (RM && typeof RM.animalsClearedHere === "function") {
-          if (RM.animalsClearedHere(player.x | 0, player.y | 0)) return;
+          if (RM.animalsClearedHere(player.x | 0, player.y | 0)) { _wildNoHintTurns = 0; return; }
         }
       } catch (_) {}
 
-      // Biome-weighted chance
+      // Biome-weighted chance (more generous to ensure visibility)
       const base =
-        (tHere === WT.FOREST) ? 0.35 :
-        (tHere === WT.GRASS)  ? 0.20 :
-        (tHere === WT.BEACH)  ? 0.12 : 0.0;
+        (tHere === WT.FOREST) ? 0.55 :
+        (tHere === WT.GRASS)  ? 0.35 :
+        (tHere === WT.BEACH)  ? 0.20 : 0.0;
 
-      if (base <= 0) return;
+      // Pity: if we've been on wild tiles a long time without a hint, force one
+      const PITY_TURNS = 40;
+      const force = (_wildNoHintTurns >= PITY_TURNS);
 
-      // Deterministic RNG if available
-      let roll = 1;
-      try {
-        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-          roll = window.RNGUtils.chance(base, rng) ? 0 : 1; // treat as success flag
-        } else {
-          roll = (rng() < base) ? 0 : 1;
+      let success = false;
+      if (force) {
+        success = true;
+      } else if (base > 0) {
+        try {
+          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+            success = !!window.RNGUtils.chance(base, rng);
+          } else {
+            success = rng() < base;
+          }
+        } catch (_) {
+          success = rng() < base;
         }
-      } catch (_) {
-        roll = (rng() < base) ? 0 : 1;
       }
-      if (roll === 0) {
+
+      if (success) {
         log("You notice signs of wildlife nearby. Press G to open the Region Map.", "info");
         lastAnimalHintTurn = turnCounter;
+        _wildNoHintTurns = 0;
+      } else {
+        _wildNoHintTurns++;
       }
     } catch (_) {}
   }
