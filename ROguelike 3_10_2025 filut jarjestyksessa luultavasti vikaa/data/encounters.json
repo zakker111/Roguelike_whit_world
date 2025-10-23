@@ -62,6 +62,19 @@
       "map": { "generator": "camp", "w": 24, "h": 16 },
       "merchant": { "vendor": "seppo" },
       "groups": []
+    },
+    {
+      "id": "night_raid_goblins",
+      "name": "Night Raid: Goblins vs Bandits",
+      "baseWeight": 0.0,
+      "allowedBiomes": ["FOREST", "GRASS", "SWAMP", "SNOW", "DESERT"],
+      "map": { "generator": "camp", "w": 28, "h": 18 },
+      "playerSpawn": "edge",
+      "constraints": { "timeOfDay": "night", "weeklyOnce": true, "globalShare": 0.03 },
+      "groups": [
+        { "type": "bandit", "count": { "min": 5, "max": 7 }, "faction": "bandit" },
+        { "type": "goblin", "count": { "min": 5, "max": 10 }, "faction": "goblin" }
+      ]
     }
   ]
 }

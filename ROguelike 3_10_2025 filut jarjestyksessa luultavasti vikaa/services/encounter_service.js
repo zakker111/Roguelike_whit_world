@@ -10,6 +10,8 @@ const STATE = {
   lastWorldY: null,
   cooldownMoves: 0,
   movesSinceLast: 0,
+  // Night raid gating
+  nightRaidCooldownUntilTurn: 0,
 };
 
 // Read encounter rate from global/localStorage; 0..100, default 50
@@ -51,19 +53,25 @@ function biomeFromTile(tile) {
   return "UNKNOWN";
 }
 
-function pickTemplate(ctx, biome) {
+function registry(ctx) {
   const GD = (typeof window !== "undefined" ? window.GameData : null);
-  const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : null;
-  const rng = (function () {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-        return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
-      }
-    } catch (_) {}
-    return (ctx && typeof ctx.rng === "function")
-      ? ctx.rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
-  })();
+  return GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : null;
+}
+
+function rngFor(ctx) {
+  try {
+    if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+      return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
+    }
+  } catch (_) {}
+  return (ctx && typeof ctx.rng === "function")
+    ? ctx.rng
+    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+}
+
+function pickTemplate(ctx, biome) {
+  const reg = registry(ctx);
+  const rng = rngFor(ctx);
   const fallback = [
     { id: "ambush_forest", name: "Forest Ambush", baseWeight: 1.0, allowedBiomes: ["FOREST","GRASS"], map: { generator: "ambush_forest", w: 24, h: 16 }, groups: [ { type: "bandit", count: { min: 2, max: 4 } } ] },
     { id: "bandit_camp", name: "Bandit Camp", baseWeight: 0.8, allowedBiomes: ["GRASS","DESERT","BEACH"], map: { generator: "camp", w: 26, h: 18 }, groups: [ { type: "bandit", count: { min: 3, max: 6 } } ] },
@@ -102,6 +110,32 @@ function computeDifficulty(ctx, biome) {
   return 1;
 }
 
+function findTemplateById(ctx, id) {
+  const reg = registry(ctx);
+  if (!reg) return null;
+  return reg.find(t => String(t.id).toLowerCase() === String(id || "").toLowerCase()) || null;
+}
+
+function tryEnter(ctx, tmpl, biome, difficulty) {
+  try {
+    if (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function") {
+      const ok = !!window.GameAPI.enterEncounter(tmpl, biome, difficulty);
+      if (ok) return true;
+    }
+  } catch (_) {}
+  try {
+    const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+    if (ER && typeof ER.enter === "function") {
+      const ok2 = !!ER.enter(ctx, { template: tmpl, biome, difficulty });
+      if (ok2) {
+        try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+        return true;
+      }
+    }
+  } catch (_) {}
+  return false;
+}
+
 export function maybeTryEncounter(ctx) {
   try {
     if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
@@ -110,6 +144,27 @@ export function maybeTryEncounter(ctx) {
     const moved = (STATE.lastWorldX !== wx) || (STATE.lastWorldY !== wy);
     STATE.lastWorldX = wx; STATE.lastWorldY = wy;
     if (!moved) return false; // only roll on movement steps
+
+    // Arm-on-next-move debug trigger from GOD panel
+    try {
+      const dbgId = (typeof window !== "undefined" ? window.DEBUG_ENCOUNTER_ARM : null);
+      if (dbgId) {
+        const t = findTemplateById(ctx, dbgId);
+        if (t) {
+          const tile = ctx.world.map[wy][wx];
+          const biome = biomeFromTile(tile);
+          const diff = computeDifficulty(ctx, biome);
+          if (tryEnter(ctx, t, biome, diff)) {
+            STATE.movesSinceLast = 0;
+            STATE.cooldownMoves = 10;
+            window.DEBUG_ENCOUNTER_ARM = null;
+            return true;
+          }
+        }
+        // Clear invalid id to avoid blocking
+        window.DEBUG_ENCOUNTER_ARM = null;
+      }
+    } catch (_) {}
 
     // Simple cooldown to avoid back-to-back prompts
     if (STATE.cooldownMoves > 0) {
@@ -150,6 +205,37 @@ export function maybeTryEncounter(ctx) {
       return false;
     }
 
+    // Special pick: Night Raid goblins vs bandits (3% of all encounters, night-only, once per in-game week)
+    (function maybeNightRaid() {
+      try {
+        const reg = registry(ctx);
+        const has = reg && reg.some(t => String(t.id || "").toLowerCase() === "night_raid_goblins");
+        if (!has) return;
+        const clock = (ctx.getClock && ctx.getClock()) || ctx.time || {};
+        const phase = String(clock.phase || "").toLowerCase();
+        if (phase !== "night") return;
+        const tc = (typeof clock.turnCounter === "number") ? (clock.turnCounter | 0) : 0;
+        if (tc < (STATE.nightRaidCooldownUntilTurn | 0)) return;
+        // 3% share among all rolled encounters
+        const r = rngFor(ctx)();
+        if (r >= 0.03) return;
+        const tmpl = findTemplateById(ctx, "night_raid_goblins");
+        if (!tmpl) return;
+        const diff = computeDifficulty(ctx, biome);
+        if (tryEnter(ctx, tmpl, biome, diff)) {
+          // Set cooldown for one in-game week
+          const minsPerTurn = (clock.minutesPerTurn || 4);
+          const oneWeekTurns = Math.ceil((7 * 24 * 60) / minsPerTurn);
+          STATE.nightRaidCooldownUntilTurn = tc + oneWeekTurns;
+          STATE.movesSinceLast = 0;
+          STATE.cooldownMoves = 10;
+          throw { _earlyExit: true };
+        }
+      } catch (e) {
+        if (e && e._earlyExit) throw e;
+      }
+    })();
+
     // Select a suitable template for this biome
     const tmpl = pickTemplate(ctx, biome);
     if (!tmpl) { STATE.movesSinceLast += 1; return false; }
@@ -157,28 +243,11 @@ export function maybeTryEncounter(ctx) {
     const difficulty = computeDifficulty(ctx, biome);
     const text = `${tmpl.name || "Encounter"} (Difficulty ${difficulty}): ${biome.toLowerCase()} — Enter?`;
     const enter = () => {
-      try {
-        // Preferred path: enter dedicated encounter mode (not Region Map)
-        if (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function") {
-          const ok = !!window.GameAPI.enterEncounter(tmpl, biome, difficulty);
-          if (ok) {
-            STATE.movesSinceLast = 0;
-            STATE.cooldownMoves = 10;
-            return true;
-          }
-        }
-        // Fallback: direct runtime call
-        const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
-        if (ER && typeof ER.enter === "function") {
-          const ok2 = !!ER.enter(ctx, { template: tmpl, biome, difficulty });
-          if (ok2) {
-            try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
-            STATE.movesSinceLast = 0;
-            STATE.cooldownMoves = 10;
-            return true;
-          }
-        }
-      } catch (_) {}
+      if (tryEnter(ctx, tmpl, biome, difficulty)) {
+        STATE.movesSinceLast = 0;
+        STATE.cooldownMoves = 10;
+        return true;
+      }
       return false;
     };
     const cancel = () => {
@@ -196,7 +265,8 @@ export function maybeTryEncounter(ctx) {
       else cancel();
     }
     return true;
-  } catch (_) {
+  } catch (e) {
+    if (e && e._earlyExit) return true;
     // Best-effort only
     return false;
   }

@@ -363,9 +363,28 @@ export function enter(ctx, info) {
     }
   } catch (_) {}
 
-  // Spawn player near center
-  const px = (W / 2) | 0, py = (H / 2) | 0;
-  ctx.player.x = px; ctx.player.y = py;
+  // Spawn player: support edge spawn hint from template for easier debugging/entry safety
+  (function placePlayer() {
+    const hint = (template && (template.playerSpawn || template.spawn || template.player)) ? (template.playerSpawn || template.spawn || template.player) : null;
+    if (typeof hint === "string" && hint.toLowerCase() === "edge") {
+      // Try to place at a random edge clearing (prefer stairs/exits if already carved)
+      const edges = [
+        { x: 1, y: (H / 2) | 0 },
+        { x: W - 2, y: (H / 2) | 0 },
+        { x: (W / 2) | 0, y: 1 },
+        { x: (W / 2) | 0, y: H - 2 },
+      ];
+      for (const e of edges) {
+        if (e.x > 0 && e.y > 0 && e.x < W - 1 && e.y < H - 1 && map[e.y][e.x] !== T.WALL) {
+          ctx.player.x = e.x; ctx.player.y = e.y;
+          return;
+        }
+      }
+    }
+    // Default: near center
+    const px = (W / 2) | 0, py = (H / 2) | 0;
+    ctx.player.x = px; ctx.player.y = py;
+  })();
 
   // Place chests inside huts (center tile). Fill with simple loot.
   try {

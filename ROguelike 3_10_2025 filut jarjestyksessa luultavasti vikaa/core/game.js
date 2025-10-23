@@ -2747,6 +2747,51 @@
           onGodSetCritPart: (part) => setCritPart(part),
           onGodApplySeed: (seed) => applySeed(seed),
           onGodRerollSeed: () => rerollSeed(),
+          // Encounter debug helpers
+          onGodStartEncounterNow: (encId) => {
+            try {
+              const id = String(encId || "").toLowerCase();
+              const GD = (typeof window !== "undefined" ? window.GameData : null);
+              const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
+              const t = reg.find(t => String(t.id || "").toLowerCase() === id) || null;
+              if (!t) {
+                if (id) log(`GOD: Encounter '${id}' not found.`, "warn");
+                return;
+              }
+              if (mode !== "world") {
+                log("GOD: Start Now works in overworld only.", "warn");
+                return;
+              }
+              const tile = world && world.map ? world.map[player.y][player.x] : null;
+              const biome = (function () {
+                try {
+                  const W = (typeof window !== "undefined" && window.World) ? window.World : null;
+                  return (W && typeof W.biomeName === "function") ? (W.biomeName(tile) || "").toUpperCase() : "";
+                } catch (_) { return ""; }
+              })();
+              const diff = 1;
+              const ok = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function")
+                ? window.GameAPI.enterEncounter(t, biome, diff)
+                : false;
+              if (!ok) {
+                const ER = modHandle("EncounterRuntime");
+                if (ER && typeof ER.enter === "function") {
+                  const ctxMod = getCtx();
+                  if (ER.enter(ctxMod, { template: t, biome, difficulty: diff })) {
+                    applyCtxSyncAndRefresh(ctxMod);
+                  }
+                }
+              }
+            } catch (_) {}
+          },
+          onGodArmEncounterNextMove: (encId) => {
+            try {
+              const id = String(encId || "");
+              if (!id) { log("GOD: Select an encounter first.", "warn"); return; }
+              window.DEBUG_ENCOUNTER_ARM = id;
+              log(`GOD: Armed '${id}' — will trigger on next overworld move.`, "notice");
+            } catch (_) {}
+          },
           // Status effect test hooks
           onGodApplyBleed: (dur = 3) => {
             const GC = modHandle("GodControls");
