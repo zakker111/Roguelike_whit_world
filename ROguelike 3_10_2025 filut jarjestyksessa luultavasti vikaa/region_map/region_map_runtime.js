@@ -10,7 +10,7 @@
  * - tick(ctx): optional no-op hook.
  */
 import * as World from "../world/world.js";
-import { getTileDef } from "../data/tile_lookup.js";
+import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 
 const DEFAULT_WIDTH = 28;
@@ -630,6 +630,82 @@ function open(ctx, size) {
     ctx.region._cutKey = cutKey;
   } catch (_) {}
 
+  // PHASE 2: Ruins decoration and encounter setup on RUINS tiles
+  const isRuins = (tile === World.TILES.RUINS);
+  if (isRuins) {
+    // Only decorate/spawn if there is no persisted map for this tile (respect persistence)
+    if (!persisted) {
+      // Resolve RUIN_WALL id from tileset (region scope); fallback to MOUNTAIN if missing
+      let ruinWallId = World.TILES.MOUNTAIN;
+      try {
+        const td = getTileDefByKey("region", "RUIN_WALL");
+        if (td && typeof td.id === "number") ruinWallId = td.id | 0;
+      } catch (_) {}
+      // Draw a broken ring + scattered ruin walls
+      (function decorateRuins() {
+        const h = sample.length, w = sample[0] ? sample[0].length : 0;
+        if (!w || !h) return;
+        const cx = (w / 2) | 0, cy = (h / 2) | 0;
+        // Footprint rectangle around center
+        const rw = Math.max(8, Math.floor(w * 0.5));
+        const rh = Math.max(6, Math.floor(h * 0.45));
+        const x0 = Math.max(1, cx - (rw >> 1));
+        const y0 = Math.max(1, cy - (rh >> 1));
+        const x1 = Math.min(w - 2, x0 + rw);
+        const y1 = Math.min(h - 2, y0 + rh);
+        // Perimeter with gaps
+        for (let x = x0; x <= x1; x++) {
+          if (rng() > 0.13) sample[y0][x] = ruinWallId;
+          if (rng() > 0.13) sample[y1][x] = ruinWallId;
+        }
+        for (let y = y0; y <= y1; y++) {
+          if (rng() > 0.13) sample[y][x0] = ruinWallId;
+          if (rng() > 0.13) sample[y][x1] = ruinWallId;
+        }
+        // Open 3–5 random gaps in the ring to create entrances
+        const gaps = 3 + ((rng() * 3) | 0);
+        for (let i = 0; i < gaps; i++) {
+          const side = (rng() * 4) | 0;
+          if (side === 0) { // top
+            const gx = x0 + 1 + ((rng() * Math.max(1, rw - 2)) | 0);
+            sample[y0][gx] = sample[y0][Math.max(gx - 1, x0 + 1)] = sample[y0][Math.min(gx + 1, x1 - 1)] = sample[y0 + 1][gx] = sample[y0 + 1][Math.max(gx - 1, x0 + 1)] = World.TILES.GRASS;
+          } else if (side === 1) { // bottom
+            const gx = x0 + 1 + ((rng() * Math.max(1, rw - 2)) | 0);
+            sample[y1][gx] = sample[y1][Math.max(gx - 1, x0 + 1)] = sample[y1][Math.min(gx + 1, x1 - 1)] = sample[y1 - 1][gx] = sample[y1 - 1][Math.max(gx - 1, x0 + 1)] = World.TILES.GRASS;
+          } else if (side === 2) { // left
+            const gy = y0 + 1 + ((rng() * Math.max(1, rh - 2)) | 0);
+            sample[gy][x0] = sample[Math.max(gy - 1, y0 + 1)][x0] = sample[Math.min(gy + 1, y1 - 1)][x0] = sample[gy][x0 + 1] = sample[Math.max(gy - 1, y0 + 1)][x0 + 1] = World.TILES.GRASS;
+          } else { // right
+            const gy = y0 + 1 + ((rng() * Math.max(1, rh - 2)) | 0);
+            sample[gy][x1] = sample[Math.max(gy - 1, y0 + 1)][x1] = sample[Math.min(gy + 1, y1 - 1)][x1] = sample[gy][x1 - 1] = sample[Math.max(gy - 1, y0 + 1)][x1 - 1] = World.TILES.GRASS;
+          }
+        }
+        // Scatter interior short ruin segments/pillars
+        const segs = 4 + ((rw + rh) / 6) | 0;
+        for (let i = 0; i < segs; i++) {
+          const horiz = rng() < 0.5;
+          const len = 2 + ((rng() * 4) | 0);
+          const sx = Math.max(x0 + 2, Math.min(x1 - 2, x0 + 2 + ((rng() * Math.max(1, rw - 4)) | 0)));
+          const sy = Math.max(y0 + 2, Math.min(y1 - 2, y0 + 2 + ((rng() * Math.max(1, rh - 4)) | 0)));
+          for (let k = 0; k < len; k++) {
+            const x = (sx + (horiz ? k : 0)) | 0;
+            const y = (sy + (horiz ? 0 : k)) | 0;
+            if (x <= x0 || y <= y0 || x >= x1 || y >= y1) continue;
+            if (rng() < 0.85) sample[y][x] = ruinWallId;
+          }
+        }
+        // Ensure an inner clearing ring for mobility around center
+        for (let y = cy - 2; y <= cy + 2; y++) {
+          for (let x = cx - 2; x <= cx + 2; x++) {
+            if (x > 0 && y > 0 && x < w - 1 && y < h - 1) {
+              if (sample[y][x] === ruinWallId) sample[y][x] = World.TILES.GRASS;
+            }
+          }
+        }
+      })();
+    }
+  }
+
   const exitNorth = { x: (width / 2) | 0, y: 0 };
   const exitSouth = { x: (width / 2) | 0, y: height - 1 };
   const exitWest = { x: 0, y: (height / 2) | 0 };
@@ -723,8 +799,136 @@ function open(ctx, size) {
 
   ctx.mode = "region";
 
+  // PHASE 2: Ruins encounter (enemies + loot) setup. Skip if cleared or persisted map restored.
+  (function spawnRuinsEncounter() {
+    try {
+      const WT = World.TILES;
+      const isRuinsHere = (ctx.world && ctx.world.map && ctx.world.map[worldY][worldX] === WT.RUINS);
+      if (!isRuinsHere) return;
+      // If animalsCleared is set for this tile, treat ruins as cleared as well (shared flag)
+      if (animalsCleared) {
+        try { ctx.log && ctx.log("These ruins are quiet; no hostiles remain.", "info"); } catch (_) {}
+        return;
+      }
+      // If we restored a persisted map state, assume encounter already handled
+      if (persisted) return;
+
+      const h = ctx.region.map.length;
+      const w = ctx.region.map[0] ? ctx.region.map[0].length : 0;
+      if (!w || !h) return;
+
+      // Resolve ruin wall id for walkability/FOV checks
+      let ruinWallId = WT.MOUNTAIN;
+      try {
+        const td = getTileDefByKey("region", "RUIN_WALL");
+        if (td && typeof td.id === "number") ruinWallId = td.id | 0;
+      } catch (_) {}
+
+      function walkableAt(x, y) {
+        if (x <= 0 || y <= 0 || x >= w - 1 || y >= h - 1) return false;
+        const t = ctx.region.map[y][x];
+        // Prefer tiles.json property
+        try {
+          const def = getTileDef("region", t);
+          if (def && def.properties && typeof def.properties.walkable === "boolean") return !!def.properties.walkable;
+        } catch (_) {}
+        // Fallback to World.isWalkable on overworld semantics
+        try { return !!World.isWalkable(t); } catch (_) {}
+        return true;
+      }
+      function free(x, y) {
+        if (!walkableAt(x, y)) return false;
+        if (x === (ctx.player.x | 0) && y === (ctx.player.y | 0)) return false;
+        if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y)) return false;
+        return true;
+      }
+
+      // Prefer interior of the ruin footprint: find bounding box of ruin walls and pick inside
+      function pickInteriorSpot(tries = 200) {
+        // Compute rough center and inward search
+        const cx = (w / 2) | 0, cy = (h / 2) | 0;
+        for (let t = 0; t < tries; t++) {
+          const rx = cx + (((rng() * 7) | 0) - 3);
+          const ry = cy + (((rng() * 5) | 0) - 2);
+          const x = clamp(rx, 1, w - 2), y = clamp(ry, 1, h - 2);
+          if (free(x, y)) return { x, y };
+        }
+        // Fallback: any free walkable
+        for (let t = 0; t < tries; t++) {
+          const x = (rng() * w) | 0;
+          const y = (rng() * h) | 0;
+          if (free(x, y)) return { x, y };
+        }
+        return null;
+      }
+
+      // Create enemies using Enemies definitions only (JSON-only)
+      function createEnemyOfType(x, y, type) {
+        try {
+          const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
+          if (EM && typeof EM.getTypeDef === "function") {
+            const td = EM.getTypeDef(type);
+            if (td) {
+              const depth = 1;
+              const e = {
+                x, y,
+                type,
+                glyph: (td.glyph && td.glyph.length) ? td.glyph : ((type && type.length) ? type.charAt(0) : "?"),
+                hp: td.hp(depth),
+                atk: td.atk(depth),
+                xp: td.xp(depth),
+                level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(type, depth, ctx.rng) : depth,
+                announced: false
+              };
+              // Faction derived from type label
+              const s = String(type || "").toLowerCase();
+              e.faction = s.includes("bandit") ? "bandit" : (s.includes("orc") ? "orc" : "monster");
+              return e;
+            }
+          }
+        } catch (_) {}
+        // Fallback enemy: visible '?' for debugging in Ruins
+        try { ctx.log && ctx.log(`Fallback enemy spawned in ruins (type '${type}' not defined).`, "warn"); } catch (_) {}
+        return { x, y, type: type || "fallback_enemy", glyph: "?", hp: 3, atk: 1.0, xp: 5, level: 1, faction: "monster", announced: false };
+      }
+
+      // Enemy lineup: a mix of skeleton/bandit/mime_ghost (matches enemies.json)
+      const choices = ["skeleton", "bandit", "mime_ghost"];
+      const n = 2 + ((rng() * 3) | 0); // 2–4
+      ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
+      let placed = 0;
+      for (let i = 0; i < n; i++) {
+        const spot = pickInteriorSpot(200);
+        if (!spot) break;
+        const t = choices[(rng() * choices.length) | 0];
+        const e = createEnemyOfType(spot.x, spot.y, t);
+        if (e) {
+          ctx.enemies.push(e);
+          placed++;
+        }
+      }
+
+      // Place 1–2 lootable corpses/chests inside
+      try {
+        const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+        const chestCount = 1 + ((rng() * 2) | 0);
+        for (let i = 0; i < chestCount; i++) {
+          const spot = pickInteriorSpot(180);
+          if (!spot) break;
+          const loot = (L && typeof L.generate === "function") ? (L.generate(ctx, { type: "bandit", xp: 12 }) || []) : [{ kind: "gold", amount: 6, name: "gold" }];
+          ctx.corpses.push({ kind: "chest", x: spot.x, y: spot.y, loot, looted: loot.length === 0 });
+        }
+      } catch (_) {}
+
+      // Mark encounter-active for AI/tick and guidance
+      ctx.region._isEncounter = true;
+      try { ctx.log && ctx.log("Hostiles lurk within the ruins!", "notice"); } catch (_) {}
+      try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
+    } catch (_) {}
+  })();
+
   // Rare neutral animals in region: deer/boar/fox that wander; become hostile only if attacked.
-  (function spawnNeutralAnimals() {
+  if (!(tile === World.TILES.RUINS)) (function spawnNeutralAnimals() {
     try {
       // If animals were cleared previously in this region, skip spawning and inform player
       if (animalsCleared) {

@@ -41,6 +41,11 @@ export function applyDazedToPlayer(ctx, duration) {
 
 export function applyBleedToEnemy(ctx, enemy, duration) {
   if (!ctx || !enemy) return;
+  // Ethereal foes (ghosts/spirits/wraiths) do not bleed
+  try {
+    const t = String(enemy.type || "");
+    if (/ghost|spirit|wraith|skeleton/i.test(t)) return;
+  } catch (_) {}
   const d = Math.max(1, duration | 0);
   enemy.bleedTurns = Math.max(enemy.bleedTurns || 0, d);
   try {
@@ -87,6 +92,11 @@ export function tick(ctx) {
   if (Array.isArray(ctx.enemies)) {
     const died = [];
     for (const e of ctx.enemies) {
+      // Ethereal foes do not bleed
+      try {
+        const t = String(e.type || "");
+        if (/ghost|spirit|wraith|skeleton/i.test(t)) { e.bleedTurns = 0; continue; }
+      } catch (_) {}
       if (e.bleedTurns && e.bleedTurns > 0) {
         e.bleedTurns -= 1;
         e.hp -= 1;

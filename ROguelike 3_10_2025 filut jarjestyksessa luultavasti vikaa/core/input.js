@@ -5,14 +5,14 @@
  * Exports (ESM + window.Input):
  * - init(handlers): installs keydown listener. `handlers` can include:
  *   { isDead, isInventoryOpen, isLootOpen, isGodOpen, isShopOpen, isSmokeOpen, onRestart, onShowInventory, onHideInventory,
- *     onHideLoot, onHideGod, onHideShop, onHideSmoke, onShowGod, onMove(dx,dy), onWait, onLoot, onDescend, adjustFov(delta) }
+ *     onHideLoot, onHideGod, onHideShop, onHideSmoke, onShowGod, onMove(dx,dy), onWait, onLoot, adjustFov(delta) }
  * - destroy(): removes listener.
  *
  * Rules and priorities
  * - If a modal is open (inventory/loot/GOD/shop), Escape closes it and other keys are ignored.
  * - Movement only when no modal is open.
  * - Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5.
- * - Inventory: I. Loot/Action: G. Descend: N.
+ * - Inventory: I. Loot/Action: G.
  * - GOD panel: P to open. FOV adjust: [-] and [+]/[=] (also Numpad +/-).
  * - Region Map: M to open/close.
  */
@@ -189,14 +189,6 @@ export function init(handlers) {
     if (e.key && e.key.toLowerCase() === "b") {
       e.preventDefault();
       if (_handlers.onBrace) _handlers.onBrace();
-      return;
-    }
-
-    // Descend / context action for stairs (N only; Enter disabled)
-    if (e.key && e.key.toLowerCase() === "n") {
-      e.preventDefault();
-      _handlers.onHideLoot && _handlers.onHideLoot();
-      _handlers.onDescend && _handlers.onDescend();
       return;
     }
 

@@ -75,7 +75,7 @@ export function spawnEnemyNearby(ctx, count = 1) {
   // Keep a cyclic cursor to force variety across clicks
   window.GOD_SPAWN_CYCLE = window.GOD_SPAWN_CYCLE || { list: [], idx: 0 };
 
-  // Build a type list from registry or JSON (once)
+  // Build a type list from registry only (JSON-registered), once
   (function ensureTypeCycle() {
     if (window.GOD_SPAWN_CYCLE.list.length > 0) return;
     try {
@@ -84,24 +84,8 @@ export function spawnEnemyNearby(ctx, count = 1) {
       if (EM && typeof EM.listTypes === "function") {
         types = EM.listTypes();
       }
-      if ((!types || types.length === 0) && typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies)) {
-        types = window.GameData.enemies.map(e => e.id || e.key).filter(Boolean);
-      }
-      // Config-driven default types (Phase 5): prefer data/config.json when registries are empty or as override
-      try {
-        const cfgTypes = (typeof window !== "undefined" && window.GameData && window.GameData.config && window.GameData.config.dev && Array.isArray(window.GameData.config.dev.godDefaultTypes))
-          ? window.GameData.config.dev.godDefaultTypes.filter(Boolean)
-          : [];
-        if ((!types || types.length === 0) && cfgTypes.length > 0) {
-          types = cfgTypes.slice(0);
-        }
-      } catch (_) {}
-      if (!types || types.length === 0) {
-        // Hardcoded fallback for dev to avoid goblin-only behavior
-        types = ["goblin","troll","skeleton","bandit","ogre","mime_ghost","hell_houndin"];
-      }
       // Deterministic shuffle using ctx.rng so order differs per seed
-      const list = types.slice(0);
+      const list = (types || []).slice(0);
       for (let i = list.length - 1; i > 0; i--) {
         const j = Math.floor(ctx.rng() * (i + 1));
         const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
@@ -109,7 +93,7 @@ export function spawnEnemyNearby(ctx, count = 1) {
       window.GOD_SPAWN_CYCLE.list = list;
       window.GOD_SPAWN_CYCLE.idx = 0;
     } catch (_) {
-      window.GOD_SPAWN_CYCLE.list = ["goblin","troll","skeleton","bandit","ogre","mime_ghost","hell_houndin"];
+      window.GOD_SPAWN_CYCLE.list = [];
       window.GOD_SPAWN_CYCLE.idx = 0;
     }
   })();
@@ -182,6 +166,11 @@ export function spawnEnemyNearby(ctx, count = 1) {
   }
 
   const spawned = [];
+  // Abort if no registered enemy types
+  if (!Array.isArray(window.GOD_SPAWN_CYCLE.list) || window.GOD_SPAWN_CYCLE.list.length === 0) {
+    ctx.log("GOD: No enemy types registered (enemies.json not loaded).", "warn");
+    return;
+  }
   for (let i = 0; i < count; i++) {
     const spot = pickNearby();
     if (!spot) break;
@@ -190,42 +179,37 @@ export function spawnEnemyNearby(ctx, count = 1) {
     const pickKey = window.GOD_SPAWN_CYCLE.list[window.GOD_SPAWN_CYCLE.idx % window.GOD_SPAWN_CYCLE.list.length];
     window.GOD_SPAWN_CYCLE.idx++;
 
-    // Prefer ctx.enemyFactory for consistency; if it returns null, build manually
+    // Prefer ctx.enemyFactory; else build from Enemies registry; no other fallbacks
     let ee = null;
     try {
-      const makeEnemy = (ctx.enemyFactory || ((x, y, depth) => ({ x, y, type: pickKey || "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false })));
-      ee = makeEnemy(spot.x, spot.y, ctx.floor);
+      if (typeof ctx.enemyFactory === "function") {
+        ee = ctx.enemyFactory(spot.x, spot.y, ctx.floor);
+      }
     } catch (_) {}
 
     if (!ee || typeof ee.x !== "number" || typeof ee.y !== "number") {
-      // Build from Enemies registry when available; otherwise from GameData JSON
       const EM = (typeof window !== "undefined" ? window.Enemies : null);
       if (EM && typeof EM.getTypeDef === "function") {
-        const td = EM.getTypeDef(pickKey) || EM.getTypeDef("goblin");
-        ee = {
-          x: spot.x, y: spot.y,
-          type: pickKey,
-          glyph: td && td.glyph ? td.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
-          hp: td ? td.hp(ctx.floor) : 3,
-          atk: td ? td.atk(ctx.floor) : 1,
-          xp: td ? td.xp(ctx.floor) : 5,
-          level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, ctx.floor, ctx.rng) : ctx.floor,
-          announced: false
-        };
-      } else {
-        // Build from raw GameData.enemies if available
-        const row = (window.GameData && Array.isArray(window.GameData.enemies)) ? window.GameData.enemies.find(e => (e.id || e.key) === pickKey) : null;
-        ee = {
-          x: spot.x, y: spot.y,
-          type: pickKey,
-          glyph: (row && row.glyph) ? row.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
-          hp: linearAt(row && row.hp || [], ctx.floor, 3),
-          atk: linearAt(row && row.atk || [], ctx.floor, 1),
-          xp: linearAt(row && row.xp || [], ctx.floor, 5),
-          level: ctx.floor,
-          announced: false
-        };
+        const td = EM.getTypeDef(pickKey);
+        if (td) {
+          ee = {
+            x: spot.x, y: spot.y,
+            type: pickKey,
+            glyph: td.glyph ? td.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
+            hp: td.hp(ctx.floor),
+            atk: td.atk(ctx.floor),
+            xp: td.xp(ctx.floor),
+            level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, ctx.floor, ctx.rng) : ctx.floor,
+            announced: false
+          };
+        }
       }
+    }
+
+    if (!ee) {
+      // Fallback enemy: visible '?' for debugging missing types
+      ee = { x: spot.x, y: spot.y, type: pickKey || "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: ctx.floor, announced: false };
+      ctx.log(`GOD: Fallback spawned for '${pickKey}' (not defined).`, "warn");
     }
 
     if (typeof ee.hp === "number" && ctx.rng() < 0.7) {

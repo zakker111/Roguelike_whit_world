@@ -70,6 +70,32 @@ export function enemiesAct(ctx) {
 
   const senseRange = 8;
 
+  // Walkability that respects Region Map tiles (overworld semantics) as well as dungeon
+  function walkableAt(x, y) {
+    try {
+      if (!ctx.inBounds || !ctx.inBounds(x, y)) return false;
+    } catch (_) {
+      // best-effort bounds check
+      const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+      const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+      if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
+    }
+    // In region mode, prefer World.isWalkable for overworld tile ids
+    try {
+      if (ctx.mode === "region") {
+        const WT = (typeof window !== "undefined" && window.World) ? window.World : (ctx.World || null);
+        const tile = ctx.map[y][x];
+        if (WT && typeof WT.isWalkable === "function") return !!WT.isWalkable(tile);
+        // Fallback: treat water/river/mountain as blocked
+        const WTTiles = WT && WT.TILES ? WT.TILES : null;
+        if (WTTiles) return !(tile === WTTiles.WATER || tile === WTTiles.RIVER || tile === WTTiles.MOUNTAIN);
+      }
+    } catch (_) {}
+    // Default to ctx.isWalkable (dungeon/town)
+    try { return !!ctx.isWalkable(x, y); } catch (_) {}
+    return true;
+  }
+
   // Faction helpers (minimal matrix: different factions are hostile, all hostile to player)
   const factionOf = (en) => {
     if (!en) return "neutral";
@@ -94,7 +120,7 @@ export function enemiesAct(ctx) {
         add() {},
         isFree(x, y, opts) {
           const ignorePlayer = !!(opts && opts.ignorePlayer);
-          const blocked = !ctx.isWalkable(x, y) || (!ignorePlayer && player.x === x && player.y === y);
+          const blocked = !walkableAt(x, y) || (!ignorePlayer && player.x === x && player.y === y);
           if (blocked) return false;
           const key = occKey(x, y);
           for (const en of enemies) {
@@ -140,7 +166,7 @@ export function enemiesAct(ctx) {
 
   // Prefer shared OccupancyGrid if provided in ctx; fallback to per-turn set
   let isFree = (x, y) => {
-    const blocked = !ctx.isWalkable(x, y) || (player.x === x && player.y === y);
+    const blocked = !walkableAt(x, y) || (player.x === x && player.y === y);
     if (blocked) return false;
     if (occ && typeof occ.isFree === "function") {
       return occ.isFree(x, y, { ignorePlayer: true });
@@ -394,7 +420,7 @@ export function enemiesAct(ctx) {
         }
         const dmg = ctx.enemyDamageAfterDefense(raw);
         player.hp -= dmg;
-        try { if (dmg > 0 && typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
+        try { if (typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(player.x, player.y, isCrit ? 1.4 : 1.0); } catch (_) {}
         if (isCrit) ctx.log(`Critical! ${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "crit");
         else ctx.log(`${Cap(e.type)} hits your ${loc.part} for ${dmg}.`);
         const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
@@ -465,7 +491,13 @@ export function enemiesAct(ctx) {
           if (isCrit) raw *= (ctx.critMultiplier ? ctx.critMultiplier() : (1.6 + ctx.rng() * 0.4));
           const dmg = Math.max(0.1, Math.round(raw * 10) / 10);
           target.ref.hp -= dmg;
-          try { if (dmg > 0 && typeof ctx.addBloodDecal === "function") ctx.addBloodDecal(target.ref.x, target.ref.y, isCrit ? 1.2 : 0.9); } catch (_) {}
+          try {
+            const ttype = String(target.ref.type || "");
+            const ethereal = /ghost|spirit|wraith|skeleton/i.test(ttype);
+            if (!ethereal && dmg > 0 && typeof ctx.addBloodDecal === "function") {
+              ctx.addBloodDecal(target.ref.x, target.ref.y, isCrit ? 1.2 : 0.9);
+            }
+          } catch (_) {}
           try {
             ctx.log(`${Cap(e.type)} hits ${Cap(target.ref.type)} for ${dmg}.`, isCrit ? "crit" : "info");
           } catch (_) {}

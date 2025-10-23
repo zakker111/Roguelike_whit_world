@@ -26,6 +26,7 @@ function h2(x, y) {
 function ensurePOIState(world) {
   if (!world.towns) world.towns = [];
   if (!world.dungeons) world.dungeons = [];
+  if (!world.ruins) world.ruins = [];
   if (!world._poiSet) world._poiSet = new Set();
 }
 
@@ -54,9 +55,18 @@ function addDungeon(world, x, y) {
   world._poiSet.add(key);
 }
 
+// Add a ruins POI at world coords if not present
+function addRuins(world, x, y) {
+  ensurePOIState(world);
+  const key = `${x},${y}`;
+  if (world._poiSet.has(key)) return;
+  world.ruins.push({ x, y });
+  world._poiSet.add(key);
+}
+
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 function scanPOIs(ctx, x0, y0, w, h) {
-  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, TOWNK: 4, DUNGEONK: 5 };
+  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, TOWNK: 4, DUNGEONK: 5 };
   const world = ctx.world;
   for (let yy = y0; yy < y0 + h; yy++) {
     if (yy < 0 || yy >= ctx.map.length) continue;
@@ -72,6 +82,10 @@ function scanPOIs(ctx, x0, y0, w, h) {
         const wx = world.originX + xx;
         const wy = world.originY + yy;
         addDungeon(world, wx, wy);
+      } else if (t === WT.RUINS) {
+        const wx = world.originX + xx;
+        const wy = world.originY + yy;
+        addRuins(world, wx, wy);
       }
     }
   }

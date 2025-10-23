@@ -330,7 +330,8 @@
         if (EM && typeof EM.createEnemyAt === "function") {
           return EM.createEnemyAt(x, y, depth, rng);
         }
-        return { x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+        // No fallback: enforce JSON-defined enemies only for clarity
+        return null;
       };
       if (window.DEV && ctx && ctx.utils) {
         try {
@@ -356,7 +357,8 @@
       if (typeof window !== "undefined" && window.Enemies && typeof window.Enemies.createEnemyAt === "function") {
         return window.Enemies.createEnemyAt(x, y, depth, rng);
       }
-      return { x, y, type: "goblin", glyph: "g", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+      // No fallback: enforce JSON-defined enemies only
+      return null;
     };
     return base;
   }

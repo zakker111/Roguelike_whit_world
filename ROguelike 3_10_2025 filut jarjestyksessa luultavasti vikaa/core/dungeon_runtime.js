@@ -692,8 +692,12 @@ export function tryMoveDungeon(ctx, dx, dy) {
     dmg = Math.max(0.1, round1(dmg));
     enemy.hp -= dmg;
 
-    // Visual: blood decal
-    try { if (typeof ctx.addBloodDecal === "function" && dmg > 0) ctx.addBloodDecal(enemy.x, enemy.y, isCrit ? 1.6 : 1.0); } catch (_) {}
+    // Visual: blood decal (skip ethereal foes)
+    try {
+      const t = String(enemy.type || "");
+      const ethereal = /ghost|spirit|wraith|skeleton/i.test(t);
+      if (!ethereal && typeof ctx.addBloodDecal === "function" && dmg > 0) ctx.addBloodDecal(enemy.x, enemy.y, isCrit ? 1.6 : 1.0);
+    } catch (_) {}
 
     // Log
     try {
@@ -719,7 +723,10 @@ export function tryMoveDungeon(ctx, dx, dy) {
         else { enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2); ctx.log && ctx.log(`${(enemy.type || "enemy")[0].toUpperCase()}${(enemy.type || "enemy").slice(1)} staggers; its legs are crippled and it can't move for 2 turns.`, "notice"); }
       }
       if (isCrit && enemy.hp > 0) {
-        if (ST && typeof ST.applyBleedToEnemy === "function") ST.applyBleedToEnemy(ctx, enemy, 2);
+        // Skip bleed status for ethereal/undead foes
+        const t = String(enemy.type || "");
+        const ethereal = /ghost|spirit|wraith|skeleton/i.test(t);
+        if (!ethereal && ST && typeof ST.applyBleedToEnemy === "function") ST.applyBleedToEnemy(ctx, enemy, 2);
       }
     } catch (_) {}
 

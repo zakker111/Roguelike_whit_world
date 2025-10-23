@@ -115,6 +115,26 @@
         "tags": ["entrance"]
       },
       {
+        "id": 12,
+        "key": "RUINS",
+        "name": "Ruins",
+        "glyph": "R",
+        "colors": { "fill": "#2f2430", "fg": "#c3a6e8" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["overworld", "region"],
+        "tags": ["poi", "ruins"]
+      },
+      {
+        "id": 13,
+        "key": "RUIN_WALL",
+        "name": "Ruin Wall",
+        "glyph": "▒",
+        "colors": { "fill": "#2b252a", "fg": "#a79aa6" },
+        "properties": { "walkable": false, "blocksFOV": true, "emitsLight": false },
+        "appearsIn": ["region"],
+        "tags": ["ruins", "wall"]
+      },
+      {
         "id": 11,
         "key": "TREE",
         "name": "Tree",

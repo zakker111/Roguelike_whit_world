@@ -4,6 +4,7 @@
  * Exports (ESM + window.ModesTransitions):
  * - enterTownIfOnTile(ctx) -> boolean
  * - enterDungeonIfOnEntrance(ctx) -> boolean
+ * - enterRuinsIfOnTile(ctx) -> boolean
  * - requestLeaveTown(ctx) -> void
  * - leaveTownNow(ctx) -> void
  * - returnToWorldFromTown(ctx) -> boolean
@@ -33,6 +34,11 @@ export function enterDungeonIfOnEntrance(ctx) {
   return fn ? !!fn(ctx) : false;
 }
 
+export function enterRuinsIfOnTile(ctx) {
+  const fn = handle("enterRuinsIfOnTile");
+  return fn ? !!fn(ctx) : false;
+}
+
 export function requestLeaveTown(ctx) {
   const fn = handle("requestLeaveTown");
   if (fn) fn(ctx);
@@ -58,6 +64,7 @@ import { attachGlobal } from "../utils/global.js";
 attachGlobal("ModesTransitions", {
   enterTownIfOnTile,
   enterDungeonIfOnEntrance,
+  enterRuinsIfOnTile,
   requestLeaveTown,
   leaveTownNow,
   returnToWorldFromTown,
