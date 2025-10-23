@@ -237,8 +237,8 @@ export function calculatePrice(shopType, item, phase, demandState) {
   return Math.max(1, Math.round(base * mult));
 }
 
-// Stack identical consumables (potions by heal, drinks by name) into single rows with summed qty and lowest price.
-// Preserves relative order based on first occurrence.
+// Stack identical consumables (potions by heal, drinks by name) and materials (by name/material)
+// into single rows with summed qty and lowest price. Preserves relative order based on first occurrence.
 function _stackRows(rows) {
   try {
     if (!Array.isArray(rows) || rows.length === 0) return rows || [];
@@ -253,6 +253,10 @@ function _stackRows(rows) {
         key = "potion:" + String((it.heal != null ? it.heal : 0) | 0);
       } else if (kind === "drink") {
         key = "drink:" + String(it.name || "").toLowerCase();
+      } else if (kind === "material") {
+        // Prefer explicit item name (e.g., "wood_planks"); fallback to material type (e.g., "wood")
+        var mk = String(it.name || it.material || "").toLowerCase();
+        if (mk) key = "material:" + mk;
       }
       if (!key) {
         // non-stackable: keep as-is
