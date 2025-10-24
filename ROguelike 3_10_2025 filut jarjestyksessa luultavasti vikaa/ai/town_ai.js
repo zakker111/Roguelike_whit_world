@@ -1734,7 +1734,7 @@
       if (n._sleeping) {
         if (phase === "morning") n._sleeping = false;
         else {
-          if (ctx.rng( << 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
           continue;
         }
       }
@@ -1744,11 +1744,20 @@
         // If already upstairs and adjacent to a bed, sleep
         if (n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
           const bedsUpList = innUpstairsBeds(ctx);
-          for (let i = 0;  <i bedsUpList.length; i++) {
+          for (let i = 0; i < bedsUpList.length; i++) {
             const b = bedsUpList[i];
             if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
           }
-          if (n._sleeping
+          if (n._sleeping) continue;
+        }
+        const bedTarget = chooseInnUpstairsBed(ctx);
+        if (bedTarget && routeIntoInnUpstairs(ctx, occ, n, bedTarget)) {
+          continue;
+        }
+      }
+
+      if (ctx.rng() < 0.2) continue;
+
       // Occasional tavern visit during the day for roamers who like the tavern
       if (phase === "day" && ctx.tavern && (n._likesInn || n._likesTavern)) {
         const innB2 = ctx.tavern.building;
