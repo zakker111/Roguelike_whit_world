@@ -1544,6 +1544,12 @@
           if (ok1 && ok2) {
             ctx.map[s1.y][s1.x] = ctx.TILES.STAIRS;
             ctx.map[s2.y][s2.x] = ctx.TILES.STAIRS;
+            // Clear any props that may have been placed on these tiles earlier
+            try {
+              if (Array.isArray(ctx.townProps)) {
+                ctx.townProps = ctx.townProps.filter(p => !((p.x === s1.x && p.y === s1.y) || (p.x === s2.x && p.y === s2.y)));
+              }
+            } catch (_) {}
             try { ctx.innStairsGround = [{ x: s1.x, y: s1.y }, { x: s2.x, y: s2.y }]; } catch (_) {}
           }
           // Generate upstairs overlay with small varied rooms (pre-rendered at town gen)

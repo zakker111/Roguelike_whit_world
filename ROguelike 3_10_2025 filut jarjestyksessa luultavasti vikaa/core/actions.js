@@ -142,17 +142,7 @@ export function doAction(ctx) {
   }
 
   if (ctx.mode === "town") {
-    // Prefer Town interactions (props, talk)
-    if (ctx.Town && typeof ctx.Town.interactProps === "function") {
-      const handled = ctx.Town.interactProps(ctx);
-      if (handled) return true;
-    }
-    const s = shopAt(ctx, ctx.player.x, ctx.player.y);
-    if (s) {
-      // Defer to loot which handles shop messaging
-      return loot(ctx);
-    }
-    // Inn upstairs overlay: toggle when standing on inn stairs portal tiles
+    // Inn upstairs overlay: toggle when standing on inn stairs portal tiles (handle before generic prop/shop interactions)
     try {
       if (isInnStairsTile(ctx, ctx.player.x, ctx.player.y)) {
         const now = !!ctx.innUpstairsActive;
@@ -167,6 +157,17 @@ export function doAction(ctx) {
         return true;
       }
     } catch (_) {}
+
+    // Prefer Town interactions (props, talk)
+    if (ctx.Town && typeof ctx.Town.interactProps === "function") {
+      const handled = ctx.Town.interactProps(ctx);
+      if (handled) return true;
+    }
+    const s = shopAt(ctx, ctx.player.x, ctx.player.y);
+    if (s) {
+      // Defer to loot which handles shop messaging
+      return loot(ctx);
+    }
     // Nothing else: allow fallback
     return false;
   }
