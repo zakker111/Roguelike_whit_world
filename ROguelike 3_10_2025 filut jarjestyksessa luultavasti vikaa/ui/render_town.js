@@ -57,7 +57,7 @@ function fallbackFillTown(TILES, type, COLORS) {
     if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
     if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
     if (type === TILES.DOOR) return "#3a2f1b";
-    if (type === TILES.WINDOW) return "#295b6e";
+    if (type === TILES.WINDOW) return "#26728c";
     if (type === TILES.STAIRS) return "#3a2f1b";
   } catch (_) {}
   return "#0b0c10";
@@ -159,16 +159,25 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
 
-      // Skip glyphs for DOOR/STAIRS/WINDOW in town to avoid cluttery dash visuals
-      if (type === TILES.DOOR || type === TILES.STAIRS || type === TILES.WINDOW) continue;
+      // Skip glyphs for DOOR/STAIRS; windows get a subtle pane glyph for readability
+      if (type === TILES.DOOR || type === TILES.STAIRS) continue;
 
       const tg = glyphTownFor(type);
-      if (!tg) continue;
-      const glyph = tg.glyph;
-      const fg = tg.fg;
-      if (glyph && String(glyph).trim().length > 0 && fg) {
-        const screenX = (x - startX) * TILE - tileOffsetX;
-        const screenY = (y - startY) * TILE - tileOffsetY;
+      let glyph = tg ? tg.glyph : "";
+      let fg = tg ? tg.fg : null;
+
+      const screenX = (x - startX) * TILE - tileOffsetX;
+      const screenY = (y - startY) * TILE - tileOffsetY;
+
+      if (type === TILES.WINDOW) {
+        if (!glyph || String(glyph).trim().length === 0) glyph = "□";
+        if (!fg) fg = "#8ecae6";
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.50;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+        ctx2d.restore();
+      } else {
+        if (!glyph || !fg || String(glyph).trim().length === 0) continue;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
       }
     }

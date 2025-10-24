@@ -602,7 +602,18 @@
           th = Math.max(minH, th - 2);
         }
 
-        // As a last resort, place near plaza center with current (possibly shrunken) size
+        // As a last resort, shrink until margin-clear and non-overlap near plaza center
+        for (let extraShrink = 0; extraShrink < 6; extraShrink++) {
+          const nx = Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0));
+          const ny = Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0));
+          const fits = (nx >= 1 && ny >= 1 && nx + tw < W - 1 && ny + th < H - 1);
+          if (fits && hasMarginClear(nx, ny, tw, th, 1) && !overlapsPlazaRect(nx, ny, tw, th, 1)) {
+            return { x: nx, y: ny, w: tw, h: th, facing: "southFacing" };
+          }
+          tw = Math.max(minW, tw - 2);
+          th = Math.max(minH, th - 2);
+        }
+        // Final minimal placement
         const nx = Math.max(1, Math.min(W - 2 - tw, (plaza.x - (tw / 2)) | 0));
         const ny = Math.max(1, Math.min(H - 2 - th, (plaza.y - (th / 2)) | 0));
         return { x: nx, y: ny, w: tw, h: th, facing: "southFacing" };
@@ -702,6 +713,44 @@
           bestDoor = { x: dd.x, y: dd.y };
         }
         ctx.tavern = { building: { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
+      } catch (_) {}
+    })();
+
+    // Ensure minimum building count around plaza
+    (function ensureMinimumBuildingsAroundPlaza() {
+      try {
+        const sizeKey = townSize;
+        const minBySize = (sizeKey === "small") ? 10 : (sizeKey === "city" ? 24 : 16);
+        if (buildings.length >= minBySize) return;
+        const px0 = ((plaza.x - (plazaW / 2)) | 0), px1 = ((plaza.x + (plazaW / 2)) | 0);
+        const py0 = ((plaza.y - (plazaH / 2)) | 0), py1 = ((plaza.y + (plazaH / 2)) | 0);
+        const quads = [
+          { x0: 1, y0: 1, x1: Math.max(2, px0 - 2), y1: Math.max(2, py0 - 2) },
+          { x0: Math.min(W - 3, px1 + 2), y0: 1, x1: W - 2, y1: Math.max(2, py0 - 2) },
+          { x0: 1, y0: Math.min(H - 3, py1 + 2), x1: Math.max(2, px0 - 2), y1: H - 2 },
+          { x0: Math.min(W - 3, px1 + 2), y0: Math.min(H - 3, py1 + 2), x1: W - 2, y1: H - 2 },
+        ];
+        let added = 0;
+        function tryPlaceRect(q) {
+          const bw = Math.max(6, Math.min(10, 6 + Math.floor(ctx.rng() * 5)));
+          const bh = Math.max(4, Math.min(8, 4 + Math.floor(ctx.rng() * 5)));
+          const spanX = Math.max(1, (q.x1 - q.x0 - bw));
+          const spanY = Math.max(1, (q.y1 - q.y0 - bh));
+          const bx = Math.max(q.x0 + 1, Math.min(q.x1 - bw, q.x0 + 1 + Math.floor(ctx.rng() * spanX)));
+          const by = Math.max(q.y0 + 1, Math.min(q.y1 - bh, q.y0 + 1 + Math.floor(ctx.rng() * spanY)));
+          if (bx >= q.x1 - 1 || by >= q.y1 - 1) return false;
+          if (overlapsPlazaRect(bx, by, bw, bh, 1)) return false;
+          if (!isAreaClearForBuilding(bx, by, bw, bh, 1)) return false;
+          placeBuilding(bx, by, bw, bh);
+          added++;
+          return true;
+        }
+        for (const q of quads) {
+          if (buildings.length + added >= minBySize) break;
+          for (let tries = 0; tries < 4 && buildings.length + added < minBySize; tries++) {
+            if (!tryPlaceRect(q)) continue;
+          }
+        }
       } catch (_) {}
     })();
 
@@ -1137,6 +1186,8 @@
         return false;
       }
       for (const b of buildings) {
+        const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+        const isTavernBld = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
         let candidates = [];
         const sides = sidePoints(b);
         for (const pts of sides) {
@@ -1151,7 +1202,11 @@
         }
         if (!candidates.length) continue;
         // Limit by perimeter size so larger buildings get a few more windows but not too many
-        const limit = Math.min(4, Math.max(1, Math.floor((b.w + b.h) / 10)));
+        let limit = Math.min(3, Math.max(1, Math.floor((b.w + b.h) / 12)));
+        if (isTavernBld) {
+          limit = Math.max(1, Math.floor(limit * 0.7));
+        }
+        limit = Math.max(1, Math.min(limit, 4));
         const placed = [];
         let attempts = 0;
         while (placed.length < limit && candidates.length > 0 && attempts++ < candidates.length * 2) {
@@ -1200,7 +1255,21 @@
       let placed = 0;
       const benchLimitCfg = ((TOWNCFG && TOWNCFG.props && TOWNCFG.props.benchLimit && TOWNCFG.props.benchLimit[townSize]) | 0);
       const computedLimit = Math.min(12, Math.max(6, Math.floor((plazaW + plazaH) / 3)));
-      const limit = benchLimitCfg > 0 ? benchLimitCfg : computedLimit;
+      let limit = benchLimitCfg > 0 ? benchLimitCfg : computedLimit;
+      // reduce bench density if tavern building is adjacent to plaza
+      (function reduceBenchNearInn() {
+        try {
+          const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          if (!tav) return;
+          const px0 = ((plaza.x - (plazaW / 2)) | 0), px1 = ((plaza.x + (plazaW / 2)) | 0);
+          const py0 = ((plaza.y - (plazaH / 2)) | 0), py1 = ((plaza.y + (plazaH / 2)) | 0);
+          const bx0 = tav.x, bx1 = tav.x + tav.w - 1;
+          const by0 = tav.y, by1 = tav.y + tav.h - 1;
+          const margin = 2;
+          const adj = !((bx1 < px0 - margin) || (px1 + margin < bx0) || (by1 < py0 - margin) || (py1 + margin < by0));
+          if (adj) limit = Math.max(4, Math.floor(limit * 0.7));
+        } catch (_) {}
+      })();
       for (const p of benchSpots) {
         if (placed >= limit) break;
         // Only place on clear floor and keep a tile free next to the bench
