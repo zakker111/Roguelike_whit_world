@@ -67,6 +67,10 @@
   let townBuildings = [];    // town buildings: [{x,y,w,h,door:{x,y}}]
   let townPlaza = null;      // central plaza coordinates {x,y}
   let tavern = null;         // tavern info: { building:{x,y,w,h,door}, door:{x,y} }
+  // Inn upstairs overlay state
+  let innUpstairs = null;    // { offset:{x,y}, w, h, tiles:number[][], props:[{x,y,type,name}] }
+  let innUpstairsActive = false;
+  let innStairsGround = [];  // [{x,y},{x,y}] two ground-floor stairs tiles inside inn hall
   
   let townName = null;       // current town's generated name
 
@@ -261,6 +265,10 @@
       townBuildings,
       townPlaza,
       tavern,
+      // Inn upstairs overlay
+      innUpstairs,
+      innUpstairsActive,
+      innStairsGround,
       dungeonExitAt,
       // camera
       camera,
@@ -1244,6 +1252,10 @@
           setTownBuildings: (v) => { if (Array.isArray(v)) townBuildings = v; },
           setTownPlaza: (v) => { if (typeof v !== "undefined") townPlaza = v; },
           setTavern: (v) => { if (typeof v !== "undefined") tavern = v; },
+          // Inn upstairs overlay state
+          setInnUpstairs: (v) => { if (typeof v !== "undefined") innUpstairs = v; },
+          setInnUpstairsActive: (v) => { if (typeof v !== "undefined") innUpstairsActive = !!v; },
+          setInnStairsGround: (v) => { if (Array.isArray(v)) innStairsGround = v; },
           setWorldReturnPos: (v) => { if (typeof v !== "undefined") worldReturnPos = v; },
           setRegion: (v) => { if (typeof v !== "undefined") region = v; },
           setTownExitAt: (v) => { if (typeof v !== "undefined") townExitAt = v; },
@@ -1277,6 +1289,10 @@
     townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
     townPlaza = ctx.townPlaza || townPlaza;
     tavern = ctx.tavern || tavern;
+    // Inn upstairs overlay (fallback direct assignment)
+    if (Object.prototype.hasOwnProperty.call(ctx, "innUpstairs")) innUpstairs = ctx.innUpstairs;
+    if (Object.prototype.hasOwnProperty.call(ctx, "innUpstairsActive")) innUpstairsActive = !!ctx.innUpstairsActive;
+    if (Object.prototype.hasOwnProperty.call(ctx, "innStairsGround") && Array.isArray(ctx.innStairsGround)) innStairsGround = ctx.innStairsGround;
     worldReturnPos = ctx.worldReturnPos || worldReturnPos;
     region = ctx.region || region;
     townExitAt = ctx.townExitAt || townExitAt;

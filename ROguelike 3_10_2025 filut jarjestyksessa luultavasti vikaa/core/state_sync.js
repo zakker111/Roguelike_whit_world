@@ -43,6 +43,10 @@ export function applyLocal(ctx, sink) {
   try { if (typeof sink.setTownBuildings === "function") sink.setTownBuildings(ctx.townBuildings); } catch (_) {}
   try { if (typeof sink.setTownPlaza === "function") sink.setTownPlaza(ctx.townPlaza); } catch (_) {}
   try { if (typeof sink.setTavern === "function") sink.setTavern(ctx.tavern); } catch (_) {}
+  // Inn upstairs overlay (optional fields)
+  try { if (typeof sink.setInnUpstairs === "function") sink.setInnUpstairs(ctx.innUpstairs); } catch (_) {}
+  try { if (typeof sink.setInnUpstairsActive === "function") sink.setInnUpstairsActive(!!ctx.innUpstairsActive); } catch (_) {}
+  try { if (typeof sink.setInnStairsGround === "function") sink.setInnStairsGround(Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround : []); } catch (_) {}
   try { if (typeof sink.setWorldReturnPos === "function") sink.setWorldReturnPos(ctx.worldReturnPos); } catch (_) {}
   try { if (typeof sink.setRegion === "function") sink.setRegion(ctx.region); } catch (_) {}
   try { if (typeof sink.setTownExitAt === "function") sink.setTownExitAt(ctx.townExitAt); } catch (_) {}
