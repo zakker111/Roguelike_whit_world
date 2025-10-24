@@ -54,6 +54,186 @@
     return !(type === "sign" || type === "rug");
   }
 
+  // ---- Inn upstairs helpers (overlay-aware pathing/seating) ----
+  function innUpstairsRect(ctx) {
+    const tav = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+    const up = ctx.innUpstairs;
+    if (!tav || !up) return null;
+    const ox = up.offset ? up.offset.x : (tav.x + 1);
+    const oy = up.offset ? up.offset.y : (tav.y + 1);
+    return { x0: ox, y0: oy, x1: ox + (up.w | 0) - 1, y1: oy + (up.h | 0) - 1, w: (up.w | 0), h: (up.h | 0) };
+  }
+  function inUpstairsInterior(ctx, x, y) {
+    const r = innUpstairsRect(ctx);
+    if (!r) return false;
+    return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
+  }
+  function upstairsTileAt(ctx, x, y) {
+    const up = ctx.innUpstairs;
+    const r = innUpstairsRect(ctx);
+    if (!up || !r) return null;
+    const lx = x - r.x0, ly = y - r.y0;
+    if (lx < 0 || ly < 0 || lx >= r.w || ly >= r.h) return null;
+    const row = (up.tiles && up.tiles[ly]) ? up.tiles[ly] : null;
+    if (!row) return null;
+    return row[lx];
+  }
+  function isWalkInnUpstairs(ctx, x, y, occUp) {
+    if (!inUpstairsInterior(ctx, x, y)) return false;
+    const t = upstairsTileAt(ctx, x, y);
+    if (t == null) return false;
+    const T = ctx.TILES;
+    const walk = (t === T.FLOOR || t === T.STAIRS);
+    if (!walk) return false;
+    if (occUp && occUp.has(`${x},${y}`)) return false;
+    return true;
+  }
+  function buildOccUpstairs(ctx) {
+    const s = new Set();
+    const up = ctx.innUpstairs;
+    const tav = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+    if (!up || !tav) return s;
+    // Block upstairs props except signs/rugs
+    try {
+      const props = Array.isArray(up.props) ? up.props : [];
+      for (const p of props) {
+        if (!p) continue;
+        if (propBlocks(p.type)) s.add(`${p.x},${p.y}`);
+      }
+    } catch (_) {}
+    // Block upstairs NPCs (those with _floor === "upstairs") at their coordinates
+    try {
+      const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+      for (const n of npcs) {
+        if (!n) continue;
+        if (n._floor === "upstairs") s.add(`${n.x},${n.y}`);
+      }
+    } catch (_) {}
+    return s;
+  }
+  function nearestFreeAdjacentUpstairs(ctx, x, y, occUp) {
+    const dirs = [{dx:0,dy:0},{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
+    for (const d of dirs) {
+      const nx = x + d.dx, ny = y + d.dy;
+      if (isWalkInnUpstairs(ctx, nx, ny, occUp)) return { x: nx, y: ny };
+    }
+    return null;
+  }
+  function innUpstairsBedAdj(ctx) {
+    const up = ctx.innUpstairs;
+    if (!up) return [];
+    const occUp = buildOccUpstairs(ctx);
+    const out = [];
+    const props = Array.isArray(up.props) ? up.props : [];
+    for (const p of props) {
+      if (!p || String(p.type || "").toLowerCase() !== "bed") continue;
+      const adj = nearestFreeAdjacentUpstairs(ctx, p.x, p.y, occUp);
+      if (adj) out.push(adj);
+    }
+    return out;
+  }
+  function innUpstairsSeatAdj(ctx) {
+    const up = ctx.innUpstairs;
+    if (!up) return [];
+    const occUp = buildOccUpstairs(ctx);
+    const out = [];
+    const props = Array.isArray(up.props) ? up.props : [];
+    for (const p of props) {
+      const t = String(p.type || "").toLowerCase();
+      if (t !== "chair" && t !== "table") continue;
+      const adj = nearestFreeAdjacentUpstairs(ctx, p.x, p.y, occUp);
+      if (adj) out.push(adj);
+    }
+    return out;
+  }
+  function chooseInnUpstairsBed(ctx) {
+    const beds = innUpstairsBedAdj(ctx);
+    if (!beds.length) return null;
+    return beds[Math.floor(ctx.rng() * beds.length)];
+  }
+  function chooseInnUpstairsSeat(ctx) {
+    const seats = innUpstairsSeatAdj(ctx);
+    if (!seats.length) return null;
+    return seats[Math.floor(ctx.rng() * seats.length)];
+  }
+
+  // Raw upstairs bed tiles (props positions), used for proximity checks to decide sleeping
+  function innUpstairsBeds(ctx) {
+    const up = ctx.innUpstairs;
+    if (!up || !Array.isArray(up.props)) return [];
+    const out = [];
+    for (const p of up.props) {
+      if (!p) continue;
+      if (String(p.type || "").toLowerCase() === "bed") out.push({ x: p.x, y: p.y });
+    }
+    return out;
+  }
+
+  // A* restricted to upstairs interior using overlay tiles
+  function computePathUpstairs(ctx, occUp, sx, sy, tx, ty) {
+    const r = innUpstairsRect(ctx);
+    if (!r) return null;
+    const inB = (x, y) => x >= r.x0 && y >= r.y0 && x <= r.x1 && y <= r.y1;
+    const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+    const key = (x, y) => `${x},${y}`;
+    const h = (x, y) => Math.abs(x - tx) + Math.abs(y - ty);
+
+    const open = [];
+    const gScore = new Map();
+    const fScore = new Map();
+    const cameFrom = new Map();
+    const startK = key(sx, sy);
+    gScore.set(startK, 0);
+    fScore.set(startK, h(sx, sy));
+    open.push({ x: sx, y: sy, f: fScore.get(startK) });
+
+    const MAX_VISITS = 4000;
+    const visited = new Set();
+
+    function pushOpen(x, y, f) { open.push({ x, y, f }); }
+    function popOpen() {
+      if (open.length > 24) open.sort((a, b) => a.f - b.f || h(a.x, a.y) - h(b.x, b.y));
+      return open.shift();
+    }
+
+    let found = null;
+    while (open.length && visited.size < MAX_VISITS) {
+      const cur = popOpen();
+      const ck = key(cur.x, cur.y);
+      if (visited.has(ck)) continue;
+      visited.add(ck);
+      if (cur.x === tx && cur.y === ty) { found = cur; break; }
+
+      for (const d of dirs4) {
+        const nx = cur.x + d.dx, ny = cur.y + d.dy;
+        if (!inB(nx, ny)) continue;
+        if (!isWalkInnUpstairs(ctx, nx, ny, occUp)) continue;
+
+        const nk = key(nx, ny);
+        const tentativeG = (gScore.get(ck) ?? Infinity) + 1;
+        if (tentativeG < (gScore.get(nk) ?? Infinity)) {
+          cameFrom.set(nk, { x: cur.x, y: cur.y });
+          gScore.set(nk, tentativeG);
+          const f = tentativeG + h(nx, ny);
+          fScore.set(nk, f);
+          pushOpen(nx, ny, f);
+        }
+      }
+    }
+
+    if (!found) return null;
+
+    const path = [];
+    let cur = { x: found.x, y: found.y };
+    while (cur) {
+      path.push({ x: cur.x, y: cur.y });
+      const prev = cameFrom.get(key(cur.x, cur.y));
+      cur = prev ? { x: prev.x, y: prev.y } : null;
+    }
+    path.reverse();
+    return path;
+  }
+
   // Fast occupancy-aware free-tile check:
   // If ctx._occ is provided (Set of "x,y"), prefer it over O(n) scans of npcs.
   function isFreeTile(ctx, x, y) {
@@ -192,11 +372,9 @@
     if (n._plan && n._planGoal && n._planGoal.x === tx && n._planGoal.y === ty) {
       // Ensure current position matches first node
       if (n._plan.length && (n._plan[0].x !== n.x || n._plan[0].y !== n.y)) {
-        // Resync by searching for current position within plan
         const idx = n._plan.findIndex(p => p.x === n.x && p.y === n.y);
         if (idx >= 0) {
           n._plan = n._plan.slice(idx);
-          // Keep full path intact for visualization
         } else {
           n._plan = null;
           n._fullPlan = null;
@@ -206,10 +384,8 @@
       if (n._plan && n._plan.length >= 2) {
         const next = n._plan[1];
         const keyNext = `${next.x},${next.y}`;
-        // Allow shopkeepers to step onto their own reserved shop door
         const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
         let isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
-        // Inn: allow shopkeeper to step onto either of the double door tiles on their building perimeter
         if (!isOwnDoor && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
           const B = n._shopRef.building;
           if (B && ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR) {
@@ -217,10 +393,19 @@
             if (onPerimeter) isOwnDoor = true;
           }
         }
-        const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
+        const avoidDoorInside = (() => {
+          try {
+            const shop = n._shopRef || null;
+            const isInnKeeper = !!(n.isShopkeeper && shop && String(shop.type || "").toLowerCase() === "inn");
+            const B = shop && shop.building ? shop.building : null;
+            const nextIsDoor = (ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR);
+            const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
+            return isInnKeeper && nextIsDoor && insideNow;
+          } catch (_) { return false; }
+        })();
+        const blocked = (occ.has(keyNext) && !(isReserved && isOwnDoor)) || avoidDoorInside;
         if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
           if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
-            // Show entire planned route, not just remaining slice
             n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
           } else {
             n._debugPath = null;
@@ -230,13 +415,11 @@
           n._lastX = pxPrev; n._lastY = pyPrev;
           return true;
         } else {
-          // Blocked: force replan below
           n._plan = null;
           n._fullPlan = null;
           n._fullPlanGoal = null;
         }
       } else if (n._plan && n._plan.length === 1) {
-        // Already at goal
         if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
           n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
         }
@@ -244,13 +427,11 @@
       }
     }
 
-    // No valid plan; compute new plan (budgeted or urgent)
     const pathFn = (opts && opts.urgent) ? computePath : computePathBudgeted;
     const full = pathFn(ctx, occ, n.x, n.y, tx, ty);
     if (full && full.length >= 2) {
       n._plan = full.slice(0);
       n._planGoal = { x: tx, y: ty };
-      // Store full path for visualization
       n._fullPlan = full.slice(0);
       n._fullPlanGoal = { x: tx, y: ty };
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) n._debugPath = full.slice(0);
@@ -265,19 +446,27 @@
           if (onPerimeter) isOwnDoor = true;
         }
       }
-      const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
+      const avoidDoorInside2 = (() => {
+        try {
+          const shop = n._shopRef || null;
+          const isInnKeeper = !!(n.isShopkeeper && shop && String(shop.type || "").toLowerCase() === "inn");
+          const B = shop && shop.building ? shop.building : null;
+          const nextIsDoor = (ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR);
+          const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
+          return isInnKeeper && nextIsDoor && insideNow;
+        } catch (_) { return false; }
+      })();
+      const blocked = (occ.has(keyNext) && !(isReserved && isOwnDoor)) || avoidDoorInside2;
       if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
         const pxPrev = n.x, pyPrev = n.y;
         occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
         n._lastX = pxPrev; n._lastY = pyPrev;
         return true;
       }
-      // If first step blocked right away, drop plan and try nudge
       n._plan = null; n._planGoal = null;
       n._fullPlan = null; n._fullPlanGoal = null;
     }
 
-    // Fallback: greedy nudge step with anti-oscillation guard
     const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
     const dirs = dirs4.slice().sort((a, b) =>
       (Math.abs((n.x + a.dx) - tx) + Math.abs((n.y + a.dy) - ty)) -
@@ -305,9 +494,18 @@
       }
       if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
 
+      // Innkeeper: avoid stepping onto the inn door tile while already inside the building
+      try {
+        if (n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
+          const B = n._shopRef.building || null;
+          const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
+          const nextIsDoor = (ctx.map[ny] && ctx.map[ny][nx] === ctx.TILES.DOOR);
+          if (insideNow && nextIsDoor) continue;
+        }
+      } catch (_) {}
+
       const isBack = prevKey && keyN === prevKey;
       if (isBack) {
-        // Remember the backstep candidate; use only if no other option exists
         if (!backStep) backStep = { nx, ny };
         continue;
       }
@@ -321,7 +519,6 @@
 
     if (chosen) {
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
-        // Single-step nudge visualization
         n._debugPath = [{ x: n.x, y: n.y }, { x: chosen.nx, y: chosen.ny }];
       } else {
         n._debugPath = null;
@@ -337,6 +534,84 @@
     n._debugPath = null;
     n._plan = null; n._planGoal = null;
     n._fullPlan = null; n._fullPlanGoal = null;
+    return false;
+  }
+
+  // Route into Inn upstairs: go to ground stairs, then upstairs path to target
+  function routeIntoInnUpstairs(ctx, occGround, n, targetUp) {
+    const tav = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+    const up = ctx.innUpstairs;
+    const stairs = Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround.slice(0) : [];
+    if (!tav || !up || !stairs.length || !targetUp) return false;
+
+    // Default floor if missing
+    if (!n._floor) n._floor = "ground";
+
+    // If not upstairs yet: aim for nearest ground stairs tile
+    if (n._floor !== "upstairs") {
+      // Pick nearest stairs by manhattan
+      let sPick = stairs[0];
+      let bd = Math.abs(stairs[0].x - n.x) + Math.abs(stairs[0].y - n.y);
+      for (let i = 1; i < stairs.length; i++) {
+        const s = stairs[i];
+        const d = Math.abs(s.x - n.x) + Math.abs(s.y - n.y);
+        if (d < bd) { bd = d; sPick = s; }
+      }
+      // Step toward stairs using ground pathing
+      const handled = stepTowards(ctx, occGround, n, sPick.x, sPick.y, { urgent: true });
+      // Exact stairs landing: toggle immediately
+      if (n.x === sPick.x && n.y === sPick.y && insideBuilding(tav, n.x, n.y)) {
+        n._floor = "upstairs";
+        n._nearStairsCount = 0;
+        return true;
+      }
+      // Proximity-based toggle: if inside inn and within 1 tile of any stairs for consecutive ticks, toggle upstairs
+      if (insideBuilding(tav, n.x, n.y)) {
+        let near = false;
+        for (let i = 0; i < stairs.length; i++) {
+          const s = stairs[i];
+          const md = Math.abs(s.x - n.x) + Math.abs(s.y - n.y);
+          if (md <= 1) { near = true; break; }
+        }
+        if (near) {
+          n._nearStairsCount = (typeof n._nearStairsCount === "number") ? (n._nearStairsCount + 1) : 1;
+          // Small threshold (2) to avoid accidental toggles during crowd jitter
+          if (n._nearStairsCount >= 2) {
+            n._floor = "upstairs";
+            n._nearStairsCount = 0;
+            return true;
+          }
+        } else {
+          n._nearStairsCount = 0;
+        }
+      }
+      return true;
+    }
+
+    // Upstairs movement: overlay-aware A*
+    const occUp = buildOccUpstairs(ctx);
+    const path = computePathUpstairs(ctx, occUp, n.x, n.y, targetUp.x, targetUp.y);
+    if (path && path.length >= 2) {
+      const next = path[1];
+      const keyNext = `${next.x},${next.y}`;
+      if (isWalkInnUpstairs(ctx, next.x, next.y, occUp)) {
+        // Move upstairs; separate occupancy from ground
+        const pxPrev = n.x, pyPrev = n.y;
+        // Do not touch occGround for upstairs moves; maintain local upstairs occupancy only
+        n.x = next.x; n.y = next.y;
+        n._lastX = pxPrev; n._lastY = pyPrev;
+        // If we step onto upstairs stairs tile, we could toggle down — leave for future flows
+        return true;
+      }
+    }
+    // Small jitter upstairs if blocked
+    if (ctx.rng() < 0.15) {
+      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+      for (const d of dirs) {
+        const nx = n.x + d.dx, ny = n.y + d.dy;
+        if (isWalkInnUpstairs(ctx, nx, ny, buildOccUpstairs(ctx))) { n.x = nx; n.y = ny; return true; }
+      }
+    }
     return false;
   }
 
@@ -673,6 +948,24 @@
     const LATE_START = 2 * 60, LATE_END = 5 * 60;
     const inLateWindow = minutes >= LATE_START && minutes < LATE_END;
 
+    // Debug helper: ensure at least one generic roamer is forced to sleep upstairs at the Inn
+    function assignDebugUpstairsRoamer(ctx, npcs) {
+      try {
+        if (ctx._debugUpstairsRoamerAssigned) return;
+        for (const n of npcs) {
+          if (n && !n.isResident && !n.isShopkeeper && !n.isPet && !n.greeter) {
+            n._forceInnSleepUpstairs = true;
+            // Ensure the roamer acts every tick for reliable routing
+            n._stride = 1;
+            n._strideOffset = 0;
+            ctx._debugUpstairsRoamerAssigned = true;
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+    assignDebugUpstairsRoamer(ctx, npcs);
+
     // Evening return window: boost pathfinding budget to smooth mass routing (18:00–21:00)
     try {
       const EVENING_START = 18 * 60, EVENING_END = 21 * 60;
@@ -710,7 +1003,8 @@
       );
       return beds;
     }
-    function chooseInnTarget(ctx) {
+    // Legacy ground-only inn target finder (kept for reference; not used)
+    function chooseInnTargetGroundLegacy(ctx) {
       const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
       if (!innB) return null;
       const beds = innBedSpots(ctx);
@@ -718,13 +1012,12 @@
         const b = beds[randInt(ctx, 0, beds.length - 1)];
         return { x: b.x, y: b.y };
       }
-      // Fallback to a free interior tile near the door
       const door = ctx.tavern.door || { x: innB.x + ((innB.w / 2) | 0), y: innB.y + ((innB.h / 2) | 0) };
       const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, innB);
       return inSpot || { x: door.x, y: door.y };
     }
 
-    // Inn seating: pick floor tiles adjacent to chairs/tables inside the Inn
+    // Inn seating: pick floor tiles adjacent to chairs/tables inside the Inn (ground)
     function innSeatSpots(ctx) {
       const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
       if (!innB) return [];
@@ -742,6 +1035,18 @@
       const seats = innSeatSpots(ctx);
       if (!seats.length) return chooseInnTarget(ctx);
       return seats[randInt(ctx, 0, seats.length - 1)];
+    }
+
+    // Upstairs-aware Inn target (prefer upstairs bed at night if available)
+    function chooseInnTarget(ctx) {
+      const upBed = chooseInnUpstairsBed(ctx);
+      if (upBed) return { x: upBed.x, y: upBed.y };
+      const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+      if (!innB) return null;
+      // Fallback to a free interior tile near the door
+      const door = ctx.tavern.door || { x: innB.x + ((innB.w / 2) | 0), y: innB.y + ((innB.h / 2) | 0) };
+      const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, innB);
+      return inSpot || { x: door.x, y: door.y };
     }
 
     // Bench seating near plaza or first available bench
@@ -1143,23 +1448,39 @@
           // Inside: patrol between interior spots (chairs/tables or free interior)
           // Arrived at patrol goal?
           if (n._patrolGoal && n.x === n._patrolGoal.x && n.y === n._patrolGoal.y) {
-            n._patrolStayTurns = randInt(ctx, 3, 7);
+            n._patrolStayTurns = randInt(ctx, 8, 14);
             n._patrolGoal = null;
           }
           if (n._patrolStayTurns && n._patrolStayTurns > 0) {
             n._patrolStayTurns--;
             // slight fidget to look alive
-            if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+            if (ctx.rng() < 0.08) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
             continue;
           }
           if (!n._patrolGoal) {
-            const seat = chooseInnSeat(ctx);
-            const next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
-              try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
-            })() || null;
-            if (next && !(next.x === n.x && next.y === n.y)) {
-              n._patrolGoal = { x: next.x, y: next.y };
+            // Occasionally pick an upstairs seat to patrol to
+            const upSeatChance = 0.30;
+            let next = null;
+            if (ctx.innUpstairs && ctx.rng() < upSeatChance) {
+              const seatUp = chooseInnUpstairsSeat(ctx);
+              if (seatUp) {
+                n._patrolGoalUp = { x: seatUp.x, y: seatUp.y };
+              }
             }
+            if (!n._patrolGoalUp) {
+              const seat = chooseInnSeat(ctx);
+              next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
+                try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
+              })() || null;
+              if (next && !(next.x === n.x && next.y === n.y)) {
+                n._patrolGoal = { x: next.x, y: next.y };
+              }
+            }
+          }
+          if (n._patrolGoalUp) {
+            if (routeIntoInnUpstairs(ctx, occ, n, n._patrolGoalUp)) continue;
+            // If route failed, clear and fallback to ground patrol next tick
+            n._patrolGoalUp = null;
           }
           if (n._patrolGoal) {
             stepTowards(ctx, occ, n, n._patrolGoal.x, n._patrolGoal.y, { urgent: true });
@@ -1195,12 +1516,18 @@
           // Off hours: stagger departure between 18:00-21:00
           const departReady = typeof n._homeDepartMin === "number" ? (minutes >= n._homeDepartMin) : true;
 
-          // If it's very late and the NPC is not inside home, seek Inn as fallback shelter
+          // If it's very late and the NPC is not inside home, seek Inn as fallback shelter.
+          // Prefer upstairs beds when available.
           if (inLateWindow && !(insideBuilding(n._home.building, n.x, n.y))) {
             const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
             if (innB) {
-              const innTarget = chooseInnTarget(ctx);
-              handled = routeIntoBuilding(ctx, occ, n, innB, innTarget);
+              const upBed = chooseInnUpstairsBed(ctx);
+              if (upBed && routeIntoInnUpstairs(ctx, occ, n, upBed)) {
+                handled = true;
+              } else {
+                const innTarget = chooseInnTarget(ctx);
+                handled = routeIntoBuilding(ctx, occ, n, innB, innTarget);
+              }
             }
           }
 
@@ -1261,7 +1588,7 @@
         if (handled) continue;
 
         // idle jiggle: occasionally take a small step to avoid total idling
-        if (ctx.rng() < 0.3) {
+        if (ctx.rng() < 0.15) {
           stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
         }
         continue;
@@ -1278,12 +1605,17 @@
           // Stagger: only start going home after personal departure minute (18:00..21:00)
           const departReady = typeof n._homeDepartMin === "number" ? (minutes >= n._homeDepartMin) : true;
 
-          // Late-night shelter fallback: if very late and not inside home, go to Inn
+          // Late-night shelter fallback: if very late and not inside home, go to Inn (prefer upstairs beds)
           if (inLateWindow && n._home && n._home.building && !insideBuilding(n._home.building, n.x, n.y)) {
             const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
             if (innB) {
-              const innTarget = chooseInnTarget(ctx);
-              if (routeIntoBuilding(ctx, occ, n, innB, innTarget)) continue;
+              const upBed = chooseInnUpstairsBed(ctx);
+              if (upBed && routeIntoInnUpstairs(ctx, occ, n, upBed)) {
+                continue;
+              } else {
+                const innTarget = chooseInnTarget(ctx);
+                if (routeIntoBuilding(ctx, occ, n, innB, innTarget)) continue;
+              }
             }
           }
 
@@ -1292,7 +1624,7 @@
             const targetLate = n._work || (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
             if (targetLate) {
               if (n.x === targetLate.x && n.y === targetLate.y) {
-                if (ctx.rng() < 0.9) continue;
+                if (ctx.rng() < 0.95) continue;
                 stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
                 continue;
               }
@@ -1300,17 +1632,25 @@
               continue;
             }
             // gentle idle
-            if (ctx.rng() < 0.8) continue;
+            if (ctx.rng() < 0.90) continue;
           } else if (n._home && n._home.building) {
             const bedSpot = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : null;
-            const sleepTarget = bedSpot ? bedSpot : { x: n._home.x, y: n._home.y };
-            // If at, or adjacent to, the bed spot (or home spot if no bed), go to sleep
-            const atExact = (n.x === sleepTarget.x && n.y === sleepTarget.y);
-            const nearBed = bedSpot ? (manhattan(n.x, n.y, bedSpot.x, bedSpot.y) === 1) : false;
-            if (atExact || nearBed) {
-              n._sleeping = true;
-              continue;
+          const sleepTarget = bedSpot ? bedSpot : { x: n._home.x, y: n._home.y };
+          const atExact = (n.x === sleepTarget.x && n.y === sleepTarget.y);
+          const nearBed = bedSpot ? (manhattan(n.x, n.y, bedSpot.x, bedSpot.y) === 1) : false;
+          if (atExact || nearBed) {
+            n._sleeping = true;
+            continue;
+          }
+          // Upstairs inn sleeping: if inside inn upstairs and near an upstairs bed during late night
+          if (inLateWindow && ctx.tavern && ctx.tavern.building && n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
+            const bedsUp = innUpstairsBeds(ctx);
+            for (let i = 0; i < bedsUp.length; i++) {
+              const b = bedsUp[i];
+              if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
             }
+            if (n._sleeping) continue;
+          }
             // Ensure and follow a deterministic home plan; if blocked, wait and retry
             if (!n._homePlan || !n._homePlanGoal) {
               ensureHomePlan(ctx, occ, n);
@@ -1337,13 +1677,13 @@
             if (n._innSeatGoal && insideBuilding(innB, n.x, n.y) &&
                 n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
               // Arrived at seat: sit for a few turns
-              n._innStayTurns = randInt(ctx, 3, 9);
+              n._innStayTurns = randInt(ctx, 10, 20);
               n._innSeatGoal = null;
             }
             if (n._innStayTurns && n._innStayTurns > 0) {
               n._innStayTurns--;
               // Occasionally fidget while seated
-              if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+              if (ctx.rng() < 0.08) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
               continue;
             }
           }
@@ -1351,6 +1691,15 @@
           if (innB) {
             const wantTavern = n._likesInn ? (ctx.rng() < 0.20) : (ctx.rng() < 0.06);
             if (wantTavern && !n._innSeatGoal && !n._benchSeatGoal && !n._homeSitGoal && (_innSeatersNow < _innSeatCap)) {
+              // 50% chance to target upstairs seating when available
+              let targeted = false;
+              if (ctx.innUpstairs && ctx.rng() < 0.5) {
+                const seatUp = chooseInnUpstairsSeat(ctx);
+                if (seatUp) {
+                  targeted = routeIntoInnUpstairs(ctx, occ, n, seatUp);
+                  if (targeted) { n._innSeatGoal = { x: seatUp.x, y: seatUp.y }; _innSeatersNow++; continue; }
+                }
+              }
               const seat = chooseInnSeat(ctx);
               if (seat) {
                 n._innSeatGoal = { x: seat.x, y: seat.y };
@@ -1361,12 +1710,12 @@
           
           // Home sitting: arrive/stay and occasional
           if (n._homeSitGoal && n.x === n._homeSitGoal.x && n.y === n._homeSitGoal.y) {
-            n._homeSitTurns = randInt(ctx, 12, 24); // ~48–96 minutes
+            n._homeSitTurns = randInt(ctx, 16, 32); // longer seated time at home
             n._homeSitGoal = null;
           }
           if (n._homeSitTurns && n._homeSitTurns > 0) {
             n._homeSitTurns--;
-            if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+            if (ctx.rng() < 0.06) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
             continue;
           }
           if (n._home && n._home.building && !n._homeSitGoal && !n._tavernSeatGoal && !n._benchSeatGoal) {
@@ -1403,12 +1752,12 @@
                   continue;
                 } else {
                   // brief fidget while waiting
-                  if (ctx.rng() < 0.2) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                  if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
                   continue;
                 }
               } else {
                 // Non-shop errand: reduced idle lingering
-                if (ctx.rng() < 0.6) continue;
+                if (ctx.rng() < 0.75) continue;
                 stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
                 continue;
               }
@@ -1439,19 +1788,38 @@
           continue;
         }
       }
-      if (ctx.rng() < 0.2) continue;
+
+      // Debug: force one roamer to go sleep in Inn upstairs during late night
+      if (n._forceInnSleepUpstairs && inLateWindow && ctx.tavern && ctx.innUpstairs && !n._sleeping) {
+        // If already upstairs and adjacent to a bed, sleep
+        if (n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
+          const bedsUpList = innUpstairsBeds(ctx);
+          for (let i = 0; i < bedsUpList.length; i++) {
+            const b = bedsUpList[i];
+            if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+          }
+          if (n._sleeping) continue;
+        }
+        const bedTarget = chooseInnUpstairsBed(ctx);
+        if (bedTarget && routeIntoInnUpstairs(ctx, occ, n, bedTarget)) {
+          continue;
+        }
+      }
+
+      if (ctx.rng() < 0.35) continue;
+
       // Occasional tavern visit during the day for roamers who like the tavern
       if (phase === "day" && ctx.tavern && (n._likesInn || n._likesTavern)) {
         const innB2 = ctx.tavern.building;
         // If already at an Inn seat, sit for a few turns
         if (n._innSeatGoal && innB2 && insideBuilding(innB2, n.x, n.y) &&
             n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
-          n._innStayTurns = randInt(ctx, 2, 6);
+          n._innStayTurns = randInt(ctx, 8, 14);
           n._innSeatGoal = null;
         }
         if (n._innStayTurns && n._innStayTurns > 0) {
           n._innStayTurns--;
-          if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          if (ctx.rng() < 0.08) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
           continue;
         }
         const seat2 = chooseInnSeat(ctx);
@@ -1484,12 +1852,12 @@
             continue;
           }
         }
-        n._benchStayTurns = randInt(ctx, 8, 18);
+        n._benchStayTurns = randInt(ctx, 12, 24);
         n._benchSeatGoal = null;
       }
       if (n._benchStayTurns && n._benchStayTurns > 0) {
         n._benchStayTurns--;
-        if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+        if (ctx.rng() < 0.06) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
         continue;
       }
 
@@ -1501,16 +1869,27 @@
 
       // Very late at night: prefer shelter (Inn/tavern) if not at home
       if (inLateWindow && ctx.tavern && ctx.tavern.building && (!n._home || !insideBuilding(n._home.building, n.x, n.y))) {
-        const innTarget2 = chooseInnTarget(ctx) || { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
-        target = innTarget2;
+        // Prefer upstairs beds in the Inn; else ground seating/door
+        const upBed2 = chooseInnUpstairsBed(ctx);
+        if (upBed2 && routeIntoInnUpstairs(ctx, occ, n, upBed2)) {
+          continue;
+        }
+        const innB3 = ctx.tavern.building;
+        const seatG = chooseInnSeat(ctx);
+        if (innB3 && seatG && routeIntoBuilding(ctx, occ, n, innB3, seatG)) {
+          continue;
+        }
+        const doorFallback = { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
+        stepTowards(ctx, occ, n, doorFallback.x, doorFallback.y);
+        continue;
       }
       // If inside the Inn near a bed during late night, sleep until morning
       {
-        const innB2 = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-        if (inLateWindow && innB2 && insideBuilding(innB2, n.x, n.y)) {
-          const beds2 = innBedSpots(ctx);
-          for (let i = 0; i < beds2.length; i++) {
-            const b = beds2[i];
+        const tavB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+        if (inLateWindow && tavB && n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
+          const bedsUpList = innUpstairsBeds(ctx);
+          for (let i = 0; i < bedsUpList.length; i++) {
+            const b = bedsUpList[i];
             if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
           }
         }

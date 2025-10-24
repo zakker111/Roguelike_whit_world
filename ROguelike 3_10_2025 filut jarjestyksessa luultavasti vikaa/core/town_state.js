@@ -23,6 +23,8 @@ export function key(x, y) { return `${x},${y}`; }
 
 function readLS() {
   try {
+    // Allow disabling localStorage via flag (set by URL param fresh=1/reset=1/nolocalstorage=1)
+    if (typeof window !== "undefined" && window.NO_LOCALSTORAGE) return Object.create(null);
     const raw = (typeof localStorage !== "undefined") ? localStorage.getItem(LS_KEY) : null;
     if (!raw) return Object.create(null);
     const obj = JSON.parse(raw);
@@ -34,6 +36,8 @@ function readLS() {
 
 function writeLS(obj) {
   try {
+    // Allow disabling localStorage writes via flag (set by URL param fresh=1/reset=1/nolocalstorage=1)
+    if (typeof window !== "undefined" && window.NO_LOCALSTORAGE) return;
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(LS_KEY, JSON.stringify(obj));
     }
@@ -75,6 +79,15 @@ function cloneForStorage(st) {
     townPlaza: st.townPlaza ? { x: st.townPlaza.x, y: st.townPlaza.y } : null,
     tavern: st.tavern ? { building: st.tavern.building ? { x: st.tavern.building.x, y: st.tavern.building.y, w: st.tavern.building.w, h: st.tavern.building.h } : null,
                          door: st.tavern.door ? { x: st.tavern.door.x, y: st.tavern.door.y } : null } : null,
+    // Inn upstairs overlay persistence (optional)
+    innUpstairs: st.innUpstairs ? {
+      offset: st.innUpstairs.offset ? { x: st.innUpstairs.offset.x, y: st.innUpstairs.offset.y } : null,
+      w: st.innUpstairs.w | 0,
+      h: st.innUpstairs.h | 0,
+      tiles: Array.isArray(st.innUpstairs.tiles) ? st.innUpstairs.tiles.map(row => Array.isArray(row) ? row.slice(0) : []) : [],
+      props: Array.isArray(st.innUpstairs.props) ? st.innUpstairs.props.map(p => ({ x: p.x, y: p.y, type: p.type, name: p.name })) : []
+    } : null,
+    innStairsGround: Array.isArray(st.innStairsGround) ? st.innStairsGround.map(s => ({ x: s.x, y: s.y })) : [],
     townExitAt: st.townExitAt ? { x: st.townExitAt.x, y: st.townExitAt.y } : null,
     townName: st.townName || null,
     townSize: st.townSize || null
@@ -102,6 +115,9 @@ export function save(ctx) {
     townBuildings: ctx.townBuildings || [],
     townPlaza: ctx.townPlaza || null,
     tavern: ctx.tavern || null,
+    // Save inn upstairs overlay and stairs portal positions if present
+    innUpstairs: ctx.innUpstairs || null,
+    innStairsGround: Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround.slice(0) : [],
     townExitAt: ctx.townExitAt || null,
     townName: ctx.townName || null,
     townSize: ctx.townSize || null
@@ -151,6 +167,25 @@ function applyState(ctx, st, x, y) {
   ctx.townBuildings = Array.isArray(st.townBuildings) ? st.townBuildings : [];
   ctx.townPlaza = st.townPlaza || null;
   ctx.tavern = st.tavern || null;
+  // Restore inn upstairs overlay and stairs portal
+  ctx.innUpstairs = st.innUpstairs || null;
+  // Sanitize legacy upstairs tiles: convert DOOR/WINDOW to FLOOR; keep WALL/STAIRS intact.
+  try {
+    const up = ctx.innUpstairs;
+    if (up && Array.isArray(up.tiles)) {
+      const T = ctx.TILES || { WALL: 0, FLOOR: 1, DOOR: 2, STAIRS: 3, WINDOW: 4 };
+      for (let yy = 0; yy < up.tiles.length; yy++) {
+        const row = up.tiles[yy];
+        if (!Array.isArray(row)) continue;
+        for (let xx = 0; xx < row.length; xx++) {
+          const t = row[xx];
+          if (t === T.DOOR || t === T.WINDOW) row[xx] = T.FLOOR;
+        }
+      }
+    }
+  } catch (_) {}
+  ctx.innStairsGround = Array.isArray(st.innStairsGround) ? st.innStairsGround : [];
+  ctx.innUpstairsActive = false;
   ctx.townExitAt = st.townExitAt || null;
   ctx.townName = st.townName || ctx.townName || null;
   ctx.townSize = st.townSize || ctx.townSize || null;

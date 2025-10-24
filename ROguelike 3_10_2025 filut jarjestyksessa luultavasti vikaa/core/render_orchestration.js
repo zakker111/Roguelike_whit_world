@@ -79,6 +79,11 @@ export function getRenderCtx(ctx) {
     townProps: ctx.townProps,
     townBuildings: ctx.townBuildings,
     townExitAt: ctx.townExitAt,
+    // Inn upstairs overlay fields (needed by RenderTown)
+    tavern: ctx.tavern,
+    innUpstairs: ctx.innUpstairs,
+    innUpstairsActive: !!ctx.innUpstairsActive,
+    innStairsGround: Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround : [],
     encounterProps: ctx.encounterProps,
     encounterBiome: ctx.encounterBiome,
     dungeonProps: ctx.dungeonProps,

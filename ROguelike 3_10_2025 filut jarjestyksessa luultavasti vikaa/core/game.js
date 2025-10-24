@@ -51,6 +51,19 @@
   const MAP_COLS = (CFG && CFG.world && typeof CFG.world.MAP_COLS === "number") ? CFG.world.MAP_COLS : 120;
   const MAP_ROWS = (CFG && CFG.world && typeof CFG.world.MAP_ROWS === "number") ? CFG.world.MAP_ROWS : 80;
 
+  // Fresh session (no localStorage) support via URL params: ?fresh=1 or ?reset=1 or ?nolocalstorage=1
+  try {
+    const href = (typeof window !== "undefined" && window.location) ? window.location.href : "";
+    const url = href ? new URL(href) : null;
+    const params = url ? url.searchParams : null;
+    const fresh = !!(params && (params.get("fresh") === "1" || params.get("reset") === "1" || params.get("nolocalstorage") === "1"));
+    if (fresh) {
+      try { if (typeof window !== "undefined") window.NO_LOCALSTORAGE = true; } catch (_) {}
+      try { if (typeof localStorage !== "undefined") localStorage.clear(); } catch (_) {}
+      try { if (typeof window !== "undefined") window._TOWN_STATES_MEM = Object.create(null); } catch (_) {}
+    }
+  } catch (_) {}
+
   const FOV_DEFAULT = (CFG && CFG.fov && typeof CFG.fov.default === "number") ? CFG.fov.default : 8;
   const FOV_MIN = (CFG && CFG.fov && typeof CFG.fov.min === "number") ? CFG.fov.min : 3;
   const FOV_MAX = (CFG && CFG.fov && typeof CFG.fov.max === "number") ? CFG.fov.max : 14;
@@ -67,6 +80,10 @@
   let townBuildings = [];    // town buildings: [{x,y,w,h,door:{x,y}}]
   let townPlaza = null;      // central plaza coordinates {x,y}
   let tavern = null;         // tavern info: { building:{x,y,w,h,door}, door:{x,y} }
+  // Inn upstairs overlay state
+  let innUpstairs = null;    // { offset:{x,y}, w, h, tiles:number[][], props:[{x,y,type,name}] }
+  let innUpstairsActive = false;
+  let innStairsGround = [];  // [{x,y},{x,y}] two ground-floor stairs tiles inside inn hall
   
   let townName = null;       // current town's generated name
 
@@ -204,13 +221,15 @@
       // RNG.autoInit returns the seed value
     } catch (_) {
       try {
-        const sRaw = (typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
+        const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
+        const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
         currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
       } catch (_) { currentSeed = null; }
     }
   } else {
     try {
-      const sRaw = (typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
+      const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
+      const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
       currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
     } catch (_) { currentSeed = null; }
   }
@@ -261,6 +280,10 @@
       townBuildings,
       townPlaza,
       tavern,
+      // Inn upstairs overlay
+      innUpstairs,
+      innUpstairsActive,
+      innStairsGround,
       dungeonExitAt,
       // camera
       camera,
@@ -907,6 +930,28 @@
   
 
   function isWalkable(x, y) {
+    // Upstairs overlay-aware walkability: when active and inside the inn interior, honor upstairs tiles.
+    try {
+      if (innUpstairsActive && tavern && innUpstairs) {
+        const b = tavern.building || null;
+        const up = innUpstairs;
+        if (b && up) {
+          const ox = up.offset ? up.offset.x : (b.x + 1);
+          const oy = up.offset ? up.offset.y : (b.y + 1);
+          const lx = x - ox, ly = y - oy;
+          const w = up.w | 0, h = up.h | 0;
+          if (lx >= 0 && ly >= 0 && lx < w && ly < h) {
+            const row = up.tiles && up.tiles[ly];
+            const t = row ? row[lx] : null;
+            if (t != null) {
+              // Treat WALL as not walkable; allow FLOOR and STAIRS; disallow DOOR upstairs to avoid "walkable doors" issue.
+              return t === TILES.FLOOR || t === TILES.STAIRS;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
     // Centralize via Utils.isWalkableTile; fallback to tile-type check
     const U = modHandle("Utils");
     if (U && typeof U.isWalkableTile === "function") {
@@ -1244,6 +1289,10 @@
           setTownBuildings: (v) => { if (Array.isArray(v)) townBuildings = v; },
           setTownPlaza: (v) => { if (typeof v !== "undefined") townPlaza = v; },
           setTavern: (v) => { if (typeof v !== "undefined") tavern = v; },
+          // Inn upstairs overlay state
+          setInnUpstairs: (v) => { if (typeof v !== "undefined") innUpstairs = v; },
+          setInnUpstairsActive: (v) => { if (typeof v !== "undefined") innUpstairsActive = !!v; },
+          setInnStairsGround: (v) => { if (Array.isArray(v)) innStairsGround = v; },
           setWorldReturnPos: (v) => { if (typeof v !== "undefined") worldReturnPos = v; },
           setRegion: (v) => { if (typeof v !== "undefined") region = v; },
           setTownExitAt: (v) => { if (typeof v !== "undefined") townExitAt = v; },
@@ -1277,6 +1326,10 @@
     townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
     townPlaza = ctx.townPlaza || townPlaza;
     tavern = ctx.tavern || tavern;
+    // Inn upstairs overlay (fallback direct assignment)
+    if (Object.prototype.hasOwnProperty.call(ctx, "innUpstairs")) innUpstairs = ctx.innUpstairs;
+    if (Object.prototype.hasOwnProperty.call(ctx, "innUpstairsActive")) innUpstairsActive = !!ctx.innUpstairsActive;
+    if (Object.prototype.hasOwnProperty.call(ctx, "innStairsGround") && Array.isArray(ctx.innStairsGround)) innStairsGround = ctx.innStairsGround;
     worldReturnPos = ctx.worldReturnPos || worldReturnPos;
     region = ctx.region || region;
     townExitAt = ctx.townExitAt || townExitAt;

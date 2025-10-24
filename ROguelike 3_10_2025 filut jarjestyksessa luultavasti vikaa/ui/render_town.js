@@ -57,7 +57,7 @@ function fallbackFillTown(TILES, type, COLORS) {
     if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
     if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
     if (type === TILES.DOOR) return "#3a2f1b";
-    if (type === TILES.WINDOW) return "#295b6e";
+    if (type === TILES.WINDOW) return "#26728c";
     if (type === TILES.STAIRS) return "#3a2f1b";
   } catch (_) {}
   return "#0b0c10";
@@ -150,8 +150,66 @@ export function draw(ctx, view) {
     }
   }
 
+  // Inn upstairs overlay: draw upstairs tiles over the inn footprint when active
+  (function drawInnUpstairsOverlay() {
+    try {
+      const up = ctx.innUpstairs;
+      const tav = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+      if (!ctx.innUpstairsActive || !up || !tav) return;
+
+      // 1) Cover only the inn interior area with a neutral upstairs floor fill
+      //    to hide downstairs doors inside the hall while preserving perimeter walls.
+      const x0 = up.offset ? up.offset.x : (tav.x + 1);
+      const y0 = up.offset ? up.offset.y : (tav.y + 1);
+      const w = up.w | 0;
+      const h = up.h | 0;
+      const x1 = x0 + w - 1;
+      const y1 = y0 + h - 1;
+
+      const yyStartFill = Math.max(startY, y0);
+      const yyEndFill = Math.min(endY, y1);
+      const xxStartFill = Math.max(startX, x0);
+      const xxEndFill = Math.min(endX, x1);
+      const floorFill = fillTownFor(TILES, TILES.FLOOR, COLORS);
+      for (let y = yyStartFill; y <= yyEndFill; y++) {
+        for (let x = xxStartFill; x <= xxEndFill; x++) {
+          const screenX = (x - startX) * TILE - tileOffsetX;
+          const screenY = (y - startY) * TILE - tileOffsetY;
+          ctx2d.fillStyle = floorFill;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+        }
+      }
+
+      // 2) Draw the upstairs interior tiles over the inn interior (offset inside perimeter)
+      const yyStart = yyStartFill;
+      const yyEnd = yyEndFill;
+      const xxStart = xxStartFill;
+      const xxEnd = xxEndFill;
+
+      for (let y = yyStart; y <= yyEnd; y++) {
+        const ly = y - y0;
+        const rowUp = (up.tiles && up.tiles[ly]) ? up.tiles[ly] : null;
+        if (!rowUp) continue;
+        for (let x = xxStart; x <= xxEnd; x++) {
+          const lx = x - x0;
+          if (lx < 0 || ly < 0 || lx >= w || ly >= h) continue;
+          const type = rowUp[lx];
+          const screenX = (x - startX) * TILE - tileOffsetX;
+          const screenY = (y - startY) * TILE - tileOffsetY;
+          const fill = fillTownFor(TILES, type, COLORS);
+          ctx2d.fillStyle = fill;
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          // Upstairs stairs glyph
+          if (type === TILES.STAIRS) {
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          }
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Per-frame glyph overlay (drawn before visibility overlays)
-  // Keep town clean: suppress noisy door ('+'), stairs ('>'), and window glyphs; use tile fill colors for these.
+  // Keep town clean: suppress door glyphs; show stairs ('>') clearly; windows get a subtle pane glyph for readability
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowMap = yIn ? map[y] : null;
@@ -159,16 +217,33 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
 
-      // Skip glyphs for DOOR/STAIRS/WINDOW in town to avoid cluttery dash visuals
-      if (type === TILES.DOOR || type === TILES.STAIRS || type === TILES.WINDOW) continue;
+      // Suppress DOOR glyphs
+      if (type === TILES.DOOR) continue;
 
       const tg = glyphTownFor(type);
-      if (!tg) continue;
-      const glyph = tg.glyph;
-      const fg = tg.fg;
-      if (glyph && String(glyph).trim().length > 0 && fg) {
-        const screenX = (x - startX) * TILE - tileOffsetX;
-        const screenY = (y - startY) * TILE - tileOffsetY;
+      let glyph = tg ? tg.glyph : "";
+      let fg = tg ? tg.fg : null;
+
+      const screenX = (x - startX) * TILE - tileOffsetX;
+      const screenY = (y - startY) * TILE - tileOffsetY;
+
+      // Stairs: explicit fallback glyph/color to ensure visibility
+      if (type === TILES.STAIRS) {
+        const g = ">";
+        const c = "#d7ba7d";
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
+        continue;
+      }
+
+      if (type === TILES.WINDOW) {
+        if (!glyph || String(glyph).trim().length === 0) glyph = "□";
+        if (!fg) fg = "#8ecae6";
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.50;
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+        ctx2d.restore();
+      } else {
+        if (!glyph || !fg || String(glyph).trim().length === 0) continue;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
       }
     }
@@ -199,10 +274,39 @@ export function draw(ctx, view) {
     }
   }
 
+  // Stairs glyph overlay above visibility tint so it's always readable once seen
+  (function drawStairsGlyphTop() {
+    try {
+      for (let y = startY; y <= endY; y++) {
+        const yIn = y >= 0 && y < mapRows;
+        if (!yIn) continue;
+        for (let x = startX; x <= endX; x++) {
+          if (x < 0 || x >= mapCols) continue;
+          const type = map[y][x];
+          if (type !== TILES.STAIRS) continue;
+          const everSeen = !!(seen[y] && seen[y][x]);
+          if (!everSeen) continue;
+          const screenX = (x - startX) * TILE - tileOffsetX;
+          const screenY = (y - startY) * TILE - tileOffsetY;
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Props: draw remembered (seen) props dimmed; draw fully only when currently visible with direct LOS.
+  // When upstairs overlay is active, suppress ground props inside the inn footprint and draw upstairs props instead.
   if (Array.isArray(ctx.townProps)) {
     for (const p of ctx.townProps) {
       if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
+
+      // Suppress ground-level props inside inn when upstairs overlay is active
+      if (ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building) {
+        const b = ctx.tavern.building;
+        if (p.x > b.x && p.x < b.x + b.w - 1 && p.y > b.y && p.y < b.y + b.h - 1) {
+          continue;
+        }
+      }
 
       const wasSeen = !!(seen[p.y] && seen[p.y][p.x]);
       if (!wasSeen) continue;
@@ -301,11 +405,109 @@ export function draw(ctx, view) {
     }
   }
 
+  // Upstairs props overlay when active
+  (function drawInnUpstairsProps() {
+    try {
+      if (!ctx.innUpstairsActive || !ctx.innUpstairs || !Array.isArray(ctx.innUpstairs.props)) return;
+      const props = ctx.innUpstairs.props;
+      for (const p of props) {
+        if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
+        const wasSeen = !!(seen[p.y] && seen[p.y][p.x]);
+        if (!wasSeen) continue;
+        const visNow = !!(visible[p.y] && visible[p.y][p.x]);
+
+        const screenX = (p.x - startX) * TILE - tileOffsetX;
+        const screenY = (p.y - startY) * TILE - tileOffsetY;
+
+        let glyph = "";
+        let color = null;
+
+        try {
+          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+          if (arr) {
+            const tId = String(p.type || "").toLowerCase();
+            const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
+            if (entry && typeof entry.glyph === "string") glyph = entry.glyph;
+            if (entry && entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg;
+            if (!color && entry && typeof entry.color === "string") color = entry.color;
+          }
+        } catch (_) {}
+        let tdProp = null;
+        try {
+          const key = String(p.type || "").toUpperCase();
+          tdProp = getTileDefByKey("town", key) || getTileDefByKey("dungeon", key) || getTileDefByKey("overworld", key);
+          if (tdProp) {
+            if (!glyph && Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph || glyph;
+            if (!color && tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
+          }
+        } catch (_) {}
+        if (!glyph || !color) {
+          const t = String(p.type || "").toLowerCase();
+          if (!glyph) {
+            if (t === "crate") glyph = "▢";
+            else if (t === "barrel") glyph = "◍";
+            else if (t === "chest") glyph = "□";
+            else if (t === "shelf") glyph = "≡";
+            else if (t === "plant") glyph = "*";
+            else if (t === "rug") glyph = "░";
+            else if (t === "bed") glyph = "u";
+            else if (t === "table") glyph = "⊏";
+            else if (t === "chair") glyph = "n";
+            else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
+          }
+          if (!color) {
+            if (t === "crate") color = "#cbd5e1";
+            else if (t === "barrel") color = "#b5651d";
+            else if (t === "chest") color = "#d7ba7d";
+            else if (t === "shelf") color = "#cbd5e1";
+            else if (t === "plant") color = "#65a30d";
+            else if (t === "rug") color = "#b45309";
+            else if (t === "bed") color = "#cbd5e1";
+            else if (t === "table") color = "#cbd5e1";
+            else if (t === "chair") color = "#cbd5e1";
+            else color = "#cbd5e1";
+          }
+        }
+
+        let drawDim = !visNow;
+        if (visNow) {
+          let hasLine = true;
+          try {
+            if (ctx.los && typeof ctx.los.hasLOS === "function") {
+              hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, p.x, p.y);
+            } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
+              hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, p.x, p.y);
+            }
+          } catch (_) {}
+          if (!hasLine) drawDim = true;
+        }
+
+        if (drawDim) {
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.65;
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+          ctx2d.restore();
+        } else {
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
+        }
+      }
+    } catch (_) {}
+  })();
+
   // NPCs: draw when the tile has been seen; dim if not currently visible or no LOS.
   // This avoids \"disappearing\" when visibility is affected by lamp-light or corners.
   if (Array.isArray(ctx.npcs)) {
     for (const n of ctx.npcs) {
       if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
+
+      // Suppress downstairs NPCs inside the inn footprint when upstairs overlay is active
+      if (ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building) {
+        const b = ctx.tavern.building;
+        if (n.x > b.x && n.x < b.x + b.w - 1 && n.y > b.y && n.y < b.y + b.h - 1) {
+          continue;
+        }
+      }
 
       const everSeen = !!(seen[n.y] && seen[n.y][n.x]);
       if (!everSeen) continue;

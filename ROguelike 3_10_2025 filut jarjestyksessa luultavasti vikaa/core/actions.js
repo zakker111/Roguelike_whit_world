@@ -45,6 +45,15 @@ function propAt(ctx, x, y) {
   return props.find(p => p && p.x === x && p.y === y) || null;
 }
 
+function overlayPropAt(ctx, x, y) {
+  try {
+    if (ctx.innUpstairsActive && ctx.innUpstairs && Array.isArray(ctx.innUpstairs.props)) {
+      return ctx.innUpstairs.props.find(p => p && p.x === x && p.y === y) || null;
+    }
+  } catch (_) {}
+  return null;
+}
+
 function describeProp(ctx, p) {
   if (!p) return false;
   // Prefer data-driven interactions via PropsService + props.json
@@ -103,6 +112,22 @@ function restAtInn(ctx) {
 }
 
 // Public API
+function isInnStairsTile(ctx, x, y) {
+  try {
+    const arr = Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround : [];
+    if (arr.some(s => s && s.x === x && s.y === y)) return true;
+  } catch (_) {}
+  // Fallback: treat any STAIRS tile inside the inn building as the portal
+  try {
+    const b = ctx && ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+    if (b) {
+      const inside = (x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1);
+      if (inside && ctx.map && ctx.map[y] && ctx.map[y][x] === ctx.TILES.STAIRS) return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 export function doAction(ctx) {
   // Hide loot UI if open
   try {
@@ -135,15 +160,55 @@ export function doAction(ctx) {
   }
 
   if (ctx.mode === "town") {
+    // Inn upstairs overlay: toggle when standing on inn stairs portal tiles (handle before generic prop/shop interactions)
+    try {
+      if (isInnStairsTile(ctx, ctx.player.x, ctx.player.y)) {
+        const now = !!ctx.innUpstairsActive;
+        ctx.innUpstairsActive = !now;
+        if (ctx.innUpstairsActive) {
+          ctx.log && ctx.log("You ascend to the inn's upstairs.", "info");
+        } else {
+          ctx.log && ctx.log("You return to the inn's hall.", "info");
+        }
+        try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+        try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+        return true;
+      }
+    } catch (_) {}
+
+    // When upstairs overlay is active, prefer interaction with upstairs props
+    try {
+      if (ctx.innUpstairsActive) {
+        const pUp = overlayPropAt(ctx, ctx.player.x, ctx.player.y);
+        if (pUp) {
+          // Use PropsService if available; fallback to generic description
+          const PS = (typeof window !== "undefined" ? window.PropsService : (ctx.PropsService || null));
+          if (PS && typeof PS.interact === "function") {
+            PS.interact(ctx, pUp);
+          } else {
+            describeProp(ctx, pUp);
+          }
+          try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+          try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+          return true;
+        }
+      }
+    } catch (_) {}
+
     // Prefer Town interactions (props, talk)
     if (ctx.Town && typeof ctx.Town.interactProps === "function") {
       const handled = ctx.Town.interactProps(ctx);
       if (handled) return true;
     }
-    const s = shopAt(ctx, ctx.player.x, ctx.player.y);
-    if (s) {
-      // Defer to loot which handles shop messaging
-      return loot(ctx);
+    // Skip shop interactions inside inn when upstairs overlay is active
+    if (!(ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building &&
+          ctx.player.x > ctx.tavern.building.x && ctx.player.x < ctx.tavern.building.x + ctx.tavern.building.w - 1 &&
+          ctx.player.y > ctx.tavern.building.y && ctx.player.y < ctx.tavern.building.y + ctx.tavern.building.h - 1)) {
+      const s = shopAt(ctx, ctx.player.x, ctx.player.y);
+      if (s) {
+        // Defer to loot which handles shop messaging
+        return loot(ctx);
+      }
     }
     // Nothing else: allow fallback
     return false;
@@ -163,33 +228,55 @@ export function doAction(ctx) {
 
 export function loot(ctx) {
   if (ctx.mode === "town") {
+    // Upstairs overlay props interaction takes precedence when active
+    try {
+      if (ctx.innUpstairsActive) {
+        const pUp = overlayPropAt(ctx, ctx.player.x, ctx.player.y);
+        if (pUp) {
+          const PS = (typeof window !== "undefined" ? window.PropsService : (ctx.PropsService || null));
+          if (PS && typeof PS.interact === "function") {
+            PS.interact(ctx, pUp);
+          } else {
+            describeProp(ctx, pUp);
+          }
+          // Pure interaction/log; draw/UI will be requested by effect(s) as needed
+          return true;
+        }
+      }
+    } catch (_) {}
+
     // If standing on a shop door, show schedule and flavor
-    const s = shopAt(ctx, ctx.player.x, ctx.player.y);
-    if (s) {
-      const openNow = isShopOpenNow(ctx, s);
-      const sched = shopScheduleStr(ctx, s);
-      const schedPart = sched ? `${sched}. ` : "";
-      const nameLower = (s.name || "").toLowerCase();
-      if (nameLower === "inn") {
-        ctx.log(`Inn: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
-        ctx.log("You enter the inn.", "notice");
-        // Inns provide resting; allow rest regardless
-        restAtInn(ctx);
+    // Skip shop interactions inside inn when upstairs overlay is active
+    if (!(ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building &&
+          ctx.player.x > ctx.tavern.building.x && ctx.player.x < ctx.tavern.building.x + ctx.tavern.building.w - 1 &&
+          ctx.player.y > ctx.tavern.building.y && ctx.player.y < ctx.tavern.building.y + ctx.tavern.building.h - 1)) {
+      const s = shopAt(ctx, ctx.player.x, ctx.player.y);
+      if (s) {
+        const openNow = isShopOpenNow(ctx, s);
+        const sched = shopScheduleStr(ctx, s);
+        const schedPart = sched ? `${sched}. ` : "";
+        const nameLower = (s.name || "").toLowerCase();
+        if (nameLower === "inn") {
+          ctx.log(`Inn: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
+          ctx.log("You enter the inn.", "notice");
+          // Inns provide resting; allow rest regardless
+          restAtInn(ctx);
+          return true;
+        }
+        if (nameLower === "tavern") {
+          ctx.log(`Tavern: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
+          const phase = (ctx.time && ctx.time.phase) || "day";
+          if (phase === "night" || phase === "dusk") ctx.log("You step into the tavern. It's lively inside.", "notice");
+          else if (phase === "day") ctx.log("You enter the tavern. A few patrons sit quietly.", "info");
+          else ctx.log("You enter the tavern.", "info");
+          // Pure log messaging; no visual change -> no draw
+          return true;
+        }
+        if (openNow) ctx.log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "notice");
+        else ctx.log(`The ${s.name || "shop"} is closed.${sched ? " " + sched : ""}`, "warn");
+        // Pure schedule/log messaging; no visual change -> no draw
         return true;
       }
-      if (nameLower === "tavern") {
-        ctx.log(`Tavern: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
-        const phase = (ctx.time && ctx.time.phase) || "day";
-        if (phase === "night" || phase === "dusk") ctx.log("You step into the tavern. It's lively inside.", "notice");
-        else if (phase === "day") ctx.log("You enter the tavern. A few patrons sit quietly.", "info");
-        else ctx.log("You enter the tavern.", "info");
-        // Pure log messaging; no visual change -> no draw
-        return true;
-      }
-      if (openNow) ctx.log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "notice");
-      else ctx.log(`The ${s.name || "shop"} is closed.${sched ? " " + sched : ""}`, "warn");
-      // Pure schedule/log messaging; no visual change -> no draw
-      return true;
     }
     // Prefer props interaction; if not handled, describe underfoot prop explicitly.
     if (ctx.Town && typeof ctx.Town.interactProps === "function") {

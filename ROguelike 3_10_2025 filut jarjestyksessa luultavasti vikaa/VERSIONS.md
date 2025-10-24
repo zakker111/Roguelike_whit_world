@@ -1,5 +1,35 @@
 # Game Version History
-Last updated: 2025-10-24 00:20 UTC
+Last updated: 2025-10-24 01:20 UTC
+
+v1.40.0 — Inn upstairs system, overlay-aware FOV/walk, stairs visibility, and NPC behavior tuning
+- Inn upstairs system
+  - Added: Upstairs overlay generation in worldgen/town_gen.js with interior perimeter walls, bed props, and stairs landing aligned above ground stairs.
+  - Added: Two-tile stairs portal placed in the inn hall; pressing G on stairs toggles upstairs overlay on/off (core/actions.js).
+  - Added: TownState persistence for upstairs overlay tiles/props and stairs portal data; state restored on town re-entry.
+- Renderer and interactions
+  - Changed: ui/render_town.js now draws stairs glyph '>' visibly; window pane glyph '□' is subtle but present.
+  - Changed: When upstairs overlay is active, downstairs props within inn footprint are suppressed to avoid clutter; NPCs inside inn footprint are hidden while upstairs is shown.
+  - Changed: Overlay-aware FOV and LOS: upstairs WALL tiles block vision; upstairs FLOOR/STAIRS are transparent. Walkability respects upstairs tiles when overlay is active (core/ctx.js, core/game.js).
+  - Changed: Upstairs overlay floor fill covers only the inn interior and draws perimeter walls explicitly; sanitized legacy upstairs DOOR/WINDOW tiles to FLOOR on load (core/town_state.js).
+  - Added: Fresh session mode via URL query (?fresh=1, ?reset=1, ?nolocalstorage=1) disables localStorage and clears in-memory town states for consistent testing (core/game.js, core/town_state.js).
+- Town runtime
+  - Changed: tryMoveTown ignores downstairs NPC blocking inside inn footprint while upstairs overlay is active; shop interactions are skipped upstairs.
+  - Fixed: Renderer context now includes tavern, innUpstairs, innUpstairsActive, innStairsGround so upstairs overlay draws correctly (core/render_orchestration.js).
+- NPC AI (TownAI)
+  - Added: Upstairs-aware pathing (A*) and occupancy helpers; routeIntoInnUpstairs guides NPCs to ground stairs, toggles upstairs, and pathfinds on overlay.
+  - Added: Residents prefer upstairs beds during late-night window (02:00–05:00); set sleeping state when adjacent to beds upstairs.
+  - Added: Debug: force one roamer to use upstairs beds at late night for verification.
+  - Changed: Proximity-based upstairs toggle: NPCs inside the inn within 1 tile of stairs for 2 consecutive turns toggle to upstairs even if stairs tiles are occupied (mitigates jams).
+  - Changed: Calmer NPC movement: longer sit durations at inn, benches, and home; reduced fidget probabilities; increased general idle/skip rates for roamers and errands.
+  - Fixed: Innkeeper avoids stepping onto inn door tiles while already inside, preventing door blocking; bumping the innkeeper anywhere inside opens wares.
+  - Fixed: Multiple SyntaxErrors in town_ai.js (stray '<<' tokens, malformed loops/conditions, and a corrupted 'chosen = { nx, ny }' assignment) corrected.
+- Stairs placement robustness
+  - Changed: Stairs placement occurs last during inn furnishing; props on stairs tiles are cleared and STAIRS tiles reasserted for visibility.
+  - Changed: canPlaceStairs allows placement over furnished tiles and clears overlapping props; fallback vertical/adjacent search aligns s1/s2 coordinates and innStairsGround with actual tiles.
+- Known issue
+  - NPCs may still underutilize upstairs beds in very crowded inns; investigation ongoing (stairs reservation and upstairs aisle spacing). See BUGS section.
+
+Deployment: https://k644jmdixn98.cosine.page
 
 v1.39.2 — Bakery shop type, unique shop types per town, pre-home Inn visits, and unified Ruins looting
 - Shops
@@ -1416,6 +1446,8 @@ Things to chek
 
 BUGS
 - chek there is not sleep walkers some npc have z top of them dont sure is thiss still existing
+- npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
+- some times in towns some extra signs and fire places inside walls
 - when inn god panel in routes it shows unendifid/17 it is not correct chek too that inn is used
 - inns dont have invidual rooms and not enought beds
 - some npc stay at their homes at day time 

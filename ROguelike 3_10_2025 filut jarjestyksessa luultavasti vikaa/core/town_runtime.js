@@ -185,6 +185,15 @@ export function tryMoveTown(ctx, dx, dy) {
     }
   } catch (_) {}
 
+  // When upstairs overlay is active, ignore downstairs NPC blocking inside the inn footprint
+  try {
+    if (ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building) {
+      const b = ctx.tavern.building;
+      const insideInn = (nx > b.x && nx < b.x + b.w - 1 && ny > b.y && ny < b.y + b.h - 1);
+      if (insideInn) npcBlocked = false;
+    }
+  } catch (_) {}
+
   if (npcBlocked) {
     if (typeof talk === "function") {
       talk(ctx, nx, ny);
