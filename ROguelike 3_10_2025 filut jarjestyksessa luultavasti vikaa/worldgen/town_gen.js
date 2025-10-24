@@ -1007,6 +1007,35 @@
       }
     } catch (_) {}
 
+    // Safety: deduplicate Inn entries if any logic created more than one
+    try {
+      if (Array.isArray(ctx.shops)) {
+        const out = [], seenInn = false;
+        for (let i = 0; i < ctx.shops.length; i++) {
+          const s = ctx.shops[i];
+          const isInn = (String(s.type || "").toLowerCase() === "inn") || (/inn/i.test(String(s.name || "")));
+          if (isInn) {
+            if (!seenInn) { out.push(s); seenInn = true; }
+            else {
+              // drop duplicate inn
+              continue;
+            }
+          } else {
+            out.push(s);
+          }
+        }
+        ctx.shops = out;
+      }
+      // Ensure ctx.tavern points to the single Inn building if present
+      if (ctx.shops && ctx.shops.length) {
+        const innShop = ctx.shops.find(s => (String(s.type || "").toLowerCase() === "inn") || (/inn/i.test(String(s.name || ""))));
+        if (innShop && innShop.building && innShop.building.x != null) {
+          ctx.tavern = { building: { x: innShop.building.x, y: innShop.building.y, w: innShop.building.w, h: innShop.building.h }, door: { x: innShop.building.door?.x ?? innShop.x, y: innShop.building.door?.y ?? innShop.y } };
+          ctx.inn = ctx.tavern;
+        }
+      }
+    } catch (_) {}
+
     // Town buildings metadata
     ctx.townBuildings = buildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: getExistingDoor(b) }));
 
