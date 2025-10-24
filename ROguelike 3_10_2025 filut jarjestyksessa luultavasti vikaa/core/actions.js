@@ -200,10 +200,15 @@ export function doAction(ctx) {
       const handled = ctx.Town.interactProps(ctx);
       if (handled) return true;
     }
-    const s = shopAt(ctx, ctx.player.x, ctx.player.y);
-    if (s) {
-      // Defer to loot which handles shop messaging
-      return loot(ctx);
+    // Skip shop interactions inside inn when upstairs overlay is active
+    if (!(ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building &&
+          ctx.player.x > ctx.tavern.building.x && ctx.player.x < ctx.tavern.building.x + ctx.tavern.building.w - 1 &&
+          ctx.player.y > ctx.tavern.building.y && ctx.player.y < ctx.tavern.building.y + ctx.tavern.building.h - 1)) {
+      const s = shopAt(ctx, ctx.player.x, ctx.player.y);
+      if (s) {
+        // Defer to loot which handles shop messaging
+        return loot(ctx);
+      }
     }
     // Nothing else: allow fallback
     return false;
@@ -241,32 +246,37 @@ export function loot(ctx) {
     } catch (_) {}
 
     // If standing on a shop door, show schedule and flavor
-    const s = shopAt(ctx, ctx.player.x, ctx.player.y);
-    if (s) {
-      const openNow = isShopOpenNow(ctx, s);
-      const sched = shopScheduleStr(ctx, s);
-      const schedPart = sched ? `${sched}. ` : "";
-      const nameLower = (s.name || "").toLowerCase();
-      if (nameLower === "inn") {
-        ctx.log(`Inn: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
-        ctx.log("You enter the inn.", "notice");
-        // Inns provide resting; allow rest regardless
-        restAtInn(ctx);
+    // Skip shop interactions inside inn when upstairs overlay is active
+    if (!(ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building &&
+          ctx.player.x > ctx.tavern.building.x && ctx.player.x < ctx.tavern.building.x + ctx.tavern.building.w - 1 &&
+          ctx.player.y > ctx.tavern.building.y && ctx.player.y < ctx.tavern.building.y + ctx.tavern.building.h - 1)) {
+      const s = shopAt(ctx, ctx.player.x, ctx.player.y);
+      if (s) {
+        const openNow = isShopOpenNow(ctx, s);
+        const sched = shopScheduleStr(ctx, s);
+        const schedPart = sched ? `${sched}. ` : "";
+        const nameLower = (s.name || "").toLowerCase();
+        if (nameLower === "inn") {
+          ctx.log(`Inn: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
+          ctx.log("You enter the inn.", "notice");
+          // Inns provide resting; allow rest regardless
+          restAtInn(ctx);
+          return true;
+        }
+        if (nameLower === "tavern") {
+          ctx.log(`Tavern: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
+          const phase = (ctx.time && ctx.time.phase) || "day";
+          if (phase === "night" || phase === "dusk") ctx.log("You step into the tavern. It's lively inside.", "notice");
+          else if (phase === "day") ctx.log("You enter the tavern. A few patrons sit quietly.", "info");
+          else ctx.log("You enter the tavern.", "info");
+          // Pure log messaging; no visual change -> no draw
+          return true;
+        }
+        if (openNow) ctx.log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "notice");
+        else ctx.log(`The ${s.name || "shop"} is closed.${sched ? " " + sched : ""}`, "warn");
+        // Pure schedule/log messaging; no visual change -> no draw
         return true;
       }
-      if (nameLower === "tavern") {
-        ctx.log(`Tavern: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
-        const phase = (ctx.time && ctx.time.phase) || "day";
-        if (phase === "night" || phase === "dusk") ctx.log("You step into the tavern. It's lively inside.", "notice");
-        else if (phase === "day") ctx.log("You enter the tavern. A few patrons sit quietly.", "info");
-        else ctx.log("You enter the tavern.", "info");
-        // Pure log messaging; no visual change -> no draw
-        return true;
-      }
-      if (openNow) ctx.log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "notice");
-      else ctx.log(`The ${s.name || "shop"} is closed.${sched ? " " + sched : ""}`, "warn");
-      // Pure schedule/log messaging; no visual change -> no draw
-      return true;
     }
     // Prefer props interaction; if not handled, describe underfoot prop explicitly.
     if (ctx.Town && typeof ctx.Town.interactProps === "function") {
