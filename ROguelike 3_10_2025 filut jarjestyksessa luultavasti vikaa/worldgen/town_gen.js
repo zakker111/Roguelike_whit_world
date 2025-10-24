@@ -1514,7 +1514,9 @@
           const s2 = { x: Math.min(hallRect.x1, sx + 1), y: sy };
           function canPlaceStairs(p) {
             // Allow placing stairs even if a prop currently occupies the tile; we'll clear props after placement.
-            return inRect(hallRect, p.x, p.y) && insideFloor(b, p.x, p.y);
+            // Do NOT use inRect (it rejects occupied tiles). Check bounds + floor only.
+            const insideHall = (p.x >= hallRect.x0 && p.x <= hallRect.x1 && p.y >= hallRect.y0 && p.y <= hallRect.y1);
+            return insideHall && insideFloor(b, p.x, p.y);
           }
           let ok1 = canPlaceStairs(s1), ok2 = canPlaceStairs(s2);
           if (!ok1 || !ok2) {
