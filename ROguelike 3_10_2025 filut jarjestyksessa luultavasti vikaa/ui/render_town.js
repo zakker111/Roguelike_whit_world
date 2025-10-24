@@ -181,13 +181,17 @@ export function draw(ctx, view) {
           const fill = fillTownFor(TILES, type, COLORS);
           ctx2d.fillStyle = fill;
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          // Upstairs stairs glyph
+          if (type === TILES.STAIRS) {
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          }
         }
       }
     } catch (_) {}
   })();
 
   // Per-frame glyph overlay (drawn before visibility overlays)
-  // Keep town clean: suppress noisy door ('+'), stairs ('>'), and window glyphs; use tile fill colors for these.
+  // Keep town clean: suppress door glyphs; show stairs ('>') clearly; windows get a subtle pane glyph for readability
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowMap = yIn ? map[y] : null;
@@ -195,8 +199,8 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
 
-      // Skip glyphs for DOOR/STAIRS; windows get a subtle pane glyph for readability
-      if (type === TILES.DOOR || type === TILES.STAIRS) continue;
+      // Suppress DOOR glyphs
+      if (type === TILES.DOOR) continue;
 
       const tg = glyphTownFor(type);
       let glyph = tg ? tg.glyph : "";
@@ -204,6 +208,14 @@ export function draw(ctx, view) {
 
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
+
+      // Stairs: explicit fallback glyph/color to ensure visibility
+      if (type === TILES.STAIRS) {
+        const g = ">";
+        const c = "#d7ba7d";
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
+        continue;
+      }
 
       if (type === TILES.WINDOW) {
         if (!glyph || String(glyph).trim().length === 0) glyph = "□";
