@@ -131,22 +131,57 @@ export function ensureUtils(ctx) {
 }
 
 export function ensureLOS(ctx) {
-  // Prefer shared LOS module if present (attached via attachModules or on window)
-  if (ctx.LOS && typeof ctx.LOS.tileTransparent === "function" && typeof ctx.LOS.hasLOS === "function") {
-    ctx.los = ctx.LOS;
-    return ctx;
-  }
-  if (typeof window !== "undefined" && window.LOS && typeof window.LOS.tileTransparent === "function" && typeof window.LOS.hasLOS === "function") {
-    ctx.los = window.LOS;
-    return ctx;
+  // Build a wrapper LOS that honors the inn upstairs overlay when active.
+  // Use any existing LOS implementation as a fallback for non-inn tiles.
+  const baseLOS =
+    (ctx.LOS && typeof ctx.LOS.tileTransparent === "function" && typeof ctx.LOS.hasLOS === "function") ? ctx.LOS :
+    ((typeof window !== "undefined" && window.LOS && typeof window.LOS.tileTransparent === "function" && typeof window.LOS.hasLOS === "function") ? window.LOS : null);
+
+  function insideInnInterior(c, x, y) {
+    try {
+      const tav = c.tavern && c.tavern.building ? c.tavern.building : null;
+      const up = c.innUpstairs;
+      if (!c.innUpstairsActive || !tav || !up) return false;
+      const ox = up.offset ? up.offset.x : (tav.x + 1);
+      const oy = up.offset ? up.offset.y : (tav.y + 1);
+      const w = up.w | 0, h = up.h | 0;
+      return x >= ox && x < ox + w && y >= oy && y < oy + h;
+    } catch (_) { return false; }
   }
 
-  // Fallback lightweight LOS
+  function overlayTileAt(c, x, y) {
+    try {
+      const tav = c.tavern && c.tavern.building ? c.tavern.building : null;
+      const up = c.innUpstairs;
+      if (!c.innUpstairsActive || !tav || !up) return null;
+      const ox = up.offset ? up.offset.x : (tav.x + 1);
+      const oy = up.offset ? up.offset.y : (tav.y + 1);
+      const lx = x - ox, ly = y - oy;
+      if (ly < 0 || lx < 0 || ly >= (up.h | 0) || lx >= (up.w | 0)) return null;
+      const row = (up.tiles && up.tiles[ly]) ? up.tiles[ly] : null;
+      if (!row) return null;
+      return row[lx];
+    } catch (_) { return null; }
+  }
+
   function tileTransparent(c, x, y) {
     if (!c.inBounds || !c.inBounds(x, y)) return false;
+    // When upstairs overlay is active and within the inn interior, honor upstairs tiles for transparency.
+    if (insideInnInterior(c, x, y)) {
+      const t = overlayTileAt(c, x, y);
+      if (t == null) return (c.map[y][x] !== c.TILES.WALL);
+      // Treat WALL as opaque; others transparent (DOOR/STAIRS/FLOOR).
+      return t !== c.TILES.WALL;
+    }
+    // Fallback to base LOS module if present, else local rule.
+    if (baseLOS && typeof baseLOS.tileTransparent === "function") {
+      return !!baseLOS.tileTransparent(c, x, y);
+    }
     return c.map[y][x] !== c.TILES.WALL;
   }
+
   function hasLOS(c, x0, y0, x1, y1) {
+    // Bresenham using overlay-aware transparency
     let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
     let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     let err = dx + dy, e2;
@@ -159,7 +194,8 @@ export function ensureLOS(ctx) {
     }
     return true;
   }
-  if (!ctx.los) ctx.los = { tileTransparent, hasLOS };
+
+  ctx.los = { tileTransparent, hasLOS };
   return ctx;
 }
 

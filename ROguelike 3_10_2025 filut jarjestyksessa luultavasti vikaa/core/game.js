@@ -930,6 +930,28 @@
   
 
   function isWalkable(x, y) {
+    // Upstairs overlay-aware walkability: when active and inside the inn interior, honor upstairs tiles.
+    try {
+      if (innUpstairsActive && tavern && innUpstairs) {
+        const b = tavern.building || null;
+        const up = innUpstairs;
+        if (b && up) {
+          const ox = up.offset ? up.offset.x : (b.x + 1);
+          const oy = up.offset ? up.offset.y : (b.y + 1);
+          const lx = x - ox, ly = y - oy;
+          const w = up.w | 0, h = up.h | 0;
+          if (lx >= 0 && ly >= 0 && lx < w && ly < h) {
+            const row = up.tiles && up.tiles[ly];
+            const t = row ? row[lx] : null;
+            if (t != null) {
+              // Treat WALL as not walkable; allow FLOOR and STAIRS; disallow DOOR upstairs to avoid "walkable doors" issue.
+              return t === TILES.FLOOR || t === TILES.STAIRS;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
     // Centralize via Utils.isWalkableTile; fallback to tile-type check
     const U = modHandle("Utils");
     if (U && typeof U.isWalkableTile === "function") {

@@ -169,7 +169,7 @@ function applyState(ctx, st, x, y) {
   ctx.tavern = st.tavern || null;
   // Restore inn upstairs overlay and stairs portal
   ctx.innUpstairs = st.innUpstairs || null;
-  // Sanitize legacy upstairs tiles: remove any DOOR/WALL/WINDOW tiles so upstairs has only FLOOR/STAIRS.
+  // Sanitize legacy upstairs tiles: convert DOOR/WINDOW to FLOOR; keep WALL/STAIRS intact.
   try {
     const up = ctx.innUpstairs;
     if (up && Array.isArray(up.tiles)) {
@@ -179,7 +179,7 @@ function applyState(ctx, st, x, y) {
         if (!Array.isArray(row)) continue;
         for (let xx = 0; xx < row.length; xx++) {
           const t = row[xx];
-          if (t !== T.FLOOR && t !== T.STAIRS) row[xx] = T.FLOOR;
+          if (t === T.DOOR || t === T.WINDOW) row[xx] = T.FLOOR;
         }
       }
     }

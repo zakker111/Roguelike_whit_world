@@ -157,17 +157,22 @@ export function draw(ctx, view) {
       const tav = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
       if (!ctx.innUpstairsActive || !up || !tav) return;
 
-      // 1) Cover the entire inn footprint (including perimeter) with a neutral upstairs floor fill
-      //    to hide downstairs doors/walls visually while upstairs is active.
-      const bx0 = tav.x, by0 = tav.y;
-      const bx1 = tav.x + tav.w - 1, by1 = tav.y + tav.h - 1;
-      const yyStartFull = Math.max(startY, by0);
-      const yyEndFull = Math.min(endY, by1);
-      const xxStartFull = Math.max(startX, bx0);
-      const xxEndFull = Math.min(endX, bx1);
+      // 1) Cover only the inn interior area with a neutral upstairs floor fill
+      //    to hide downstairs doors inside the hall while preserving perimeter walls.
+      const x0 = up.offset ? up.offset.x : (tav.x + 1);
+      const y0 = up.offset ? up.offset.y : (tav.y + 1);
+      const w = up.w | 0;
+      const h = up.h | 0;
+      const x1 = x0 + w - 1;
+      const y1 = y0 + h - 1;
+
+      const yyStartFill = Math.max(startY, y0);
+      const yyEndFill = Math.min(endY, y1);
+      const xxStartFill = Math.max(startX, x0);
+      const xxEndFill = Math.min(endX, x1);
       const floorFill = fillTownFor(TILES, TILES.FLOOR, COLORS);
-      for (let y = yyStartFull; y <= yyEndFull; y++) {
-        for (let x = xxStartFull; x <= xxEndFull; x++) {
+      for (let y = yyStartFill; y <= yyEndFill; y++) {
+        for (let x = xxStartFill; x <= xxEndFill; x++) {
           const screenX = (x - startX) * TILE - tileOffsetX;
           const screenY = (y - startY) * TILE - tileOffsetY;
           ctx2d.fillStyle = floorFill;
@@ -176,17 +181,10 @@ export function draw(ctx, view) {
       }
 
       // 2) Draw the upstairs interior tiles over the inn interior (offset inside perimeter)
-      const x0 = up.offset ? up.offset.x : (tav.x + 1);
-      const y0 = up.offset ? up.offset.y : (tav.y + 1);
-      const w = up.w | 0;
-      const h = up.h | 0;
-      const x1 = x0 + w - 1;
-      const y1 = y0 + h - 1;
-
-      const yyStart = Math.max(startY, y0);
-      const yyEnd = Math.min(endY, y1);
-      const xxStart = Math.max(startX, x0);
-      const xxEnd = Math.min(endX, x1);
+      const yyStart = yyStartFill;
+      const yyEnd = yyEndFill;
+      const xxStart = xxStartFill;
+      const xxEnd = xxEndFill;
 
       for (let y = yyStart; y <= yyEnd; y++) {
         const ly = y - y0;

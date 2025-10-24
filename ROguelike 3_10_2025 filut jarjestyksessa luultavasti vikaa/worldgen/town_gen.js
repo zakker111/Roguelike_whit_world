@@ -1559,13 +1559,21 @@
           }
           // Generate upstairs overlay with small varied rooms (pre-rendered at town gen)
           function generateInnUpstairs(ctx, bld, hall) {
-            // Simplified upstairs: open floor with beds; no rooms/walls for now.
+            // Upstairs layout: interior perimeter walls with an open sleeping area; no doors upstairs.
             const rUp = { x: bld.x + 1, y: bld.y + 1, w: bld.w - 2, h: bld.h - 2 };
             const wUp = rUp.w | 0;
             const hUp = rUp.h | 0;
             const tiles = Array.from({ length: hUp }, () => Array(wUp).fill(ctx.TILES.FLOOR));
 
-            // Visual-only upstairs landing aligned over ground stairs
+            // Perimeter walls inside the building (upstairs)
+            for (let yy = 0; yy < hUp; yy++) {
+              for (let xx = 0; xx < wUp; xx++) {
+                const atBorder = (yy === 0 || yy === hUp - 1 || xx === 0 || xx === wUp - 1);
+                if (atBorder) tiles[yy][xx] = ctx.TILES.WALL;
+              }
+            }
+
+            // Upstairs landing aligned above ground stairs (walkable STAIRS tiles)
             const upLandingLocal = {
               x: Math.max(1, Math.min(wUp - 2, s1.x - rUp.x)),
               y: Math.max(1, Math.min(hUp - 2, s1.y - rUp.y))
@@ -1576,14 +1584,16 @@
             const props = [];
             const addP = (ax, ay, type, name) => props.push({ x: rUp.x + ax, y: rUp.y + ay, type, name });
 
-            // Beds in a simple grid with light clutter (chests/rugs)
+            // Beds in a simple grid inside the perimeter (avoid walls and stairs)
             const colStep = 3, rowStep = 3;
-            const xStart = 1, yStart = 1;
-            for (let yy = yStart; yy < hUp - 1; yy += rowStep) {
-              for (let xx = xStart; xx < wUp - 1; xx += colStep) {
-                addP(xx, yy, "bed", "Bed");
-                if (ctx.rng() < 0.25) addP(Math.min(wUp - 2, xx + 1), yy, "chest", "Chest");
-                if (ctx.rng() < 0.20) addP(xx, Math.min(hUp - 2, yy + 1), "rug", "Rug");
+            for (let yy = 1; yy < hUp - 1; yy += rowStep) {
+              for (let xx = 1; xx < wUp - 1; xx += colStep) {
+                const tHere = tiles[yy][xx];
+                if (tHere === ctx.TILES.FLOOR) {
+                  addP(xx, yy, "bed", "Bed");
+                  if (ctx.rng() < 0.25 && xx + 1 < wUp - 1 && tiles[yy][xx + 1] === ctx.TILES.FLOOR) addP(xx + 1, yy, "chest", "Chest");
+                  if (ctx.rng() < 0.20 && yy + 1 < hUp - 1 && tiles[yy + 1][xx] === ctx.TILES.FLOOR) addP(xx, yy + 1, "rug", "Rug");
+                }
               }
             }
 
