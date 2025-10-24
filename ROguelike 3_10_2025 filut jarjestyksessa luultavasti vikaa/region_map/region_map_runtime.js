@@ -1105,10 +1105,14 @@ function open(ctx, size) {
           let visibleCount = 0;
           try {
             const vis = Array.isArray(ctx.visible) ? ctx.visible : [];
+            const rows = vis.length | 0;
+            const cols = rows ? ((vis[0] && vis[0].length) | 0) : 0;
             for (const e of ctx.enemies) {
               if (!e) continue;
-              const row = vis[e.y];
-              if (row && row[e.x]) { visibleCount++; if (visibleCount > 0) break; }
+              const ex = (e.x | 0), ey = (e.y | 0);
+              if (ey >= 0 && ex >= 0 && ey < rows && ex < cols) {
+                if (vis[ey] && vis[ey][ex]) { visibleCount++; break; }
+              }
             }
           } catch (_) {}
 
