@@ -529,10 +529,30 @@
       }
       // Step toward stairs using ground pathing
       const handled = stepTowards(ctx, occGround, n, sPick.x, sPick.y, { urgent: true });
-      if (handled) {
-        // If we arrived on stairs inside inn, toggle to upstairs mode
-        if (n.x === sPick.x && n.y === sPick.y && insideBuilding(tav, n.x, n.y)) {
-          n._floor = "upstairs";
+      // Exact stairs landing: toggle immediately
+      if (n.x === sPick.x && n.y === sPick.y && insideBuilding(tav, n.x, n.y)) {
+        n._floor = "upstairs";
+        n._nearStairsCount = 0;
+        return true;
+      }
+      // Proximity-based toggle: if inside inn and within 1 tile of any stairs for consecutive ticks, toggle upstairs
+      if (insideBuilding(tav, n.x, n.y)) {
+        let near = false;
+        for (let i = 0; i < stairs.length; i++) {
+          const s = stairs[i];
+          const md = Math.abs(s.x - n.x) + Math.abs(s.y - n.y);
+          if (md <= 1) { near = true; break; }
+        }
+        if (near) {
+          n._nearStairsCount = (typeof n._nearStairsCount === "number") ? (n._nearStairsCount + 1) : 1;
+          // Small threshold (2) to avoid accidental toggles during crowd jitter
+          if (n._nearStairsCount >= 2) {
+            n._floor = "upstairs";
+            n._nearStairsCount = 0;
+            return true;
+          }
+        } else {
+          n._nearStairsCount = 0;
         }
       }
       return true;
@@ -1398,13 +1418,13 @@
           // Inside: patrol between interior spots (chairs/tables or free interior)
           // Arrived at patrol goal?
           if (n._patrolGoal && n.x === n._patrolGoal.x && n.y === n._patrolGoal.y) {
-            n._patrolStayTurns = randInt(ctx, 3, 7);
+            n._patrolStayTurns = randInt(ctx, 8, 14);
             n._patrolGoal = null;
           }
           if (n._patrolStayTurns && n._patrolStayTurns > 0) {
             n._patrolStayTurns--;
             // slight fidget to look alive
-            if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+            if (ctx.rng() < 0.08) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
             continue;
           }
           if (!n._patrolGoal) {
@@ -1538,7 +1558,7 @@
         if (handled) continue;
 
         // idle jiggle: occasionally take a small step to avoid total idling
-        if (ctx.rng() < 0.3) {
+        if (ctx.rng() < 0.15) {
           stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
         }
         continue;
@@ -1574,7 +1594,7 @@
             const targetLate = n._work || (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
             if (targetLate) {
               if (n.x === targetLate.x && n.y === targetLate.y) {
-                if (ctx.rng() < 0.9) continue;
+                if (ctx.rng() < 0.95) continue;
                 stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
                 continue;
               }
@@ -1582,7 +1602,7 @@
               continue;
             }
             // gentle idle
-            if (ctx.rng() < 0.8) continue;
+            if (ctx.rng() < 0.90) continue;
           } else if (n._home && n._home.building) {
             const bedSpot = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : null;
           const sleepTarget = bedSpot ? bedSpot : { x: n._home.x, y: n._home.y };
@@ -1627,13 +1647,13 @@
             if (n._innSeatGoal && insideBuilding(innB, n.x, n.y) &&
                 n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
               // Arrived at seat: sit for a few turns
-              n._innStayTurns = randInt(ctx, 3, 9);
+              n._innStayTurns = randInt(ctx, 10, 20);
               n._innSeatGoal = null;
             }
             if (n._innStayTurns && n._innStayTurns > 0) {
               n._innStayTurns--;
               // Occasionally fidget while seated
-              if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+              if (ctx.rng() < 0.08) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
               continue;
             }
           }
@@ -1660,12 +1680,12 @@
           
           // Home sitting: arrive/stay and occasional
           if (n._homeSitGoal && n.x === n._homeSitGoal.x && n.y === n._homeSitGoal.y) {
-            n._homeSitTurns = randInt(ctx, 12, 24); // ~48–96 minutes
+            n._homeSitTurns = randInt(ctx, 16, 32); // longer seated time at home
             n._homeSitGoal = null;
           }
           if (n._homeSitTurns && n._homeSitTurns > 0) {
             n._homeSitTurns--;
-            if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+            if (ctx.rng() < 0.06) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
             continue;
           }
           if (n._home && n._home.building && !n._homeSitGoal && !n._tavernSeatGoal && !n._benchSeatGoal) {
@@ -1702,12 +1722,12 @@
                   continue;
                 } else {
                   // brief fidget while waiting
-                  if (ctx.rng() < 0.2) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                  if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
                   continue;
                 }
               } else {
                 // Non-shop errand: reduced idle lingering
-                if (ctx.rng() < 0.6) continue;
+                if (ctx.rng() < 0.75) continue;
                 stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
                 continue;
               }
@@ -1756,7 +1776,7 @@
         }
       }
 
-      if (ctx.rng() < 0.2) continue;
+      if (ctx.rng() < 0.35) continue;
 
       // Occasional tavern visit during the day for roamers who like the tavern
       if (phase === "day" && ctx.tavern && (n._likesInn || n._likesTavern)) {
@@ -1764,12 +1784,12 @@
         // If already at an Inn seat, sit for a few turns
         if (n._innSeatGoal && innB2 && insideBuilding(innB2, n.x, n.y) &&
             n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
-          n._innStayTurns = randInt(ctx, 2, 6);
+          n._innStayTurns = randInt(ctx, 8, 14);
           n._innSeatGoal = null;
         }
         if (n._innStayTurns && n._innStayTurns > 0) {
           n._innStayTurns--;
-          if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          if (ctx.rng() < 0.08) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
           continue;
         }
         const seat2 = chooseInnSeat(ctx);
@@ -1802,12 +1822,12 @@
             continue;
           }
         }
-        n._benchStayTurns = randInt(ctx, 8, 18);
+        n._benchStayTurns = randInt(ctx, 12, 24);
         n._benchSeatGoal = null;
       }
       if (n._benchStayTurns && n._benchStayTurns > 0) {
         n._benchStayTurns--;
-        if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+        if (ctx.rng() < 0.06) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
         continue;
       }
 
