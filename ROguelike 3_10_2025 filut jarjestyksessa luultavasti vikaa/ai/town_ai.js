@@ -157,6 +157,18 @@
     return seats[Math.floor(ctx.rng() * seats.length)];
   }
 
+  // Raw upstairs bed tiles (props positions), used for proximity checks to decide sleeping
+  function innUpstairsBeds(ctx) {
+    const up = ctx.innUpstairs;
+    if (!up || !Array.isArray(up.props)) return [];
+    const out = [];
+    for (const p of up.props) {
+      if (!p) continue;
+      if (String(p.type || "").toLowerCase() === "bed") out.push({ x: p.x, y: p.y });
+    }
+    return out;
+  }
+
   // A* restricted to upstairs interior using overlay tiles
   function computePathUpstairs(ctx, occUp, sx, sy, tx, ty) {
     const r = innUpstairsRect(ctx);
@@ -1436,12 +1448,18 @@
           // Off hours: stagger departure between 18:00-21:00
           const departReady = typeof n._homeDepartMin === "number" ? (minutes >= n._homeDepartMin) : true;
 
-          // If it's very late and the NPC is not inside home, seek Inn as fallback shelter
+          // If it's very late and the NPC is not inside home, seek Inn as fallback shelter.
+          // Prefer upstairs beds when available.
           if (inLateWindow && !(insideBuilding(n._home.building, n.x, n.y))) {
             const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
             if (innB) {
-              const innTarget = chooseInnTarget(ctx);
-              handled = routeIntoBuilding(ctx, occ, n, innB, innTarget);
+              const upBed = chooseInnUpstairsBed(ctx);
+              if (upBed && routeIntoInnUpstairs(ctx, occ, n, upBed)) {
+                handled = true;
+              } else {
+                const innTarget = chooseInnTarget(ctx);
+                handled = routeIntoBuilding(ctx, occ, n, innB, innTarget);
+              }
             }
           }
 
@@ -1519,12 +1537,17 @@
           // Stagger: only start going home after personal departure minute (18:00..21:00)
           const departReady = typeof n._homeDepartMin === "number" ? (minutes >= n._homeDepartMin) : true;
 
-          // Late-night shelter fallback: if very late and not inside home, go to Inn
+          // Late-night shelter fallback: if very late and not inside home, go to Inn (prefer upstairs beds)
           if (inLateWindow && n._home && n._home.building && !insideBuilding(n._home.building, n.x, n.y)) {
             const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
             if (innB) {
-              const innTarget = chooseInnTarget(ctx);
-              if (routeIntoBuilding(ctx, occ, n, innB, innTarget)) continue;
+              const upBed = chooseInnUpstairsBed(ctx);
+              if (upBed && routeIntoInnUpstairs(ctx, occ, n, upBed)) {
+                handled = true;
+              } else {
+                const innTarget = chooseInnTarget(ctx);
+                handled = routeIntoBuilding(ctx, occ, n, innB, innTarget);
+              }
             }
           }
 
@@ -1544,7 +1567,21 @@
             if (ctx.rng() < 0.8) continue;
           } else if (n._home && n._home.building) {
             const bedSpot = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : null;
-            const sleepTarget = bedSpot ? bedSpot : { x: n._home.x, y: n._home.y };
+          const sleepTarget = bedSpot ? bedSpot : { x: n._home.x, y: n._home.y };
+          const atExact = (n.x === sleepTarget.x && n.y === sleepTarget.y);
+          const nearBed = bedSpot ? (manhattan(n.x, n.y, bedSpot.x, bedSpot.y) === 1) : false;
+          if (atExact || nearBed) {
+            n._sleeping = true;
+            continue;
+          }
+          // Upstairs inn sleeping: if inside inn upstairs and near an upstairs bed during late night
+          if (inLateWindow && ctx.tavern && ctx.tavern.building && n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
+            const bedsUp = innUpstairsBeds(ctx);
+            for (let i = 0; i < bedsUp.length; i++) {
+              const b = bedsUp[i];
+              if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; continue; }
+            }
+          };
             // If at, or adjacent to, the bed spot (or home spot if no bed), go to sleep
             const atExact = (n.x === sleepTarget.x && n.y === sleepTarget.y);
             const nearBed = bedSpot ? (manhattan(n.x, n.y, bedSpot.x, bedSpot.y) === 1) : false;
@@ -1751,16 +1788,27 @@
 
       // Very late at night: prefer shelter (Inn/tavern) if not at home
       if (inLateWindow && ctx.tavern && ctx.tavern.building && (!n._home || !insideBuilding(n._home.building, n.x, n.y))) {
-        const innTarget2 = chooseInnTarget(ctx) || { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
-        target = innTarget2;
+        // Prefer upstairs beds in the Inn; else ground seating/door
+        const upBed2 = chooseInnUpstairsBed(ctx);
+        if (upBed2 && routeIntoInnUpstairs(ctx, occ, n, upBed2)) {
+          continue;
+        }
+        const innB3 = ctx.tavern.building;
+        const seatG = chooseInnSeat(ctx);
+        if (innB3 && seatG && routeIntoBuilding(ctx, occ, n, innB3, seatG)) {
+          continue;
+        }
+        const doorFallback = { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
+        stepTowards(ctx, occ, n, doorFallback.x, doorFallback.y);
+        continue;
       }
       // If inside the Inn near a bed during late night, sleep until morning
       {
-        const innB2 = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-        if (inLateWindow && innB2 && insideBuilding(innB2, n.x, n.y)) {
-          const beds2 = innBedSpots(ctx);
-          for (let i = 0; i < beds2.length; i++) {
-            const b = beds2[i];
+        const tavB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+        if (inLateWindow && tavB && n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
+          const bedsUpList = innUpstairsBeds(ctx);
+          for (let i = 0; i < bedsUpList.length; i++) {
+            const b = bedsUpList[i];
             if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
           }
         }
