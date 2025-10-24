@@ -1710,29 +1710,23 @@
           }
         })();
 
-        // A few plants in hall to soften look
-        (function placePlantsHall() {
-          const tries = 20;
-          let planted = 0;
-          for (let i = 0;  << tries && plante << 4; i++) {
-            const rx = hallRect.x0 + 1 + Math.floor(ctx.rng() * Math.max(1, (hallRect.x1 - hallRect.x0 - 2)));
-            const ry = hallRect.y0 + 1 + Math.floor(ctx.rng() * Math.max(1, (hallRect.y1 - hallRect.y0 - 2)));
-            if (inRect(hallRect, rx, ry) && !occupiedTile(rx, ry) && !isCorridor(rx, ry)) {
-              addProp(rx, ry, "plant", "Plant"); planted++;
-            }
-          }
-        })();
-
         // Finalize stairs placement: ensure glyph tiles override any leftover props and remain STAIRS
         (function finalizeStairsPortal() {
           try {
             const arr = Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround : [];
             if (!arr.length) return;
-            // Reassert tile types and clear any props at stair coordinates
+            // Reassert tile types and clear any props at stair coordinates inside the inn
             for (const s of arr) {
               if (!s) continue;
-              if (s.x > b.x && s. <x b.x + b.w - 1 && s.y > b.y && s. <y b.y + b.h - 1) {
-                ctx.map[s();
+              if (s.x > b.x && s.x < b.x + b.w - 1 && s.y > b.y && s.y < b.y + b.h - 1) {
+                ctx.map[s.y][s.x] = ctx.TILES.STAIRS;
+              }
+            }
+            if (Array.isArray(ctx.townProps) && arr.length) {
+              ctx.townProps = ctx.townProps.filter(p => !(arr.some(s => s && s.x === p.x && s.y === p.y)));
+            }
+          } catch (_) {}
+        })();
       }
 
       for (const b of buildings) {
