@@ -165,6 +165,21 @@ function applyState(ctx, st, x, y) {
   ctx.tavern = st.tavern || null;
   // Restore inn upstairs overlay and stairs portal
   ctx.innUpstairs = st.innUpstairs || null;
+  // Sanitize legacy upstairs tiles: remove any DOOR/WALL/WINDOW tiles so upstairs has only FLOOR/STAIRS.
+  try {
+    const up = ctx.innUpstairs;
+    if (up && Array.isArray(up.tiles)) {
+      const T = ctx.TILES || { WALL: 0, FLOOR: 1, DOOR: 2, STAIRS: 3, WINDOW: 4 };
+      for (let yy = 0; yy < up.tiles.length; yy++) {
+        const row = up.tiles[yy];
+        if (!Array.isArray(row)) continue;
+        for (let xx = 0; xx < row.length; xx++) {
+          const t = row[xx];
+          if (t !== T.FLOOR && t !== T.STAIRS) row[xx] = T.FLOOR;
+        }
+      }
+    }
+  } catch (_) {}
   ctx.innStairsGround = Array.isArray(st.innStairsGround) ? st.innStairsGround : [];
   ctx.innUpstairsActive = false;
   ctx.townExitAt = st.townExitAt || null;
