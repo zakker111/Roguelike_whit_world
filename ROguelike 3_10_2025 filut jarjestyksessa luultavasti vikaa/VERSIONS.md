@@ -1447,6 +1447,7 @@ Things to chek
 BUGS
 - chek there is not sleep walkers some npc have z top of them dont sure is thiss still existing
 - npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
+- some times in towns some extra signs and fire places inside walls
 - when inn god panel in routes it shows unendifid/17 it is not correct chek too that inn is used
 - inns dont have invidual rooms and not enought beds
 - some npc stay at their homes at day time 
