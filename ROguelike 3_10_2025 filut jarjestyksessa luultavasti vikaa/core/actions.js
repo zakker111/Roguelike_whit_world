@@ -45,6 +45,15 @@ function propAt(ctx, x, y) {
   return props.find(p => p && p.x === x && p.y === y) || null;
 }
 
+function overlayPropAt(ctx, x, y) {
+  try {
+    if (ctx.innUpstairsActive && ctx.innUpstairs && Array.isArray(ctx.innUpstairs.props)) {
+      return ctx.innUpstairs.props.find(p => p && p.x === x && p.y === y) || null;
+    }
+  } catch (_) {}
+  return null;
+}
+
 function describeProp(ctx, p) {
   if (!p) return false;
   // Prefer data-driven interactions via PropsService + props.json
@@ -167,6 +176,25 @@ export function doAction(ctx) {
       }
     } catch (_) {}
 
+    // When upstairs overlay is active, prefer interaction with upstairs props
+    try {
+      if (ctx.innUpstairsActive) {
+        const pUp = overlayPropAt(ctx, ctx.player.x, ctx.player.y);
+        if (pUp) {
+          // Use PropsService if available; fallback to generic description
+          const PS = (typeof window !== "undefined" ? window.PropsService : (ctx.PropsService || null));
+          if (PS && typeof PS.interact === "function") {
+            PS.interact(ctx, pUp);
+          } else {
+            describeProp(ctx, pUp);
+          }
+          try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+          try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+          return true;
+        }
+      }
+    } catch (_) {}
+
     // Prefer Town interactions (props, talk)
     if (ctx.Town && typeof ctx.Town.interactProps === "function") {
       const handled = ctx.Town.interactProps(ctx);
@@ -195,6 +223,23 @@ export function doAction(ctx) {
 
 export function loot(ctx) {
   if (ctx.mode === "town") {
+    // Upstairs overlay props interaction takes precedence when active
+    try {
+      if (ctx.innUpstairsActive) {
+        const pUp = overlayPropAt(ctx, ctx.player.x, ctx.player.y);
+        if (pUp) {
+          const PS = (typeof window !== "undefined" ? window.PropsService : (ctx.PropsService || null));
+          if (PS && typeof PS.interact === "function") {
+            PS.interact(ctx, pUp);
+          } else {
+            describeProp(ctx, pUp);
+          }
+          // Pure interaction/log; draw/UI will be requested by effect(s) as needed
+          return true;
+        }
+      }
+    } catch (_) {}
+
     // If standing on a shop door, show schedule and flavor
     const s = shopAt(ctx, ctx.player.x, ctx.player.y);
     if (s) {

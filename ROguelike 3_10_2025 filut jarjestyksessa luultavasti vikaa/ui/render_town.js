@@ -483,6 +483,14 @@ export function draw(ctx, view) {
     for (const n of ctx.npcs) {
       if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
 
+      // Suppress downstairs NPCs inside the inn footprint when upstairs overlay is active
+      if (ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building) {
+        const b = ctx.tavern.building;
+        if (n.x > b.x && n.x < b.x + b.w - 1 && n.y > b.y && n.y < b.y + b.h - 1) {
+          continue;
+        }
+      }
+
       const everSeen = !!(seen[n.y] && seen[n.y][n.x]);
       if (!everSeen) continue;
 
