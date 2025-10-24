@@ -509,7 +509,8 @@
         if (!backStep) backStep = { nx, ny };
         continue;
       }
-      chosen = {;
+      chosen = { nx, ny };
+      break;
     }
 
     if (!chosen && backStep) {
