@@ -1107,7 +1107,8 @@ function open(ctx, size) {
             const vis = Array.isArray(ctx.visible) ? ctx.visible : [];
             for (const e of ctx.enemies) {
               if (!e) continue;
-              if (vis[e.y] && vis[e.x]) { visibleCount++; if (visibleCount > 0) break; }
+              const row = vis[e.y];
+              if (row && row[e.x]) { visibleCount++; if (visibleCount > 0) break; }
             }
           } catch (_) {}
 
