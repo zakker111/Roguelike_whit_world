@@ -256,6 +256,26 @@ export function draw(ctx, view) {
     }
   }
 
+  // Stairs glyph overlay above visibility tint so it's always readable once seen
+  (function drawStairsGlyphTop() {
+    try {
+      for (let y = startY; y <= endY; y++) {
+        const yIn = y >= 0 && y < mapRows;
+        if (!yIn) continue;
+        for (let x = startX; x <= endX; x++) {
+          if (x < 0 || x >= mapCols) continue;
+          const type = map[y][x];
+          if (type !== TILES.STAIRS) continue;
+          const everSeen = !!(seen[y] && seen[y][x]);
+          if (!everSeen) continue;
+          const screenX = (x - startX) * TILE - tileOffsetX;
+          const screenY = (y - startY) * TILE - tileOffsetY;
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Props: draw remembered (seen) props dimmed; draw fully only when currently visible with direct LOS.
   // When upstairs overlay is active, suppress ground props inside the inn footprint and draw upstairs props instead.
   if (Array.isArray(ctx.townProps)) {
