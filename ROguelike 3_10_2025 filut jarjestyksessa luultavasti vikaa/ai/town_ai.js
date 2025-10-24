@@ -393,7 +393,17 @@
             if (onPerimeter) isOwnDoor = true;
           }
         }
-        const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
+        const avoidDoorInside = (() => {
+          try {
+            const shop = n._shopRef || null;
+            const isInnKeeper = !!(n.isShopkeeper && shop && String(shop.type || "").toLowerCase() === "inn");
+            const B = shop && shop.building ? shop.building : null;
+            const nextIsDoor = (ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR);
+            const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
+            return isInnKeeper && nextIsDoor && insideNow;
+          } catch (_) { return false; }
+        })();
+        const blocked = (occ.has(keyNext) && !(isReserved && isOwnDoor)) || avoidDoorInside;
         if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
           if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
             n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
@@ -436,7 +446,17 @@
           if (onPerimeter) isOwnDoor = true;
         }
       }
-      const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
+      const avoidDoorInside2 = (() => {
+        try {
+          const shop = n._shopRef || null;
+          const isInnKeeper = !!(n.isShopkeeper && shop && String(shop.type || "").toLowerCase() === "inn");
+          const B = shop && shop.building ? shop.building : null;
+          const nextIsDoor = (ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR);
+          const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
+          return isInnKeeper && nextIsDoor && insideNow;
+        } catch (_) { return false; }
+      })();
+      const blocked = (occ.has(keyNext) && !(isReserved && isOwnDoor)) || avoidDoorInside2;
       if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
         const pxPrev = n.x, pyPrev = n.y;
         occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
@@ -474,13 +494,22 @@
       }
       if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
 
+      // Innkeeper: avoid stepping onto the inn door tile while already inside the building
+      try {
+        if (n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
+          const B = n._shopRef.building || null;
+          const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
+          const nextIsDoor = (ctx.map[ny] && ctx.map[ny][nx] === ctx.TILES.DOOR);
+          if (insideNow && nextIsDoor) continue;
+        }
+      } catch (_) {}
+
       const isBack = prevKey && keyN === prevKey;
       if (isBack) {
         if (!backStep) backStep = { nx, ny };
         continue;
       }
-      chosen = { nx, ny };
-      break;
+      chosen = {;
     }
 
     if (!chosen && backStep) {
