@@ -1,5 +1,21 @@
 # Game Version History
-Last updated: 2025-10-23 14:45 UTC
+Last updated: 2025-10-24 00:20 UTC
+
+v1.39.2 — Bakery shop type, unique shop types per town, pre-home Inn visits, and unified Ruins looting
+- Shops
+  - Added: bakery shop type (data/shops/shops.json) with hours 06:00–15:00 and probabilistic presence by town size; Inn remains required.
+  - Changed: town generation deduplicates shop types per town/city — at most one per type (blacksmith/apothecary/armorer/trader/carpenter/bakery).
+  - Changed: ShopService supports "food" items (stacking, pricing, materialization).
+- Inventory pools/rules
+  - Added: bakery inventory pools in data/shops/shop_pools.json ("baked" category: bread_loaf, sweet_bun, meat_pie, berry_tart).
+  - Added: bakery shop rules in data/shops/shop_rules.json (sells "food").
+  - Added: bakery restock in data/shops/shop_restock.json (primary at open, mini restock at 11:00).
+- Town AI
+  - Added: residents who like the Inn sometimes stop by the Inn in early evening before going home (~33% of days); short sits and seating cap prevent crowding.
+- Region Map (Ruins) looting
+  - Changed: looting corpses/chests now uses the unified Loot.lootHere flow with the loot panel, consistent with dungeon looting; dead animals show what was looted.
+  - Changed: region state saves immediately after loot so containers remain emptied when reopening the same tile.
+- Deployment: https://drjim9an2gnt.cosine.page, https://pj3yiqhg61kf.cosine.page
 
 v1.39.1 — Data folder reorganization and loot equipment fix
 - Data
