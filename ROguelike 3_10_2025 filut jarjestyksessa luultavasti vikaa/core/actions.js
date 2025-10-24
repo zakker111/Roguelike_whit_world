@@ -103,6 +103,13 @@ function restAtInn(ctx) {
 }
 
 // Public API
+function isInnStairsTile(ctx, x, y) {
+  try {
+    const arr = Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround : [];
+    return arr.some(s => s && s.x === x && s.y === y);
+  } catch (_) { return false; }
+}
+
 export function doAction(ctx) {
   // Hide loot UI if open
   try {
@@ -145,6 +152,21 @@ export function doAction(ctx) {
       // Defer to loot which handles shop messaging
       return loot(ctx);
     }
+    // Inn upstairs overlay: toggle when standing on inn stairs portal tiles
+    try {
+      if (isInnStairsTile(ctx, ctx.player.x, ctx.player.y)) {
+        const now = !!ctx.innUpstairsActive;
+        ctx.innUpstairsActive = !now;
+        if (ctx.innUpstairsActive) {
+          ctx.log && ctx.log("You ascend to the inn's upstairs.", "info");
+        } else {
+          ctx.log && ctx.log("You return to the inn's hall.", "info");
+        }
+        try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+        try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+        return true;
+      }
+    } catch (_) {}
     // Nothing else: allow fallback
     return false;
   }

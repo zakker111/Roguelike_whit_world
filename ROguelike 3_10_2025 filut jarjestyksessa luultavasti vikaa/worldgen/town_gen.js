@@ -1499,58 +1499,199 @@
           }
         })();
 
-        // Beds aligned in sleeping quarters along inner walls; clear aisles
-        (function placeBeds() {
-          const area = (sleepRect.x1 - sleepRect.x0 + 1) * (sleepRect.y1 - sleepRect.y0 + 1);
-          const bedTarget = Math.max(4, Math.min(18, Math.floor(area / 8)));
-          let placed = 0;
-          // left wall row
-          for (let yy = sleepRect.y0; yy <= sleepRect.y1 && placed < bedTarget; yy += 2) {
-            const xx = sleepRect.x0 + 1;
-            if (inRect(sleepRect, xx, yy) && ctx.map[yy][xx - 1] === ctx.TILES.WALL && !occupiedTile(xx, yy)) {
-              addProp(xx, yy, "bed", "Bed"); placed++;
-            }
+        // Two-lane stairs portal near the center of the hall; generate upstairs overlay (rooms)
+        (function placeStairsPortalAndUpstairs() {
+          // Find a clear 2-tile horizontal portal near the hall center
+          const cx = Math.floor((hallRect.x0 + hallRect.x1) / 2);
+          const cy = Math.floor((hallRect.y0 + hallRect.y1) / 2);
+          let sx = cx, sy = cy;
+          // Nudge off corridor center if needed
+          if (isCorridor(sx, sy)) {
+            if (sx + 1 <= hallRect.x1 && !isCorridor(sx + 1, sy)) sx = sx + 1;
+            else if (sx - 1 >= hallRect.x0 && !isCorridor(sx - 1, sy)) sx = sx - 1;
           }
-          // right wall row
-          for (let yy = sleepRect.y0; yy <= sleepRect.y1 && placed < bedTarget; yy += 2) {
-            const xx = sleepRect.x1 - 1;
-            if (inRect(sleepRect, xx, yy) && ctx.map[yy][xx + 1] === ctx.TILES.WALL && !occupiedTile(xx, yy)) {
-              addProp(xx, yy, "bed", "Bed"); placed++;
-            }
+          const s1 = { x: sx, y: sy };
+          const s2 = { x: Math.min(hallRect.x1, sx + 1), y: sy };
+          function canPlaceStairs(p) {
+            return inRect(hallRect, p.x, p.y) && insideFloor(b, p.x, p.y) && !occupiedTile(p.x, p.y);
           }
-          // center rows if space remains
-          for (let yy = sleepRect.y0 + 1; yy <= sleepRect.y1 - 1 && placed < bedTarget; yy += 3) {
-            for (let xx = sleepRect.x0 + 2; xx <= sleepRect.x1 - 2 && placed < bedTarget; xx += 3) {
-              if (inRect(sleepRect, xx, yy) && !occupiedTile(xx, yy)) {
-                addProp(xx, yy, "bed", "Bed"); placed++;
+          let ok1 = canPlaceStairs(s1), ok2 = canPlaceStairs(s2);
+          if (!ok1 || !ok2) {
+            // Try vertical pair
+            const v1 = { x: cx, y: cy };
+            const v2 = { x: cx, y: Math.min(hallRect.y1, cy + 1) };
+            if (canPlaceStairs(v1) && canPlaceStairs(v2)) {
+              sx = v1.x; sy = v1.y;
+              ok1 = ok2 = true;
+            } else {
+              // Fallback: search a small neighborhood
+              let placed = 0;
+              for (let dy = -2; dy <= 2 && placed < 2; dy++) {
+                for (let dx = -2; dx <= 2 && placed < 2; dx++) {
+                  const nx = cx + dx, ny = cy + dy;
+                  const p = { x: nx, y: ny };
+                  if (canPlaceStairs(p)) {
+                    if (placed === 0) { sx = nx; sy = ny; placed = 1; }
+                    else if (Math.abs(nx - sx) + Math.abs(ny - sy) === 1) { // adjacent
+                      const p2 = { x: nx, y: ny };
+                      if (canPlaceStairs(p2)) { s1.x = sx; s1.y = sy; s2.x = nx; s2.y = ny; ok1 = ok2 = true; placed = 2; }
+                    }
+                  }
+                }
               }
             }
           }
+          if (ok1 && ok2) {
+            ctx.map[s1.y][s1.x] = ctx.TILES.STAIRS;
+            ctx.map[s2.y][s2.x] = ctx.TILES.STAIRS;
+            try { ctx.innStairsGround = [{ x: s1.x, y: s1.y }, { x: s2.x, y: s2.y }]; } catch (_) {}
+          }
+          // Generate upstairs overlay with small varied rooms (pre-rendered at town gen)
+          function generateInnUpstairs(ctx, bld, hall) {
+            const rUp = { x0: bld.x + 1, y0: bld.y + 1, x1: bld.x + bld.w - 2, y1: bld.y + bld.h - 2 };
+            const wUp = (rUp.x1 - rUp.x0 + 1);
+            const hUp = (rUp.y1 - rUp.y0 + 1);
+            const tiles = Array.from({ length: hUp }, () => Array(wUp).fill(ctx.TILES.FLOOR));
+            // Perimeter walls
+            for (let yy = 0; yy < hUp; yy++) {
+              for (let xx = 0; xx < wUp; xx++) {
+                const isBorder = (yy === 0 || yy === hUp - 1 || xx === 0 || xx === wUp - 1);
+                if (isBorder) tiles[yy][xx] = ctx.TILES.WALL;
+              }
+            }
+            // Corridor: along long axis, width = 2
+            const vertical = (wUp >= hUp);
+            const corridorWidth = 2;
+            if (vertical) {
+              const midX = Math.floor(wUp / 2) - 1;
+              for (let yy = 1; yy < hUp - 1; yy++) {
+                for (let dx = 0; dx < corridorWidth; dx++) {
+                  const xx = Math.max(1, Math.min(wUp - 2, midX + dx));
+                  tiles[yy][xx] = ctx.TILES.FLOOR;
+                }
+              }
+            } else {
+              const midY = Math.floor(hUp / 2) - 1;
+              for (let xx = 1; xx < wUp - 1; xx++) {
+                for (let dy = 0; dy < corridorWidth; dy++) {
+                  const yy = Math.max(1, Math.min(hUp - 2, midY + dy));
+                  tiles[yy][xx] = ctx.TILES.FLOOR;
+                }
+              }
+            }
+            // Rooms: small varied rectangles along corridor sides
+            const rooms = [];
+            function tryRoomAt(x0, y0, w, h) {
+              if (x0 < 1 || y0 < 1 || x0 + w > wUp - 1 || y0 + h > hUp - 1) return false;
+              // Ensure one-tile gap around
+              for (let yy = y0 - 1; yy <= y0 + h; yy++) {
+                for (let xx = x0 - 1; xx <= x0 + w; xx++) {
+                  if (tiles[yy][xx] !== ctx.TILES.FLOOR) {
+                    // allow corridor stroke to be floor; still acceptable
+                    continue;
+                  }
+                }
+              }
+              // Carve walls on perimeter, floors inside
+              for (let yy = y0; yy < y0 + h; yy++) {
+                for (let xx = x0; xx < x0 + w; xx++) {
+                  const border = (yy === y0 || yy === y0 + h - 1 || xx === x0 || xx === x0 + w - 1);
+                  tiles[yy][xx] = border ? ctx.TILES.WALL : ctx.TILES.FLOOR;
+                }
+              }
+              rooms.push({ x0, y0, w, h });
+              return true;
+            }
+            // Place rooms along corridor
+            const seg = vertical ? hUp : wUp;
+            const step = 4;
+            for (let i = 2; i < seg - 2; i += step) {
+              const wR = 3 + Math.floor(ctx.rng() * 2); // 3-4
+              const hR = 3 + Math.floor(ctx.rng() * 2); // 3-4
+              if (vertical) {
+                const y0 = Math.max(1, Math.min(hUp - hR - 1, i));
+                const leftX0 = Math.max(1, Math.floor(wUp / 2) - (corridorWidth + wR));
+                const rightX0 = Math.min(wUp - wR - 1, Math.floor(wUp / 2) + corridorWidth);
+                // Alternate sides
+                if (ctx.rng() < 0.5) tryRoomAt(leftX0, y0, wR, hR); else tryRoomAt(rightX0, y0, wR, hR);
+              } else {
+                const x0 = Math.max(1, Math.min(wUp - wR - 1, i));
+                const topY0 = Math.max(1, Math.floor(hUp / 2) - (corridorWidth + hR));
+                const bottomY0 = Math.min(hUp - hR - 1, Math.floor(hUp / 2) + corridorWidth);
+                if (ctx.rng() < 0.5) tryRoomAt(x0, topY0, wR, hR); else tryRoomAt(x0, bottomY0, wR, hR);
+              }
+            }
+            // Doors from corridor into rooms
+            for (const rm of rooms) {
+              let dx = 0, dy = 0, doorX = rm.x0, doorY = rm.y0;
+              if (vertical) {
+                const midX = Math.floor(wUp / 2);
+                if (rm.x0 + rm.w - 1 < midX) { dx = +1; doorX = rm.x0 + rm.w - 1; doorY = rm.y0 + Math.floor(rm.h / 2); }
+                else { dx = -1; doorX = rm.x0; doorY = rm.y0 + Math.floor(rm.h / 2); }
+              } else {
+                const midY = Math.floor(hUp / 2);
+                if (rm.y0 + rm.h - 1 < midY) { dy = +1; doorY = rm.y0 + rm.h - 1; doorX = rm.x0 + Math.floor(rm.w / 2); }
+                else { dy = -1; doorY = rm.y0; doorX = rm.x0 + Math.floor(rm.w / 2); }
+              }
+              tiles[doorY][doorX] = ctx.TILES.DOOR;
+            }
+            // Stairs landing upstairs: align roughly over hall stairs
+            const upLandingLocal = { x: Math.max(1, Math.min(wUp - 2, s1.x - rUp.x0)), y: Math.max(1, Math.min(hUp - 2, s1.y - rUp.y0)) };
+            tiles[upLandingLocal.y][upLandingLocal.x] = ctx.TILES.STAIRS;
+            if (upLandingLocal.x + 1 < wUp - 1) tiles[upLandingLocal.y][upLandingLocal.x + 1] = ctx.TILES.STAIRS;
+            // Furnish rooms minimally: bed + optional chest/table/chair/rug
+            const props = [];
+            function addP(ax, ay, type, name) { props.push({ x: rUp.x0 + ax, y: rUp.y0 + ay, type, name }); }
+            for (const rm of rooms) {
+              // interior area
+              const ix0 = rm.x0 + 1, iy0 = rm.y0 + 1, ix1 = rm.x0 + rm.w - 2, iy1 = rm.y0 + rm.h - 2;
+              let placedBed = false;
+              for (let tries = 0; tries < 10 && !placedBed; tries++) {
+                const bx = ix0 + Math.floor(ctx.rng() * Math.max(1, (ix1 - ix0 + 1)));
+                const by = iy0 + Math.floor(ctx.rng() * Math.max(1, (iy1 - iy0 + 1)));
+                if (tiles[by][bx] === ctx.TILES.FLOOR) { addP(bx, by, "bed", "Bed"); placedBed = true; }
+              }
+              if (ctx.rng() < 0.65) {
+                // small table + chair
+                let tx = ix0, ty = iy0;
+                addP(tx, ty, "table", "Table");
+                if (ctx.rng() < 0.8) addP(Math.min(ix1, tx + 1), ty, "chair", "Chair");
+              }
+              if (ctx.rng() < 0.55) addP(ix1, iy1, "chest", "Chest");
+              if (ctx.rng() < 0.40) addP(ix0, iy1, "rug", "Rug");
+              if (ctx.rng() < 0.35) addP(ix1, iy0, "shelf", "Shelf");
+              if (ctx.rng() < 0.25) addP(ix0, iy0, "plant", "Plant");
+            }
+            try {
+              ctx.innUpstairs = { offset: { x: rUp.x0, y: rUp.y0 }, w: wUp, h: hUp, tiles, props };
+              ctx.innUpstairsActive = false;
+            } catch (_) {}
+          }
+          generateInnUpstairs(ctx, b, hallRect);
         })();
 
-        // Storage cluster in a corner of sleeping quarters
-        (function placeStorageCluster() {
+        // Storage cluster in a back corner of the hall (away from stairs)
+        (function placeStorageHallCorner() {
           const corners = [
-            { x: sleepRect.x0, y: sleepRect.y0 },
-            { x: sleepRect.x1, y: sleepRect.y0 },
-            { x: sleepRect.x0, y: sleepRect.y1 },
-            { x: sleepRect.x1, y: sleepRect.y1 },
+            { x: hallRect.x0, y: hallRect.y0 },
+            { x: hallRect.x1, y: hallRect.y0 },
+            { x: hallRect.x0, y: hallRect.y1 },
+            { x: hallRect.x1, y: hallRect.y1 },
           ];
           let corner = corners[0];
-          // pick the corner farthest from door
           let bestD = -1;
           for (const c of corners) {
             const d = door ? Math.abs(c.x - door.x) + Math.abs(c.y - door.y) : 0;
             if (d > bestD) { bestD = d; corner = c; }
           }
-          const start = clampToRect(corner.x, corner.y, sleepRect);
-          const items = Math.max(4, Math.min(8, Math.floor((sleepRect.x1 - sleepRect.x0 + sleepRect.y1 - sleepRect.y0) / 3)));
+          const start = clampToRect(corner.x, corner.y, hallRect);
+          const items = Math.max(3, Math.min(7, Math.floor((hallRect.x1 - hallRect.x0 + hallRect.y1 - hallRect.y0) / 3)));
           let placed = 0;
           for (let oy = 0; oy < 3 && placed < items; oy++) {
             for (let ox = 0; ox < 3 && placed < items; ox++) {
               const x = facing === "east" ? start.x - ox : start.x + ox;
               const y = facing === "south" ? start.y - oy : start.y + oy;
-              if (inRect(sleepRect, x, y) && !occupiedTile(x, y)) {
+              if (inRect(hallRect, x, y) && !occupiedTile(x, y) && !isCorridor(x, y)) {
                 const r = ctx.rng();
                 const type = r < 0.33 ? "crate" : (r < 0.66 ? "barrel" : "chest");
                 addProp(x, y, type, type[0].toUpperCase() + type.slice(1));
