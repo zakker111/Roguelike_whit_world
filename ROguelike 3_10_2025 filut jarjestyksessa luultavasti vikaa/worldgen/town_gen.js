@@ -1521,7 +1521,9 @@
             const v1 = { x: cx, y: cy };
             const v2 = { x: cx, y: Math.min(hallRect.y1, cy + 1) };
             if (canPlaceStairs(v1) && canPlaceStairs(v2)) {
-              sx = v1.x; sy = v1.y;
+              // Use vertical pair directly
+              s1.x = v1.x; s1.y = v1.y;
+              s2.x = v2.x; s2.y = v2.y;
               ok1 = ok2 = true;
             } else {
               // Fallback: search a small neighborhood
@@ -1531,10 +1533,10 @@
                   const nx = cx + dx, ny = cy + dy;
                   const p = { x: nx, y: ny };
                   if (canPlaceStairs(p)) {
-                    if (placed === 0) { sx = nx; sy = ny; placed = 1; }
-                    else if (Math.abs(nx - sx) + Math.abs(ny - sy) === 1) { // adjacent
+                    if (placed === 0) { s1.x = nx; s1.y = ny; placed = 1; }
+                    else if (Math.abs(nx - s1.x) + Math.abs(ny - s1.y) === 1) { // adjacent
                       const p2 = { x: nx, y: ny };
-                      if (canPlaceStairs(p2)) { s1.x = sx; s1.y = sy; s2.x = nx; s2.y = ny; ok1 = ok2 = true; placed = 2; }
+                      if (canPlaceStairs(p2)) { s2.x = nx; s2.y = ny; ok1 = ok2 = true; placed = 2; }
                     }
                   }
                 }

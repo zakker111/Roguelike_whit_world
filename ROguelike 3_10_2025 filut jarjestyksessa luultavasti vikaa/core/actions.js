@@ -106,8 +106,17 @@ function restAtInn(ctx) {
 function isInnStairsTile(ctx, x, y) {
   try {
     const arr = Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround : [];
-    return arr.some(s => s && s.x === x && s.y === y);
-  } catch (_) { return false; }
+    if (arr.some(s => s && s.x === x && s.y === y)) return true;
+  } catch (_) {}
+  // Fallback: treat any STAIRS tile inside the inn building as the portal
+  try {
+    const b = ctx && ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+    if (b) {
+      const inside = (x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1);
+      if (inside && ctx.map && ctx.map[y] && ctx.map[y][x] === ctx.TILES.STAIRS) return true;
+    }
+  } catch (_) {}
+  return false;
 }
 
 export function doAction(ctx) {
