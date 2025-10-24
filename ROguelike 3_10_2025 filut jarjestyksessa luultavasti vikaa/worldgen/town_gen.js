@@ -117,6 +117,7 @@
       }
     }
     // Fallback to center
+    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "ensureSpawnClear: moving player to map center (no walkable tile found by BFS).", { W, H }); } catch (_) {}
     ctx.player.x = (W / 2) | 0;
     ctx.player.y = (H / 2) | 0;
     return true;
@@ -302,6 +303,7 @@
         const d = Math.abs(t.x - pxy.x) + Math.abs(t.y - pxy.y);
         if (d < bd) { bd = d; best = t; }
       }
+      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "Gate placement: using nearest edge (enterFromDir unavailable).", { gate: best }); } catch (_) {}
       gate = best;
     }
 
@@ -765,17 +767,83 @@
       if (sizeKey === "city") return 8;
       return 5; // big
     }
-    const shopCount = Math.min(shopDefs.length, scored.length, shopLimitBySize(townSize));
+    const limit = Math.min(scored.length, shopLimitBySize(townSize));
+
+    // Deterministic sampling helpers for shop presence
+    function chanceFor(def, sizeKey) {
+      try {
+        const c = def && def.chanceBySize ? def.chanceBySize : null;
+        if (c && typeof c[sizeKey] === "number") {
+          const v = c[sizeKey];
+          return (v < 0 ? 0 : (v > 1 ? 1 : v));
+        }
+      } catch (_) {}
+      // Defaults if not specified in data
+      if (sizeKey === "city") return 0.75;
+      if (sizeKey === "big") return 0.60;
+      return 0.50; // small
+    }
+    function shuffleInPlace(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(ctx.rng() * (i + 1));
+        const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+      }
+    }
+
+    // Build shop selection: Inn always included, others sampled by chanceBySize (dedup by type)
+    let innDef = null;
+    const candidateDefs = [];
+    for (let i = 0; i < shopDefs.length; i++) {
+      const d = shopDefs[i];
+      const isInn = String(d.type || "").toLowerCase() === "inn" || /inn/i.test(String(d.name || ""));
+      if (d.required === true || isInn) { innDef = d; continue; }
+      candidateDefs.push(d);
+    }
+    // Sample presence for non-inn shops
+    let sampled = [];
+    for (const d of candidateDefs) {
+      const ch = chanceFor(d, townSize);
+      if (ctx.rng() < ch) sampled.push(d);
+    }
+    // Shuffle and cap, but avoid duplicate types within a single town
+    shuffleInPlace(sampled);
+    const restCap = Math.max(0, limit - (innDef ? 1 : 0));
+    const finalDefs = [];
+    const usedTypes = new Set();
+    if (innDef) {
+      finalDefs.push(innDef);
+      usedTypes.add(String(innDef.type || innDef.name || "").toLowerCase());
+    }
+    // Fill with sampled unique types
+    for (let i = 0; i < sampled.length && finalDefs.length < ((innDef ? 1 : 0) + restCap); i++) {
+      const d = sampled[i];
+      const tKey = String(d.type || d.name || "").toLowerCase();
+      if (usedTypes.has(tKey)) continue;
+      finalDefs.push(d);
+      usedTypes.add(tKey);
+    }
+    // If we still have capacity, pull additional unique types from the full candidate list
+    if (finalDefs.length < ((innDef ? 1 : 0) + restCap)) {
+      for (const d of candidateDefs) {
+        const tKey = String(d.type || d.name || "").toLowerCase();
+        if (usedTypes.has(tKey)) continue;
+        finalDefs.push(d);
+        usedTypes.add(tKey);
+        if (finalDefs.length >= ((innDef ? 1 : 0) + restCap)) break;
+      }
+    }
 
     // Avoid assigning multiple shops to the same building
     const usedBuildings = new Set();
 
-    for (let i = 0; i < shopCount; i++) {
-      const def = shopDefs[i % shopDefs.length];
+    // Assign selected shops to nearest buildings
+    const finalCount = Math.min(finalDefs.length, scored.length);
+    for (let i = 0; i < finalCount; i++) {
+      const def = finalDefs[i];
       let b = scored[i].b;
 
       // Prefer the enlarged tavern building for the Inn if available; else nearest to plaza
-      if (def.type === "inn") {
+      if (String(def.type || "").toLowerCase() === "inn") {
         if (ctx.tavern && ctx.tavern.building) {
           b = ctx.tavern.building;
         } else {
@@ -796,7 +864,7 @@
       }
 
       // Extra guard: non-inn shops should never occupy the tavern building
-      if (def.type !== "inn" && ctx.tavern && ctx.tavern.building) {
+      if (String(def.type || "").toLowerCase() !== "inn" && ctx.tavern && ctx.tavern.building) {
         const tb = ctx.tavern.building;
         const isTavernBld = (b.x === tb.x && b.y === tb.y && b.w === tb.w && b.h === tb.h);
         if (isTavernBld) {
@@ -813,7 +881,7 @@
 
       // For Inn: prefer using existing double doors on the side facing the plaza if present
       let door = null;
-      if (def.type === "inn") {
+      if (String(def.type || "").toLowerCase() === "inn") {
         // check for any door on the inn building perimeter and pick one closest to plaza
         const cds = candidateDoors(b);
         let best = null, bestD = Infinity;
@@ -863,6 +931,7 @@
     try {
       const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (s.type === "inn") || (/inn/i.test(String(s.name || ""))));
       if (!hasInn) {
+        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "No Inn assigned by shopDefs; creating fallback Inn."); } catch (_) {}
         // Pick an unused building near the plaza that does NOT overlap the plaza footprint
         let bInn = null;
         for (const s of scored) {
@@ -996,6 +1065,7 @@
         if (isInsideAnyBuilding(nx, ny)) continue;
         if (ctx.map[ny][nx] !== ctx.TILES.FLOOR) continue;
         if (ctx.townProps.some(p => p.x === nx && p.y === ny)) continue;
+        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "Shop sign: placing at nearby floor (preferred outside placement unavailable).", { door, sign: { x: nx, y: ny }, text }); } catch (_) {}
         addProp(nx, ny, "sign", text);
         return true;
       }
@@ -1355,6 +1425,42 @@
       }
     } catch (_) {}
 
+    // One special cat: Jekku (spawn in the designated town only)
+    (function placeJekku() {
+      try {
+        const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : ctx.player.x;
+        const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : ctx.player.y;
+        const info = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t.x === wx && t.y === wy) : null;
+        if (!info || !info.jekkuHome) return;
+        // Avoid duplicate by name if already present
+        if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => String(n.name || "").toLowerCase() === "jekku")) return;
+        // Prefer a free floor near the plaza
+        const spots = [
+          { x: ctx.townPlaza.x + 1, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x - 1, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y + 1 },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y - 1 },
+          { x: ctx.townPlaza.x + 2, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x - 2, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y + 2 },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y - 2 },
+        ];
+        let pos = null;
+        for (const s of spots) { if (_isFreeTownFloor(ctx, s.x, s.y)) { pos = s; break; } }
+        if (!pos) {
+          // Fallback: any free floor near plaza
+          for (let oy = -3; oy <= 3 && !pos; oy++) {
+            for (let ox = -3; ox <= 3 && !pos; ox++) {
+              const x = ctx.townPlaza.x + ox, y = ctx.townPlaza.y + oy;
+              if (_isFreeTownFloor(ctx, x, y)) pos = { x, y };
+            }
+          }
+        }
+        if (!pos) pos = { x: ctx.townPlaza.x, y: ctx.townPlaza.y };
+        ctx.npcs.push({ x: pos.x, y: pos.y, name: "Jekku", kind: "cat", lines: ["Meow.", "Purr."], pet: true });
+      } catch (_) {}
+    })();
+
     // Roaming villagers near plaza
     const ND = (typeof window !== "undefined" && window.GameData && window.GameData.npcs) ? window.GameData.npcs : null;
     const baseLines = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length)
@@ -1402,7 +1508,7 @@
           homeRef = { building: b, x: hx, y: hy, door };
         }
       } catch (_) {}
-      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesTavern: ctx.rng() < 0.45, _home: homeRef });
+      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesInn: ctx.rng() < 0.45, _home: homeRef });
       placed++;
     }
 
@@ -1438,6 +1544,7 @@
     try { enforceGateNPCLimit(ctx, 1, 2); } catch (_) {}
 
     // Finish
+    try { ctx.inn = ctx.tavern; } catch (_) {}
     if (ctx.updateUI) ctx.updateUI();
     // Draw is handled by orchestrator after generation; avoid redundant frame
     return true;

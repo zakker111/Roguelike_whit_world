@@ -19,6 +19,10 @@
     "miniRestockAt": "16:00",
     "rareSlotWindow": { "start": "19:00", "end": "22:00", "chance": 0.05 }
   },
+  "bakery": {
+    "primaryRestockAt": "open",
+    "miniRestockAt": "11:00"
+  },
   "inn": {
     "primaryRestockAt": "open",
     "miniRestockAt": "19:00"

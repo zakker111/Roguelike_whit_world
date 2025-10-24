@@ -166,7 +166,10 @@
   // ---- Pathfinding budget/throttling ----
   // Limit the number of A* computations per tick to avoid CPU spikes in dense towns.
   function initPathBudget(ctx, npcCount) {
-    const defaultBudget = Math.max(1, Math.floor(npcCount * 0.2)); // ~20% of NPCs may compute a new path per tick
+    const phaseNow = (ctx && ctx.time && ctx.time.phase) ? String(ctx.time.phase) : "day";
+    // Raise baseline during daytime to reduce reliance on greedy fallback
+    const baseFrac = (phaseNow === "day") ? 0.30 : 0.20;
+    const defaultBudget = Math.max(1, Math.floor(npcCount * baseFrac)); // 30% by day, 20% otherwise
     ctx._townPathBudgetRemaining = (typeof ctx.townPathBudget === "number")
       ? Math.max(0, ctx.townPathBudget)
       : defaultBudget;
@@ -222,7 +225,9 @@
           } else {
             n._debugPath = null;
           }
+          const pxPrev = n.x, pyPrev = n.y;
           occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
+          n._lastX = pxPrev; n._lastY = pyPrev;
           return true;
         } else {
           // Blocked: force replan below
@@ -262,7 +267,9 @@
       }
       const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
       if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
+        const pxPrev = n.x, pyPrev = n.y;
         occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
+        n._lastX = pxPrev; n._lastY = pyPrev;
         return true;
       }
       // If first step blocked right away, drop plan and try nudge
@@ -270,16 +277,22 @@
       n._fullPlan = null; n._fullPlanGoal = null;
     }
 
-    // Fallback: greedy nudge step
+    // Fallback: greedy nudge step with anti-oscillation guard
     const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
     const dirs = dirs4.slice().sort((a, b) =>
       (Math.abs((n.x + a.dx) - tx) + Math.abs((n.y + a.dy) - ty)) -
       (Math.abs((n.x + b.dx) - tx) + Math.abs((n.y + b.dy) - ty))
     );
+
+    const prevKey = (typeof n._lastX === "number" && typeof n._lastY === "number") ? `${n._lastX},${n._lastY}` : null;
+    let chosen = null;
+    let backStep = null;
+
     for (const d of dirs) {
       const nx = n.x + d.dx, ny = n.y + d.dy;
       if (!isWalkTown(ctx, nx, ny)) continue;
       if (ctx.player.x === nx && ctx.player.y === ny) continue;
+
       const keyN = `${nx},${ny}`;
       const isReservedN = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyN);
       let isOwnDoorN = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === nx && n._shopRef.y === ny);
@@ -291,17 +304,36 @@
         }
       }
       if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
+
+      const isBack = prevKey && keyN === prevKey;
+      if (isBack) {
+        // Remember the backstep candidate; use only if no other option exists
+        if (!backStep) backStep = { nx, ny };
+        continue;
+      }
+      chosen = { nx, ny };
+      break;
+    }
+
+    if (!chosen && backStep) {
+      chosen = backStep;
+    }
+
+    if (chosen) {
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
         // Single-step nudge visualization
-        n._debugPath = [{ x: n.x, y: n.y }, { x: nx, y: ny }];
+        n._debugPath = [{ x: n.x, y: n.y }, { x: chosen.nx, y: chosen.ny }];
       } else {
         n._debugPath = null;
       }
       n._plan = null; n._planGoal = null;
       n._fullPlan = null; n._fullPlanGoal = null;
-      occ.delete(`${n.x},${n.y}`); n.x = nx; n.y = ny; occ.add(`${nx},${ny}`);
+      const pxPrev = n.x, pyPrev = n.y;
+      occ.delete(`${n.x},${n.y}`); n.x = chosen.nx; n.y = chosen.ny; occ.add(`${n.x},${n.y}`);
+      n._lastX = pxPrev; n._lastY = pyPrev;
       return true;
     }
+
     n._debugPath = null;
     n._plan = null; n._planGoal = null;
     n._fullPlan = null; n._fullPlanGoal = null;
@@ -459,7 +491,10 @@
         if (!benches.length) return null;
         const candidates = benches.slice().sort((a, b) =>
           manhattan(a.x, a.y, townPlaza.x, townPlaza.y) - manhattan(b.x, b.y, townPlaza.x, townPlaza.y));
-        return candidates[0] || null;
+        const b = candidates[0] || null;
+        if (!b) return null;
+        const seat = nearestFreeAdjacent(ctx, b.x, b.y, null);
+        return seat ? { x: seat.x, y: seat.y } : { x: b.x, y: b.y };
       };
       const pickRandomShopDoor = () => {
         if (!shops || !shops.length) return null;
@@ -504,7 +539,7 @@
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: sleepSpot },
             _work: errand,
             _workIsShopDoor: !!errandIsShopDoor,
-            _likesTavern: ctx.rng() < 0.45
+            _likesInn: ctx.rng() < 0.45
           });
           created++;
         }
@@ -523,7 +558,7 @@
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: null },
             _work: workTarget,
             _workIsShopDoor: !!workToShop,
-            _likesTavern: ctx.rng() < 0.45
+            _likesInn: ctx.rng() < 0.45
           });
         }
       }
@@ -638,49 +673,119 @@
     const LATE_START = 2 * 60, LATE_END = 5 * 60;
     const inLateWindow = minutes >= LATE_START && minutes < LATE_END;
 
-    // Helper: pick a target inside the tavern (prefer a bed, fallback to a free interior near door)
-    function tavernBedSpots(ctx) {
-      const tv = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-      if (!tv) return [];
+    // Evening return window: boost pathfinding budget to smooth mass routing (18:00–21:00)
+    try {
+      const EVENING_START = 18 * 60, EVENING_END = 21 * 60;
+      if (minutes >= EVENING_START && minutes < EVENING_END) {
+        const boosted = Math.max(typeof ctx._townPathBudgetRemaining === "number" ? ctx._townPathBudgetRemaining : 0,
+                                 Math.floor(npcs.length * 0.35));
+        ctx._townPathBudgetRemaining = boosted;
+      }
+    } catch (_) {}
+
+    // Inn seating cap to prevent overcrowding; computed per tick
+    const innBForCap = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+    let _innSeatCap = 0;
+    let _innSeatersNow = 0;
+    if (innBForCap) {
+      try {
+        const seatsCount = innSeatSpots(ctx).length;
+        _innSeatCap = Math.max(2, Math.min(6, Math.floor((seatsCount || 0) * 0.5) || 2));
+        for (const x of npcs) {
+          if ((x._innSeatGoal) || (x._innStayTurns && x._innStayTurns > 0)) _innSeatersNow++;
+        }
+      } catch (_) {
+        _innSeatCap = 4;
+      }
+    }
+
+    // Helper: pick a target inside the Inn (prefer a bed, fallback to a free interior near door)
+    function innBedSpots(ctx) {
+      const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+      if (!innB) return [];
       const beds = (ctx.townProps || []).filter(p =>
         p.type === "bed" &&
-        p.x > tv.x && p.x < tv.x + tv.w - 1 &&
-        p.y > tv.y && p.y < tv.y + tv.h - 1
+        p.x > innB.x && p.x < innB.x + innB.w - 1 &&
+        p.y > innB.y && p.y < innB.y + innB.h - 1
       );
       return beds;
     }
-    function chooseTavernTarget(ctx) {
-      const tv = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-      if (!tv) return null;
-      const beds = tavernBedSpots(ctx);
+    function chooseInnTarget(ctx) {
+      const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+      if (!innB) return null;
+      const beds = innBedSpots(ctx);
       if (beds.length) {
         const b = beds[randInt(ctx, 0, beds.length - 1)];
         return { x: b.x, y: b.y };
       }
       // Fallback to a free interior tile near the door
-      const door = ctx.tavern.door || { x: tv.x + ((tv.w / 2) | 0), y: tv.y + ((tv.h / 2) | 0) };
-      const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, tv);
+      const door = ctx.tavern.door || { x: innB.x + ((innB.w / 2) | 0), y: innB.y + ((innB.h / 2) | 0) };
+      const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, innB);
       return inSpot || { x: door.x, y: door.y };
     }
 
-    // Tavern seating: pick floor tiles adjacent to chairs/tables inside the tavern
-    function tavernSeatSpots(ctx) {
-      const tv = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-      if (!tv) return [];
+    // Inn seating: pick floor tiles adjacent to chairs/tables inside the Inn
+    function innSeatSpots(ctx) {
+      const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+      if (!innB) return [];
       const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
       const seats = [];
       for (const p of props) {
         if (p.type !== "chair" && p.type !== "table") continue;
-        if (!(p.x > tv.x && p.x < tv.x + tv.w - 1 && p.y > tv.y && p.y < tv.y + tv.h - 1)) continue;
-        const adj = nearestFreeAdjacent(ctx, p.x, p.y, tv);
+        if (!(p.x > innB.x && p.x < innB.x + innB.w - 1 && p.y > innB.y && p.y < innB.y + innB.h - 1)) continue;
+        const adj = nearestFreeAdjacent(ctx, p.x, p.y, innB);
         if (adj) seats.push(adj);
       }
       return seats;
     }
-    function chooseTavernSeat(ctx) {
-      const seats = tavernSeatSpots(ctx);
-      if (!seats.length) return chooseTavernTarget(ctx);
+    function chooseInnSeat(ctx) {
+      const seats = innSeatSpots(ctx);
+      if (!seats.length) return chooseInnTarget(ctx);
       return seats[randInt(ctx, 0, seats.length - 1)];
+    }
+
+    // Bench seating near plaza or first available bench
+    function chooseBenchSeat(ctx) {
+      const benches = Array.isArray(ctx.townProps) ? ctx.townProps.filter(p => p.type === "bench") : [];
+      if (!benches.length) return null;
+      let b = benches[0];
+      if (ctx.townPlaza) {
+        const cx = ctx.townPlaza.x, cy = ctx.townPlaza.y;
+        b = benches.slice().sort((a, bb) =>
+          manhattan(a.x, a.y, cx, cy) - manhattan(bb.x, bb.y, cx, cy)
+        )[0] || benches[0];
+      }
+      const seat = nearestFreeAdjacent(ctx, b.x, b.y, null);
+      return seat ? seat : { x: b.x, y: b.y };
+    }
+
+    // First free interior tile in a building
+    function firstFreeInteriorTile(ctx, b) {
+      const { map, TILES } = ctx;
+      for (let y = b.y + 1; y < b.y + b.h - 1; y++) {
+        for (let x = b.x + 1; x < b.x + b.w - 1; x++) {
+          if (map[y][x] !== TILES.FLOOR) continue;
+          if ((ctx.townProps || []).some(p => p.x === x && p.y === y && p.type && p.type !== "sign" && p.type !== "rug")) continue;
+          if ((ctx.npcs || []).some(n => n.x === x && n.y === y)) continue;
+          return { x, y };
+        }
+      }
+      return null;
+    }
+
+    // Home seating: adjacent to chairs/tables inside the building, fallback to free interior
+    function chooseHomeSeat(ctx, building) {
+      if (!building) return null;
+      const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      const seats = [];
+      for (const p of props) {
+        if (p.type !== "chair" && p.type !== "table") continue;
+        if (!(p.x > building.x && p.x < building.x + building.w - 1 && p.y > building.y && p.y < building.y + building.h - 1)) continue;
+        const adj = nearestFreeAdjacent(ctx, p.x, p.y, building);
+        if (adj) seats.push(adj);
+      }
+      if (seats.length) return seats[randInt(ctx, 0, seats.length - 1)];
+      return firstFreeInteriorTile(ctx, building);
     }
 
     // Lightweight per-NPC rate limiting: each NPC only acts every N ticks.
@@ -785,7 +890,8 @@
         // Already inside: direct interior path
         path = computePath(ctx, relaxedOcc, n.x, n.y, targetInside.x, targetInside.y, { ignorePlayer: true });
       }
-      return (path && path.length >= 2) ? path : null;
+      // Treat a 1-node path as "already at home"
+      return (path && path.length >= 1) ? path : null;
     }
 
     // Movement path to home with runtime occupancy; NPC will follow this plan strictly and wait if blocked.
@@ -877,7 +983,8 @@
       try {
         for (const n of npcs) {
           const path = computeHomePath(ctx, n);
-          n._homeDebugPath = (path && path.length >= 2) ? path.slice(0) : null;
+          // Consider a 1-node path as "already at home" (reachable)
+          n._homeDebugPath = (path && path.length >= 1) ? path.slice(0) : null;
         }
       } catch (_) {}
     } else {
@@ -967,13 +1074,21 @@
         }
       } else {
         // Already inside: go to targetInside or nearest free interior tile
+        // If already at the adjusted target, treat as handled and stay put
+        if (adjTarget && n.x === adjTarget.x && n.y === adjTarget.y) {
+          return true;
+        }
         const inSpot = (adjTarget && isFreeTile(ctx, adjTarget.x, adjTarget.y))
           ? adjTarget
           : nearestFreeAdjacent(ctx, adjTarget ? adjTarget.x : n.x, adjTarget ? adjTarget.y : n.y, building);
         if (inSpot) {
+          // If already at the chosen spot, stay put
+          if (n.x === inSpot.x && n.y === inSpot.y) return true;
           stepTowards(ctx, occ, n, inSpot.x, inSpot.y);
           return true;
         }
+        // No viable interior target: staying inside is acceptable
+        return true;
       }
       return false;
     }
@@ -988,6 +1103,11 @@
       // Daily scheduling: reset stagger assignment at dawn, assign in morning if missing
       if (t && t.phase === "dawn") {
         n._departAssignedForDay = false;
+        // Pre-home Inn visit plan: on some days residents who like the Inn will stop by before going home
+        if (n.isResident) {
+          n._innPreHomeDone = false;
+          n._goInnToday = !!n._likesInn && (ctx.rng() < 0.33); // ~33% of days
+        }
       }
       if (t && t.phase === "morning" && !n._departAssignedForDay) {
         n._homeDepartMin = randInt(ctx, 18 * 60, 21 * 60); // 18:00..21:00
@@ -1011,14 +1131,42 @@
         const shop = n._shopRef || null;
         const isInnKeeper = shop && String(shop.type || "").toLowerCase() === "inn";
         if (isInnKeeper && shop && shop.building) {
-          // Innkeeper: always stay inside the inn, regardless of open/close windows
-          const targetInside = n._workInside || shop.inside || { x: shop.x, y: shop.y };
-          const handledInn = routeIntoBuilding(ctx, occ, n, shop.building, targetInside);
-          if (handledInn) continue;
-          // Minor fidget to avoid complete idling
-          if (ctx.rng() < 0.2) {
-            stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          // Innkeeper: always inside the Inn, and patrol within it
+          n._atWork = true;
+          const innB = shop.building;
+          const insideNow = insideBuilding(innB, n.x, n.y);
+          if (!insideNow) {
+            const targetInside = n._workInside || shop.inside || { x: shop.x, y: shop.y };
+            routeIntoBuilding(ctx, occ, n, innB, targetInside);
+            continue;
           }
+          // Inside: patrol between interior spots (chairs/tables or free interior)
+          // Arrived at patrol goal?
+          if (n._patrolGoal && n.x === n._patrolGoal.x && n.y === n._patrolGoal.y) {
+            n._patrolStayTurns = randInt(ctx, 3, 7);
+            n._patrolGoal = null;
+          }
+          if (n._patrolStayTurns && n._patrolStayTurns > 0) {
+            n._patrolStayTurns--;
+            // slight fidget to look alive
+            if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+            continue;
+          }
+          if (!n._patrolGoal) {
+            const seat = chooseInnSeat(ctx);
+            const next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
+              try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
+            })() || null;
+            if (next && !(next.x === n.x && next.y === n.y)) {
+              n._patrolGoal = { x: next.x, y: next.y };
+            }
+          }
+          if (n._patrolGoal) {
+            stepTowards(ctx, occ, n, n._patrolGoal.x, n._patrolGoal.y, { urgent: true });
+            continue;
+          }
+          // As a last resort, small idle move
+          stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
           continue;
         }
 
@@ -1032,21 +1180,55 @@
 
         let handled = false;
         if (shouldBeAtWorkZone) {
+          // Mark working state for diagnostics/UI
+          n._atWork = !!openNow;
           if (openNow && n._workInside && shop && shop.building) {
             handled = routeIntoBuilding(ctx, occ, n, shop.building, n._workInside);
           } else if (n._work) {
             handled = stepTowards(ctx, occ, n, n._work.x, n._work.y, { urgent: true });
           }
-        } else if (n._home && n._home.building) {
+        } else {
+          n._atWork = false;
+        }
+
+        if (!handled && !shouldBeAtWorkZone && n._home && n._home.building) {
           // Off hours: stagger departure between 18:00-21:00
           const departReady = typeof n._homeDepartMin === "number" ? (minutes >= n._homeDepartMin) : true;
 
-          // If it's very late and the NPC is not inside home, seek tavern as fallback shelter
+          // If it's very late and the NPC is not inside home, seek Inn as fallback shelter
           if (inLateWindow && !(insideBuilding(n._home.building, n.x, n.y))) {
-            const tv = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-            if (tv) {
-              const tvTarget = chooseTavernTarget(ctx);
-              handled = routeIntoBuilding(ctx, occ, n, tv, tvTarget);
+            const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+            if (innB) {
+              const innTarget = chooseInnTarget(ctx);
+              handled = routeIntoBuilding(ctx, occ, n, innB, innTarget);
+            }
+          }
+
+          // Pre-home Inn stop on some days for residents who like the Inn:
+          // Occurs before the personal home departure minute, early evening window.
+          if (!handled) {
+            const innB0 = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+            const preHomeWindowEnd = (typeof n._homeDepartMin === "number") ? n._homeDepartMin : (20 * 60);
+            if (innB0 && n._goInnToday && !n._innPreHomeDone && minutes < preHomeWindowEnd) {
+              // Arrived at seat?
+              if (n._innSeatGoal && insideBuilding(innB0, n.x, n.y) &&
+                  n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
+                n._innStayTurns = randInt(ctx, 4, 10); // ~16–40 minutes
+                n._innSeatGoal = null;
+                n._innPreHomeDone = true;
+                handled = true;
+              } else if (n._innStayTurns && n._innStayTurns > 0) {
+                n._innStayTurns--;
+                if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                handled = true;
+              } else if (!n._innSeatGoal && (_innSeatersNow < _innSeatCap)) {
+                const seatPH = chooseInnSeat(ctx);
+                if (seatPH && routeIntoBuilding(ctx, occ, n, innB0, seatPH)) {
+                  n._innSeatGoal = { x: seatPH.x, y: seatPH.y };
+                  _innSeatersNow++;
+                  handled = true;
+                }
+              }
             }
           }
 
@@ -1096,12 +1278,12 @@
           // Stagger: only start going home after personal departure minute (18:00..21:00)
           const departReady = typeof n._homeDepartMin === "number" ? (minutes >= n._homeDepartMin) : true;
 
-          // Late-night shelter fallback: if very late and not inside home, go to tavern
+          // Late-night shelter fallback: if very late and not inside home, go to Inn
           if (inLateWindow && n._home && n._home.building && !insideBuilding(n._home.building, n.x, n.y)) {
-            const tv = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-            if (tv) {
-              const tvTarget = chooseTavernTarget(ctx);
-              if (routeIntoBuilding(ctx, occ, n, tv, tvTarget)) continue;
+            const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+            if (innB) {
+              const innTarget = chooseInnTarget(ctx);
+              if (routeIntoBuilding(ctx, occ, n, innB, innTarget)) continue;
             }
           }
 
@@ -1137,42 +1319,64 @@
             // Fallback: attempt routing via door if plan absent
             if (routeIntoBuilding(ctx, occ, n, n._home.building, sleepTarget)) continue;
 
-            // If still not able to go home and it's very late, seek tavern
+            // If still not able to go home and it's very late, seek Inn
             if (inLateWindow) {
-              const tv = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-              if (tv) {
-                const tvTarget = chooseTavernTarget(ctx);
-                if (routeIntoBuilding(ctx, occ, n, tv, tvTarget)) continue;
+              const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+              if (innB) {
+                const innTarget = chooseInnTarget(ctx);
+                if (routeIntoBuilding(ctx, occ, n, innB, innTarget)) continue;
               }
             }
           }
           // If no home data for some reason, stop wandering at evening
           continue;
         } else if (phase === "day") {
-          // Daytime tavern visit behavior: sit for a short while if at a seat
-          const tvB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-          if (tvB) {
-            if (n._tavernSeatGoal && insideBuilding(tvB, n.x, n.y) &&
-                n.x === n._tavernSeatGoal.x && n.y === n._tavernSeatGoal.y) {
+          // Daytime Inn visit behavior: sit for a short while if at a seat
+          const innB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          if (innB) {
+            if (n._innSeatGoal && insideBuilding(innB, n.x, n.y) &&
+                n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
               // Arrived at seat: sit for a few turns
-              n._tavernStayTurns = randInt(ctx, 3, 9);
-              n._tavernSeatGoal = null;
+              n._innStayTurns = randInt(ctx, 3, 9);
+              n._innSeatGoal = null;
             }
-            if (n._tavernStayTurns && n._tavernStayTurns > 0) {
-              n._tavernStayTurns--;
+            if (n._innStayTurns && n._innStayTurns > 0) {
+              n._innStayTurns--;
               // Occasionally fidget while seated
               if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
               continue;
             }
           }
-          // Occasionally go to the tavern for a drink and sit
-          if (tvB) {
-            const wantTavern = n._likesTavern ? (ctx.rng() < 0.25) : (ctx.rng() < 0.08);
-            if (wantTavern) {
-              const seat = chooseTavernSeat(ctx);
+          // Occasionally visit the tavern (Inn) to sit; plus bench/home sitting options
+          if (innB) {
+            const wantTavern = n._likesInn ? (ctx.rng() < 0.20) : (ctx.rng() < 0.06);
+            if (wantTavern && !n._innSeatGoal && !n._benchSeatGoal && !n._homeSitGoal && (_innSeatersNow < _innSeatCap)) {
+              const seat = chooseInnSeat(ctx);
               if (seat) {
-                n._tavernSeatGoal = { x: seat.x, y: seat.y };
-                if (routeIntoBuilding(ctx, occ, n, tvB, seat)) continue;
+                n._innSeatGoal = { x: seat.x, y: seat.y };
+                if (routeIntoBuilding(ctx, occ, n, innB, seat)) { _innSeatersNow++; continue; }
+              }
+            }
+          }
+          
+          // Home sitting: arrive/stay and occasional
+          if (n._homeSitGoal && n.x === n._homeSitGoal.x && n.y === n._homeSitGoal.y) {
+            n._homeSitTurns = randInt(ctx, 12, 24); // ~48–96 minutes
+            n._homeSitGoal = null;
+          }
+          if (n._homeSitTurns && n._homeSitTurns > 0) {
+            n._homeSitTurns--;
+            if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+            continue;
+          }
+          if (n._home && n._home.building && !n._homeSitGoal && !n._tavernSeatGoal && !n._benchSeatGoal) {
+            const wantHomeSit = ctx.rng() < 0.15;
+            if (wantHomeSit) {
+              const seatH = chooseHomeSeat(ctx, n._home.building);
+              if (seatH) {
+                n._homeSitGoal = { x: seatH.x, y: seatH.y };
+                stepTowards(ctx, occ, n, seatH.x, seatH.y);
+                continue;
               }
             }
           }
@@ -1182,23 +1386,17 @@
             if (n.x === target.x && n.y === target.y) {
               if (n._workIsShopDoor) {
                 if (typeof n._errandStayTurns !== "number" || n._errandStayTurns <= 0) {
-                  n._errandStayTurns = randInt(ctx, 1, 3); // short stay at shop door
+                  n._errandStayTurns = randInt(ctx, 12, 20); // ~1 hour stay at shop door
                 }
                 n._errandStayTurns--;
                 if (n._errandStayTurns <= 0) {
                   // Move on: clear errand and pick a bench near plaza if available
                   n._work = null; n._workIsShopDoor = false;
-                  // Find nearest bench to plaza center
-                  let bench = null;
-                  try {
-                    const benches = (ctx.townProps || []).filter(p => p.type === "bench");
-                    if (benches.length) {
-                      benches.sort((a, b) => manhattan(a.x, a.y, ctx.townPlaza.x, ctx.townPlaza.y) - manhattan(b.x, b.y, ctx.townPlaza.x, ctx.townPlaza.y));
-                      bench = benches[0];
-                    }
-                  } catch (_) {}
-                  if (bench) {
-                    stepTowards(ctx, occ, n, bench.x, bench.y);
+                  // Choose a bench seat near the plaza center
+                  let seat = null;
+                  try { seat = chooseBenchSeat(ctx); } catch (_) {}
+                  if (seat) {
+                    stepTowards(ctx, occ, n, seat.x, seat.y);
                   } else {
                     stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
                   }
@@ -1233,28 +1431,89 @@
       }
 
       // Generic NPCs
+      // Sleep handling for generic roamers
+      if (n._sleeping) {
+        if (phase === "morning") n._sleeping = false;
+        else {
+          if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          continue;
+        }
+      }
       if (ctx.rng() < 0.2) continue;
       // Occasional tavern visit during the day for roamers who like the tavern
-      if (phase === "day" && ctx.tavern && n._likesTavern) {
-        const tvB = ctx.tavern.building;
-        const seat = chooseTavernSeat(ctx);
-        if (tvB && seat) {
-          if (routeIntoBuilding(ctx, occ, n, tvB, seat)) {
-            n._tavernStayTurns = randInt(ctx, 2, 6);
+      if (phase === "day" && ctx.tavern && (n._likesInn || n._likesTavern)) {
+        const innB2 = ctx.tavern.building;
+        // If already at an Inn seat, sit for a few turns
+        if (n._innSeatGoal && innB2 && insideBuilding(innB2, n.x, n.y) &&
+            n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
+          n._innStayTurns = randInt(ctx, 2, 6);
+          n._innSeatGoal = null;
+        }
+        if (n._innStayTurns && n._innStayTurns > 0) {
+          n._innStayTurns--;
+          if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          continue;
+        }
+        const seat2 = chooseInnSeat(ctx);
+        if (innB2 && seat2 && (_innSeatersNow < _innSeatCap)) {
+          if (routeIntoBuilding(ctx, occ, n, innB2, seat2)) {
+            n._innSeatGoal = { x: seat2.x, y: seat2.y };
+            _innSeatersNow++;
             continue;
           }
         }
       }
+      // Night/evening bench sit/sleep chance
+      if ((phase === "evening" || phase === "night") && !n._benchSeatGoal) {
+        const wantBenchNight = inLateWindow ? (ctx.rng() < 0.12) : (ctx.rng() < 0.20);
+        if (wantBenchNight) {
+          const seatB = chooseBenchSeat(ctx);
+          if (seatB) {
+            n._benchSeatGoal = { x: seatB.x, y: seatB.y };
+            stepTowards(ctx, occ, n, seatB.x, seatB.y);
+            continue;
+          }
+        }
+      }
+      // Arrived at bench seat
+      if (n._benchSeatGoal && n.x === n._benchSeatGoal.x && n.y === n._benchSeatGoal.y) {
+        if (inLateWindow) {
+          if (ctx.rng() < 0.5) {
+            n._sleeping = true;
+            n._benchSeatGoal = null;
+            continue;
+          }
+        }
+        n._benchStayTurns = randInt(ctx, 8, 18);
+        n._benchSeatGoal = null;
+      }
+      if (n._benchStayTurns && n._benchStayTurns > 0) {
+        n._benchStayTurns--;
+        if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+        continue;
+      }
+
       let target = null;
       if (phase === "morning") target = n._home ? { x: n._home.x, y: n._home.y } : null;
       else if (phase === "day") target = (n._work || ctx.townPlaza);
-      else target = (ctx.tavern && n._likesTavern) ? { x: ctx.tavern.door.x, y: ctx.tavern.door.y }
+      else target = (ctx.tavern && (n._likesInn || n._likesTavern)) ? { x: ctx.tavern.door.x, y: ctx.tavern.door.y }
                                                    : (n._home ? { x: n._home.x, y: n._home.y } : null);
 
-      // Very late at night: prefer shelter (tavern) if not at home
+      // Very late at night: prefer shelter (Inn/tavern) if not at home
       if (inLateWindow && ctx.tavern && ctx.tavern.building && (!n._home || !insideBuilding(n._home.building, n.x, n.y))) {
-        const tvTarget = chooseTavernTarget(ctx) || { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
-        target = tvTarget;
+        const innTarget2 = chooseInnTarget(ctx) || { x: ctx.tavern.door.x, y: ctx.tavern.door.y };
+        target = innTarget2;
+      }
+      // If inside the Inn near a bed during late night, sleep until morning
+      {
+        const innB2 = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+        if (inLateWindow && innB2 && insideBuilding(innB2, n.x, n.y)) {
+          const beds2 = innBedSpots(ctx);
+          for (let i = 0; i < beds2.length; i++) {
+            const b = beds2[i];
+            if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+          }
+        }
       }
 
       if (!target) {
@@ -1334,10 +1593,12 @@
           for (let i = skipFirst ? 1 : 0; i < b.length; i++) res0.push(b[i]);
           return res0;
         })(p1, p2);
-        return (path && path.length >= 2) ? path : null;
+        // Treat a 1-node path as "already at home"
+        return (path && path.length >= 1) ? path : null;
       } else {
         const path = computePath(ctx, emptyOcc, n.x, n.y, targetInside.x, targetInside.y);
-        return (path && path.length >= 2) ? path : null;
+        // Treat a 1-node path as "already at home"
+        return (path && path.length >= 1) ? path : null;
       }
     }
 
@@ -1399,7 +1660,7 @@
       }
 
       const path = computeHomePathStandalone(ctx, n);
-      if (path && path.length >= 2) {
+      if (path && path.length >= 1) {
         res.reachable++;
         // store for render if desired
         n._homeDebugPath = path.slice(0);

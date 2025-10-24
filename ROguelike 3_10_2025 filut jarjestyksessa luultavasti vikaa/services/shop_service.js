@@ -128,6 +128,10 @@ function _priceFor(item) {
       var dh = item.heal != null ? item.heal : 2;
       return Math.max(2, Math.min(30, Math.round(dh * 1.5)));
     }
+    if (item.kind === "food") {
+      var fh = item.heal != null ? item.heal : 2;
+      return Math.max(2, Math.min(40, Math.round(fh * 2)));
+    }
     // weapon/armor heuristics
     var base = (item.atk || 0) * 10 + (item.def || 0) * 10;
     var tier = (item.tier || 1);
@@ -146,6 +150,10 @@ function _materializeItem(ctx, entry) {
     var nm = entry.name || entry.id || "drink";
     return { kind: "drink", heal: entry.heal || 2, count: 1, name: nm };
   }
+  if (kind === "food") {
+    var nmf = entry.name || entry.id || "food";
+    return { kind: "food", heal: entry.heal || 2, count: 1, name: nmf };
+  }
   if (kind === "antidote") {
     return { kind: "antidote", name: "antidote" };
   }
@@ -159,6 +167,7 @@ function _materializeItem(ctx, entry) {
       }
     } catch (_) {}
     // Fallback simple objects
+    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("shop", "Materializing simple equipment (Items.createEquipment unavailable).", { kind, tier: entry.tier || 1 }); } catch (_) {}
     if (kind === "weapon" || kind === "low_tier_equip") {
       return { kind: "equip", slot: "hand", name: entry.id || "weapon", atk: entry.tier ? (entry.tier * 1.2) : 1.0, tier: entry.tier || 1, twoHanded: false, decay: (ctx.initialDecay ? ctx.initialDecay(entry.tier || 1) : 0) };
     }
@@ -236,8 +245,8 @@ export function calculatePrice(shopType, item, phase, demandState) {
   return Math.max(1, Math.round(base * mult));
 }
 
-// Stack identical consumables (potions by heal, drinks by name) into single rows with summed qty and lowest price.
-// Preserves relative order based on first occurrence.
+// Stack identical consumables (potions by heal, drinks by name) and materials (by name/material)
+// into single rows with summed qty and lowest price. Preserves relative order based on first occurrence.
 function _stackRows(rows) {
   try {
     if (!Array.isArray(rows) || rows.length === 0) return rows || [];
@@ -252,6 +261,12 @@ function _stackRows(rows) {
         key = "potion:" + String((it.heal != null ? it.heal : 0) | 0);
       } else if (kind === "drink") {
         key = "drink:" + String(it.name || "").toLowerCase();
+      } else if (kind === "food") {
+        key = "food:" + String(it.name || "").toLowerCase();
+      } else if (kind === "material") {
+        // Prefer explicit item name (e.g., "wood_planks"); fallback to material type (e.g., "wood")
+        var mk = String(it.name || it.material || "").toLowerCase();
+        if (mk) key = "material:" + mk;
       }
       if (!key) {
         // non-stackable: keep as-is
@@ -363,6 +378,8 @@ export function restockIfNeeded(ctx, shop) {
           if (rows.length > 6) break;
         }
       });
+    } else {
+      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("shop", "Primary restock skipped: shopPools missing for type.", { type: shop.type }); } catch (_) {}
     }
 
     // Stack identical consumables across all shops for cleaner lists (potions by heal, drinks by name)
@@ -421,6 +438,8 @@ export function restockIfNeeded(ctx, shop) {
         if (item2) {
           st.rows[idx] = { item: item2, price: calculatePrice(shop.type, item2, phase, null), qty: Math.max(1, (pick2 && pick2.stack && pick2.stack.max) ? pick2.stack.max : 1) };
         }
+      } else {
+        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("shop", "Mini restock skipped: shopPools missing for type.", { type: shop.type }); } catch (_) {}
       }
       // Re-stack after mini restock to keep duplicate consumables merged
       try { st.rows = _stackRows(st.rows); } catch (_) {}
@@ -440,7 +459,7 @@ function _giveItemToPlayer(ctx, item) {
     var k = String(item.kind || "").toLowerCase();
 
     // Ensure a count field for stackables
-    if (k === "potion" || k === "drink") {
+    if (k === "potion" || k === "drink" || k === "food") {
       item.count = (item.count | 0) || 1;
     }
 
@@ -464,6 +483,18 @@ function _giveItemToPlayer(ctx, item) {
       }
       if (sameD) {
         sameD.count = (sameD.count | 0) + (item.count | 0);
+      } else {
+        inv.push(item);
+      }
+    } else if (k === "food") {
+      var nmFood = String(item.name || "").toLowerCase();
+      var sameF = null;
+      for (var ii = 0; ii < inv.length; ii++) {
+        var itF = inv[ii];
+        if (itF && itF.kind === "food" && String(itF.name || "").toLowerCase() === nmFood) { sameF = itF; break; }
+      }
+      if (sameF) {
+        sameF.count = (sameF.count | 0) + (item.count | 0);
       } else {
         inv.push(item);
       }

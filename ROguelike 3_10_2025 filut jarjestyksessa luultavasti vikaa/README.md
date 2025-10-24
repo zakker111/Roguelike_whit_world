@@ -38,11 +38,15 @@ Encounters
 
 Towns and Wild Seppo
 - Shops, schedules, plaza, greeters; bump-shop at the door to trade when open.
+- Shop types include: Inn (always), Blacksmith, Armorer, Apothecary, Trader, Carpenter, Bakery (06:00–15:00).
+  - Shop presence is probabilistic by town size; at most one of each type per town/city (deduplicated).
+- Residents who like the Inn will sometimes stop by the Inn in the early evening before going home (~33% of days), with short sits and seating cap to avoid crowding.
 - Wild Seppo (wandering merchant) may arrive at the plaza rarely during day/dusk.
   - Only one Seppo can be in town at a time; no duplicates will spawn.
 
 Region Map (local tactical overlay)
 - Open with M on a walkable overworld tile.
+- Looting: pressing G on a corpse or chest opens the loot panel (like in dungeons); dead animals show exactly what you looted via the panel.
 - Neutral animals (deer/fox/boar) are rare:
   - At most one spawns in sufficiently wild areas; many tiles have none.
   - If animals were seen here previously, future visits re‑spawn only with a 10% chance.

@@ -23,9 +23,11 @@ export function getRng(preferred) {
   } catch (_) {}
   try {
     if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
+      try { if (window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("rng", "Using RNGFallback.getRng() (window.RNG.rng unavailable)."); } catch (_) {}
       return window.RNGFallback.getRng();
     }
   } catch (_) {}
+  try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("rng", "Using Math.random (no RNG service/fallback available)."); } catch (_) {}
   return Math.random;
 }
 

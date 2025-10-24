@@ -3004,11 +3004,13 @@
                   // Provide a hint if no residents were counted
                   extraLines.push("No residents were counted; ensure town NPCs are populated.");
                 }
-                // Inn/Tavern occupancy summary across all NPCs (not just residents)
+                // Inn/Tavern occupancy summary across all NPCs (not just residents) plus resident-only breakdown
                 if (res.tavern && (typeof res.tavern.any === "number")) {
                   const innAny = res.tavern.any | 0;
                   const innSleep = (typeof res.tavern.sleeping === "number") ? res.tavern.sleeping | 0 : 0;
-                  extraLines.push(`Inn status: ${innAny} NPC(s) inside; sleeping: ${innSleep}.`);
+                  const resTotalInn = (res.residents && typeof res.residents.total === "number") ? (res.residents.total | 0) : 0;
+                  const resAtInn = (res.residents && typeof res.residents.atTavern === "number") ? (res.residents.atTavern | 0) : 0;
+                  extraLines.push(`Inn (any NPCs): ${innAny}; residents at inn: ${resAtInn}/${resTotalInn}; sleeping: ${innSleep}.`);
                 }
                 // Show first few sleepers by name for quick verification
                 if (Array.isArray(res.sleepersAtTavern) && res.sleepersAtTavern.length) {
