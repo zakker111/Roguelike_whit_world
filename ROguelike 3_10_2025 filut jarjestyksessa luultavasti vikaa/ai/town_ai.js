@@ -54,6 +54,174 @@
     return !(type === "sign" || type === "rug");
   }
 
+  // ---- Inn upstairs helpers (overlay-aware pathing/seating) ----
+  function innUpstairsRect(ctx) {
+    const tav = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+    const up = ctx.innUpstairs;
+    if (!tav || !up) return null;
+    const ox = up.offset ? up.offset.x : (tav.x + 1);
+    const oy = up.offset ? up.offset.y : (tav.y + 1);
+    return { x0: ox, y0: oy, x1: ox + (up.w | 0) - 1, y1: oy + (up.h | 0) - 1, w: (up.w | 0), h: (up.h | 0) };
+  }
+  function inUpstairsInterior(ctx, x, y) {
+    const r = innUpstairsRect(ctx);
+    if (!r) return false;
+    return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
+  }
+  function upstairsTileAt(ctx, x, y) {
+    const up = ctx.innUpstairs;
+    const r = innUpstairsRect(ctx);
+    if (!up || !r) return null;
+    const lx = x - r.x0, ly = y - r.y0;
+    if (lx < 0 || ly < 0 || lx >= r.w || ly >= r.h) return null;
+    const row = (up.tiles && up.tiles[ly]) ? up.tiles[ly] : null;
+    if (!row) return null;
+    return row[lx];
+  }
+  function isWalkInnUpstairs(ctx, x, y, occUp) {
+    if (!inUpstairsInterior(ctx, x, y)) return false;
+    const t = upstairsTileAt(ctx, x, y);
+    if (t == null) return false;
+    const T = ctx.TILES;
+    const walk = (t === T.FLOOR || t === T.STAIRS);
+    if (!walk) return false;
+    if (occUp && occUp.has(`${x},${y}`)) return false;
+    return true;
+  }
+  function buildOccUpstairs(ctx) {
+    const s = new Set();
+    const up = ctx.innUpstairs;
+    const tav = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+    if (!up || !tav) return s;
+    // Block upstairs props except signs/rugs
+    try {
+      const props = Array.isArray(up.props) ? up.props : [];
+      for (const p of props) {
+        if (!p) continue;
+        if (propBlocks(p.type)) s.add(`${p.x},${p.y}`);
+      }
+    } catch (_) {}
+    // Block upstairs NPCs (those with _floor === "upstairs") at their coordinates
+    try {
+      const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+      for (const n of npcs) {
+        if (!n) continue;
+        if (n._floor === "upstairs") s.add(`${n.x},${n.y}`);
+      }
+    } catch (_) {}
+    return s;
+  }
+  function nearestFreeAdjacentUpstairs(ctx, x, y, occUp) {
+    const dirs = [{dx:0,dy:0},{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
+    for (const d of dirs) {
+      const nx = x + d.dx, ny = y + d.dy;
+      if (isWalkInnUpstairs(ctx, nx, ny, occUp)) return { x: nx, y: ny };
+    }
+    return null;
+  }
+  function innUpstairsBedAdj(ctx) {
+    const up = ctx.innUpstairs;
+    if (!up) return [];
+    const occUp = buildOccUpstairs(ctx);
+    const out = [];
+    const props = Array.isArray(up.props) ? up.props : [];
+    for (const p of props) {
+      if (!p || String(p.type || "").toLowerCase() !== "bed") continue;
+      const adj = nearestFreeAdjacentUpstairs(ctx, p.x, p.y, occUp);
+      if (adj) out.push(adj);
+    }
+    return out;
+  }
+  function innUpstairsSeatAdj(ctx) {
+    const up = ctx.innUpstairs;
+    if (!up) return [];
+    const occUp = buildOccUpstairs(ctx);
+    const out = [];
+    const props = Array.isArray(up.props) ? up.props : [];
+    for (const p of props) {
+      const t = String(p.type || "").toLowerCase();
+      if (t !== "chair" && t !== "table") continue;
+      const adj = nearestFreeAdjacentUpstairs(ctx, p.x, p.y, occUp);
+      if (adj) out.push(adj);
+    }
+    return out;
+  }
+  function chooseInnUpstairsBed(ctx) {
+    const beds = innUpstairsBedAdj(ctx);
+    if (!beds.length) return null;
+    return beds[Math.floor(ctx.rng() * beds.length)];
+  }
+  function chooseInnUpstairsSeat(ctx) {
+    const seats = innUpstairsSeatAdj(ctx);
+    if (!seats.length) return null;
+    return seats[Math.floor(ctx.rng() * seats.length)];
+  }
+
+  // A* restricted to upstairs interior using overlay tiles
+  function computePathUpstairs(ctx, occUp, sx, sy, tx, ty) {
+    const r = innUpstairsRect(ctx);
+    if (!r) return null;
+    const inB = (x, y) => x >= r.x0 && y >= r.y0 && x <= r.x1 && y <= r.y1;
+    const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+    const key = (x, y) => `${x},${y}`;
+    const h = (x, y) => Math.abs(x - tx) + Math.abs(y - ty);
+
+    const open = [];
+    const gScore = new Map();
+    const fScore = new Map();
+    const cameFrom = new Map();
+    const startK = key(sx, sy);
+    gScore.set(startK, 0);
+    fScore.set(startK, h(sx, sy));
+    open.push({ x: sx, y: sy, f: fScore.get(startK) });
+
+    const MAX_VISITS = 4000;
+    const visited = new Set();
+
+    function pushOpen(x, y, f) { open.push({ x, y, f }); }
+    function popOpen() {
+      if (open.length > 24) open.sort((a, b) => a.f - b.f || h(a.x, a.y) - h(b.x, b.y));
+      return open.shift();
+    }
+
+    let found = null;
+    while (open.length && visited.size < MAX_VISITS) {
+      const cur = popOpen();
+      const ck = key(cur.x, cur.y);
+      if (visited.has(ck)) continue;
+      visited.add(ck);
+      if (cur.x === tx && cur.y === ty) { found = cur; break; }
+
+      for (const d of dirs4) {
+        const nx = cur.x + d.dx, ny = cur.y + d.dy;
+        if (!inB(nx, ny)) continue;
+        if (!isWalkInnUpstairs(ctx, nx, ny, occUp)) continue;
+
+        const nk = key(nx, ny);
+        const tentativeG = (gScore.get(ck) ?? Infinity) + 1;
+        if (tentativeG < (gScore.get(nk) ?? Infinity)) {
+          cameFrom.set(nk, { x: cur.x, y: cur.y });
+          gScore.set(nk, tentativeG);
+          const f = tentativeG + h(nx, ny);
+          fScore.set(nk, f);
+          pushOpen(nx, ny, f);
+        }
+      }
+    }
+
+    if (!found) return null;
+
+    const path = [];
+    let cur = { x: found.x, y: found.y };
+    while (cur) {
+      path.push({ x: cur.x, y: cur.y });
+      const prev = cameFrom.get(key(cur.x, cur.y));
+      cur = prev ? { x: prev.x, y: prev.y } : null;
+    }
+    path.reverse();
+    return path;
+  }
+
   // Fast occupancy-aware free-tile check:
   // If ctx._occ is provided (Set of "x,y"), prefer it over O(n) scans of npcs.
   function isFreeTile(ctx, x, y) {
@@ -192,11 +360,9 @@
     if (n._plan && n._planGoal && n._planGoal.x === tx && n._planGoal.y === ty) {
       // Ensure current position matches first node
       if (n._plan.length && (n._plan[0].x !== n.x || n._plan[0].y !== n.y)) {
-        // Resync by searching for current position within plan
         const idx = n._plan.findIndex(p => p.x === n.x && p.y === n.y);
         if (idx >= 0) {
           n._plan = n._plan.slice(idx);
-          // Keep full path intact for visualization
         } else {
           n._plan = null;
           n._fullPlan = null;
@@ -206,10 +372,8 @@
       if (n._plan && n._plan.length >= 2) {
         const next = n._plan[1];
         const keyNext = `${next.x},${next.y}`;
-        // Allow shopkeepers to step onto their own reserved shop door
         const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
         let isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
-        // Inn: allow shopkeeper to step onto either of the double door tiles on their building perimeter
         if (!isOwnDoor && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
           const B = n._shopRef.building;
           if (B && ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR) {
@@ -220,7 +384,6 @@
         const blocked = occ.has(keyNext) && !(isReserved && isOwnDoor);
         if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
           if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
-            // Show entire planned route, not just remaining slice
             n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
           } else {
             n._debugPath = null;
@@ -230,13 +393,11 @@
           n._lastX = pxPrev; n._lastY = pyPrev;
           return true;
         } else {
-          // Blocked: force replan below
           n._plan = null;
           n._fullPlan = null;
           n._fullPlanGoal = null;
         }
       } else if (n._plan && n._plan.length === 1) {
-        // Already at goal
         if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
           n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
         }
@@ -244,13 +405,11 @@
       }
     }
 
-    // No valid plan; compute new plan (budgeted or urgent)
     const pathFn = (opts && opts.urgent) ? computePath : computePathBudgeted;
     const full = pathFn(ctx, occ, n.x, n.y, tx, ty);
     if (full && full.length >= 2) {
       n._plan = full.slice(0);
       n._planGoal = { x: tx, y: ty };
-      // Store full path for visualization
       n._fullPlan = full.slice(0);
       n._fullPlanGoal = { x: tx, y: ty };
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) n._debugPath = full.slice(0);
@@ -272,12 +431,10 @@
         n._lastX = pxPrev; n._lastY = pyPrev;
         return true;
       }
-      // If first step blocked right away, drop plan and try nudge
       n._plan = null; n._planGoal = null;
       n._fullPlan = null; n._fullPlanGoal = null;
     }
 
-    // Fallback: greedy nudge step with anti-oscillation guard
     const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
     const dirs = dirs4.slice().sort((a, b) =>
       (Math.abs((n.x + a.dx) - tx) + Math.abs((n.y + a.dy) - ty)) -
@@ -307,7 +464,6 @@
 
       const isBack = prevKey && keyN === prevKey;
       if (isBack) {
-        // Remember the backstep candidate; use only if no other option exists
         if (!backStep) backStep = { nx, ny };
         continue;
       }
@@ -321,7 +477,6 @@
 
     if (chosen) {
       if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
-        // Single-step nudge visualization
         n._debugPath = [{ x: n.x, y: n.y }, { x: chosen.nx, y: chosen.ny }];
       } else {
         n._debugPath = null;
@@ -337,6 +492,64 @@
     n._debugPath = null;
     n._plan = null; n._planGoal = null;
     n._fullPlan = null; n._fullPlanGoal = null;
+    return false;
+  }
+
+  // Route into Inn upstairs: go to ground stairs, then upstairs path to target
+  function routeIntoInnUpstairs(ctx, occGround, n, targetUp) {
+    const tav = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+    const up = ctx.innUpstairs;
+    const stairs = Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround.slice(0) : [];
+    if (!tav || !up || !stairs.length || !targetUp) return false;
+
+    // Default floor if missing
+    if (!n._floor) n._floor = "ground";
+
+    // If not upstairs yet: aim for nearest ground stairs tile
+    if (n._floor !== "upstairs") {
+      // Pick nearest stairs by manhattan
+      let sPick = stairs[0];
+      let bd = Math.abs(stairs[0].x - n.x) + Math.abs(stairs[0].y - n.y);
+      for (let i = 1; i < stairs.length; i++) {
+        const s = stairs[i];
+        const d = Math.abs(s.x - n.x) + Math.abs(s.y - n.y);
+        if (d < bd) { bd = d; sPick = s; }
+      }
+      // Step toward stairs using ground pathing
+      const handled = stepTowards(ctx, occGround, n, sPick.x, sPick.y, { urgent: true });
+      if (handled) {
+        // If we arrived on stairs inside inn, toggle to upstairs mode
+        if (n.x === sPick.x && n.y === sPick.y && insideBuilding(tav, n.x, n.y)) {
+          n._floor = "upstairs";
+        }
+      }
+      return true;
+    }
+
+    // Upstairs movement: overlay-aware A*
+    const occUp = buildOccUpstairs(ctx);
+    const path = computePathUpstairs(ctx, occUp, n.x, n.y, targetUp.x, targetUp.y);
+    if (path && path.length >= 2) {
+      const next = path[1];
+      const keyNext = `${next.x},${next.y}`;
+      if (isWalkInnUpstairs(ctx, next.x, next.y, occUp)) {
+        // Move upstairs; separate occupancy from ground
+        const pxPrev = n.x, pyPrev = n.y;
+        // Do not touch occGround for upstairs moves; maintain local upstairs occupancy only
+        n.x = next.x; n.y = next.y;
+        n._lastX = pxPrev; n._lastY = pyPrev;
+        // If we step onto upstairs stairs tile, we could toggle down — leave for future flows
+        return true;
+      }
+    }
+    // Small jitter upstairs if blocked
+    if (ctx.rng() < 0.15) {
+      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+      for (const d of dirs) {
+        const nx = n.x + d.dx, ny = n.y + d.dy;
+        if (isWalkInnUpstairs(ctx, nx, ny, buildOccUpstairs(ctx))) { n.x = nx; n.y = ny; return true; }
+      }
+    }
     return false;
   }
 
@@ -724,7 +937,7 @@
       return inSpot || { x: door.x, y: door.y };
     }
 
-    // Inn seating: pick floor tiles adjacent to chairs/tables inside the Inn
+    // Inn seating: pick floor tiles adjacent to chairs/tables inside the Inn (ground)
     function innSeatSpots(ctx) {
       const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
       if (!innB) return [];
@@ -742,6 +955,18 @@
       const seats = innSeatSpots(ctx);
       if (!seats.length) return chooseInnTarget(ctx);
       return seats[randInt(ctx, 0, seats.length - 1)];
+    }
+
+    // Upstairs-aware Inn target (prefer upstairs bed at night if available)
+    function chooseInnTarget(ctx) {
+      const upBed = chooseInnUpstairsBed(ctx);
+      if (upBed) return { x: upBed.x, y: upBed.y };
+      const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+      if (!innB) return null;
+      // Fallback to a free interior tile near the door
+      const door = ctx.tavern.door || { x: innB.x + ((innB.w / 2) | 0), y: innB.y + ((innB.h / 2) | 0) };
+      const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, innB);
+      return inSpot || { x: door.x, y: door.y };
     }
 
     // Bench seating near plaza or first available bench
@@ -1153,13 +1378,29 @@
             continue;
           }
           if (!n._patrolGoal) {
-            const seat = chooseInnSeat(ctx);
-            const next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
-              try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
-            })() || null;
-            if (next && !(next.x === n.x && next.y === n.y)) {
-              n._patrolGoal = { x: next.x, y: next.y };
+            // Occasionally pick an upstairs seat to patrol to
+            const upSeatChance = 0.30;
+            let next = null;
+            if (ctx.innUpstairs && ctx.rng() < upSeatChance) {
+              const seatUp = chooseInnUpstairsSeat(ctx);
+              if (seatUp) {
+                n._patrolGoalUp = { x: seatUp.x, y: seatUp.y };
+              }
             }
+            if (!n._patrolGoalUp) {
+              const seat = chooseInnSeat(ctx);
+              next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
+                try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
+              })() || null;
+              if (next && !(next.x === n.x && next.y === n.y)) {
+                n._patrolGoal = { x: next.x, y: next.y };
+              }
+            }
+          }
+          if (n._patrolGoalUp) {
+            if (routeIntoInnUpstairs(ctx, occ, n, n._patrolGoalUp)) continue;
+            // If route failed, clear and fallback to ground patrol next tick
+            n._patrolGoalUp = null;
           }
           if (n._patrolGoal) {
             stepTowards(ctx, occ, n, n._patrolGoal.x, n._patrolGoal.y, { urgent: true });
@@ -1351,6 +1592,15 @@
           if (innB) {
             const wantTavern = n._likesInn ? (ctx.rng() < 0.20) : (ctx.rng() < 0.06);
             if (wantTavern && !n._innSeatGoal && !n._benchSeatGoal && !n._homeSitGoal && (_innSeatersNow < _innSeatCap)) {
+              // 50% chance to target upstairs seating when available
+              let targeted = false;
+              if (ctx.innUpstairs && ctx.rng() < 0.5) {
+                const seatUp = chooseInnUpstairsSeat(ctx);
+                if (seatUp) {
+                  targeted = routeIntoInnUpstairs(ctx, occ, n, seatUp);
+                  if (targeted) { n._innSeatGoal = { x: seatUp.x, y: seatUp.y }; _innSeatersNow++; continue; }
+                }
+              }
               const seat = chooseInnSeat(ctx);
               if (seat) {
                 n._innSeatGoal = { x: seat.x, y: seat.y };
