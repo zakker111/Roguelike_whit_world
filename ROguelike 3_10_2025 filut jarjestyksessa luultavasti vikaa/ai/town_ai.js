@@ -1103,6 +1103,11 @@
       // Daily scheduling: reset stagger assignment at dawn, assign in morning if missing
       if (t && t.phase === "dawn") {
         n._departAssignedForDay = false;
+        // Pre-home Inn visit plan: on some days residents who like the Inn will stop by before going home
+        if (n.isResident) {
+          n._innPreHomeDone = false;
+          n._goInnToday = !!n._likesInn && (ctx.rng() < 0.33); // ~33% of days
+        }
       }
       if (t && t.phase === "morning" && !n._departAssignedForDay) {
         n._homeDepartMin = randInt(ctx, 18 * 60, 21 * 60); // 18:00..21:00
@@ -1196,6 +1201,34 @@
             if (innB) {
               const innTarget = chooseInnTarget(ctx);
               handled = routeIntoBuilding(ctx, occ, n, innB, innTarget);
+            }
+          }
+
+          // Pre-home Inn stop on some days for residents who like the Inn:
+          // Occurs before the personal home departure minute, early evening window.
+          if (!handled) {
+            const innB0 = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
+            const preHomeWindowEnd = (typeof n._homeDepartMin === "number") ? n._homeDepartMin : (20 * 60);
+            if (innB0 && n._goInnToday && !n._innPreHomeDone && minutes < preHomeWindowEnd) {
+              // Arrived at seat?
+              if (n._innSeatGoal && insideBuilding(innB0, n.x, n.y) &&
+                  n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
+                n._innStayTurns = randInt(ctx, 4, 10); // ~16–40 minutes
+                n._innSeatGoal = null;
+                n._innPreHomeDone = true;
+                handled = true;
+              } else if (n._innStayTurns && n._innStayTurns > 0) {
+                n._innStayTurns--;
+                if (ctx.rng() < 0.15) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+                handled = true;
+              } else if (!n._innSeatGoal && (_innSeatersNow < _innSeatCap)) {
+                const seatPH = chooseInnSeat(ctx);
+                if (seatPH && routeIntoBuilding(ctx, occ, n, innB0, seatPH)) {
+                  n._innSeatGoal = { x: seatPH.x, y: seatPH.y };
+                  _innSeatersNow++;
+                  handled = true;
+                }
+              }
             }
           }
 
