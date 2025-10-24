@@ -898,6 +898,24 @@
     const LATE_START = 2 * 60, LATE_END = 5 * 60;
     const inLateWindow = minutes >= LATE_START && minutes < LATE_END;
 
+    // Debug helper: ensure at least one generic roamer is forced to sleep upstairs at the Inn
+    function assignDebugUpstairsRoamer(ctx, npcs) {
+      try {
+        if (ctx._debugUpstairsRoamerAssigned) return;
+        for (const n of npcs) {
+          if (n && !n.isResident && !n.isShopkeeper && !n.isPet && !n.greeter) {
+            n._forceInnSleepUpstairs = true;
+            // Ensure the roamer acts every tick for reliable routing
+            n._stride = 1;
+            n._strideOffset = 0;
+            ctx._debugUpstairsRoamerAssigned = true;
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+    assignDebugUpstairsRoamer(ctx, npcs);
+
     // Evening return window: boost pathfinding budget to smooth mass routing (18:00–21:00)
     try {
       const EVENING_START = 18 * 60, EVENING_END = 21 * 60;
@@ -1716,11 +1734,21 @@
       if (n._sleeping) {
         if (phase === "morning") n._sleeping = false;
         else {
-          if (ctx.rng() < 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          if (ctx.rng( << 0.10) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
           continue;
         }
       }
-      if (ctx.rng() < 0.2) continue;
+
+      // Debug: force one roamer to go sleep in Inn upstairs during late night
+      if (n._forceInnSleepUpstairs && inLateWindow && ctx.tavern && ctx.innUpstairs && !n._sleeping) {
+        // If already upstairs and adjacent to a bed, sleep
+        if (n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
+          const bedsUpList = innUpstairsBeds(ctx);
+          for (let i = 0;  <i bedsUpList.length; i++) {
+            const b = bedsUpList[i];
+            if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+          }
+          if (n._sleeping
       // Occasional tavern visit during the day for roamers who like the tavern
       if (phase === "day" && ctx.tavern && (n._likesInn || n._likesTavern)) {
         const innB2 = ctx.tavern.building;
