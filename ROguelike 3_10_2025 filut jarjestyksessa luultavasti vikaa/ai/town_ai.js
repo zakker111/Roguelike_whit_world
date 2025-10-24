@@ -935,7 +935,8 @@
       );
       return beds;
     }
-    function chooseInnTarget(ctx) {
+    // Legacy ground-only inn target finder (kept for reference; not used)
+    function chooseInnTargetGroundLegacy(ctx) {
       const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
       if (!innB) return null;
       const beds = innBedSpots(ctx);
@@ -943,7 +944,6 @@
         const b = beds[randInt(ctx, 0, beds.length - 1)];
         return { x: b.x, y: b.y };
       }
-      // Fallback to a free interior tile near the door
       const door = ctx.tavern.door || { x: innB.x + ((innB.w / 2) | 0), y: innB.y + ((innB.h / 2) | 0) };
       const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, innB);
       return inSpot || { x: door.x, y: door.y };
@@ -1543,10 +1543,10 @@
             if (innB) {
               const upBed = chooseInnUpstairsBed(ctx);
               if (upBed && routeIntoInnUpstairs(ctx, occ, n, upBed)) {
-                handled = true;
+                continue;
               } else {
                 const innTarget = chooseInnTarget(ctx);
-                handled = routeIntoBuilding(ctx, occ, n, innB, innTarget);
+                if (routeIntoBuilding(ctx, occ, n, innB, innTarget)) continue;
               }
             }
           }
@@ -1579,16 +1579,10 @@
             const bedsUp = innUpstairsBeds(ctx);
             for (let i = 0; i < bedsUp.length; i++) {
               const b = bedsUp[i];
-              if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; continue; }
+              if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
             }
-          };
-            // If at, or adjacent to, the bed spot (or home spot if no bed), go to sleep
-            const atExact = (n.x === sleepTarget.x && n.y === sleepTarget.y);
-            const nearBed = bedSpot ? (manhattan(n.x, n.y, bedSpot.x, bedSpot.y) === 1) : false;
-            if (atExact || nearBed) {
-              n._sleeping = true;
-              continue;
-            }
+            if (n._sleeping) continue;
+          }
             // Ensure and follow a deterministic home plan; if blocked, wait and retry
             if (!n._homePlan || !n._homePlanGoal) {
               ensureHomePlan(ctx, occ, n);
