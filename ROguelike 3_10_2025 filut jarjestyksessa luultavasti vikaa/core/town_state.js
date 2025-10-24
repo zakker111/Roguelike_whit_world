@@ -23,6 +23,8 @@ export function key(x, y) { return `${x},${y}`; }
 
 function readLS() {
   try {
+    // Allow disabling localStorage via flag (set by URL param fresh=1/reset=1/nolocalstorage=1)
+    if (typeof window !== "undefined" && window.NO_LOCALSTORAGE) return Object.create(null);
     const raw = (typeof localStorage !== "undefined") ? localStorage.getItem(LS_KEY) : null;
     if (!raw) return Object.create(null);
     const obj = JSON.parse(raw);
@@ -34,6 +36,8 @@ function readLS() {
 
 function writeLS(obj) {
   try {
+    // Allow disabling localStorage writes via flag (set by URL param fresh=1/reset=1/nolocalstorage=1)
+    if (typeof window !== "undefined" && window.NO_LOCALSTORAGE) return;
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(LS_KEY, JSON.stringify(obj));
     }

@@ -51,6 +51,19 @@
   const MAP_COLS = (CFG && CFG.world && typeof CFG.world.MAP_COLS === "number") ? CFG.world.MAP_COLS : 120;
   const MAP_ROWS = (CFG && CFG.world && typeof CFG.world.MAP_ROWS === "number") ? CFG.world.MAP_ROWS : 80;
 
+  // Fresh session (no localStorage) support via URL params: ?fresh=1 or ?reset=1 or ?nolocalstorage=1
+  try {
+    const href = (typeof window !== "undefined" && window.location) ? window.location.href : "";
+    const url = href ? new URL(href) : null;
+    const params = url ? url.searchParams : null;
+    const fresh = !!(params && (params.get("fresh") === "1" || params.get("reset") === "1" || params.get("nolocalstorage") === "1"));
+    if (fresh) {
+      try { if (typeof window !== "undefined") window.NO_LOCALSTORAGE = true; } catch (_) {}
+      try { if (typeof localStorage !== "undefined") localStorage.clear(); } catch (_) {}
+      try { if (typeof window !== "undefined") window._TOWN_STATES_MEM = Object.create(null); } catch (_) {}
+    }
+  } catch (_) {}
+
   const FOV_DEFAULT = (CFG && CFG.fov && typeof CFG.fov.default === "number") ? CFG.fov.default : 8;
   const FOV_MIN = (CFG && CFG.fov && typeof CFG.fov.min === "number") ? CFG.fov.min : 3;
   const FOV_MAX = (CFG && CFG.fov && typeof CFG.fov.max === "number") ? CFG.fov.max : 14;
@@ -208,13 +221,15 @@
       // RNG.autoInit returns the seed value
     } catch (_) {
       try {
-        const sRaw = (typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
+        const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
+        const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
         currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
       } catch (_) { currentSeed = null; }
     }
   } else {
     try {
-      const sRaw = (typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
+      const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
+      const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
       currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
     } catch (_) { currentSeed = null; }
   }
