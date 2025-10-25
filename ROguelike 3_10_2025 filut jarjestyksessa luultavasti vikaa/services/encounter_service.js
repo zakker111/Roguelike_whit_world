@@ -198,13 +198,9 @@ export function maybeTryEncounter(ctx) {
           return window.RNGUtils.chance(chance, rngFn);
         }
       } catch (_) {}
-      const r = rngFor(ctxloggedEncounterRngFallback && typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") {
-          window.Fallback.log("encounter", "Using direct RNG comparison (RNGUtils.chance unavailable).");
-          _loggedEncounterRngFallback = true;
-        }
-      } catch (_) {}
-      const r = rngFor(ctx)();
-      return r < chance;
+      const rng = rngFor(ctx);
+      const roll = (typeof rng === "function") ? rng() : 0.5;
+      return roll < chance;
     })();
     if (!willEncounter) {
       STATE.movesSinceLast += 1;
