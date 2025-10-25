@@ -115,11 +115,6 @@ export function load(ctx, x, y) {
         const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
-        } else {
-          ctx.updateCamera && ctx.updateCamera();
-          ctx.recomputeFOV && ctx.recomputeFOV();
-          ctx.updateUI && ctx.updateUI();
-          ctx.requestDraw && ctx.requestDraw();
         }
       } catch (_) {}
     }
@@ -132,11 +127,6 @@ export function load(ctx, x, y) {
         const SS = ctx.StateSync || window.StateSync || null;
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
-        } else {
-          ctx.updateCamera && ctx.updateCamera();
-          ctx.recomputeFOV && ctx.recomputeFOV();
-          ctx.updateUI && ctx.updateUI();
-          ctx.requestDraw && ctx.requestDraw();
         }
       } catch (_) {}
     }
@@ -174,11 +164,6 @@ export function load(ctx, x, y) {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      ctx.recomputeFOV && ctx.recomputeFOV();
-      ctx.updateCamera && ctx.updateCamera();
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
   return true;
@@ -615,11 +600,6 @@ export function enter(ctx, info) {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      ctx.updateCamera && ctx.updateCamera();
-      ctx.recomputeFOV && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
 
@@ -858,11 +838,6 @@ export function tryMoveDungeon(ctx, dx, dy) {
         const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
-        } else {
-          ctx.updateCamera && ctx.updateCamera();
-          ctx.recomputeFOV && ctx.recomputeFOV();
-          ctx.updateUI && ctx.updateUI();
-          ctx.requestDraw && ctx.requestDraw();
         }
       } catch (_) {}
       if (advanceTurn && ctx.turn) ctx.turn();

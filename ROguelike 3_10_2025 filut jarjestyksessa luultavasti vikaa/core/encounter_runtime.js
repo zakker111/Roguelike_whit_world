@@ -573,18 +573,7 @@ export function enter(ctx, info) {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      ctx.updateCamera && ctx.updateCamera();
-      ctx.recomputeFOV && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
-  } catch (_) {}
-
-  // Announce difficulty
-  try {
-    const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
-    ctx.log && ctx.log(`Difficulty: ${d} (${d > 3 ? "tough" : d > 1 ? "moderate" : "easy"})`, "info");
   } catch (_) {}
 
   try {
@@ -848,11 +837,6 @@ export function complete(ctx, outcome = "victory") {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      ctx.updateCamera && ctx.updateCamera();
-      ctx.recomputeFOV && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
   ctx.encounterInfo = null;

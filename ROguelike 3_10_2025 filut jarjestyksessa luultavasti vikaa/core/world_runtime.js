@@ -573,36 +573,11 @@ export function generate(ctx, opts = {}) {
     // Register POIs present in the initial window (sparse anchors only) and lay initial roads/bridges
     try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch (_) {}
 
-    // Camera/FOV/UI via StateSync (with fallback camera centering when updateCamera is unavailable)
+    // Camera/FOV/UI via StateSync
     try {
       const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
-      } else {
-        // Fallback: center camera on player immediately so first frame is centered
-        try {
-          const cam = (typeof ctx.getCamera === "function") ? ctx.getCamera() : (ctx.camera || null);
-          if (cam) {
-            const TILE = (typeof ctx.TILE === "number") ? ctx.TILE : 32;
-            const rows = ctx.map.length;
-            const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-            const mapWidth = cols * TILE;
-            const mapHeight = rows * TILE;
-            const targetX = ctx.player.x * TILE + TILE / 2 - cam.width / 2;
-            const targetY = ctx.player.y * TILE + TILE / 2 - cam.height / 2;
-            const slackX = Math.max(0, cam.width / 2 - TILE / 2);
-            const slackY = Math.max(0, cam.height / 2 - TILE / 2);
-            const minX = -slackX;
-            const minY = -slackY;
-            const maxX = (mapWidth - cam.width) + slackX;
-            const maxY = (mapHeight - cam.height) + slackY;
-            cam.x = Math.max(minX, Math.min(targetX, maxX));
-            cam.y = Math.max(minY, Math.min(targetY, maxY));
-          }
-        } catch (_) {}
-        try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
-        try { typeof ctx.updateUI === "function" && ctx.updateUI(); } catch (_) {}
-        try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
       }
     } catch (_) {}
 
@@ -671,11 +646,6 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      typeof ctx.updateCamera === "function" && ctx.updateCamera();
-      typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
 

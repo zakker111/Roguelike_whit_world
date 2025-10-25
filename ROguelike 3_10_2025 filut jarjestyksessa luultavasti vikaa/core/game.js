@@ -1298,26 +1298,15 @@
   // Helper: apply ctx sync and refresh visuals/UI in one place
   function applyCtxSyncAndRefresh(ctx) {
     syncFromCtx(ctx);
-    // Prefer centralized StateSync apply+refresh, then GameState helper
+    // Mandatory StateSync-only refresh path
     try {
       const SS = modHandle("StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(getCtx(), {
           // No-op sink here since sync already applied locally
         });
-        return;
       }
     } catch (_) {}
-    try {
-      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.applySyncAndRefresh === "function") {
-        window.GameState.applySyncAndRefresh(getCtx());
-        return;
-      }
-    } catch (_) {}
-    updateCamera();
-    recomputeFOV();
-    updateUI();
-    requestDraw();
   }
 
   
@@ -2651,9 +2640,7 @@
       }
     } catch (_) {}
 
-    recomputeFOV();
-    updateUI();
-    requestDraw();
+    applyCtxSyncAndRefresh(getCtx());
 
     // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), sync orchestrator state
     try {

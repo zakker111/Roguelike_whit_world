@@ -20,13 +20,8 @@ function applyRefresh(ctx) {
     const SS = mod("StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-      return;
     }
   } catch (_) {}
-  try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
-  try { if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV(); } catch (_) {}
-  try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
-  try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
 }
 
 export function fastForwardMinutes(ctx, mins) {

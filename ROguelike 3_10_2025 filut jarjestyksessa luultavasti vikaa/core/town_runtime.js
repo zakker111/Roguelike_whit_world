@@ -323,11 +323,7 @@ export function applyLeaveSync(ctx) {
     if (UB && typeof UB.hideQuestBoard === "function") UB.hideQuestBoard(ctx);
   } catch (_) {}
 
-  // Ensure camera is centered on player
-  try {
-    if (ctx && typeof ctx.updateCamera === "function") ctx.updateCamera();
-    else centerCamera(ctx);
-  } catch (_) { centerCamera(ctx); }
+  
 
   // Refresh via StateSync
   try {
