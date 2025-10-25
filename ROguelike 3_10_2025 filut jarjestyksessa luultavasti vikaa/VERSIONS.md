@@ -1627,4 +1627,4 @@ BUGS
 - Vild seppo S does not have inventory in encounter
 - in dungeons when enemies fight each other they are logged(wich is good for now for debugging purpoces) but they give player xp when they kill each other
 - some bloodstanes seem to be generated fromruins/animal(creatures) in another regional map
-
+- in dungeons enemies seems to show behind walls(not line of sight)
