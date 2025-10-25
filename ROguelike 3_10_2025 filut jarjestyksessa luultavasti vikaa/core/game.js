@@ -1555,16 +1555,25 @@
       if (!enterTownIfOnTile()) {
         if (!enterDungeonIfOnEntrance()) {
           // Open Region map when pressing G on a walkable overworld tile
-          const RM = modHandle("RegionMapRuntime");
-          if (RM && typeof RM.open === "function") {
-            const ctxMod = getCtx();
-            const ok = !!RM.open(ctxMod);
+          const Cap = modHandle("Capabilities");
+          const ctxMod = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") {
+            const res = Cap.safeCall(ctxMod, "RegionMapRuntime", "open", ctxMod);
+            const ok = !!(res && res.ok && res.result);
             if (ok) {
               // Sync mutated ctx (mode -> "region") and refresh
               applyCtxSyncAndRefresh(ctxMod);
+            } else {
+              log("Region map module not available.", "warn");
             }
           } else {
-            log("Region map module not available.", "warn");
+            const RM = modHandle("RegionMapRuntime");
+            if (RM && typeof RM.open === "function") {
+              const ok = !!RM.open(ctxMod);
+              if (ok) applyCtxSyncAndRefresh(ctxMod);
+            } else {
+              log("Region map module not available.", "warn");
+            }
           }
         }
       }
@@ -1970,22 +1979,18 @@
   }
 
   function showLootPanel(list) {
-    // Prefer centralized LootFlow
+    // Prefer centralized LootFlow or UIOrchestration via Capabilities.safeCall
     try {
-      const LF = modHandle("LootFlow");
-      if (LF && typeof LF.show === "function") {
-        LF.show(getCtx(), list);
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "LootFlow", "show", ctxLocal, list);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "UIOrchestration", "showLoot", ctxLocal, list);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    // Prefer centralized UI orchestration
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.showLoot === "function") {
-        UIO.showLoot(getCtx(), list);
-        return;
-      }
-    } catch (_) {}
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
@@ -1998,22 +2003,18 @@
   }
 
   function hideLootPanel() {
-    // Prefer centralized LootFlow
+    // Prefer centralized LootFlow or UIOrchestration via Capabilities.safeCall
     try {
-      const LF = modHandle("LootFlow");
-      if (LF && typeof LF.hide === "function") {
-        LF.hide(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "LootFlow", "hide", ctxLocal);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    // Prefer centralized UI orchestration
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.hideLoot === "function") {
-        UIO.hideLoot(getCtx());
-        return;
-      }
-    } catch (_) {}
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideLoot === "function") {
       let wasOpen = true;
@@ -2220,22 +2221,18 @@
   
 
   function showGameOver() {
-    // Prefer centralized DeathFlow
+    // Prefer centralized DeathFlow or UIOrchestration via Capabilities.safeCall
     try {
-      const DF = modHandle("DeathFlow");
-      if (DF && typeof DF.show === "function") {
-        DF.show(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "DeathFlow", "show", ctxLocal);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "UIOrchestration", "showGameOver", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    // Prefer centralized UI orchestration
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.showGameOver === "function") {
-        UIO.showGameOver(getCtx());
-        return;
-      }
-    } catch (_) {}
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.showGameOver === "function") {
       UB.showGameOver(getCtx());
@@ -2320,22 +2317,18 @@
   }
 
   function hideGameOver() {
-    // Prefer centralized DeathFlow
+    // Prefer centralized DeathFlow or UIOrchestration via Capabilities.safeCall
     try {
-      const DF = modHandle("DeathFlow");
-      if (DF && typeof DF.hide === "function") {
-        DF.hide(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "DeathFlow", "hide", ctxLocal);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideGameOver", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    // Prefer centralized UI orchestration
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.hideGameOver === "function") {
-        UIO.hideGameOver(getCtx());
-        return;
-      }
-    } catch (_) {}
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideGameOver === "function") {
       UB.hideGameOver(getCtx());
@@ -2891,26 +2884,46 @@
         },
         // Open Region Map at current overworld tile and sync orchestrator state
         openRegionMap: () => {
+          const Cap = modHandle("Capabilities");
+          const ctx = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") {
+            const res = Cap.safeCall(ctx, "RegionMapRuntime", "open", ctx);
+            const ok = !!(res && res.ok && res.result);
+            if (ok) applyCtxSyncAndRefresh(ctx);
+            return ok;
+          }
           const RM = modHandle("RegionMapRuntime");
           if (RM && typeof RM.open === "function") {
-            const ctx = getCtx();
             const ok = !!RM.open(ctx);
-            if (ok) {
-              applyCtxSyncAndRefresh(ctx);
-            }
+            if (ok) applyCtxSyncAndRefresh(ctx);
             return ok;
           }
           return false;
         },
         // Start an encounter inside the active Region Map (ctx.mode === "region")
         startRegionEncounter: (template, biome) => {
-          const ER = modHandle("EncounterRuntime");
-          if (ER && typeof ER.enterRegion === "function") {
-            const ctx = getCtx();
-            const ok = !!ER.enterRegion(ctx, { template, biome });
+          const Cap = modHandle("Capabilities");
+          const ctx = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") {
+            const res = Cap.safeCall(ctx, "EncounterRuntime", "enterRegion", ctx, { template, biome });
+            const ok = !!(res && res.ok && res.result);
             if (ok) {
               applyCtxSyncAndRefresh(ctx);
               // If the Region Map overlay modal is open, repaint it to show spawned enemies immediately
+              try {
+                const UB = modHandle("UIBridge");
+                if (UB && typeof UB.isRegionMapOpen === "function" && UB.isRegionMapOpen() && typeof UB.showRegionMap === "function") {
+                  UB.showRegionMap(ctx);
+                }
+              } catch (_) {}
+            }
+            return ok;
+          }
+          const ER = modHandle("EncounterRuntime");
+          if (ER && typeof ER.enterRegion === "function") {
+            const ok = !!ER.enterRegion(ctx, { template, biome });
+            if (ok) {
+              applyCtxSyncAndRefresh(ctx);
               try {
                 const UB = modHandle("UIBridge");
                 if (UB && typeof UB.isRegionMapOpen === "function" && UB.isRegionMapOpen() && typeof UB.showRegionMap === "function") {
