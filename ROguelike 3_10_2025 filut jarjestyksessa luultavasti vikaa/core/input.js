@@ -14,7 +14,7 @@
  * - Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5.
  * - Inventory: I. Loot/Action: G.
  * - GOD panel: P to open. FOV adjust: [-] and [+]/[=] (also Numpad +/-).
- * - Region Map: M to open/close.
+ * - Region Map: open via G on walkable overworld tiles; M is disabled.
  */
 
 const KEY_DIRS = {
