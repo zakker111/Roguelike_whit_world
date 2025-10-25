@@ -594,6 +594,7 @@ export function generate(ctx, opts = {}) {
   }
 
   // Infinite generator unavailable: throw a hard error (no finite fallback)
+  try { ctx.log && ctx.log("Error: Infinite world generator unavailable or not initialized.", "bad"); } catch (_) {}
   throw new Error("Infinite world generator unavailable or not initialized");
 }
 

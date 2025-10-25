@@ -850,7 +850,7 @@
           log(`[DEV] Enemies spawned: ${enemies.length}, visible now: ${visCount}.`, "notice");
         } catch (_) {}
       }
-      updateUI();
+      applyCtxSyncAndRefresh(getCtx());
       {
         const MZ = modHandle("Messages");
         if (MZ && typeof MZ.log === "function") {
@@ -870,7 +870,6 @@
           }
         }
       } catch (_) {}
-      requestDraw();
       return;
     }
     // Fallback: flat-floor map
@@ -883,9 +882,7 @@
     corpses = [];
     decals = [];
     _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
-    recomputeFOV();
-    updateCamera();
-    updateUI();
+    applyCtxSyncAndRefresh(getCtx());
     {
       const MZ = modHandle("Messages");
       if (MZ && typeof MZ.log === "function") {
@@ -905,7 +902,6 @@
         }
       }
     } catch (_) {}
-    requestDraw();
     return;
   }
 
@@ -1165,6 +1161,7 @@
     }
 
     // Hard error: infinite world not available or generation failed
+    log("Error: Infinite world generation failed or unavailable.", "bad");
     throw new Error("Infinite world generation failed or unavailable");
   }
 
