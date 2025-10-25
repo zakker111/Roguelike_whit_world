@@ -245,8 +245,15 @@ export function playerAttackEnemy(ctx, enemy) {
 
   // Death
   try {
-    if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") {
-      ctx.onEnemyDied(enemy);
+    if (enemy.hp <= 0) {
+      try {
+        if (ctx.Flavor && typeof ctx.Flavor.logDeath === "function") {
+          ctx.Flavor.logDeath(ctx, { target: enemy, loc, crit: isCrit });
+        }
+      } catch (_) {}
+      if (typeof ctx.onEnemyDied === "function") {
+        ctx.onEnemyDied(enemy);
+      }
     }
   } catch (_) {}
 

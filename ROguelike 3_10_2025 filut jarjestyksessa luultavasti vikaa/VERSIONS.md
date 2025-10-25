@@ -1,5 +1,16 @@
 # Game Version History
-Last updated: 2025-10-25 05:40 UTC
+Last updated: 2025-10-25 06:05 UTC
+
+v1.41.15 — Flavor integration: use flavor.json (death section) for hit/death lines
+- data/flavor.js:
+  - Added deathPools(), flavorCategory(), pickDeathLine(), and logDeath(ctx,{target,loc,crit}) to read data/i18n/flavor.json (death section) and log appropriate lines.
+  - logPlayerHit now uses flavor.json (death section) to log part/crit-appropriate flavor on successful hits with chance gating via RNGUtils.
+  - Attached logDeath to window.Flavor for back‑compat.
+- combat/combat.js:
+  - On enemy death, now calls Flavor.logDeath(ctx,{target,loc,crit}) before ctx.onEnemyDied(enemy), so flavor.json is exercised.
+- Result:
+  - flavor.json is actively used for both hit flavor (stochastically) and guaranteed death flavor when enemies die.
+- Deployment: https://f0a0i2re05e4.cosine.page
 
 v1.41.14 — Phase B: RNG fallback removal in Combat/Decay/Flavor; deterministic behavior when RNG missing
 - Combat utilities
