@@ -241,6 +241,7 @@ export function spawnEnemyNearby(ctx, count = 1) {
   } else {
     ctx.log("GOD: No free space to spawn an enemy nearby.", "warn");
   }
+}
 
 export function setAlwaysCrit(ctx, enabled) {
   ctx.alwaysCrit = !!enabled;
