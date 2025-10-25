@@ -139,16 +139,7 @@ export function init(handlers) {
       return;
     }
 
-    // Region Map toggle
-    if ((e.key && e.key.toLowerCase() === "m") || e.code === "KeyM") {
-      e.preventDefault();
-      if (_handlers.isRegionMapOpen && _handlers.isRegionMapOpen()) {
-        _handlers.onHideRegionMap && _handlers.onHideRegionMap();
-      } else {
-        _handlers.onShowRegionMap && _handlers.onShowRegionMap();
-      }
-      return;
-    }
+    // Region Map key disabled (M does nothing)
 
     // Help / Controls panel (F1)
     if (e.key === "F1") {
