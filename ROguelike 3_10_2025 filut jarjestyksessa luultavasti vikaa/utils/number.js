@@ -13,27 +13,16 @@ export function randomInRange(min, max, rng = undefined) {
       return window.RNGUtils.float(min, max, 6, (typeof rng === "function" ? rng : undefined));
     }
   } catch (_) {}
-  // Unified RNG fallback: prefer RNGUtils.getRng, then window.RNG.rng, then RNGFallback.getRng, else Math.random.
+  // State B: RNGUtils mandatory — no Math.random fallback
   let rfn = null;
   try {
     if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
       rfn = window.RNGUtils.getRng(typeof rng === "function" ? rng : undefined);
     }
   } catch (_) {}
-  if (typeof rfn !== "function") {
-    if (typeof rng === "function") {
-      rfn = rng;
-    } else {
-      try {
-        if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") {
-          rfn = window.RNG.rng;
-        } else if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
-          rfn = window.RNGFallback.getRng();
-        }
-      } catch (_) {}
-    }
+  if (typeof rfn !== "function" && typeof rng === "function") {
+    rfn = rng;
   }
-  if (typeof rfn !== "function") rfn = Math.random;
   const r = rfn();
   return min + r * (max - min);
 }

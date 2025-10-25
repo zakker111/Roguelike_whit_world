@@ -28,13 +28,15 @@ function pickFrom(arr, ctx) {
       }
     }
   } catch (_) {}
-  const r = (ctx && typeof ctx.rng === "function")
-    ? ctx.rng
-    : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function"
-      ? window.RNG.rng
-      : (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function"
-          ? window.RNGFallback.getRng()
-          : Math.random));
+  const r = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
+      }
+    } catch (_) {}
+    return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
+  })();
+  if (typeof r !== "function") return arr[0];
   return arr[Math.floor(r() * arr.length)];
 }
 
@@ -124,7 +126,7 @@ export function logPlayerHit(ctx, opts) {
           return window.RNGUtils.chance(p, rngFn);
         }
       } catch (_) {}
-      return rngFn() < p;
+      return typeof rngFn === "function" ? (rngFn() < p) : false;
     })();
     if (line && ok) ctx.log(line, "flavor");
   }
@@ -156,7 +158,7 @@ export function logPlayerHit(ctx, opts) {
           return window.RNGUtils.chance(0.8, rngFn);
         }
       } catch (_) {}
-      return rngFn() < 0.8;
+      return typeof rngFn === "function" ? (rngFn() < 0.8) : false;
     })();
     if (tmplStr && ok) ctx.log(tmpl(tmplStr, { name, part }), "good");
   }

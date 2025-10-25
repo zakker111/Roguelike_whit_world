@@ -1,20 +1,28 @@
 # Game Version History
-Last updated: 2025-10-25 04:45 UTC
+Last updated: 2025-10-25 05:12 UTC
 
-v1.41.12 — Phase B: Make StateSync mandatory in Region Map/TurnLoop/Actions; remove extra draw in Ruins
-- StateSync mandatory refresh (fallbacks removed)
-  - region_map/region_map_runtime.js:
-    - Removed manual updateCamera/recomputeFOV/updateUI/requestDraw fallbacks from open(), close(), tryMove(), and animals spawn path; now calls StateSync.applyAndRefresh exclusively.
-    - Fixed a stray fragment in Ruins spawn log that appeared after earlier edits.
-  - core/turn_loop.js:
-    - Dropped manual refresh fallback; tick() now relies solely on StateSync.applyAndRefresh when present.
-  - core/actions.js:
-    - Inn upstairs toggle and upstairs overlay prop interactions now refresh via StateSync.applyAndRefresh only.
-- Confirm/loot UI fallback reduction
+v1.41.13 — Phase B: RNG fallback reduction (mandatory RNGUtils paths) + StateSync-only refresh in GameAPI
+- RNG fallback reduction (remove Math.random and RNGFallback usage in key modules)
+  - utils/number.js:
+    - randomInRange now requires RNGUtils.getRng or a provided rng; removed final Math.random fallback.
+  - entities/items.js:
+    - getRng now prefers RNGUtils.getRng() then window.RNG.rng; removed RNGFallback and Math.random fallbacks.
+  - services/shop_service.js:
+    - _rng(ctx) now requires RNGUtils.getRng or ctx.rng; removed Math.random fallback.
   - services/encounter_service.js:
-    - Confirm prompts require UIOrchestration.showConfirm (via Capabilities.safeCall) or UIBridge.showConfirm; window.confirm fallback removed (previous step).
-  - entities/loot.js:
-    - Loot panel routes only via UIBridge/UIOrchestration; no direct DOM fallback (previous step).
+    - rngFor(ctx) now requires RNGUtils.getRng or ctx.rng; removed Math.random fallback.
+  - entities/enemies.js:
+    - pickType depth-weighted selection now uses RNGUtils.getRng or provided rng; removed RNGFallback/Math.random.
+  - world/world.js:
+    - generate() rng selection now requires RNGUtils.getRng or ctx.rng; removed window.RNG/Math.random fallback.
+    - pickTownStart() rng selection now requires RNGUtils.getRng or provided rng; removed window.RNG/Math.random fallback.
+  - dungeon/dungeon_items.js:
+    - lootFactories (potion/armor/handWeapon/equipment/anyEquipment) now use RNGUtils.getRng (ctx.rng preferred); removed window.RNG/Math.random fallbacks.
+- StateSync-only refresh adoption in GameAPI
+  - core/game_api.js:
+    - moveStep() and teleportTo() now call StateSync.applyAndRefresh exclusively (manual updateCamera/recomputeFOV/updateUI/requestDraw fallbacks removed).
+- Note:
+  - Additional RNG fallback removals (combat/combat_utils.js, equipment_decay.js, data/flavor.js) are planned next; current step targets core/high-traffic paths first.
 - Deployment: https://xbvp2amplbso.cosine.page
 
 v1.41.11 — Phase B: Fallbacks reduction (confirm UI, loot UI) and StateSync in TownState

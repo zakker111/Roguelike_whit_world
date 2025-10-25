@@ -85,11 +85,7 @@ export function generate(ctx, opts = {}) {
         return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
       }
     } catch (_) {}
-    return (ctx && typeof ctx.rng === "function")
-      ? ctx.rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-          ? window.RNG.rng
-          : Math.random);
+    return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
   })();
   const width = clamp((opts.width | 0) || 120, 48, 512);
   const height = clamp((opts.height | 0) || 80, 48, 512);
@@ -507,9 +503,7 @@ export function pickTownStart(world, rng) {
         return window.RNGUtils.getRng(rng);
       }
     } catch (_) {}
-    return (typeof rng === "function")
-      ? rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+    return (typeof rng === "function") ? rng : null;
   })();
   if (world.towns && world.towns.length) {
     // Prefer towns that have a dungeon within a reasonable walking radius

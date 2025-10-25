@@ -64,9 +64,7 @@ function rngFor(ctx) {
       return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
     }
   } catch (_) {}
-  return (ctx && typeof ctx.rng === "function")
-    ? ctx.rng
-    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
 }
 
 let _loggedEncounterRngFallback = false;

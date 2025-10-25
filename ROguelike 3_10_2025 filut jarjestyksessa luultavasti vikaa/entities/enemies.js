@@ -131,13 +131,7 @@ export function pickType(depth, rng) {
         return window.RNGUtils.getRng(rng);
       }
     } catch (_) {}
-    return (typeof rng === "function")
-      ? rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-          ? window.RNG.rng
-          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-              ? window.RNGFallback.getRng()
-              : Math.random));
+    return (typeof rng === "function") ? rng : null;
   })();
   if (total <= 0) {
     // choose first when all weights are zero; indicates data issue
