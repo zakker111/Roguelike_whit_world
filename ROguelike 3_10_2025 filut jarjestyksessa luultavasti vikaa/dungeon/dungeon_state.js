@@ -183,9 +183,18 @@ function applyState(ctx, st, x, y) {
     if (window.DEV && ctx.log) ctx.log("DungeonState.applyState: player at (" + ctx.player.x + "," + ctx.player.y + ").", "info");
   } catch (_) {}
 
-  ctx.recomputeFOV();
-  ctx.updateCamera();
-  ctx.updateUI();
+  // Refresh via StateSync when available
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
+      if (typeof ctx.updateCamera === "function") ctx.updateCamera();
+      if (typeof ctx.updateUI === "function") ctx.updateUI();
+      if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+    }
+  } catch (_) {}
   ctx.log(`You re-enter the dungeon (Difficulty ${ctx.floor}${ctx.dungeonInfo.size ? ", " + ctx.dungeonInfo.size : ""}).`, "notice");
 }
 
@@ -244,9 +253,18 @@ export function returnToWorldIfAtExit(ctx) {
       ctx.player.x = ctx.worldReturnPos.x;
       ctx.player.y = ctx.worldReturnPos.y;
     }
-    ctx.recomputeFOV();
-    ctx.updateCamera();
-    ctx.updateUI();
+    // Refresh via StateSync when available
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
+        if (typeof ctx.updateCamera === "function") ctx.updateCamera();
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+        if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+      }
+    } catch (_) {}
     ctx.log("You return to the overworld.", "notice");
     return true;
   }

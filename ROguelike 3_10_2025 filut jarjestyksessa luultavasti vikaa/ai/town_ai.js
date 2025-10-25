@@ -22,6 +22,23 @@
   function randInt(ctx, a, b) { return Math.floor(ctx.rng() * (b - a + 1)) + a; }
   function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
 
+  // Seeded RNG helper: prefers RNGUtils.getRng(ctx.rng), falls back to ctx.rng/window RNG/RNGFallback/Math.random
+  function rngFor(ctx) {
+    try {
+      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      if (RU && typeof RU.getRng === "function") {
+        return RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
+      }
+    } catch (_) {}
+    return (typeof ctx.rng === "function")
+      ? ctx.rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+          ? window.RNG.rng
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+              ? window.RNGFallback.getRng()
+              : Math.random));
+  }
+
   // ---- Schedules ----
   function inWindow(start, end, m, dayMinutes) {
     return (end > start) ? (m >= start && m < end) : (m >= start || m < end);
@@ -149,12 +166,14 @@
   function chooseInnUpstairsBed(ctx) {
     const beds = innUpstairsBedAdj(ctx);
     if (!beds.length) return null;
-    return beds[Math.floor(ctx.rng() * beds.length)];
+    const rnd = rngFor(ctx);
+    return beds[Math.floor(rnd() * beds.length)];
   }
   function chooseInnUpstairsSeat(ctx) {
     const seats = innUpstairsSeatAdj(ctx);
     if (!seats.length) return null;
-    return seats[Math.floor(ctx.rng() * seats.length)];
+    const rnd = rngFor(ctx);
+    return seats[Math.floor(rnd() * seats.length)];
   }
 
   // Raw upstairs bed tiles (props positions), used for proximity checks to decide sleeping
@@ -629,7 +648,7 @@
   }
 
   function randomInteriorSpot(ctx, b) {
-    const { map, townProps, rng } = ctx;
+    const { map, townProps } = ctx;
     const spots = [];
     for (let y = b.y + 1; y < b.y + b.h - 1; y++) {
       for (let x = b.x + 1; x < b.x + b.w - 1; x++) {
@@ -639,7 +658,8 @@
       }
     }
     if (!spots.length) return null;
-    return spots[Math.floor(rng() * spots.length)];
+    const rnd = rngFor(ctx);
+    return spots[Math.floor(rnd() * spots.length)];
   }
 
   function addProp(ctx, x, y, type, name) {
@@ -1351,9 +1371,12 @@
 
     // Shuffle iteration
     const order = npcs.map((_, i) => i);
-    for (let i = order.length - 1; i > 0; i--) {
-      const j = Math.floor(ctx.rng() * (i + 1));
-      const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+    {
+      const rnd = rngFor(ctx);
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+      }
     }
 
     function routeIntoBuilding(ctx, occ, n, building, targetInside) {

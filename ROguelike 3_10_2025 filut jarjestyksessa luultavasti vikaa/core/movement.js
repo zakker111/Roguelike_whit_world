@@ -222,7 +222,7 @@ export function tryMove(ctx, dx, dy) {
     }
     if (ctx.isWalkable(nx, ny)) {
       ctx.player.x = nx; ctx.player.y = ny;
-      try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
+      applyRefresh(ctx);
       try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
       return true;
     }

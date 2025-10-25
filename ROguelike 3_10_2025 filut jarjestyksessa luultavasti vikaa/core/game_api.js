@@ -47,9 +47,17 @@ export function create(ctx) {
               const p = ctx.getPlayer();
               p.x = nx; p.y = ny;
               try {
-                ctx.updateCamera();
                 // Advance a turn to keep time/FOV/UI consistent with normal movement flows
-                if (typeof ctx.turn === "function") ctx.turn(); else { ctx.updateUI(); ctx.requestDraw(); }
+                if (typeof ctx.turn === "function") ctx.turn();
+                const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+                if (SS && typeof SS.applyAndRefresh === "function") {
+                  SS.applyAndRefresh(ctx, {});
+                } else {
+                  if (typeof ctx.updateCamera === "function") ctx.updateCamera();
+                  if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
+                  if (typeof ctx.updateUI === "function") ctx.updateUI();
+                  if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+                }
               } catch (_) {}
             }
           }
@@ -783,10 +791,17 @@ export function create(ctx) {
         }
 
         if (ok) {
-          ctx.updateCamera();
-          ctx.recomputeFOV();
-          ctx.updateUI();
-          ctx.requestDraw();
+          try {
+            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(ctx, {});
+            } else {
+              if (typeof ctx.updateCamera === "function") ctx.updateCamera();
+              if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
+              if (typeof ctx.updateUI === "function") ctx.updateUI();
+              if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+            }
+          } catch (_) {}
         }
         return !!ok;
       } catch (_) { return false; }

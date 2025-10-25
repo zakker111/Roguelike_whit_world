@@ -28,7 +28,17 @@ function pickPotion(ctx, source) {
   // Prefer JSON-driven consumables when available; fallback to enemy-weighted defaults
   const CD = (typeof window !== "undefined" && window.GameData && window.GameData.consumables) ? window.GameData.consumables : null;
   const potions = (CD && Array.isArray(CD.potions)) ? CD.potions : null;
-  const r = ctx.rng();
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const rfn = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function")
+        ? ctx.rng
+        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+            ? window.RNG.rng
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                ? window.RNGFallback.getRng()
+                : Math.random)));
+  const r = rfn();
 
   function weightedPick(list) {
     const total = list.reduce((s, it) => s + (Number(it.weight) || 0), 0);
@@ -60,7 +70,7 @@ function pickPotion(ctx, source) {
     if (t === "troll") { wL = 0.5; wA = 0.35; wS = 0.15; }
     if (t === "ogre")  { wL = 0.4; wA = 0.35; wS = 0.25; }
   }
-  const rr = ctx.rng();
+  const rr = rfn();
   if (rr < wL) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
   if (rr < wL + wA) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
   return { name: "strong potion (+10 HP)", kind: "potion", heal: 10 };
@@ -75,9 +85,20 @@ function fallbackEquipment(ctx, tier) {
   const material = tier === 1 ? "rusty" : tier === 2 ? "iron" : "steel";
   const categories = ["hand", "head", "torso", "legs", "hands"];
   const cat = categories[ctx.randInt(0, categories.length - 1)];
+  // Seeded RNG for decisions within fallback equipment
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const rnd = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function")
+        ? ctx.rng
+        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+            ? window.RNG.rng
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                ? window.RNGFallback.getRng()
+                : Math.random)));
 
   if (cat === "hand") {
-    if (ctx.rng() < 0.65) {
+    if (rnd() < 0.65) {
       const w = ["sword", "axe", "bow"][ctx.randInt(0, 2)];
       const ranges = tier === 1 ? [0.5, 2.4] : tier === 2 ? [1.2, 3.4] : [2.2, 4.0];
       let atk = ctx.utils.randFloat(ranges[0], ranges[1], 1);

@@ -1,5 +1,31 @@
 # Game Version History
-Last updated: 2025-10-25 03:28 UTC
+Last updated: 2025-10-25 03:52 UTC
+
+v1.41.10 — Phase B: RNG unification (TownGen/TownAI/Decals) and StateSync refresh adoption
+- RNG determinism
+  - worldgen/town_gen.js:
+    - Seeded RNG helper (RNGUtils.getRng(ctx.rng) with safe fallbacks) introduced at generate() start.
+    - Uses seeded rng for:
+      - Gate greeter name picks
+      - Town name components (prefix/mid/suffix)
+      - Building size randint and per-building r selection
+      - shuffleInPlace and sampled shop presence checks
+      - Stall offset pickIdx
+      - Resident bench-building pick and initial _likesInn flag
+  - ai/town_ai.js:
+    - rngFor(ctx) helper added (RNGUtils.getRng(ctx.rng) → ctx.rng → window.RNG.rng → RNGFallback → Math.random).
+    - Uses seeded rng for:
+      - chooseInnUpstairsBed/Seat picks
+      - randomInteriorSpot selection
+      - Fisher–Yates shuffle for NPC iteration order
+  - ui/decals.js:
+    - Decal alpha/radius now use seeded RNG instead of ctx.rng directly, improving replay determinism under fixed seeds.
+- StateSync refresh adoption
+  - dungeon/dungeon_state.js:
+    - applyState() and returnToWorldIfAtExit() now refresh via StateSync.applyAndRefresh when available (fallback to camera/FOV/UI/draw).
+  - core/game_api.js:
+    - moveStep() and teleportTo(): refresh via StateSync.applyAndRefresh when available (fallback maintained).
+- Deployment: https://l8b80ql1vsyp.cosine.page
 
 v1.41.9 — Hard error when infinite world is unavailable; remove dungeon fallback on world init
 - core/world_runtime.js:
