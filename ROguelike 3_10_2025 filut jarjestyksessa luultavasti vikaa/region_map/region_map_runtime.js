@@ -1256,7 +1256,22 @@ function tryMove(ctx, dx, dy) {
       const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
       const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
       // Prefer RNGUtils.chance for determinism; fallback to raw rng comparison
-      const didBlock = (function () {
+      let didBlock = false;
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+        didBlock = window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
+      } else {
+        const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+        const rfn = (RU && typeof RU.getRng === "function")
+          ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+          : ((typeof ctx.rng === "function")
+              ? ctx.rng
+              : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+                  ? window.RNG.rng
+                  : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                      ? window.RNGFallback.getRng()
+                      : Math.random)));
+        didBlock = rfn() < blockChance;
+      }Block = (function () {
         try {
           if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
             return window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
