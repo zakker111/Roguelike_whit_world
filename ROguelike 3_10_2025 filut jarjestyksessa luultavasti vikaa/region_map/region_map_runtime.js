@@ -623,6 +623,8 @@ function open(ctx, size) {
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   const rng = getRegionRng(ctx);
+  // RNGUtils handle (chance/int/float) when available; falls back to direct rng comparisons
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
   addMinorWaterAndBeaches(sample, rng);
   // Sprinkle sparse trees in forest tiles for region visualization
   addSparseTreesInForests(sample, 0.10, rng);
