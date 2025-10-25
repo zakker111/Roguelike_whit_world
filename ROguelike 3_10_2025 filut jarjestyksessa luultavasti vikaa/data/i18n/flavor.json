@@ -7,7 +7,7 @@
       "hands":  { "normal": "cut on the hand", "crit": "hands mangled" }
     },
     "sharp": {
-      "head":   { "normal": "cut across the brow", "crit": "cleaving strike to the skull" },
+      "head":   { "normal": ["cut across the brow", "slashed across the eye"], "crit": "cleaving strike to the skull" },
       "torso":  { "normal": "bleeding cut in torso", "crit": "cleaving cut through the ribs" },
       "legs":   { "normal": "slice to the thigh", "crit": "hamstring severed" },
       "hands":  { "normal": "cut on the hand", "crit": "fingers severed" }

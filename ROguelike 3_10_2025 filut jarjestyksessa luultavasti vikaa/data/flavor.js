@@ -81,15 +81,29 @@ function flavorCategory(ctx, target) {
   return "default";
 }
 
-// Pick a death flavor line given pools, category, body part, and crit flag.
-// Fallback chain: category->part->crit/normal, else default category, else null.
+// Normalize a flavor entry into an array of strings.
+// Accepts string | string[] | { [key:string]: string }
+function normalizeLines(v) {
+  if (typeof v === "string") return [v];
+  if (Array.isArray(v)) return v.filter(s => typeof s === "string");
+  if (v && typeof v === "object") {
+    try {
+      return Object.keys(v).sort().map(k => v[k]).filter(s => typeof s === "string");
+    } catch (_) { return []; }
+  }
+  return [];
+}
+
+// Pick death flavor lines (array) for a given category/part/crit flag.
+// Fallback chain: category->part->crit/normal, else default category, else [].
 function pickDeathLine(P, category, part, isCrit) {
-  if (!P || typeof P !== "object") return null;
+  if (!P || typeof P !== "object") return [];
   const cat = P[category] || P.default || null;
-  if (!cat || typeof cat !== "object") return null;
+  if (!cat || typeof cat !== "object") return [];
   const seg = cat[part] || cat.torso || null;
-  if (!seg || typeof seg !== "object") return null;
-  return isCrit ? (seg.crit || null) : (seg.normal || null);
+  if (!seg || typeof seg !== "object") return [];
+  const v = isCrit ? (seg.crit || null) : (seg.normal || null);
+  return normalizeLines(v);
 }
 
 // Log a death flavor line using flavor.json death section
@@ -100,8 +114,9 @@ export function logDeath(ctx, opts) {
   const isCrit = !!(opts && opts.crit);
   const P = deathPools(); if (!P) return;
   const cat = flavorCategory(ctx, target);
-  const line = pickDeathLine(P, cat, String(loc.part || "torso"), isCrit);
-  if (!line) return;
+  const lines = pickDeathLine(P, cat, String(loc.part || "torso"), isCrit);
+  if (!Array.isArray(lines) || lines.length === 0) return;
+  const line = pickFrom(lines, ctx);
   // Chance gating: log death flavor often; deterministic when RNGUtils is present
   let ok = true;
   try {
@@ -111,7 +126,7 @@ export function logDeath(ctx, opts) {
       ok = RU.chance(isCrit ? 0.9 : 0.75, rng);
     }
   } catch (_) {}
-  if (ok) ctx.log(line, "flavor");
+  if (ok && typeof line === "string" && line) ctx.log(line, "flavor");
 }
 
 export function logHit(ctx, opts) {
@@ -124,8 +139,8 @@ export function logHit(ctx, opts) {
   const P = deathPools(); if (!P) return;
   const cat = flavorCategory(ctx, attacker);
   const part = String(loc.part || "torso");
-  const line = pickDeathLine(P, cat, part, crit);
-  if (!line) return;
+  const lines = pickDeathLine(P, cat, part, crit);
+  if (!Array.isArray(lines) || lines.length === 0) return;
 
   // Chance gating via RNGUtils when available
   let ok = true;
@@ -138,7 +153,8 @@ export function logHit(ctx, opts) {
   } catch (_) {}
   if (!ok) return;
 
-  ctx.log(line, crit ? "flavor" : "info");
+  const line = pickFrom(lines, ctx);
+  if (typeof line === "string" && line) ctx.log(line, crit ? "flavor" : "info");
 }
 
 export function logPlayerHit(ctx, opts) {
@@ -152,8 +168,8 @@ export function logPlayerHit(ctx, opts) {
   // Choose line from death pools based on category/part/crit (reuse for hit flavor)
   const cat = flavorCategory(ctx, target);
   const part = String(loc.part || "torso");
-  const line = pickDeathLine(P, cat, part, crit);
-  if (!line) return;
+  const lines = pickDeathLine(P, cat, part, crit);
+  if (!Array.isArray(lines) || lines.length === 0) return;
 
   // Chance gating with RNGUtils when available
   let p = crit ? 0.85 : (dmg != null && dmg >= 2.0 ? 0.7 : 0.4);
@@ -167,7 +183,8 @@ export function logPlayerHit(ctx, opts) {
   } catch (_) {}
   if (!ok) return;
 
-  ctx.log(line, crit ? "flavor" : "info");
+  const line = pickFrom(lines, ctx);
+  if (typeof line === "string" && line) ctx.log(line, crit ? "flavor" : "info");
 }
 
 export function announceFloorEnemyCount(ctx) {
