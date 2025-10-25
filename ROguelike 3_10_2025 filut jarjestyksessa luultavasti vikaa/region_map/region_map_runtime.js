@@ -931,7 +931,6 @@ function open(ctx, size) {
       // Mark encounter-active for AI/tick and guidance
       ctx.region._isEncounter = true;
       try { ctx.log && ctx.log("Hostiles lurk within the ruins!", "notice"); } catch (_) {}
-      try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
     } catch (_) {}
   })();
 
@@ -1111,10 +1110,6 @@ function open(ctx, size) {
             const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
             if (SS && typeof SS.applyAndRefresh === "function") {
               SS.applyAndRefresh(ctx, {});
-            } else {
-              typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
-              ctx.updateUI && ctx.updateUI();
-              ctx.requestDraw && ctx.requestDraw();
             }
           } catch (_) {}
           // Count how many are currently visible to the player
@@ -1148,11 +1143,6 @@ function open(ctx, size) {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      typeof ctx.updateCamera === "function" && ctx.updateCamera();
-      typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
   if (ctx.log) ctx.log("Region map opened. Move with arrows. Press G on an orange edge tile to close.", "info");
@@ -1202,11 +1192,6 @@ function close(ctx) {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      typeof ctx.updateCamera === "function" && ctx.updateCamera();
-      typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
   if (ctx.log) ctx.log("Region map closed.", "info");
@@ -1298,11 +1283,6 @@ function tryMove(ctx, dx, dy) {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      typeof ctx.updateCamera === "function" && ctx.updateCamera();
-      typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
   try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}

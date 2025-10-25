@@ -170,16 +170,11 @@ export function doAction(ctx) {
         } else {
           ctx.log && ctx.log("You return to the inn's hall.", "info");
         }
-        // Unified refresh via StateSync
+        // Unified refresh via StateSync (mandatory)
         try {
           const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
           if (SS && typeof SS.applyAndRefresh === "function") {
             SS.applyAndRefresh(ctx, {});
-          } else {
-            try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-            try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-            try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-            try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
           }
         } catch (_) {}
         return true;
@@ -198,16 +193,11 @@ export function doAction(ctx) {
           } else {
             describeProp(ctx, pUp);
           }
-          // Unified refresh via StateSync (fallback to manual)
+          // Unified refresh via StateSync (mandatory)
           try {
             const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
             if (SS && typeof SS.applyAndRefresh === "function") {
               SS.applyAndRefresh(ctx, {});
-            } else {
-              try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-              try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-              try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-              try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
             }
           } catch (_) {}
           return true;

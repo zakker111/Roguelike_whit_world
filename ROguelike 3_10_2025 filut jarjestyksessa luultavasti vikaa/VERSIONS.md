@@ -1,5 +1,21 @@
 # Game Version History
-Last updated: 2025-10-25 04:20 UTC
+Last updated: 2025-10-25 04:45 UTC
+
+v1.41.12 — Phase B: Make StateSync mandatory in Region Map/TurnLoop/Actions; remove extra draw in Ruins
+- StateSync mandatory refresh (fallbacks removed)
+  - region_map/region_map_runtime.js:
+    - Removed manual updateCamera/recomputeFOV/updateUI/requestDraw fallbacks from open(), close(), tryMove(), and animals spawn path; now calls StateSync.applyAndRefresh exclusively.
+    - Fixed a stray fragment in Ruins spawn log that appeared after earlier edits.
+  - core/turn_loop.js:
+    - Dropped manual refresh fallback; tick() now relies solely on StateSync.applyAndRefresh when present.
+  - core/actions.js:
+    - Inn upstairs toggle and upstairs overlay prop interactions now refresh via StateSync.applyAndRefresh only.
+- Confirm/loot UI fallback reduction
+  - services/encounter_service.js:
+    - Confirm prompts require UIOrchestration.showConfirm (via Capabilities.safeCall) or UIBridge.showConfirm; window.confirm fallback removed (previous step).
+  - entities/loot.js:
+    - Loot panel routes only via UIBridge/UIOrchestration; no direct DOM fallback (previous step).
+- Deployment: https://xbvp2amplbso.cosine.page
 
 v1.41.11 — Phase B: Fallbacks reduction (confirm UI, loot UI) and StateSync in TownState
 - Remove browser confirm fallback

@@ -87,15 +87,11 @@ export function tick(ctx) {
     }
   } catch (_) {}
 
-  // Visual updates via StateSync when available
+  // Visual updates via StateSync (mandatory)
   try {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
-      if (typeof ctx.updateUI === "function") ctx.updateUI();
-      if (typeof ctx.requestDraw === "function") ctx.requestDraw();
     }
   } catch (_) {}
 
