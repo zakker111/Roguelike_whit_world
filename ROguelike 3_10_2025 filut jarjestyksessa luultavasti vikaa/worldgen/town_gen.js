@@ -559,7 +559,19 @@
           const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= w && p.size.h <= h);
           if (candidates.length) {
             const pref = pickPrefab(candidates, ctx.rng || rng);
-            const ox = Math.floor((w - pref.size.w) / 2
+            if (pref && pref.size) {
+              const oxCenter = Math.floor((w - pref.size.w) / 2);
+              const oyCenter = Math.floor((h - pref.size.h) / 2);
+              usedPrefab = stampPrefab(ctx, pref, fx + oxCenter, fy + oyCenter);
+            }
+          }
+        }
+        if (!usedPrefab) {
+          placeBuilding(fx, fy, w, h);
+        }
+      }
+    }
+
     // Doors and shops near plaza (compact): just mark doors and create shop entries
     function candidateDoors(b) {
       return [
