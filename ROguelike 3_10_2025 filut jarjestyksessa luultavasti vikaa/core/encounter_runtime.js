@@ -555,15 +555,23 @@ export function enter(ctx, info) {
     }
   }
 
-  // Recompute visibility, occupancy, and center camera
+  // Recompute visibility, rebuild occupancy, and refresh via StateSync
   try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
   try {
     const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
     if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      ctx.updateCamera && ctx.updateCamera();
+      ctx.recomputeFOV && ctx.recomputeFOV();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
 
   // Announce difficulty
   try {
@@ -613,8 +621,11 @@ export function tryMoveEncounter(ctx, dx, dy) {
     try {
       const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
       const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
-      const rb = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-      if (rb < blockChance) {
+      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const didBlock = (RU && typeof RU.chance === "function")
+        ? RU.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined))
+        : (((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) < blockChance);
+      if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
         const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
@@ -800,8 +811,17 @@ export function complete(ctx, outcome = "victory") {
       ctx.player.x = pos.x; ctx.player.y = pos.y;
     }
   } catch (_) {}
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      ctx.updateCamera && ctx.updateCamera();
+      ctx.recomputeFOV && ctx.recomputeFOV();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
   try {
     if (outcome === "victory") ctx.log && ctx.log("You prevail and return to the overworld.", "good");
     else ctx.log && ctx.log("You withdraw and return to the overworld.", "info");

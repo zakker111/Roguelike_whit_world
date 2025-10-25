@@ -1,5 +1,21 @@
 # Game Version History
-Last updated: 2025-10-24 01:20 UTC
+Last updated: 2025-10-25 00:05 UTC
+
+v1.41.0 — Phase B kickoff: RNG determinism, StateSync refresh, Capabilities sweep, Region Map UX, and tooling
+- Determinism and RNG
+  - Unify random rolls through RNGUtils/RNG (ctx-first), removing Math.random uses for encounter group counts and block checks.
+  - Target modules: core/encounter_runtime.js (group counts, block-chance), region_map spawns, and any residual direct randoms.
+- Refresh orchestration
+  - Adopt StateSync.applyAndRefresh(ctx, sink) in encounter/region flows to replace manual updateCamera/recomputeFOV/updateUI/requestDraw sequences.
+- Capabilities helpers
+  - Expand Capabilities.safeCall/safeGet usage across UI/services to reduce boilerplate and window.* coupling.
+- Region Map UX/persistence
+  - Controls clarified: G opens Region Map on walkable overworld tiles; M is disabled.
+  - Seen vs cleared state indicators planned on overlay; per‑tile persistence retained; spawn reliability already tuned earlier.
+- Tooling and CI
+  - Add eslint/prettier to devDependencies with “lint” and “format” scripts.
+  - Wire smoketest auto-run in CI; PASS/FAIL tokens already emitted by runner.
+- Deployment: (pending)
 
 v1.40.0 — Inn upstairs system, overlay-aware FOV/walk, stairs visibility, and NPC behavior tuning
 - Inn upstairs system
