@@ -457,14 +457,8 @@ export function tick(ctx) {
           try { ctx.log && ctx.log("A rare wanderer, Wild Seppo, arrives at the plaza!", "notice"); } catch (_) {}
           // Ensure occupancy reflects the new NPC immediately
           try {
-            if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-              window.OccupancyFacade.rebuild(ctx);
-            } else {
-              const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-              if (OG && typeof OG.build === "function") {
-                ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-              }
-            }
+            const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+            if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
           } catch (_) {}
         }
       }
@@ -495,14 +489,8 @@ export function tick(ctx) {
         try { ctx.log && ctx.log("Wild Seppo packs up and leaves.", "info"); } catch (_) {}
         // Refresh occupancy after removal
         try {
-          if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-            window.OccupancyFacade.rebuild(ctx);
-          } else {
-            const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-            if (OG && typeof OG.build === "function") {
-              ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-            }
-          }
+          const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+          if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
         } catch (_) {}
       }
     }
@@ -521,14 +509,8 @@ export function tick(ctx) {
     const stride = 2;
     const t = (ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
     if ((t % stride) === 0) {
-      if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-        window.OccupancyFacade.rebuild(ctx);
-      } else {
-        const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-        if (OG && typeof OG.build === "function") {
-          ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-        }
-      }
+      const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+      if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     }
   } catch (_) {}
   return true;
@@ -537,14 +519,10 @@ export function tick(ctx) {
 // Explicit occupancy rebuild helper for callers that mutate town entities outside tick cadence.
 export function rebuildOccupancy(ctx) {
   try {
-    if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-      return !!window.OccupancyFacade.rebuild(ctx);
-    } else {
-      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-      if (OG && typeof OG.build === "function") {
-        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-        return true;
-      }
+    const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+    if (OF && typeof OF.rebuild === "function") {
+      OF.rebuild(ctx);
+      return true;
     }
   } catch (_) {}
   return false;

@@ -1767,85 +1767,36 @@
         // state queries
         isDead: () => isDead,
         isInventoryOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isInventoryOpen === "function") return !!UIO.isInventoryOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isInventoryOpen === "function") return !!UB.isInventoryOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isInventoryOpen === "function" && UIO.isInventoryOpen(getCtx()));
         },
         isLootOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isLootOpen === "function") return !!UIO.isLootOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isLootOpen === "function") return !!UB.isLootOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx()));
         },
         isGodOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isGodOpen === "function") return !!UIO.isGodOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isGodOpen === "function") return !!UB.isGodOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isGodOpen === "function" && UIO.isGodOpen(getCtx()));
         },
         // Ensure shop modal is part of the modal stack priority
         isShopOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isShopOpen === "function") return !!UIO.isShopOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isShopOpen === "function") return !!UB.isShopOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isShopOpen === "function" && UIO.isShopOpen(getCtx()));
         },
         // Smoke config modal priority after Shop
         isSmokeOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isSmokeOpen === "function") return !!UIO.isSmokeOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isSmokeOpen === "function") return !!UB.isSmokeOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isSmokeOpen === "function" && UIO.isSmokeOpen(getCtx()));
         },
         // Sleep modal (Inn beds)
         isSleepOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isSleepOpen === "function") return !!UIO.isSleepOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isSleepOpen === "function") return !!UB.isSleepOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isSleepOpen === "function" && UIO.isSleepOpen(getCtx()));
         },
         // Confirm dialog gating
         isConfirmOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isConfirmOpen === "function") return !!UIO.isConfirmOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isConfirmOpen === "function") return !!UB.isConfirmOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isConfirmOpen === "function" && UIO.isConfirmOpen(getCtx()));
         },
         // actions
         onRestart: () => restartGame(),
@@ -1853,171 +1804,56 @@
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideGod === "function") { UIO.hideGod(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isGodOpen === "function") wasOpen = !!UB.isGodOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideGod === "function") UB.hideGod(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideGod === "function") UIO.hideGod(getCtx());
         },
         onHideShop: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideShop === "function") { UIO.hideShop(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isShopOpen === "function") wasOpen = !!UB.isShopOpen();
-          } catch (_) {}
-          if (UB && typeof UB.hideShop === "function") {
-            UB.hideShop(getCtx());
-            if (wasOpen) requestDraw();
-          }
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideShop === "function") UIO.hideShop(getCtx());
         },
         onHideSmoke: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideSmoke === "function") { UIO.hideSmoke(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isSmokeOpen === "function") wasOpen = !!UB.isSmokeOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideSmoke === "function") UB.hideSmoke(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideSmoke === "function") UIO.hideSmoke(getCtx());
         },
         onHideSleep: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideSleep === "function") { UIO.hideSleep(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isSleepOpen === "function") wasOpen = !!UB.isSleepOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideSleep === "function") UB.hideSleep(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideSleep === "function") UIO.hideSleep(getCtx());
         },
         onCancelConfirm: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.cancelConfirm === "function") { UIO.cancelConfirm(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isConfirmOpen === "function") wasOpen = !!UB.isConfirmOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.cancelConfirm === "function") UB.cancelConfirm(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(getCtx());
         },
         onShowGod: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.showGod === "function") { UIO.showGod(getCtx()); }
-          } catch (_) {}
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.showGod === "function") UIO.showGod(getCtx());
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
         },
         // Region Map
         isRegionMapOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isRegionMapOpen === "function") return !!UIO.isRegionMapOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isRegionMapOpen === "function") return !!UB.isRegionMapOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(getCtx()));
         },
         onShowRegionMap: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.showRegionMap === "function") { UIO.showRegionMap(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isRegionMapOpen === "function") wasOpen = !!UB.isRegionMapOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.showRegionMap === "function") UB.showRegionMap(getCtx());
-          } catch (_) {}
-          if (!wasOpen) requestDraw();
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.showRegionMap === "function") UIO.showRegionMap(getCtx());
         },
         onHideRegionMap: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideRegionMap === "function") { UIO.hideRegionMap(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isRegionMapOpen === "function") wasOpen = !!UB.isRegionMapOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideRegionMap === "function") UB.hideRegionMap(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideRegionMap === "function") UIO.hideRegionMap(getCtx());
         },
         // Help / Controls + Character Sheet (F1)
         isHelpOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isHelpOpen === "function") return !!UIO.isHelpOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isHelpOpen === "function") return !!UB.isHelpOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isHelpOpen === "function" && UIO.isHelpOpen(getCtx()));
         },
         onShowHelp: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.showHelp === "function") { UIO.showHelp(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isHelpOpen === "function") wasOpen = !!UB.isHelpOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.showHelp === "function") UB.showHelp(getCtx());
-          } catch (_) {}
-          if (!wasOpen) requestDraw();
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.showHelp === "function") UIO.showHelp(getCtx());
         },
         onHideHelp: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideHelp === "function") { UIO.hideHelp(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isHelpOpen === "function") wasOpen = !!UB.isHelpOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideHelp === "function") UB.hideHelp(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideHelp === "function") UIO.hideHelp(getCtx());
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
@@ -2952,15 +2788,8 @@
         lootCorpse: () => lootCorpse(),
         doAction: () => doAction(),
         isAnyModalOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isAnyModalOpen === "function") return !!UIO.isAnyModalOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isAnyModalOpen === "function") return !!UB.isAnyModalOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isAnyModalOpen === "function" && UIO.isAnyModalOpen(getCtx()));
         },
       });
     }
