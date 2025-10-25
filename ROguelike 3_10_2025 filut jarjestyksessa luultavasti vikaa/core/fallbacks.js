@@ -8,16 +8,18 @@
  * - enemyDamageMultiplier(level)
  */
 
-export function rollHitLocation(rng = Math.random) {
-  const r = rng();
+export function rollHitLocation(rng) {
+  const r = (typeof rng === "function") ? rng() : 0.5;
   if (r < 0.50) return { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 };
   if (r < 0.65) return { part: "head",  mult: 1.1, blockMod: 0.85, critBonus: 0.15 };
   if (r < 0.80) return { part: "hands", mult: 0.9, blockMod: 0.75, critBonus: -0.05 };
   return { part: "legs",  mult: 0.95, blockMod: 0.75, critBonus: -0.03 };
 }
 
-export function critMultiplier(rng = Math.random) {
-  return 1.6 + rng() * 0.4;
+export function critMultiplier(rng) {
+  const r = (typeof rng === "function") ? rng() : 0.5;
+  // Deterministic baseline multiplier when RNG unavailable
+  return 1.6 + r * 0.4;
 }
 
 export function enemyBlockChance(ctx, enemy, loc) {

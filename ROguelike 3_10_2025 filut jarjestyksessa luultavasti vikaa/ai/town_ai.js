@@ -22,7 +22,7 @@
   function randInt(ctx, a, b) { return Math.floor(ctx.rng() * (b - a + 1)) + a; }
   function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
 
-  // Seeded RNG helper: prefers RNGUtils.getRng(ctx.rng), falls back to ctx.rng/window RNG/RNGFallback/Math.random
+  // Seeded RNG helper: prefers RNGUtils.getRng(ctx.rng), falls back to ctx.rng; deterministic when unavailable
   function rngFor(ctx) {
     try {
       const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
@@ -30,13 +30,9 @@
         return RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
       }
     } catch (_) {}
-    return (typeof ctx.rng === "function")
-      ? ctx.rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-          ? window.RNG.rng
-          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-              ? window.RNGFallback.getRng()
-              : Math.random));
+    if (typeof ctx.rng === "function") return ctx.rng;
+    // Deterministic fallback: constant function
+    return () => 0.5;
   }
 
   // ---- Schedules ----

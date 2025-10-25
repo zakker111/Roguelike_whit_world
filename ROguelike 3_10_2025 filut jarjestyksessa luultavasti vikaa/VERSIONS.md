@@ -1,24 +1,24 @@
 # Game Version History
-Last updated: 2025-10-25 06:28 UTC
+Last updated: 2025-10-25 06:52 UTC
 
-v1.41.16 — Phase B: Mandatory RNGUtils in ctx/AI/Loot; remove RNGFallback/Math.random fallbacks
-- core/ctx.js:
-  - ensureUtils now requires RNG from ctx.rng or RNGUtils.getRng; removed window.RNG and RNGFallback chains.
-  - Utilities use RNGUtils when available; deterministic fallbacks when RNG is unavailable:
-    - randInt: midpoint
-    - chance: false
-    - randFloat: midpoint
-    - pick: first entry when rng absent
-- ai/ai.js:
-  - RNG helper rv() now uses RNGUtils or ctx.rng; deterministic 0.5 when unavailable.
-  - randFloat/randInt/chance derive from rv(); removed window.RNG and RNGFallback references.
-- entities/loot.js:
-  - pickPotion: RNG selection requires RNGUtils or ctx.rng; removed RNGFallback/Math.random; deterministic 0.5 when missing.
-  - fallbackEquipment: RNG selection requires RNGUtils or ctx.rng; deterministic branch for hand vs shield when RNG is missing.
-  - pickEnemyBiasedEquipment: RNG selection requires RNGUtils or ctx.rng; weighted pick uses half-total when RNG missing.
-  - Animal-material drops: chance() uses RNGUtils or returns false deterministically when RNG missing.
+v1.41.17 — Phase B: RNG cleanup (mandatory RU.getRng) in Dungeon/TownAI/Decals/Region; utils/rng.js deterministic; flavor hit lines
+- core/dungeon_runtime.js:
+  - Removed window.RNGFallback/Math.random chains in wall torch spawns, block/crit rolls, and decay floats.
+  - Uses RNGUtils.getRng(ctx.rng) or ctx.rng only; deterministic midpoints (0.5 for booleans, (min+max)/2 for floats) when RNG missing.
+- ai/town_ai.js:
+  - rngFor(ctx) now returns RU.getRng(ctx.rng) or ctx.rng; otherwise a deterministic () => 0.5. Dropped window.RNG/RNGFallback/Math.random.
+- ui/decals.js:
+  - Decal alpha/radius now derive from RU.getRng(ctx.rng) or ctx.rng; deterministic 0.5 when RNG missing. Removed RNGFallback/Math.random.
+- region_map/region_map_runtime.js:
+  - Minimal combat block fallback no longer probes window.RNG/window.RNGFallback; uses RU.getRng(ctx.rng) or ctx.rng with deterministic 0.5 when missing.
+- core/fallbacks.js:
+  - Removed Math.random defaults; rollHitLocation/critMultiplier accept rng and use deterministic values when rng is absent (0.5 baseline; crit multiplier ~1.6+0.4*r).
+- utils/rng.js:
+  - getRng(preferred) now returns window.RNG.rng when present; otherwise returns a deterministic () => 0.5 function. Removed RNGFallback/Math.random fallbacks and logs.
+- data/flavor.js:
+  - logHit now sources flavor lines from flavor.json death section by category/part with chance gating (higher on crit) via RNGUtils. Death flavor already integrated.
 - Result:
-  - Phase B continues making RNGUtils mandatory in core gameplay paths, eliminating legacy RNGFallback/Math.random usage and ensuring deterministic behavior without RNG.
+  - RNGUtils is mandatory across these modules; no remaining direct RNGFallback/Math.random usage in the patched paths. Behavior stays deterministic without RNG service.
 - Deployment: (see latest)
 
 v1.41.15 — Flavor integration: use flavor.json (death section) for hit/death lines

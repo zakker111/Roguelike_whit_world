@@ -21,14 +21,8 @@ export function getRng(preferred) {
       return window.RNG.rng;
     }
   } catch (_) {}
-  try {
-    if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
-      try { if (window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("rng", "Using RNGFallback.getRng() (window.RNG.rng unavailable)."); } catch (_) {}
-      return window.RNGFallback.getRng();
-    }
-  } catch (_) {}
-  try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("rng", "Using Math.random (no RNG service/fallback available)."); } catch (_) {}
-  return Math.random;
+  // Deterministic fallback: constant function avoids non-determinism
+  return () => 0.5;
 }
 
 export function int(min, max, rngFn) {

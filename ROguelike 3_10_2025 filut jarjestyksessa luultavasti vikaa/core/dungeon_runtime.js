@@ -28,13 +28,7 @@ function spawnWallTorches(ctx, options = {}) {
   const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
   const rng = (RU && typeof RU.getRng === "function")
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-    : ((typeof ctx.rng === "function")
-        ? ctx.rng
-        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-            ? window.RNG.rng
-            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                ? window.RNGFallback.getRng()
-                : Math.random)));
+    : ((typeof ctx.rng === "function") ? ctx.rng : null);
 
   const isWall = (x, y) => ctx.inBounds(x, y) && ctx.map[y][x] === ctx.TILES.WALL;
   const isWalkableTile = (x, y) => ctx.inBounds(x, y) && (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR || ctx.map[y][x] === ctx.TILES.STAIRS);
@@ -58,7 +52,8 @@ function spawnWallTorches(ctx, options = {}) {
         isWalkableTile(x, y + 1) || isWalkableTile(x, y - 1);
       if (!bordersWalkable) continue;
       // Sparse random placement with spacing constraint
-      if (rng() < density && !nearTorch(x, y)) {
+      const rv = (typeof rng === "function") ? rng() : 0.5;
+      if (rv < density && !nearTorch(x, y)) {
         list.push({ x, y, type: "wall_torch", name: "Wall Torch" });
       }
     }
@@ -708,15 +703,10 @@ export function tryMoveDungeon(ctx, dx, dy) {
       ? C.getEnemyBlockChance(ctx, enemy, loc)
       : (typeof ctx.getEnemyBlockChance === "function" ? ctx.getEnemyBlockChance(enemy, loc) : 0);
     const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-    const rBlock = ((RU && typeof RU.getRng === "function")
+    const rBlockFn = (RU && typeof RU.getRng === "function")
       ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-      : ((typeof ctx.rng === "function")
-          ? ctx.rng
-          : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-              ? window.RNG.rng
-              : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                  ? window.RNGFallback.getRng()
-                  : Math.random))))();
+      : ((typeof ctx.rng === "function") ? ctx.rng : null);
+    const rBlock = (typeof rBlockFn === "function") ? rBlockFn() : 0.5;
 
     if (rBlock < blockChance) {
       try {
@@ -765,10 +755,14 @@ export function tryMoveDungeon(ctx, dx, dy) {
     let isCrit = false;
     const alwaysCrit = !!((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false);
     const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
+    const RUcrit = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+    const rfnCrit = (RUcrit && typeof RUcrit.getRng === "function")
+      ? RUcrit.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+      : ((typeof ctx.rng === "function") ? ctx.rng : null);
+    const rCrit = (typeof rfnCrit === "function") ? rfnCrit() : 0.5;
     const critMult = (C && typeof C.critMultiplier === "function")
-      ? C.critMultiplier(ctx.rng)
-      : (typeof ctx.critMultiplier === "function" ? ctx.critMultiplier() : (1.6 + (((typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") ? window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined) : ((typeof ctx.rng === "function") ? ctx.rng : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") ? window.RNGFallback.getRng() : Math.random))))()) * 0.4));
-    const rCrit = (((typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") ? window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined) : ((typeof ctx.rng === "function") ? ctx.rng : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") ? window.RNGFallback.getRng() : Math.random))))());
+      ? C.critMultiplier(rfnCrit || undefined)
+      : (typeof ctx.critMultiplier === "function" ? ctx.critMultiplier(rfnCrit || undefined) : 1.8);
     if (alwaysCrit || rCrit < critChance) {
       isCrit = true;
       dmg *= critMult;
@@ -846,22 +840,14 @@ export function tryMoveDungeon(ctx, dx, dy) {
       } else if (typeof ctx.decayEquipped === "function") {
         const rf = (typeof ctx.randFloat === "function") ? ctx.randFloat : ((min, max) => {
           try {
-            if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
+            const RUx = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+            if (RUx && typeof RUx.float === "function") {
               const rfnLocal = (typeof ctx.rng === "function") ? ctx.rng : undefined;
-              return window.RNGUtils.float(min, max, 6, rfnLocal);
+              return RUx.float(min, max, 6, rfnLocal);
             }
           } catch (_) {}
-          const RUlocal = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-          const rfnLocal = (RUlocal && typeof RUlocal.getRng === "function")
-            ? RUlocal.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-            : ((typeof ctx.rng === "function")
-                ? ctx.rng
-                : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-                    ? window.RNG.rng
-                    : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                        ? window.RNGFallback.getRng()
-                        : Math.random)));
-          return min + rfnLocal() * (max - min);
+          // Deterministic midpoint when RNG unavailable
+          return (min + max) / 2;
         });
         ctx.decayEquipped("hands", rf(0.3, 1.0));
       }

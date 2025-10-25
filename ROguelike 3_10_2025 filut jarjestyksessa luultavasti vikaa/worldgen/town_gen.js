@@ -251,13 +251,7 @@
     const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
     const rng = (RU && typeof RU.getRng === "function")
       ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-      : ((typeof ctx.rng === "function")
-          ? ctx.rng
-          : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-              ? window.RNG.rng
-              : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                  ? window.RNGFallback.getRng()
-                  : Math.random)));
+      : ((typeof ctx.rng === "function") ? ctx.rng : null);
 
     // Determine current town size from overworld (default 'big') and capture its world entry for persistence
     let townSize = "big";
