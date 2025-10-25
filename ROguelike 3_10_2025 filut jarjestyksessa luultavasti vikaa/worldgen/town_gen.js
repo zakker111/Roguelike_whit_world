@@ -415,18 +415,29 @@
           ctx.map[y0 + yy][x0 + xx] = t;
         }
       }
-      // Ensure a solid perimeter: if any outer edge cell is FLOOR, convert to WALL.
-      // This protects against prefab authors who forget to put walls on the boundary.
+      // Ensure a solid perimeter: convert any non-door/window on the boundary to WALL.
+      // This protects against prefab authors who forget to put walls on the boundary or leave FLOORs.
       for (let yy = y0; yy <= y1; yy++) {
         for (let xx = x0; xx <= x1; xx++) {
           const isBorder = (yy === y0 || yy === y1 || xx === x0 || xx === x1);
           if (!isBorder) continue;
           const cur = ctx.map[yy][xx];
-          if (cur === ctx.TILES.FLOOR) {
+          if (cur !== ctx.TILES.DOOR && cur !== ctx.TILES.WINDOW) {
             ctx.map[yy][xx] = ctx.TILES.WALL;
           }
         }
       }
+      // Explicitly stamp doors from prefab metadata (in case tiles[] omitted them)
+      try {
+        if (Array.isArray(prefab.doors)) {
+          for (const d of prefab.doors) {
+            if (d && typeof d.x === "number" && typeof d.y === "number") {
+              const dx = x0 + (d.x | 0), dy = y0 + (d.y | 0);
+              if (inBounds(ctx, dx, dy)) ctx.map[dy][dx] = ctx.TILES.DOOR;
+            }
+          }
+        }
+      } catch (_) {}
       // Props
       try {
         if (Array.isArray(prefab.props)) {
@@ -759,8 +770,7 @@
             const oy = Math.floor((bh - pref.size.h) / 2);
             if (stampPrefab(ctx, pref, bx + ox, by + oy)) {
               usedPrefabInn = true;
-              // Record this building rect more tightly around the prefab footprint
-              buildings.push({ x: bx + ox, y: by + oy, w: pref.size.w, h: pref.size.h });
+              // stampPrefab already pushed the building rect; avoid duplicate entries
             }
           }
           bw = Math.max(10, bw - 2);
@@ -1455,7 +1465,7 @@
     addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
     addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
 
-    // Repair pass: enforce solid building perimeters (no FLOOR left on borders)
+    // Repair pass: enforce solid building perimeters (convert any non-door/window on borders to WALL)
     (function repairBuildingPerimeters() {
       try {
         for (const b of buildings) {
@@ -1464,22 +1474,22 @@
           for (let xx = x0; xx <= x1; xx++) {
             if (inBounds(ctx, xx, y0)) {
               const t = ctx.map[y0][xx];
-              if (t === ctx.TILES.FLOOR) ctx.map[y0][xx] = ctx.TILES.WALL;
+              if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[y0][xx] = ctx.TILES.WALL;
             }
             if (inBounds(ctx, xx, y1)) {
               const t = ctx.map[y1][xx];
-              if (t === ctx.TILES.FLOOR) ctx.map[y1][xx] = ctx.TILES.WALL;
+              if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[y1][xx] = ctx.TILES.WALL;
             }
           }
           // Left and right edges
           for (let yy = y0; yy <= y1; yy++) {
             if (inBounds(ctx, x0, yy)) {
               const t = ctx.map[yy][x0];
-              if (t === ctx.TILES.FLOOR) ctx.map[yy][x0] = ctx.TILES.WALL;
+              if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[yy][x0] = ctx.TILES.WALL;
             }
             if (inBounds(ctx, x1, yy)) {
               const t = ctx.map[yy][x1];
-              if (t === ctx.TILES.FLOOR) ctx.map[yy][x1] = ctx.TILES.WALL;
+              if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[yy][x1] = ctx.TILES.WALL;
             }
           }
         }
