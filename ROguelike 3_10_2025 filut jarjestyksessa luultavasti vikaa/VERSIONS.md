@@ -1,5 +1,17 @@
 # Game Version History
-Last updated: 2025-10-25 02:05 UTC
+Last updated: 2025-10-25 02:26 UTC
+
+v1.41.6 — Phase B: RNG cleanup (Region + utils) and StateSync in Actions
+- RNG determinism
+  - core/encounter_runtime.js (enterRegion): replaced fallback group-size rolls that used ctx.rng()/Math.random with the seeded r() from RNGUtils.getRng, ensuring deterministic counts.
+  - utils/number.js: randomInRange now prefers RNGUtils.getRng and window.RNG.rng/RNGFallback before Math.random, removing bare random usage in the default path.
+- Refresh orchestration
+  - core/actions.js:
+    - Inn upstairs toggle now refreshes via StateSync.applyAndRefresh (fallback to manual camera/FOV/UI/draw).
+    - Upstairs overlay prop interactions in loot() also refresh via StateSync when available.
+- Minor fix
+  - ai/ai.js: corrected bleed application guard to check typeof ST.applyBleedToPlayer === "function" (removed stray typeof ST.applyBleed check).
+- Deployment: https://5d39lrkbywmm.cosine.page
 
 v1.41.5 — Phase B: StateSync in TownRuntime and Modes syncAfterMutation
 - Town runtime refresh orchestration

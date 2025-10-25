@@ -434,7 +434,7 @@ export function enemiesAct(ctx) {
           const dur = 1 + Math.floor(rv() * 2);
           try { ST.applyDazedToPlayer(ctx, dur); } catch (_) {}
         }
-        if (isCrit && ST && typeof ST.applyBleed&& typeof ST.applyBleedToPlayer === "function") {
+        if (isCrit && ST && typeof ST.applyBleedToPlayer === "function") {
           try { ST.applyBleedToPlayer(ctx, 2); } catch (_) {}
         }
         if (ctx.Flavor && typeof ctx.Flavor.logHit === "function") {
