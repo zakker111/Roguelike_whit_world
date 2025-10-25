@@ -264,7 +264,15 @@ export function maybeTryEncounter(ctx) {
       STATE.movesSinceLast += 1;
     };
 
-    // Prompt the user
+    // Prompt the user (prefer UIOrchestration via Capabilities.safeCall)
+    try {
+      const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctx, "UIOrchestration", "showConfirm", ctx, text, null, () => enter(), () => cancel());
+        if (res && res.ok) return true;
+      }
+    } catch (_) {}
+    // Fallback: UIBridge
     const UI = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UI && typeof UI.showConfirm === "function") {
       UI.showConfirm(ctx, text, null, () => enter(), () => cancel());
