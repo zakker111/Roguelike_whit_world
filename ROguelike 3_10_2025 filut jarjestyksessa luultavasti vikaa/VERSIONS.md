@@ -1616,20 +1616,15 @@ Things to chek
 - in smoketest runner remove nudge for dungeon entry town entry dungeon exit and town exit make it exact in tiles nudge only in npc interaction or enemy interaction
 
 BUGS
-- chek there is not sleep walkers some npc have z top of them dont sure is thiss still existing
 - npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
 - some times in towns some extra signs and fire places inside walls
-- when inn god panel in routes it shows unendifid/17 it is not correct chek too that inn is used
-- inns dont have invidual rooms and not enought beds
-- some npc stay at their homes at day time 
 - some npc dont sleep in theid beds
-- residents go home at night but they get stuck in door if bed is just adjacent tile of door
 - some work needed for smoketestrunner
-- towns schedue bugs you can buy items even if shop is not open(this is tho good for now testing phase)
 - multirun in smoketest skips first multirun 
-- itseems eguibed items go to inventory when re going to dungeon/town
+- itseems eguibed items go to inventory when re going to dungeon/town <-very fy this
 - creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
-- key 'M' (Region Map) behaves weirdly — it should open/close the Region Map overlay on walkable overworld tiles; inspect Input.init gating and UIOrchestration hooks
+-creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
 - Vild seppo S does not have inventory in encounter
 - in dungeons when enemies fight each other they are logged(wich is good for now for debugging purpoces) but they give player xp when they kill each other
+- some bloodstanes seem to be generated fromruins/animal(creatures) in another regional map
 
