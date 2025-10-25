@@ -646,7 +646,9 @@
           }
         }
         if (!usedPrefab) {
-          placeBuilding(fx, fy, w, h);
+          // Strict prefabs: do not carve fallback rectangles
+          try { if (ctx && typeof ctx.log === "function") ctx.log(`Strict prefabs: no house prefab fit ${w}x${h} at ${fx},${fy}. Skipping fallback.`, "error"); } catch (_) {}
+          // Skip placing a building here
         }
       }
     }
@@ -796,66 +798,9 @@
       }
 
       if (!usedPrefabInn) {
-        // Fallback: Carve the Inn: wall perimeter and floor interior
-        for (let yy = innRect.y; yy < innRect.y + innRect.h; yy++) {
-          for (let xx = innRect.x; xx < innRect.x + innRect.w; xx++) {
-            if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
-            const isBorder = (yy === innRect.y || yy === innRect.y + innRect.h - 1 || xx === innRect.x || xx === innRect.x + innRect.w - 1);
-            ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
-          }
-        }
-
-        // Double doors centered on the side facing the plaza
-        function carveDoubleDoors(rect) {
-          if (rect.facing === "westFacing") {
-            const x = rect.x; // left wall faces west (toward plaza)
-            const cy = (rect.y + (rect.h / 2)) | 0;
-            ctx.map[cy][x] = ctx.TILES.DOOR;
-            ctx.map[cy + 1][x] = ctx.TILES.DOOR;
-          } else if (rect.facing === "eastFacing") {
-            const x = rect.x + rect.w - 1; // right wall faces east
-            const cy = (rect.y + (rect.h / 2)) | 0;
-            ctx.map[cy][x] = ctx.TILES.DOOR;
-            ctx.map[cy + 1][x] = ctx.TILES.DOOR;
-          } else if (rect.facing === "northFacing") {
-            const y = rect.y; // top wall faces north
-            const cx = (rect.x + (rect.w / 2)) | 0;
-            ctx.map[y][cx] = ctx.TILES.DOOR;
-            ctx.map[y][cx + 1] = ctx.TILES.DOOR;
-          } else {
-            const y = rect.y + rect.h - 1; // bottom wall faces south
-            const cx = (rect.x + (rect.w / 2)) | 0;
-            ctx.map[y][cx] = ctx.TILES.DOOR;
-            ctx.map[y][cx + 1] = ctx.TILES.DOOR;
-          }
-        }
-        carveDoubleDoors(innRect);
-
-        // Additional opposite-side double doors to provide a rear entrance
-        function carveOppositeDoor(rect) {
-          if (rect.facing === "westFacing") {
-            const x = rect.x + rect.w - 1;
-            const cy = (rect.y + (rect.h / 2)) | 0;
-            ctx.map[cy][x] = ctx.TILES.DOOR;
-            if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
-          } else if (rect.facing === "eastFacing") {
-            const x = rect.x;
-            const cy = (rect.y + (rect.h / 2)) | 0;
-            ctx.map[cy][x] = ctx.TILES.DOOR;
-            if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
-          } else if (rect.facing === "northFacing") {
-            const y = rect.y + rect.h - 1;
-            const cx = (rect.x + (rect.w / 2)) | 0;
-            ctx.map[y][cx] = ctx.TILES.DOOR;
-            if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
-          } else {
-            const y = rect.y;
-            const cx = (rect.x + (rect.w / 2)) | 0;
-            ctx.map[y][cx] = ctx.TILES.DOOR;
-            if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
-          }
-        }
-        carveOppositeDoor(innRect);
+        // Strict prefabs: do not carve fallback Inn; report error and skip
+        try { if (ctx && typeof ctx.log === "function") ctx.log("Strict prefabs: failed to stamp Inn prefab near plaza. Skipping fallback Inn.", "error"); } catch (_) {}
+        return; // abort inn placement in strict mode
       }
 
       // Choose an existing building to replace/represent the inn, prefer the one closest to rect center
@@ -917,9 +862,24 @@
           if (bx >= q.x1 - 1 || by >= q.y1 - 1) return false;
           if (overlapsPlazaRect(bx, by, bw, bh, 1)) return false;
           if (!isAreaClearForBuilding(bx, by, bw, bh, 1)) return false;
-          placeBuilding(bx, by, bw, bh);
-          added++;
-          return true;
+          // Strict prefabs: attempt to stamp a house prefab; skip fallback rectangles
+          const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+          if (PFB && Array.isArray(PFB.houses) && PFB.houses.length) {
+            const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= bw && p.size.h <= bh);
+            if (candidates.length) {
+              const pref = pickPrefab(candidates, ctx.rng || rng);
+              if (pref && pref.size) {
+                const ox = Math.floor((bw - pref.size.w) / 2);
+                const oy = Math.floor((bh - pref.size.h) / 2);
+                if (stampPrefab(ctx, pref, bx + ox, by + oy)) {
+                  added++;
+                  return true;
+                }
+              }
+            }
+          }
+          try { if (ctx && typeof ctx.log === "function") ctx.log(`Strict prefabs: failed to place extra house prefab in quad (${q.x0},${q.y0})-(${q.x1},${q.y1}); skipping fallback.`, "error"); } catch (_) {}
+          return false;
         }
         for (const q of quads) {
           if (buildings.length + added >= minBySize) break;
@@ -1228,82 +1188,11 @@
       try { addShopSign(b, { x: door.x, y: door.y }, name); } catch (_) {}
     }
 
-    // Ensure there is always one Inn in town (fallback if not added above)
+    // Strict prefabs: report when no Inn prefab was placed; skip fallback creation
     try {
       const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (s.type === "inn") || (/inn/i.test(String(s.name || ""))));
       if (!hasInn) {
-        // Pick an unused building near the plaza that does NOT overlap the plaza footprint
-        let bInn = null;
-        for (const s of scored) {
-          const key = `${s.b.x},${s.b.y}`;
-          if (usedBuildings.has(key)) continue;
-          if (overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 1)) continue;
-          bInn = s.b;
-          break;
-        }
-        if (!bInn) {
-          // Fallback: first building that doesn't overlap (with 1-tile buffer), even if already used (will be re-used as inn)
-          for (const s of scored) {
-            if (!overlapsPlazaRect(s.b.x, s.b.y, s.b.w, s.b.h, 1)) { bInn = s.b; break; }
-          }
-        }
-        if (!bInn) bInn = scored.length ? scored[0].b : null;
-        if (bInn) {
-          // Prefer existing door closest to plaza; else carve one
-          const cds = candidateDoors(bInn);
-          let best = null, bestD = Infinity;
-          for (const d of cds) {
-            if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
-              const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
-              if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
-            }
-          }
-          const doorInn = best || ensureDoor(bInn);
-          // Ensure double doors for inn: add adjacent door tile along the wall orientation if missing
-          (function ensureDoubleInnDoors() {
-            const x = doorInn.x, y = doorInn.y;
-            const leftEdge = (x === bInn.x);
-            const rightEdge = (x === bInn.x + bInn.w - 1);
-            const topEdge = (y === bInn.y);
-            const bottomEdge = (y === bInn.y + bInn.h - 1);
-            if (topEdge || bottomEdge) {
-              const x2 = Math.min(bInn.x + bInn.w - 1, x + 1);
-              if (inBounds(ctx, x2, y) && ctx.map[y][x2] === ctx.TILES.WALL) ctx.map[y][x2] = ctx.TILES.DOOR;
-            } else if (leftEdge || rightEdge) {
-              const y2 = Math.min(bInn.y + bInn.h - 1, y + 1);
-              if (inBounds(ctx, x, y2) && ctx.map[y2][x] === ctx.TILES.WALL) ctx.map[y2][x] = ctx.TILES.DOOR;
-            }
-          })();
-
-          const nameInn = "Inn";
-          const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
-          let insideInn = null;
-          for (const dxy of inward) {
-            const ix = doorInn.x + dxy.dx, iy = doorInn.y + dxy.dy;
-            const insideB = (ix > bInn.x && ix < bInn.x + bInn.w - 1 && iy > bInn.y && iy < bInn.y + bInn.h - 1);
-            if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { insideInn = { x: ix, y: iy }; break; }
-          }
-          if (!insideInn) {
-            const cx = Math.max(bInn.x + 1, Math.min(bInn.x + bInn.w - 2, Math.floor(bInn.x + bInn.w / 2)));
-            const cy = Math.max(bInn.y + 1, Math.min(bInn.y + bInn.h - 2, Math.floor(bInn.y + bInn.h / 2)));
-            insideInn = { x: cx, y: cy };
-          }
-
-          ctx.shops.push({
-            x: doorInn.x,
-            y: doorInn.y,
-            type: "inn",
-            name: nameInn,
-            openMin: 0,
-            closeMin: 0,
-            alwaysOpen: true,
-            building: { x: bInn.x, y: bInn.y, w: bInn.w, h: bInn.h, door: { x: doorInn.x, y: doorInn.y } },
-            inside: insideInn
-          });
-          try { addShopSign(bInn, doorInn, nameInn); } catch (_) {}
-          usedBuildings.add(`${bInn.x},${bInn.y}`);
-          try { ctx.tavern = { building: { x: bInn.x, y: bInn.y, w: bInn.w, h: bInn.h }, door: { x: doorInn.x, y: doorInn.y } }; } catch (_) {}
-        }
+        try { if (ctx && typeof ctx.log === "function") ctx.log("Strict prefabs: no Inn prefab present; skipping fallback Inn assignment.", "error"); } catch (_) {}
       }
     } catch (_) {}
 
