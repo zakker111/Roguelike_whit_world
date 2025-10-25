@@ -34,10 +34,6 @@ export function tileTransparent(ctx, x, y) {
   // - Else, only walls block LOS
   try {
     const mode = String(ctx.mode || "").toLowerCase();
-    if (mode === "world" || mode === "region") return trued" && window.Fallback && typeof window.Fallback.log === "function") {
-      window.Fallback.log("los", "Using default transparency rules (tiles.json blocksFOV unavailable).", { mode });
-      _loggedLOSFallback = true;
-    }
     if (mode === "world" || mode === "region") return true;
   } catch (_) {}
   return ctx.map[y][x] !== ctx.TILES.WALL;
