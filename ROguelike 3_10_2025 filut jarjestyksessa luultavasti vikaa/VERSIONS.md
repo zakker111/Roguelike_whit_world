@@ -1,5 +1,17 @@
 # Game Version History
-Last updated: 2025-10-25 03:52 UTC
+Last updated: 2025-10-25 04:20 UTC
+
+v1.41.11 — Phase B: Fallbacks reduction (confirm UI, loot UI) and StateSync in TownState
+- Remove browser confirm fallback
+  - services/encounter_service.js:
+    - Dropped window.confirm fallback; prompts now require UIOrchestration.showConfirm (via Capabilities.safeCall) or UIBridge.showConfirm. If neither is present, encounter prompt cancels and logs once.
+- Remove direct DOM loot panel fallback
+  - entities/loot.js:
+    - showLoot/hideLoot now route only via UIBridge/UIOrchestration; DOM element fallbacks removed. If unavailable, logs the loot list and returns.
+- StateSync refresh adoption
+  - core/town_state.js:
+    - applyState() visual refresh now uses StateSync.applyAndRefresh when available, falling back to camera/FOV/UI/draw.
+- Deployment: https://91m832vyze3x.cosine.page
 
 v1.41.10 — Phase B: RNG unification (TownGen/TownAI/Decals) and StateSync refresh adoption
 - RNG determinism

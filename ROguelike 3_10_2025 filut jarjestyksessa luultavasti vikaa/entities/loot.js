@@ -295,41 +295,44 @@ export function generate(ctx, source) {
  * Uses UI.showLoot when present, otherwise writes directly to the fallback DOM panel.
  */
 function showLoot(ctx, list) {
-  // Prefer UIBridge when available; else DOM fallback
+  // Require bridge/UI orchestration; no DOM fallback
   try {
-    const UB = (ctx && ctx.UIBridge) || null;
+    const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UB && typeof UB.showLoot === "function") {
       UB.showLoot(ctx, list || []);
       return;
     }
   } catch (_) {}
-  const panel = document.getElementById("loot-panel");
-  const ul = document.getElementById("loot-list");
-  if (!panel || !ul) return;
-  ul.innerHTML = "";
-  (list || []).forEach(name => {
-    const li = document.createElement("li");
-    li.textContent = name;
-    ul.appendChild(li);
-  });
-  panel.hidden = false;
+  try {
+    const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.showLoot === "function") {
+      UIO.showLoot(ctx, list || []);
+      return;
+    }
+  } catch (_) {}
+  // If loot UI is unavailable, log and return
+  try { ctx.log && ctx.log(`Loot: ${Array.isArray(list) ? list.join(", ") : ""}`, "info"); } catch (_) {}
 }
 
 /**
  * Hide the loot panel. Uses UI.hideLoot when present or a simple DOM toggle otherwise.
  */
 function hideLoot(ctx) {
-  // Prefer UIBridge when available; else DOM fallback
+  // Require bridge/UI orchestration; no DOM fallback
   try {
-    const UB = (ctx && ctx.UIBridge) || null;
+    const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UB && typeof UB.hideLoot === "function") {
       UB.hideLoot(ctx);
       return;
     }
   } catch (_) {}
-  const panel = document.getElementById("loot-panel");
-  if (!panel) return;
-  panel.hidden = true;
+  try {
+    const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.hideLoot === "function") {
+      UIO.hideLoot(ctx);
+      return;
+    }
+  } catch (_) {}
 }
 
 /**

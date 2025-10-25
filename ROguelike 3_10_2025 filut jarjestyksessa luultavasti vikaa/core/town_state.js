@@ -214,10 +214,18 @@ function applyState(ctx, st, x, y) {
     if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
 
-  // Visual refresh
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  // Visual refresh via StateSync when available
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      if (typeof ctx.updateCamera === "function") ctx.updateCamera();
+      if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
+      if (typeof ctx.updateUI === "function") ctx.updateUI();
+      if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+    }
+  } catch (_) {}
   try {
     const name = ctx.townName ? `the town of ${ctx.townName}` : "the town";
     ctx.log && ctx.log(`You re-enter ${name}.`, "notice");
