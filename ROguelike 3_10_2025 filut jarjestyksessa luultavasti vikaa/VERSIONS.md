@@ -1,6 +1,13 @@
 # Game Version History
 Last updated: 2025-10-25 00:05 UTC
 
+v1.41.1 — Phase B continuation: RNG cleanup and Region Map determinism
+- RNG determinism
+  - core/encounter_runtime.js (enterRegion): replaced fallback Math.random calls in group count rolls with the seeded r() function derived from RNGUtils.getRng.
+  - region_map/region_map_runtime.js: block-chance fallback in onAction attack now uses a seeded rfn via RNGUtils.getRng (or window.RNG / RNGFallback), avoiding direct Math.random.
+  - region_map/region_map_runtime.js: ensured RU (RNGUtils handle) is defined within open() to support ruins decoration and neutral animal spawns using RU.chance when available.
+- Deployment: (see latest) — will be updated after next deploy
+
 v1.41.0 — Phase B kickoff: RNG determinism, StateSync refresh, Capabilities sweep, Region Map UX, and tooling
 - Determinism and RNG
   - Unify random rolls through RNGUtils/RNG (ctx-first), removing Math.random uses for encounter group counts and block checks.

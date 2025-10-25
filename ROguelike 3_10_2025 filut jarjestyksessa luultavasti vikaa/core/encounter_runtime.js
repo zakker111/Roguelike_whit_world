@@ -470,7 +470,7 @@ export function enter(ctx, info) {
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
     const n = (RU && typeof RU.int === "function")
       ? RU.int(min, max, ctx.rng)
-      : Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+      : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
     return acc + n;
   }, 0);
 
@@ -537,7 +537,7 @@ export function enter(ctx, info) {
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
     let n = (RU && typeof RU.int === "function")
       ? RU.int(min, max, ctx.rng)
-      : Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+      : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
     // Difficulty raises group size modestly
     n = Math.max(min, Math.min(placements.length - pIdx, n + Math.max(0, ctx.encounterDifficulty - 1)));
     for (let i = 0; i < n && pIdx < placements.length; i++) {

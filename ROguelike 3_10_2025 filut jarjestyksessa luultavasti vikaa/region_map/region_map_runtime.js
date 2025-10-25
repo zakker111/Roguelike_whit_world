@@ -1262,9 +1262,14 @@ function tryMove(ctx, dx, dy) {
             return window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
           }
         } catch (_) {}
-        const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-        return r < blockChance;
-      })();
+        const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+        const rfn = (RU && typeof RU.getRng === "function")
+          ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+          : ((typeof ctx.rng === "function")
+              ? ctx.rng
+              : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+                  ? window.RNG.rng
+                  : ((typeof window !== "undefined"();
       if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
