@@ -57,10 +57,13 @@ export function install(getCtx) {
       } catch (_) {}
     },
     onGodToggleGrid: (_v) => {
-      // UI updates window.DRAW_GRID and triggers redraw; we just ensure a draw for legacy renders if needed.
+      // UI updates window.DRAW_GRID and triggers redraw; ensure a draw via UIOrchestration when available.
       try {
         const c = getCtx();
-        if (typeof c.requestDraw === "function") c.requestDraw();
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(c);
+        }
       } catch (_) {}
     },
     // Always Crit toggles
@@ -281,8 +284,10 @@ export function install(getCtx) {
           }
         } catch (_) {}
         extraLines.forEach(line => getCtx().log(line, "info"));
-        getCtx().requestDraw && getCtx().requestDraw();
-      } else {
+        try {
+          const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.requestDraw === "function") {
+                 } else {
         getCtx().log("TownAI.checkHomeRoutes not available.", "warn");
       }
     },
@@ -338,7 +343,12 @@ export function install(getCtx) {
       } catch (_) {}
 
       lines.forEach(l => c.log(l, "info"));
-      c.requestDraw && c.requestDraw();
+      try {
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(c);
+        }
+      } catch (_) {}
     },
     // Diagnostics
     onGodDiagnostics: () => {
@@ -376,7 +386,12 @@ export function install(getCtx) {
         const perf = c.getPerfStats ? c.getPerfStats() : {};
         c.log(`- PERF last turn: ${Number(perf.lastTurnMs || 0).toFixed(2)}ms, last draw: ${Number(perf.lastDrawMs || 0).toFixed(2)}ms`, "info");
       } catch (_) {}
-      c.requestDraw && c.requestDraw();
+      try {
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(c);
+        }
+      } catch (_) {}
     },
     // Legacy smoke test button (UI now opens Smoke panel; keep for back-compat if wired)
     onGodRunSmokeTest: () => {

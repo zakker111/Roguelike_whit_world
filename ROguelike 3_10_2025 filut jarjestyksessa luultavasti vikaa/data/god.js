@@ -29,8 +29,12 @@ export function spawnStairsHere(ctx) {
   ctx.seen[y][x] = true;
   ctx.visible[y][x] = true;
   ctx.log("GOD: Stairs appear beneath your feet.", "notice");
-  // Visual change (tile underfoot) will be drawn on next scheduled frame; defer draw to engine coalescer
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
 }
 
 export function spawnItems(ctx, count = 3) {
@@ -227,9 +231,14 @@ export function spawnEnemyNearby(ctx, count = 1) {
     ctx.log(`GOD: Spawned ${cap(ee.type || "enemy")} Lv ${ee.level || 1} at (${ee.x},${ee.y}).`, "notice");
   }
 
-  if (spawned.length) ctx.requestDraw();
-  else ctx.log("GOD: No free space to spawn an enemy nearby.", "warn");
-}
+  if (spawned.length) {
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
+  } else ctx.log("GOD: No free space to spawn an}
 
 export function setAlwaysCrit(ctx, enabled) {
   ctx.alwaysCrit = !!enabled;

@@ -410,11 +410,14 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
         try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
         // small hold before fade back up
         setTimeout(() => {
-          el.style.opacity = "0";
-          setTimeout(() => {
-            el.style.display = "none";
-            try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
-          }, 260);
+          el.style.display = "none";
+          try {
+            const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+            if (UIO && typeof UIO.requestDraw === "function") {
+              UIO.requestDraw(ctx);
+            }
+          } catch (_) {}
+        }, 260);
         }, 140);
       }, 320);
     });

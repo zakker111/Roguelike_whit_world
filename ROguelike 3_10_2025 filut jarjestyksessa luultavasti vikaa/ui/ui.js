@@ -1409,8 +1409,11 @@ export const UI = {
     } catch (_) {}
     this.updatePerfButton();
     try {
-      if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
-        window.GameAPI.requestDraw();
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
       }
     } catch (_) {}
   },
@@ -1441,8 +1444,11 @@ export const UI = {
     } catch (_) {}
     this.updateMinimapButton();
     try {
-      if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
-        window.GameAPI.requestDraw();
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
       }
     } catch (_) {}
   },

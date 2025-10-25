@@ -701,7 +701,15 @@ export function create(ctx) {
           made++;
           try { ctx.log && ctx.log(`GOD: Spawned chest at (${spot.x},${spot.y}).`, "notice"); } catch (_) {}
         }
-        if (made > 0) { ctx.requestDraw(); return true; }
+        if (made > 0) {
+          try {
+            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(ctx, {});
+            }
+          } catch (_) {}
+          return true;
+        }
         return false;
       } catch (_) { return false; }
     },
