@@ -382,8 +382,61 @@
     for (let y = 6; y < H - 6; y += Math.max(2, roadYStride)) for (let x = 1; x < W - 1; x++) ctx.map[y][x] = ctx.TILES.FLOOR;
     for (let x = 6; x < W - 6; x += Math.max(2, roadXStride)) for (let y = 1; y < H - 1; y++) ctx.map[y][x] = ctx.TILES.FLOOR;
 
-    // Buildings (simplified: hollow rectangles aligned to blocks)
+    // Buildings container (either prefab-placed or hollow rectangles as fallback)
     const buildings = [];
+
+    // --- Prefab helpers ---
+    function stampPrefab(ctx, prefab, bx, by) {
+      if (!prefab || !prefab.size || !Array.isArray(prefab.tiles)) return false;
+      const w = prefab.size.w | 0, h = prefab.size.h | 0;
+      // Bounds and clear margin check
+      const x0 = bx, y0 = by, x1 = bx + w - 1, y1 = by + h - 1;
+      if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
+      for (let yy = y0; yy <= y1; yy++) {
+        for (let xx = x0; xx <= x1; xx++) {
+          if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
+        }
+      }
+      // Stamp tiles
+      for (let yy = 0; yy < h; yy++) {
+        const row = prefab.tiles[yy];
+        if (!row || row.length !== w) return false;
+        for (let xx = 0; xx < w; xx++) {
+          const code = row[xx];
+          let t = ctx.TILES.FLOOR;
+          if (code === "WALL") t = ctx.TILES.WALL;
+          else if (code === "FLOOR") t = ctx.TILES.FLOOR;
+          else if (code === "DOOR") t = ctx.TILES.DOOR;
+          else if (code === "WINDOW") t = ctx.TILES.WINDOW;
+          else if (code === "STAIRS") t = ctx.TILES.STAIRS;
+          // Unknown codes default to FLOOR
+          ctx.map[y0 + yy][x0 + xx] = t;
+        }
+      }
+      // Props
+      try {
+        if (Array.isArray(prefab.props)) {
+          for (const p of prefab.props) {
+            const px = x0 + (p.x | 0), py = y0 + (p.y | 0);
+            if (px > 0 && py > 0 && px < W - 1 && py < H - 1 && ctx.map[py][px] === ctx.TILES.FLOOR) {
+              if (!ctx.townProps.some(q => q.x === px && q.y === py)) {
+                ctx.townProps.push({ x: px, y: py, type: p.type || "prop", name: p.name || undefined, vendor: p.vendor || undefined });
+              }
+            }
+          }
+        }
+      } catch (_) {}
+      buildings.push({ x: x0, y: y0, w, h });
+      return true;
+    }
+
+    function pickPrefab(list, rng) {
+      if (!Array.isArray(list) || list.length === 0) return null;
+      const idx = Math.floor(rng() * list.length) % list.length;
+      return list[idx];
+    }
+
+    // --- Hollow rectangle fallback helpers ---
     const placeBuilding = (bx, by, bw, bh) => {
       for (let yy = by; yy < by + bh; yy++) {
         for (let xx = bx; xx < bx + bw; xx++) {
@@ -498,10 +551,15 @@
         if (overlapsPlazaRect(fx, fy, w, h, 1)) continue;
         // Enforce at least one tile of floor margin between buildings
         if (!isAreaClearForBuilding(fx, fy, w, h, 1)) continue;
-        placeBuilding(fx, fy, w, h);
-      }
-    }
 
+        const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+        let usedPrefab = false;
+        if (PFB && Array.isArray(PFB.houses) && PFB.houses.length) {
+          // Pick a house prefab that fits in (w,h)
+          const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= w && p.size.h <= h);
+          if (candidates.length) {
+            const pref = pickPrefab(candidates, ctx.rng || rng);
+            const ox = Math.floor((w - pref.size.w) / 2
     // Doors and shops near plaza (compact): just mark doors and create shop entries
     function candidateDoors(b) {
       return [
@@ -625,66 +683,90 @@
 
       const innRect = placeInnRect();
 
-      // Carve the Inn: wall perimeter and floor interior
-      for (let yy = innRect.y; yy < innRect.y + innRect.h; yy++) {
-        for (let xx = innRect.x; xx < innRect.x + innRect.w; xx++) {
-          if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
-          const isBorder = (yy === innRect.y || yy === innRect.y + innRect.h - 1 || xx === innRect.x || xx === innRect.x + innRect.w - 1);
-          ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
+      // Prefer prefab-based Inn stamping when available
+      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      let usedPrefabInn = false;
+      if (PFB && Array.isArray(PFB.inns) && PFB.inns.length) {
+        const pref = pickPrefab(PFB.inns, ctx.rng || rng);
+        // Try stamping centered in innRect; if it doesn't fit, shrink rect and retry a couple of times
+        let bx = innRect.x, by = innRect.y, bw = innRect.w, bh = innRect.h;
+        for (let attempts = 0; attempts < 3 && !usedPrefabInn; attempts++) {
+          if (pref && pref.size && pref.size.w <= bw && pref.size.h <= bh) {
+            const ox = Math.floor((bw - pref.size.w) / 2);
+            const oy = Math.floor((bh - pref.size.h) / 2);
+            if (stampPrefab(ctx, pref, bx + ox, by + oy)) {
+              usedPrefabInn = true;
+              // Record this building rect more tightly around the prefab footprint
+              buildings.push({ x: bx + ox, y: by + oy, w: pref.size.w, h: pref.size.h });
+            }
+          }
+          bw = Math.max(10, bw - 2);
+          bh = Math.max(8, bh - 2);
         }
       }
 
-      // Double doors centered on the side facing the plaza
-      function carveDoubleDoors(rect) {
-        if (rect.facing === "westFacing") {
-          const x = rect.x; // left wall faces west (toward plaza)
-          const cy = (rect.y + (rect.h / 2)) | 0;
-          ctx.map[cy][x] = ctx.TILES.DOOR;
-          ctx.map[cy + 1][x] = ctx.TILES.DOOR;
-        } else if (rect.facing === "eastFacing") {
-          const x = rect.x + rect.w - 1; // right wall faces east
-          const cy = (rect.y + (rect.h / 2)) | 0;
-          ctx.map[cy][x] = ctx.TILES.DOOR;
-          ctx.map[cy + 1][x] = ctx.TILES.DOOR;
-        } else if (rect.facing === "northFacing") {
-          const y = rect.y; // top wall faces north
-          const cx = (rect.x + (rect.w / 2)) | 0;
-          ctx.map[y][cx] = ctx.TILES.DOOR;
-          ctx.map[y][cx + 1] = ctx.TILES.DOOR;
-        } else {
-          const y = rect.y + rect.h - 1; // bottom wall faces south
-          const cx = (rect.x + (rect.w / 2)) | 0;
-          ctx.map[y][cx] = ctx.TILES.DOOR;
-          ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+      if (!usedPrefabInn) {
+        // Fallback: Carve the Inn: wall perimeter and floor interior
+        for (let yy = innRect.y; yy < innRect.y + innRect.h; yy++) {
+          for (let xx = innRect.x; xx < innRect.x + innRect.w; xx++) {
+            if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
+            const isBorder = (yy === innRect.y || yy === innRect.y + innRect.h - 1 || xx === innRect.x || xx === innRect.x + innRect.w - 1);
+            ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
+          }
         }
-      }
-      carveDoubleDoors(innRect);
 
-      // Additional opposite-side double doors to provide a rear entrance
-      function carveOppositeDoor(rect) {
-        if (rect.facing === "westFacing") {
-          const x = rect.x + rect.w - 1;
-          const cy = (rect.y + (rect.h / 2)) | 0;
-          ctx.map[cy][x] = ctx.TILES.DOOR;
-          if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
-        } else if (rect.facing === "eastFacing") {
-          const x = rect.x;
-          const cy = (rect.y + (rect.h / 2)) | 0;
-          ctx.map[cy][x] = ctx.TILES.DOOR;
-          if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
-        } else if (rect.facing === "northFacing") {
-          const y = rect.y + rect.h - 1;
-          const cx = (rect.x + (rect.w / 2)) | 0;
-          ctx.map[y][cx] = ctx.TILES.DOOR;
-          if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
-        } else {
-          const y = rect.y;
-          const cx = (rect.x + (rect.w / 2)) | 0;
-          ctx.map[y][cx] = ctx.TILES.DOOR;
-          if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+        // Double doors centered on the side facing the plaza
+        function carveDoubleDoors(rect) {
+          if (rect.facing === "westFacing") {
+            const x = rect.x; // left wall faces west (toward plaza)
+            const cy = (rect.y + (rect.h / 2)) | 0;
+            ctx.map[cy][x] = ctx.TILES.DOOR;
+            ctx.map[cy + 1][x] = ctx.TILES.DOOR;
+          } else if (rect.facing === "eastFacing") {
+            const x = rect.x + rect.w - 1; // right wall faces east
+            const cy = (rect.y + (rect.h / 2)) | 0;
+            ctx.map[cy][x] = ctx.TILES.DOOR;
+            ctx.map[cy + 1][x] = ctx.TILES.DOOR;
+          } else if (rect.facing === "northFacing") {
+            const y = rect.y; // top wall faces north
+            const cx = (rect.x + (rect.w / 2)) | 0;
+            ctx.map[y][cx] = ctx.TILES.DOOR;
+            ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+          } else {
+            const y = rect.y + rect.h - 1; // bottom wall faces south
+            const cx = (rect.x + (rect.w / 2)) | 0;
+            ctx.map[y][cx] = ctx.TILES.DOOR;
+            ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+          }
         }
+        carveDoubleDoors(innRect);
+
+        // Additional opposite-side double doors to provide a rear entrance
+        function carveOppositeDoor(rect) {
+          if (rect.facing === "westFacing") {
+            const x = rect.x + rect.w - 1;
+            const cy = (rect.y + (rect.h / 2)) | 0;
+            ctx.map[cy][x] = ctx.TILES.DOOR;
+            if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
+          } else if (rect.facing === "eastFacing") {
+            const x = rect.x;
+            const cy = (rect.y + (rect.h / 2)) | 0;
+            ctx.map[cy][x] = ctx.TILES.DOOR;
+            if (cy + 1 <= rect.y + rect.h - 1) ctx.map[cy + 1][x] = ctx.TILES.DOOR;
+          } else if (rect.facing === "northFacing") {
+            const y = rect.y + rect.h - 1;
+            const cx = (rect.x + (rect.w / 2)) | 0;
+            ctx.map[y][cx] = ctx.TILES.DOOR;
+            if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+          } else {
+            const y = rect.y;
+            const cx = (rect.x + (rect.w / 2)) | 0;
+            ctx.map[y][cx] = ctx.TILES.DOOR;
+            if (cx + 1 <= rect.x + rect.w - 1) ctx.map[y][cx + 1] = ctx.TILES.DOOR;
+          }
+        }
+        carveOppositeDoor(innRect);
       }
-      carveOppositeDoor(innRect);
 
       // Choose an existing building to replace/represent the inn, prefer the one closest to rect center
       let targetIdx = -1, bestD = Infinity;

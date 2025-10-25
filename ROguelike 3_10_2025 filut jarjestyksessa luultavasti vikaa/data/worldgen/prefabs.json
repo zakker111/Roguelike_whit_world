@@ -1,0 +1,218 @@
+{
+  "houses": [
+    {
+      "id": "house_small_1",
+      "category": "house",
+      "tags": ["residential", "single_story"],
+      "size": { "w": 7, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "props": [
+        { "x": 2, "y": 1, "type": "bed" },
+        { "x": 4, "y": 3, "type": "table" }
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
+    },
+    {
+      "id": "house_small_2",
+      "category": "house",
+      "tags": ["residential", "single_story"],
+      "size": { "w": 6, "h": 5 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","WINDOW","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 3, "orientation": "S", "type": "single", "role": "main" }],
+      "props": [{ "x": 2, "y": 2, "type": "bed" }],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
+    },
+    {
+      "id": "house_medium_1",
+      "category": "house",
+      "tags": ["residential"],
+      "size": { "w": 9, "h": 7 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "props": [
+        { "x": 2, "y": 1, "type": "bed" },
+        { "x": 6, "y": 1, "type": "bed" },
+        { "x": 4, "y": 3, "type": "table" }
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
+    }
+  ],
+  "shops": [
+    {
+      "id": "shop_blacksmith_1",
+      "category": "shop",
+      "tags": ["shop","blacksmith"],
+      "size": { "w": 8, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "props": [
+        { "x": 2, "y": 2, "type": "counter", "vendor": "blacksmith" },
+        { "x": 5, "y": 2, "type": "shelf" }
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    },
+    {
+      "id": "shop_apothecary_1",
+      "category": "shop",
+      "tags": ["shop","apothecary"],
+      "size": { "w": 8, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "props": [
+        { "x": 2, "y": 2, "type": "counter", "vendor": "apothecary" },
+        { "x": 5, "y": 2, "type": "shelf" }
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    },
+    {
+      "id": "shop_trader_1",
+      "category": "shop",
+      "tags": ["shop","trader"],
+      "size": { "w": 8, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "props": [
+        { "x": 2, "y": 2, "type": "counter", "vendor": "trader" },
+        { "x": 5, "y": 2, "type": "shelf" }
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    }
+  ],
+  "inns": [
+    {
+      "id": "inn_tavern_1",
+      "category": "inn",
+      "tags": ["two_story","tavern"],
+      "size": { "w": 11, "h": 9 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [
+        { "x": 3, "y": 7, "orientation": "S", "type": "double", "role": "main" }
+      ],
+      "props": [
+        { "x": 2, "y": 2, "type": "counter", "vendor": "inn" },
+        { "x": 6, "y": 3, "type": "table" }
+      ],
+      "upstairsOverlay": {
+        "offset": { "ox": 1, "oy": 1 },
+        "w": 9,
+        "h": 7,
+        "tiles": [
+          ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+          ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+          ["WALL","FLOOR","BED","FLOOR","FLOOR","FLOOR","BED","FLOOR","WALL"],
+          ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","WALL"],
+          ["WALL","FLOOR","BED","FLOOR","FLOOR","FLOOR","BED","FLOOR","WALL"],
+          ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+          ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+        ],
+        "props": [
+          { "x": 2, "y": 2, "type": "bed" },
+          { "x": 6, "y": 2, "type": "bed" }
+        ]
+      },
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    },
+    {
+      "id": "inn_tavern_2",
+      "category": "inn",
+      "tags": ["two_story","tavern"],
+      "size": { "w": 13, "h": 9 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [
+        { "x": 3, "y": 7, "orientation": "S", "type": "double", "role": "main" }
+      ],
+      "props": [
+        { "x": 2, "y": 2, "type": "counter", "vendor": "inn" },
+        { "x": 8, "y": 3, "type": "table" }
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    },
+    {
+      "id": "inn_tavern_3",
+      "category": "inn",
+      "tags": ["two_story","tavern"],
+      "size": { "w": 10, "h": 8 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [
+        { "x": 3, "y": 6, "orientation": "S", "type": "double", "role": "main" }
+      ],
+      "props": [
+        { "x": 2, "y": 2, "type": "counter", "vendor": "inn" },
+        { "x": 6, "y": 3, "type": "table" }
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    }
+  ]
+}
