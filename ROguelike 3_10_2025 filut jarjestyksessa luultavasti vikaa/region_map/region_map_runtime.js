@@ -1269,7 +1269,9 @@ function tryMove(ctx, dx, dy) {
               ? ctx.rng
               : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
                   ? window.RNG.rng
-                  : ((typeof window !== "undefined"();
+                  : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                      ? window.RNGFallback.getRng()
+                      : Math.random)));
       if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
