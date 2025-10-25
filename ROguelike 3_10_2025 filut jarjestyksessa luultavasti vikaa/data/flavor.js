@@ -116,46 +116,29 @@ export function logDeath(ctx, opts) {
 
 export function logHit(ctx, opts) {
   if (!ctx || typeof ctx.log !== "function") return;
-  const loc = (opts && opts.loc) || {};
+  const attacker = (opts && opts.attacker) || {};
+  const loc = (opts && opts.loc) || { part: "torso" };
   const crit = !!(opts && opts.crit);
-  const P = pools(); if (!P) return;
 
-  // Resolve RNG function via RNGUtils if available
-  const rngFn = (function () {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-        return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
-      }
-    } catch (_) {}
-    return (typeof ctx.rng === "function") ? ctx.rng : null;
-  })();
+  // Use flavor.json death pools as general combat flavor source
+  const P = deathPools(); if (!P) return;
+  const cat = flavorCategory(ctx, attacker);
+  const part = String(loc.part || "torso");
+  const line = pickDeathLine(P, cat, part, crit);
+  if (!line) return;
 
-  if (crit && loc.part === "head") {
-    const line = pickFrom(P.headCrit, ctx);
-    const ok = (function () {
-      try {
-        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-          return window.RNGUtils.chance(0.6, rngFn);
-        }
-      } catch (_) {}
-      return typeof rngFn === "function" ? (rngFn() < 0.6) : false;
-    })();
-    if (line && ok) ctx.log(line, "flavor");
-    return;
-  }
-  if (loc.part === "torso") {
-    const line = pickFrom(P.torsoStingPlayer, ctx);
-    const ok = (function () {
-      try {
-        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-          return window.RNGUtils.chance(0.5, rngFn);
-        }
-      } catch (_) {}
-      return typeof rngFn === "function" ? (rngFn() < 0.5) : false;
-    })();
-    if (line && ok) ctx.log(line, "info");
-    return;
-  }
+  // Chance gating via RNGUtils when available
+  let ok = true;
+  try {
+    const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
+    if (RU && typeof RU.getRng === "function" && typeof RU.chance === "function") {
+      const rng = RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
+      ok = RU.chance(crit ? 0.6 : 0.4, rng);
+    }
+  } catch (_) {}
+  if (!ok) return;
+
+  ctx.log(line, crit ? "flavor" : "info");
 }
 
 export function logPlayerHit(ctx, opts) {
