@@ -825,8 +825,6 @@
       startRoomRect = ctx.startRoomRect;
       decals = [];
       _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
-      recomputeFOV();
-      updateCamera();
       if (inBounds(player.x, player.y) && !visible[player.y][player.x]) {
         try { log("FOV sanity check: player tile not visible after gen; recomputing.", "warn"); } catch (_) {}
         recomputeFOV();
