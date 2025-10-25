@@ -1568,21 +1568,34 @@
           const ctxMod = getCtx();
           if (Cap && typeof Cap.safeCall === "function") {
             const res = Cap.safeCall(ctxMod, "RegionMapRuntime", "open", ctxMod);
-            const ok = !!(res && res.ok && res.result);
-            if (ok) {
-              // Sync mutated ctx (mode -> "region") and refresh
-              applyCtxSyncAndRefresh(ctxMod);
-            } else {
-              log("Region map module not available.", "warn");
-            }
+          const ok = !!(res && res.ok && res.result);
+          if (ok) {
+            // Sync mutated ctx (mode -> "region") and refresh
+            applyCtxSyncAndRefresh(ctxMod);
           } else {
+            // Fallback to direct open to differentiate "module missing" vs "cannot open here"
             const RM = modHandle("RegionMapRuntime");
             if (RM && typeof RM.open === "function") {
-              const ok = !!RM.open(ctxMod);
-              if (ok) applyCtxSyncAndRefresh(ctxMod);
+              const ok2 = !!RM.open(ctxMod);
+              if (ok2) {
+                applyCtxSyncAndRefresh(ctxMod);
+              } else {
+                log("Region Map cannot be opened here.", "warn");
+              }
             } else {
               log("Region map module not available.", "warn");
             }
+          }
+        } else {
+          const RM = modHandle("RegionMapRuntime");
+          if (RM && typeof RM.open === "function") {
+            const ok = !!RM.open(ctxMod);
+            if (ok) applyCtxSyncAndRefresh(ctxMod);
+            else log("Region Map cannot be opened here.", "warn");
+          } else {
+            log("Region map module not available.", "warn");
+          }
+        }
           }
         }
       }

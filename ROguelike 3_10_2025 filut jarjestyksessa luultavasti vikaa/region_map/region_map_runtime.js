@@ -583,9 +583,14 @@ function open(ctx, size) {
   // Only allow from walkable, non-town, non-dungeon tiles
   const WT = World.TILES;
   const tile = ctx.world.map[worldY][worldX];
+  // Disallow from towns/dungeons; allow RUINS explicitly even if not walkable in overworld semantics
   if (tile === WT.TOWN || tile === WT.DUNGEON) return false;
-  const isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tile) : true;
-  if (!isWalkable) return false;
+  let isWalkable = true;
+  try {
+    isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tile) : true;
+  } catch (_) { isWalkable = true; }
+  const allowNonWalkableHere = (tile === WT.RUINS);
+  if (!isWalkable && !allowNonWalkableHere) return false;
 
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
