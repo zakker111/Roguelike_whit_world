@@ -253,7 +253,8 @@ export function enter(ctx, info) {
     return m;
   }
 
-  const r = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const r = (RU && typeof RU.getRng === "function") ? RU.getRng(ctx.rng) : ((typeof ctx.rng === "function") ? ctx.rng : Math.random);
   let genId = (template && template.map && template.map.generator) ? String(template.map.generator) : "";
   let map = null;
 
@@ -435,6 +436,7 @@ export function enter(ctx, info) {
         if (tx < 0) {
           // Search ring around player
           const maxR = Math.max(3, Math.min(10, ((ctx.fovRadius | 0) || 8)));
+          const px = (W / 2) | 0, py = (H / 2) | 0;
           outer:
           for (let r = 3; r <= maxR; r++) {
             for (let dx = -r; dx <= r; dx++) {
@@ -466,13 +468,16 @@ export function enter(ctx, info) {
   const totalWanted = groups.reduce((acc, g) => {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    const n = (RU && typeof RU.int === "function")
+      ? RU.int(min, max, ctx.rng)
+      : Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
     return acc + n;
   }, 0);
 
   const placements = [];
   function free(x, y) {
-    if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+    if (x <= 0 || y <= 0 || x >= W - 1) return false;
+    if (y >= H - 1) return false;
     if (x === ctx.player.x && y === ctx.player.y) return false;
     if (placements.some(p => p.x === x && p.y === y)) return false;
     if (chestSpots.has(keyFor(x, y))) return false;
@@ -530,7 +535,9 @@ export function enter(ctx, info) {
   for (const g of groups) {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    let n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    let n = (RU && typeof RU.int === "function")
+      ? RU.int(min, max, ctx.rng)
+      : Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
     // Difficulty raises group size modestly
     n = Math.max(min, Math.min(placements.length - pIdx, n + Math.max(0, ctx.encounterDifficulty - 1)));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
@@ -555,8 +562,7 @@ export function enter(ctx, info) {
     }
   }
 
-  // Recompute visibility, rebuild occupancy, and refresh via StateSync
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
+  // Rebuild occupancy and refresh via StateSync
   try {
     const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
     if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
@@ -643,7 +649,17 @@ export function tryMoveEncounter(ctx, dx, dy) {
   const blocked = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny);
   if (walkable && !blocked) {
     ctx.player.x = nx; ctx.player.y = ny;
-    try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        ctx.updateCamera && ctx.updateCamera();
+        ctx.recomputeFOV && ctx.recomputeFOV();
+        ctx.updateUI && ctx.updateUI();
+        ctx.requestDraw && ctx.requestDraw();
+      }
+    } catch (_) {}
     return true;
   }
   return false;
@@ -694,7 +710,9 @@ export function enterRegion(ctx, info) {
   const totalWanted = groups.reduce((acc, g) => {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    const n = (RU && typeof RU.int === "function")
+      ? RU.int(min, max, ctx.rng)
+      : Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
     return acc + n;
   }, 0);
 
@@ -750,7 +768,9 @@ export function enterRegion(ctx, info) {
   for (const g of groups) {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    let n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    let n = (RU && typeof RU.int === "function")
+      ? RU.int(min, max, ctx.rng)
+      : Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
     // Difficulty raises group size modestly
     n = Math.max(min, Math.min(placements.length - pIdx, n + Math.max(0, (ctx.encounterDifficulty || 1) - 1)));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
@@ -786,8 +806,15 @@ export function enterRegion(ctx, info) {
   if (!ctx.region) ctx.region = {};
   ctx.region._isEncounter = true;
 
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
   return true;
 }
 
@@ -812,6 +839,10 @@ export function complete(ctx, outcome = "victory") {
     }
   } catch (_) {}
   try {
+    if (outcome === "victory") ctx.log && ctx.log("You prevail and return to the overworld.", "good");
+    else ctx.log && ctx.log("You withdraw and return to the overworld.", "info");
+  } catch (_) {}
+  try {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
@@ -822,12 +853,6 @@ export function complete(ctx, outcome = "victory") {
       ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
-  try {
-    if (outcome === "victory") ctx.log && ctx.log("You prevail and return to the overworld.", "good");
-    else ctx.log && ctx.log("You withdraw and return to the overworld.", "info");
-  } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
   ctx.encounterInfo = null;
   return true;
 }
