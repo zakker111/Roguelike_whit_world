@@ -638,16 +638,14 @@ export function create(ctx) {
         const pickNearby = () => {
           for (let i = 0; i < 60; i++) {
             const rngFn = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
-              ? window.RNGUtils.getRng()
-              : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function"
-                  ? window.RNG.rng
-                  : Math.random);
+              ? window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+              : ((typeof ctx.rng === "function") ? ctx.rng : null);
             const dx = ((typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function")
               ? window.RNGUtils.int(-4, 4, rngFn)
-              : (Math.floor(rngFn() * 9) - 4));
+              : ((typeof rngFn === "function") ? (Math.floor(rngFn() * 9) - 4) : 0));
             const dy = ((typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function")
               ? window.RNGUtils.int(-4, 4, rngFn)
-              : (Math.floor(rngFn() * 9) - 4));
+              : ((typeof rngFn === "function") ? (Math.floor(rngFn() * 9) - 4) : 0));
             const x = p.x + dx, y = p.y + dy;
             if (isFreeFloor(x, y)) return { x, y };
           }

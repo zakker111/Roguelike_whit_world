@@ -236,14 +236,13 @@
   let rng = ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
     ? window.RNG.rng
     : (function () {
-        // Shared centralized fallback (deterministic) if RNG service not available
         try {
-          if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
-            return window.RNGFallback.getRng(currentSeed);
+          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+            return window.RNGUtils.getRng();
           }
         } catch (_) {}
-        // Ultimate fallback: non-deterministic
-        return Math.random;
+        // Deterministic fallback without RNG service
+        return () => 0.5;
       })());
   let isDead = false;
   let startRoomRect = null;

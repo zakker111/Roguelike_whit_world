@@ -1,5 +1,24 @@
 # Game Version History
-Last updated: 2025-10-25 06:52 UTC
+Last updated: 2025-10-25 07:20 UTC
+
+v1.41.18 — Phase B: RNG fallback removal in core (game/encounter/town/GameAPI) and encounter cleanup
+- core/game.js:
+  - rng initialization now prefers window.RNG.rng, then RNGUtils.getRng; deterministic fallback () => 0.5.
+  - Removed window.RNGFallback and Math.random fallbacks from rng init.
+- core/encounter_runtime.js:
+  - Fixed duplicated/garbled RNG block in tryMoveEncounter; single rfn/didBlock logic using RU.getRng or ctx.rng with deterministic 0.5 fallback.
+  - Generator RNG r() now uses RU.getRng(ctx.rng) or ctx.rng; deterministic fallback () => 0.5; removed Math.random usage.
+  - Refresh after enter/tryMove/complete now prefers StateSync.applyAndRefresh; manual camera/FOV/UI/requestDraw fallbacks removed where applicable.
+- core/town_runtime.js:
+  - Seppo spawn RNG and offset RNG now use RU.getRng(ctx.rng) or ctx.rng; deterministic 0.5 fallback; removed window.RNGFallback/Math.random.
+- core/game_api.js:
+  - GOD spawnChestNearby pickNearby uses RU.getRng(ctx.rng) or ctx.rng; RU.int for offsets; deterministic 0-offset fallback when rng is absent.
+  - Removed window.RNG and Math.random fallbacks.
+- Result:
+  - Continued Phase B progression: RNGUtils mandatory across these core modules; improved determinism with fixed seeds and reduced reliance on manual refresh fallbacks in encounters.
+- Deployment: (see latest)
+
+v1.41.17 — Phase B: RNG cleanup (mandatory RU.getRng) in Dungeon/TownAI/Decals/Region; utils/rng.js deterministic; flavor hit lines
 
 v1.41.17 — Phase B: RNG cleanup (mandatory RU.getRng) in Dungeon/TownAI/Decals/Region; utils/rng.js deterministic; flavor hit lines
 - core/dungeon_runtime.js:

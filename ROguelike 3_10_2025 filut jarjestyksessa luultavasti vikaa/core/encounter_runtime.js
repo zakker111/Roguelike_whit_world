@@ -254,7 +254,9 @@ export function enter(ctx, info) {
   }
 
   const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-  const r = (RU && typeof RU.getRng === "function") ? RU.getRng(ctx.rng) : ((typeof ctx.rng === "function") ? ctx.rng : Math.random);
+  const r = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : (() => 0.5));
   let genId = (template && template.map && template.map.generator) ? String(template.map.generator) : "";
   let map = null;
 
@@ -631,16 +633,10 @@ export function tryMoveEncounter(ctx, dx, dy) {
       const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
       const rfn = (RU && typeof RU.getRng === "function")
         ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-        : ((typeof ctx.rng === "function")
-            ? ctx.rng
-            : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-                ? window.RNG.rng
-                : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                    ? window.RNGFallback.getRng()
-                    : Math.random)));
-      const didBlock = (RU && typeof RU.chance === "function")
-        ? RU.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined))
-        : (rfn() < blockChance);
+        : ((typeof ctx.rng === "function") ? ctx.rng : null);
+      const didBlock = (RU && typeof RU.chance === "function" && typeof rfn === "function")
+        ? RU.chance(blockChance, rfn)
+        : ((typeof rfn === "function") ? (rfn() < blockChance) : (0.5 < blockChance));
       if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
@@ -663,97 +659,6 @@ export function tryMoveEncounter(ctx, dx, dy) {
       const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
-      } else {
-        ctx.updateCamera && ctx.updateCamera();
-        ctx.recomputeFOV && ctx.recomputeFOV();
-        ctx.updateUI && ctx.updateUI();
-        ctx.requestDraw && ctx.requestDraw();
-      }
-    } catch (_) {}
-    return true;
-  }
-  return false;
-}
-
-// Start an encounter within the existing Region Map mode (ctx.mode === "region").
-// Spawns enemies on the current region sample without changing mode or map.
-export function enterRegion(ctx, info) {
-  if (!ctx || ctx.mode !== "region" || !ctx.map || !Array.isArray(ctx.map) || !ctx.map.length) return false;
-  // Reset clear-announcement guard for region-embedded encounters too
-  _clearAnnounced = false;
-  const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", groups: [ { type: "bandit", count: { min: 2, max: 3 } } ] };
-  const difficulty = Math.max(1, Math.min(5, (info && typeof info.difficulty === "number") ? (info.difficulty | 0) : 1));
-  ctx.encounterDifficulty = difficulty;
-
-  const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : (ctx.World && ctx.World.TILES) ? ctx.World.TILES : null;
-  const isWalkableWorld = (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function")
-    ? window.World.isWalkable
-    : (ctx.World && typeof ctx.World.isWalkable === "function") ? ctx.World.isWalkable : null;
-
-  const H = ctx.map.length;
-  const W = ctx.map[0] ? ctx.map[0].length : 0;
-  if (!W || !H) return false;
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-  const r = (RU && typeof RU.getRng === "function")
-    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-    : ((typeof ctx.rng === "function")
-        ? ctx.rng
-        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-            ? window.RNG.rng
-            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                ? window.RNGFallback.getRng()
-                : Math.random)));
-
-  // Initialize encounter state on region
-  if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
-  ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
-
-  // Helper: free spawn spot (walkable region tile, not on player, not duplicate)
-  const placements = [];
-  function walkableAt(x, y) {
-    if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
-    const t = ctx.map[y][x];
-    if (isWalkableWorld) return !!isWalkableWorld(t);
-    if (!WT) return true;
-    // Fallback: avoid water/river/mountain
-    return !(t === WT.WATER || t === WT.RIVER || t === WT.MOUNTAIN);
-  }
-  function free(x, y) {
-    if (!walkableAt(x, y)) return false;
-    if (x === (ctx.player.x | 0) && y === (ctx.player.y | 0)) return false;
-    if (placements.some(p => p.x === x && p.y === y)) return false;
-    return true;
-  }
-
-  // Determine total enemies from groups
-  const groups = Array.isArray(template.groups) ? template.groups : [];
-  const totalWanted = groups.reduce((acc, g) => {
-    const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
-    const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    const n = (RU && typeof RU.int === "function")
-      ? RU.int(min, max, ctx.rng)
-      : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
-    return acc + n;
-  }, 0);
-
-  // Seed at least one placement near the player within FOV range to ensure visibility
-  (function seedNearPlayer() {
-    try {
-      const px = (ctx.player.x | 0), py = (ctx.player.y | 0);
-      const maxR = Math.max(3, Math.min(6, ((ctx.fovRadius | 0) || 8) - 1));
-      outer:
-      for (let r = 2; r <= maxR; r++) {
-        // Sample 16 directions around the ring
-        const dirs = [
-          [ r,  0], [ 0,  r], [-r,  0], [ 0, -r],
-          [ r,  1], [ 1,  r], [-1,  r], [-r,  1],
-          [-r, -1], [-1, -r], [ 1, -r], [ r, -1],
-          [ r,  2], [ 2,  r], [-2,  r], [-r,  2],
-        ];
-        for (const d of dirs) {
-          const x = px + d[0], y = py + d[1];
-          if (free(x, y)) { placements.push({ x, y }); break outer; }
-        }
       }
     } catch (_) {}
   })();
@@ -830,9 +735,6 @@ export function enterRegion(ctx, info) {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
   return true;

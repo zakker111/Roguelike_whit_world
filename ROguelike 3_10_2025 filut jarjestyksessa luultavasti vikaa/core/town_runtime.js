@@ -430,13 +430,7 @@ export function tick(ctx) {
       // Chance per town tick (increased slightly to be observable)
       const rfn = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
         ? window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-        : ((typeof ctx.rng === "function")
-            ? ctx.rng
-            : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-                ? window.RNG.rng
-                : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                    ? window.RNGFallback.getRng()
-                    : Math.random)));
+        : ((typeof ctx.rng === "function") ? ctx.rng : (() => 0.5));
       if (rfn() < 0.01) { // ~1% per tick while conditions hold
         // Find a free spot near the plaza (or gate as fallback)
         const within = 5;
@@ -444,13 +438,7 @@ export function tick(ctx) {
         for (let i = 0; i < 200; i++) {
           const rfn2 = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
             ? window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-            : ((typeof ctx.rng === "function")
-                ? ctx.rng
-                : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-                    ? window.RNG.rng
-                    : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                        ? window.RNGFallback.getRng()
-                        : Math.random)));
+            : ((typeof ctx.rng === "function") ? ctx.rng : (() => 0.5));
           const ox = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function")
             ? window.RNGUtils.int(-within, within, rfn2)
             : ((Math.floor(rfn2() * (within * 2 + 1))) - within) | 0;
