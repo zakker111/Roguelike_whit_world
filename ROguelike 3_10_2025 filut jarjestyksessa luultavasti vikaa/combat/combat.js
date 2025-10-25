@@ -192,7 +192,7 @@ export function playerAttackEnemy(ctx, enemy) {
   const alwaysCrit = !!((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false);
   const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
   let critMult = 1.8;
-  try { if (ctx.Combat && typeof ctx.Combat.critMultiplier === "function") critMult = ctx.Combat.critMultiplier(ctx.rng); } catch (_) {}
+  try { if (ctx.Combat && typeof ctx.Combat.critMultiplier === "function") critMult = ctx.Combat.critMultiplier(rng); } catch (_) {}
   const didCrit = (function () {
     if (alwaysCrit) return true;
     try {
@@ -200,7 +200,7 @@ export function playerAttackEnemy(ctx, enemy) {
         return window.RNGUtils.chance(critChance, rng);
       }
     } catch (_) {}
-    const r = (typeof ctx.rng === "function") ? ctx.rng() : rng();
+    const r = rng();
     return r < critChance;
   })();
   if (didCrit) {

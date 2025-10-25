@@ -1,5 +1,19 @@
 # Game Version History
-Last updated: 2025-10-25 00:05 UTC
+Last updated: 2025-10-25 00:45 UTC
+
+v1.41.2 — Phase B: StateSync in World, RNG fallback unification, and Region Map combat fix
+- Refresh orchestration
+  - core/world_runtime.js now uses StateSync.applyAndRefresh in:
+    - Infinite-world generate path (with camera-centering fallback when updateCamera is unavailable)
+    - Finite-world generate path
+    - World movement (tryMovePlayerWorld) after a successful step
+  - This replaces manual updateCamera/recomputeFOV/updateUI/requestDraw sequences for consistency.
+- RNG determinism and fallback cleanup
+  - services/encounter_service.js: “willEncounter” now uses rngFor(ctx)() instead of Math.random() when RNGUtils.chance is unavailable.
+  - combat/combat.js: critMultiplier receives the seeded rng; crit chance fallback uses rng() exclusively (no direct ctx.rng()).
+- Region Map minimal combat
+  - Fixed a stray fragment in region_map_runtime.js tryMove’s minimal combat block that caused a SyntaxError near the fallback RNG path; restored a clean check with deterministic seeded RNG.
+- Deployment: https://hse8e0opu7l9.cosine.page
 
 v1.41.1 — Phase B continuation: RNG cleanup and Region Map determinism
 - RNG determinism

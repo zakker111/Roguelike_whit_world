@@ -206,7 +206,7 @@ export function maybeTryEncounter(ctx) {
           _loggedEncounterRngFallback = true;
         }
       } catch (_) {}
-      const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+      const r = rngFor(ctx)();
       return r < chance;
     })();
     if (!willEncounter) {
