@@ -227,7 +227,16 @@ export function generate(ctx, depth) {
       const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
-      }, () => Array(MAP_COLS).fill(ctx.TILES.FLOOR));
+      }
+    } catch (_) {}
+    ctx.log && ctx.log("You explore the dungeon.");
+    save(ctx, true);
+    return true;
+  }
+  // Fallback: flat-floor
+  const MAP_ROWS = ctx.MAP_ROWS || (ctx.map ? ctx.map.length : 80);
+  const MAP_COLS = ctx.MAP_COLS || (ctx.map && ctx.map[0] ? ctx.map[0].length : 120);
+  ctx.map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(ctx.TILES.FLOOR));
   // One stair
   const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
   if (ctx.map[sy] && typeof ctx.map[sy][sx] !== "undefined") {
