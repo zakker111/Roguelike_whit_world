@@ -183,7 +183,12 @@ export function install(getCtx) {
       const c = getCtx();
       if (c.mode !== "town") {
         c.log("Home route check is available in town mode only.", "warn");
-        c.requestDraw && c.requestDraw();
+        try {
+          const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.requestDraw === "function") {
+            UIO.requestDraw(c);
+          }
+        } catch (_) {}
         return;
       }
       // Ensure town NPCs are populated before running the check
@@ -287,7 +292,10 @@ export function install(getCtx) {
         try {
           const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
           if (UIO && typeof UIO.requestDraw === "function") {
-                 } else {
+            UIO.requestDraw(c);
+          }
+        } catch (_) {}
+      } else {
         getCtx().log("TownAI.checkHomeRoutes not available.", "warn");
       }
     },

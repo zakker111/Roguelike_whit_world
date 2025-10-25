@@ -238,7 +238,9 @@ export function spawnEnemyNearby(ctx, count = 1) {
         SS.applyAndRefresh(ctx, {});
       }
     } catch (_) {}
-  } else ctx.log("GOD: No free space to spawn an}
+  } else {
+    ctx.log("GOD: No free space to spawn an enemy nearby.", "warn");
+  }
 
 export function setAlwaysCrit(ctx, enabled) {
   ctx.alwaysCrit = !!enabled;
