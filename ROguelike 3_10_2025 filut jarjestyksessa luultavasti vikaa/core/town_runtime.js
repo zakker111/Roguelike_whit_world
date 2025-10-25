@@ -39,16 +39,11 @@ export function generate(ctx) {
         }
       } catch (_) {}
 
-      // Post-gen refresh via StateSync (fallback to manual)
+      // Post-gen refresh via StateSync
       try {
         const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
-        } else {
-          try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-          try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-          try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-          try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
         }
       } catch (_) {}
       return true;
@@ -240,11 +235,6 @@ export function tryMoveTown(ctx, dx, dy) {
       const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
-      } else {
-        try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-        try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-        try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-        try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
       }
     } catch (_) {}
     try { ctx.turn && ctx.turn(); } catch (_) {}
@@ -339,15 +329,11 @@ export function applyLeaveSync(ctx) {
     else centerCamera(ctx);
   } catch (_) { centerCamera(ctx); }
 
-  // Refresh via StateSync when available; fallback to manual refresh
+  // Refresh via StateSync
   try {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    } else {
-      try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-      try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-      try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
     }
   } catch (_) {}
   try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}

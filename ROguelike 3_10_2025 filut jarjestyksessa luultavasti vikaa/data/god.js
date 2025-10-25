@@ -11,7 +11,6 @@
  *   applySeed(ctx, seedUint32)
  *   rerollSeed(ctx)
  */
-import { getRng as getFallbackRng } from "../utils/rng_fallback.js";
 import { attachGlobal } from "../utils/global.js";
 
 export function heal(ctx) {
@@ -258,8 +257,16 @@ export function applySeed(ctx, seedUint32) {
     window.RNG.applySeed(s);
     ctx.rng = window.RNG.rng;
   } else {
-    // Unified fallback via utils/rng_fallback
-    ctx.rng = getFallbackRng(s);
+    // Deterministic local PRNG when RNG service is unavailable
+    ctx.rng = (function mulberry32(seed) {
+      let t = (seed >>> 0);
+      return function () {
+        t = (t + 0x6D2B79F5) >>> 0;
+        let r = Math.imul(t ^ (t >>> 15), t | 1);
+        r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+        return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+      };
+    })(s);
   }
   if (ctx.mode === "world") {
     ctx.log(`GOD: Applied seed ${s}. Regenerating overworld...`, "notice");

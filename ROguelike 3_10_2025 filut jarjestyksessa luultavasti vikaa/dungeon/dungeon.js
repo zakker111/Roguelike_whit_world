@@ -9,7 +9,6 @@
  * - Avoids Math.random; all randomness goes through the local dungeon PRNG so initial generation is reproducible.
  * - Runtime changes (corpses/decals/enemies) should be persisted via DungeonState.
  */
-import { getRng as getFallbackRng } from "../utils/rng_fallback.js";
 import { attachGlobal } from "../utils/global.js";
 
 function mix32(a) {
@@ -32,6 +31,16 @@ function deriveDungeonSeed(rootSeed, x, y, level, sizeStr) {
   s = mix32(s ^ (sizeCode(sizeStr) >>> 0));
   return s >>> 0;
 }
+// Local seeded PRNG (Mulberry32) to avoid RNGFallback
+function mulberry32(seed) {
+  let t = (seed >>> 0);
+  return function () {
+    t = (t + 0x6D2B79F5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), t | 1);
+    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 export function generateLevel(ctx, depth) {
   const { ROWS, COLS, MAP_ROWS, MAP_COLS, TILES, player } = ctx;
@@ -42,8 +51,7 @@ export function generateLevel(ctx, depth) {
     : 0;
   const dinfo = ctx.dungeonInfo || ctx.dungeon || { x: player.x, y: player.y, level: depth, size: "medium" };
   const dseed = deriveDungeonSeed(rootSeed, dinfo.x | 0, dinfo.y | 0, (depth | 0) || (dinfo.level | 0) || 1, dinfo.size);
-  try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon", "Using RNGFallback for dungeon PRNG.", { seed: dseed }); } catch (_) {}
-  const drng = getFallbackRng(dseed);
+  const drng = mulberry32(dseed);
   const ri = (min, max) => Math.floor(drng() * (Math.max(min|0, max|0) - Math.min(min|0, max|0) + 1)) + Math.min(min|0, max|0);
   const ch = (p) => drng() < p;
 

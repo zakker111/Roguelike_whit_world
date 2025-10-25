@@ -67,7 +67,7 @@ function rngFor(ctx) {
   return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
 }
 
-let _loggedEncounterRngFallback = false;
+
 
 function pickTemplate(ctx, biome) {
   const reg = registry(ctx);
@@ -198,8 +198,7 @@ export function maybeTryEncounter(ctx) {
           return window.RNGUtils.chance(chance, rngFn);
         }
       } catch (_) {}
-      try {
-        if (!_loggedEncounterRngFallback && typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") {
+      const r = rngFor(ctxloggedEncounterRngFallback && typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") {
           window.Fallback.log("encounter", "Using direct RNG comparison (RNGUtils.chance unavailable).");
           _loggedEncounterRngFallback = true;
         }
