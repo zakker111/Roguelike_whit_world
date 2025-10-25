@@ -7,70 +7,79 @@
  *
  * Serves the current directory. No compression, no directory traversal.
  */
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+/**
+ * Simple ESM static file server for local testing.
+ * Run: node server.js
+ */
+import { createServer } from 'node:http';
+import { readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
-const ROOT = process.cwd();
+const ROOT = path.resolve(path.join(process.cwd(), 'ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa'));
 
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js':   'application/javascript; charset=utf-8',
-  '.css':  'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png':  'image/png',
-  '.jpg':  'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif':  'image/gif',
-  '.svg':  'image/svg+xml',
-  '.ico':  'image/x-icon',
-  '.txt':  'text/plain; charset=utf-8',
-};
-
-function sanitizeUrl(urlPath) {
+function serveFile(res, filePath, contentType = 'text/plain; charset=utf-8') {
   try {
-    // Decode and strip query string/hash
-    const qpos = urlPath.indexOf('?'); if (qpos !== -1) urlPath = urlPath.slice(0, qpos);
-    const hpos = urlPath.indexOf('#'); if (hpos !== -1) urlPath = urlPath.slice(0, hpos);
-    // Prevent directory traversal
-    urlPath = urlPath.replace(/\\/g, '/');
-    urlPath = urlPath.split('/').filter(seg => seg !== '' && seg !== '.' && seg !== '..').join('/');
-    return '/' + urlPath;
-  } catch (_) {
-    return '/';
-  }
-}
-
-function resolveFile(urlPath) {
-  const safe = sanitizeUrl(urlPath);
-  const full = path.join(ROOT, safe);
-  let stat;
-  try { stat = fs.statSync(full); } catch (_) { stat = null; }
-  if (stat && stat.isDirectory()) {
-    const indexPath = path.join(full, 'index.html');
-    try { fs.accessSync(indexPath, fs.constants.R_OK); return indexPath; } catch (_) {}
-    return full; // will 404
-  }
-  return full;
-}
-
-const server = http.createServer((req, res) => {
-  const filePath = resolveFile(req.url || '/');
-  let data;
-  try {
-    data = fs.readFileSync(filePath);
-  } catch (err) {
+    const data = readFileSync(filePath);
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  } catch (e) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not Found');
-    return;
   }
-  const ext = path.extname(filePath).toLowerCase();
-  const type = MIME[ext] || 'application/octet-stream';
-  res.writeHead(200, { 'Content-Type': type });
-  res.end(data);
+}
+
+function guessType(p) {
+  const ext = path.extname(p);
+  switch (ext) {
+    case '.html': return 'text/html; charset=utf-8';
+    case '.css': return 'text/css; charset=utf-8';
+    case '.js': return 'application/javascript; charset=utf-8';
+    case '.json': return 'application/json; charset=utf-8';
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.gif': return 'image/gif';
+    default: return 'text/plain; charset=utf-8';
+  }
+}
+
+const server = createServer((req, res) => {
+  try {
+    let urlPath = req.url || '/';
+    if (urlPath === '/' || urlPath === '/index.html') {
+      return serveFile(res, path.join(ROOT, 'index.html'), 'text/html; charset=utf-8');
+    }
+    if (urlPath.startsWith('/data/')) {
+      const full = path.join(ROOT, urlPath);
+      return serveFile(res, full, guessType(full));
+    }
+    // Static assets
+    const fullPath = path.join(ROOT, urlPath);
+    // Security: ensure path stays within ROOT
+    const norm = path.normalize(fullPath);
+    if (!norm.startsWith(ROOT)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Forbidden');
+      return;
+    }
+    // If path is a directory, try index.html inside it
+    try {
+      const stat = statSync(norm);
+      if (stat.isDirectory()) {
+        const idx = path.join(norm, 'index.html');
+        return serveFile(res, idx, 'text/html; charset=utf-8');
+      }
+    } catch (_) {}
+    // Else serve file
+    serveFile(res, norm, guessType(norm));
+  } catch (e) {
+    try { console.error(e); } catch (_) {}
+    res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Server Error');
+  }
 });
 
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
-  console.log(`[dev] static server listening at http://localhost:${PORT}/`);
+  console.log(`Server running at http://localhost:${PORT}`);
 });

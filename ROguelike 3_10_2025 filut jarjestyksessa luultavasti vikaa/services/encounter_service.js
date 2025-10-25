@@ -64,9 +64,7 @@ function rngFor(ctx) {
       return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
     }
   } catch (_) {}
-  return (ctx && typeof ctx.rng === "function")
-    ? ctx.rng
-    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
 }
 
 let _loggedEncounterRngFallback = false;
@@ -206,7 +204,7 @@ export function maybeTryEncounter(ctx) {
           _loggedEncounterRngFallback = true;
         }
       } catch (_) {}
-      const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+      const r = rngFor(ctx)();
       return r < chance;
     })();
     if (!willEncounter) {
@@ -264,15 +262,26 @@ export function maybeTryEncounter(ctx) {
       STATE.movesSinceLast += 1;
     };
 
-    // Prompt the user
+    // Prompt the user (prefer UIOrchestration via Capabilities.safeCall)
+    try {
+      const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctx, "UIOrchestration", "showConfirm", ctx, text, null, () => enter(), () => cancel());
+        if (res && res.ok) return true;
+      }
+    } catch (_) {}
+    // Fallback: UIBridge only (no window.confirm fallback)
     const UI = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UI && typeof UI.showConfirm === "function") {
       UI.showConfirm(ctx, text, null, () => enter(), () => cancel());
     } else {
-      // Fallback: inline confirm
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("encounter", "Using window.confirm UI (UIBridge.showConfirm unavailable)."); } catch (_) {}
-      if (typeof window !== "undefined" && window.confirm && window.confirm(text)) enter();
-      else cancel();
+      // No confirm UI available; cancel by default and log once
+      try {
+        if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") {
+          window.Fallback.log("encounter", "Confirm UI unavailable; cancelling encounter prompt.");
+        }
+      } catch (_) {}
+      cancel();
     }
     return true;
   } catch (e) {

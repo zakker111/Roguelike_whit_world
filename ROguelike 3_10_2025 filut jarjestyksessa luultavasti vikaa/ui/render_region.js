@@ -256,9 +256,19 @@ export function draw(ctx, view) {
     ctx2d.fillText(`Region Map${clock}`, 8, 8);
     ctx2d.fillStyle = "#a1a1aa";
     ctx2d.fillText("Move with arrows. Press G on orange edge to return.", 8, 26);
-    // Animals memory badge
+    // Animals memory badge: show cleared vs seen
     try {
-      if (ctx.region && ctx.region._hasKnownAnimals) {
+      const pos = (ctx.region && ctx.region.enterWorldPos) ? ctx.region.enterWorldPos : null;
+      let cleared = false;
+      try {
+        if (pos && typeof window !== "undefined" && window.RegionMapRuntime && typeof window.RegionMapRuntime.animalsClearedHere === "function") {
+          cleared = !!window.RegionMapRuntime.animalsClearedHere(pos.x | 0, pos.y | 0);
+        }
+      } catch (_) {}
+      if (cleared) {
+        ctx2d.fillStyle = "#86efac"; // green accent
+        ctx2d.fillText("Animals cleared here", 8, 44);
+      } else if (ctx.region && ctx.region._hasKnownAnimals) {
         ctx2d.fillStyle = "#f0abfc"; // soft magenta accent
         ctx2d.fillText("Animals known in this area", 8, 44);
       }

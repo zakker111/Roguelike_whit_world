@@ -14,9 +14,15 @@
 
 const round1 = (n) => Math.round(n * 10) / 10;
 
-// RNG selection: prefer centralized RNG service, otherwise use shared fallback
+// RNG selection: prefer centralized RNGUtils service; no Math.random/RNGFallback fallback
 function getRng(rng) {
   if (typeof rng === "function") return rng;
+  try {
+    const RU = (typeof window !== "undefined" ? window.RNGUtils : null);
+    if (RU && typeof RU.getRng === "function") {
+      return RU.getRng();
+    }
+  } catch (_) {}
   try {
     if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") {
       if (typeof window.RNG.getSeed !== "function" || window.RNG.getSeed() == null) {
@@ -25,14 +31,8 @@ function getRng(rng) {
       return window.RNG.rng;
     }
   } catch (_) {}
-  // Shared fallback for determinism without duplicating PRNG implementations
-  try {
-    if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
-      return window.RNGFallback.getRng();
-    }
-  } catch (_) {}
-  // Ultimate fallback: non-deterministic
-  return Math.random;
+  // Mandatory RNG: if unavailable, return a throwing fn to surface the error early
+  return function () { throw new Error("RNG unavailable in Items.getRng"); };
 }
 
 /* MATERIALS: map numeric tier (1..3) to material name used by item name builders */

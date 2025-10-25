@@ -20,15 +20,9 @@ export function rollHitLocation(rng) {
         return window.RNGUtils.getRng(rng);
       }
     } catch (_) {}
-    return (typeof rng === "function")
-      ? rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-          ? window.RNG.rng
-          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-              ? window.RNGFallback.getRng()
-              : Math.random));
+    return (typeof rng === "function") ? rng : null;
   })();
-  const r = rfn();
+  const r = (typeof rfn === "function") ? rfn() : 0.5;
   if (r < 0.50) return profiles.torso;
   if (r < 0.65) return profiles.head;
   if (r < 0.80) return profiles.hands;
@@ -42,15 +36,9 @@ export function critMultiplier(rng) {
         return window.RNGUtils.getRng(rng);
       }
     } catch (_) {}
-    return (typeof rng === "function")
-      ? rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-          ? window.RNG.rng
-          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-              ? window.RNGFallback.getRng()
-              : Math.random));
+    return (typeof rng === "function") ? rng : null;
   })();
-  const r = rfn();
+  const r = (typeof rfn === "function") ? rfn() : 0.5;
   return 1.6 + r * 0.4;
 }
 

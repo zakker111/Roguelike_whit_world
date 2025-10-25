@@ -113,8 +113,7 @@ function _rng(ctx) {
       return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
     }
   } catch (_) {}
-  try { return typeof ctx.rng === "function" ? ctx.rng : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random); }
-  catch (_) { return Math.random; }
+  return (typeof ctx.rng === "function") ? ctx.rng : null;
 }
 
 function _priceFor(item) {
