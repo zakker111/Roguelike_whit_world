@@ -87,10 +87,17 @@ export function tick(ctx) {
     }
   } catch (_) {}
 
-  // Visual updates
-  try { if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV(); } catch (_) {}
-  try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
-  try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+  // Visual updates via StateSync when available
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
+      if (typeof ctx.updateUI === "function") ctx.updateUI();
+      if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+    }
+  } catch (_) {}
 
   // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), orchestrator may re-sync.
   return true;

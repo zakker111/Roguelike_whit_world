@@ -1,5 +1,16 @@
 # Game Version History
-Last updated: 2025-10-25 02:26 UTC
+Last updated: 2025-10-25 02:48 UTC
+
+v1.41.7 — Phase B: StateSync in seed flows, TurnLoop refresh, and RNG in world start
+- Refresh orchestration
+  - core/game.js:
+    - applySeed/rerollSeed now call applyCtxSyncAndRefresh(ctx) (StateSync.applyAndRefresh under the hood) instead of manual updateCamera/recomputeFOV/updateUI/requestDraw.
+  - core/turn_loop.js:
+    - Visual updates prefer StateSync.applyAndRefresh when available; fallback retains recomputeFOV/updateUI/requestDraw.
+- RNG determinism
+  - core/world_runtime.js:
+    - Finite-world pickTownStart now passes a seeded rngFn derived via RNGUtils.getRng(ctx.rng) (with window.RNG/RNGFallback fallbacks) instead of bare Math.random.
+- Deployment: https://bs2ovc4a6mii.cosine.page
 
 v1.41.6 — Phase B: RNG cleanup (Region + utils) and StateSync in Actions
 - RNG determinism

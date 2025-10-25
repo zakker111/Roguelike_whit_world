@@ -2312,11 +2312,7 @@
       const ctx = getCtx();
       GC.applySeed(() => getCtx(), seedUint32);
       rng = ctx.rng || rng;
-      syncFromCtx(ctx);
-      updateCamera();
-      recomputeFOV();
-      updateUI();
-      requestDraw();
+      applyCtxSyncAndRefresh(ctx);
       return;
     }
     const G = modHandle("God");
@@ -2324,11 +2320,7 @@
       const ctx = getCtx();
       G.applySeed(ctx, seedUint32);
       rng = ctx.rng || rng;
-      syncFromCtx(ctx);
-      updateCamera();
-      recomputeFOV();
-      updateUI();
-      requestDraw();
+      applyCtxSyncAndRefresh(ctx);
       return;
     }
     log("GOD: applySeed not available.", "warn");
@@ -2341,11 +2333,7 @@
       const ctx = getCtx();
       GC.rerollSeed(() => getCtx());
       rng = ctx.rng || rng;
-      syncFromCtx(ctx);
-      updateCamera();
-      recomputeFOV();
-      updateUI();
-      requestDraw();
+      applyCtxSyncAndRefresh(ctx);
       return;
     }
     const G = modHandle("God");
@@ -2353,11 +2341,7 @@
       const ctx = getCtx();
       G.rerollSeed(ctx);
       rng = ctx.rng || rng;
-      syncFromCtx(ctx);
-      updateCamera();
-      recomputeFOV();
-      updateUI();
-      requestDraw();
+      applyCtxSyncAndRefresh(ctx);
       return;
     }
     log("GOD: rerollSeed not available.", "warn");

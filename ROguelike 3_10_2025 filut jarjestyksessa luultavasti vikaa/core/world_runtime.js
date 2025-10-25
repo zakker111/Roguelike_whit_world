@@ -635,8 +635,18 @@ export function generate(ctx, opts = {}) {
     return false;
   }
 
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const rngFn = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function")
+        ? ctx.rng
+        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+            ? window.RNG.rng
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                ? window.RNGFallback.getRng()
+                : Math.random)));
   const start = (typeof W.pickTownStart === "function")
-    ? W.pickTownStart(ctx.world, (ctx.rng || Math.random))
+    ? W.pickTownStart(ctx.world, rngFn)
     : { x: 1, y: 1 };
 
   ctx.player.x = start.x;
