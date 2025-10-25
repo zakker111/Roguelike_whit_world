@@ -447,6 +447,7 @@
       try {
         if (String(prefab.category || "").toLowerCase() === "shop" || (prefab.shop && prefab.shop.type)) {
           const shopType = (prefab.shop && prefab.shop.type) ? String(prefab.shop.type) : (prefab.tags && prefab.tags.find(t => t !== "shop")) || "shop";
+          const shopName = String(prefab.name || (prefab.shop && prefab.shop.signText) || (shopType[0].toUpperCase() + shopType.slice(1)));
           // Choose front door: prefer role=main else first door; translate to world coords
           let doorWorld = null;
           if (Array.isArray(prefab.doors) && prefab.doors.length) {
@@ -459,16 +460,20 @@
           if (!doorWorld) {
             doorWorld = { x: x0 + ((w / 2) | 0), y: y0 + h - 1 };
           }
-          // Capture schedule/name overrides from prefab.shop if present
-          let shopMeta = (prefab.shop && typeof prefab.shop === "object") ? prefab.shop : null;
+          // Optional schedule override from prefab
+          let scheduleOverride = null;
+          try {
+            const s = prefab.shop && prefab.shop.schedule;
+            if (s && (s.open || s.close || s.alwaysOpen != null)) {
+              scheduleOverride = { open: s.open || null, close: s.close || null, alwaysOpen: !!s.alwaysOpen };
+            }
+          } catch (_) {}
           prefabShops.push({
             type: shopType,
             building: rect,
             door: doorWorld,
-            name: (shopMeta && shopMeta.name) ? String(shopMeta.name) : (shopType[0].toUpperCase() + shopType.slice(1)),
-            openStr: (shopMeta && typeof shopMeta.open === "string") ? shopMeta.open : null,
-            closeStr: (shopMeta && typeof shopMeta.close === "string") ? shopMeta.close : null,
-            alwaysOpen: !!(shopMeta && shopMeta.alwaysOpen === true)
+            name: shopName,
+            scheduleOverride
           });
         }
       } catch (_) {}
@@ -921,27 +926,32 @@
           const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
           return ((h | 0) * 60 + (min | 0)) % (24 * 60);
         }
-        function scheduleForTypeOrOverrides(type, ps) {
-          // Prefab overrides take precedence if provided
-          if (ps && ps.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
-          if (ps && typeof ps.openStr === "string" && typeof ps.closeStr === "string") {
-            const o = parseHHMMToMinutes(ps.openStr);
-            const c = parseHHMMToMinutes(ps.closeStr);
-            if (o != null && c != null) return { openMin: o, closeMin: c, alwaysOpen: false };
-          }
+        function scheduleForType(type) {
           const def = findShopDefByType(type);
           if (!def) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
           if (def.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
-          const o2 = parseHHMMToMinutes(def.open);
-          const c2 = parseHHMMToMinutes(def.close);
-          if (o2 == null || c2 == null) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
-          return { openMin: o2, closeMin: c2, alwaysOpen: false };
+          const o = parseHHMMToMinutes(def.open);
+          const c = parseHHMMToMinutes(def.close);
+          if (o == null || c == null) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
+          return { openMin: o, closeMin: c, alwaysOpen: false };
         }
 
         for (const ps of prefabShops) {
           if (!ps || !ps.building) continue;
           // Add shop entry
-          const sched = scheduleForTypeOrOverrides(ps.type, ps);
+          let sched = scheduleForType(ps.type);
+          // Apply prefab schedule override when present
+          if (ps.scheduleOverride) {
+            const o = parseHHMMToMinutes(ps.scheduleOverride.open);
+            const c = parseHHMMToMinutes(ps.scheduleOverride.close);
+            if (ps.scheduleOverride.alwaysOpen) {
+              sched = { openMin: 0, closeMin: 0, alwaysOpen: true };
+            } else {
+              if (o != null && c != null) {
+                sched = { openMin: o, closeMin: c, alwaysOpen: false };
+              }
+            }
+          }
           const name = ps.name || ps.type || "Shop";
           // Compute an inside tile near the door
           const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
