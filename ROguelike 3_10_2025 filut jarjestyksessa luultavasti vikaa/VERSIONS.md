@@ -1,5 +1,23 @@
 # Game Version History
-Last updated: 2025-10-25 08:05 UTC
+Last updated: 2025-10-25 09:50 UTC
+
+v1.41.20 — Draw/StateSync coalescing, GOD/UI fixes, and syntax repairs
+- core/god_handlers.js:
+  - Replaced direct c.requestDraw with UIOrchestration.requestDraw(c) in onGodToggleGrid, diagnostics, and town checks.
+  - Fixed a malformed try/if block in onGodCheckHomes that caused “Missing catch or finally after try”.
+- data/god.js:
+  - spawnStairsHere refresh now uses StateSync.applyAndRefresh(ctx, {}).
+  - spawnEnemyNearby refresh uses StateSync.applyAndRefresh and the truncated else/closing brace was repaired (resolved “Unexpected token 'export'”).
+- core/game_api.js:
+  - GOD spawnChestNearby now refreshes via StateSync.applyAndRefresh instead of direct requestDraw.
+- core/ui_bridge.js:
+  - animateSleep rewritten with balanced try/catch and proper nested setTimeouts; fade-out/in sequencing restored.
+  - Final redraw uses UIOrchestration.requestDraw(ctx) with fallback to ctx.requestDraw.
+- ui/ui.js:
+  - Perf and Minimap toggle handlers now schedule redraw via UIOrchestration.requestDraw (fallback to GameLoop.requestDraw) rather than GameAPI.requestDraw.
+- Result:
+  - Unified refresh path across GOD/UI flows, fewer duplicate frames, and fixed runtime SyntaxErrors.
+- Deployment: https://117me6w5wch5.cosine.page
 
 v1.41.19 — Phase B completion: RNG fallback removal (AI, Town talk, Dungeon decay)
 - ai/ai.js:
