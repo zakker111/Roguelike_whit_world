@@ -702,26 +702,6 @@ export function enterRegion(ctx, info) {
             ? window.RNG.rng
             : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
                 ? window.RNGFallback.getRng()
-                : Math.random_code))new)</;
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-  const r = (RU && typeof RU.getRng === "function")
-    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-    : ((typeof ctx.rng === "function")
-        ? ctx.rng
-        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-            ? window.RNG.rng
-            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                ? window.RNGFallback.getRng()
-                : Math.random)));
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-  const r = (RU && typeof RU.getRng === "function")
-    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-    : ((typeof ctx.rng === "function")
-        ? ctx.rng
-        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-            ? window.RNG.rng
-            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                ? window.RNGFallback.getRng()
                 : Math.random)));
 
   // Initialize encounter state on region
