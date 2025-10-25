@@ -1129,10 +1129,17 @@ function open(ctx, size) {
     } catch (_) {}
   })();
 
-  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
-  try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      typeof ctx.updateCamera === "function" && ctx.updateCamera();
+      typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
   if (ctx.log) ctx.log("Region map opened. Move with arrows. Press G on an orange edge tile to close.", "info");
   return true;
 }
@@ -1176,10 +1183,17 @@ function close(ctx) {
     ctx.player.x = pos.x | 0;
     ctx.player.y = pos.y | 0;
   }
-  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
-  try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      typeof ctx.updateCamera === "function" && ctx.updateCamera();
+      typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
   if (ctx.log) ctx.log("Region map closed.", "info");
   return true;
 }
@@ -1258,7 +1272,17 @@ function tryMove(ctx, dx, dy) {
   ctx.region.cursor = { x: nx, y: ny };
   ctx.player.x = nx; ctx.player.y = ny;
 
-  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      typeof ctx.updateCamera === "function" && ctx.updateCamera();
+      typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
   try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
   return true;
 }
