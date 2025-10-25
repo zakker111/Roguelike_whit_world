@@ -408,7 +408,7 @@ export function enemiesAct(ctx) {
       const loc = ctx.rollHitLocation();
 
       if (target.kind === "player") {
-        if (ctx.rng() < ctx.getPlayerBlockChance(loc)) {
+        if (rv() < ctx.getPlayerBlockChance(loc)) {
           ctx.log(`You block the ${e.type || "enemy"}'s attack to your ${loc.part}.`, "block");
           if (ctx.Flavor && typeof ctx.Flavor.onBlock === "function") {
             ctx.Flavor.onBlock(ctx, { side: "player", attacker: e, defender: player, loc });
@@ -420,9 +420,9 @@ export function enemiesAct(ctx) {
         let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
         let isCrit = false;
         const critChance = Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
-        if (ctx.rng() < critChance) {
+        if (rv() < critChance) {
           isCrit = true;
-          raw *= (ctx.critMultiplier ? ctx.critMultiplier() : (1.6 + ctx.rng() * 0.4));
+          raw *= (ctx.critMultiplier ? ctx.critMultiplier(rv) : (1.6 + rv() * 0.4));
         }
         const dmg = ctx.enemyDamageAfterDefense(raw);
         player.hp -= dmg;
@@ -431,10 +431,10 @@ export function enemiesAct(ctx) {
         else ctx.log(`${Cap(e.type)} hits your ${loc.part} for ${dmg}.`);
         const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
         if (isCrit && loc.part === "head" && ST && typeof ST.applyDazedToPlayer === "function") {
-          const dur = (ctx.rng ? (1 + Math.floor(ctx.rng() * 2)) : 1);
+          const dur = 1 + Math.floor(rv() * 2);
           try { ST.applyDazedToPlayer(ctx, dur); } catch (_) {}
         }
-        if (isCrit && ST && typeof ST.applyBleedToPlayer === "function") {
+        if (isCrit && ST && typeof ST.applyBleed&& typeof ST.applyBleedToPlayer === "function") {
           try { ST.applyBleedToPlayer(ctx, 2); } catch (_) {}
         }
         if (ctx.Flavor && typeof ctx.Flavor.logHit === "function") {
@@ -489,12 +489,12 @@ export function enemiesAct(ctx) {
       } else if (target.kind === "enemy" && target.ref) {
         // Enemy vs enemy attack (no defense reduction for simplicity; allow block base)
         const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(target.ref, loc) : 0;
-        if (ctx.rng() < blockChance) {
+        if (rv() < blockChance) {
           try { ctx.log && ctx.log(`${Cap(target.ref.type)} blocks ${Cap(e.type)}'s attack.`, "block"); } catch (_) {}
         } else {
           let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
-          const isCrit = ctx.rng() < Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
-          if (isCrit) raw *= (ctx.critMultiplier ? ctx.critMultiplier() : (1.6 + ctx.rng() * 0.4));
+          const isCrit = rv() < Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
+          if (isCrit) raw *= (ctx.critMultiplier ? ctx.critMultiplier(rv) : (1.6 + rv() * 0.4));
           const dmg = Math.max(0.1, Math.round(raw * 10) / 10);
           target.ref.hp -= dmg;
 

@@ -1,5 +1,13 @@
 # Game Version History
-Last updated: 2025-10-25 00:45 UTC
+Last updated: 2025-10-25 01:10 UTC
+
+v1.41.3 — Phase B: AI RNG unification and Movement fallback refresh via StateSync
+- AI determinism
+  - ai/ai.js: replaced direct ctx.rng() calls in block/crit checks with a seeded rv() helper sourced from RNGUtils/window.RNG, ensuring consistent randomness.
+  - ai/ai.js: crit multiplier now passes the seeded rng to ctx.critMultiplier; Dazed duration uses rv() instead of ctx.rng().
+- Movement refresh
+  - core/movement.js: WORLD fallback movement path now calls StateSync.applyAndRefresh(ctx,{}) via applyRefresh() after position update, replacing manual updateCamera only. Encounter roll and turn semantics preserved.
+- Deployment: https://dpuhwpauqbmt.cosine.page
 
 v1.41.2 — Phase B: StateSync in World, RNG fallback unification, and Region Map combat fix
 - Refresh orchestration

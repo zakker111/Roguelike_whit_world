@@ -144,7 +144,7 @@ export function tryMove(ctx, dx, dy) {
     const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(wmap[ny][nx]) : true;
     if (!walkable) return false;
     ctx.player.x = nx; ctx.player.y = ny;
-    try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
+    applyRefresh(ctx);
 
     // Maybe trigger encounter
     try {
