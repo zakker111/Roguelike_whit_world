@@ -1457,4 +1457,6 @@ BUGS
 - towns schedue bugs you can buy items even if shop is not open(this is tho good for now testing phase)
 - multirun in smoketest skips first multirun 
 - itseems eguibed items go to inventory when re going to dungeon/town
+- creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
+- key 'M' (Region Map) behaves weirdly — it should open/close the Region Map overlay on walkable overworld tiles; inspect Input.init gating and UIOrchestration hooks
 
