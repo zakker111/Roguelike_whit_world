@@ -1271,22 +1271,7 @@ function tryMove(ctx, dx, dy) {
                       ? window.RNGFallback.getRng()
                       : Math.random)));
         didBlock = rfn() < blockChance;
-      }Block = (function () {
-        try {
-          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-            return window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
-          }
-        } catch (_) {}
-        const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-        const rfn = (RU && typeof RU.getRng === "function")
-          ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-          : ((typeof ctx.rng === "function")
-              ? ctx.rng
-              : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-                  ? window.RNG.rng
-                  : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                      ? window.RNGFallback.getRng()
-                      : Math.random)));
+      }
       if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
