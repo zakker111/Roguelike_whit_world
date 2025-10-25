@@ -69,60 +69,63 @@ export function attachModules(ctx) {
 }
 
 export function ensureUtils(ctx) {
-  // Unified RNG selection via RNGUtils if available
+  // RNG must come from ctx.rng or RNGUtils; no RNGFallback/Math.random in Phase B
   let rng = null;
   try {
     if (typeof ctx.rng === "function") {
       rng = ctx.rng;
     } else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
       rng = window.RNGUtils.getRng();
-    } else if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") {
-      rng = window.RNG.rng;
-    } else if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
-      rng = window.RNGFallback.getRng();
-    } else {
-      rng = Math.random;
     }
-  } catch (_) {
-    rng = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
-  }
+  } catch (_) {}
 
   const round1 = (ctx.PlayerUtils && typeof ctx.PlayerUtils.round1 === "function")
     ? ctx.PlayerUtils.round1
     : (n) => Math.round(n * 10) / 10;
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-  // Prefer RNGUtils helpers when present to reduce duplication
+  // RNGUtils helpers when present; deterministic fallbacks when rng is unavailable
   const randInt = (min, max) => {
     try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") {
-        return window.RNGUtils.int(min, max, rng);
+      const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
+      if (RU && typeof RU.int === "function" && typeof rng === "function") {
+        return RU.int(min, max, rng);
       }
     } catch (_) {}
-    return Math.floor(rng() * (max - min + 1)) + min;
+    // Deterministic midpoint fallback
+    return Math.floor((min + max) / 2);
   };
   const chance = (p) => {
     try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-        return window.RNGUtils.chance(p, rng);
+      const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
+      if (RU && typeof RU.chance === "function" && typeof rng === "function") {
+        return RU.chance(p, rng);
       }
     } catch (_) {}
-    return rng() < p;
+    // Deterministic: no random gating when rng unavailable
+    return false;
   };
   const randFloat = (min, max, decimals = 1) => {
     try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
-        return window.RNGUtils.float(min, max, decimals, rng);
+      const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
+      if (RU && typeof RU.float === "function" && typeof rng === "function") {
+        return RU.float(min, max, decimals, rng);
       }
     } catch (_) {}
-    const v = min + rng() * (max - min);
+    // Deterministic midpoint
+    const v = (min + max) / 2;
     const p = Math.pow(10, decimals);
     return Math.round(v * p) / p;
   };
 
   const pick = (arr, rfn) => {
-    const r = rfn || rng;
-    return arr[Math.floor(r() * arr.length)];
+    // Deterministic: choose first when rng unavailable
+    const rf = (typeof rfn === "function") ? rfn : rng;
+    if (typeof rf === "function") {
+      const idx = Math.floor(rf() * arr.length);
+      return arr[idx];
+    }
+    return arr[0];
   };
   const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 

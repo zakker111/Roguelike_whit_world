@@ -1,5 +1,25 @@
 # Game Version History
-Last updated: 2025-10-25 06:05 UTC
+Last updated: 2025-10-25 06:28 UTC
+
+v1.41.16 — Phase B: Mandatory RNGUtils in ctx/AI/Loot; remove RNGFallback/Math.random fallbacks
+- core/ctx.js:
+  - ensureUtils now requires RNG from ctx.rng or RNGUtils.getRng; removed window.RNG and RNGFallback chains.
+  - Utilities use RNGUtils when available; deterministic fallbacks when RNG is unavailable:
+    - randInt: midpoint
+    - chance: false
+    - randFloat: midpoint
+    - pick: first entry when rng absent
+- ai/ai.js:
+  - RNG helper rv() now uses RNGUtils or ctx.rng; deterministic 0.5 when unavailable.
+  - randFloat/randInt/chance derive from rv(); removed window.RNG and RNGFallback references.
+- entities/loot.js:
+  - pickPotion: RNG selection requires RNGUtils or ctx.rng; removed RNGFallback/Math.random; deterministic 0.5 when missing.
+  - fallbackEquipment: RNG selection requires RNGUtils or ctx.rng; deterministic branch for hand vs shield when RNG is missing.
+  - pickEnemyBiasedEquipment: RNG selection requires RNGUtils or ctx.rng; weighted pick uses half-total when RNG missing.
+  - Animal-material drops: chance() uses RNGUtils or returns false deterministically when RNG missing.
+- Result:
+  - Phase B continues making RNGUtils mandatory in core gameplay paths, eliminating legacy RNGFallback/Math.random usage and ensuring deterministic behavior without RNG.
+- Deployment: (see latest)
 
 v1.41.15 — Flavor integration: use flavor.json (death section) for hit/death lines
 - data/flavor.js:

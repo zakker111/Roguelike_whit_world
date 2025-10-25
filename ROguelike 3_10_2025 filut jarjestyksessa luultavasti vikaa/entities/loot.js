@@ -31,14 +31,8 @@ function pickPotion(ctx, source) {
   const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
   const rfn = (RU && typeof RU.getRng === "function")
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-    : ((typeof ctx.rng === "function")
-        ? ctx.rng
-        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-            ? window.RNG.rng
-            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                ? window.RNGFallback.getRng()
-                : Math.random)));
-  const r = rfn();
+    : ((typeof ctx.rng === "function") ? ctx.rng : null);
+  const r = (typeof rfn === "function") ? rfn() : 0.5;
 
   function weightedPick(list) {
     const total = list.reduce((s, it) => s + (Number(it.weight) || 0), 0);
@@ -89,16 +83,10 @@ function fallbackEquipment(ctx, tier) {
   const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
   const rnd = (RU && typeof RU.getRng === "function")
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-    : ((typeof ctx.rng === "function")
-        ? ctx.rng
-        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-            ? window.RNG.rng
-            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                ? window.RNGFallback.getRng()
-                : Math.random)));
+    : ((typeof ctx.rng === "function") ? ctx.rng : null);
 
   if (cat === "hand") {
-    if (rnd() < 0.65) {
+    if ((typeof rnd === "function" ? rnd() : 0.5) < 0.65) {
       const w = ["sword", "axe", "bow"][ctx.randInt(0, 2)];
       const ranges = tier === 1 ? [0.5, 2.4] : tier === 2 ? [1.2, 3.4] : [2.2, 4.0];
       let atk = ctx.utils.randFloat(ranges[0], ranges[1], 1);
@@ -197,16 +185,14 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
           return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
         }
       } catch (_) {}
-      return (typeof ctx.rng === "function")
-        ? ctx.rng
-        : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function" ? window.RNG.rng : Math.random);
+      return (typeof ctx.rng === "function") ? ctx.rng : null;
     })();
 
     let total = 0;
     for (const e of entries) total += e.w;
     if (!(total > 0)) return null;
 
-    let r = rng() * total;
+    let r = (typeof rng === "function") ? (rng() * total) : (total / 2);
     let chosen = entries[0];
     for (const e of entries) {
       if (r < e.w) { chosen = e; break; }
@@ -239,7 +225,7 @@ export function generate(ctx, source) {
           return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
         }
       } catch (_) {}
-      return (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+      return (typeof ctx.rng === "function") ? ctx.rng : null;
     })();
     const chance = (p) => {
       try {
@@ -247,7 +233,8 @@ export function generate(ctx, source) {
           return window.RNGUtils.chance(p, rngFn);
         }
       } catch (_) {}
-      return rngFn() < p;
+      // Deterministic: no random gating when rng unavailable
+      return false;
     };
 
     // Meat amount: deer 2–3, boar 2–4, fox 1–2
