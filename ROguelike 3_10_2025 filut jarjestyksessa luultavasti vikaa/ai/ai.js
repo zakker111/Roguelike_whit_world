@@ -58,9 +58,15 @@ export function enemiesAct(ctx) {
   const U = (ctx && ctx.utils) ? ctx.utils : null;
   // Local RNG value helper to reduce nested ternaries and avoid syntax pitfalls
   const rv = () => {
-    if (ctx.rng) return ctx.rng();
-    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") return window.RNG.rng();
-    if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") return window.RNGFallback.getRng()();
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        const rfn = window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
+        return rfn();
+      }
+    } catch (_) {}
+    if (typeof ctx.rng === "function") return ctx.rng();
+    try { if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") return window.RNG.rng(); } catch (_) {}
+    try { if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") return window.RNGFallback.getRng()(); } catch (_) {}
     return Math.random();
   };
   const randFloat = U && U.randFloat ? U.randFloat : (ctx.randFloat || ((a,b,dec=1)=>{const r=rv();const v=a+r*(b-a);const p=Math.pow(10,dec);return Math.round(v*p)/p;}));

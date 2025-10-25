@@ -109,7 +109,30 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   if (!npc) {
     npc = near.find(n => (n.isShopkeeper || n._shopRef)) || null;
   }
-  const pick = (arr, rng) => arr[(arr.length === 1) ? 0 : Math.floor((rng ? rng() : Math.random()) * arr.length) % arr.length];
+  const pick = (arr, rng) => {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") {
+        const rfn = (typeof rng === "function")
+          ? rng
+          : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+              ? window.RNG.rng
+              : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                  ? window.RNGFallback.getRng()
+                  : Math.random));
+        const idx = window.RNGUtils.int(0, arr.length - 1, rfn);
+        return arr[idx] || arr[0];
+      }
+    } catch (_) {}
+    const rfn = (typeof rng === "function")
+      ? rng
+      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+          ? window.RNG.rng
+          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+              ? window.RNGFallback.getRng()
+              : Math.random));
+    const idx = Math.floor(rfn() * arr.length) % arr.length;
+    return arr[idx] || arr[0];
+  };
   npc = npc || pick(near, ctx.rng);
 
   const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
@@ -299,9 +322,17 @@ export function applyLeaveSync(ctx) {
     else centerCamera(ctx);
   } catch (_) { centerCamera(ctx); }
 
-  // Recompute FOV/UI and inform player (draw coalesced by orchestrator)
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  // Refresh via StateSync when available; fallback to manual refresh
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
+      try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+      try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+    }
+  } catch (_) {}
   try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}
 
   return true;
@@ -379,14 +410,35 @@ export function tick(ctx) {
     const canSpawn = !ctx._seppo.active && !alreadyPresent && t >= (ctx._seppo.cooldownUntil | 0) && (phase === "day" || phase === "dusk");
     if (canSpawn) {
       // Chance per town tick (increased slightly to be observable)
-      const roll = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-      if (roll < 0.01) { // ~1% per tick while conditions hold
+      const rfn = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
+        ? window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((typeof ctx.rng === "function")
+            ? ctx.rng
+            : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+                ? window.RNG.rng
+                : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                    ? window.RNGFallback.getRng()
+                    : Math.random)));
+      if (rfn() < 0.01) { // ~1% per tick while conditions hold
         // Find a free spot near the plaza (or gate as fallback)
         const within = 5;
         let best = null;
         for (let i = 0; i < 200; i++) {
-          const ox = ((Math.floor(((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) * (within * 2 + 1))) - within) | 0;
-          const oy = ((Math.floor(((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) * (within * 2 + 1))) - within) | 0;
+          const rfn2 = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
+            ? window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+            : ((typeof ctx.rng === "function")
+                ? ctx.rng
+                : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+                    ? window.RNG.rng
+                    : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                        ? window.RNGFallback.getRng()
+                        : Math.random)));
+          const ox = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function")
+            ? window.RNGUtils.int(-within, within, rfn2)
+            : ((Math.floor(rfn2() * (within * 2 + 1))) - within) | 0;
+          const oy = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function")
+            ? window.RNGUtils.int(-within, within, rfn2)
+            : ((Math.floor(rfn2() * (within * 2 + 1))) - within) | 0;
           const px = Math.max(1, Math.min((ctx.map[0]?.length || 2) - 2, (ctx.townPlaza?.x | 0) + ox));
           const py = Math.max(1, Math.min((ctx.map.length || 2) - 2, (ctx.townPlaza?.y | 0) + oy));
           const free = (typeof isFreeTownFloor === "function") ? isFreeTownFloor(ctx, px, py)

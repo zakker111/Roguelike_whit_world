@@ -603,6 +603,7 @@ export function tryMoveEncounter(ctx, dx, dy) {
   const nx = ctx.player.x + (dx | 0);
   const ny = ctx.player.y + (dy | 0);
   if (!(ctx.inBounds && ctx.inBounds(nx, ny))) return false;
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
 
   // Prefer to reuse DungeonRuntime movement/attack so encounters behave exactly like dungeon
   const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
@@ -628,9 +629,18 @@ export function tryMoveEncounter(ctx, dx, dy) {
       const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
       const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
       const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const rfn = (RU && typeof RU.getRng === "function")
+        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((typeof ctx.rng === "function")
+            ? ctx.rng
+            : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+                ? window.RNG.rng
+                : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                    ? window.RNGFallback.getRng()
+                    : Math.random)));
       const didBlock = (RU && typeof RU.chance === "function")
         ? RU.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined))
-        : (((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) < blockChance);
+        : (rfn() < blockChance);
       if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
@@ -683,6 +693,36 @@ export function enterRegion(ctx, info) {
   const H = ctx.map.length;
   const W = ctx.map[0] ? ctx.map[0].length : 0;
   if (!W || !H) return false;
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const r = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function")
+        ? ctx.rng
+        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+            ? window.RNG.rng
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                ? window.RNGFallback.getRng()
+                : Math.random_code))new)</;
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const r = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function")
+        ? ctx.rng
+        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+            ? window.RNG.rng
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                ? window.RNGFallback.getRng()
+                : Math.random)));
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const r = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function")
+        ? ctx.rng
+        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
+            ? window.RNG.rng
+            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
+                ? window.RNGFallback.getRng()
+                : Math.random)));
 
   // Initialize encounter state on region
   if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
