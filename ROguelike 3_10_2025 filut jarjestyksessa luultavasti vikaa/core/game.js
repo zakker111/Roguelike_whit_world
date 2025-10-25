@@ -1521,9 +1521,9 @@
   function doAction() {
     // Toggle behavior: if Loot UI is open, close it and do nothing else (do not consume a turn)
     try {
-      const UB = modHandle("UIBridge");
-      if (UB && typeof UB.isLootOpen === "function" && UB.isLootOpen()) {
-        hideLootPanel();
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx())) {
+        if (typeof UIO.hideLoot === "function") UIO.hideLoot(getCtx());
         return;
       }
     } catch (_) {}
