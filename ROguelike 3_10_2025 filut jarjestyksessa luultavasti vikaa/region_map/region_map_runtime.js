@@ -655,12 +655,12 @@ function open(ctx, size) {
         const y1 = Math.min(h - 2, y0 + rh);
         // Perimeter with gaps
         for (let x = x0; x <= x1; x++) {
-          if (rng() > 0.13) sample[y0][x] = ruinWallId;
-          if (rng() > 0.13) sample[y1][x] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y0][x] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y1][x] = ruinWallId;
         }
         for (let y = y0; y <= y1; y++) {
-          if (rng() > 0.13) sample[y][x0] = ruinWallId;
-          if (rng() > 0.13) sample[y][x1] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y][x0] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y][x1] = ruinWallId;
         }
         // Open 3–5 random gaps in the ring to create entrances
         const gaps = 3 + ((rng() * 3) | 0);
@@ -691,7 +691,7 @@ function open(ctx, size) {
             const x = (sx + (horiz ? k : 0)) | 0;
             const y = (sy + (horiz ? 0 : k)) | 0;
             if (x <= x0 || y <= y0 || x >= x1 || y >= y1) continue;
-            if (rng() < 0.85) sample[y][x] = ruinWallId;
+            if (RU && typeof RU.chance === "function" ? RU.chance(0.85, rng) : (rng() < 0.85)) sample[y][x] = ruinWallId;
           }
         }
         // Ensure an inner clearing ring for mobility around center
@@ -816,6 +816,7 @@ function open(ctx, size) {
       const h = ctx.region.map.length;
       const w = ctx.region.map[0] ? ctx.region.map[0].length : 0;
       if (!w || !h) return;
+      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
 
       // Resolve ruin wall id for walkability/FOV checks
       let ruinWallId = WT.MOUNTAIN;
@@ -979,7 +980,7 @@ function open(ctx, size) {
 
       // Probability for at most a single animal
       const pOne = Math.max(0, Math.min(0.6, 0.12 + forestBias * 0.35 + grassBias * 0.25 + beachBias * 0.12));
-      const spawnOne = rng() < pOne;
+      const spawnOne = (typeof RU !== "undefined" && RU && typeof RU.chance === "function") ? RU.chance(pOne, rng) : (rng() < pOne);
       let count = spawnOne ? 1 : 0;
 
       if (count <= 0) {
@@ -1099,8 +1100,16 @@ function open(ctx, size) {
           // Also update flag in this session
           ctx.region._hasKnownAnimals = true;
 
-          // Ensure FOV is up to date before logging visibility info
-          try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
+          try {
+            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(ctx, {});
+            } else {
+              typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
+              ctx.updateUI && ctx.updateUI();
+              ctx.requestDraw && ctx.requestDraw();
+            }
+          } catch (_) {}
           // Count how many are currently visible to the player
           let visibleCount = 0;
           try {
@@ -1121,7 +1130,6 @@ function open(ctx, size) {
           } else {
             try { ctx.log && ctx.log("Creatures are present in this area, but not in sight.", "info"); } catch (_) {}
           }
-          try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
         } else {
           try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         }

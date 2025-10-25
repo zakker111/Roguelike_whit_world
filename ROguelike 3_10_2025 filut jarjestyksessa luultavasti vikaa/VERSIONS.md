@@ -15,7 +15,12 @@ v1.41.0 — Phase B kickoff: RNG determinism, StateSync refresh, Capabilities sw
 - Tooling and CI
   - Add eslint/prettier to devDependencies with “lint” and “format” scripts.
   - Wire smoketest auto-run in CI; PASS/FAIL tokens already emitted by runner.
-- Deployment: (pending)
+- Deployment: https://9s75k2o6izz6.cosine.page
+- Implemented in this step:
+  - Region Map: badge shows “Animals cleared here” vs “Animals known in this area” (ui/render_region.js).
+  - Region Map: open/close/move use StateSync.applyAndRefresh (region_map/region_map_runtime.js).
+  - Encounters: confirm prompt routed via Capabilities.safeCall to UIOrchestration.showConfirm (services/encounter_service.js).
+  - Tooling: npm scripts “lint” and “format”, devDependencies eslint/prettier (package.json).
 
 v1.40.0 — Inn upstairs system, overlay-aware FOV/walk, stairs visibility, and NPC behavior tuning
 - Inn upstairs system
