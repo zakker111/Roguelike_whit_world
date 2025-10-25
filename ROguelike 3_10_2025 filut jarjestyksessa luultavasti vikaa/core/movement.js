@@ -190,7 +190,7 @@ export function tryMove(ctx, dx, dy) {
       : (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny));
     if (ctx.isWalkable(nx, ny) && !blockedByEnemy) {
       ctx.player.x = nx; ctx.player.y = ny;
-      try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
+      applyRefresh(ctx);
       try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
       return true;
     }
@@ -245,7 +245,7 @@ export function tryMove(ctx, dx, dy) {
     : (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny));
   if (ctx.isWalkable(nx, ny) && !blockedByEnemy) {
     ctx.player.x = nx; ctx.player.y = ny;
-    try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
+    applyRefresh(ctx);
     try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
     return true;
   }

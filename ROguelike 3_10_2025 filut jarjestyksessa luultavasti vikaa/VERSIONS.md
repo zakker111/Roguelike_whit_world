@@ -1,5 +1,17 @@
 # Game Version History
-Last updated: 2025-10-25 01:35 UTC
+Last updated: 2025-10-25 02:05 UTC
+
+v1.41.5 — Phase B: StateSync in TownRuntime and Modes syncAfterMutation
+- Town runtime refresh orchestration
+  - core/town_runtime.js:
+    - generate(ctx): after town generation and NPC population, now calls StateSync.applyAndRefresh (fallback: camera/FOV/UI/draw).
+    - tryMoveTown(ctx,dx,dy): movement updates player position, then calls StateSync.applyAndRefresh; turn semantics preserved.
+- Modes refresh centralization
+  - core/modes.js:
+    - syncAfterMutation(ctx): now calls StateSync.applyAndRefresh when available, replacing manual updateCamera/FOV/UI/draw sequences.
+- Result
+  - Consistent refresh path across world/town/dungeon/region/encounter modes via StateSync.
+- Deployment: https://8883eqg3pey4.cosine.page
 
 v1.41.4 — Phase B: StateSync adoption in DungeonRuntime (load/enter/exit/move) for consistent refresh
 - Dungeon runtime refresh orchestration

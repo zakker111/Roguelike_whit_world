@@ -39,10 +39,18 @@ export function generate(ctx) {
         }
       } catch (_) {}
 
-      // Post-gen camera/FOV/UI (draw coalesced by orchestrator)
-      try { ctx.updateCamera(); } catch (_) {}
-      try { ctx.recomputeFOV(); } catch (_) {}
-      try { ctx.updateUI(); } catch (_) {}
+      // Post-gen refresh via StateSync (fallback to manual)
+      try {
+        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        } else {
+          try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+          try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
+          try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+          try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+        }
+      } catch (_) {}
       return true;
     }
   }
@@ -229,7 +237,17 @@ export function tryMoveTown(ctx, dx, dy) {
   const walkable = (typeof ctx.isWalkable === "function") ? !!ctx.isWalkable(nx, ny) : true;
   if (walkable) {
     ctx.player.x = nx; ctx.player.y = ny;
-    try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+        try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
+        try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+        try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+      }
+    } catch (_) {}
     try { ctx.turn && ctx.turn(); } catch (_) {}
     return true;
   }

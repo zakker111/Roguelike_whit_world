@@ -30,6 +30,13 @@ function inBounds(ctx, x, y) {
 }
 
 function syncAfterMutation(ctx) {
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+      return;
+    }
+  } catch (_) {}
   if (typeof ctx.updateCamera === "function") ctx.updateCamera();
   if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
   if (typeof ctx.updateUI === "function") ctx.updateUI();
