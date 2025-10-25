@@ -2703,7 +2703,7 @@
       if (success) {
         log("You notice signs of wildlife nearby. Press G to open the Region Map.", "notice");
         lastAnimalHintTurn = turnCounter;
-       wildNoHintTurns = 0;
+        _wildNoHintTurns = 0;
       } else {
         _wildNoHintTurns++;
       }
