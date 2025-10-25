@@ -438,6 +438,23 @@
           }
         }
       } catch (_) {}
+      // Ensure at least one door exists on the perimeter; if none, carve a single door centered on the bottom edge
+      (function ensurePerimeterDoor() {
+        let hasDoor = false;
+        for (let xx = x0; xx <= x1 && !hasDoor; xx++) {
+          if (inBounds(ctx, xx, y0) && ctx.map[y0][xx] === ctx.TILES.DOOR) { hasDoor = true; break; }
+          if (inBounds(ctx, xx, y1) && ctx.map[y1][xx] === ctx.TILES.DOOR) { hasDoor = true; break; }
+        }
+        for (let yy = y0; yy <= y1 && !hasDoor; yy++) {
+          if (inBounds(ctx, x0, yy) && ctx.map[yy][x0] === ctx.TILES.DOOR) { hasDoor = true; break; }
+          if (inBounds(ctx, x1, yy) && ctx.map[yy][x1] === ctx.TILES.DOOR) { hasDoor = true; break; }
+        }
+        if (!hasDoor) {
+          const cx = x0 + ((w / 2) | 0);
+          const cy = y0 + h - 1;
+          if (inBounds(ctx, cx, cy)) ctx.map[cy][cx] = ctx.TILES.DOOR;
+        }
+      })();
       // Props
       try {
         if (Array.isArray(prefab.props)) {
