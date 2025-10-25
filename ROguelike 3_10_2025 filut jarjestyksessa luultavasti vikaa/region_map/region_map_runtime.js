@@ -941,9 +941,9 @@ function open(ctx, size) {
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
 
-      // If animals were already seen here in a prior visit, drastically reduce the chance to spawn again (10%)
+      // If animals were already seen here in a prior visit, reduce the chance to spawn again (60% allowed)
       const seenBefore = animalsSeenHere(worldX, worldY);
-      if (seenBefore && rng() >= 0.10) {
+      if (seenBefore && rng() >= 0.40) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
@@ -967,18 +967,18 @@ function open(ctx, size) {
           return (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
         } catch (_) { return false; }
       })();
-      if (wildFrac < 0.55 && !playerTileWild) {
+      if (wildFrac < 0.35 && !playerTileWild) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
       // Heavily non-wild or rugged biomes suppress spawns
-      if (desertBias + snowBias + swampBias > 0.30 || mountainBias > 0.15) {
+      if (desertBias + snowBias + swampBias > 0.30 || mountainBias > 0.20) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
 
       // Probability for at most a single animal
-      const pOne = Math.max(0, Math.min(0.35, 0.08 + forestBias * 0.20 + grassBias * 0.12 + beachBias * 0.06));
+      const pOne = Math.max(0, Math.min(0.6, 0.12 + forestBias * 0.35 + grassBias * 0.25 + beachBias * 0.12));
       const spawnOne = rng() < pOne;
       let count = spawnOne ? 1 : 0;
 
@@ -1077,10 +1077,10 @@ function open(ctx, size) {
       const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
 
       for (let i = 0; i < count; i++) {
-        // Small chance to spawn the creature closer to the player to improve visibility
+        // Ensure at least one creature spawns near the player to improve visibility
         let pos = null;
-        if (i === 0 && rng() < 0.25) {
-          pos = randomNearWalkable(cx0, cy0, 5);
+        if (i === 0) {
+          pos = randomNearWalkable(cx0, cy0, 6);
         }
         if (!pos) pos = randomWalkable();
         if (!pos) break;
