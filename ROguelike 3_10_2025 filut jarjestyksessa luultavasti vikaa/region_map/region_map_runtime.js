@@ -1266,7 +1266,6 @@ function tryMove(ctx, dx, dy) {
   }
 
   if (!walkable) {
-    try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
     return false;
   }
 
@@ -1312,8 +1311,6 @@ function onAction(ctx) {
       } catch (_) {
         ctx.log && ctx.log("Loot failed.", "warn");
       }
-      // Request redraw to update corpse color
-      try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
       return true;
     }
   } catch (_) {}
@@ -1327,8 +1324,13 @@ function onAction(ctx) {
       if (ctx.log) ctx.log("You cut the tree.", "notice");
       try {
         ctx.region.map[cursor.y][cursor.x] = WT.FOREST;
-        // Reflect change in active map and request redraw
-        if (ctx.map === ctx.region.map && typeof ctx.requestDraw === "function") ctx.requestDraw();
+        // Reflect change via orchestrator refresh
+        try {
+          const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+          if (SS && typeof SS.applyAndRefresh === "function") {
+            SS.applyAndRefresh(ctx, {});
+          }
+        } catch (_) {}
       } catch (_) {}
 
       // Grant planks material in inventory (stacking)

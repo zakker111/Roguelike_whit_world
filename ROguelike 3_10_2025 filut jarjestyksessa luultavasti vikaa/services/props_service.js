@@ -148,8 +148,6 @@ function _sleepModal(ctx, defaultMinutes, logTemplate) {
     const timeStr = _timeHHMM(ctx);
     const msg = _renderTemplate(logTemplate || "You sleep for ${minutes} minutes (${time}). HP ${prev} -> ${hp}.", { minutes: m, time: timeStr, prev: prev.toFixed ? prev.toFixed(1) : prev, hp: (res.hp.toFixed ? res.hp.toFixed(1) : res.hp) });
     _log(ctx, msg, "good");
-    if (typeof ctx.updateUI === "function") ctx.updateUI();
-    if (typeof ctx.requestDraw === "function") ctx.requestDraw();
   };
   try {
     if (UB && typeof UB.showSleep === "function") {
@@ -167,6 +165,13 @@ function _sleepModal(ctx, defaultMinutes, logTemplate) {
     } else {
       _advanceTime(ctx, mins);
       afterTime(mins);
+      // Unified refresh via StateSync (avoid duplicate draws when animateSleep is available)
+      try {
+        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        }
+      } catch (_) {}
     }
   } catch (_) {}
 }
@@ -210,9 +215,12 @@ export function interact(ctx, prop) {
     const msg = _renderTemplate(eff.logTemplate || "You rest until morning (${time}). HP ${prev} -> ${hp}.", { time: _timeHHMM(ctx), prev: (res.prev.toFixed ? res.prev.toFixed(1) : res.prev), hp: (res.hp.toFixed ? res.hp.toFixed(1) : res.hp) });
     _log(ctx, msg, variant.style || "info");
     // Ensure HUD/time reflect changes immediately
-    try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
-    try { if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV(); } catch (_) {}
-    try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
     return true;
   }
   if (eff && eff.type === "restTurn") {

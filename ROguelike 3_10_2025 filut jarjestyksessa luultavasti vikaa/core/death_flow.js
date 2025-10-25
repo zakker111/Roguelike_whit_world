@@ -93,7 +93,12 @@ export function restart(ctx) {
 
 export function onPlayerDied(ctx) {
   try { ctx.isDead = true; } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
   try { ctx.log && ctx.log("You die. Press R or Enter to restart.", "bad"); } catch (_) {}
   show(ctx);
 }
