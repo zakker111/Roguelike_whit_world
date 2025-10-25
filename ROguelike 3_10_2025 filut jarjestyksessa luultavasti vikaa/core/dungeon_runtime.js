@@ -116,18 +116,34 @@ export function load(ctx, x, y) {
   if (ctx.DungeonState && typeof ctx.DungeonState.load === "function") {
     const ok = ctx.DungeonState.load(ctx, x, y);
     if (ok) {
-      ctx.updateCamera && ctx.updateCamera();
-      ctx.recomputeFOV && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
+      try {
+        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        } else {
+          ctx.updateCamera && ctx.updateCamera();
+          ctx.recomputeFOV && ctx.recomputeFOV();
+          ctx.updateUI && ctx.updateUI();
+          ctx.requestDraw && ctx.requestDraw();
+        }
+      } catch (_) {}
     }
     return ok;
   }
   if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.load === "function") {
     const ok = window.DungeonState.load(ctx, x, y);
     if (ok) {
-      ctx.updateCamera && ctx.updateCamera();
-      ctx.recomputeFOV && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
+      try {
+        const SS = ctx.StateSync || window.StateSync || null;
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        } else {
+          ctx.updateCamera && ctx.updateCamera();
+          ctx.recomputeFOV && ctx.recomputeFOV();
+          ctx.updateUI && ctx.updateUI();
+          ctx.requestDraw && ctx.requestDraw();
+        }
+      } catch (_) {}
     }
     return ok;
   }
@@ -159,9 +175,17 @@ export function load(ctx, x, y) {
     if (ctx.seen[ctx.dungeonExitAt.y]) ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
   }
 
-  ctx.recomputeFOV && ctx.recomputeFOV();
-  ctx.updateCamera && ctx.updateCamera();
-  ctx.updateUI && ctx.updateUI();
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      ctx.recomputeFOV && ctx.recomputeFOV();
+      ctx.updateCamera && ctx.updateCamera();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
   return true;
 }
 
@@ -203,8 +227,18 @@ export function generate(ctx, depth) {
         ctx.log && ctx.log(`[DEV] Enemies spawned: ${ctx.enemies.length}, visible now: ${visCount}. Torches: ${torchCount}.`, "notice");
       }
     } catch (_) {}
-    // UI and message
-    ctx.updateUI && ctx.updateUI();
+    // Refresh UI and visuals via StateSync, then message
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        ctx.updateCamera && ctx.updateCamera();
+        ctx.recomputeFOV && ctx.recomputeFOV();
+        ctx.updateUI && ctx.updateUI();
+        ctx.requestDraw && ctx.requestDraw();
+      }
+    } catch (_) {}
     ctx.log && ctx.log("You explore the dungeon.");
     save(ctx, true);
     return true;
@@ -222,9 +256,17 @@ export function generate(ctx, depth) {
   ctx.corpses = [];
   ctx.decals = [];
   ctx.dungeonProps = [];
-  ctx.recomputeFOV && ctx.recomputeFOV();
-  ctx.updateCamera && ctx.updateCamera();
-  ctx.updateUI && ctx.updateUI();
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      ctx.recomputeFOV && ctx.recomputeFOV();
+      ctx.updateCamera && ctx.updateCamera();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
   ctx.log && ctx.log("You explore the dungeon.");
   save(ctx, true);
   return true;
@@ -304,12 +346,18 @@ export function returnToWorldIfAtExit(ctx) {
     }
   } catch (_) {}
 
-  // Recompute FOV and UI
+  // Refresh visuals via StateSync
   try {
-    if (ctx.FOV && typeof ctx.FOV.recomputeFOV === "function") ctx.FOV.recomputeFOV(ctx);
-    else if (ctx.recomputeFOV) ctx.recomputeFOV();
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      if (ctx.FOV && typeof ctx.FOV.recomputeFOV === "function") ctx.FOV.recomputeFOV(ctx);
+      else if (ctx.recomputeFOV) ctx.recomputeFOV();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
   } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
   try { ctx.log && ctx.log("You climb back to the overworld.", "notice"); } catch (_) {}
 
   return true;
@@ -572,10 +620,18 @@ export function enter(ctx, info) {
   // Persist immediately
   try { save(ctx, true); } catch (_) {}
 
-  // Ensure visuals are refreshed
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  // Ensure visuals are refreshed via StateSync
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      ctx.updateCamera && ctx.updateCamera();
+      ctx.recomputeFOV && ctx.recomputeFOV();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
 
   return true;
 }
@@ -821,7 +877,17 @@ export function tryMoveDungeon(ctx, dx, dy) {
     const walkable = ctx.inBounds(nx, ny) && (ctx.map[ny][nx] === ctx.TILES.FLOOR || ctx.map[ny][nx] === ctx.TILES.DOOR || ctx.map[ny][nx] === ctx.TILES.STAIRS);
     if (walkable && !blockedByEnemy) {
       ctx.player.x = nx; ctx.player.y = ny;
-      ctx.updateCamera && ctx.updateCamera();
+      try {
+        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        } else {
+          ctx.updateCamera && ctx.updateCamera();
+          ctx.recomputeFOV && ctx.recomputeFOV();
+          ctx.updateUI && ctx.updateUI();
+          ctx.requestDraw && ctx.requestDraw();
+        }
+      } catch (_) {}
       if (advanceTurn && ctx.turn) ctx.turn();
       return true;
     }

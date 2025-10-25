@@ -1,5 +1,20 @@
 # Game Version History
-Last updated: 2025-10-25 01:10 UTC
+Last updated: 2025-10-25 01:35 UTC
+
+v1.41.4 — Phase B: StateSync adoption in DungeonRuntime (load/enter/exit/move) for consistent refresh
+- Dungeon runtime refresh orchestration
+  - core/dungeon_runtime.js:
+    - load(ctx,x,y): after applying saved state, now calls StateSync.applyAndRefresh (fallback to manual camera/FOV/UI/draw).
+    - window.DungeonState.load path updated similarly to use StateSync when available.
+    - direct load path (from ctx._dungeonStates) also uses StateSync to refresh visuals.
+    - generate fallback (flat-floor) uses StateSync for refresh post-map setup.
+    - generate(ctx, depth): after generation, occupancy rebuild, and dev logs, refresh now goes through StateSync.applyAndRefresh; FOV sanity check retained.
+    - enter(ctx,info): post-marking entrance and save, refresh via StateSync.applyAndRefresh.
+    - returnToWorldIfAtExit(ctx): world-mode restoration refresh via StateSync.applyAndRefresh.
+    - tryMoveDungeon(ctx,dx,dy): movement into empty tiles calls StateSync.applyAndRefresh for visuals; turn semantics preserved.
+- Result
+  - Unified refresh across dungeon flows; fewer manual sequences and more consistent visuals.
+- Deployment: https://oikyg1shhn05.cosine.page
 
 v1.41.3 — Phase B: AI RNG unification and Movement fallback refresh via StateSync
 - AI determinism
