@@ -131,7 +131,7 @@ export function tryMove(ctx, dx, dy) {
       const WR = mod("WorldRuntime");
       if (WR && typeof WR.tryMovePlayerWorld === "function") {
         const ok = !!WR.tryMovePlayerWorld(ctx, dx, dy);
-        if (ok) return true;
+        if (ok) { applyRefresh(ctx); return true; }
       }
     } catch (_) {}
     const nx = ctx.player.x + dx;
@@ -203,7 +203,7 @@ export function tryMove(ctx, dx, dy) {
       const TR = mod("TownRuntime");
       if (TR && typeof TR.tryMoveTown === "function") {
         const ok = !!TR.tryMoveTown(ctx, dx, dy);
-        if (ok) return true;
+        if (ok) { applyRefresh(ctx); return true; }
       }
     } catch (_) {}
     const nx = ctx.player.x + dx;
