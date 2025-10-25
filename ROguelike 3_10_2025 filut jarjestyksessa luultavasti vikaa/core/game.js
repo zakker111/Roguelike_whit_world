@@ -457,6 +457,15 @@
   }
 
   function rerenderInventoryIfOpen() {
+    // Prefer UIOrchestration via Capabilities.safeCall; fallback to UIBridge
+    try {
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
+        if (res && res.ok && !!res.result) { renderInventoryPanel(); return; }
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     let open = false;
     try {
@@ -1589,9 +1598,21 @@
     }
 
     if (mode === "region") {
+      // Prefer RegionMapRuntime.onAction via Capabilities.safeCall
+      const ctxMod = getCtx();
+      try {
+        const Cap = modHandle("Capabilities");
+        if (Cap && typeof Cap.safeCall === "function") {
+          const res = Cap.safeCall(ctxMod, "RegionMapRuntime", "onAction", ctxMod);
+          const handled = !!(res && res.ok && res.result);
+          if (handled) {
+            applyCtxSyncAndRefresh(ctxMod);
+            return;
+          }
+        }
+      } catch (_) {}
       const RM = modHandle("RegionMapRuntime");
       if (RM && typeof RM.onAction === "function") {
-        const ctxMod = getCtx();
         const handled = !!RM.onAction(ctxMod);
         if (handled) {
           applyCtxSyncAndRefresh(ctxMod);
@@ -2060,20 +2081,18 @@
 
   
   function renderInventoryPanel() {
-    // Prefer centralized UI orchestration
+    // Prefer centralized UI orchestration or InventoryController via Capabilities.safeCall
     try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.renderInventory === "function") {
-        UIO.renderInventory(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "UIOrchestration", "renderInventory", ctxLocal);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "InventoryController", "render", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.render === "function") {
-      IC.render(getCtx());
-      return;
-    }
-    // Prefer UIBridge
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.renderInventory === "function") {
       UB.renderInventory(getCtx());
@@ -2082,18 +2101,26 @@
   }
 
   function showInventoryPanel() {
-    // Prefer centralized UI orchestration
+    // Prefer centralized UI orchestration via Capabilities.safeCall
     try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.showInventory === "function") {
-        UIO.showInventory(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "showInventory", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
     const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
-      if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+      // Prefer UIOrchestration isInventoryOpen; fallback to UIBridge
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
+        if (r && r.ok) wasOpen = !!r.result;
+      }
+      if (!wasOpen && UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
     } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.show === "function") {
@@ -2108,18 +2135,26 @@
   }
 
   function hideInventoryPanel() {
-    // Prefer centralized UI orchestration
+    // Prefer centralized UI orchestration via Capabilities.safeCall
     try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.hideInventory === "function") {
-        UIO.hideInventory(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideInventory", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
     const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
-      if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+      // Prefer UIOrchestration isInventoryOpen; fallback to UIBridge
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
+        if (r && r.ok) wasOpen = !!r.result;
+      }
+      if (!wasOpen && UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
     } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.hide === "function") {
@@ -2464,6 +2499,15 @@
 
   
   function updateUI() {
+    // Prefer UIBridge via Capabilities.safeCall
+    try {
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIBridge", "updateStats", ctxLocal);
+        if (res && res.ok) return;
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.updateStats === "function") {
       UB.updateStats(getCtx());
