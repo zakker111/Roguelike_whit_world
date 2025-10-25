@@ -1,5 +1,16 @@
 # Game Version History
-Last updated: 2025-10-25 07:20 UTC
+Last updated: 2025-10-25 08:05 UTC
+
+v1.41.19 — Phase B completion: RNG fallback removal (AI, Town talk, Dungeon decay)
+- ai/ai.js:
+  - rngPick() now uses RNGUtils.getRng(ctx.rng) or ctx.rng; deterministic (() => 0.5) fallback. Removed window.RNG and Math.random fallbacks.
+- core/town_runtime.js:
+  - talk(): pick() now uses RNGUtils.int with ctx.rng or deterministic first-entry fallback. Removed RNGFallback and Math.random fallbacks.
+- core/dungeon_runtime.js:
+  - tryMoveDungeon(): decayEquipped float helper now uses RNGUtils.float or ctx.rng; deterministic midpoint fallback. Removed RNGFallback and Math.random fallbacks.
+- Result:
+  - RNGUtils is now mandatory across core AI/town/dungeon paths; no residual Math.random/RNGFallback usage in these areas.
+- Deployment: (see latest)
 
 v1.41.18 — Phase B: RNG fallback removal in core (game/encounter/town/GameAPI) and encounter cleanup
 - core/game.js:

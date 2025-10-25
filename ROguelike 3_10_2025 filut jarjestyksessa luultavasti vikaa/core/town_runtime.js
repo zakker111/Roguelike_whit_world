@@ -119,27 +119,21 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   }
   const pick = (arr, rng) => {
     try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") {
-        const rfn = (typeof rng === "function")
-          ? rng
-          : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-              ? window.RNG.rng
-              : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                  ? window.RNGFallback.getRng()
-                  : Math.random));
-        const idx = window.RNGUtils.int(0, arr.length - 1, rfn);
-        return arr[idx] || arr[0];
+      const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
+      if (RU && typeof RU.int === "function") {
+        const rfn = (typeof rng === "function") ? rng : ((typeof ctx.rng === "function") ? ctx.rng : undefined);
+        if (typeof rfn === "function") {
+          const idx = RU.int(0, arr.length - 1, rfn);
+          return arr[idx] || arr[0];
+        }
       }
     } catch (_) {}
-    const rfn = (typeof rng === "function")
-      ? rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-          ? window.RNG.rng
-          : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-              ? window.RNGFallback.getRng()
-              : Math.random));
-    const idx = Math.floor(rfn() * arr.length) % arr.length;
-    return arr[idx] || arr[0];
+    if (typeof rng === "function") {
+      const idx = Math.floor(rng() * arr.length) % arr.length;
+      return arr[idx] || arr[0];
+    }
+    // Deterministic fallback: first element when RNG unavailable
+    return arr[0];
   };
   npc = npc || pick(near, ctx.rng);
 

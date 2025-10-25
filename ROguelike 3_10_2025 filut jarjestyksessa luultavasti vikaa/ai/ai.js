@@ -502,15 +502,16 @@ export function enemiesAct(ctx) {
 
             function rngPick(r) {
               try {
-                if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-                  return window.RNGUtils.getRng(r || ctx.rng || null);
+                const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
+                if (RU && typeof RU.getRng === "function") {
+                  const base = (typeof r === "function") ? r : ((typeof ctx.rng === "function") ? ctx.rng : undefined);
+                  return RU.getRng(base);
                 }
               } catch (_) {}
+              if (typeof r === "function") return r;
               if (typeof ctx.rng === "function") return ctx.rng;
-              try {
-                if (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") return window.RNG.rng;
-              } catch (_) {}
-              return Math.random;
+              // Deterministic fallback when RNG service is unavailable
+              return () => 0.5;
             }
 
             function pickWeighted(entries, rfn) {

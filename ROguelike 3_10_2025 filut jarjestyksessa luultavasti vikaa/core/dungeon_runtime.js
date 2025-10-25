@@ -722,22 +722,18 @@ export function tryMoveDungeon(ctx, dx, dy) {
         } else if (typeof ctx.decayEquipped === "function") {
           const rf = (typeof ctx.randFloat === "function") ? ctx.randFloat : ((min, max) => {
             try {
-              if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
+              const RUx = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+              if (RUx && typeof RUx.float === "function") {
                 const rfnLocal = (typeof ctx.rng === "function") ? ctx.rng : undefined;
-                return window.RNGUtils.float(min, max, 6, rfnLocal);
+                return RUx.float(min, max, 6, rfnLocal);
               }
             } catch (_) {}
-            const RUlocal = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-            const rfnLocal = (RUlocal && typeof RUlocal.getRng === "function")
-              ? RUlocal.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-              : ((typeof ctx.rng === "function")
-                  ? ctx.rng
-                  : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-                      ? window.RNG.rng
-                      : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                          ? window.RNGFallback.getRng()
-                          : Math.random)));
-            return min + rfnLocal() * (max - min);
+            if (typeof ctx.rng === "function") {
+              const r = ctx.rng();
+              return min + r * (max - min);
+            }
+            // Deterministic midpoint when RNG unavailable
+            return (min + max) / 2;
           });
           ctx.decayEquipped("hands", rf(0.2, 0.7));
         }
