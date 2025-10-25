@@ -1521,10 +1521,14 @@
   function doAction() {
     // Toggle behavior: if Loot UI is open, close it and do nothing else (do not consume a turn)
     try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx())) {
-        if (typeof UIO.hideLoot === "function") UIO.hideLoot(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "isLootOpen", ctxLocal);
+        if (res && res.ok && !!res.result) {
+          Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
+          return;
+        }
       }
     } catch (_) {}
     hideLootPanel();
@@ -1804,28 +1808,34 @@
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideGod === "function") UIO.hideGod(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideGod", ctxLocal);
         },
         onHideShop: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideShop === "function") UIO.hideShop(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideShop", ctxLocal);
         },
         onHideSmoke: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideSmoke === "function") UIO.hideSmoke(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideSmoke", ctxLocal);
         },
         onHideSleep: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideSleep === "function") UIO.hideSleep(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideSleep", ctxLocal);
         },
         onCancelConfirm: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "cancelConfirm", ctxLocal);
         },
         onShowGod: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.showGod === "function") UIO.showGod(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showGod", ctxLocal);
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
         },
@@ -1835,12 +1845,14 @@
           return !!(UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(getCtx()));
         },
         onShowRegionMap: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.showRegionMap === "function") UIO.showRegionMap(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showRegionMap", ctxLocal);
         },
         onHideRegionMap: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideRegionMap === "function") UIO.hideRegionMap(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideRegionMap", ctxLocal);
         },
         // Help / Controls + Character Sheet (F1)
         isHelpOpen: () => {
@@ -1848,12 +1860,14 @@
           return !!(UIO && typeof UIO.isHelpOpen === "function" && UIO.isHelpOpen(getCtx()));
         },
         onShowHelp: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.showHelp === "function") UIO.showHelp(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showHelp", ctxLocal);
         },
         onHideHelp: () => {
-          const UIO = modHandle("UIOrchestration");
-          if (UIO && typeof UIO.hideHelp === "function") UIO.hideHelp(getCtx());
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideHelp", ctxLocal);
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
