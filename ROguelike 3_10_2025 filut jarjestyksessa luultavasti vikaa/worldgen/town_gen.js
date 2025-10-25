@@ -459,11 +459,16 @@
           if (!doorWorld) {
             doorWorld = { x: x0 + ((w / 2) | 0), y: y0 + h - 1 };
           }
+          // Capture schedule/name overrides from prefab.shop if present
+          let shopMeta = (prefab.shop && typeof prefab.shop === "object") ? prefab.shop : null;
           prefabShops.push({
             type: shopType,
             building: rect,
             door: doorWorld,
-            name: shopType[0].toUpperCase() + shopType.slice(1)
+            name: (shopMeta && shopMeta.name) ? String(shopMeta.name) : (shopType[0].toUpperCase() + shopType.slice(1)),
+            openStr: (shopMeta && typeof shopMeta.open === "string") ? shopMeta.open : null,
+            closeStr: (shopMeta && typeof shopMeta.close === "string") ? shopMeta.close : null,
+            alwaysOpen: !!(shopMeta && shopMeta.alwaysOpen === true)
           });
         }
       } catch (_) {}
@@ -916,22 +921,27 @@
           const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
           return ((h | 0) * 60 + (min | 0)) % (24 * 60);
         }
-        function scheduleForType(type) {
+        function scheduleForTypeOrOverrides(type, ps) {
+          // Prefab overrides take precedence if provided
+          if (ps && ps.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
+          if (ps && typeof ps.openStr === "string" && typeof ps.closeStr === "string") {
+            const o = parseHHMMToMinutes(ps.openStr);
+            const c = parseHHMMToMinutes(ps.closeStr);
+            if (o != null && c != null) return { openMin: o, closeMin: c, alwaysOpen: false };
+          }
           const def = findShopDefByType(type);
           if (!def) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
           if (def.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
-          const o = parseHHMMToMinutes(def.open);
-          const c = parseHHMMToMinutes(def.close);
-          if (o == null || c == null) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
-          return { openMin: o, closeMin: c, alwaysOpen: false };
+          const o2 = parseHHMMToMinutes(def.open);
+          const c2 = parseHHMMToMinutes(def.close);
+          if (o2 == null || c2 == null) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
+          return { openMin: o2, closeMin: c2, alwaysOpen: false };
         }
 
         for (const ps of prefabShops) {
           if (!ps || !ps.building) continue;
-          // Prevent duplicate assignment if the same building would be used by later logic
-          const key = `${ps.building.x},${ps.building.y}`;
           // Add shop entry
-          const sched = scheduleForType(ps.type);
+          const sched = scheduleForTypeOrOverrides(ps.type, ps);
           const name = ps.name || ps.type || "Shop";
           // Compute an inside tile near the door
           const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];

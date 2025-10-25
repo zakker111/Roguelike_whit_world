@@ -2,6 +2,7 @@
   "houses": [
     {
       "id": "house_small_1",
+      "name": "Small House A",
       "category": "house",
       "tags": ["residential", "single_story"],
       "size": { "w": 7, "h": 6 },
@@ -22,6 +23,7 @@
     },
     {
       "id": "house_small_2",
+      "name": "Small House B",
       "category": "house",
       "tags": ["residential", "single_story"],
       "size": { "w": 6, "h": 5 },
@@ -38,6 +40,7 @@
     },
     {
       "id": "house_medium_1",
+      "name": "Medium House A",
       "category": "house",
       "tags": ["residential"],
       "size": { "w": 9, "h": 7 },
@@ -62,14 +65,15 @@
   "shops": [
     {
       "id": "shop_blacksmith_1",
+      "name": "Blacksmith",
       "category": "shop",
-      "shop": { "type": "blacksmith" },
+      "shop": { "type": "blacksmith", "schedule": { "open": "08:00", "close": "17:00", "alwaysOpen": false }, "signText": "Blacksmith" },
       "tags": ["shop","blacksmith"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
@@ -83,14 +87,15 @@
     },
     {
       "id": "shop_apothecary_1",
+      "name": "Apothecary",
       "category": "shop",
-      "shop": { "type": "apothecary" },
+      "shop": { "type": "apothecary", "schedule": { "open": "09:00", "close": "18:00", "alwaysOpen": false }, "signText": "Apothecary" },
       "tags": ["shop","apothecary"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
@@ -104,14 +109,15 @@
     },
     {
       "id": "shop_trader_1",
+      "name": "Trader",
       "category": "shop",
-      "shop": { "type": "trader" },
+      "shop": { "type": "trader", "schedule": { "open": "08:00", "close": "18:00", "alwaysOpen": false }, "signText": "Trader" },
       "tags": ["shop","trader"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
@@ -127,13 +133,14 @@
   "inns": [
     {
       "id": "inn_tavern_1",
+      "name": "Inn & Tavern A",
       "category": "inn",
       "tags": ["two_story","tavern"],
       "size": { "w": 11, "h": 9 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
@@ -155,9 +162,9 @@
         "tiles": [
           ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
           ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-          ["WALL","FLOOR","BED","FLOOR","FLOOR","FLOOR","BED","FLOOR","WALL"],
+          ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
           ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","WALL"],
-          ["WALL","FLOOR","BED","FLOOR","FLOOR","FLOOR","BED","FLOOR","WALL"],
+          ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
           ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
           ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
         ],
@@ -165,18 +172,19 @@
           { "x": 2, "y": 2, "type": "bed" },
           { "x": 6, "y": 2, "type": "bed" }
         ]
-      },
+      ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
     },
     {
       "id": "inn_tavern_2",
+      "name": "Inn & Tavern B",
       "category": "inn",
       "tags": ["two_story","tavern"],
       "size": { "w": 13, "h": 9 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
@@ -195,13 +203,14 @@
     },
     {
       "id": "inn_tavern_3",
+      "name": "Inn & Tavern C",
       "category": "inn",
       "tags": ["two_story","tavern"],
       "size": { "w": 10, "h": 8 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
