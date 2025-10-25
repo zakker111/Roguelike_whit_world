@@ -377,8 +377,6 @@ export function restockIfNeeded(ctx, shop) {
           if (rows.length > 6) break;
         }
       });
-    } else {
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("shop", "Primary restock skipped: shopPools missing for type.", { type: shop.type }); } catch (_) {}
     }
 
     // Stack identical consumables across all shops for cleaner lists (potions by heal, drinks by name)
@@ -437,8 +435,6 @@ export function restockIfNeeded(ctx, shop) {
         if (item2) {
           st.rows[idx] = { item: item2, price: calculatePrice(shop.type, item2, phase, null), qty: Math.max(1, (pick2 && pick2.stack && pick2.stack.max) ? pick2.stack.max : 1) };
         }
-      } else {
-        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("shop", "Mini restock skipped: shopPools missing for type.", { type: shop.type }); } catch (_) {}
       }
       // Re-stack after mini restock to keep duplicate consumables merged
       try { st.rows = _stackRows(st.rows); } catch (_) {}

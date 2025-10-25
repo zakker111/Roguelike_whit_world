@@ -117,7 +117,6 @@
       }
     }
     // Fallback to center
-    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "ensureSpawnClear: moving player to map center (no walkable tile found by BFS).", { W, H }); } catch (_) {}
     ctx.player.x = (W / 2) | 0;
     ctx.player.y = (H / 2) | 0;
     return true;
@@ -309,7 +308,6 @@
         const d = Math.abs(t.x - pxy.x) + Math.abs(t.y - pxy.y);
         if (d < bd) { bd = d; best = t; }
       }
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "Gate placement: using nearest edge (enterFromDir unavailable).", { gate: best }); } catch (_) {}
       gate = best;
     }
 
@@ -986,7 +984,6 @@
     try {
       const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (s.type === "inn") || (/inn/i.test(String(s.name || ""))));
       if (!hasInn) {
-        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "No Inn assigned by shopDefs; creating fallback Inn."); } catch (_) {}
         // Pick an unused building near the plaza that does NOT overlap the plaza footprint
         let bInn = null;
         for (const s of scored) {
@@ -1149,7 +1146,6 @@
         if (isInsideAnyBuilding(nx, ny)) continue;
         if (ctx.map[ny][nx] !== ctx.TILES.FLOOR) continue;
         if (ctx.townProps.some(p => p.x === nx && p.y === ny)) continue;
-        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "Shop sign: placing at nearby floor (preferred outside placement unavailable).", { door, sign: { x: nx, y: ny }, text }); } catch (_) {}
         addProp(nx, ny, "sign", text);
         return true;
       }

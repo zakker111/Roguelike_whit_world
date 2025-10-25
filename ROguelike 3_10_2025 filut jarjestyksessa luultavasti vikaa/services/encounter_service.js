@@ -77,7 +77,7 @@ function pickTemplate(ctx, biome) {
     { id: "bandit_camp", name: "Bandit Camp", baseWeight: 0.8, allowedBiomes: ["GRASS","DESERT","BEACH"], map: { generator: "camp", w: 26, h: 18 }, groups: [ { type: "bandit", count: { min: 3, max: 6 } } ] },
     { id: "wild_seppo", name: "Wild Seppo", baseWeight: 0.06, allowedBiomes: ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"], map: { generator: "camp", w: 24, h: 16 }, merchant: { vendor: "seppo" }, groups: [] },
   ];
-  if (!reg) { try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("encounter", "Using built-in encounter templates (GameData.encounters missing).", { biome }); } catch (_) {} }
+  
   const list = reg || fallback;
   const candidates = list.filter(t => {
     if (!Array.isArray(t.allowedBiomes) || t.allowedBiomes.length === 0) return true;
@@ -270,12 +270,7 @@ export function maybeTryEncounter(ctx) {
     if (UI && typeof UI.showConfirm === "function") {
       UI.showConfirm(ctx, text, null, () => enter(), () => cancel());
     } else {
-      // No confirm UI available; cancel by default and log once
-      try {
-        if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") {
-          window.Fallback.log("encounter", "Confirm UI unavailable; cancelling encounter prompt.");
-        }
-      } catch (_) {}
+      // No confirm UI available; cancel by default
       cancel();
     }
     return true;

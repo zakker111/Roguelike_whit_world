@@ -133,7 +133,6 @@ function _signSchedule(ctx, p, template, style) {
     }
   } catch (_) {}
   // Fallback to generic sign text with title only
-  try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("props", "Using generic sign text (no adjacent shop found).", { title: p.name || "Sign" }); } catch (_) {}
   const final = _renderTemplate(template || "Sign: ${title}", { title: p.name || "Sign" });
   _log(ctx, final, style || "info");
   return true;
@@ -166,7 +165,6 @@ function _sleepModal(ctx, defaultMinutes, logTemplate) {
         }
       });
     } else {
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("props", "Using basic sleep (UIBridge.showSleep unavailable).", { minutes: mins }); } catch (_) {}
       _advanceTime(ctx, mins);
       afterTime(mins);
     }

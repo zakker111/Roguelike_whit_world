@@ -114,7 +114,7 @@ function loadFromMemory(ctx, k) {
   if (ctx._dungeonStates && ctx._dungeonStates[k]) return ctx._dungeonStates[k];
   try {
     if (typeof window !== "undefined" && window._DUNGEON_STATES_MEM && window._DUNGEON_STATES_MEM[k]) {
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon_state", "Using global in-memory dungeon state fallback.", { key: k }); } catch (_) {}
+      
       return window._DUNGEON_STATES_MEM[k];
     }
   } catch (_) {}
@@ -145,7 +145,7 @@ function applyState(ctx, st, x, y) {
     ex = st.dungeonExitAt.x; ey = st.dungeonExitAt.y;
   } else {
     ex = x; ey = y;
-    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon_state", "Fallback exit coordinates used from world entrance.", { key: key(x,y) }); } catch (_) {}
+    
   }
 
   // Clamp exit to current dungeon map bounds defensively
@@ -207,7 +207,7 @@ export function load(ctx, x, y) {
 
   // Fallback to localStorage if not in memory
   if (!st) {
-    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon_state", "Loading dungeon state from localStorage (memory missing).", { key: k }); } catch (_) {}
+    
     st = loadFromLS(k);
   }
   if (!st) {

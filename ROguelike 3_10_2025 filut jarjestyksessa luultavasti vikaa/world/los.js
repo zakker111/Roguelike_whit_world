@@ -13,7 +13,7 @@
 import { getTileDef } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 
-let _loggedLOSFallback = false;
+
 
 export function tileTransparent(ctx, x, y) {
   if (!ctx || typeof ctx.inBounds !== "function") return false;
@@ -34,7 +34,7 @@ export function tileTransparent(ctx, x, y) {
   // - Else, only walls block LOS
   try {
     const mode = String(ctx.mode || "").toLowerCase();
-    if (!_loggedLOSFallback && typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") {
+    if (mode === "world" || mode === "region") return trued" && window.Fallback && typeof window.Fallback.log === "function") {
       window.Fallback.log("los", "Using default transparency rules (tiles.json blocksFOV unavailable).", { mode });
       _loggedLOSFallback = true;
     }
