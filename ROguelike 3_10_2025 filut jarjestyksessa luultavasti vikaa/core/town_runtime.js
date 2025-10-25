@@ -150,7 +150,10 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   // Only shopkeepers can open shops; villagers should not trigger trading.
   const isKeeper = !!(npc && (npc.isShopkeeper || npc._shopRef));
 
-  // Determine if keeper is physically at their shop (on the door tile or inside the building)
+  // Determine if keeper is at their shop:
+  // - on the door tile
+  // - adjacent to the door (preferred spawn avoids blocking the door itself)
+  // - inside the building
   function isKeeperAtShop(n, shop) {
     if (!n || !shop) return false;
     const atDoor = (n.x === shop.x && n.y === shop.y);
@@ -161,7 +164,9 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
         inside = (n.x > b.x && n.x < b.x + b.w - 1 && n.y > b.y && n.y < b.y + b.h - 1);
       }
     } catch (_) {}
-    return atDoor || inside;
+    // Adjacent to door (outside or just inside) counts as being "at" the shop for interaction
+    const nearDoor = (Math.abs(n.x - shop.x) + Math.abs(n.y - shop.y)) === 1;
+    return atDoor || inside || nearDoor;
   }
 
   // Helper to open a shop reference (if open), showing schedule when closed
