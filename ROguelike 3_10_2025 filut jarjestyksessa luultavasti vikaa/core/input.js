@@ -96,6 +96,18 @@ export function init(handlers) {
       return;
     }
 
+    // Help / Controls gating: block movement and other keys while open; Esc closes it
+    if (_handlers.isHelpOpen && _handlers.isHelpOpen()) {
+      const isEsc = e.key === "Escape" || e.key === "Esc";
+      if (isEsc) {
+        e.preventDefault();
+        _handlers.onHideHelp && _handlers.onHideHelp();
+      } else {
+        e.preventDefault();
+      }
+      return;
+    }
+
     if (_handlers.isInventoryOpen && _handlers.isInventoryOpen()) {
       const isEsc = e.key === "Escape" || e.key === "Esc";
       if (e.key && (e.key.toLowerCase() === "i" || isEsc)) {
