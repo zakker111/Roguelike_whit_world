@@ -1167,11 +1167,8 @@
       // Fall through to legacy path if WorldRuntime signaled failure
     }
 
-    // Fallback to dungeon only (finite world disabled)
-    log("Infinite world generation failed; generating dungeon instead.", "warn");
-    mode = "dungeon";
-    generateLevel(floor);
-    return;
+    // Hard error: infinite world not available or generation failed
+    throw new Error("Infinite world generation failed or unavailable");
   }
 
   

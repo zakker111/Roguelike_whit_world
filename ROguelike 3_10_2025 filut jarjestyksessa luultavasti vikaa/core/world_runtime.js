@@ -618,9 +618,8 @@ export function generate(ctx, opts = {}) {
     return true;
   }
 
-  // Infinite generator unavailable: fail and let orchestrator handle fallback
-  ctx.log && ctx.log("Infinite world generator unavailable; world generation failed.", "warn");
-  return false;
+  // Infinite generator unavailable: throw a hard error (no finite fallback)
+  throw new Error("Infinite world generator unavailable or not initialized");
 }
 
 export function tryMovePlayerWorld(ctx, dx, dy) {
