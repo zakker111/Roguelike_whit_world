@@ -63,6 +63,7 @@
     {
       "id": "shop_blacksmith_1",
       "category": "shop",
+      "shop": { "type": "blacksmith" },
       "tags": ["shop","blacksmith"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
@@ -83,6 +84,7 @@
     {
       "id": "shop_apothecary_1",
       "category": "shop",
+      "shop": { "type": "apothecary" },
       "tags": ["shop","apothecary"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
@@ -103,6 +105,7 @@
     {
       "id": "shop_trader_1",
       "category": "shop",
+      "shop": { "type": "trader" },
       "tags": ["shop","trader"],
       "size": { "w": 8, "h": 6 },
       "tiles": [

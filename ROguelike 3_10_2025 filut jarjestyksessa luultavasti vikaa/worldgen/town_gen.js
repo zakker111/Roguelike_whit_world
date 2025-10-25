@@ -384,6 +384,8 @@
 
     // Buildings container (either prefab-placed or hollow rectangles as fallback)
     const buildings = [];
+    // Prefab-stamped shops (collected during placement; integrated later with schedules and signs)
+    const prefabShops = [];
 
     // --- Prefab helpers ---
     function stampPrefab(ctx, prefab, bx, by) {
@@ -438,7 +440,34 @@
           }
         }
       } catch (_) {}
-      buildings.push({ x: x0, y: y0, w, h });
+      const rect = { x: x0, y: y0, w, h };
+      buildings.push(rect);
+
+      // If prefab declares it is a shop, collect for later schedule/sign assignment
+      try {
+        if (String(prefab.category || "").toLowerCase() === "shop" || (prefab.shop && prefab.shop.type)) {
+          const shopType = (prefab.shop && prefab.shop.type) ? String(prefab.shop.type) : (prefab.tags && prefab.tags.find(t => t !== "shop")) || "shop";
+          // Choose front door: prefer role=main else first door; translate to world coords
+          let doorWorld = null;
+          if (Array.isArray(prefab.doors) && prefab.doors.length) {
+            let d0 = prefab.doors.find(d => String(d.role || "").toLowerCase() === "main") || prefab.doors[0];
+            if (d0 && typeof d0.x === "number" && typeof d0.y === "number") {
+              doorWorld = { x: x0 + (d0.x | 0), y: y0 + (d0.y | 0) };
+            }
+          }
+          // If no explicit door, pick midpoint on bottom edge
+          if (!doorWorld) {
+            doorWorld = { x: x0 + ((w / 2) | 0), y: y0 + h - 1 };
+          }
+          prefabShops.push({
+            type: shopType,
+            building: rect,
+            door: doorWorld,
+            name: shopType[0].toUpperCase() + shopType.slice(1)
+          });
+        }
+      } catch (_) {}
+
       return true;
     }
 
@@ -867,6 +896,72 @@
     // Ensure props container exists before any early prop placement (e.g., shop signs)
     ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
     ctx.shops = [];
+    // Integrate prefab-declared shops: resolve schedules, add signs, and mark buildings as used.
+    (function integratePrefabShops() {
+      try {
+        // Helper: find matching shop def by type from GameData.shops
+        function findShopDefByType(type) {
+          try {
+            const defs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops : null;
+            if (!defs) return null;
+            const tkey = String(type || "").toLowerCase();
+            return defs.find(d => String(d.type || "").toLowerCase() === tkey) || null;
+          } catch (_) { return null; }
+        }
+        function parseHHMMToMinutes(s) {
+          if (!s || typeof s !== "string") return null;
+          const m = s.match(/^(\d{1,2}):(\d{2})$/);
+          if (!m) return null;
+          const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
+          const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
+          return ((h | 0) * 60 + (min | 0)) % (24 * 60);
+        }
+        function scheduleForType(type) {
+          const def = findShopDefByType(type);
+          if (!def) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
+          if (def.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
+          const o = parseHHMMToMinutes(def.open);
+          const c = parseHHMMToMinutes(def.close);
+          if (o == null || c == null) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
+          return { openMin: o, closeMin: c, alwaysOpen: false };
+        }
+
+        for (const ps of prefabShops) {
+          if (!ps || !ps.building) continue;
+          // Prevent duplicate assignment if the same building would be used by later logic
+          const key = `${ps.building.x},${ps.building.y}`;
+          // Add shop entry
+          const sched = scheduleForType(ps.type);
+          const name = ps.name || ps.type || "Shop";
+          // Compute an inside tile near the door
+          const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
+          let inside = null;
+          for (const dxy of inward) {
+            const ix = ps.door.x + dxy.dx, iy = ps.door.y + dxy.dy;
+            const insideB = (ix > ps.building.x && ix < ps.building.x + ps.building.w - 1 && iy > ps.building.y && iy < ps.building.y + ps.building.h - 1);
+            if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { inside = { x: ix, y: iy }; break; }
+          }
+          if (!inside) {
+            const cx = Math.max(ps.building.x + 1, Math.min(ps.building.x + ps.building.w - 2, Math.floor(ps.building.x + ps.building.w / 2)));
+            const cy = Math.max(ps.building.y + 1, Math.min(ps.building.y + ps.building.h - 2, Math.floor(ps.building.y + ps.building.h / 2)));
+            inside = { x: cx, y: cy };
+          }
+
+          ctx.shops.push({
+            x: ps.door.x,
+            y: ps.door.y,
+            type: ps.type || "shop",
+            name,
+            openMin: sched.openMin,
+            closeMin: sched.closeMin,
+            alwaysOpen: !!sched.alwaysOpen,
+            building: { x: ps.building.x, y: ps.building.y, w: ps.building.w, h: ps.building.h, door: { x: ps.door.x, y: ps.door.y } },
+            inside
+          });
+          try { addShopSign(ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
+        }
+      } catch (_) {}
+    })();
 
     // Data-first shop selection: use GameData.shops when available
     function parseHHMMToMinutes(s) {
