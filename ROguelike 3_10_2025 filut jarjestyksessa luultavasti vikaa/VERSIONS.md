@@ -1,5 +1,15 @@
 # Game Version History
-Last updated: 2025-10-25 02:48 UTC
+Last updated: 2025-10-25 03:10 UTC
+
+v1.41.8 — Remove finite world fallback; infinite-only world generation
+- core/world_runtime.js:
+  - Dropped the finite-world path entirely. generate(ctx,opts) now attempts InfiniteGen only; if unavailable, it returns false and lets the orchestrator handle fallback.
+  - Condition changed to ignore WORLD_INFINITE gating (attempts IG when present). No more window.World.generate or pickTownStart fallback.
+- core/game.js:
+  - initWorld() no longer falls back to finite world. If WorldRuntime.generate fails or is unavailable, it switches to dungeon mode and generates a floor.
+- Result:
+  - World generation is infinite-only. Builds without InfiniteGen will enter dungeon mode instead of constructing a finite overworld.
+- Deployment: https://norpfey1t2nj.cosine.page
 
 v1.41.7 — Phase B: StateSync in seed flows, TurnLoop refresh, and RNG in world start
 - Refresh orchestration

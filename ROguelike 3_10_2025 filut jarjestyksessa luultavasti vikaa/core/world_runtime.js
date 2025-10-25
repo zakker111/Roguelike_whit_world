@@ -517,8 +517,8 @@ export function generate(ctx, opts = {}) {
   // Feature gate for infinite world
   const infiniteEnabled = featureEnabled("WORLD_INFINITE", true);
 
-  // Create generator (infinite) or fall back
-  if (infiniteEnabled && IG && typeof IG.create === "function") {
+  // Create generator (infinite only)
+  if (IG && typeof IG.create === "function") {
     const seed = currentSeed();
     const gen = IG.create(seed);
 
@@ -618,74 +618,9 @@ export function generate(ctx, opts = {}) {
     return true;
   }
 
-  // Fallback to finite world (existing module)
-  if (!(W && typeof W.generate === "function")) {
-    ctx.log && ctx.log("World module missing; generating dungeon instead.", "warn");
-    ctx.mode = "dungeon";
-    try { if (typeof ctx.generateLevel === "function") ctx.generateLevel(ctx.floor || 1); } catch (_) {}
-    return false;
-  }
-
-  try {
-    ctx.world = W.generate(ctx, { width, height });
-  } catch (e) {
-    ctx.log && ctx.log("World generation failed; falling back to dungeon.", "warn");
-    ctx.mode = "dungeon";
-    try { if (typeof ctx.generateLevel === "function") ctx.generateLevel(ctx.floor || 1); } catch (_) {}
-    return false;
-  }
-
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-  const rngFn = (RU && typeof RU.getRng === "function")
-    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-    : ((typeof ctx.rng === "function")
-        ? ctx.rng
-        : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-            ? window.RNG.rng
-            : ((typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function")
-                ? window.RNGFallback.getRng()
-                : Math.random)));
-  const start = (typeof W.pickTownStart === "function")
-    ? W.pickTownStart(ctx.world, rngFn)
-    : { x: 1, y: 1 };
-
-  ctx.player.x = start.x;
-  ctx.player.y = start.y;
-  ctx.mode = "world";
-
-  ctx.enemies = [];
-  ctx.corpses = [];
-  ctx.decals = [];
-  ctx.npcs = [];
-  ctx.shops = [];
-
-  ctx.map = ctx.world.map;
-  const rows = ctx.map.length;
-  const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-  // Fog-of-war: start unseen; FOV will reveal around player
-  ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(false));
-  ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(false));
-
-  try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
-    if (SS && typeof SS.applyAndRefresh === "function") {
-      SS.applyAndRefresh(ctx, {});
-    } else {
-      typeof ctx.updateCamera === "function" && ctx.updateCamera();
-      typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
-      ctx.requestDraw && ctx.requestDraw();
-    }
-  } catch (_) {}
-
-  ctx.log && ctx.log("You arrive in the overworld.", "notice");
-
-  try {
-    const TR = (ctx && ctx.TownRuntime) || (typeof window !== "undefined" ? window.TownRuntime : null);
-    if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(ctx);
-  } catch (_) {}
-
-  return true;
+  // Infinite generator unavailable: fail and let orchestrator handle fallback
+  ctx.log && ctx.log("Infinite world generator unavailable; world generation failed.", "warn");
+  return false;
 }
 
 export function tryMovePlayerWorld(ctx, dx, dy) {

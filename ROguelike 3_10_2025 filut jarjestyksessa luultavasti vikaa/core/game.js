@@ -1167,49 +1167,11 @@
       // Fall through to legacy path if WorldRuntime signaled failure
     }
 
-    // Legacy path
-    const W = modHandle("World");
-    if (!(W && typeof W.generate === "function")) {
-      log("World module missing; generating dungeon instead.", "warn");
-      mode = "dungeon";
-      generateLevel(floor);
-      return;
-    }
-    const ctx = getCtx();
-    world = W.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
-    const start = (typeof W.pickTownStart === "function") ? W.pickTownStart(world, rng) : { x: 1, y: 1 };
-    player.x = start.x; player.y = start.y;
-    mode = "world";
-    enemies = [];
-    corpses = [];
-    decals = [];
-    // Clear lingering encounter visuals when returning to world
-    encounterProps = [];
-    encounterBiome = null;
-    encounterObjective = null;
-    npcs = [];   // no NPCs on overworld
-    shops = [];  // no shops on overworld
-    map = world.map;
-    // fill seen/visible fully in world
-    seen = Array.from({ length: map.length }, () => Array(map[0].length).fill(true));
-    visible = Array.from({ length: map.length }, () => Array(map[0].length).fill(true));
-    updateCamera();
-    recomputeFOV();
-    updateUI();
-    {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(getCtx(), "world.arrive");
-      } else {
-        log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
-      }
-    }
-    {
-      // Delegate town exit button visibility via TownRuntime
-      const TR = modHandle("TownRuntime");
-      if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(getCtx());
-    }
-    requestDraw();
+    // Fallback to dungeon only (finite world disabled)
+    log("Infinite world generation failed; generating dungeon instead.", "warn");
+    mode = "dungeon";
+    generateLevel(floor);
+    return;
   }
 
   
