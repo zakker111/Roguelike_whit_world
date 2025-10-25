@@ -1455,6 +1455,37 @@
     addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
     addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
 
+    // Repair pass: enforce solid building perimeters (no FLOOR left on borders)
+    (function repairBuildingPerimeters() {
+      try {
+        for (const b of buildings) {
+          const x0 = b.x, y0 = b.y, x1 = b.x + b.w - 1, y1 = b.y + b.h - 1;
+          // Top and bottom edges
+          for (let xx = x0; xx <= x1; xx++) {
+            if (inBounds(ctx, xx, y0)) {
+              const t = ctx.map[y0][xx];
+              if (t === ctx.TILES.FLOOR) ctx.map[y0][xx] = ctx.TILES.WALL;
+            }
+            if (inBounds(ctx, xx, y1)) {
+              const t = ctx.map[y1][xx];
+              if (t === ctx.TILES.FLOOR) ctx.map[y1][xx] = ctx.TILES.WALL;
+            }
+          }
+          // Left and right edges
+          for (let yy = y0; yy <= y1; yy++) {
+            if (inBounds(ctx, x0, yy)) {
+              const t = ctx.map[yy][x0];
+              if (t === ctx.TILES.FLOOR) ctx.map[yy][x0] = ctx.TILES.WALL;
+            }
+            if (inBounds(ctx, x1, yy)) {
+              const t = ctx.map[yy][x1];
+              if (t === ctx.TILES.FLOOR) ctx.map[yy][x1] = ctx.TILES.WALL;
+            }
+          }
+        }
+      } catch (_) {}
+    })();
+
     // Benches and market decor around the plaza
     (function placePlazaDecor() {
       // Place benches along the inner perimeter of the plaza, spaced out
