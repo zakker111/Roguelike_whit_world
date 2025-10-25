@@ -413,6 +413,18 @@
           ctx.map[y0 + yy][x0 + xx] = t;
         }
       }
+      // Ensure a solid perimeter: if any outer edge cell is FLOOR, convert to WALL.
+      // This protects against prefab authors who forget to put walls on the boundary.
+      for (let yy = y0; yy <= y1; yy++) {
+        for (let xx = x0; xx <= x1; xx++) {
+          const isBorder = (yy === y0 || yy === y1 || xx === x0 || xx === x1);
+          if (!isBorder) continue;
+          const cur = ctx.map[yy][xx];
+          if (cur === ctx.TILES.FLOOR) {
+            ctx.map[yy][xx] = ctx.TILES.WALL;
+          }
+        }
+      }
       // Props
       try {
         if (Array.isArray(prefab.props)) {
