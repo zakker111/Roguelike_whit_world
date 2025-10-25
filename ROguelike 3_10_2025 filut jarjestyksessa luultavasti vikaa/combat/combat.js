@@ -86,9 +86,7 @@ export function playerAttackEnemy(ctx, enemy) {
         return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
       }
     } catch (_) {}
-    return (typeof ctx.rng === "function")
-      ? ctx.rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+    return (typeof ctx.rng === "function") ? ctx.rng : null;
   })();
 
   // Helper: classify equipped weapon for skill tracking
@@ -132,8 +130,8 @@ export function playerAttackEnemy(ctx, enemy) {
         return window.RNGUtils.chance(blockChance, rng);
       }
     } catch (_) {}
-    const r = (typeof ctx.rng === "function") ? ctx.rng() : rng();
-    return r < blockChance;
+    if (typeof rng === "function") return rng() < blockChance;
+    return false;
   })();
 
   if (didBlock) {
@@ -269,7 +267,7 @@ export function playerAttackEnemy(ctx, enemy) {
       const rf = (min, max) =>
         (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function")
           ? window.RNGUtils.float(min, max, 1, rng)
-          : (min + (rng() * (max - min)));
+          : ((min + max) / 2);
       ctx.decayEquipped("hands", rf(0.3, 1.0));
     }
   } catch (_) {}

@@ -67,7 +67,7 @@ export function logHit(ctx, opts) {
         return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
       }
     } catch (_) {}
-    return (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+    return (typeof ctx.rng === "function") ? ctx.rng : null;
   })();
 
   if (crit && loc.part === "head") {
@@ -78,7 +78,7 @@ export function logHit(ctx, opts) {
           return window.RNGUtils.chance(0.6, rngFn);
         }
       } catch (_) {}
-      return rngFn() < 0.6;
+      return typeof rngFn === "function" ? (rngFn() < 0.6) : false;
     })();
     if (line && ok) ctx.log(line, "flavor");
     return;
@@ -91,7 +91,7 @@ export function logHit(ctx, opts) {
           return window.RNGUtils.chance(0.5, rngFn);
         }
       } catch (_) {}
-      return rngFn() < 0.5;
+      return typeof rngFn === "function" ? (rngFn() < 0.5) : false;
     })();
     if (line && ok) ctx.log(line, "info");
     return;
@@ -113,7 +113,7 @@ export function logPlayerHit(ctx, opts) {
         return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
       }
     } catch (_) {}
-    return (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+    return (typeof ctx.rng === "function") ? ctx.rng : null;
   })();
 
   // Blood spill flavor
@@ -141,7 +141,7 @@ export function logPlayerHit(ctx, opts) {
           return window.RNGUtils.chance(0.6, rngFn);
         }
       } catch (_) {}
-      return rngFn() < 0.6;
+      return typeof rngFn === "function" ? (rngFn() < 0.6) : false;
     })();
     if (tmplStr && ok) ctx.log(tmpl(tmplStr, { name }), "notice");
     return;
@@ -171,7 +171,7 @@ export function logPlayerHit(ctx, opts) {
           return window.RNGUtils.chance(0.5, rngFn);
         }
       } catch (_) {}
-      return rngFn() < 0.5;
+      return typeof rngFn === "function" ? (rngFn() < 0.5) : false;
     })();
     if (line && ok) ctx.log(line, "info");
     return;

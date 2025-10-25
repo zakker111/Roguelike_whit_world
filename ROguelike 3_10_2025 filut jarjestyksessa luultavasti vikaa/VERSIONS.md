@@ -1,5 +1,25 @@
 # Game Version History
-Last updated: 2025-10-25 05:12 UTC
+Last updated: 2025-10-25 05:40 UTC
+
+v1.41.14 — Phase B: RNG fallback removal in Combat/Decay/Flavor; deterministic behavior when RNG missing
+- Combat utilities
+  - combat/combat_utils.js:
+    - rollHitLocation and critMultiplier now require RNGUtils.getRng or a provided rng; removed window.RNG/RNGFallback/Math.random fallbacks.
+    - When RNG is unavailable, use deterministic defaults (torso selection; crit multiplier 1.8).
+- Combat flow
+  - combat/combat.js:
+    - playerAttackEnemy rng wiring requires RNGUtils.getRng or ctx.rng; removed window.RNG/Math.random usage.
+    - Block and crit checks use RNGUtils.chance when available; otherwise compare via rng(); if rng is absent, default to false (no block/no crit).
+    - Equipment decay ranges use RNGUtils.float; fallback to deterministic midpoints when RNG unavailable.
+- Equipment decay
+  - combat/equipment_decay.js:
+    - Removed rng_fallback import; initialDecay/decayAttackHands/decayBlockingHands now require RNGUtils or provided rng.
+    - float helper uses RNGUtils.float; fallback to deterministic midpoint (no random).
+- Flavor
+  - data/flavor.js:
+    - RNG resolution uses RNGUtils.getRng or ctx.rng; removed Math.random fallback.
+    - chance checks guard rngFn presence and default to false when RNG is unavailable; selection falls back to first entry when rng is missing.
+- Deployment: https://b2wf98dbza7q.cosine.page
 
 v1.41.13 — Phase B: RNG fallback reduction (mandatory RNGUtils paths) + StateSync-only refresh in GameAPI
 - RNG fallback reduction (remove Math.random and RNGFallback usage in key modules)
