@@ -105,7 +105,10 @@ export function leaveTownNow(ctx) {
     ctx.player.y = ctx.worldReturnPos.y;
   }
   try {
-    if (ctx.UIBridge && typeof ctx.UIBridge.hideTownExitButton === "function") ctx.UIBridge.hideTownExitButton(ctx);
+    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+    if (Cap && typeof Cap.safeCall === "function") {
+      Cap.safeCall(ctx, "UIOrchestration", "hideTownExitButton", ctx);
+    }
   } catch (_) {}
   if (ctx.log) ctx.log("You return to the overworld.", "notice");
   syncAfterMutation(ctx);
@@ -114,9 +117,10 @@ export function leaveTownNow(ctx) {
 export function requestLeaveTown(ctx) {
   const pos = { x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60 };
   try {
-    if (ctx.UIBridge && typeof ctx.UIBridge.showConfirm === "function") {
-      ctx.UIBridge.showConfirm(ctx, "Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
-      return;
+    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+    if (Cap && typeof Cap.safeCall === "function") {
+      const { ok } = Cap.safeCall(ctx, "UIOrchestration", "showConfirm", ctx, "Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
+      if (ok) return;
     }
   } catch (_) {}
   // Fallback: proceed to leave to avoid getting stuck without a confirm UI
@@ -214,7 +218,10 @@ export function enterTownIfOnTile(ctx) {
       } catch (_) {}
       try {
         if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
-        else if (ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") ctx.UIBridge.showTownExitButton(ctx);
+        else {
+          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
+        }
       } catch (_) {}
       if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
       syncAfterMutation(ctx);

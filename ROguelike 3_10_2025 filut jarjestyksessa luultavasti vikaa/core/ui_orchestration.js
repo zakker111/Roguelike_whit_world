@@ -232,6 +232,16 @@ export function isRegionMapOpen(ctx) {
   return false;
 }
 
+export function showShop(ctx, npc) {
+  const u = U(ctx);
+  let wasOpen = false;
+  try { if (u && typeof u.isShopOpen === "function") wasOpen = !!u.isShopOpen(); } catch (_) {}
+  if (u && typeof u.showShop === "function") {
+    u.showShop(ctx, npc);
+    if (!wasOpen) requestDraw(ctx);
+  }
+}
+
 export function hideShop(ctx) {
   const u = U(ctx);
   let wasOpen = false;
@@ -246,6 +256,23 @@ export function isShopOpen(ctx) {
   const u = U(ctx);
   try { if (u && typeof u.isShopOpen === "function") return !!u.isShopOpen(); } catch (_) {}
   return false;
+}
+
+export function buyShopIndex(ctx, idx) {
+  const u = U(ctx);
+  if (u && typeof u.buyShopIndex === "function") {
+    u.buyShopIndex(ctx, (idx | 0));
+  }
+}
+
+export function showSmoke(ctx) {
+  const u = U(ctx);
+  let wasOpen = false;
+  try { if (u && typeof u.isSmokeOpen === "function") wasOpen = !!u.isSmokeOpen(); } catch (_) {}
+  if (u && typeof u.showSmoke === "function") {
+    u.showSmoke(ctx);
+    if (!wasOpen) requestDraw(ctx);
+  }
 }
 
 export function hideSmoke(ctx) {
@@ -296,6 +323,15 @@ export function isConfirmOpen(ctx) {
   return false;
 }
 
+export function showConfirm(ctx, text, pos, onOk, onCancel) {
+  const u = U(ctx);
+  // Best-effort: delegate to UIBridge/UI; no browser confirm fallback here
+  if (u && typeof u.showConfirm === "function") {
+    u.showConfirm(ctx, String(text || ""), pos || null, onOk, onCancel);
+    requestDraw(ctx);
+  }
+}
+
 export function isAnyModalOpen(ctx) {
   const u = U(ctx);
   try { if (u && typeof u.isAnyModalOpen === "function") return !!u.isAnyModalOpen(); } catch (_) {}
@@ -325,13 +361,32 @@ attachGlobal("UIOrchestration", {
   showRegionMap,
   hideRegionMap,
   isRegionMapOpen,
+  showShop,
   hideShop,
   isShopOpen,
+  buyShopIndex,
+  showSmoke,
   hideSmoke,
   isSmokeOpen,
   hideSleep,
   isSleepOpen,
+  showConfirm,
   cancelConfirm,
   isConfirmOpen,
-  isAnyModalOpen
+  isAnyModalOpen,
+  // Town exit button
+  showTownExitButton: (ctx) => {
+    const u = U(ctx);
+    if (u && typeof u.showTownExitButton === "function") {
+      u.showTownExitButton(ctx);
+      requestDraw(ctx);
+    }
+  },
+  hideTownExitButton: (ctx) => {
+    const u = U(ctx);
+    if (u && typeof u.hideTownExitButton === "function") {
+      // Do not force a draw here; button hide is DOM-only
+      u.hideTownExitButton(ctx);
+    }
+  }
 });

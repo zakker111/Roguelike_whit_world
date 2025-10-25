@@ -166,11 +166,15 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
       const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(shopRef) : "";
       if (openNow) {
         let wasOpen = false;
-        try { wasOpen = !!(ctx.UIBridge && typeof ctx.UIBridge.isShopOpen === "function" && ctx.UIBridge.isShopOpen()); } catch (_) {}
-        if (ctx.UIBridge && typeof ctx.UIBridge.showShop === "function") {
-          ctx.UIBridge.showShop(ctx, sourceNpc || npc);
-        }
-        if (!wasOpen) { ctx.requestDraw && ctx.requestDraw(); }
+        try {
+          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+          if (Cap && typeof Cap.safeCall === "function") {
+            const state = Cap.safeCall(ctx, "UIOrchestration", "isShopOpen", ctx);
+            wasOpen = !!(state && state.result);
+            Cap.safeCall(ctx, "UIOrchestration", "showShop", ctx, sourceNpc || npc);
+          }
+        } catch (_) {}
+        // UIOrchestration.showShop schedules draw when opening; no manual draw needed
         return true;
       } else {
         ctx.log && ctx.log(`The ${shopRef.name || "shop"} is closed. ${sched}`, "warn");
@@ -362,15 +366,17 @@ function centerCamera(ctx) {
 
 export function showExitButton(ctx) {
   try {
-    if (ctx && ctx.UIBridge && typeof ctx.UIBridge.showTownExitButton === "function") {
-      ctx.UIBridge.showTownExitButton(ctx);
+    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+    if (Cap && typeof Cap.safeCall === "function") {
+      Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
     }
   } catch (_) {}
 }
 export function hideExitButton(ctx) {
   try {
-    if (ctx && ctx.UIBridge && typeof ctx.UIBridge.hideTownExitButton === "function") {
-      ctx.UIBridge.hideTownExitButton(ctx);
+    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+    if (Cap && typeof Cap.safeCall === "function") {
+      Cap.safeCall(ctx, "UIOrchestration", "hideTownExitButton", ctx);
     }
   } catch (_) {}
 }
