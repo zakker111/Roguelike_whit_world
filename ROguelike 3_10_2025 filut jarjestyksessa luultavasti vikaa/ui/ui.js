@@ -1173,10 +1173,10 @@ export const UI = {
       "<div style='font-size:16px; font-weight:600; margin-bottom:8px;'>Controls</div>",
       "<div style='display:grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 10px;'>",
       "<div>Move: Arrow keys / Numpad (8-dir)</div><div>Wait: Numpad5</div>",
-      "<div>Action/Interact: G</div><div>Descend/Context: N</div>",
-      "<div>Inventory: I</div><div>GOD panel: P</div>",
-      "<div>FOV: [ and ] (or +/-)</div><div>Region Map: M</div>",
-      "<div>Brace (dungeon): B</div><div>Help / Character Sheet: F1</div>",
+      "<div>Action/Interact: G</div><div>Inventory: I</div>",
+      "<div>GOD panel: P</div><div>FOV: [ and ] (or +/-)</div>",
+      "<div>Help / Character Sheet: F1</div><div>Brace (dungeon): B</div>",
+      "<div>Local Region Map: G (overworld/RUINS; M disabled)</div><div></div>",
       "</div>",
       "<div style='font-size:16px; font-weight:600; margin: 6px 0;'>Character Sheet</div>",
       `<div>${hpStr}  •  Attack ${atk.toFixed(1)}  Defense ${def.toFixed(1)}</div>`,
@@ -1202,7 +1202,13 @@ export const UI = {
           return "<div style='margin-top:6px;'>Skills (passive damage buffs):</div>" +
                  `<ul style='margin:4px 0 0 14px;'>${lines}</ul>`;
         } catch (_) { return ""; }
-      })()
+      })(),
+      "<div style='font-size:16px; font-weight:600; margin: 10px 0 6px;'>Troubleshooting</div>",
+      "<ul style='margin:4px 0 0 14px;'>",
+      "<li>Infinite world generator required: if InfiniteGen is missing, startup logs an error and fails. Use the included server (node server.js) or Vite dev server so modules and JSON assets load.</li>",
+      "<li>Seeds: set via GOD panel (“Apply Seed” / “Reroll Seed”). Current seed persists to localStorage (SEED) for deterministic runs.</li>",
+      "<li>Modal gating: movement/actions are blocked while any modal is open; press Escape to close. Confirm dialogs block all keys except Escape.</li>",
+      "</ul>"
     ].join("");
 
     this.els.helpContent.innerHTML = html;
@@ -1403,8 +1409,11 @@ export const UI = {
     } catch (_) {}
     this.updatePerfButton();
     try {
-      if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
-        window.GameAPI.requestDraw();
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
       }
     } catch (_) {}
   },
@@ -1435,8 +1444,11 @@ export const UI = {
     } catch (_) {}
     this.updateMinimapButton();
     try {
-      if (window.GameAPI && typeof window.GameAPI.requestDraw === "function") {
-        window.GameAPI.requestDraw();
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
       }
     } catch (_) {}
   },

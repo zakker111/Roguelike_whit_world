@@ -1,5 +1,275 @@
 # Game Version History
-Last updated: 2025-10-24 01:20 UTC
+Last updated: 2025-10-25 09:50 UTC
+
+v1.41.20 — Draw/StateSync coalescing, GOD/UI fixes, and syntax repairs
+- core/god_handlers.js:
+  - Replaced direct c.requestDraw with UIOrchestration.requestDraw(c) in onGodToggleGrid, diagnostics, and town checks.
+  - Fixed a malformed try/if block in onGodCheckHomes that caused “Missing catch or finally after try”.
+- data/god.js:
+  - spawnStairsHere refresh now uses StateSync.applyAndRefresh(ctx, {}).
+  - spawnEnemyNearby refresh uses StateSync.applyAndRefresh and the truncated else/closing brace was repaired (resolved “Unexpected token 'export'”).
+- core/game_api.js:
+  - GOD spawnChestNearby now refreshes via StateSync.applyAndRefresh instead of direct requestDraw.
+- core/ui_bridge.js:
+  - animateSleep rewritten with balanced try/catch and proper nested setTimeouts; fade-out/in sequencing restored.
+  - Final redraw uses UIOrchestration.requestDraw(ctx) with fallback to ctx.requestDraw.
+- ui/ui.js:
+  - Perf and Minimap toggle handlers now schedule redraw via UIOrchestration.requestDraw (fallback to GameLoop.requestDraw) rather than GameAPI.requestDraw.
+- Result:
+  - Unified refresh path across GOD/UI flows, fewer duplicate frames, and fixed runtime SyntaxErrors.
+- Deployment: https://117me6w5wch5.cosine.page
+
+v1.41.19 — Phase B completion: RNG fallback removal (AI, Town talk, Dungeon decay)
+- ai/ai.js:
+  - rngPick() now uses RNGUtils.getRng(ctx.rng) or ctx.rng; deterministic (() => 0.5) fallback. Removed window.RNG and Math.random fallbacks.
+- core/town_runtime.js:
+  - talk(): pick() now uses RNGUtils.int with ctx.rng or deterministic first-entry fallback. Removed RNGFallback and Math.random fallbacks.
+- core/dungeon_runtime.js:
+  - tryMoveDungeon(): decayEquipped float helper now uses RNGUtils.float or ctx.rng; deterministic midpoint fallback. Removed RNGFallback and Math.random fallbacks.
+- Result:
+  - RNGUtils is now mandatory across core AI/town/dungeon paths; no residual Math.random/RNGFallback usage in these areas.
+- Deployment: (see latest)
+
+v1.41.18 — Phase B: RNG fallback removal in core (game/encounter/town/GameAPI) and encounter cleanup
+- core/game.js:
+  - rng initialization now prefers window.RNG.rng, then RNGUtils.getRng; deterministic fallback () => 0.5.
+  - Removed window.RNGFallback and Math.random fallbacks from rng init.
+- core/encounter_runtime.js:
+  - Fixed duplicated/garbled RNG block in tryMoveEncounter; single rfn/didBlock logic using RU.getRng or ctx.rng with deterministic 0.5 fallback.
+  - Generator RNG r() now uses RU.getRng(ctx.rng) or ctx.rng; deterministic fallback () => 0.5; removed Math.random usage.
+  - Refresh after enter/tryMove/complete now prefers StateSync.applyAndRefresh; manual camera/FOV/UI/requestDraw fallbacks removed where applicable.
+- core/town_runtime.js:
+  - Seppo spawn RNG and offset RNG now use RU.getRng(ctx.rng) or ctx.rng; deterministic 0.5 fallback; removed window.RNGFallback/Math.random.
+- core/game_api.js:
+  - GOD spawnChestNearby pickNearby uses RU.getRng(ctx.rng) or ctx.rng; RU.int for offsets; deterministic 0-offset fallback when rng is absent.
+  - Removed window.RNG and Math.random fallbacks.
+- Result:
+  - Continued Phase B progression: RNGUtils mandatory across these core modules; improved determinism with fixed seeds and reduced reliance on manual refresh fallbacks in encounters.
+- Deployment: (see latest)
+
+v1.41.17 — Phase B: RNG cleanup (mandatory RU.getRng) in Dungeon/TownAI/Decals/Region; utils/rng.js deterministic; flavor hit lines
+
+v1.41.17 — Phase B: RNG cleanup (mandatory RU.getRng) in Dungeon/TownAI/Decals/Region; utils/rng.js deterministic; flavor hit lines
+- core/dungeon_runtime.js:
+  - Removed window.RNGFallback/Math.random chains in wall torch spawns, block/crit rolls, and decay floats.
+  - Uses RNGUtils.getRng(ctx.rng) or ctx.rng only; deterministic midpoints (0.5 for booleans, (min+max)/2 for floats) when RNG missing.
+- ai/town_ai.js:
+  - rngFor(ctx) now returns RU.getRng(ctx.rng) or ctx.rng; otherwise a deterministic () => 0.5. Dropped window.RNG/RNGFallback/Math.random.
+- ui/decals.js:
+  - Decal alpha/radius now derive from RU.getRng(ctx.rng) or ctx.rng; deterministic 0.5 when RNG missing. Removed RNGFallback/Math.random.
+- region_map/region_map_runtime.js:
+  - Minimal combat block fallback no longer probes window.RNG/window.RNGFallback; uses RU.getRng(ctx.rng) or ctx.rng with deterministic 0.5 when missing.
+- core/fallbacks.js:
+  - Removed Math.random defaults; rollHitLocation/critMultiplier accept rng and use deterministic values when rng is absent (0.5 baseline; crit multiplier ~1.6+0.4*r).
+- utils/rng.js:
+  - getRng(preferred) now returns window.RNG.rng when present; otherwise returns a deterministic () => 0.5 function. Removed RNGFallback/Math.random fallbacks and logs.
+- data/flavor.js:
+  - logHit now sources flavor lines from flavor.json death section by category/part with chance gating (higher on crit) via RNGUtils. Death flavor already integrated.
+- Result:
+  - RNGUtils is mandatory across these modules; no remaining direct RNGFallback/Math.random usage in the patched paths. Behavior stays deterministic without RNG service.
+- Deployment: (see latest)
+
+v1.41.15 — Flavor integration: use flavor.json (death section) for hit/death lines
+- data/flavor.js:
+  - Added deathPools(), flavorCategory(), pickDeathLine(), and logDeath(ctx,{target,loc,crit}) to read data/i18n/flavor.json (death section) and log appropriate lines.
+  - logPlayerHit now uses flavor.json (death section) to log part/crit-appropriate flavor on successful hits with chance gating via RNGUtils.
+  - Attached logDeath to window.Flavor for back‑compat.
+- combat/combat.js:
+  - On enemy death, now calls Flavor.logDeath(ctx,{target,loc,crit}) before ctx.onEnemyDied(enemy), so flavor.json is exercised.
+- Result:
+  - flavor.json is actively used for both hit flavor (stochastically) and guaranteed death flavor when enemies die.
+- Deployment: https://f0a0i2re05e4.cosine.page
+
+v1.41.14 — Phase B: RNG fallback removal in Combat/Decay/Flavor; deterministic behavior when RNG missing
+- Combat utilities
+  - combat/combat_utils.js:
+    - rollHitLocation and critMultiplier now require RNGUtils.getRng or a provided rng; removed window.RNG/RNGFallback/Math.random fallbacks.
+    - When RNG is unavailable, use deterministic defaults (torso selection; crit multiplier 1.8).
+- Combat flow
+  - combat/combat.js:
+    - playerAttackEnemy rng wiring requires RNGUtils.getRng or ctx.rng; removed window.RNG/Math.random usage.
+    - Block and crit checks use RNGUtils.chance when available; otherwise compare via rng(); if rng is absent, default to false (no block/no crit).
+    - Equipment decay ranges use RNGUtils.float; fallback to deterministic midpoints when RNG unavailable.
+- Equipment decay
+  - combat/equipment_decay.js:
+    - Removed rng_fallback import; initialDecay/decayAttackHands/decayBlockingHands now require RNGUtils or provided rng.
+    - float helper uses RNGUtils.float; fallback to deterministic midpoint (no random).
+- Flavor
+  - data/flavor.js:
+    - RNG resolution uses RNGUtils.getRng or ctx.rng; removed Math.random fallback.
+    - chance checks guard rngFn presence and default to false when RNG is unavailable; selection falls back to first entry when rng is missing.
+- Deployment: https://b2wf98dbza7q.cosine.page
+
+v1.41.13 — Phase B: RNG fallback reduction (mandatory RNGUtils paths) + StateSync-only refresh in GameAPI
+- RNG fallback reduction (remove Math.random and RNGFallback usage in key modules)
+  - utils/number.js:
+    - randomInRange now requires RNGUtils.getRng or a provided rng; removed final Math.random fallback.
+  - entities/items.js:
+    - getRng now prefers RNGUtils.getRng() then window.RNG.rng; removed RNGFallback and Math.random fallbacks.
+  - services/shop_service.js:
+    - _rng(ctx) now requires RNGUtils.getRng or ctx.rng; removed Math.random fallback.
+  - services/encounter_service.js:
+    - rngFor(ctx) now requires RNGUtils.getRng or ctx.rng; removed Math.random fallback.
+  - entities/enemies.js:
+    - pickType depth-weighted selection now uses RNGUtils.getRng or provided rng; removed RNGFallback/Math.random.
+  - world/world.js:
+    - generate() rng selection now requires RNGUtils.getRng or ctx.rng; removed window.RNG/Math.random fallback.
+    - pickTownStart() rng selection now requires RNGUtils.getRng or provided rng; removed window.RNG/Math.random fallback.
+  - dungeon/dungeon_items.js:
+    - lootFactories (potion/armor/handWeapon/equipment/anyEquipment) now use RNGUtils.getRng (ctx.rng preferred); removed window.RNG/Math.random fallbacks.
+- StateSync-only refresh adoption in GameAPI
+  - core/game_api.js:
+    - moveStep() and teleportTo() now call StateSync.applyAndRefresh exclusively (manual updateCamera/recomputeFOV/updateUI/requestDraw fallbacks removed).
+- Note:
+  - Additional RNG fallback removals (combat/combat_utils.js, equipment_decay.js, data/flavor.js) are planned next; current step targets core/high-traffic paths first.
+- Deployment: https://xbvp2amplbso.cosine.page
+
+v1.41.11 — Phase B: Fallbacks reduction (confirm UI, loot UI) and StateSync in TownState
+- Remove browser confirm fallback
+  - services/encounter_service.js:
+    - Dropped window.confirm fallback; prompts now require UIOrchestration.showConfirm (via Capabilities.safeCall) or UIBridge.showConfirm. If neither is present, encounter prompt cancels and logs once.
+- Remove direct DOM loot panel fallback
+  - entities/loot.js:
+    - showLoot/hideLoot now route only via UIBridge/UIOrchestration; DOM element fallbacks removed. If unavailable, logs the loot list and returns.
+- StateSync refresh adoption
+  - core/town_state.js:
+    - applyState() visual refresh now uses StateSync.applyAndRefresh when available, falling back to camera/FOV/UI/draw.
+- Deployment: https://91m832vyze3x.cosine.page
+
+v1.41.10 — Phase B: RNG unification (TownGen/TownAI/Decals) and StateSync refresh adoption
+- RNG determinism
+  - worldgen/town_gen.js:
+    - Seeded RNG helper (RNGUtils.getRng(ctx.rng) with safe fallbacks) introduced at generate() start.
+    - Uses seeded rng for:
+      - Gate greeter name picks
+      - Town name components (prefix/mid/suffix)
+      - Building size randint and per-building r selection
+      - shuffleInPlace and sampled shop presence checks
+      - Stall offset pickIdx
+      - Resident bench-building pick and initial _likesInn flag
+  - ai/town_ai.js:
+    - rngFor(ctx) helper added (RNGUtils.getRng(ctx.rng) → ctx.rng → window.RNG.rng → RNGFallback → Math.random).
+    - Uses seeded rng for:
+      - chooseInnUpstairsBed/Seat picks
+      - randomInteriorSpot selection
+      - Fisher–Yates shuffle for NPC iteration order
+  - ui/decals.js:
+    - Decal alpha/radius now use seeded RNG instead of ctx.rng directly, improving replay determinism under fixed seeds.
+- StateSync refresh adoption
+  - dungeon/dungeon_state.js:
+    - applyState() and returnToWorldIfAtExit() now refresh via StateSync.applyAndRefresh when available (fallback to camera/FOV/UI/draw).
+  - core/game_api.js:
+    - moveStep() and teleportTo(): refresh via StateSync.applyAndRefresh when available (fallback maintained).
+- Deployment: https://l8b80ql1vsyp.cosine.page
+
+v1.41.9 — Hard error when infinite world is unavailable; remove dungeon fallback on world init
+- core/world_runtime.js:
+  - If InfiniteGen is unavailable or not initialized, generate(ctx,opts) now throws an Error (“Infinite world generator unavailable or not initialized”) instead of returning false.
+- core/game.js:
+  - initWorld(): when WorldRuntime.generate fails or is missing, it now throws an Error (“Infinite world generation failed or unavailable”) instead of falling back to dungeon mode.
+- Result:
+  - Game requires InfiniteGen for world mode. If missing or failing, initialization throws, making the failure explicit.
+- Deployment: https://3g837iou4h79.cosine.page
+
+v1.41.7 — Phase B: StateSync in seed flows, TurnLoop refresh, and RNG in world start
+- Refresh orchestration
+  - core/game.js:
+    - applySeed/rerollSeed now call applyCtxSyncAndRefresh(ctx) (StateSync.applyAndRefresh under the hood) instead of manual updateCamera/recomputeFOV/updateUI/requestDraw.
+  - core/turn_loop.js:
+    - Visual updates prefer StateSync.applyAndRefresh when available; fallback retains recomputeFOV/updateUI/requestDraw.
+- RNG determinism
+  - core/world_runtime.js:
+    - Finite-world pickTownStart now passes a seeded rngFn derived via RNGUtils.getRng(ctx.rng) (with window.RNG/RNGFallback fallbacks) instead of bare Math.random.
+- Deployment: https://bs2ovc4a6mii.cosine.page
+
+v1.41.6 — Phase B: RNG cleanup (Region + utils) and StateSync in Actions
+- RNG determinism
+  - core/encounter_runtime.js (enterRegion): replaced fallback group-size rolls that used ctx.rng()/Math.random with the seeded r() from RNGUtils.getRng, ensuring deterministic counts.
+  - utils/number.js: randomInRange now prefers RNGUtils.getRng and window.RNG.rng/RNGFallback before Math.random, removing bare random usage in the default path.
+- Refresh orchestration
+  - core/actions.js:
+    - Inn upstairs toggle now refreshes via StateSync.applyAndRefresh (fallback to manual camera/FOV/UI/draw).
+    - Upstairs overlay prop interactions in loot() also refresh via StateSync when available.
+- Minor fix
+  - ai/ai.js: corrected bleed application guard to check typeof ST.applyBleedToPlayer === "function" (removed stray typeof ST.applyBleed check).
+- Deployment: https://5d39lrkbywmm.cosine.page
+
+v1.41.5 — Phase B: StateSync in TownRuntime and Modes syncAfterMutation
+- Town runtime refresh orchestration
+  - core/town_runtime.js:
+    - generate(ctx): after town generation and NPC population, now calls StateSync.applyAndRefresh (fallback: camera/FOV/UI/draw).
+    - tryMoveTown(ctx,dx,dy): movement updates player position, then calls StateSync.applyAndRefresh; turn semantics preserved.
+- Modes refresh centralization
+  - core/modes.js:
+    - syncAfterMutation(ctx): now calls StateSync.applyAndRefresh when available, replacing manual updateCamera/FOV/UI/draw sequences.
+- Result
+  - Consistent refresh path across world/town/dungeon/region/encounter modes via StateSync.
+- Deployment: https://8883eqg3pey4.cosine.page
+
+v1.41.4 — Phase B: StateSync adoption in DungeonRuntime (load/enter/exit/move) for consistent refresh
+- Dungeon runtime refresh orchestration
+  - core/dungeon_runtime.js:
+    - load(ctx,x,y): after applying saved state, now calls StateSync.applyAndRefresh (fallback to manual camera/FOV/UI/draw).
+    - window.DungeonState.load path updated similarly to use StateSync when available.
+    - direct load path (from ctx._dungeonStates) also uses StateSync to refresh visuals.
+    - generate fallback (flat-floor) uses StateSync for refresh post-map setup.
+    - generate(ctx, depth): after generation, occupancy rebuild, and dev logs, refresh now goes through StateSync.applyAndRefresh; FOV sanity check retained.
+    - enter(ctx,info): post-marking entrance and save, refresh via StateSync.applyAndRefresh.
+    - returnToWorldIfAtExit(ctx): world-mode restoration refresh via StateSync.applyAndRefresh.
+    - tryMoveDungeon(ctx,dx,dy): movement into empty tiles calls StateSync.applyAndRefresh for visuals; turn semantics preserved.
+- Result
+  - Unified refresh across dungeon flows; fewer manual sequences and more consistent visuals.
+- Deployment: https://oikyg1shhn05.cosine.page
+
+v1.41.3 — Phase B: AI RNG unification and Movement fallback refresh via StateSync
+- AI determinism
+  - ai/ai.js: replaced direct ctx.rng() calls in block/crit checks with a seeded rv() helper sourced from RNGUtils/window.RNG, ensuring consistent randomness.
+  - ai/ai.js: crit multiplier now passes the seeded rng to ctx.critMultiplier; Dazed duration uses rv() instead of ctx.rng().
+- Movement refresh
+  - core/movement.js: WORLD fallback movement path now calls StateSync.applyAndRefresh(ctx,{}) via applyRefresh() after position update, replacing manual updateCamera only. Encounter roll and turn semantics preserved.
+- Deployment: https://dpuhwpauqbmt.cosine.page
+
+v1.41.2 — Phase B: StateSync in World, RNG fallback unification, and Region Map combat fix
+- Refresh orchestration
+  - core/world_runtime.js now uses StateSync.applyAndRefresh in:
+    - Infinite-world generate path (with camera-centering fallback when updateCamera is unavailable)
+    - Finite-world generate path
+    - World movement (tryMovePlayerWorld) after a successful step
+  - This replaces manual updateCamera/recomputeFOV/updateUI/requestDraw sequences for consistency.
+- RNG determinism and fallback cleanup
+  - services/encounter_service.js: “willEncounter” now uses rngFor(ctx)() instead of Math.random() when RNGUtils.chance is unavailable.
+  - combat/combat.js: critMultiplier receives the seeded rng; crit chance fallback uses rng() exclusively (no direct ctx.rng()).
+- Region Map minimal combat
+  - Fixed a stray fragment in region_map_runtime.js tryMove’s minimal combat block that caused a SyntaxError near the fallback RNG path; restored a clean check with deterministic seeded RNG.
+- Deployment: https://hse8e0opu7l9.cosine.page
+
+v1.41.1 — Phase B continuation: RNG cleanup and Region Map determinism
+- RNG determinism
+  - core/encounter_runtime.js (enterRegion): replaced fallback Math.random calls in group count rolls with the seeded r() function derived from RNGUtils.getRng.
+  - region_map/region_map_runtime.js: block-chance fallback in onAction attack now uses a seeded rfn via RNGUtils.getRng (or window.RNG / RNGFallback), avoiding direct Math.random.
+  - region_map/region_map_runtime.js: ensured RU (RNGUtils handle) is defined within open() to support ruins decoration and neutral animal spawns using RU.chance when available.
+- Deployment: (see latest) — will be updated after next deploy
+
+v1.41.0 — Phase B kickoff: RNG determinism, StateSync refresh, Capabilities sweep, Region Map UX, and tooling
+- Determinism and RNG
+  - Unify random rolls through RNGUtils/RNG (ctx-first), removing Math.random uses for encounter group counts and block checks.
+  - Target modules: core/encounter_runtime.js (group counts, block-chance), region_map spawns, and any residual direct randoms.
+- Refresh orchestration
+  - Adopt StateSync.applyAndRefresh(ctx, sink) in encounter/region flows to replace manual updateCamera/recomputeFOV/updateUI/requestDraw sequences.
+- Capabilities helpers
+  - Expand Capabilities.safeCall/safeGet usage across UI/services to reduce boilerplate and window.* coupling.
+- Region Map UX/persistence
+  - Controls clarified: G opens Region Map on walkable overworld tiles; M is disabled.
+  - Seen vs cleared state indicators planned on overlay; per‑tile persistence retained; spawn reliability already tuned earlier.
+- Tooling and CI
+  - Add eslint/prettier to devDependencies with “lint” and “format” scripts.
+  - Wire smoketest auto-run in CI; PASS/FAIL tokens already emitted by runner.
+- Deployment: https://9s75k2o6izz6.cosine.page
+- Implemented in this step:
+  - Region Map: badge shows “Animals cleared here” vs “Animals known in this area” (ui/render_region.js).
+  - Region Map: open/close/move use StateSync.applyAndRefresh (region_map/region_map_runtime.js).
+  - Encounters: confirm prompt routed via Capabilities.safeCall to UIOrchestration.showConfirm (services/encounter_service.js).
+  - Tooling: npm scripts “lint” and “format”, devDependencies eslint/prettier (package.json).
 
 v1.40.0 — Inn upstairs system, overlay-aware FOV/walk, stairs visibility, and NPC behavior tuning
 - Inn upstairs system
@@ -1445,16 +1715,16 @@ Things to chek
 - in smoketest runner remove nudge for dungeon entry town entry dungeon exit and town exit make it exact in tiles nudge only in npc interaction or enemy interaction
 
 BUGS
-- chek there is not sleep walkers some npc have z top of them dont sure is thiss still existing
 - npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
 - some times in towns some extra signs and fire places inside walls
-- when inn god panel in routes it shows unendifid/17 it is not correct chek too that inn is used
-- inns dont have invidual rooms and not enought beds
-- some npc stay at their homes at day time 
 - some npc dont sleep in theid beds
-- residents go home at night but they get stuck in door if bed is just adjacent tile of door
 - some work needed for smoketestrunner
-- towns schedue bugs you can buy items even if shop is not open(this is tho good for now testing phase)
 - multirun in smoketest skips first multirun 
-- itseems eguibed items go to inventory when re going to dungeon/town
-
+- itseems eguibed items go to inventory when re going to dungeon/town <-very fy this
+- creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
+-creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
+- Vild seppo S does not have inventory in encounter
+- in dungeons when enemies fight each other they are logged(wich is good for now for debugging purpoces) but they give player xp when they kill each other
+- some bloodstanes seem to be generated from ruins/animal(creatures)/encounters in another regional map
+- in dungeons enemies seems to show behind walls(not line of sight)
+- in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters 

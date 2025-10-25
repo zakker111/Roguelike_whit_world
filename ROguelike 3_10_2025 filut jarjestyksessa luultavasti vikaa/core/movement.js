@@ -20,13 +20,8 @@ function applyRefresh(ctx) {
     const SS = mod("StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-      return;
     }
   } catch (_) {}
-  try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
-  try { if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV(); } catch (_) {}
-  try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
-  try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
 }
 
 export function fastForwardMinutes(ctx, mins) {
@@ -131,7 +126,7 @@ export function tryMove(ctx, dx, dy) {
       const WR = mod("WorldRuntime");
       if (WR && typeof WR.tryMovePlayerWorld === "function") {
         const ok = !!WR.tryMovePlayerWorld(ctx, dx, dy);
-        if (ok) return true;
+        if (ok) { applyRefresh(ctx); return true; }
       }
     } catch (_) {}
     const nx = ctx.player.x + dx;
@@ -144,7 +139,7 @@ export function tryMove(ctx, dx, dy) {
     const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(wmap[ny][nx]) : true;
     if (!walkable) return false;
     ctx.player.x = nx; ctx.player.y = ny;
-    try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
+    applyRefresh(ctx);
 
     // Maybe trigger encounter
     try {
@@ -190,7 +185,7 @@ export function tryMove(ctx, dx, dy) {
       : (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny));
     if (ctx.isWalkable(nx, ny) && !blockedByEnemy) {
       ctx.player.x = nx; ctx.player.y = ny;
-      try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
+      applyRefresh(ctx);
       try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
       return true;
     }
@@ -203,7 +198,7 @@ export function tryMove(ctx, dx, dy) {
       const TR = mod("TownRuntime");
       if (TR && typeof TR.tryMoveTown === "function") {
         const ok = !!TR.tryMoveTown(ctx, dx, dy);
-        if (ok) return true;
+        if (ok) { applyRefresh(ctx); return true; }
       }
     } catch (_) {}
     const nx = ctx.player.x + dx;
@@ -222,7 +217,7 @@ export function tryMove(ctx, dx, dy) {
     }
     if (ctx.isWalkable(nx, ny)) {
       ctx.player.x = nx; ctx.player.y = ny;
-      try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
+      applyRefresh(ctx);
       try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
       return true;
     }
@@ -245,7 +240,7 @@ export function tryMove(ctx, dx, dy) {
     : (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny));
   if (ctx.isWalkable(nx, ny) && !blockedByEnemy) {
     ctx.player.x = nx; ctx.player.y = ny;
-    try { if (typeof ctx.updateCamera === "function") ctx.updateCamera(); } catch (_) {}
+    applyRefresh(ctx);
     try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
     return true;
   }

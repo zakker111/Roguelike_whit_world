@@ -28,7 +28,11 @@ function pickPotion(ctx, source) {
   // Prefer JSON-driven consumables when available; fallback to enemy-weighted defaults
   const CD = (typeof window !== "undefined" && window.GameData && window.GameData.consumables) ? window.GameData.consumables : null;
   const potions = (CD && Array.isArray(CD.potions)) ? CD.potions : null;
-  const r = ctx.rng();
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const rfn = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : null);
+  const r = (typeof rfn === "function") ? rfn() : 0.5;
 
   function weightedPick(list) {
     const total = list.reduce((s, it) => s + (Number(it.weight) || 0), 0);
@@ -60,7 +64,7 @@ function pickPotion(ctx, source) {
     if (t === "troll") { wL = 0.5; wA = 0.35; wS = 0.15; }
     if (t === "ogre")  { wL = 0.4; wA = 0.35; wS = 0.25; }
   }
-  const rr = ctx.rng();
+  const rr = rfn();
   if (rr < wL) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
   if (rr < wL + wA) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
   return { name: "strong potion (+10 HP)", kind: "potion", heal: 10 };
@@ -75,9 +79,14 @@ function fallbackEquipment(ctx, tier) {
   const material = tier === 1 ? "rusty" : tier === 2 ? "iron" : "steel";
   const categories = ["hand", "head", "torso", "legs", "hands"];
   const cat = categories[ctx.randInt(0, categories.length - 1)];
+  // Seeded RNG for decisions within fallback equipment
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const rnd = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : null);
 
   if (cat === "hand") {
-    if (ctx.rng() < 0.65) {
+    if ((typeof rnd === "function" ? rnd() : 0.5) < 0.65) {
       const w = ["sword", "axe", "bow"][ctx.randInt(0, 2)];
       const ranges = tier === 1 ? [0.5, 2.4] : tier === 2 ? [1.2, 3.4] : [2.2, 4.0];
       let atk = ctx.utils.randFloat(ranges[0], ranges[1], 1);
@@ -176,16 +185,14 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
           return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
         }
       } catch (_) {}
-      return (typeof ctx.rng === "function")
-        ? ctx.rng
-        : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function" ? window.RNG.rng : Math.random);
+      return (typeof ctx.rng === "function") ? ctx.rng : null;
     })();
 
     let total = 0;
     for (const e of entries) total += e.w;
     if (!(total > 0)) return null;
 
-    let r = rng() * total;
+    let r = (typeof rng === "function") ? (rng() * total) : (total / 2);
     let chosen = entries[0];
     for (const e of entries) {
       if (r < e.w) { chosen = e; break; }
@@ -218,7 +225,7 @@ export function generate(ctx, source) {
           return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
         }
       } catch (_) {}
-      return (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+      return (typeof ctx.rng === "function") ? ctx.rng : null;
     })();
     const chance = (p) => {
       try {
@@ -226,7 +233,8 @@ export function generate(ctx, source) {
           return window.RNGUtils.chance(p, rngFn);
         }
       } catch (_) {}
-      return rngFn() < p;
+      // Deterministic: no random gating when rng unavailable
+      return false;
     };
 
     // Meat amount: deer 2–3, boar 2–4, fox 1–2
@@ -274,41 +282,44 @@ export function generate(ctx, source) {
  * Uses UI.showLoot when present, otherwise writes directly to the fallback DOM panel.
  */
 function showLoot(ctx, list) {
-  // Prefer UIBridge when available; else DOM fallback
+  // Require bridge/UI orchestration; no DOM fallback
   try {
-    const UB = (ctx && ctx.UIBridge) || null;
+    const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UB && typeof UB.showLoot === "function") {
       UB.showLoot(ctx, list || []);
       return;
     }
   } catch (_) {}
-  const panel = document.getElementById("loot-panel");
-  const ul = document.getElementById("loot-list");
-  if (!panel || !ul) return;
-  ul.innerHTML = "";
-  (list || []).forEach(name => {
-    const li = document.createElement("li");
-    li.textContent = name;
-    ul.appendChild(li);
-  });
-  panel.hidden = false;
+  try {
+    const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.showLoot === "function") {
+      UIO.showLoot(ctx, list || []);
+      return;
+    }
+  } catch (_) {}
+  // If loot UI is unavailable, log and return
+  try { ctx.log && ctx.log(`Loot: ${Array.isArray(list) ? list.join(", ") : ""}`, "info"); } catch (_) {}
 }
 
 /**
  * Hide the loot panel. Uses UI.hideLoot when present or a simple DOM toggle otherwise.
  */
 function hideLoot(ctx) {
-  // Prefer UIBridge when available; else DOM fallback
+  // Require bridge/UI orchestration; no DOM fallback
   try {
-    const UB = (ctx && ctx.UIBridge) || null;
+    const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UB && typeof UB.hideLoot === "function") {
       UB.hideLoot(ctx);
       return;
     }
   } catch (_) {}
-  const panel = document.getElementById("loot-panel");
-  if (!panel) return;
-  panel.hidden = true;
+  try {
+    const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.hideLoot === "function") {
+      UIO.hideLoot(ctx);
+      return;
+    }
+  } catch (_) {}
 }
 
 /**

@@ -71,11 +71,13 @@
       for (let i = 0; i < n; i++) {
         key("Escape"); await sleep(80);
         try {
-          if (window.UIBridge && typeof window.UIBridge.hideLoot === "function") window.UIBridge.hideLoot({});
-          if (window.UIBridge && typeof window.UIBridge.hideInventory === "function") window.UIBridge.hideInventory({});
-          if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
-          if (window.UIBridge && typeof window.UIBridge.hideShop === "function") window.UIBridge.hideShop({});
-          if (window.UIBridge && typeof window.UIBridge.hideSmoke === "function") window.UIBridge.hideSmoke({});
+          const UIO = window.UIOrchestration;
+          if (UIO && typeof UIO.hideLoot === "function") UIO.hideLoot({});
+          if (UIO && typeof UIO.hideInventory === "function") UIO.hideInventory({});
+          if (UIO && typeof UIO.hideGod === "function") UIO.hideGod({});
+          if (UIO && typeof UIO.hideShop === "function") UIO.hideShop({});
+          if (UIO && typeof UIO.hideSmoke === "function") UIO.hideSmoke({});
+          if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm({});
         } catch (_) {}
       }
     } catch (_) {}
@@ -84,8 +86,9 @@
   // Ensure the GOD panel is visible so logs render into its output area
   function openGodPanel() {
     try {
-      if (window.UIBridge && typeof window.UIBridge.showGod === "function") {
-        window.UIBridge.showGod({});
+      const UIO = window.UIOrchestration;
+      if (UIO && typeof UIO.showGod === "function") {
+        UIO.showGod({});
         return true;
       }
     } catch (_) {}
@@ -218,7 +221,7 @@
       // UI baseline: able to close GOD or at least find the open button
       const uiOK = (() => {
         try {
-          if (window.UIBridge && typeof window.UIBridge.hideGod === "function") return true;
+          if (window.UIOrchestration && typeof window.UIOrchestration.hideGod === "function") return true;
           const gob = document.getElementById("god-open-btn");
           return !!gob;
         } catch (_) { return false; }
@@ -1093,16 +1096,18 @@
               try { key("Escape"); } catch (_) {}
               await sleep(100);
               try {
-                if (window.UIBridge && typeof window.UIBridge.hideGod === "function") window.UIBridge.hideGod({});
+                const UIO = window.UIOrchestration;
+                if (UIO && typeof UIO.hideGod === "function") UIO.hideGod({});
               } catch (_) {}
               await sleep(100);
               // Verify closed
               let closed = false;
               try {
-                if (window.UIBridge && typeof window.UIBridge.isGodOpen === "function") {
-                  closed = !window.UIBridge.isGodOpen();
+                const UIO = window.UIOrchestration;
+                if (UIO && typeof UIO.isGodOpen === "function") {
+                  closed = !UIO.isGodOpen({});
                 } else {
-                  // Without UIBridge, assume closed to avoid DOM coupling
+                  // Without UIOrchestration, assume closed to avoid DOM coupling
                   closed = true;
                 }
               } catch (_) { closed = false; }

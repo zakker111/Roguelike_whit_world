@@ -86,9 +86,7 @@ export function playerAttackEnemy(ctx, enemy) {
         return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
       }
     } catch (_) {}
-    return (typeof ctx.rng === "function")
-      ? ctx.rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+    return (typeof ctx.rng === "function") ? ctx.rng : null;
   })();
 
   // Helper: classify equipped weapon for skill tracking
@@ -132,8 +130,8 @@ export function playerAttackEnemy(ctx, enemy) {
         return window.RNGUtils.chance(blockChance, rng);
       }
     } catch (_) {}
-    const r = (typeof ctx.rng === "function") ? ctx.rng() : rng();
-    return r < blockChance;
+    if (typeof rng === "function") return rng() < blockChance;
+    return false;
   })();
 
   if (didBlock) {
@@ -192,7 +190,7 @@ export function playerAttackEnemy(ctx, enemy) {
   const alwaysCrit = !!((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false);
   const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
   let critMult = 1.8;
-  try { if (ctx.Combat && typeof ctx.Combat.critMultiplier === "function") critMult = ctx.Combat.critMultiplier(ctx.rng); } catch (_) {}
+  try { if (ctx.Combat && typeof ctx.Combat.critMultiplier === "function") critMult = ctx.Combat.critMultiplier(rng); } catch (_) {}
   const didCrit = (function () {
     if (alwaysCrit) return true;
     try {
@@ -200,7 +198,7 @@ export function playerAttackEnemy(ctx, enemy) {
         return window.RNGUtils.chance(critChance, rng);
       }
     } catch (_) {}
-    const r = (typeof ctx.rng === "function") ? ctx.rng() : rng();
+    const r = rng();
     return r < critChance;
   })();
   if (didCrit) {
@@ -247,8 +245,15 @@ export function playerAttackEnemy(ctx, enemy) {
 
   // Death
   try {
-    if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") {
-      ctx.onEnemyDied(enemy);
+    if (enemy.hp <= 0) {
+      try {
+        if (ctx.Flavor && typeof ctx.Flavor.logDeath === "function") {
+          ctx.Flavor.logDeath(ctx, { target: enemy, loc, crit: isCrit });
+        }
+      } catch (_) {}
+      if (typeof ctx.onEnemyDied === "function") {
+        ctx.onEnemyDied(enemy);
+      }
     }
   } catch (_) {}
 
@@ -269,7 +274,7 @@ export function playerAttackEnemy(ctx, enemy) {
       const rf = (min, max) =>
         (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function")
           ? window.RNGUtils.float(min, max, 1, rng)
-          : (min + (rng() * (max - min)));
+          : ((min + max) / 2);
       ctx.decayEquipped("hands", rf(0.3, 1.0));
     }
   } catch (_) {}

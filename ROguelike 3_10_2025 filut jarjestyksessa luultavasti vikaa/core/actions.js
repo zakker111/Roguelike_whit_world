@@ -170,8 +170,13 @@ export function doAction(ctx) {
         } else {
           ctx.log && ctx.log("You return to the inn's hall.", "info");
         }
-        try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
-        try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
+        // Unified refresh via StateSync (mandatory)
+        try {
+          const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+          if (SS && typeof SS.applyAndRefresh === "function") {
+            SS.applyAndRefresh(ctx, {});
+          }
+        } catch (_) {}
         return true;
       }
     } catch (_) {}
@@ -188,8 +193,13 @@ export function doAction(ctx) {
           } else {
             describeProp(ctx, pUp);
           }
-          try { if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
-          try { if (typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+          // Unified refresh via StateSync (mandatory)
+          try {
+            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(ctx, {});
+            }
+          } catch (_) {}
           return true;
         }
       }

@@ -9,10 +9,10 @@ Play it
 - Controls:
   - Move: Arrow keys or Numpad
   - Action (G): interact, loot, enter/exit
+  - Local Region Map: G (open local overlay on walkable overworld tiles; M is disabled)
   - Inventory: I
   - GOD panel: P
   - Help: F1 (or Help button in the HUD)
-  - Region Map: M (toggle overview map/modal)
   - Wait: Numpad5
   - Brace: B (dungeon only; raises block chance this turn if holding a defensive hand item)
 
@@ -45,11 +45,11 @@ Towns and Wild Seppo
   - Only one Seppo can be in town at a time; no duplicates will spawn.
 
 Region Map (local tactical overlay)
-- Open with M on a walkable overworld tile.
+- Open with G on a walkable overworld tile (or on RUINS tiles); M key is disabled.
 - Looting: pressing G on a corpse or chest opens the loot panel (like in dungeons); dead animals show exactly what you looted via the panel.
 - Neutral animals (deer/fox/boar) are rare:
   - At most one spawns in sufficiently wild areas; many tiles have none.
-  - If animals were seen here previously, future visits re‑spawn only with a 10% chance.
+  - If animals were seen here previously, future visits re‑spawn only with a low chance (seeded).
   - Clearing animals marks the tile as cleared; future spawns are skipped.
 
 Data-driven configuration
@@ -66,7 +66,7 @@ Data-driven configuration
 - file://: you can still open index.html directly; minimal defaults keep the game playable, but tiles/props require the combined assets file for full visuals.
 
 Determinism and seeds
-- RNG is centralized; apply seeds in the GOD panel.
+- RNG is centralized; apply seeds in the GOD panel (persisted to localStorage as SEED).
 - With the same seed and context, generation and item rolls are repeatable.
 
 Smoketest (optional)
@@ -157,3 +157,8 @@ Notes
 - Use UIBridge (core/ui_bridge.js) for UI interactions (inventory, loot, game over, confirm, town exit button) instead of calling window.UI directly.
 - Dungeon/town lifecycles are centralized via DungeonRuntime and TownRuntime; Modes delegates transitions and persistence through these facades.
 - UI panels are ESC-to-close; input prioritizes closing modals before movement.
+
+Troubleshooting
+- Infinite world generator required: the game expects InfiniteGen to be available. If missing or not initialized, startup will log an error and fail. Use the included server (node server.js) or Vite dev server to ensure modules and JSON assets load.
+- Seeds: configure via the GOD panel (“Apply Seed” / “Reroll Seed”). The current seed is shown and persists to localStorage (SEED) for deterministic runs.
+- Modal gating: movement and actions are blocked while a modal is open (Inventory, Loot, GOD, Shop, Smoke, Help, Region Map, Confirm). Press Escape to close the top-most modal; Confirm dialogs block all keys except Escape.

@@ -25,7 +25,10 @@ function spawnWallTorches(ctx, options = {}) {
   const list = [];
   const rows = ctx.map.length;
   const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-  const rng = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const rng = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : null);
 
   const isWall = (x, y) => ctx.inBounds(x, y) && ctx.map[y][x] === ctx.TILES.WALL;
   const isWalkableTile = (x, y) => ctx.inBounds(x, y) && (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR || ctx.map[y][x] === ctx.TILES.STAIRS);
@@ -49,7 +52,8 @@ function spawnWallTorches(ctx, options = {}) {
         isWalkableTile(x, y + 1) || isWalkableTile(x, y - 1);
       if (!bordersWalkable) continue;
       // Sparse random placement with spacing constraint
-      if (rng() < density && !nearTorch(x, y)) {
+      const rv = (typeof rng === "function") ? rng() : 0.5;
+      if (rv < density && !nearTorch(x, y)) {
         list.push({ x, y, type: "wall_torch", name: "Wall Torch" });
       }
     }
@@ -107,18 +111,24 @@ export function load(ctx, x, y) {
   if (ctx.DungeonState && typeof ctx.DungeonState.load === "function") {
     const ok = ctx.DungeonState.load(ctx, x, y);
     if (ok) {
-      ctx.updateCamera && ctx.updateCamera();
-      ctx.recomputeFOV && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
+      try {
+        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        }
+      } catch (_) {}
     }
     return ok;
   }
   if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.load === "function") {
     const ok = window.DungeonState.load(ctx, x, y);
     if (ok) {
-      ctx.updateCamera && ctx.updateCamera();
-      ctx.recomputeFOV && ctx.recomputeFOV();
-      ctx.updateUI && ctx.updateUI();
+      try {
+        const SS = ctx.StateSync || window.StateSync || null;
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        }
+      } catch (_) {}
     }
     return ok;
   }
@@ -150,9 +160,12 @@ export function load(ctx, x, y) {
     if (ctx.seen[ctx.dungeonExitAt.y]) ctx.seen[ctx.dungeonExitAt.y][ctx.dungeonExitAt.x] = true;
   }
 
-  ctx.recomputeFOV && ctx.recomputeFOV();
-  ctx.updateCamera && ctx.updateCamera();
-  ctx.updateUI && ctx.updateUI();
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
   return true;
 }
 
@@ -183,14 +196,8 @@ export function generate(ctx, depth) {
     } catch (_) {}
     // Occupancy (centralized)
     try {
-      if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-        window.OccupancyFacade.rebuild(ctx);
-      } else {
-        const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-        if (OG && typeof OG.build === "function") {
-          ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-        }
-      }
+      const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+      if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     } catch (_) {}
     // Dev counts
     try {
@@ -200,8 +207,13 @@ export function generate(ctx, depth) {
         ctx.log && ctx.log(`[DEV] Enemies spawned: ${ctx.enemies.length}, visible now: ${visCount}. Torches: ${torchCount}.`, "notice");
       }
     } catch (_) {}
-    // UI and message
-    ctx.updateUI && ctx.updateUI();
+    // Refresh UI and visuals via StateSync, then message
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
     ctx.log && ctx.log("You explore the dungeon.");
     save(ctx, true);
     return true;
@@ -219,9 +231,17 @@ export function generate(ctx, depth) {
   ctx.corpses = [];
   ctx.decals = [];
   ctx.dungeonProps = [];
-  ctx.recomputeFOV && ctx.recomputeFOV();
-  ctx.updateCamera && ctx.updateCamera();
-  ctx.updateUI && ctx.updateUI();
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      ctx.recomputeFOV && ctx.recomputeFOV();
+      ctx.updateCamera && ctx.updateCamera();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
+  } catch (_) {}
   ctx.log && ctx.log("You explore the dungeon.");
   save(ctx, true);
   return true;
@@ -301,12 +321,18 @@ export function returnToWorldIfAtExit(ctx) {
     }
   } catch (_) {}
 
-  // Recompute FOV and UI
+  // Refresh visuals via StateSync
   try {
-    if (ctx.FOV && typeof ctx.FOV.recomputeFOV === "function") ctx.FOV.recomputeFOV(ctx);
-    else if (ctx.recomputeFOV) ctx.recomputeFOV();
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      if (ctx.FOV && typeof ctx.FOV.recomputeFOV === "function") ctx.FOV.recomputeFOV(ctx);
+      else if (ctx.recomputeFOV) ctx.recomputeFOV();
+      ctx.updateUI && ctx.updateUI();
+      ctx.requestDraw && ctx.requestDraw();
+    }
   } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
   try { ctx.log && ctx.log("You climb back to the overworld.", "notice"); } catch (_) {}
 
   return true;
@@ -569,10 +595,13 @@ export function enter(ctx, info) {
   // Persist immediately
   try { save(ctx, true); } catch (_) {}
 
-  // Ensure visuals are refreshed
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  // Ensure visuals are refreshed via StateSync
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
 
   return true;
 }
@@ -648,7 +677,11 @@ export function tryMoveDungeon(ctx, dx, dy) {
     const blockChance = (C && typeof C.getEnemyBlockChance === "function")
       ? C.getEnemyBlockChance(ctx, enemy, loc)
       : (typeof ctx.getEnemyBlockChance === "function" ? ctx.getEnemyBlockChance(enemy, loc) : 0);
-    const rBlock = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+    const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+    const rBlockFn = (RU && typeof RU.getRng === "function")
+      ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+      : ((typeof ctx.rng === "function") ? ctx.rng : null);
+    const rBlock = (typeof rBlockFn === "function") ? rBlockFn() : 0.5;
 
     if (rBlock < blockChance) {
       try {
@@ -662,7 +695,21 @@ export function tryMoveDungeon(ctx, dx, dy) {
         if (ED && typeof ED.decayAttackHands === "function") {
           ED.decayAttackHands(ctx.player, ctx.rng, { twoHanded, light: true }, { log: ctx.log, updateUI: ctx.updateUI, onInventoryChange: ctx.rerenderInventoryIfOpen });
         } else if (typeof ctx.decayEquipped === "function") {
-          const rf = (typeof ctx.randFloat === "function") ? ctx.randFloat : ((min, max) => (min + (Math.random() * (max - min))));
+          const rf = (typeof ctx.randFloat === "function") ? ctx.randFloat : ((min, max) => {
+            try {
+              const RUx = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+              if (RUx && typeof RUx.float === "function") {
+                const rfnLocal = (typeof ctx.rng === "function") ? ctx.rng : undefined;
+                return RUx.float(min, max, 6, rfnLocal);
+              }
+            } catch (_) {}
+            if (typeof ctx.rng === "function") {
+              const r = ctx.rng();
+              return min + r * (max - min);
+            }
+            // Deterministic midpoint when RNG unavailable
+            return (min + max) / 2;
+          });
           ctx.decayEquipped("hands", rf(0.2, 0.7));
         }
       } catch (_) {}
@@ -679,10 +726,14 @@ export function tryMoveDungeon(ctx, dx, dy) {
     let isCrit = false;
     const alwaysCrit = !!((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false);
     const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
+    const RUcrit = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+    const rfnCrit = (RUcrit && typeof RUcrit.getRng === "function")
+      ? RUcrit.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+      : ((typeof ctx.rng === "function") ? ctx.rng : null);
+    const rCrit = (typeof rfnCrit === "function") ? rfnCrit() : 0.5;
     const critMult = (C && typeof C.critMultiplier === "function")
-      ? C.critMultiplier(ctx.rng)
-      : (typeof ctx.critMultiplier === "function" ? ctx.critMultiplier() : (1.6 + ((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) * 0.4));
-    const rCrit = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
+      ? C.critMultiplier(rfnCrit || undefined)
+      : (typeof ctx.critMultiplier === "function" ? ctx.critMultiplier(rfnCrit || undefined) : 1.8);
     if (alwaysCrit || rCrit < critChance) {
       isCrit = true;
       dmg *= critMult;
@@ -758,7 +809,17 @@ export function tryMoveDungeon(ctx, dx, dy) {
       if (ED && typeof ED.decayAttackHands === "function") {
         ED.decayAttackHands(ctx.player, ctx.rng, { twoHanded }, { log: ctx.log, updateUI: ctx.updateUI, onInventoryChange: ctx.rerenderInventoryIfOpen });
       } else if (typeof ctx.decayEquipped === "function") {
-        const rf = (typeof ctx.randFloat === "function") ? ctx.randFloat : ((min, max) => (min + (Math.random() * (max - min))));
+        const rf = (typeof ctx.randFloat === "function") ? ctx.randFloat : ((min, max) => {
+          try {
+            const RUx = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+            if (RUx && typeof RUx.float === "function") {
+              const rfnLocal = (typeof ctx.rng === "function") ? ctx.rng : undefined;
+              return RUx.float(min, max, 6, rfnLocal);
+            }
+          } catch (_) {}
+          // Deterministic midpoint when RNG unavailable
+          return (min + max) / 2;
+        });
         ctx.decayEquipped("hands", rf(0.3, 1.0));
       }
     } catch (_) {}
@@ -773,7 +834,12 @@ export function tryMoveDungeon(ctx, dx, dy) {
     const walkable = ctx.inBounds(nx, ny) && (ctx.map[ny][nx] === ctx.TILES.FLOOR || ctx.map[ny][nx] === ctx.TILES.DOOR || ctx.map[ny][nx] === ctx.TILES.STAIRS);
     if (walkable && !blockedByEnemy) {
       ctx.player.x = nx; ctx.player.y = ny;
-      ctx.updateCamera && ctx.updateCamera();
+      try {
+        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        if (SS && typeof SS.applyAndRefresh === "function") {
+          SS.applyAndRefresh(ctx, {});
+        }
+      } catch (_) {}
       if (advanceTurn && ctx.turn) ctx.turn();
       return true;
     }
@@ -843,14 +909,8 @@ export function tick(ctx) {
   } catch (_) {}
   // Ensure occupancy reflects enemy movement/deaths this turn
   try {
-    if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-      window.OccupancyFacade.rebuild(ctx);
-    } else {
-      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-      if (OG && typeof OG.build === "function") {
-        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-      }
-    }
+    const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+    if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
   // Status effects tick (bleed, dazed, etc.)
   try {

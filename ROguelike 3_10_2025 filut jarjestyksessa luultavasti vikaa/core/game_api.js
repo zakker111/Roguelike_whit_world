@@ -4,6 +4,22 @@
  */
 
 export function create(ctx) {
+  function closeAnyModal() {
+    try {
+      const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+      if (Cap && typeof Cap.safeCall === "function") {
+        const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
+        if (any && any.result) {
+          Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
+          Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
+          Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
+          Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
+          Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
+          Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
+        }
+      }
+    } catch (_) {}
+  }
   const api = {
     // Encounter helpers
     enterEncounter: (template, biome) => {
@@ -47,9 +63,12 @@ export function create(ctx) {
               const p = ctx.getPlayer();
               p.x = nx; p.y = ny;
               try {
-                ctx.updateCamera();
                 // Advance a turn to keep time/FOV/UI consistent with normal movement flows
-                if (typeof ctx.turn === "function") ctx.turn(); else { ctx.updateUI(); ctx.requestDraw(); }
+                if (typeof ctx.turn === "function") ctx.turn();
+                const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+                if (SS && typeof SS.applyAndRefresh === "function") {
+                  SS.applyAndRefresh(ctx, {});
+                }
               } catch (_) {}
             }
           }
@@ -175,12 +194,17 @@ export function create(ctx) {
 
         // Ensure modals are closed to avoid movement gating
         try {
-          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
-            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
-            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
-            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
-            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
-            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+          if (Cap && typeof Cap.safeCall === "function") {
+            const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
+            if (any && any.result) {
+              Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
+            }
           }
         } catch (_) {}
 
@@ -208,12 +232,17 @@ export function create(ctx) {
 
         // Ensure modals are closed to avoid movement gating
         try {
-          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
-            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
-            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
-            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
-            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
-            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+          if (Cap && typeof Cap.safeCall === "function") {
+            const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
+            if (any && any.result) {
+              Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
+            }
           }
         } catch (_) {}
 
@@ -240,12 +269,17 @@ export function create(ctx) {
       try {
         // Ensure modals are closed to avoid movement gating
         try {
-          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
-            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
-            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
-            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
-            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
-            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+          if (Cap && typeof Cap.safeCall === "function") {
+            const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
+            if (any && any.result) {
+              Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
+            }
           }
         } catch (_) {}
         // Fast path
@@ -299,12 +333,17 @@ export function create(ctx) {
       try {
         // Ensure modals are closed to avoid movement gating
         try {
-          if (ctx.UIBridge && typeof ctx.UIBridge.isAnyModalOpen === "function" && ctx.UIBridge.isAnyModalOpen(ctx)) {
-            if (typeof ctx.UIBridge.hideGod === "function") ctx.UIBridge.hideGod(ctx);
-            if (typeof ctx.UIBridge.hideInventory === "function") ctx.UIBridge.hideInventory(ctx);
-            if (typeof ctx.UIBridge.hideShop === "function") ctx.UIBridge.hideShop(ctx);
-            if (typeof ctx.UIBridge.hideSmoke === "function") ctx.UIBridge.hideSmoke(ctx);
-            if (typeof ctx.UIBridge.hideLoot === "function") ctx.UIBridge.hideLoot(ctx);
+          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+          if (Cap && typeof Cap.safeCall === "function") {
+            const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
+            if (any && any.result) {
+              Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
+              Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
+            }
           }
         } catch (_) {}
         // Fast path
@@ -635,16 +674,14 @@ export function create(ctx) {
         const pickNearby = () => {
           for (let i = 0; i < 60; i++) {
             const rngFn = (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function")
-              ? window.RNGUtils.getRng()
-              : (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function"
-                  ? window.RNG.rng
-                  : Math.random);
+              ? window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+              : ((typeof ctx.rng === "function") ? ctx.rng : null);
             const dx = ((typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function")
               ? window.RNGUtils.int(-4, 4, rngFn)
-              : (Math.floor(rngFn() * 9) - 4));
+              : ((typeof rngFn === "function") ? (Math.floor(rngFn() * 9) - 4) : 0));
             const dy = ((typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function")
               ? window.RNGUtils.int(-4, 4, rngFn)
-              : (Math.floor(rngFn() * 9) - 4));
+              : ((typeof rngFn === "function") ? (Math.floor(rngFn() * 9) - 4) : 0));
             const x = p.x + dx, y = p.y + dy;
             if (isFreeFloor(x, y)) return { x, y };
           }
@@ -664,7 +701,15 @@ export function create(ctx) {
           made++;
           try { ctx.log && ctx.log(`GOD: Spawned chest at (${spot.x},${spot.y}).`, "notice"); } catch (_) {}
         }
-        if (made > 0) { ctx.requestDraw(); return true; }
+        if (made > 0) {
+          try {
+            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(ctx, {});
+            }
+          } catch (_) {}
+          return true;
+        }
         return false;
       } catch (_) { return false; }
     },
@@ -783,10 +828,12 @@ export function create(ctx) {
         }
 
         if (ok) {
-          ctx.updateCamera();
-          ctx.recomputeFOV();
-          ctx.updateUI();
-          ctx.requestDraw();
+          try {
+            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(ctx, {});
+            }
+          } catch (_) {}
         }
         return !!ok;
       } catch (_) { return false; }

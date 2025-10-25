@@ -210,25 +210,22 @@ function applyState(ctx, st, x, y) {
 
   // Rebuild occupancy (centralized)
   try {
-    if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-      window.OccupancyFacade.rebuild(ctx);
-    } else {
-      const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
-      if (TR && typeof TR.rebuildOccupancy === "function") {
-        TR.rebuildOccupancy(ctx);
-      } else {
-        const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-        if (OG && typeof OG.build === "function") {
-          ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-        }
-      }
-    }
+    const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+    if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
 
-  // Visual refresh
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  // Visual refresh via StateSync when available
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      if (typeof ctx.updateCamera === "function") ctx.updateCamera();
+      if (typeof ctx.recomputeFOV === "function") ctx.recomputeFOV();
+      if (typeof ctx.updateUI === "function") ctx.updateUI();
+      if (typeof ctx.requestDraw === "function") ctx.requestDraw();
+    }
+  } catch (_) {}
   try {
     const name = ctx.townName ? `the town of ${ctx.townName}` : "the town";
     ctx.log && ctx.log(`You re-enter ${name}.`, "notice");

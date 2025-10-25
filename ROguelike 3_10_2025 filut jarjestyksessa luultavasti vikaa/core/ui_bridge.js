@@ -413,7 +413,12 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
           el.style.opacity = "0";
           setTimeout(() => {
             el.style.display = "none";
-            try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+            try {
+              const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+              if (UIO && typeof UIO.requestDraw === "function") {
+                UIO.requestDraw(ctx);
+              }
+            } catch (_) {}
           }, 260);
         }, 140);
       }, 320);
@@ -425,7 +430,15 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
       else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
     } catch (_) {}
     try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
-    try { ctx.updateUI && ctx.updateUI(); ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+    try {
+      ctx.updateUI && ctx.updateUI();
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(ctx);
+      } else {
+        ctx.requestDraw && ctx.requestDraw();
+      }
+    } catch (_) {}
   }
 }
 

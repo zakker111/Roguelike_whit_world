@@ -517,8 +517,8 @@ export function generate(ctx, opts = {}) {
   // Feature gate for infinite world
   const infiniteEnabled = featureEnabled("WORLD_INFINITE", true);
 
-  // Create generator (infinite) or fall back
-  if (infiniteEnabled && IG && typeof IG.create === "function") {
+  // Create generator (infinite only)
+  if (IG && typeof IG.create === "function") {
     const seed = currentSeed();
     const gen = IG.create(seed);
 
@@ -573,34 +573,13 @@ export function generate(ctx, opts = {}) {
     // Register POIs present in the initial window (sparse anchors only) and lay initial roads/bridges
     try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch (_) {}
 
-    // Camera/FOV/UI
+    // Camera/FOV/UI via StateSync
     try {
-      if (typeof ctx.updateCamera === "function") {
-        ctx.updateCamera();
-      } else {
-        // Fallback: center camera on player immediately so first frame is centered
-        const cam = (typeof ctx.getCamera === "function") ? ctx.getCamera() : (ctx.camera || null);
-        if (cam) {
-          const TILE = (typeof ctx.TILE === "number") ? ctx.TILE : 32;
-          const rows = ctx.map.length;
-          const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-          const mapWidth = cols * TILE;
-          const mapHeight = rows * TILE;
-          const targetX = ctx.player.x * TILE + TILE / 2 - cam.width / 2;
-          const targetY = ctx.player.y * TILE + TILE / 2 - cam.height / 2;
-          const slackX = Math.max(0, cam.width / 2 - TILE / 2);
-          const slackY = Math.max(0, cam.height / 2 - TILE / 2);
-          const minX = -slackX;
-          const minY = -slackY;
-          const maxX = (mapWidth - cam.width) + slackX;
-          const maxY = (mapHeight - cam.height) + slackY;
-          cam.x = Math.max(minX, Math.min(targetX, maxX));
-          cam.y = Math.max(minY, Math.min(targetY, maxY));
-        }
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
       }
     } catch (_) {}
-    try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
-    try { typeof ctx.updateUI === "function" && ctx.updateUI(); } catch (_) {}
 
     // Arrival log
     ctx.log && ctx.log("You arrive in the overworld. The world expands as you explore. Minimap shows discovered tiles.", "notice");
@@ -614,56 +593,9 @@ export function generate(ctx, opts = {}) {
     return true;
   }
 
-  // Fallback to finite world (existing module)
-  if (!(W && typeof W.generate === "function")) {
-    ctx.log && ctx.log("World module missing; generating dungeon instead.", "warn");
-    ctx.mode = "dungeon";
-    try { if (typeof ctx.generateLevel === "function") ctx.generateLevel(ctx.floor || 1); } catch (_) {}
-    return false;
-  }
-
-  try {
-    ctx.world = W.generate(ctx, { width, height });
-  } catch (e) {
-    ctx.log && ctx.log("World generation failed; falling back to dungeon.", "warn");
-    ctx.mode = "dungeon";
-    try { if (typeof ctx.generateLevel === "function") ctx.generateLevel(ctx.floor || 1); } catch (_) {}
-    return false;
-  }
-
-  const start = (typeof W.pickTownStart === "function")
-    ? W.pickTownStart(ctx.world, (ctx.rng || Math.random))
-    : { x: 1, y: 1 };
-
-  ctx.player.x = start.x;
-  ctx.player.y = start.y;
-  ctx.mode = "world";
-
-  ctx.enemies = [];
-  ctx.corpses = [];
-  ctx.decals = [];
-  ctx.npcs = [];
-  ctx.shops = [];
-
-  ctx.map = ctx.world.map;
-  const rows = ctx.map.length;
-  const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-  // Fog-of-war: start unseen; FOV will reveal around player
-  ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(false));
-  ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(false));
-
-  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
-  try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
-  try { typeof ctx.updateUI === "function" && ctx.updateUI(); } catch (_) {}
-
-  ctx.log && ctx.log("You arrive in the overworld.", "notice");
-
-  try {
-    const TR = (ctx && ctx.TownRuntime) || (typeof window !== "undefined" ? window.TownRuntime : null);
-    if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(ctx);
-  } catch (_) {}
-
-  return true;
+  // Infinite generator unavailable: throw a hard error (no finite fallback)
+  try { ctx.log && ctx.log("Error: Infinite world generator unavailable or not initialized.", "bad"); } catch (_) {}
+  throw new Error("Infinite world generator unavailable or not initialized");
 }
 
 export function tryMovePlayerWorld(ctx, dx, dy) {
@@ -711,7 +643,12 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
 
   ctx.player.x = nx; ctx.player.y = ny;
 
-  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
 
   // Encounter roll before advancing time (modules may switch mode)
   try {

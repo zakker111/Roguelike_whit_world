@@ -14,7 +14,7 @@
  * - Movement: Arrow keys (4-dir) and Numpad (8-dir). Wait: Numpad5.
  * - Inventory: I. Loot/Action: G.
  * - GOD panel: P to open. FOV adjust: [-] and [+]/[=] (also Numpad +/-).
- * - Region Map: M to open/close.
+ * - Region Map: open via G on walkable overworld tiles; M is disabled.
  */
 
 const KEY_DIRS = {
@@ -96,6 +96,18 @@ export function init(handlers) {
       return;
     }
 
+    // Help / Controls gating: block movement and other keys while open; Esc closes it
+    if (_handlers.isHelpOpen && _handlers.isHelpOpen()) {
+      const isEsc = e.key === "Escape" || e.key === "Esc";
+      if (isEsc) {
+        e.preventDefault();
+        _handlers.onHideHelp && _handlers.onHideHelp();
+      } else {
+        e.preventDefault();
+      }
+      return;
+    }
+
     if (_handlers.isInventoryOpen && _handlers.isInventoryOpen()) {
       const isEsc = e.key === "Escape" || e.key === "Esc";
       if (e.key && (e.key.toLowerCase() === "i" || isEsc)) {
@@ -127,16 +139,7 @@ export function init(handlers) {
       return;
     }
 
-    // Region Map toggle
-    if ((e.key && e.key.toLowerCase() === "m") || e.code === "KeyM") {
-      e.preventDefault();
-      if (_handlers.isRegionMapOpen && _handlers.isRegionMapOpen()) {
-        _handlers.onHideRegionMap && _handlers.onHideRegionMap();
-      } else {
-        _handlers.onShowRegionMap && _handlers.onShowRegionMap();
-      }
-      return;
-    }
+    // Region Map key disabled (M does nothing)
 
     // Help / Controls panel (F1)
     if (e.key === "F1") {

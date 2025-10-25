@@ -253,7 +253,10 @@ export function enter(ctx, info) {
     return m;
   }
 
-  const r = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const r = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : (() => 0.5));
   let genId = (template && template.map && template.map.generator) ? String(template.map.generator) : "";
   let map = null;
 
@@ -435,6 +438,7 @@ export function enter(ctx, info) {
         if (tx < 0) {
           // Search ring around player
           const maxR = Math.max(3, Math.min(10, ((ctx.fovRadius | 0) || 8)));
+          const px = (W / 2) | 0, py = (H / 2) | 0;
           outer:
           for (let r = 3; r <= maxR; r++) {
             for (let dx = -r; dx <= r; dx++) {
@@ -466,13 +470,16 @@ export function enter(ctx, info) {
   const totalWanted = groups.reduce((acc, g) => {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    const n = (RU && typeof RU.int === "function")
+      ? RU.int(min, max, ctx.rng)
+      : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
     return acc + n;
   }, 0);
 
   const placements = [];
   function free(x, y) {
-    if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+    if (x <= 0 || y <= 0 || x >= W - 1) return false;
+    if (y >= H - 1) return false;
     if (x === ctx.player.x && y === ctx.player.y) return false;
     if (placements.some(p => p.x === x && p.y === y)) return false;
     if (chestSpots.has(keyFor(x, y))) return false;
@@ -530,7 +537,9 @@ export function enter(ctx, info) {
   for (const g of groups) {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    let n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    let n = (RU && typeof RU.int === "function")
+      ? RU.int(min, max, ctx.rng)
+      : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
     // Difficulty raises group size modestly
     n = Math.max(min, Math.min(placements.length - pIdx, n + Math.max(0, ctx.encounterDifficulty - 1)));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
@@ -555,26 +564,16 @@ export function enter(ctx, info) {
     }
   }
 
-  // Recompute visibility, occupancy, and center camera
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
+  // Rebuild occupancy and refresh via StateSync
   try {
-    if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-      window.OccupancyFacade.rebuild(ctx);
-    } else {
-      const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-      if (OG && typeof OG.build === "function") {
-        ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-      }
-    }
+    const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+    if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
-
-  // Announce difficulty
   try {
-    const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
-    ctx.log && ctx.log(`Difficulty: ${d} (${d > 3 ? "tough" : d > 1 ? "moderate" : "easy"})`, "info");
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
   } catch (_) {}
 
   try {
@@ -595,6 +594,7 @@ export function tryMoveEncounter(ctx, dx, dy) {
   const nx = ctx.player.x + (dx | 0);
   const ny = ctx.player.y + (dy | 0);
   if (!(ctx.inBounds && ctx.inBounds(nx, ny))) return false;
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
 
   // Prefer to reuse DungeonRuntime movement/attack so encounters behave exactly like dungeon
   const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
@@ -619,8 +619,14 @@ export function tryMoveEncounter(ctx, dx, dy) {
     try {
       const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
       const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
-      const rb = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-      if (rb < blockChance) {
+      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const rfn = (RU && typeof RU.getRng === "function")
+        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((typeof ctx.rng === "function") ? ctx.rng : null);
+      const didBlock = (RU && typeof RU.chance === "function" && typeof rfn === "function")
+        ? RU.chance(blockChance, rfn)
+        : ((typeof rfn === "function") ? (rfn() < blockChance) : (0.5 < blockChance));
+      if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
         const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
@@ -638,7 +644,12 @@ export function tryMoveEncounter(ctx, dx, dy) {
   const blocked = Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === nx && e.y === ny);
   if (walkable && !blocked) {
     ctx.player.x = nx; ctx.player.y = ny;
-    try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
     return true;
   }
   return false;
@@ -662,6 +673,10 @@ export function enterRegion(ctx, info) {
   const H = ctx.map.length;
   const W = ctx.map[0] ? ctx.map[0].length : 0;
   if (!W || !H) return false;
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const r = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : (() => 0.5));
 
   // Initialize encounter state on region
   if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
@@ -689,7 +704,9 @@ export function enterRegion(ctx, info) {
   const totalWanted = groups.reduce((acc, g) => {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    const n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    const n = (RU && typeof RU.int === "function")
+      ? RU.int(min, max, ctx.rng)
+      : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
     return acc + n;
   }, 0);
 
@@ -699,13 +716,13 @@ export function enterRegion(ctx, info) {
       const px = (ctx.player.x | 0), py = (ctx.player.y | 0);
       const maxR = Math.max(3, Math.min(6, ((ctx.fovRadius | 0) || 8) - 1));
       outer:
-      for (let r = 2; r <= maxR; r++) {
+      for (let r2 = 2; r2 <= maxR; r2++) {
         // Sample 16 directions around the ring
         const dirs = [
-          [ r,  0], [ 0,  r], [-r,  0], [ 0, -r],
-          [ r,  1], [ 1,  r], [-1,  r], [-r,  1],
-          [-r, -1], [-1, -r], [ 1, -r], [ r, -1],
-          [ r,  2], [ 2,  r], [-2,  r], [-r,  2],
+          [ r2,  0], [ 0,  r2], [-r2,  0], [ 0, -r2],
+          [ r2,  1], [ 1,  r2], [-1,  r2], [-r2,  1],
+          [-r2, -1], [-1, -r2], [ 1, -r2], [ r2, -1],
+          [ r2,  2], [ 2,  r2], [-2,  r2], [-r2,  2],
         ];
         for (const d of dirs) {
           const x = px + d[0], y = py + d[1];
@@ -745,7 +762,9 @@ export function enterRegion(ctx, info) {
   for (const g of groups) {
     const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
     const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    let n = Math.max(min, Math.min(max, min + Math.floor(((ctx.rng ? ctx.rng() : Math.random()) * (max - min + 1)))));
+    let n = (RU && typeof RU.int === "function")
+      ? RU.int(min, max, ctx.rng)
+      : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
     // Difficulty raises group size modestly
     n = Math.max(min, Math.min(placements.length - pIdx, n + Math.max(0, (ctx.encounterDifficulty || 1) - 1)));
     for (let i = 0; i < n && pIdx < placements.length; i++) {
@@ -771,10 +790,8 @@ export function enterRegion(ctx, info) {
 
   // Build occupancy for region map
   try {
-    const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-    if (OG && typeof OG.build === "function") {
-      ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-    }
+    const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+    if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
 
   // Mark encounter-active in region and notify
@@ -783,8 +800,12 @@ export function enterRegion(ctx, info) {
   if (!ctx.region) ctx.region = {};
   ctx.region._isEncounter = true;
 
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
   return true;
 }
 
@@ -808,14 +829,16 @@ export function complete(ctx, outcome = "victory") {
       ctx.player.x = pos.x; ctx.player.y = pos.y;
     }
   } catch (_) {}
-  try { ctx.updateCamera && ctx.updateCamera(); } catch (_) {}
-  try { ctx.recomputeFOV && ctx.recomputeFOV(); } catch (_) {}
   try {
     if (outcome === "victory") ctx.log && ctx.log("You prevail and return to the overworld.", "good");
     else ctx.log && ctx.log("You withdraw and return to the overworld.", "info");
   } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
   ctx.encounterInfo = null;
   return true;
 }

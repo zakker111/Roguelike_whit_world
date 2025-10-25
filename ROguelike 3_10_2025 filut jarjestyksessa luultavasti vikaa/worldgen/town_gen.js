@@ -117,7 +117,6 @@
       }
     }
     // Fallback to center
-    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "ensureSpawnClear: moving player to map center (no walkable tile found by BFS).", { W, H }); } catch (_) {}
     ctx.player.x = (W / 2) | 0;
     ctx.player.y = (H / 2) | 0;
     return true;
@@ -152,7 +151,7 @@
           ];
           for (const c of candidates) {
             if (_isFreeTownFloor(ctx, c.x, c.y) && _manhattan(ctx, ctx.player.x, ctx.player.y, c.x, c.y) > 1) {
-              const name = names[(Math.floor(ctx.rng() * names.length)) % names.length];
+              const name = names[Math.floor(rng() * names.length) % names.length];
               ctx.npcs.push({ x: c.x, y: c.y, name, lines, greeter: true });
               break;
             }
@@ -180,7 +179,7 @@
         const x = gx + d.dx * ring;
         const y = gy + d.dy * ring;
         if (_isFreeTownFloor(ctx, x, y) && _manhattan(ctx, ctx.player.x, ctx.player.y, x, y) > 1) {
-          const name = names[(Math.floor(ctx.rng() * names.length)) % names.length];
+          const name = names[Math.floor(rng() * names.length) % names.length];
           ctx.npcs.push({ x, y, name, lines, greeter: true });
           placed++;
           if (placed >= target) break;
@@ -247,6 +246,12 @@
 
   // ---- Generation (compact version; retains core behavior and mutations) ----
   function generate(ctx) {
+    // Seeded RNG helper for determinism
+    const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+    const rng = (RU && typeof RU.getRng === "function")
+      ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+      : ((typeof ctx.rng === "function") ? ctx.rng : null);
+
     // Determine current town size from overworld (default 'big') and capture its world entry for persistence
     let townSize = "big";
     let info = null;
@@ -303,7 +308,6 @@
         const d = Math.abs(t.x - pxy.x) + Math.abs(t.y - pxy.y);
         if (d < bd) { bd = d; best = t; }
       }
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "Gate placement: using nearest edge (enterFromDir unavailable).", { gate: best }); } catch (_) {}
       gate = best;
     }
 
@@ -326,9 +330,9 @@
       const prefixes = ["Oak", "Ash", "Pine", "River", "Stone", "Iron", "Silver", "Gold", "Wolf", "Fox", "Moon", "Star", "Red", "White", "Black", "Green"];
       const suffixes = ["dale", "ford", "field", "burg", "ton", "stead", "haven", "fall", "gate", "port", "wick", "shire", "crest", "view", "reach"];
       const mid = ["", "wood", "water", "brook", "hill", "rock", "ridge"];
-      const p = prefixes[(Math.floor(ctx.rng() * prefixes.length)) % prefixes.length];
-      const m = mid[(Math.floor(ctx.rng() * mid.length)) % mid.length];
-      const s = suffixes[(Math.floor(ctx.rng() * suffixes.length)) % suffixes.length];
+      const p = prefixes[Math.floor(rng() * prefixes.length) % prefixes.length];
+      const m = mid[Math.floor(rng() * mid.length) % mid.length];
+      const s = suffixes[Math.floor(rng() * suffixes.length) % suffixes.length];
       townName = [p, m, s].filter(Boolean).join("");
       try { if (info) info.name = townName; } catch (_) {}
     }
@@ -442,9 +446,9 @@
         const wMin = 6, hMin = 4;
         const wMax = Math.max(wMin, blockW);
         const hMax = Math.max(hMin, blockH);
-        const randint = (min, max) => min + Math.floor(ctx.rng() * (Math.max(0, (max - min + 1))));
+        const randint = (min, max) => min + Math.floor(rng() * (Math.max(0, (max - min + 1))));
         let w, h;
-        const r = ctx.rng();
+        const r = rng();
         if (r < 0.35) {
           // Small cottage cluster (near minimums)
           w = randint(wMin, Math.min(wMin + 2, wMax));
@@ -834,7 +838,7 @@
     }
     function shuffleInPlace(arr) {
       for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(ctx.rng() * (i + 1));
+        const j = Math.floor(rng() * (i + 1));
         const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
       }
     }
@@ -852,7 +856,7 @@
     let sampled = [];
     for (const d of candidateDefs) {
       const ch = chanceFor(d, townSize);
-      if (ctx.rng() < ch) sampled.push(d);
+      if (rng() < ch) sampled.push(d);
     }
     // Shuffle and cap, but avoid duplicate types within a single town
     shuffleInPlace(sampled);
@@ -980,7 +984,6 @@
     try {
       const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (s.type === "inn") || (/inn/i.test(String(s.name || ""))));
       if (!hasInn) {
-        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "No Inn assigned by shopDefs; creating fallback Inn."); } catch (_) {}
         // Pick an unused building near the plaza that does NOT overlap the plaza footprint
         let bInn = null;
         for (const s of scored) {
@@ -1143,7 +1146,6 @@
         if (isInsideAnyBuilding(nx, ny)) continue;
         if (ctx.map[ny][nx] !== ctx.TILES.FLOOR) continue;
         if (ctx.townProps.some(p => p.x === nx && p.y === ny)) continue;
-        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("town", "Shop sign: placing at nearby floor (preferred outside placement unavailable).", { door, sign: { x: nx, y: ny }, text }); } catch (_) {}
         addProp(nx, ny, "sign", text);
         return true;
       }
@@ -1287,7 +1289,7 @@
         { dx: 0, dy: -((plazaH / 2) | 0) + 2 },
         { dx: 0, dy: ((plazaH / 2) | 0) - 2 },
       ];
-      const pickIdx = Math.floor(ctx.rng() * stallOffsets.length) % stallOffsets.length;
+      const pickIdx = Math.floor(rng() * stallOffsets.length) % stallOffsets.length;
       const o = stallOffsets[pickIdx];
       const sx = Math.max(1, Math.min(W - 2, plaza.x + o.dx));
       const sy = Math.max(1, Math.min(H - 2, plaza.y + o.dy));
@@ -1839,14 +1841,14 @@
       try {
         const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
         if (tbs.length) {
-          const b = tbs[Math.floor(ctx.rng() * tbs.length)];
+          const b = tbs[Math.floor(rng() * tbs.length)];
           const hx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, (b.x + ((b.w / 2) | 0))));
           const hy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, (b.y + ((b.h / 2) | 0))));
           const door = (b && b.door && typeof b.door.x === "number" && typeof b.door.y === "number") ? { x: b.door.x, y: b.door.y } : null;
           homeRef = { building: b, x: hx, y: hy, door };
         }
       } catch (_) {}
-      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesInn: ctx.rng() < 0.45, _home: homeRef });
+      ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesInn: rng() < 0.45, _home: homeRef });
       placed++;
     }
 

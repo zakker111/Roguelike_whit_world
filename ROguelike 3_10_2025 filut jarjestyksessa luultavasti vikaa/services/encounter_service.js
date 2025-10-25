@@ -64,12 +64,10 @@ function rngFor(ctx) {
       return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
     }
   } catch (_) {}
-  return (ctx && typeof ctx.rng === "function")
-    ? ctx.rng
-    : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+  return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
 }
 
-let _loggedEncounterRngFallback = false;
+
 
 function pickTemplate(ctx, biome) {
   const reg = registry(ctx);
@@ -79,7 +77,7 @@ function pickTemplate(ctx, biome) {
     { id: "bandit_camp", name: "Bandit Camp", baseWeight: 0.8, allowedBiomes: ["GRASS","DESERT","BEACH"], map: { generator: "camp", w: 26, h: 18 }, groups: [ { type: "bandit", count: { min: 3, max: 6 } } ] },
     { id: "wild_seppo", name: "Wild Seppo", baseWeight: 0.06, allowedBiomes: ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"], map: { generator: "camp", w: 24, h: 16 }, merchant: { vendor: "seppo" }, groups: [] },
   ];
-  if (!reg) { try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("encounter", "Using built-in encounter templates (GameData.encounters missing).", { biome }); } catch (_) {} }
+  
   const list = reg || fallback;
   const candidates = list.filter(t => {
     if (!Array.isArray(t.allowedBiomes) || t.allowedBiomes.length === 0) return true;
@@ -200,14 +198,9 @@ export function maybeTryEncounter(ctx) {
           return window.RNGUtils.chance(chance, rngFn);
         }
       } catch (_) {}
-      try {
-        if (!_loggedEncounterRngFallback && typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") {
-          window.Fallback.log("encounter", "Using direct RNG comparison (RNGUtils.chance unavailable).");
-          _loggedEncounterRngFallback = true;
-        }
-      } catch (_) {}
-      const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-      return r < chance;
+      const rng = rngFor(ctx);
+      const roll = (typeof rng === "function") ? rng() : 0.5;
+      return roll < chance;
     })();
     if (!willEncounter) {
       STATE.movesSinceLast += 1;
@@ -264,15 +257,21 @@ export function maybeTryEncounter(ctx) {
       STATE.movesSinceLast += 1;
     };
 
-    // Prompt the user
+    // Prompt the user (prefer UIOrchestration via Capabilities.safeCall)
+    try {
+      const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctx, "UIOrchestration", "showConfirm", ctx, text, null, () => enter(), () => cancel());
+        if (res && res.ok) return true;
+      }
+    } catch (_) {}
+    // Fallback: UIBridge only (no window.confirm fallback)
     const UI = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UI && typeof UI.showConfirm === "function") {
       UI.showConfirm(ctx, text, null, () => enter(), () => cancel());
     } else {
-      // Fallback: inline confirm
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("encounter", "Using window.confirm UI (UIBridge.showConfirm unavailable)."); } catch (_) {}
-      if (typeof window !== "undefined" && window.confirm && window.confirm(text)) enter();
-      else cancel();
+      // No confirm UI available; cancel by default
+      cancel();
     }
     return true;
   } catch (e) {

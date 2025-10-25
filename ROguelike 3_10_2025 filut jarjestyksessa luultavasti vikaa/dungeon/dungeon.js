@@ -9,7 +9,6 @@
  * - Avoids Math.random; all randomness goes through the local dungeon PRNG so initial generation is reproducible.
  * - Runtime changes (corpses/decals/enemies) should be persisted via DungeonState.
  */
-import { getRng as getFallbackRng } from "../utils/rng_fallback.js";
 import { attachGlobal } from "../utils/global.js";
 
 function mix32(a) {
@@ -32,6 +31,16 @@ function deriveDungeonSeed(rootSeed, x, y, level, sizeStr) {
   s = mix32(s ^ (sizeCode(sizeStr) >>> 0));
   return s >>> 0;
 }
+// Local seeded PRNG (Mulberry32) to avoid RNGFallback
+function mulberry32(seed) {
+  let t = (seed >>> 0);
+  return function () {
+    t = (t + 0x6D2B79F5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), t | 1);
+    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 export function generateLevel(ctx, depth) {
   const { ROWS, COLS, MAP_ROWS, MAP_COLS, TILES, player } = ctx;
@@ -42,8 +51,7 @@ export function generateLevel(ctx, depth) {
     : 0;
   const dinfo = ctx.dungeonInfo || ctx.dungeon || { x: player.x, y: player.y, level: depth, size: "medium" };
   const dseed = deriveDungeonSeed(rootSeed, dinfo.x | 0, dinfo.y | 0, (depth | 0) || (dinfo.level | 0) || 1, dinfo.size);
-  try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon", "Using RNGFallback for dungeon PRNG.", { seed: dseed }); } catch (_) {}
-  const drng = getFallbackRng(dseed);
+  const drng = mulberry32(dseed);
   const ri = (min, max) => Math.floor(drng() * (Math.max(min|0, max|0) - Math.min(min|0, max|0) + 1)) + Math.min(min|0, max|0);
   const ch = (p) => drng() < p;
 
@@ -81,7 +89,6 @@ export function generateLevel(ctx, depth) {
   }
 
   if (rooms.length === 0) {
-    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon", "No rooms generated; carving a central fallback room."); } catch (_) {}
     const w = Math.min(9, Math.max(4, Math.floor(rCols / 5) || 6));
     const h = Math.min(7, Math.max(3, Math.floor(rRows / 5) || 4));
     const x = Math.max(1, Math.min(rCols - w - 2, Math.floor(rCols / 2 - w / 2)));
@@ -200,7 +207,6 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     }
   }
   if (stairsCount === 0) {
-    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon", "No stairs present; placing fallback stairs tile."); } catch (_) {}
     let best = null, bestD = -1;
     for (let yy = 1; yy < rRows - 1; yy++) {
       for (let xx = 1; xx < rCols - 1; xx++) {
@@ -283,7 +289,6 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
       ctx.enemies.push(enemy);
     } else {
       try { ctx.log && ctx.log("Fallback enemy spawned (dungeon create failed).", "warn"); } catch (_) {}
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon", "Spawning fallback enemy (factory/registry unavailable).", { pos: p, depth }); } catch (_) {}
       ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
     }
   }
@@ -314,7 +319,6 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
           ctx.enemies.push(e);
         } else {
           try { ctx.log && ctx.log("Fallback enemy spawned (extra pack create failed).", "warn"); } catch (_) {}
-          try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon", "Spawning fallback enemy in extra pack.", { pos: p, depth }); } catch (_) {}
           ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
         }
       }
@@ -383,7 +387,6 @@ function randomFloor(ctx, rooms, ri) {
     y = ri(1, Math.max(1, rRows - 2));
     tries++;
     if (tries > 500) {
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon", "randomFloor: falling back to scan/neighbor/any-floor after 500 tries."); } catch (_) {}
       // Scan for any suitable floor tile as a safe fallback
       for (let yy = 1; yy < Math.max(1, rRows - 1); yy++) {
         for (let xx = 1; xx < Math.max(1, rCols - 1); xx++) {
@@ -417,7 +420,6 @@ function randomFloor(ctx, rooms, ri) {
       // Give up: place one step to the right if in bounds
       const fx = Math.min(Math.max(1, rCols - 2), Math.max(1, player.x + 1));
       const fy = Math.min(Math.max(1, rRows - 2), Math.max(1, player.y));
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon", "randomFloor: placing near player as last resort.", { pos: { x: fx, y: fy } }); } catch (_) {}
       return { x: fx, y: fy };
     }
   } while (!(inBounds(x, y) && ctx.map[y][x] === TILES.FLOOR) ||
@@ -433,7 +435,7 @@ function defaultEnemyFactory(x, y, depth, rng) {
     return EM.createEnemyAt(x, y, depth, rng);
   }
   // No fallback: enforce JSON-defined enemies only
-  try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("dungeon", "Enemy factory unavailable; defaultEnemyFactory returning null."); } catch (_) {}
+  
   return null;
 }
 

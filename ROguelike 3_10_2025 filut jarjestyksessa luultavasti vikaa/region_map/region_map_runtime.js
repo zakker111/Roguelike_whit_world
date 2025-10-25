@@ -583,9 +583,14 @@ function open(ctx, size) {
   // Only allow from walkable, non-town, non-dungeon tiles
   const WT = World.TILES;
   const tile = ctx.world.map[worldY][worldX];
+  // Disallow from towns/dungeons; allow RUINS explicitly even if not walkable in overworld semantics
   if (tile === WT.TOWN || tile === WT.DUNGEON) return false;
-  const isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tile) : true;
-  if (!isWalkable) return false;
+  let isWalkable = true;
+  try {
+    isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tile) : true;
+  } catch (_) { isWalkable = true; }
+  const allowNonWalkableHere = (tile === WT.RUINS);
+  if (!isWalkable && !allowNonWalkableHere) return false;
 
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
@@ -618,6 +623,8 @@ function open(ctx, size) {
 
   // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
   const rng = getRegionRng(ctx);
+  // RNGUtils handle (chance/int/float) when available; falls back to direct rng comparisons
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
   addMinorWaterAndBeaches(sample, rng);
   // Sprinkle sparse trees in forest tiles for region visualization
   addSparseTreesInForests(sample, 0.10, rng);
@@ -655,12 +662,12 @@ function open(ctx, size) {
         const y1 = Math.min(h - 2, y0 + rh);
         // Perimeter with gaps
         for (let x = x0; x <= x1; x++) {
-          if (rng() > 0.13) sample[y0][x] = ruinWallId;
-          if (rng() > 0.13) sample[y1][x] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y0][x] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y1][x] = ruinWallId;
         }
         for (let y = y0; y <= y1; y++) {
-          if (rng() > 0.13) sample[y][x0] = ruinWallId;
-          if (rng() > 0.13) sample[y][x1] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y][x0] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y][x1] = ruinWallId;
         }
         // Open 3–5 random gaps in the ring to create entrances
         const gaps = 3 + ((rng() * 3) | 0);
@@ -691,7 +698,7 @@ function open(ctx, size) {
             const x = (sx + (horiz ? k : 0)) | 0;
             const y = (sy + (horiz ? 0 : k)) | 0;
             if (x <= x0 || y <= y0 || x >= x1 || y >= y1) continue;
-            if (rng() < 0.85) sample[y][x] = ruinWallId;
+            if (RU && typeof RU.chance === "function" ? RU.chance(0.85, rng) : (rng() < 0.85)) sample[y][x] = ruinWallId;
           }
         }
         // Ensure an inner clearing ring for mobility around center
@@ -816,6 +823,7 @@ function open(ctx, size) {
       const h = ctx.region.map.length;
       const w = ctx.region.map[0] ? ctx.region.map[0].length : 0;
       if (!w || !h) return;
+      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
 
       // Resolve ruin wall id for walkability/FOV checks
       let ruinWallId = WT.MOUNTAIN;
@@ -923,7 +931,6 @@ function open(ctx, size) {
       // Mark encounter-active for AI/tick and guidance
       ctx.region._isEncounter = true;
       try { ctx.log && ctx.log("Hostiles lurk within the ruins!", "notice"); } catch (_) {}
-      try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
     } catch (_) {}
   })();
 
@@ -941,9 +948,9 @@ function open(ctx, size) {
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
 
-      // If animals were already seen here in a prior visit, drastically reduce the chance to spawn again (10%)
+      // If animals were already seen here in a prior visit, reduce the chance to spawn again (60% allowed)
       const seenBefore = animalsSeenHere(worldX, worldY);
-      if (seenBefore && rng() >= 0.10) {
+      if (seenBefore && rng() >= 0.40) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
@@ -967,19 +974,19 @@ function open(ctx, size) {
           return (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
         } catch (_) { return false; }
       })();
-      if (wildFrac < 0.55 && !playerTileWild) {
+      if (wildFrac < 0.35 && !playerTileWild) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
       // Heavily non-wild or rugged biomes suppress spawns
-      if (desertBias + snowBias + swampBias > 0.30 || mountainBias > 0.15) {
+      if (desertBias + snowBias + swampBias > 0.30 || mountainBias > 0.20) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
 
       // Probability for at most a single animal
-      const pOne = Math.max(0, Math.min(0.35, 0.08 + forestBias * 0.20 + grassBias * 0.12 + beachBias * 0.06));
-      const spawnOne = rng() < pOne;
+      const pOne = Math.max(0, Math.min(0.6, 0.12 + forestBias * 0.35 + grassBias * 0.25 + beachBias * 0.12));
+      const spawnOne = (typeof RU !== "undefined" && RU && typeof RU.chance === "function") ? RU.chance(pOne, rng) : (rng() < pOne);
       let count = spawnOne ? 1 : 0;
 
       if (count <= 0) {
@@ -1077,10 +1084,10 @@ function open(ctx, size) {
       const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
 
       for (let i = 0; i < count; i++) {
-        // Small chance to spawn the creature closer to the player to improve visibility
+        // Ensure at least one creature spawns near the player to improve visibility
         let pos = null;
-        if (i === 0 && rng() < 0.25) {
-          pos = randomNearWalkable(cx0, cy0, 5);
+        if (i === 0) {
+          pos = randomNearWalkable(cx0, cy0, 6);
         }
         if (!pos) pos = randomWalkable();
         if (!pos) break;
@@ -1099,8 +1106,12 @@ function open(ctx, size) {
           // Also update flag in this session
           ctx.region._hasKnownAnimals = true;
 
-          // Ensure FOV is up to date before logging visibility info
-          try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
+          try {
+            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") {
+              SS.applyAndRefresh(ctx, {});
+            }
+          } catch (_) {}
           // Count how many are currently visible to the player
           let visibleCount = 0;
           try {
@@ -1121,7 +1132,6 @@ function open(ctx, size) {
           } else {
             try { ctx.log && ctx.log("Creatures are present in this area, but not in sight.", "info"); } catch (_) {}
           }
-          try { typeof ctx.requestDraw === "function" && ctx.requestDraw(); } catch (_) {}
         } else {
           try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         }
@@ -1129,10 +1139,12 @@ function open(ctx, size) {
     } catch (_) {}
   })();
 
-  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
-  try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
   if (ctx.log) ctx.log("Region map opened. Move with arrows. Press G on an orange edge tile to close.", "info");
   return true;
 }
@@ -1176,10 +1188,12 @@ function close(ctx) {
     ctx.player.x = pos.x | 0;
     ctx.player.y = pos.y | 0;
   }
-  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
-  try { typeof ctx.recomputeFOV === "function" && ctx.recomputeFOV(); } catch (_) {}
-  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
-  try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
   if (ctx.log) ctx.log("Region map closed.", "info");
   return true;
 }
@@ -1227,15 +1241,16 @@ function tryMove(ctx, dx, dy) {
       const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
       const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
       // Prefer RNGUtils.chance for determinism; fallback to raw rng comparison
-      const didBlock = (function () {
-        try {
-          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-            return window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
-          }
-        } catch (_) {}
-        const r = (typeof ctx.rng === "function") ? ctx.rng() : Math.random();
-        return r < blockChance;
-      })();
+      let didBlock = false;
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+        didBlock = window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
+      } else {
+        const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+        const rfn = (RU && typeof RU.getRng === "function")
+          ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+          : ((typeof ctx.rng === "function") ? ctx.rng : null);
+        didBlock = ((typeof rfn === "function") ? rfn() : 0.5) < blockChance;
+      }
       if (didBlock) {
         ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
       } else {
@@ -1251,14 +1266,18 @@ function tryMove(ctx, dx, dy) {
   }
 
   if (!walkable) {
-    try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
     return false;
   }
 
   ctx.region.cursor = { x: nx, y: ny };
   ctx.player.x = nx; ctx.player.y = ny;
 
-  try { typeof ctx.updateCamera === "function" && ctx.updateCamera(); } catch (_) {}
+  try {
+    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    }
+  } catch (_) {}
   try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
   return true;
 }
@@ -1292,8 +1311,6 @@ function onAction(ctx) {
       } catch (_) {
         ctx.log && ctx.log("Loot failed.", "warn");
       }
-      // Request redraw to update corpse color
-      try { ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
       return true;
     }
   } catch (_) {}
@@ -1307,8 +1324,13 @@ function onAction(ctx) {
       if (ctx.log) ctx.log("You cut the tree.", "notice");
       try {
         ctx.region.map[cursor.y][cursor.x] = WT.FOREST;
-        // Reflect change in active map and request redraw
-        if (ctx.map === ctx.region.map && typeof ctx.requestDraw === "function") ctx.requestDraw();
+        // Reflect change via orchestrator refresh
+        try {
+          const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+          if (SS && typeof SS.applyAndRefresh === "function") {
+            SS.applyAndRefresh(ctx, {});
+          }
+        } catch (_) {}
       } catch (_) {}
 
       // Grant planks material in inventory (stacking)
@@ -1351,14 +1373,8 @@ function tick(ctx) {
       }
     } catch (_) {}
     try {
-      if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-        window.OccupancyFacade.rebuild(ctx);
-      } else {
-        const OG = ctx.OccupancyGrid || (typeof window !== "undefined" ? window.OccupancyGrid : null);
-        if (OG && typeof OG.build === "function") {
-          ctx.occupancy = OG.build({ map: ctx.map, enemies: ctx.enemies, npcs: ctx.npcs, props: ctx.townProps, player: ctx.player });
-        }
-      }
+      const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+      if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     } catch (_) {}
     // Victory: no enemies remain — keep player in Region Map (no auto-close or victory log)
     try {

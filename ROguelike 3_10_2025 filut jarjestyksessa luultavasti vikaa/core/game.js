@@ -236,14 +236,13 @@
   let rng = ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
     ? window.RNG.rng
     : (function () {
-        // Shared centralized fallback (deterministic) if RNG service not available
         try {
-          if (typeof window !== "undefined" && window.RNGFallback && typeof window.RNGFallback.getRng === "function") {
-            return window.RNGFallback.getRng(currentSeed);
+          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+            return window.RNGUtils.getRng();
           }
         } catch (_) {}
-        // Ultimate fallback: non-deterministic
-        return Math.random;
+        // Deterministic fallback without RNG service
+        return () => 0.5;
       })());
   let isDead = false;
   let startRoomRect = null;
@@ -457,6 +456,15 @@
   }
 
   function rerenderInventoryIfOpen() {
+    // Prefer UIOrchestration via Capabilities.safeCall; fallback to UIBridge
+    try {
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
+        if (res && res.ok && !!res.result) { renderInventoryPanel(); return; }
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     let open = false;
     try {
@@ -817,8 +825,6 @@
       startRoomRect = ctx.startRoomRect;
       decals = [];
       _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
-      recomputeFOV();
-      updateCamera();
       if (inBounds(player.x, player.y) && !visible[player.y][player.x]) {
         try { log("FOV sanity check: player tile not visible after gen; recomputing.", "warn"); } catch (_) {}
         recomputeFOV();
@@ -827,24 +833,14 @@
           seen[player.y][player.x] = true;
         }
       }
-      // Rebuild occupancy using TownRuntime helper or direct OccupancyGrid
+      // Rebuild occupancy using unified facade
       {
         try {
           const ctx2 = getCtx();
-          if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-            window.OccupancyFacade.rebuild(ctx2);
+          const OF = modHandle("OccupancyFacade");
+          if (OF && typeof OF.rebuild === "function") {
+            OF.rebuild(ctx2);
             occupancy = ctx2.occupancy || occupancy;
-          } else {
-            const TR = modHandle("TownRuntime");
-            if (TR && typeof TR.rebuildOccupancy === "function") {
-              TR.rebuildOccupancy(ctx2);
-              occupancy = ctx2.occupancy || occupancy;
-            } else {
-              const OG = modHandle("OccupancyGrid");
-              if (OG && typeof OG.build === "function") {
-                occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
-              }
-            }
           }
         } catch (_) {}
       }
@@ -854,7 +850,7 @@
           log(`[DEV] Enemies spawned: ${enemies.length}, visible now: ${visCount}.`, "notice");
         } catch (_) {}
       }
-      updateUI();
+      applyCtxSyncAndRefresh(getCtx());
       {
         const MZ = modHandle("Messages");
         if (MZ && typeof MZ.log === "function") {
@@ -874,7 +870,6 @@
           }
         }
       } catch (_) {}
-      requestDraw();
       return;
     }
     // Fallback: flat-floor map
@@ -887,9 +882,7 @@
     corpses = [];
     decals = [];
     _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
-    recomputeFOV();
-    updateCamera();
-    updateUI();
+    applyCtxSyncAndRefresh(getCtx());
     {
       const MZ = modHandle("Messages");
       if (MZ && typeof MZ.log === "function") {
@@ -909,7 +902,6 @@
         }
       }
     } catch (_) {}
-    requestDraw();
     return;
   }
 
@@ -1168,49 +1160,9 @@
       // Fall through to legacy path if WorldRuntime signaled failure
     }
 
-    // Legacy path
-    const W = modHandle("World");
-    if (!(W && typeof W.generate === "function")) {
-      log("World module missing; generating dungeon instead.", "warn");
-      mode = "dungeon";
-      generateLevel(floor);
-      return;
-    }
-    const ctx = getCtx();
-    world = W.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
-    const start = (typeof W.pickTownStart === "function") ? W.pickTownStart(world, rng) : { x: 1, y: 1 };
-    player.x = start.x; player.y = start.y;
-    mode = "world";
-    enemies = [];
-    corpses = [];
-    decals = [];
-    // Clear lingering encounter visuals when returning to world
-    encounterProps = [];
-    encounterBiome = null;
-    encounterObjective = null;
-    npcs = [];   // no NPCs on overworld
-    shops = [];  // no shops on overworld
-    map = world.map;
-    // fill seen/visible fully in world
-    seen = Array.from({ length: map.length }, () => Array(map[0].length).fill(true));
-    visible = Array.from({ length: map.length }, () => Array(map[0].length).fill(true));
-    updateCamera();
-    recomputeFOV();
-    updateUI();
-    {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(getCtx(), "world.arrive");
-      } else {
-        log("You arrive in the overworld. Towns: small (t), big (T), cities (C). Dungeons (D). Press G on a town/dungeon tile to enter/exit.", "notice");
-      }
-    }
-    {
-      // Delegate town exit button visibility via TownRuntime
-      const TR = modHandle("TownRuntime");
-      if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(getCtx());
-    }
-    requestDraw();
+    // Hard error: infinite world not available or generation failed
+    log("Error: Infinite world generation failed or unavailable.", "bad");
+    throw new Error("Infinite world generation failed or unavailable");
   }
 
   
@@ -1341,26 +1293,15 @@
   // Helper: apply ctx sync and refresh visuals/UI in one place
   function applyCtxSyncAndRefresh(ctx) {
     syncFromCtx(ctx);
-    // Prefer centralized StateSync apply+refresh, then GameState helper
+    // Mandatory StateSync-only refresh path
     try {
       const SS = modHandle("StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(getCtx(), {
           // No-op sink here since sync already applied locally
         });
-        return;
       }
     } catch (_) {}
-    try {
-      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.applySyncAndRefresh === "function") {
-        window.GameState.applySyncAndRefresh(getCtx());
-        return;
-      }
-    } catch (_) {}
-    updateCamera();
-    recomputeFOV();
-    updateUI();
-    requestDraw();
   }
 
   
@@ -1531,10 +1472,14 @@
   function doAction() {
     // Toggle behavior: if Loot UI is open, close it and do nothing else (do not consume a turn)
     try {
-      const UB = modHandle("UIBridge");
-      if (UB && typeof UB.isLootOpen === "function" && UB.isLootOpen()) {
-        hideLootPanel();
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "isLootOpen", ctxLocal);
+        if (res && res.ok && !!res.result) {
+          Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
+          return;
+        }
       }
     } catch (_) {}
     hideLootPanel();
@@ -1561,16 +1506,37 @@
       if (!enterTownIfOnTile()) {
         if (!enterDungeonIfOnEntrance()) {
           // Open Region map when pressing G on a walkable overworld tile
-          const RM = modHandle("RegionMapRuntime");
-          if (RM && typeof RM.open === "function") {
-            const ctxMod = getCtx();
-            const ok = !!RM.open(ctxMod);
+          const ctxMod = getCtx();
+          const Cap = modHandle("Capabilities");
+          if (Cap && typeof Cap.safeCall === "function") {
+            const res = Cap.safeCall(ctxMod, "RegionMapRuntime", "open", ctxMod);
+            const ok = !!(res && res.ok && res.result);
             if (ok) {
               // Sync mutated ctx (mode -> "region") and refresh
               applyCtxSyncAndRefresh(ctxMod);
+            } else {
+              // Fallback to direct open to differentiate "module missing" vs "cannot open here"
+              const RM = modHandle("RegionMapRuntime");
+              if (RM && typeof RM.open === "function") {
+                const ok2 = !!RM.open(ctxMod);
+                if (ok2) {
+                  applyCtxSyncAndRefresh(ctxMod);
+                } else {
+                  log("Region Map cannot be opened here.", "warn");
+                }
+              } else {
+                log("Region map module not available.", "warn");
+              }
             }
           } else {
-            log("Region map module not available.", "warn");
+            const RM = modHandle("RegionMapRuntime");
+            if (RM && typeof RM.open === "function") {
+              const ok = !!RM.open(ctxMod);
+              if (ok) applyCtxSyncAndRefresh(ctxMod);
+              else log("Region Map cannot be opened here.", "warn");
+            } else {
+              log("Region map module not available.", "warn");
+            }
           }
         }
       }
@@ -1586,9 +1552,21 @@
     }
 
     if (mode === "region") {
+      // Prefer RegionMapRuntime.onAction via Capabilities.safeCall
+      const ctxMod = getCtx();
+      try {
+        const Cap = modHandle("Capabilities");
+        if (Cap && typeof Cap.safeCall === "function") {
+          const res = Cap.safeCall(ctxMod, "RegionMapRuntime", "onAction", ctxMod);
+          const handled = !!(res && res.ok && res.result);
+          if (handled) {
+            applyCtxSyncAndRefresh(ctxMod);
+            return;
+          }
+        }
+      } catch (_) {}
       const RM = modHandle("RegionMapRuntime");
       if (RM && typeof RM.onAction === "function") {
-        const ctxMod = getCtx();
         const handled = !!RM.onAction(ctxMod);
         if (handled) {
           applyCtxSyncAndRefresh(ctxMod);
@@ -1777,85 +1755,36 @@
         // state queries
         isDead: () => isDead,
         isInventoryOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isInventoryOpen === "function") return !!UIO.isInventoryOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isInventoryOpen === "function") return !!UB.isInventoryOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isInventoryOpen === "function" && UIO.isInventoryOpen(getCtx()));
         },
         isLootOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isLootOpen === "function") return !!UIO.isLootOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isLootOpen === "function") return !!UB.isLootOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx()));
         },
         isGodOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isGodOpen === "function") return !!UIO.isGodOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isGodOpen === "function") return !!UB.isGodOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isGodOpen === "function" && UIO.isGodOpen(getCtx()));
         },
         // Ensure shop modal is part of the modal stack priority
         isShopOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isShopOpen === "function") return !!UIO.isShopOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isShopOpen === "function") return !!UB.isShopOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isShopOpen === "function" && UIO.isShopOpen(getCtx()));
         },
         // Smoke config modal priority after Shop
         isSmokeOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isSmokeOpen === "function") return !!UIO.isSmokeOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isSmokeOpen === "function") return !!UB.isSmokeOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isSmokeOpen === "function" && UIO.isSmokeOpen(getCtx()));
         },
         // Sleep modal (Inn beds)
         isSleepOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isSleepOpen === "function") return !!UIO.isSleepOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isSleepOpen === "function") return !!UB.isSleepOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isSleepOpen === "function" && UIO.isSleepOpen(getCtx()));
         },
         // Confirm dialog gating
         isConfirmOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isConfirmOpen === "function") return !!UIO.isConfirmOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isConfirmOpen === "function") return !!UB.isConfirmOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isConfirmOpen === "function" && UIO.isConfirmOpen(getCtx()));
         },
         // actions
         onRestart: () => restartGame(),
@@ -1863,171 +1792,66 @@
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideGod === "function") { UIO.hideGod(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isGodOpen === "function") wasOpen = !!UB.isGodOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideGod === "function") UB.hideGod(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideGod", ctxLocal);
         },
         onHideShop: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideShop === "function") { UIO.hideShop(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isShopOpen === "function") wasOpen = !!UB.isShopOpen();
-          } catch (_) {}
-          if (UB && typeof UB.hideShop === "function") {
-            UB.hideShop(getCtx());
-            if (wasOpen) requestDraw();
-          }
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideShop", ctxLocal);
         },
         onHideSmoke: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideSmoke === "function") { UIO.hideSmoke(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isSmokeOpen === "function") wasOpen = !!UB.isSmokeOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideSmoke === "function") UB.hideSmoke(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideSmoke", ctxLocal);
         },
         onHideSleep: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideSleep === "function") { UIO.hideSleep(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isSleepOpen === "function") wasOpen = !!UB.isSleepOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideSleep === "function") UB.hideSleep(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideSleep", ctxLocal);
         },
         onCancelConfirm: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.cancelConfirm === "function") { UIO.cancelConfirm(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isConfirmOpen === "function") wasOpen = !!UB.isConfirmOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.cancelConfirm === "function") UB.cancelConfirm(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "cancelConfirm", ctxLocal);
         },
         onShowGod: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.showGod === "function") { UIO.showGod(getCtx()); }
-          } catch (_) {}
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showGod", ctxLocal);
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
         },
         // Region Map
         isRegionMapOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isRegionMapOpen === "function") return !!UIO.isRegionMapOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isRegionMapOpen === "function") return !!UB.isRegionMapOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(getCtx()));
         },
         onShowRegionMap: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.showRegionMap === "function") { UIO.showRegionMap(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isRegionMapOpen === "function") wasOpen = !!UB.isRegionMapOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.showRegionMap === "function") UB.showRegionMap(getCtx());
-          } catch (_) {}
-          if (!wasOpen) requestDraw();
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showRegionMap", ctxLocal);
         },
         onHideRegionMap: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideRegionMap === "function") { UIO.hideRegionMap(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isRegionMapOpen === "function") wasOpen = !!UB.isRegionMapOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideRegionMap === "function") UB.hideRegionMap(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideRegionMap", ctxLocal);
         },
         // Help / Controls + Character Sheet (F1)
         isHelpOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isHelpOpen === "function") return !!UIO.isHelpOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isHelpOpen === "function") return !!UB.isHelpOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isHelpOpen === "function" && UIO.isHelpOpen(getCtx()));
         },
         onShowHelp: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.showHelp === "function") { UIO.showHelp(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isHelpOpen === "function") wasOpen = !!UB.isHelpOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.showHelp === "function") UB.showHelp(getCtx());
-          } catch (_) {}
-          if (!wasOpen) requestDraw();
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showHelp", ctxLocal);
         },
         onHideHelp: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.hideHelp === "function") { UIO.hideHelp(getCtx()); return; }
-          } catch (_) {}
-          const UB = modHandle("UIBridge");
-          let wasOpen = false;
-          try {
-            if (UB && typeof UB.isHelpOpen === "function") wasOpen = !!UB.isHelpOpen();
-          } catch (_) {}
-          try {
-            if (UB && typeof UB.hideHelp === "function") UB.hideHelp(getCtx());
-          } catch (_) {}
-          if (wasOpen) requestDraw();
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideHelp", ctxLocal);
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
@@ -2130,22 +1954,18 @@
   }
 
   function showLootPanel(list) {
-    // Prefer centralized LootFlow
+    // Prefer centralized LootFlow or UIOrchestration via Capabilities.safeCall
     try {
-      const LF = modHandle("LootFlow");
-      if (LF && typeof LF.show === "function") {
-        LF.show(getCtx(), list);
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "LootFlow", "show", ctxLocal, list);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "UIOrchestration", "showLoot", ctxLocal, list);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    // Prefer centralized UI orchestration
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.showLoot === "function") {
-        UIO.showLoot(getCtx(), list);
-        return;
-      }
-    } catch (_) {}
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
@@ -2158,22 +1978,18 @@
   }
 
   function hideLootPanel() {
-    // Prefer centralized LootFlow
+    // Prefer centralized LootFlow or UIOrchestration via Capabilities.safeCall
     try {
-      const LF = modHandle("LootFlow");
-      if (LF && typeof LF.hide === "function") {
-        LF.hide(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "LootFlow", "hide", ctxLocal);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    // Prefer centralized UI orchestration
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.hideLoot === "function") {
-        UIO.hideLoot(getCtx());
-        return;
-      }
-    } catch (_) {}
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideLoot === "function") {
       let wasOpen = true;
@@ -2219,20 +2035,18 @@
 
   
   function renderInventoryPanel() {
-    // Prefer centralized UI orchestration
+    // Prefer centralized UI orchestration or InventoryController via Capabilities.safeCall
     try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.renderInventory === "function") {
-        UIO.renderInventory(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "UIOrchestration", "renderInventory", ctxLocal);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "InventoryController", "render", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.render === "function") {
-      IC.render(getCtx());
-      return;
-    }
-    // Prefer UIBridge
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.renderInventory === "function") {
       UB.renderInventory(getCtx());
@@ -2241,18 +2055,26 @@
   }
 
   function showInventoryPanel() {
-    // Prefer centralized UI orchestration
+    // Prefer centralized UI orchestration via Capabilities.safeCall
     try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.showInventory === "function") {
-        UIO.showInventory(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "showInventory", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
     const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
-      if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+      // Prefer UIOrchestration isInventoryOpen; fallback to UIBridge
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
+        if (r && r.ok) wasOpen = !!r.result;
+      }
+      if (!wasOpen && UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
     } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.show === "function") {
@@ -2267,18 +2089,26 @@
   }
 
   function hideInventoryPanel() {
-    // Prefer centralized UI orchestration
+    // Prefer centralized UI orchestration via Capabilities.safeCall
     try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.hideInventory === "function") {
-        UIO.hideInventory(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideInventory", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
     const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
-      if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+      // Prefer UIOrchestration isInventoryOpen; fallback to UIBridge
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
+        if (r && r.ok) wasOpen = !!r.result;
+      }
+      if (!wasOpen && UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
     } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.hide === "function") {
@@ -2380,22 +2210,18 @@
   
 
   function showGameOver() {
-    // Prefer centralized DeathFlow
+    // Prefer centralized DeathFlow or UIOrchestration via Capabilities.safeCall
     try {
-      const DF = modHandle("DeathFlow");
-      if (DF && typeof DF.show === "function") {
-        DF.show(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "DeathFlow", "show", ctxLocal);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "UIOrchestration", "showGameOver", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    // Prefer centralized UI orchestration
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.showGameOver === "function") {
-        UIO.showGameOver(getCtx());
-        return;
-      }
-    } catch (_) {}
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.showGameOver === "function") {
       UB.showGameOver(getCtx());
@@ -2428,11 +2254,7 @@
       const ctx = getCtx();
       GC.applySeed(() => getCtx(), seedUint32);
       rng = ctx.rng || rng;
-      syncFromCtx(ctx);
-      updateCamera();
-      recomputeFOV();
-      updateUI();
-      requestDraw();
+      applyCtxSyncAndRefresh(ctx);
       return;
     }
     const G = modHandle("God");
@@ -2440,11 +2262,7 @@
       const ctx = getCtx();
       G.applySeed(ctx, seedUint32);
       rng = ctx.rng || rng;
-      syncFromCtx(ctx);
-      updateCamera();
-      recomputeFOV();
-      updateUI();
-      requestDraw();
+      applyCtxSyncAndRefresh(ctx);
       return;
     }
     log("GOD: applySeed not available.", "warn");
@@ -2457,11 +2275,7 @@
       const ctx = getCtx();
       GC.rerollSeed(() => getCtx());
       rng = ctx.rng || rng;
-      syncFromCtx(ctx);
-      updateCamera();
-      recomputeFOV();
-      updateUI();
-      requestDraw();
+      applyCtxSyncAndRefresh(ctx);
       return;
     }
     const G = modHandle("God");
@@ -2469,33 +2283,25 @@
       const ctx = getCtx();
       G.rerollSeed(ctx);
       rng = ctx.rng || rng;
-      syncFromCtx(ctx);
-      updateCamera();
-      recomputeFOV();
-      updateUI();
-      requestDraw();
+      applyCtxSyncAndRefresh(ctx);
       return;
     }
     log("GOD: rerollSeed not available.", "warn");
   }
 
   function hideGameOver() {
-    // Prefer centralized DeathFlow
+    // Prefer centralized DeathFlow or UIOrchestration via Capabilities.safeCall
     try {
-      const DF = modHandle("DeathFlow");
-      if (DF && typeof DF.hide === "function") {
-        DF.hide(getCtx());
-        return;
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        let res = Cap.safeCall(ctxLocal, "DeathFlow", "hide", ctxLocal);
+        if (res && res.ok) return;
+        res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideGameOver", ctxLocal);
+        if (res && res.ok) return;
       }
     } catch (_) {}
-    // Prefer centralized UI orchestration
-    try {
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.hideGameOver === "function") {
-        UIO.hideGameOver(getCtx());
-        return;
-      }
-    } catch (_) {}
+    // Fallback: UIBridge
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.hideGameOver === "function") {
       UB.hideGameOver(getCtx());
@@ -2631,6 +2437,15 @@
 
   
   function updateUI() {
+    // Prefer UIBridge via Capabilities.safeCall
+    try {
+      const Cap = modHandle("Capabilities");
+      const ctxLocal = getCtx();
+      if (Cap && typeof Cap.safeCall === "function") {
+        const res = Cap.safeCall(ctxLocal, "UIBridge", "updateStats", ctxLocal);
+        if (res && res.ok) return;
+      }
+    } catch (_) {}
     const UB = modHandle("UIBridge");
     if (UB && typeof UB.updateStats === "function") {
       UB.updateStats(getCtx());
@@ -2703,7 +2518,7 @@
       if (success) {
         log("You notice signs of wildlife nearby. Press G to open the Region Map.", "notice");
         lastAnimalHintTurn = turnCounter;
-       wildNoHintTurns = 0;
+        _wildNoHintTurns = 0;
       } else {
         _wildNoHintTurns++;
       }
@@ -2820,9 +2635,7 @@
       }
     } catch (_) {}
 
-    recomputeFOV();
-    updateUI();
-    requestDraw();
+    applyCtxSyncAndRefresh(getCtx());
 
     // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), sync orchestrator state
     try {
@@ -2857,366 +2670,16 @@
           onDrink: (idx) => drinkPotionByIndex(idx),
           onRestart: () => restartGame(),
           onWait: () => turn(),
-          onGodHeal: () => godHeal(),
-          onGodSpawn: () => godSpawnItems(),
-          onGodSetFov: (v) => setFovRadius(v),
-          onGodToggleGrid: (v) => { drawGridPref = !!v; requestDraw(); },
-          onGodSpawnEnemy: () => godSpawnEnemyNearby(),
-          onGodSpawnStairs: () => godSpawnStairsHere(),
-          onGodSetAlwaysCrit: (v) => setAlwaysCrit(v),
-          onGodSetCritPart: (part) => setCritPart(part),
-          onGodApplySeed: (seed) => applySeed(seed),
-          onGodRerollSeed: () => rerollSeed(),
-          // Encounter debug helpers
-          onGodStartEncounterNow: (encId) => {
-            try {
-              const id = String(encId || "").toLowerCase();
-              const GD = (typeof window !== "undefined" ? window.GameData : null);
-              const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
-              const t = reg.find(t => String(t.id || "").toLowerCase() === id) || null;
-              if (!t) {
-                if (id) log(`GOD: Encounter '${id}' not found.`, "warn");
-                return;
-              }
-              if (mode !== "world") {
-                log("GOD: Start Now works in overworld only.", "warn");
-                return;
-              }
-              const tile = world && world.map ? world.map[player.y][player.x] : null;
-              const biome = (function () {
-                try {
-                  const W = (typeof window !== "undefined" && window.World) ? window.World : null;
-                  return (W && typeof W.biomeName === "function") ? (W.biomeName(tile) || "").toUpperCase() : "";
-                } catch (_) { return ""; }
-              })();
-              const diff = 1;
-              const ok = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function")
-                ? window.GameAPI.enterEncounter(t, biome, diff)
-                : false;
-              if (!ok) {
-                const ER = modHandle("EncounterRuntime");
-                if (ER && typeof ER.enter === "function") {
-                  const ctxMod = getCtx();
-                  if (ER.enter(ctxMod, { template: t, biome, difficulty: diff })) {
-                    applyCtxSyncAndRefresh(ctxMod);
-                  }
-                }
-              }
-            } catch (_) {}
-          },
-          onGodArmEncounterNextMove: (encId) => {
-            try {
-              const id = String(encId || "");
-              if (!id) { log("GOD: Select an encounter first.", "warn"); return; }
-              window.DEBUG_ENCOUNTER_ARM = id;
-              log(`GOD: Armed '${id}' — will trigger on next overworld move.`, "notice");
-            } catch (_) {}
-          },
-          // Status effect test hooks
-          onGodApplyBleed: (dur = 3) => {
-            const GC = modHandle("GodControls");
-            if (GC && typeof GC.applyBleedToPlayer === "function") {
-              GC.applyBleedToPlayer(() => getCtx(), dur);
-              updateUI();
-            } else {
-              const ST = modHandle("Status");
-              if (ST && typeof ST.applyBleedToPlayer === "function") {
-                ST.applyBleedToPlayer(getCtx(), dur);
-                updateUI();
-              } else {
-                player.bleedTurns = Math.max(player.bleedTurns || 0, (dur | 0));
-                log(`You are bleeding (${player.bleedTurns}).`, "warn");
-                updateUI();
-              }
-            }
-          },
-          onGodApplyDazed: (dur = 2) => {
-            const GC = modHandle("GodControls");
-            if (GC && typeof GC.applyDazedToPlayer === "function") {
-              GC.applyDazedToPlayer(() => getCtx(), dur);
-              updateUI();
-            } else {
-              const ST = modHandle("Status");
-              if (ST && typeof ST.applyDazedToPlayer === "function") {
-                ST.applyDazedToPlayer(getCtx(), dur);
-                updateUI();
-              } else {
-                player.dazedTurns = Math.max(player.dazedTurns || 0, (dur | 0));
-                log(`You are dazed and might lose your next action${dur > 1 ? "s" : ""}.`, "warn");
-                updateUI();
-              }
-            }
-          },
-          onGodClearEffects: () => {
-            const GC = modHandle("GodControls");
-            if (GC && typeof GC.clearPlayerEffects === "function") {
-              GC.clearPlayerEffects(() => getCtx());
-            } else {
-              player.bleedTurns = 0;
-              player.dazedTurns = 0;
-              updateUI();
-              log("Status effects cleared (Bleed, Dazed).", "info");
-            }
-          },
-          onTownExit: () => requestLeaveTown(),
-          // Panels for ESC-close default behavior
-          isShopOpen: () => {
-            // Prefer UIBridge single-source gating
-            try {
-              const UB = modHandle("UIBridge");
-              if (UB && typeof UB.isShopOpen === "function") return !!UB.isShopOpen();
-            } catch (_) {}
-            return false;
-          },
-          onHideShop: () => {
-            const UB = modHandle("UIBridge");
-            let wasOpen = false;
-            try {
-              if (UB && typeof UB.isShopOpen === "function") wasOpen = !!UB.isShopOpen();
-            } catch (_) {}
-            if (UB && typeof UB.hideShop === "function") {
-              UB.hideShop(getCtx());
-              if (wasOpen) requestDraw();
-            }
-          },
-          onGodCheckHomes: () => {
-            const ctx = getCtx();
-            if (ctx.mode !== "town") {
-              log("Home route check is available in town mode only.", "warn");
-              requestDraw();
-              return;
-            }
-            // Ensure town NPCs are populated before running the check
-            try {
-              const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
-              if ((!Array.isArray(ctx.npcs) || ctx.npcs.length === 0) && TAI && typeof TAI.populateTown === "function") {
-                TAI.populateTown(ctx);
-                // Sync back any mutations
-                syncFromCtx(ctx);
-                {
-                  const ctx2 = getCtx();
-                  if (typeof window !== "undefined" && window.OccupancyFacade && typeof window.OccupancyFacade.rebuild === "function") {
-                    window.OccupancyFacade.rebuild(ctx2);
-                  } else {
-                    const TR = modHandle("TownRuntime");
-                    if (TR && typeof TR.rebuildOccupancy === "function") {
-                      TR.rebuildOccupancy(ctx2);
-                    } else {
-                      const OG = modHandle("OccupancyGrid");
-                      if (OG && typeof OG.build === "function") {
-                        occupancy = OG.build({ map, enemies, npcs, props: townProps, player });
-                      }
-                    }
-                  }
-                }
-              }
-            } catch (_) {}
-
-            {
-              const TAI = ctx.TownAI || (typeof window !== "undefined" ? window.TownAI : null);
-              if (TAI && typeof TAI.checkHomeRoutes === "function") {
-                const res = TAI.checkHomeRoutes(ctx) || {};
-                const totalChecked = (typeof res.total === "number")
-                  ? res.total
-                  : ((res.reachable || 0) + (res.unreachable || 0));
-                const skippedCount = (typeof res.skipped === "number") ? res.skipped : 0;
-                const skippedStr = skippedCount ? `, ${skippedCount} skipped` : "";
-                const reachableCount = (typeof res.reachable === "number") ? res.reachable : 0;
-                const unreachableCount = (typeof res.unreachable === "number") ? res.unreachable : 0;
-                const summaryLine = `Home route check: ${reachableCount}/${totalChecked} reachable, ${unreachableCount} unreachable${skippedStr}.`;
-                log(summaryLine, unreachableCount ? "warn" : "good");
-
-                const extraLines = [];
-                // Type breakdown (helps explain differences between on-screen NPCs vs residents counted)
-                try {
-                  const counts = res.counts || null;
-                  if (counts) {
-                    const npcTotalAll = (typeof counts.npcTotal === "number") ? counts.npcTotal : (totalChecked + skippedCount);
-                    const pets = (typeof counts.pets === "number") ? counts.pets : skippedCount;
-                    const shopTotal = (typeof counts.shopkeepersTotal === "number") ? counts.shopkeepersTotal : 0;
-                    const greetTotal = (typeof counts.greetersTotal === "number") ? counts.greetersTotal : 0;
-                    const resTotal = (res.residents && typeof res.residents.total === "number") ? res.residents.total
-                                     : ((typeof counts.residentsTotal === "number") ? counts.residentsTotal : 0);
-                    const roamersTotal = (typeof counts.roamersTotal === "number")
-                      ? counts.roamersTotal
-                      : Math.max(0, totalChecked - resTotal - shopTotal - greetTotal);
-                    extraLines.push(`NPCs: ${totalChecked} checked (excluding pets), ${pets} pet(s) skipped. Total in town: ${npcTotalAll}.`);
-                    extraLines.push(`By type: residents ${resTotal}, shopkeepers ${shopTotal}, greeters ${greetTotal}, roamers ${roamersTotal}.`);
-                  } else {
-                    const npcTotalAll = totalChecked + skippedCount;
-                    extraLines.push(`NPCs: ${totalChecked} checked (excluding pets). Total in town: ${npcTotalAll}.`);
-                  }
-                } catch (_) {}
-
-                if (res.residents && typeof res.residents.total === "number") {
-                  const r = res.residents;
-                  const atHome = (typeof r.atHome === "number") ? r.atHome : 0;
-                  const atInn = (typeof r.atTavern === "number") ? r.atTavern : 0; // display as "inn"
-                  extraLines.push(`Residents: ${atHome}/${r.total} at home, ${atInn}/${r.total} at inn.`);
-                } else {
-                  // Provide a hint if no residents were counted
-                  extraLines.push("No residents were counted; ensure town NPCs are populated.");
-                }
-                // Inn/Tavern occupancy summary across all NPCs (not just residents) plus resident-only breakdown
-                if (res.tavern && (typeof res.tavern.any === "number")) {
-                  const innAny = res.tavern.any | 0;
-                  const innSleep = (typeof res.tavern.sleeping === "number") ? res.tavern.sleeping | 0 : 0;
-                  const resTotalInn = (res.residents && typeof res.residents.total === "number") ? (res.residents.total | 0) : 0;
-                  const resAtInn = (res.residents && typeof res.residents.atTavern === "number") ? (res.residents.atTavern | 0) : 0;
-                  extraLines.push(`Inn (any NPCs): ${innAny}; residents at inn: ${resAtInn}/${resTotalInn}; sleeping: ${innSleep}.`);
-                }
-                // Show first few sleepers by name for quick verification
-                if (Array.isArray(res.sleepersAtTavern) && res.sleepersAtTavern.length) {
-                  res.sleepersAtTavern.slice(0, 8).forEach(d => {
-                    const nm = (typeof d.name === "string" && d.name) ? d.name : `NPC ${String((d.index | 0) + 1)}`;
-                    extraLines.push(`- Sleeping: ${nm} at (${d.x},${d.y})`);
-                  });
-                  if (res.sleepersAtTavern.length > 8) extraLines.push(`...and ${res.sleepersAtTavern.length - 8} more.`);
-                }
-
-                // Per-resident list of late-night away residents
-                if (Array.isArray(res.residentsAwayLate) && res.residentsAwayLate.length) {
-                  extraLines.push(`Late-night (02:00–05:00): ${res.residentsAwayLate.length} resident(s) away from home and inn:`);
-                  res.residentsAwayLate.slice(0, 10).forEach(d => {
-                    const name = (typeof d.name === "string" && d.name) ? d.name : "Resident";
-                    extraLines.push(`- ${name} at (${d.x},${d.y})`);
-                  });
-                  if (res.residentsAwayLate.length > 10) {
-                    extraLines.push(`...and ${res.residentsAwayLate.length - 10} more.`);
-                  }
-                }
-                if (skippedCount) {
-                  extraLines.push(`Skipped ${skippedCount} NPCs not expected to have homes (e.g., pets).`);
-                }
-                if (unreachableCount && Array.isArray(res.details)) {
-                  res.details.slice(0, 8).forEach(d => {
-                    const name = (typeof d.name === "string" && d.name) ? d.name : `NPC ${String((d.index | 0) + 1)}`;
-                    extraLines.push(`- ${name}: ${d.reason}`);
-                  });
-                  if (res.details.length > 8) extraLines.push(`...and ${res.details.length - 8} more.`);
-                }
-
-                // Mirror summary inside GOD panel output area for visibility while modal is open
-                try {
-                  const el = document.getElementById("god-check-output");
-                  if (el) {
-                    const html = [summaryLine].concat(extraLines).map(s => `<div>${s}</div>`).join("");
-                    el.innerHTML = html;
-                  }
-                } catch (_) {}
-
-                // Also write all extra lines to the main log
-                extraLines.forEach(line => log(line, "info"));
-
-                // Do not change Home Paths overlay state here; this action only logs results.
-                // Users can toggle the overlay via the GOD panel control.
-
-                // Request draw to show updated debug paths
-                requestDraw();
-              } else {
-                log("TownAI.checkHomeRoutes not available.", "warn");
-              }
-            }
-          },
-          onGodCheckInnTavern: () => {
-            const ctx = getCtx();
-            if (ctx.mode !== "town") {
-              log("Inn/Plaza check is available in town mode only.", "warn");
-              requestDraw();
-              return;
-            }
-            const list = Array.isArray(shops) ? shops : [];
-            const inns = list.filter(s => (s.name || "").toLowerCase().includes("inn"));
-            const plaza = ctx.townPlaza || null;
-
-            const header = `Inn/Plaza: ${inns.length} inn(s).`;
-            log(header, inns.length ? "info" : "warn");
-
-            const lines = [];
-
-            // Plaza/Square coordinates
-            if (plaza && typeof plaza.x === "number" && typeof plaza.y === "number") {
-              lines.push(`Plaza/Square center: (${plaza.x},${plaza.y})`);
-            } else {
-              lines.push("Plaza/Square: (unknown)");
-            }
-
-            // Inn coordinates (door + building rect) + overlap diagnostics
-            function rectOverlap(ax0, ay0, ax1, ay1, bx0, by0, bx1, by1) {
-              const sepX = (ax1 < bx0) || (bx1 < ax0);
-              const sepY = (ay1 < by0) || (by1 < ay0);
-              return !(sepX || sepY);
-            }
-            const pRect = (ctx.townPlazaRect && typeof ctx.townPlazaRect.x0 === "number")
-              ? ctx.townPlazaRect
-              : null;
-
-            inns.slice(0, 8).forEach((s, i) => {
-              const b = s && s.building ? s.building : null;
-              const doorStr = `door (${s.x},${s.y})`;
-              if (b && typeof b.x === "number" && typeof b.y === "number" && typeof b.w === "number" && typeof b.h === "number") {
-                const bx0 = b.x, by0 = b.y, bx1 = b.x + b.w - 1, by1 = b.y + b.h - 1;
-                const overlapStr = (pRect ? (rectOverlap(bx0, by0, bx1, by1, pRect.x0, pRect.y0, pRect.x1, pRect.y1) ? "OVERLAPS plaza" : "no overlap") : "");
-                lines.push(`Inn ${i + 1}: ${doorStr}, building (${b.x},${b.y}) size ${b.w}x${b.h}${overlapStr ? ` — ${overlapStr}` : ""}`);
-              } else {
-                lines.push(`Inn ${i + 1}: ${doorStr}`);
-              }
-            });
-
-            try {
-              const el = document.getElementById("god-check-output");
-              if (el) {
-                const html = [header].concat(lines).map(s => `<div>${s}</div>`).join("");
-                el.innerHTML = html;
-              }
-            } catch (_) {}
-
-            lines.forEach(l => log(l, "info"));
-            requestDraw();
-          },
-          onGodDiagnostics: () => {
-            const ctx = getCtx();
-            const mods = {
-              Enemies: !!ctx.Enemies, Items: !!ctx.Items, Player: !!ctx.Player,
-              UI: !!ctx.UI, Logger: !!ctx.Logger, Loot: !!ctx.Loot,
-              Dungeon: !!ctx.Dungeon, DungeonItems: !!ctx.DungeonItems,
-              FOV: !!ctx.FOV, AI: !!ctx.AI, Input: !!ctx.Input,
-              Render: !!ctx.Render, Tileset: !!ctx.Tileset, Flavor: !!ctx.Flavor,
-              World: !!ctx.World, Town: !!ctx.Town, TownAI: !!ctx.TownAI,
-              DungeonState: !!ctx.DungeonState
-            };
-            const rngSrc = (typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? "RNG.service" : "mulberry32.fallback";
-            const seedStr = (typeof currentSeed === "number") ? String(currentSeed >>> 0) : "(random)";
-            log("Diagnostics:", "notice");
-            log(`- Determinism: ${rngSrc}  Seed: ${seedStr}`, "info");
-            log(`- Mode: ${mode}  Floor: ${floor}  FOV: ${fovRadius}`, "info");
-            log(`- Map: ${map.length}x${(map[0] ? map[0].length : 0)}`, "info");
-            log(`- Entities: enemies=${enemies.length} corpses=${corpses.length} npcs=${npcs.length}`, "info");
-            log(`- Modules: ${Object.keys(mods).filter(k=>mods[k]).join(", ")}`, "info");
-            log(`- PERF last turn: ${PERF.lastTurnMs.toFixed(2)}ms, last draw: ${PERF.lastDrawMs.toFixed(2)}ms`, "info");
-            requestDraw();
-          },
-          onGodRunSmokeTest: () => {
-            // Reload the page with ?smoketest=1 so the loader injects the runner and it auto-runs
-            try {
-              const url = new URL(window.location.href);
-              url.searchParams.set("smoketest", "1");
-              // Preserve existing dev flag/state if set in localStorage
-              if (window.DEV || localStorage.getItem("DEV") === "1") {
-                url.searchParams.set("dev", "1");
-              }
-              log("GOD: Reloading with smoketest=1…", "notice");
-              window.location.href = url.toString();
-            } catch (e) {
-              try { console.error(e); } catch (_) {}
-              try {
-                log("GOD: Failed to construct URL; reloading with ?smoketest=1", "warn");
-              } catch (_) {}
-              window.location.search = "?smoketest=1";
-            }
-          },
+          onTownExit: () => requestLeaveTown()
         });
       }
+      // Install GOD-specific handlers via dedicated module
+      try {
+        const GH = modHandle("GodHandlers");
+        if (GH && typeof GH.install === "function") {
+          GH.install(() => getCtx());
+        }
+      } catch (_) {}
     }
   }
 
@@ -3312,15 +2775,8 @@
         lootCorpse: () => lootCorpse(),
         doAction: () => doAction(),
         isAnyModalOpen: () => {
-          try {
-            const UIO = modHandle("UIOrchestration");
-            if (UIO && typeof UIO.isAnyModalOpen === "function") return !!UIO.isAnyModalOpen(getCtx());
-          } catch (_) {}
-          try {
-            const UB = modHandle("UIBridge");
-            if (UB && typeof UB.isAnyModalOpen === "function") return !!UB.isAnyModalOpen();
-          } catch (_) {}
-          return false;
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isAnyModalOpen === "function" && UIO.isAnyModalOpen(getCtx()));
         },
       });
     }
@@ -3408,26 +2864,46 @@
         },
         // Open Region Map at current overworld tile and sync orchestrator state
         openRegionMap: () => {
+          const Cap = modHandle("Capabilities");
+          const ctx = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") {
+            const res = Cap.safeCall(ctx, "RegionMapRuntime", "open", ctx);
+            const ok = !!(res && res.ok && res.result);
+            if (ok) applyCtxSyncAndRefresh(ctx);
+            return ok;
+          }
           const RM = modHandle("RegionMapRuntime");
           if (RM && typeof RM.open === "function") {
-            const ctx = getCtx();
             const ok = !!RM.open(ctx);
-            if (ok) {
-              applyCtxSyncAndRefresh(ctx);
-            }
+            if (ok) applyCtxSyncAndRefresh(ctx);
             return ok;
           }
           return false;
         },
         // Start an encounter inside the active Region Map (ctx.mode === "region")
         startRegionEncounter: (template, biome) => {
-          const ER = modHandle("EncounterRuntime");
-          if (ER && typeof ER.enterRegion === "function") {
-            const ctx = getCtx();
-            const ok = !!ER.enterRegion(ctx, { template, biome });
+          const Cap = modHandle("Capabilities");
+          const ctx = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") {
+            const res = Cap.safeCall(ctx, "EncounterRuntime", "enterRegion", ctx, { template, biome });
+            const ok = !!(res && res.ok && res.result);
             if (ok) {
               applyCtxSyncAndRefresh(ctx);
               // If the Region Map overlay modal is open, repaint it to show spawned enemies immediately
+              try {
+                const UB = modHandle("UIBridge");
+                if (UB && typeof UB.isRegionMapOpen === "function" && UB.isRegionMapOpen() && typeof UB.showRegionMap === "function") {
+                  UB.showRegionMap(ctx);
+                }
+              } catch (_) {}
+            }
+            return ok;
+          }
+          const ER = modHandle("EncounterRuntime");
+          if (ER && typeof ER.enterRegion === "function") {
+            const ok = !!ER.enterRegion(ctx, { template, biome });
+            if (ok) {
+              applyCtxSyncAndRefresh(ctx);
               try {
                 const UB = modHandle("UIBridge");
                 if (UB && typeof UB.isRegionMapOpen === "function" && UB.isRegionMapOpen() && typeof UB.showRegionMap === "function") {

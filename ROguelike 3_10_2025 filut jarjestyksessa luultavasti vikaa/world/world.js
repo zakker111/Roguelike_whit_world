@@ -36,7 +36,7 @@ function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-let _loggedWalkableFallback = false;
+
 
 export function isWalkable(tile) {
   // Prefer tiles.json property when available for overworld mode, then fallback.
@@ -47,12 +47,7 @@ export function isWalkable(tile) {
     }
   } catch (_) {}
   // Fallback: non-walkable water, river, mountains
-  try {
-    if (!_loggedWalkableFallback && typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") {
-      window.Fallback.log("world", "Using default walkable rules (tiles.json walkable property unavailable).");
-      _loggedWalkableFallback = true;
-    }
-  } catch (_) {}
+  
   return tile !== TILES.WATER && tile !== TILES.RIVER && tile !== TILES.MOUNTAIN;
 }
 
@@ -85,11 +80,7 @@ export function generate(ctx, opts = {}) {
         return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
       }
     } catch (_) {}
-    return (ctx && typeof ctx.rng === "function")
-      ? ctx.rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-          ? window.RNG.rng
-          : Math.random);
+    return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
   })();
   const width = clamp((opts.width | 0) || 120, 48, 512);
   const height = clamp((opts.height | 0) || 80, 48, 512);
@@ -507,9 +498,7 @@ export function pickTownStart(world, rng) {
         return window.RNGUtils.getRng(rng);
       }
     } catch (_) {}
-    return (typeof rng === "function")
-      ? rng
-      : ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function") ? window.RNG.rng : Math.random);
+    return (typeof rng === "function") ? rng : null;
   })();
   if (world.towns && world.towns.length) {
     // Prefer towns that have a dungeon within a reasonable walking radius
@@ -521,7 +510,7 @@ export function pickTownStart(world, rng) {
       return townsNearDungeon[(r() * townsNearDungeon.length) | 0];
     }
     // Else fallback to any town
-    try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("world", "pickTownStart: falling back to any town (no town near dungeon)."); } catch (_) {}
+    
     return world.towns[(r() * world.towns.length) | 0];
   }
   // fallback to first walkable tile near a dungeon if possible
@@ -531,13 +520,13 @@ export function pickTownStart(world, rng) {
     // Find nearest walkable tile to the dungeon entrance
     const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
     if (isWalkable(world.map[d.y][d.x])) {
-      try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("world", "pickTownStart: using dungeon entrance tile (no towns).", { dungeon: d }); } catch (_) {}
+      
       return { x: d.x, y: d.y };
     }
     for (const dir of dirs) {
       const nx = d.x + dir.dx, ny = d.y + dir.dy;
       if (nx >= 0 && ny >= 0 && nx < world.width && ny < world.height && isWalkable(world.map[ny][nx])) {
-        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("world", "pickTownStart: using walkable near dungeon (no towns).", { dungeon: d, near: { x: nx, y: ny } }); } catch (_) {}
+        
         return { x: nx, y: ny };
       }
     }
@@ -546,12 +535,12 @@ export function pickTownStart(world, rng) {
   for (let y = 0; y < world.height; y++) {
     for (let x = 0; x < world.width; x++) {
       if (isWalkable(world.map[y][x])) {
-        try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("world", "pickTownStart: using first walkable tile (no towns/dungeons).", { pos: { x, y } }); } catch (_) {}
+        
         return { x, y };
       }
     }
   }
-  try { if (typeof window !== "undefined" && window.Fallback && typeof window.Fallback.log === "function") window.Fallback.log("world", "pickTownStart: using {1,1} as last-resort."); } catch (_) {}
+  
   return { x: 1, y: 1 };
 }
 

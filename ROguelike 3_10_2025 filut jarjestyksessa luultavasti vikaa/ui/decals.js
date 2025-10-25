@@ -19,8 +19,13 @@ export function add(ctx, x, y, mult = 1.0) {
 
   // Merge on same tile
   const d = decals.find(d => d.x === x && d.y === y);
-  const baseA = 0.16 + ctx.rng() * 0.18; // 0.16..0.34
-  const baseR = Math.floor(TILE * (0.32 + ctx.rng() * 0.20)); // radius px
+  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const rfn = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : null);
+  const rVal = (typeof rfn === "function") ? rfn() : 0.5;
+  const baseA = 0.16 + rVal * 0.18; // 0.16..0.34
+  const baseR = Math.floor(TILE * (0.32 + rVal * 0.20)); // radius px
   if (d) {
     d.a = Math.min(0.9, d.a + baseA * mult);
     d.r = Math.max(d.r, baseR);
