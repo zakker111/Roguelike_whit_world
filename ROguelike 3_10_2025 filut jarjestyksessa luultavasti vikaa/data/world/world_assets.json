@@ -456,7 +456,7 @@
         "id": "sign",
         "key": "SIGN",
         "name": "Sign",
-        "glyph": "S",
+        "glyph": "⚑",
         "colors": { "fg": "#d7ba7d" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
         "appearsIn": ["town"],
