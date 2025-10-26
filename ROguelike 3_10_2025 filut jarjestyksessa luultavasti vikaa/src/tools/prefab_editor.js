@@ -29,6 +29,8 @@ const state = {
   up: { offset: {x:1,y:1}, w:9, h:7, tiles: [] },
   // palettes
   jcdocs: { tiles: [], embeddedPropCodes: [] },
+  // assets lookup (glyphs/colors) loaded from data/world/world_assets.json
+  assets: { tiles: Object.create(null), props: Object.create(null) },
   lastDoorPaintPos: null,
 };
 
@@ -41,12 +43,21 @@ function init() {
   bindEls();
   initGrid();
   initUpGrid();
-  loadJCDocs();
+  // Load palettes and glyph/color assets
+  Promise.all([loadJCDocs(), loadAssets()]).then(() => {
+    renderPalettes();
+    drawGrid();
+    drawUpGrid();
+    updateModeVisibility();
+    lint();
+  }).catch(() => {
+    renderPalettes();
+    drawGrid();
+    drawUpGrid();
+    updateModeVisibility();
+    lint();
+  });
   bindUI();
-  drawGrid();
-  drawUpGrid();
-  updateModeVisibility();
-  lint();
 }
 
 function bindEls() {
@@ -129,22 +140,36 @@ async function loadJCDocs() {
     const jd = (json && json.jcdocs) ? json.jcdocs : {};
     state.jcdocs.tiles = Array.isArray(jd.tiles) ? jd.tiles.map(String) : ["WALL","FLOOR","DOOR","WINDOW","STAIRS"];
     state.jcdocs.embeddedPropCodes = Array.isArray(jd.embeddedPropCodes) ? jd.embeddedPropCodes.map(String) : ["BED","TABLE","CHAIR"];
-    renderPalettes();
   } catch (e) {
     // Fallback palette
     state.jcdocs.tiles = ["WALL","FLOOR","DOOR","WINDOW","STAIRS"];
     state.jcdocs.embeddedPropCodes = ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL"];
-    renderPalettes();
   }
 }
 
 function renderPalettes() {
+  // Helper to build label with glyph if available
+  const labelFor = (isTile, code) => {
+    const key = String(code || "").toUpperCase();
+    let glyph = "";
+    let color = "#cbd5e1";
+    if (isTile) {
+      const t = state.assets.tiles[key];
+      if (t) { glyph = t.glyph || ""; color = (t.colors && t.colors.fg) ? t.colors.fg : color; }
+    } else {
+      const p = state.assets.props[key];
+      if (p) { glyph = p.glyph || ""; color = (p.colors && p.colors.fg) ? p.colors.fg : color; }
+    }
+    const g = (glyph && String(glyph).trim().length) ? glyph : "";
+    return g ? `${key}  ${g}` : key;
+  };
+
   // Tiles
   els.tilePalette.innerHTML = "";
   state.jcdocs.tiles.forEach(code => {
     const btn = document.createElement("button");
     btn.className = "chip" + (state.tileSel === code ? " active" : "");
-    btn.textContent = code;
+    btn.textContent = labelFor(true, code);
     btn.addEventListener("click", () => {
       state.tileSel = code;
       Array.from(els.tilePalette.children).forEach(c => c.classList.remove("active"));
@@ -157,7 +182,7 @@ function renderPalettes() {
   state.jcdocs.embeddedPropCodes.forEach(code => {
     const btn = document.createElement("button");
     btn.className = "chip" + (state.propSel === code ? " active" : "");
-    btn.textContent = code;
+    btn.textContent = labelFor(false, code);
     btn.addEventListener("click", () => {
       state.propSel = code;
       Array.from(els.propPalette.children).forEach(c => c.classList.remove("active"));
@@ -165,6 +190,56 @@ function renderPalettes() {
     });
     els.propPalette.appendChild(btn);
   });
+}
+
+// Load glyph/color assets from world assets JSON for both tiles and props
+async function loadAssets() {
+  try {
+    const res = await fetch("/data/world/world_assets.json");
+    const json = await res.json();
+    // Tiles
+    const tilesArr = (json && json.tiles && Array.isArray(json.tiles.tiles)) ? json.tiles.tiles : [];
+    const tmap = Object.create(null);
+    tilesArr.forEach(t => {
+      const key = String(t.key || "").toUpperCase();
+      if (key) tmap[key] = t;
+    });
+    // Props
+    const propsArr = (json && json.props && Array.isArray(json.props.props)) ? json.props.props : [];
+    const pmap = Object.create(null);
+    propsArr.forEach(p => {
+      const key = String(p.key || "").toUpperCase();
+      if (key) pmap[key] = p;
+    });
+    state.assets.tiles = tmap;
+    state.assets.props = pmap;
+  } catch (e) {
+    // Fallback: minimal hardcoded glyphs to avoid empty display
+    state.assets.tiles = {
+      WALL: { glyph: "", colors: { fill: "#334155", fg: "#cbd5e1" } },
+      FLOOR: { glyph: "", colors: { fill: "#0f172a", fg: "#cbd5e1" } },
+      DOOR: { glyph: "+", colors: { fill: "#3a2f1b", fg: "#d7ba7d" } },
+      WINDOW: { glyph: "\"", colors: { fill: "#295b6e", fg: "#89ddff" } },
+      STAIRS: { glyph: ">", colors: { fill: "#1b1f2a", fg: "#d7ba7d" } },
+    };
+    state.assets.props = {
+      BED: { glyph: "‗", colors: { fg: "#cbd5e1" } },
+      TABLE: { glyph: "⊔", colors: { fg: "#cbd5e1" } },
+      CHAIR: { glyph: "⟂", colors: { fg: "#cbd5e1" } },
+      SHELF: { glyph: "≡", colors: { fg: "#cbd5e1" } },
+      COUNTER: { glyph: "▭", colors: { fg: "#d7ba7d" } },
+      FIREPLACE: { glyph: "♨", colors: { fg: "#ff6d00" } },
+      CHEST: { glyph: "□", colors: { fg: "#d7ba7d" } },
+      CRATE: { glyph: "▢", colors: { fg: "#b59b6a" } },
+      BARREL: { glyph: "◍", colors: { fg: "#a07c4b" } },
+      PLANT: { glyph: "*", colors: { fg: "#84cc16" } },
+      RUG: { glyph: "░", colors: { fg: "#b59b6a" } },
+      QUEST_BOARD: { glyph: "▤", colors: { fg: "#cbd5e1" } },
+      STALL: { glyph: "▣", colors: { fg: "#d7ba7d" } },
+      LAMP: { glyph: "†", colors: { fg: "#ffd166" } },
+      WELL: { glyph: "◍", colors: { fg: "#7aa2f7" } },
+    };
+  }
 }
 
 function bindUI() {
@@ -419,25 +494,43 @@ function drawUpGrid() {
 function drawCell(ctx, x, y, code) {
   const left = 1 + x*CELL;
   const top = 1 + y*CELL;
-  // Base color by code
   const c = String(code || "FLOOR").toUpperCase();
+
+  // Determine if it's a tile or prop by presence in assets maps
+  const tileDef = state.assets.tiles[c];
+  const propDef = state.assets.props[c];
+  const def = tileDef || propDef || null;
+
+  // Background color
   let fill = "#111827";
-  if (c === "WALL") fill = "#334155";
-  else if (c === "FLOOR") fill = "#0f172a";
-  else if (c === "WINDOW") fill = "#1d4ed8";
-  else if (c === "STAIRS") fill = "#10b981";
-  else if (c === "DOOR") fill = "#a16207";
+  if (def && def.colors && def.colors.fill) fill = def.colors.fill;
   else {
-    // embedded props: different hue
-    fill = "#4b5563";
+    if (c === "WALL") fill = "#334155";
+    else if (c === "FLOOR") fill = "#0f172a";
+    else if (c === "WINDOW") fill = "#1d4ed8";
+    else if (c === "STAIRS") fill = "#0f2f1f";
+    else if (c === "DOOR") fill = "#3a2f1b";
+    else fill = "#1a1d24";
   }
   ctx.fillStyle = fill;
   ctx.fillRect(left, top, CELL-1, CELL-1);
-  // Label
-  ctx.fillStyle = "#cbd5e1";
-  ctx.font = "11px JetBrains Mono, monospace";
-  const t = c.length > 5 ? c.slice(0,5) : c;
-  ctx.fillText(t, left + 3, top + 12);
+
+  // Glyph on top if available
+  let glyph = def && typeof def.glyph === "string" ? def.glyph : "";
+  let color = (def && def.colors && def.colors.fg) ? def.colors.fg : "#cbd5e1";
+  if (glyph && String(glyph).trim().length > 0) {
+    ctx.fillStyle = color;
+    ctx.font = "14px JetBrains Mono, monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(glyph, left + (CELL-1)/2, top + (CELL-1)/2);
+  } else {
+    // Fallback: short code
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = "11px JetBrains Mono, monospace";
+    const t = c.length > 4 ? c.slice(0,4) : c;
+    ctx.fillText(t, left + 3, top + 12);
+  }
 }
 
 function drawDoorPin(ctx, x, y) {
