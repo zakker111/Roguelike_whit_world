@@ -72,6 +72,20 @@ function bindEls() {
   els.perimeterWallsBtn = document.getElementById("perimeter-walls-btn");
   els.grid = document.getElementById("grid");
 
+  // Floating hover hint
+  els.hint = document.createElement("div");
+  els.hint.style.position = "fixed";
+  els.hint.style.display = "none";
+  els.hint.style.zIndex = "50010";
+  els.hint.style.pointerEvents = "none";
+  els.hint.style.background = "rgba(20,24,33,0.98)";
+  els.hint.style.border = "1px solid rgba(80,90,120,0.6)";
+  els.hint.style.borderRadius = "6px";
+  els.hint.style.padding = "4px 6px";
+  els.hint.style.color = "#cbd5e1";
+  els.hint.style.fontSize = "12px";
+  document.body.appendChild(els.hint);
+
   els.prefabId = document.getElementById("prefab-id");
   els.prefabName = document.getElementById("prefab-name");
   els.prefabTags = document.getElementById("prefab-tags");
@@ -290,7 +304,13 @@ function bindUI() {
   });
   // Canvas painting
   els.grid.addEventListener("mousedown", onGridMouse);
-  els.grid.addEventListener("mousemove", (e) => { if (e.buttons & 1) onGridMouse(e); });
+  els.grid.addEventListener("mousemove", (e) => {
+    // Paint while dragging
+    if (e.buttons & 1) onGridMouse(e);
+    // Hover hint
+    showHoverHintOnGrid(e, /*upstairs*/ false);
+  });
+  els.grid.addEventListener("mouseleave", () => hideHint());
   
 
   // Metadata
@@ -339,7 +359,11 @@ function bindUI() {
     lint();
   });
   els.upGrid.addEventListener("mousedown", onUpGridMouse);
-  els.upGrid.addEventListener("mousemove", (e) => { if (e.buttons & 1) onUpGridMouse(e); });
+  els.upGrid.addEventListener("mousemove", (e) => {
+    if (e.buttons & 1) onUpGridMouse(e);
+    showHoverHintOnGrid(e, /*upstairs*/ true);
+  });
+  els.upGrid.addEventListener("mouseleave", () => hideHint());
 
   // Export
   els.copyJSONBtn.addEventListener("click", async () => {
@@ -437,6 +461,52 @@ function onUpGridMouse(e) {
   }
   drawUpGrid();
   lint();
+}
+
+// ----- Hover hint helpers -----
+function showHoverHintOnGrid(e, upstairs) {
+  try {
+    const canvas = upstairs ? els.upGrid : els.grid;
+    const rect = canvas.getBoundingClientRect();
+    const gx = Math.floor((e.clientX - rect.left - 1) / CELL);
+    const gy = Math.floor((e.clientY - rect.top - 1) / CELL);
+    const inBounds = upstairs
+      ? (gx >= 0 && gy >= 0 && gx < state.up.w && gy < state.up.h)
+      : (gx >= 0 && gy >= 0 && gx < state.w && gy < state.h);
+    if (!inBounds) {
+      hideHint();
+      return;
+    }
+    const code = upstairs ? state.up.tiles[gy][gx] : state.tiles[gy][gx];
+    const txt = hintTextFor(code);
+    if (!txt) {
+      hideHint();
+      return;
+    }
+    // position near cursor, keep on-screen
+    const x = Math.min(window.innerWidth - 160, Math.max(6, e.clientX + 12));
+    const y = Math.min(window.innerHeight - 40, Math.max(6, e.clientY + 12));
+    els.hint.style.left = `${x}px`;
+    els.hint.style.top = `${y}px`;
+    els.hint.textContent = txt;
+    els.hint.style.display = "block";
+  } catch (_) {
+    // ignore
+  }
+}
+
+function hintTextFor(code) {
+  const key = String(code || "").toUpperCase();
+  const t = state.assets.tiles[key];
+  const p = state.assets.props[key];
+  const def = t || p || null;
+  if (!def) return key || "";
+  const name = def.name || key;
+  return name;
+}
+
+function hideHint() {
+  if (els.hint) els.hint.style.display = "none";
 }
 
 function drawGrid() {
