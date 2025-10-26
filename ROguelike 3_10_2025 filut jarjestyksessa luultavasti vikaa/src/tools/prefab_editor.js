@@ -321,8 +321,7 @@ function bindUI() {
 
   // Export
   els.copyJSONBtn.addEventListener("click", async () => {
-    const obj = buildPrefabObject();
-    const txt = JSON.stringify(obj, null, 2);
+    const txt = buildPrefabJSONString();
     try {
       await navigator.clipboard.writeText(txt);
       setStatus("Copied JSON to clipboard.");
@@ -331,8 +330,7 @@ function bindUI() {
     }
   });
   els.downloadJSONBtn.addEventListener("click", () => {
-    const obj = buildPrefabObject();
-    const txt = JSON.stringify(obj, null, 2);
+    const txt = buildPrefabJSONString();
     const url = URL.createObjectURL(new Blob([txt], {type:"application/json"}));
     const a = document.createElement("a");
     a.href = url;
@@ -562,6 +560,55 @@ function buildPrefabObject() {
     };
   }
   return obj;
+}
+
+// Build a pretty JSON string with tiles rows on separate lines
+function buildPrefabJSONString() {
+  const obj = buildPrefabObject();
+  // Placeholders for pretty arrays
+  const TILE_MARK = "__TILES__";
+  const UP_MARK = "__UPTILES__";
+
+  const shallow = JSON.parse(JSON.stringify(obj));
+  shallow.tiles = TILE_MARK;
+  if (shallow.upstairsOverlay && Array.isArray(obj.upstairsOverlay?.tiles)) {
+    shallow.upstairsOverlay.tiles = UP_MARK;
+  }
+
+  let base = JSON.stringify(shallow, null, 2);
+
+  // Replace tiles placeholder with formatted array preserving indentation
+  base = replaceArrayPlaceholder(base, TILE_MARK, obj.tiles);
+  if (obj.upstairsOverlay && Array.isArray(obj.upstairsOverlay.tiles)) {
+    base = replaceArrayPlaceholder(base, UP_MARK, obj.upstairsOverlay.tiles);
+  }
+  return base;
+}
+
+function replaceArrayPlaceholder(src, marker, rows) {
+  const token = `"${marker}"`;
+  const idx = src.indexOf(token);
+  if (idx === -1) return src;
+  // Determine indentation at value start (position of token on its line)
+  const lineStart = src.lastIndexOf("\n", idx) + 1;
+  const valueIndent = src.slice(lineStart, idx); // includes key, colon, space up to opening quote
+  const pretty = formatRowsArray(rows, valueIndent);
+  return src.replace(token, pretty);
+}
+
+function formatRowsArray(rows, valueIndent) {
+  // valueIndent is the prefix before the value. We align '[' at the same column.
+  const inner = valueIndent + "  ";
+  let out = "[\n";
+  for (let y = 0; y < rows.length; y++) {
+    const row = rows[y] || [];
+    const line = inner + "[" + row.map(s => JSON.stringify(String(s))).join(",") + "]";
+    out += line;
+    if (y < rows.length - 1) out += ",\n";
+    else out += "\n";
+  }
+  out += valueIndent + "]";
+  return out;
 }
 
 function lint() {
