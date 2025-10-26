@@ -1072,37 +1072,66 @@ function generate(ctx) {
     // Decide whether to proceed with inn assignment
     let proceedInn = true;
     if (!usedPrefabInn) {
-      // Fallback: try stamping an inn prefab anywhere on the town map (largest-first),
-      // ensuring the placement rectangle does not overlap existing buildings.
+      // Second pass: try stamping an inn prefab anywhere on the map (largest-first), allowing removal of overlapping buildings
       const PFB2 = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
       if (PFB2 && Array.isArray(PFB2.inns) && PFB2.inns.length) {
         const innsSorted2 = PFB2.inns
           .slice()
-          .filter(p => p && p.size && typeof p.size.w === "number" && typeof p.size.h === "number")
-          .sort((a, b) => (b.size.w * b.size.h) - (a.size.w * a.size.h));
+          .filter(function(p){ return p && p.size && typeof p.size.w === "number" && typeof p.size.h === "number"; })
+          .sort(function(a, b){ return (b.size.w * b.size.h) - (a.size.w * a.size.h); });
         let stamped = false;
-        // Scan the whole map for any clear slot
         for (let ip = 0; ip < innsSorted2.length && !stamped; ip++) {
           const pref = innsSorted2[ip];
           const wInn = pref.size.w | 0, hInn = pref.size.h | 0;
           for (let y = 2; y <= H - hInn - 2 && !stamped; y++) {
             for (let x = 2; x <= W - wInn - 2 && !stamped; x++) {
-              // Avoid overlapping existing buildings
-              const overl = findBuildingsOverlappingRect(x, y, wInn, hInn, 0);
-              if (overl && overl.length) continue;
-              // Require clear margin of floor around rectangle
-              if (!isAreaClearForBuilding(x, y, wInn, hInn, 1)) continue;
+              // Try stamping directly
               if (stampPrefab(ctx, pref, x, y)) {
-                rectUsedInn = { x, y, w: wInn, h: hInn };
+                rectUsedInn = { x: x, y: y, w: wInn, h: hInn };
                 usedPrefabInn = true;
                 stamped = true;
+                break;
+              }
+              // If blocked by existing buildings, remove ALL overlaps and try again
+              const overl = findBuildingsOverlappingRect(x, y, wInn, hInn, 0);
+              if (overl && overl.length) {
+                for (let oi = 0; oi < overl.length; oi++) {
+                  removeBuildingAndProps(overl[oi]);
+                }
+                if (stampPrefab(ctx, pref, x, y)) {
+                  rectUsedInn = { x: x, y: y, w: wInn, h: hInn };
+                  usedPrefabInn = true;
+                  stamped = true;
+                  break;
+                }
               }
             }
           }
         }
+        // Force a plaza-centered placement by clearing overlaps if none were stamped in the scan
+        if (!stamped) {
+          const pref0 = innsSorted2[0];
+          if (pref0 && pref0.size) {
+            const wInn0 = pref0.size.w | 0, hInn0 = pref0.size.h | 0;
+            const fx = Math.max(2, Math.min(W - wInn0 - 2, ((plaza.x - ((wInn0 / 2) | 0)) | 0)));
+            const fy = Math.max(2, Math.min(H - hInn0 - 2, ((plaza.y - ((hInn0 / 2) | 0)) | 0)));
+            const overl0 = findBuildingsOverlappingRect(fx, fy, wInn0, hInn0, 0);
+            if (overl0 && overl0.length) {
+              for (let oi = 0; oi < overl0.length; oi++) {
+                removeBuildingAndProps(overl0[oi]);
+              }
+            }
+            if (stampPrefab(ctx, pref0, fx, fy)) {
+              rectUsedInn = { x: fx, y: fy, w: wInn0, h: hInn0 };
+              usedPrefabInn = true;
+            }
+          }
+        }
       }
+      // As an absolute fallback, carve a hollow-rectangle Inn near the plaza to guarantee an Inn exists
       if (!usedPrefabInn) {
-        proceedInn = false;
+        placeBuilding(innRect.x, innRect.y, innRect.w, innRect.h);
+        rectUsedInn = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
       }
     }
 
