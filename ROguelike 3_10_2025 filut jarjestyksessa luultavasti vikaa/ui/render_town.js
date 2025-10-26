@@ -500,7 +500,7 @@ export function draw(ctx, view) {
     } catch (_) {}
   })();
 
-  // Shop markers: draw 'S' at shop doors when the tile has been seen (helps locate shops even if sign glyph is missed)
+  // Shop markers: draw a small flag ⚑ at shop doors once seen (consistent with sign glyph styling)
   (function drawShopMarkers() {
     try {
       if (!Array.isArray(ctx.shops) || !ctx.shops.length) return;
@@ -512,8 +512,8 @@ export function draw(ctx, view) {
         if (!everSeen) continue;
         const screenX = (dx - startX) * TILE - tileOffsetX;
         const screenY = (dy - startY) * TILE - tileOffsetY;
-        // subtle overlay color; draw above tiles/props
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "S", "#ffd166", TILE);
+        // match sign color; draw above tiles/props
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, "⚑", "#d7ba7d", TILE);
       }
     } catch (_) {}
   })();
