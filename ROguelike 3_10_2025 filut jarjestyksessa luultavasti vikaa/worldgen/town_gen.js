@@ -736,212 +736,6 @@ function generate(ctx) {
     return true;
   }
 
-  function pickPrefab(list, rng) {
-    if (!Array.isArray(list) || list.length === 0) return null;
-    const idx = Math.floor(rng() * list.length) % list.length;
-    return list[idx];
-  }
-
-  // --- Hollow rectangle fallback helpers ---
-  const placeBuilding = (bx, by, bw, bh) => {
-    for (let yy = by; yy < by + bh; yy++) {
-      for (let xx = bx; xx < bx + bw; xx++) {
-        if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
-        const isBorder = (yy === by || yy === by + bh - 1 || xx === bx || xx === bx + bw - 1);
-        ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
-      }
-    }
-    buildings.push({ x: bx, y: by, w: bw, h: bh });
-  };
-  const cfgB = (TOWNCFG && TOWNCFG.buildings) || {};
-  const maxBuildings = Math.max(1, (cfgB.max | 0) || 18);
-  const blockW = Math.max(4, (cfgB.blockW | 0) || 8);
-  const blockH = Math.max(3, (cfgB.blockH | 0) || 6);
-
-  // Ensure a margin of clear floor around buildings so walls never touch between buildings
-  function isAreaClearForBuilding(bx, by, bw, bh, margin = 1) {
-    const x0 = Math.max(1, bx - margin);
-    const y0 = Math.max(1, by - margin);
-    const x1 = Math.min(W - 2, bx + bw - 1 + margin);
-    const y1 = Math.min(H - 2, by + bh - 1 + margin);
-    for (let yy = y0; yy <= y1; yy++) {
-      for (let xx = x0; xx <= x1; xx++) {
-        const t = ctx.map[yy][xx];
-        if (t !== ctx.TILES.FLOOR) return false;
-      }
-    }
-    return true;
-  }
-
-  // Prevent any building rectangle from overlapping the town plaza footprint (optionally with a small buffer)
-  function overlapsPlazaRect(bx, by, bw, bh, margin = 0) {
-    // Compute plaza rectangle bounds exactly as carved earlier
-    const px0 = ((plaza.x - (plazaW / 2)) | 0);
-    const px1 = ((plaza.x + (plazaW / 2)) | 0);
-    const py0 = ((plaza.y - (plazaH / 2)) | 0);
-    const py1 = ((plaza.y + (plazaH / 2)) | 0);
-    const ax0 = bx, ay0 = by;
-    const ax1 = bx + bw - 1, ay1 = by + bh - 1;
-    const bx0 = Math.max(1, px0 - margin), by0 = Math.max(1, py0 - margin);
-    const bx1 = Math.min(W - 2, px1 + margin), by1 = Math.min(H - 2, py1 + margin);
-    // Axis-aligned rectangle overlap check
-    const sepX = (ax1 < bx0) || (bx1 < ax0);
-    const sepY = (ay1 < by0) || (by1 < ay0);
-    return !(sepX || sepY);
-  }
-
-  for (let by = 2; by < H - (blockH + 4) && buildings.length < maxBuildings; by += Math.max(6, blockH + 2)) {
-    for (let bx = 2; bx < W - (blockW + 4) && buildings.length < maxBuildings; bx += Math.max(8, blockW + 2)) {
-      let clear = true;
-      for (let yy = by; yy < by + (blockH + 1) && clear; yy++) {
-        for (let xx = bx; xx < bx + (blockW + 1); xx++) {
-          if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { clear = false; break; }
-        }
-      }
-      if (!clear) continue;
-      // Strongly varied house sizes:
-      // Mixture of small cottages, medium houses (wide spread), and large/longhouses,
-      // while respecting per-block bounds and minimums.
-      const wMin = 6, hMin = 4;
-      const wMax = Math.max(wMin, blockW);
-      const hMax = Math.max(hMin, blockH);
-      const randint = (min, max) => min + Math.floor(rng() * (Math.max(0, (max - min + 1))));
-      let w, h;
-      const r = rng();
-      if (r < 0.35) {
-        // Small cottage cluster (near minimums)
-        w = randint(wMin, Math.min(wMin + 2, wMax));
-        h = randint(hMin, Math.min(hMin + 2, hMax));
-      } else if (r < 0.75) {
-        // Medium: uniform across full range with aspect ratio nudges
-        w = randint(wMin, wMax);
-        h = randint(hMin, hMax);
-        if (ctx.rng() < 0.5) {
-          const bias = randint(-2, 3);
-          h = Math.max(hMin, Math.min(hMax, h + bias));
-        } else {
-          const bias = randint(-2, 3);
-          w = Math.max(wMin, Math.min(wMax, w + bias));
-        }
-      } else {
-        // Large: near max with occasional longhouses
-        w = Math.max(wMin, Math.min(wMax, wMax - randint(0, Math.min(3, wMax - wMin))));
-        h = Math.max(hMin, Math.min(hMax, hMax - randint(0, Math.min(3, hMax - hMin))));
-        // Longhouse variant: one dimension near max, the other skewed small/medium
-        if (ctx.rng() < 0.4) {
-          if (ctx.rng() < 0.5) {
-            w = Math.max(w, Math.min(wMax, wMax - randint(0, 1)));
-            h = Math.max(hMin, Math.min(hMax, hMin + randint(0, Math.min(4, hMax - hMin))));
-          } else {
-            h = Math.max(h, Math.min(hMax, hMax - randint(0, 1)));
-            w = Math.max(wMin, Math.min(wMax, wMin + randint(0, Math.min(4, wMax - wMin))));
-          }
-        }
-      }
-      // Rare outliers: either tiny footprint or very large (still within block bounds)
-      if (ctx.rng() < 0.08) {
-        if (ctx.rng() < 0.5) {
-          w = wMin;
-          h = Math.max(hMin, Math.min(hMax, hMin + randint(0, Math.min(2, hMax - hMin))));
-        } else {
-          w = Math.max(wMin, Math.min(wMax, wMax - randint(0, 1)));
-          h = Math.max(hMin, Math.min(hMax, hMax - randint(0, 1)));
-        }
-      }
-
-      const ox = Math.floor(ctx.rng() * Math.max(1, blockW - w));
-      const oy = Math.floor(ctx.rng() * Math.max(1, blockH - h));
-      const fx = bx + 1 + ox;
-      const fy = by + 1 + oy;
-      // Avoid overlapping the town plaza footprint (with a 1-tile walkway buffer)
-      if (overlapsPlazaRect(fx, fy, w, h, 1)) continue;
-      // Enforce at least one tile of floor margin between buildings
-      if (!isAreaClearForBuilding(fx, fy, w, h, 1)) continue;
-
-      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
-      let usedPrefab = false;
-      if (PFB && Array.isArray(PFB.houses) && PFB.houses.length) {
-        // Pick a house prefab that fits in (w,h)
-        const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= w && p.size.h <= h);
-        if (candidates.length) {
-          const pref = pickPrefab(candidates, ctx.rng || rng);
-          if (pref && pref.size) {
-            const oxCenter = Math.floor((w - pref.size.w) / 2);
-            const oyCenter = Math.floor((h - pref.size.h) / 2);
-            usedPrefab = stampPrefab(ctx, pref, fx + oxCenter, fy + oyCenter) || trySlipStamp(ctx, pref, fx + oxCenter, fy + oyCenter, 2);
-          }
-        }
-      }
-      if (!usedPrefab) {
-        if (strictNow) {
-          try { if (ctx && typeof ctx.log === "function") ctx.log(`Strict prefabs: no house prefab fit ${w}x${h} at ${fx},${fy}. Skipping fallback.`, "error"); } catch (_) {}
-          // Skip placing a building here
-        } else {
-          placeBuilding(fx, fy, w, h);
-        }
-      }
-    }
-  }
-
-  // Additional residential fill pass: attempt to reach a target count by random-fit stamping with slip
-  (function prefabResidentialFillPass() {
-    try {
-      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
-      if (!PFB || !Array.isArray(PFB.houses) || !PFB.houses.length) return;
-      const sizeKey = townSize;
-      const targetBySize = (sizeKey === "small") ? 12 : (sizeKey === "city" ? 34 : 22);
-      if (buildings.length >= targetBySize) return;
-      let attempts = 0, successes = 0;
-      while (buildings.length < targetBySize && attempts++ < 600) {
-        // Random provisional rectangle within bounds
-        const bw = Math.max(6, Math.min(12, 6 + Math.floor((ctx.rng || rng)() * 7)));
-        const bh = Math.max(4, Math.min(10, 4 + Math.floor((ctx.rng || rng)() * 7)));
-        const bx = Math.max(2, Math.min(W - bw - 3, 2 + Math.floor((ctx.rng || rng)() * (W - bw - 4))));
-        const by = Math.max(2, Math.min(H - bh - 3, 2 + Math.floor((ctx.rng || rng)() * (H - bh - 4))));
-        // Skip near plaza and enforce margin clear
-        if (overlapsPlazaRect(bx, by, bw, bh, 1)) continue;
-        if (!isAreaClearForBuilding(bx, by, bw, bh, 1)) continue;
-        // Pick a prefab that fits
-        const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= bw && p.size.h <= bh);
-        if (!candidates.length) continue;
-        const pref = pickPrefab(candidates, ctx.rng || rng);
-        if (!pref || !pref.size) continue;
-        const ox = Math.floor((bw - pref.size.w) / 2);
-        const oy = Math.floor((bh - pref.size.h) / 2);
-        const px = bx + ox, py = by + oy;
-        if (stampPrefab(ctx, pref, px, py) || trySlipStamp(ctx, pref, px, py, 2)) {
-          successes++;
-        }
-      }
-      try { if (ctx && typeof ctx.log === "function") ctx.log(`Residential fill: added ${successes} houses (target ${targetBySize}).`, "notice"); } catch (_) {}
-    } catch (_) {}
-  })();
-
-  // Doors and shops near plaza (compact): just mark doors and create shop entries
-  function candidateDoors(b) {
-    return [
-      { x: b.x + ((b.w / 2) | 0), y: b.y, ox: 0, oy: -1 },                      // top
-      { x: b.x + b.w - 1, y: b.y + ((b.h / 2) | 0), ox: +1, oy: 0 },            // right
-      { x: b.x + ((b.w / 2) | 0), y: b.y + b.h - 1, ox: 0, oy: +1 },            // bottom
-      { x: b.x, y: b.y + ((b.h / 2) | 0), ox: -1, oy: 0 },                      // left
-    ];
-  }
-  function ensureDoor(b) {
-    const cands = candidateDoors(b);
-    const good = cands.filter(d => inBounds({ map: ctx.map }, d.x + d.ox, d.y + d.oy) && ctx.map[d.y + d.oy][d.x + d.ox] === ctx.TILES.FLOOR);
-    const pick = (good.length ? good : cands)[(Math.floor(ctx.rng() * (good.length ? good.length : cands.length))) % (good.length ? good.length : cands.length)];
-    if (inBounds(ctx, pick.x, pick.y)) ctx.map[pick.y][pick.x] = ctx.TILES.DOOR;
-    return pick;
-  }
-  function getExistingDoor(b) {
-    const cds = candidateDoors(b);
-    for (const d of cds) {
-      if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) return { x: d.x, y: d.y };
-    }
-    const dd = ensureDoor(b);
-    return { x: dd.x, y: dd.y };
-  }
-
   // Enlarge and position the Inn next to the plaza, with size almost as big as the plaza and double doors facing it
   (function enlargeInnBuilding() {
     // Always carve the Inn even if no other buildings exist, to guarantee at least one building
@@ -1197,6 +991,212 @@ function generate(ctx) {
       }
     } catch (_) {}
   })();
+
+  function pickPrefab(list, rng) {
+    if (!Array.isArray(list) || list.length === 0) return null;
+    const idx = Math.floor(rng() * list.length) % list.length;
+    return list[idx];
+  }
+
+  // --- Hollow rectangle fallback helpers ---
+  const placeBuilding = (bx, by, bw, bh) => {
+    for (let yy = by; yy < by + bh; yy++) {
+      for (let xx = bx; xx < bx + bw; xx++) {
+        if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
+        const isBorder = (yy === by || yy === by + bh - 1 || xx === bx || xx === bx + bw - 1);
+        ctx.map[yy][xx] = isBorder ? ctx.TILES.WALL : ctx.TILES.FLOOR;
+      }
+    }
+    buildings.push({ x: bx, y: by, w: bw, h: bh });
+  };
+  const cfgB = (TOWNCFG && TOWNCFG.buildings) || {};
+  const maxBuildings = Math.max(1, (cfgB.max | 0) || 18);
+  const blockW = Math.max(4, (cfgB.blockW | 0) || 8);
+  const blockH = Math.max(3, (cfgB.blockH | 0) || 6);
+
+  // Ensure a margin of clear floor around buildings so walls never touch between buildings
+  function isAreaClearForBuilding(bx, by, bw, bh, margin = 1) {
+    const x0 = Math.max(1, bx - margin);
+    const y0 = Math.max(1, by - margin);
+    const x1 = Math.min(W - 2, bx + bw - 1 + margin);
+    const y1 = Math.min(H - 2, by + bh - 1 + margin);
+    for (let yy = y0; yy <= y1; yy++) {
+      for (let xx = x0; xx <= x1; xx++) {
+        const t = ctx.map[yy][xx];
+        if (t !== ctx.TILES.FLOOR) return false;
+      }
+    }
+    return true;
+  }
+
+  // Prevent any building rectangle from overlapping the town plaza footprint (optionally with a small buffer)
+  function overlapsPlazaRect(bx, by, bw, bh, margin = 0) {
+    // Compute plaza rectangle bounds exactly as carved earlier
+    const px0 = ((plaza.x - (plazaW / 2)) | 0);
+    const px1 = ((plaza.x + (plazaW / 2)) | 0);
+    const py0 = ((plaza.y - (plazaH / 2)) | 0);
+    const py1 = ((plaza.y + (plazaH / 2)) | 0);
+    const ax0 = bx, ay0 = by;
+    const ax1 = bx + bw - 1, ay1 = by + bh - 1;
+    const bx0 = Math.max(1, px0 - margin), by0 = Math.max(1, py0 - margin);
+    const bx1 = Math.min(W - 2, px1 + margin), by1 = Math.min(H - 2, py1 + margin);
+    // Axis-aligned rectangle overlap check
+    const sepX = (ax1 < bx0) || (bx1 < ax0);
+    const sepY = (ay1 < by0) || (by1 < ay0);
+    return !(sepX || sepY);
+  }
+
+  for (let by = 2; by < H - (blockH + 4) && buildings.length < maxBuildings; by += Math.max(6, blockH + 2)) {
+    for (let bx = 2; bx < W - (blockW + 4) && buildings.length < maxBuildings; bx += Math.max(8, blockW + 2)) {
+      let clear = true;
+      for (let yy = by; yy < by + (blockH + 1) && clear; yy++) {
+        for (let xx = bx; xx < bx + (blockW + 1); xx++) {
+          if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { clear = false; break; }
+        }
+      }
+      if (!clear) continue;
+      // Strongly varied house sizes:
+      // Mixture of small cottages, medium houses (wide spread), and large/longhouses,
+      // while respecting per-block bounds and minimums.
+      const wMin = 6, hMin = 4;
+      const wMax = Math.max(wMin, blockW);
+      const hMax = Math.max(hMin, blockH);
+      const randint = (min, max) => min + Math.floor(rng() * (Math.max(0, (max - min + 1))));
+      let w, h;
+      const r = rng();
+      if (r < 0.35) {
+        // Small cottage cluster (near minimums)
+        w = randint(wMin, Math.min(wMin + 2, wMax));
+        h = randint(hMin, Math.min(hMin + 2, hMax));
+      } else if (r < 0.75) {
+        // Medium: uniform across full range with aspect ratio nudges
+        w = randint(wMin, wMax);
+        h = randint(hMin, hMax);
+        if (ctx.rng() < 0.5) {
+          const bias = randint(-2, 3);
+          h = Math.max(hMin, Math.min(hMax, h + bias));
+        } else {
+          const bias = randint(-2, 3);
+          w = Math.max(wMin, Math.min(wMax, w + bias));
+        }
+      } else {
+        // Large: near max with occasional longhouses
+        w = Math.max(wMin, Math.min(wMax, wMax - randint(0, Math.min(3, wMax - wMin))));
+        h = Math.max(hMin, Math.min(hMax, hMax - randint(0, Math.min(3, hMax - hMin))));
+        // Longhouse variant: one dimension near max, the other skewed small/medium
+        if (ctx.rng() < 0.4) {
+          if (ctx.rng() < 0.5) {
+            w = Math.max(w, Math.min(wMax, wMax - randint(0, 1)));
+            h = Math.max(hMin, Math.min(hMax, hMin + randint(0, Math.min(4, hMax - hMin))));
+          } else {
+            h = Math.max(h, Math.min(hMax, hMax - randint(0, 1)));
+            w = Math.max(wMin, Math.min(wMax, wMin + randint(0, Math.min(4, wMax - wMin))));
+          }
+        }
+      }
+      // Rare outliers: either tiny footprint or very large (still within block bounds)
+      if (ctx.rng() < 0.08) {
+        if (ctx.rng() < 0.5) {
+          w = wMin;
+          h = Math.max(hMin, Math.min(hMax, hMin + randint(0, Math.min(2, hMax - hMin))));
+        } else {
+          w = Math.max(wMin, Math.min(wMax, wMax - randint(0, 1)));
+          h = Math.max(hMin, Math.min(hMax, hMax - randint(0, 1)));
+        }
+      }
+
+      const ox = Math.floor(ctx.rng() * Math.max(1, blockW - w));
+      const oy = Math.floor(ctx.rng() * Math.max(1, blockH - h));
+      const fx = bx + 1 + ox;
+      const fy = by + 1 + oy;
+      // Avoid overlapping the town plaza footprint (with a 1-tile walkway buffer)
+      if (overlapsPlazaRect(fx, fy, w, h, 1)) continue;
+      // Enforce at least one tile of floor margin between buildings
+      if (!isAreaClearForBuilding(fx, fy, w, h, 1)) continue;
+
+      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      let usedPrefab = false;
+      if (PFB && Array.isArray(PFB.houses) && PFB.houses.length) {
+        // Pick a house prefab that fits in (w,h)
+        const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= w && p.size.h <= h);
+        if (candidates.length) {
+          const pref = pickPrefab(candidates, ctx.rng || rng);
+          if (pref && pref.size) {
+            const oxCenter = Math.floor((w - pref.size.w) / 2);
+            const oyCenter = Math.floor((h - pref.size.h) / 2);
+            usedPrefab = stampPrefab(ctx, pref, fx + oxCenter, fy + oyCenter) || trySlipStamp(ctx, pref, fx + oxCenter, fy + oyCenter, 2);
+          }
+        }
+      }
+      if (!usedPrefab) {
+        if (strictNow) {
+          try { if (ctx && typeof ctx.log === "function") ctx.log(`Strict prefabs: no house prefab fit ${w}x${h} at ${fx},${fy}. Skipping fallback.`, "error"); } catch (_) {}
+          // Skip placing a building here
+        } else {
+          placeBuilding(fx, fy, w, h);
+        }
+      }
+    }
+  }
+
+  // Additional residential fill pass: attempt to reach a target count by random-fit stamping with slip
+  (function prefabResidentialFillPass() {
+    try {
+      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      if (!PFB || !Array.isArray(PFB.houses) || !PFB.houses.length) return;
+      const sizeKey = townSize;
+      const targetBySize = (sizeKey === "small") ? 12 : (sizeKey === "city" ? 34 : 22);
+      if (buildings.length >= targetBySize) return;
+      let attempts = 0, successes = 0;
+      while (buildings.length < targetBySize && attempts++ < 600) {
+        // Random provisional rectangle within bounds
+        const bw = Math.max(6, Math.min(12, 6 + Math.floor((ctx.rng || rng)() * 7)));
+        const bh = Math.max(4, Math.min(10, 4 + Math.floor((ctx.rng || rng)() * 7)));
+        const bx = Math.max(2, Math.min(W - bw - 3, 2 + Math.floor((ctx.rng || rng)() * (W - bw - 4))));
+        const by = Math.max(2, Math.min(H - bh - 3, 2 + Math.floor((ctx.rng || rng)() * (H - bh - 4))));
+        // Skip near plaza and enforce margin clear
+        if (overlapsPlazaRect(bx, by, bw, bh, 1)) continue;
+        if (!isAreaClearForBuilding(bx, by, bw, bh, 1)) continue;
+        // Pick a prefab that fits
+        const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= bw && p.size.h <= bh);
+        if (!candidates.length) continue;
+        const pref = pickPrefab(candidates, ctx.rng || rng);
+        if (!pref || !pref.size) continue;
+        const ox = Math.floor((bw - pref.size.w) / 2);
+        const oy = Math.floor((bh - pref.size.h) / 2);
+        const px = bx + ox, py = by + oy;
+        if (stampPrefab(ctx, pref, px, py) || trySlipStamp(ctx, pref, px, py, 2)) {
+          successes++;
+        }
+      }
+      try { if (ctx && typeof ctx.log === "function") ctx.log(`Residential fill: added ${successes} houses (target ${targetBySize}).`, "notice"); } catch (_) {}
+    } catch (_) {}
+  })();
+
+  // Doors and shops near plaza (compact): just mark doors and create shop entries
+  function candidateDoors(b) {
+    return [
+      { x: b.x + ((b.w / 2) | 0), y: b.y, ox: 0, oy: -1 },                      // top
+      { x: b.x + b.w - 1, y: b.y + ((b.h / 2) | 0), ox: +1, oy: 0 },            // right
+      { x: b.x + ((b.w / 2) | 0), y: b.y + b.h - 1, ox: 0, oy: +1 },            // bottom
+      { x: b.x, y: b.y + ((b.h / 2) | 0), ox: -1, oy: 0 },                      // left
+    ];
+  }
+  function ensureDoor(b) {
+    const cands = candidateDoors(b);
+    const good = cands.filter(d => inBounds({ map: ctx.map }, d.x + d.ox, d.y + d.oy) && ctx.map[d.y + d.oy][d.x + d.ox] === ctx.TILES.FLOOR);
+    const pick = (good.length ? good : cands)[(Math.floor(ctx.rng() * (good.length ? good.length : cands.length))) % (good.length ? good.length : cands.length)];
+    if (inBounds(ctx, pick.x, pick.y)) ctx.map[pick.y][pick.x] = ctx.TILES.DOOR;
+    return pick;
+  }
+  function getExistingDoor(b) {
+    const cds = candidateDoors(b);
+    for (const d of cds) {
+      if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) return { x: d.x, y: d.y };
+    }
+    const dd = ensureDoor(b);
+    return { x: dd.x, y: dd.y };
+  }
 
   // Remove any buildings overlapping the Inn building
   (function cleanupInnOverlap() {
