@@ -7,10 +7,10 @@
       "tags": ["residential", "single_story"],
       "size": { "w": 7, "h": 6 },
       "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","WALL","WALL","WINDOW","WALL","WALL","WALL"],
         ["WALL","FLOOR","BED","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","WINDOW","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","TABLE","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
       ],
@@ -24,7 +24,7 @@
       "tags": ["residential", "single_story"],
       "size": { "w": 6, "h": 5 },
       "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","WALL","WINDOW","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","BED","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","WALL"],
@@ -40,9 +40,9 @@
       "tags": ["residential"],
       "size": { "w": 9, "h": 7 },
       "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","WALL","WINDOW","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","BED","FLOOR","FLOOR","FLOOR","BED","FLOOR","WALL"],
-        ["WALL","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
@@ -63,7 +63,7 @@
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","SHELF","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
@@ -81,7 +81,7 @@
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","SHELF","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
@@ -97,9 +97,9 @@
       "tags": ["shop","trader"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","WALL","WINDOW","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","SHELF","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
