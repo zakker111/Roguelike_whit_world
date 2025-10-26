@@ -495,6 +495,24 @@ export function draw(ctx, view) {
     } catch (_) {}
   })();
 
+  // Shop markers: draw 'S' at shop doors when the tile has been seen (helps locate shops even if sign glyph is missed)
+  (function drawShopMarkers() {
+    try {
+      if (!Array.isArray(ctx.shops) || !ctx.shops.length) return;
+      for (const s of ctx.shops) {
+        const dx = (s.building && s.building.door && typeof s.building.door.x === "number") ? s.building.door.x : s.x;
+        const dy = (s.building && s.building.door && typeof s.building.door.y === "number") ? s.building.door.y : s.y;
+        if (dx < startX || dx > endX || dy < startY || dy > endY) continue;
+        const everSeen = !!(seen[dy] && seen[dy][dx]);
+        if (!everSeen) continue;
+        const screenX = (dx - startX) * TILE - tileOffsetX;
+        const screenY = (dy - startY) * TILE - tileOffsetY;
+        // subtle overlay color; draw above tiles/props
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, "S", "#ffd166", TILE);
+      }
+    } catch (_) {}
+  })();
+
   // NPCs: draw when the tile has been seen; dim if not currently visible or no LOS.
   // This avoids \"disappearing\" when visibility is affected by lamp-light or corners.
   if (Array.isArray(ctx.npcs)) {
