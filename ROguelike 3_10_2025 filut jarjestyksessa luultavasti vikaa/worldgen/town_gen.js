@@ -726,6 +726,40 @@
       }
     }
 
+    // Additional residential fill pass: attempt to reach a target count by random-fit stamping with slip
+    (function prefabResidentialFillPass() {
+      try {
+        const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+        if (!PFB || !Array.isArray(PFB.houses) || !PFB.houses.length) return;
+        const sizeKey = townSize;
+        const targetBySize = (sizeKey === "small") ? 12 : (sizeKey === "city" ? 34 : 22);
+        if (buildings.length >= targetBySize) return;
+        let attempts = 0, successes = 0;
+        while (buildings.length < targetBySize && attempts++ < 600) {
+          // Random provisional rectangle within bounds
+          const bw = Math.max(6, Math.min(12, 6 + Math.floor((ctx.rng || rng)() * 7)));
+          const bh = Math.max(4, Math.min(10, 4 + Math.floor((ctx.rng || rng)() * 7)));
+          const bx = Math.max(2, Math.min(W - bw - 3, 2 + Math.floor((ctx.rng || rng)() * (W - bw - 4))));
+          const by = Math.max(2, Math.min(H - bh - 3, 2 + Math.floor((ctx.rng || rng)() * (H - bh - 4))));
+          // Skip near plaza and enforce margin clear
+          if (overlapsPlazaRect(bx, by, bw, bh, 1)) continue;
+          if (!isAreaClearForBuilding(bx, by, bw, bh, 1)) continue;
+          // Pick a prefab that fits
+          const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= bw && p.size.h <= bh);
+          if (!candidates.length) continue;
+          const pref = pickPrefab(candidates, ctx.rng || rng);
+          if (!pref || !pref.size) continue;
+          const ox = Math.floor((bw - pref.size.w) / 2);
+          const oy = Math.floor((bh - pref.size.h) / 2);
+          const px = bx + ox, py = by + oy;
+          if (stampPrefab(ctx, pref, px, py) || trySlipStamp(ctx, pref, px, py, 2)) {
+            successes++;
+          }
+        }
+        try { if (ctx && typeof ctx.log === "function") ctx.log(`Residential fill: added ${successes} houses (target ${targetBySize}).`, "notice"); } catch (_) {}
+      } catch (_) {}
+    })();
+
     // Doors and shops near plaza (compact): just mark doors and create shop entries
     function candidateDoors(b) {
       return [
