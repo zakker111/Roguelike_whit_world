@@ -34,6 +34,24 @@ function inBounds(ctx, x, y) {
   return x >= 0 && y >= 0 && x < cols && y < rows;
 }
 
+// Prefab embedded prop code mapping (shared by ground floor and upstairs overlay)
+function prefabPropType(code) {
+  var s = String(code || "").toUpperCase();
+  if (s === "BED") return "bed";
+  if (s === "TABLE") return "table";
+  if (s === "CHAIR") return "chair";
+  if (s === "SHELF") return "shelf";
+  if (s === "COUNTER") return "counter";
+  if (s === "FIREPLACE") return "fireplace";
+  if (s === "CHEST") return "chest";
+  if (s === "CRATE") return "crate";
+  if (s === "BARREL") return "barrel";
+  if (s === "PLANT") return "plant";
+  if (s === "RUG") return "rug";
+  if (s === "QUEST_BOARD") return "quest_board";
+  return null;
+}
+
 function _manhattan(ctx, ax, ay, bx, by) {
   try {
     if (ctx && ctx.Utils && typeof ctx.Utils.manhattan === "function") return ctx.Utils.manhattan(ax, ay, bx, by);
@@ -488,6 +506,8 @@ function generate(ctx) {
     }
     // Ensure props array exists so we can place embedded props from tile codes
     try { if (!Array.isArray(ctx.townProps)) ctx.townProps = []; } catch (_) {}
+    // Stamp tiles and embedded propsrray exists so we can place embedded props from tile codes
+    try { if (!Array.isArray(ctx.townProps)) ctx.townProps = []; } catch (_) {}
     // Helper: map tile code to prop type (null if not a prop)
     function propTypeForCode(code) {
       var s = String(code || "").toUpperCase();
@@ -655,40 +675,6 @@ function generate(ctx) {
             const wUp = (ov.w | 0) || (ov.tiles[0] ? ov.tiles[0].length : 0);
             const hUp = (ov.h | 0) || ov.tiles.length;
             const tilesUp = Array.from({ length: hUp }, () => Array(wUp).fill(ctx.TILES.FLOOR));
-            // Helper for upstairs overlay: map code to prop type
-            function overlayPropTypeForCode(code) {
-              var s = String(code || "").toUpperCase();
-              if (s === "BED") return "bed";
-              if (s === "TABLE") return "table";
-              if (s === "CHAIR") return "chair";
-              if (s === "SHELF") return "shelf";
-              if (s === "COUNTER") return "counter";
-              if (s === "FIREPLACE") return "fireplace";
-              if (s === "CHEST") return "chest";
-              if (s === "CRATE") return "crate";
-              if (s === "BARREL") return "barrel";
-              if (s === "PLANT") return "plant";
-              if (s === "RUG") return "rug";
-              if (s === "QUEST_BOARD") return "quest_board";
-              return null;
-            }
-            const propsUp = [];
-            const PROPMAP2 = {
-              BED: "bed",
-              TABLE: "table",
-              CHAIR: "chair",
-              SHELF: "shelf",
-              RUG: "rug",
-              FIREPLACE: "fireplace",
-              CHEST: "chest",
-              CRATE: "crate",
-              BARREL: "barrel",
-              PLANT: "plant",
-              COUNTER: "counter",
-              STALL: "stall",
-              LAMP: "lamp",
-              WELL: "well"
-            };
             const propsUp = [];
             for (let yy = 0; yy < hUp; yy++) {
               const row = ov.tiles[yy];
