@@ -577,8 +577,8 @@ export function draw(ctx, view) {
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
       }
 
-      // Sleeping indicator: only when fully visible with LOS to avoid floating Z's through walls
-      if (!drawDim && n._sleeping) {
+      // Sleeping indicator: show 'Z' decal even when dim; reduce alpha if not in LOS
+      if (n._sleeping) {
         const t = Date.now();
         const phase = Math.floor(t / 600) % 2; // toggle every ~0.6s
         const zChar = phase ? "Z" : "z";
@@ -586,7 +586,7 @@ export function draw(ctx, view) {
         const zx = screenX + TILE / 2 + 8;          // slight right offset
         const zy = screenY + TILE / 2 - TILE * 0.6 + bob; // above head
         ctx2d.save();
-        ctx2d.globalAlpha = 0.9;
+        ctx2d.globalAlpha = drawDim ? 0.55 : 0.9;
         ctx2d.fillStyle = "#a3be8c";
         ctx2d.fillText(zChar, zx, zy);
         ctx2d.restore();
