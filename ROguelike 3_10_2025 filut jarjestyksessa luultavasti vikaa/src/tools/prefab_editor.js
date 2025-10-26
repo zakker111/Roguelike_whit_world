@@ -11,8 +11,6 @@ const state = {
   w: 7, h: 6,
   tiles: [], // 2D array of strings (tile or embedded prop codes)
   doors: [], // [{x,y,orientation,type,role}]
-  rotationPreview: 0,
-  mirrorPreview: false,
   // brush
   brush: "tile", // tile|prop|door|erase
   tileSel: "FLOOR",
@@ -73,11 +71,6 @@ function bindEls() {
   els.fillFloorBtn = document.getElementById("fill-floor-btn");
   els.perimeterWallsBtn = document.getElementById("perimeter-walls-btn");
   els.grid = document.getElementById("grid");
-  els.previewRot0 = document.getElementById("preview-rot-0");
-  els.previewRot90 = document.getElementById("preview-rot-90");
-  els.previewRot180 = document.getElementById("preview-rot-180");
-  els.previewRot270 = document.getElementById("preview-rot-270");
-  els.previewMirror = document.getElementById("preview-mirror");
 
   els.prefabId = document.getElementById("prefab-id");
   els.prefabName = document.getElementById("prefab-name");
@@ -291,12 +284,7 @@ function bindUI() {
   // Canvas painting
   els.grid.addEventListener("mousedown", onGridMouse);
   els.grid.addEventListener("mousemove", (e) => { if (e.buttons & 1) onGridMouse(e); });
-  // Preview
-  els.previewRot0.addEventListener("click", () => { state.rotationPreview = 0; drawGrid(); });
-  els.previewRot90.addEventListener("click", () => { state.rotationPreview = 90; drawGrid(); });
-  els.previewRot180.addEventListener("click", () => { state.rotationPreview = 180; drawGrid(); });
-  els.previewRot270.addEventListener("click", () => { state.rotationPreview = 270; drawGrid(); });
-  els.previewMirror.addEventListener("click", () => { state.mirrorPreview = !state.mirrorPreview; drawGrid(); });
+  
 
   // Metadata
   els.prefabId.addEventListener("input", () => state.id = (els.prefabId.value || "").trim());
@@ -449,12 +437,10 @@ function drawGrid() {
   ctx.fillStyle = GRID_BG;
   ctx.fillRect(0,0,els.grid.width,els.grid.height);
 
-  // Apply preview transform
-  const m = makeTransformed(state.tiles, state.rotationPreview, state.mirrorPreview);
   // Draw cells
   for (let y=0; y<state.h; y++) {
     for (let x=0; x<state.w; x++) {
-      const code = m[y][x];
+      const code = state.tiles[y][x];
       drawCell(ctx, x, y, code);
       // Door pin overlay
       const d = state.doors.find(d => d.x === x && d.y === y);
@@ -642,44 +628,6 @@ function setStatus(text) {
   if (els.status) els.status.textContent = text || "";
 }
 
-// Transform helper (rotation + mirror) for preview only
-function makeTransformed(a, rot, mirror) {
-  const h = a.length; const w = h ? a[0].length : 0;
-  let m = a.map(row => row.slice());
-  if (mirror) {
-    m = m.map(row => row.slice().reverse());
-  }
-  const r = (rot || 0) % 360;
-  if (r === 0) return m;
-  if (r === 90) {
-    const out = Array.from({length:w}, () => Array.from({length:h}, () => "FLOOR"));
-    for (let y=0; y<h; y++) for (let x=0; x<w; x++) out[x][h-1-y] = m[y][x];
-    // normalize dimensions to original preview frame (crop/scale)
-    return cropOrPad(out, h, w);
-  } else if (r === 180) {
-    const out = Array.from({length:h}, () => Array.from({length:w}, () => "FLOOR"));
-    for (let y=0; y<h; y++) for (let x=0; x<w; x++) out[h-1-y][w-1-x] = m[y][x];
-    return out;
-  } else if (r === 270) {
-    const out = Array.from({length:w}, () => Array.from({length:h}, () => "FLOOR"));
-    for (let y=0; y<h; y++) for (let x=0; x<w; x++) out[w-1-x][y] = m[y][x];
-    return cropOrPad(out, h, w);
-  }
-  return m;
-}
-
-function cropOrPad(arr, targetH, targetW) {
-  // For preview only: center-crop or pad to fit original canvas frame
-  const h = arr.length, w = h ? arr[0].length : 0;
-  if (h === targetH && w === targetW) return arr;
-  const out = Array.from({length: targetH}, () => Array.from({length: targetW}, () => "FLOOR"));
-  const offY = Math.floor((targetH - h) / 2);
-  const offX = Math.floor((targetW - w) / 2);
-  for (let y=0; y<h; y++) for (let x=0; x<w; x++) {
-    const yy = y + offY; const xx = x + offX;
-    if (yy >= 0 && yy < targetH && xx >= 0 && xx < targetW) out[yy][xx] = arr[y][x];
-  }
-  return out;
-}
+// Rotation/mirror preview helpers removed (no longer needed)
 
 init();
