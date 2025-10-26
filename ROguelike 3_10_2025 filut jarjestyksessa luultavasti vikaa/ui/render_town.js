@@ -360,6 +360,7 @@ export function draw(ctx, view) {
           else if (t === "plant") glyph = "*";
           else if (t === "rug") glyph = "░";
           else if (t === "fireplace") glyph = "♨";
+          else if (t === "counter") glyph = "▭";
           else if (t === "sign") glyph = "⚑";
           else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
         }
@@ -375,6 +376,7 @@ export function draw(ctx, view) {
           else if (t === "plant") color = "#65a30d";
           else if (t === "rug") color = "#b45309";
           else if (t === "fireplace") color = "#ff6d00";
+          else if (t === "counter") color = "#d7ba7d";
           else if (t === "sign") color = "#d7ba7d";
           else color = "#cbd5e1";
         }
@@ -454,6 +456,7 @@ export function draw(ctx, view) {
             else if (t === "bed") glyph = "u";
             else if (t === "table") glyph = "⊏";
             else if (t === "chair") glyph = "n";
+            else if (t === "counter") glyph = "▭";
             else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
           }
           if (!color) {
@@ -466,6 +469,7 @@ export function draw(ctx, view) {
             else if (t === "bed") color = "#cbd5e1";
             else if (t === "table") color = "#cbd5e1";
             else if (t === "chair") color = "#cbd5e1";
+            else if (t === "counter") color = "#d7ba7d";
             else color = "#cbd5e1";
           }
         }
