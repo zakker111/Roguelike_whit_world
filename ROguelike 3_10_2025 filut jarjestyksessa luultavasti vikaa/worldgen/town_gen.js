@@ -1284,10 +1284,18 @@ function generate(ctx) {
         if (stampPrefab(ctx, pref, bx, by)) return true;
         // Try slip first
         if (trySlipStamp(ctx, pref, bx, by, 2)) return true;
-        // If still blocked, remove the first overlapping building and try once more
+        // If still blocked, remove an overlapping building and try once more,
+        // but never remove the tavern/inn building.
         const overlaps = findBuildingsOverlappingRect(bx, by, pref.size.w, pref.size.h, 0);
-        if (overlaps.length) {
-          removeBuildingAndProps(overlaps[0]);
+        let toRemove = overlaps;
+        try {
+          if (ctx.tavern && ctx.tavern.building) {
+            const tb = ctx.tavern.building;
+            toRemove = overlaps.filter(b => !(b.x === tb.x && b.y === tb.y && b.w === tb.w && b.h === tb.h));
+          }
+        } catch (_) {}
+        if (toRemove.length) {
+          removeBuildingAndProps(toRemove[0]);
           if (stampPrefab(ctx, pref, bx, by)) return true;
           if (trySlipStamp(ctx, pref, bx, by, 2)) return true;
         }
@@ -1346,6 +1354,11 @@ function generate(ctx) {
       const ph = pr.y1 - pr.y0 + 1;
       const toDel = [];
       for (const b of buildings) {
+        // Never delete the tavern/inn building even if it touches the plaza
+        const isTavern = (ctx.tavern && ctx.tavern.building)
+          ? (b.x === ctx.tavern.building.x && b.y === ctx.tavern.building.y && b.w === ctx.tavern.building.w && b.h === ctx.tavern.building.h)
+          : false;
+        if (isTavern) continue;
         if (rectOverlap(b.x, b.y, b.w, b.h, pr.x0, pr.y0, pw, ph, 0)) toDel.push(b);
       }
       for (const b of toDel) removeBuildingAndProps(b);
@@ -1652,11 +1665,43 @@ function generate(ctx) {
     try { addShopSign(b, { x: door.x, y: door.y }, name); } catch (_) {}
   }
 
-  // No fallback Inn shop creation; rely on prefab or data-driven shop assignments
+  // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback from the tavern building
   try {
     const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (String(s.type || "").toLowerCase() === "inn") || (/inn/i.test(String(s.name || ""))));
-    if (!hasInn) {
-      try { if (ctx && typeof ctx.log === "function") ctx.log("No Inn shop integrated (prefab-only).", "notice"); } catch (_) {}
+    if (!hasInn && ctx.tavern && ctx.tavern.building) {
+      const b = ctx.tavern.building;
+      // Prefer existing door on perimeter; otherwise ensure one
+      let doorX = (ctx.tavern.door && typeof ctx.tavern.door.x === "number") ? ctx.tavern.door.x : null;
+      let doorY = (ctx.tavern.door && typeof ctx.tavern.door.y === "number") ? ctx.tavern.door.y : null;
+      if (doorX == null || doorY == null) {
+        const dd = ensureDoor(b);
+        doorX = dd.x; doorY = dd.y;
+      }
+      // Compute an inside tile near the door
+      const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
+      let inside = null;
+      for (let i = 0; i < inward.length; i++) {
+        const ix = doorX + inward[i].dx, iy = doorY + inward[i].dy;
+        const insideB = (ix > b.x && ix < b.x + b.w - 1 && iy > b.y && iy < b.y + b.h - 1);
+        if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { inside = { x: ix, y: iy }; break; }
+      }
+      if (!inside) {
+        const cx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2)));
+        const cy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2)));
+        inside = { x: cx, y: cy };
+      }
+      ctx.shops.push({
+        x: doorX,
+        y: doorY,
+        type: "inn",
+        name: "Inn",
+        openMin: 0,
+        closeMin: 0,
+        alwaysOpen: true,
+        building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
+        inside
+      });
+      try { addShopSign(b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
     }
   } catch (_) {}
 
