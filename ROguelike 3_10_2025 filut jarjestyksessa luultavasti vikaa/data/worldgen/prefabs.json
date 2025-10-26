@@ -65,7 +65,39 @@
       ],
       "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
-    }
+    },
+    {
+  "id": "house_small_custom_1",
+  "name": "Custom Small House",
+  "category": "house",
+  "tags": [
+    "residential",
+    "single_story"
+  ],
+  "size": {
+    "w": 7,
+    "h": 6
+  },
+  "tiles": [
+  ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+  ["WALL","FIREPLACE","FLOOR","BARREL","SHELF","SHELF","WALL"],
+  ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
+  ["WALL","BED","FLOOR","RUG","FLOOR","CHAIR","WALL"],
+  ["WALL","BED","FLOOR","RUG","FLOOR","TABLE","WALL"],
+  ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL"]
+   ],
+  "constraints": {
+    "rotations": [
+      0,
+      90,
+      180,
+      270
+    ],
+    "mirror": true,
+    "mustFaceRoad": true,
+    "minSetback": 1
+  }
+}
   ],
   "shops": [
     {

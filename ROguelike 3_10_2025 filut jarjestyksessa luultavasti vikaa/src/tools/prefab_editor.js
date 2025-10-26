@@ -589,16 +589,18 @@ function replaceArrayPlaceholder(src, marker, rows) {
   const token = `"${marker}"`;
   const idx = src.indexOf(token);
   if (idx === -1) return src;
-  // Determine indentation at value start (position of token on its line)
+  // Determine indentation spaces at start of this line (not including the key)
   const lineStart = src.lastIndexOf("\n", idx) + 1;
-  const valueIndent = src.slice(lineStart, idx); // includes key, colon, space up to opening quote
-  const pretty = formatRowsArray(rows, valueIndent);
+  const beforeToken = src.slice(lineStart, idx); // e.g., '  "tiles": '
+  const indentSpacesMatch = beforeToken.match(/^[ \t]*/);
+  const indentSpaces = indentSpacesMatch ? indentSpacesMatch[0] : "";
+  const pretty = formatRowsArray(rows, indentSpaces);
   return src.replace(token, pretty);
 }
 
-function formatRowsArray(rows, valueIndent) {
-  // valueIndent is the prefix before the value. We align '[' at the same column.
-  const inner = valueIndent + "  ";
+function formatRowsArray(rows, indentSpaces) {
+  // indentSpaces is the base indentation of the line containing `"key": <value>`
+  const inner = indentSpaces + "  ";
   let out = "[\n";
   for (let y = 0; y < rows.length; y++) {
     const row = rows[y] || [];
@@ -607,7 +609,7 @@ function formatRowsArray(rows, valueIndent) {
     if (y < rows.length - 1) out += ",\n";
     else out += "\n";
   }
-  out += valueIndent + "]";
+  out += indentSpaces + "]";
   return out;
 }
 
