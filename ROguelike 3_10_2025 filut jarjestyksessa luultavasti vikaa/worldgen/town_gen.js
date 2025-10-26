@@ -905,16 +905,23 @@ function generate(ctx) {
     const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
     let usedPrefabInn = false;
     if (PFB && Array.isArray(PFB.inns) && PFB.inns.length) {
-      const pref = pickPrefab(PFB.inns, ctx.rng || rng);
-      // Try stamping centered in innRect; if it doesn't fit, shrink rect and retry a couple of times
+      // Prefer the largest inn prefab that fits, to ensure a roomy tavern
+      const innsSorted = PFB.inns
+        .slice()
+        .filter(p => p && p.size && typeof p.size.w === "number" && typeof p.size.h === "number")
+        .sort((a, b) => (b.size.w * b.size.h) - (a.size.w * a.size.h));
+
+      // Try stamping centered in innRect; if it doesn't fit, shrink rect and retry a few times
       let bx = innRect.x, by = innRect.y, bw = innRect.w, bh = innRect.h;
-      for (let attempts = 0; attempts < 3 && !usedPrefabInn; attempts++) {
-        if (pref && pref.size && pref.size.w <= bw && pref.size.h <= bh) {
+      for (let attempts = 0; attempts < 4 && !usedPrefabInn; attempts++) {
+        const pref = innsSorted.find(p => p.size.w <= bw && p.size.h <= bh) || null;
+        if (pref) {
           const ox = Math.floor((bw - pref.size.w) / 2);
           const oy = Math.floor((bh - pref.size.h) / 2);
           if (stampPrefab(ctx, pref, bx + ox, by + oy)) {
             usedPrefabInn = true;
             rectUsedInn = { x: bx + ox, y: by + oy, w: pref.size.w, h: pref.size.h };
+            break;
           }
         }
         bw = Math.max(10, bw - 2);
@@ -938,10 +945,12 @@ function generate(ctx) {
 
     if (!proceedInn) return;
 
-    // Choose an existing building to replace/represent the inn, prefer the one closest to rect center
+    // Choose an existing building to replace/represent the inn, prefer the one closest to baseRect center,
+    // and ensure the building record matches the actual stamped inn rectangle so furnishing runs correctly.
+    const baseRect = rectUsedInn || innRect;
     let targetIdx = -1, bestD = Infinity;
-    const cx = (innRect.x + (innRect.w / 2)) | 0;
-    const cy = (innRect.y + (innRect.h / 2)) | 0;
+    const cx = (baseRect.x + (baseRect.w / 2)) | 0;
+    const cy = (baseRect.y + (baseRect.h / 2)) | 0;
     for (let i = 0; i < buildings.length; i++) {
       const b = buildings[i];
       const d = Math.abs((b.x + (b.w / 2)) - cx) + Math.abs((b.y + (b.h / 2)) - cy);
@@ -949,14 +958,13 @@ function generate(ctx) {
     }
     if (targetIdx === -1) {
       // If none available (shouldn't happen), push a new building record
-      buildings.push({ x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h });
+      buildings.push({ x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h });
     } else {
-      buildings[targetIdx] = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
+      buildings[targetIdx] = { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h };
     }
 
     // Record the tavern (Inn) building and its preferred door (closest to plaza)
     try {
-      const baseRect = rectUsedInn || innRect;
       const cds = candidateDoors(baseRect);
       let bestDoor = null, bestD2 = Infinity;
       for (const d of cds) {
