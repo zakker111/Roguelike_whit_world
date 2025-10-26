@@ -62,9 +62,9 @@
   }
 
   function propBlocks(type) {
-    // Signs should be walkable; rugs are decorative and don't block.
-    // All other furniture/props block movement.
-    return !(type === "sign" || type === "rug");
+    // Signs and rugs are walkable; beds should be non-blocking so NPCs can sleep on the bed tile.
+    // Other furniture/props block movement.
+    return !(type === "sign" || type === "rug" || type === "bed");
   }
 
   // ---- Inn upstairs helpers (overlay-aware pathing/seating) ----
@@ -132,16 +132,15 @@
     }
     return null;
   }
+  // Return raw upstairs bed tiles (stand directly on the bed tile when sleeping)
   function innUpstairsBedAdj(ctx) {
     const up = ctx.innUpstairs;
     if (!up) return [];
-    const occUp = buildOccUpstairs(ctx);
     const out = [];
     const props = Array.isArray(up.props) ? up.props : [];
     for (const p of props) {
-      if (!p || String(p.type || "").toLowerCase() !== "bed") continue;
-      const adj = nearestFreeAdjacentUpstairs(ctx, p.x, p.y, occUp);
-      if (adj) out.push(adj);
+      if (!p) continue;
+      if (String(p.type || "").toLowerCase() === "bed") out.push({ x: p.x, y: p.y });
     }
     return out;
   }
@@ -160,10 +159,10 @@
     return out;
   }
   function chooseInnUpstairsBed(ctx) {
-    const beds = innUpstairsBedAdj(ctx);
+    // Choose directly on a bed tile upstairs
+    const beds = innUpstairsBeds(ctx);
     if (!beds.length) return null;
-    const rnd = rngFor(ctx);
-    return beds[Math.floor(rnd() * beds.length)];
+    const rnd = rngFords.length)];
   }
   function chooseInnUpstairsSeat(ctx) {
     const seats = innUpstairsSeatAdj(ctx);
