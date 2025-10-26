@@ -141,42 +141,49 @@ async function loadJCDocs() {
 }
 
 function renderPalettes() {
-  // Helper to build label with glyph if available
-  const labelFor = (isTile, code) => {
+  // Helper to get glyph/color for a code
+  const getGlyphInfo = (isTile, code) => {
     const key = String(code || "").toUpperCase();
-    let glyph = "";
-    let color = "#cbd5e1";
-    if (isTile) {
-      const t = state.assets.tiles[key];
-      if (t) { glyph = t.glyph || ""; color = (t.colors && t.colors.fg) ? t.colors.fg : color; }
-    } else {
-      const p = state.assets.props[key];
-      if (p) { glyph = p.glyph || ""; color = (p.colors && p.colors.fg) ? p.colors.fg : color; }
-    }
-    const g = (glyph && String(glyph).trim().length) ? glyph : "";
-    return g ? `${key}  ${g}` : key;
+    const def = isTile ? state.assets.tiles[key] : state.assets.props[key];
+    const glyph = def && def.glyph ? String(def.glyph) : "";
+    const fg = (def && def.colors && def.colors.fg) ? def.colors.fg : "#cbd5e1";
+    return { key, glyph, fg };
   };
 
   // Tiles
   els.tilePalette.innerHTML = "";
   state.jcdocs.tiles.forEach(code => {
+    const { key, glyph, fg } = getGlyphInfo(true, code);
     const btn = document.createElement("button");
     btn.className = "chip" + (state.tileSel === code ? " active" : "");
-    btn.textContent = labelFor(true, code);
+    // Show glyph prominently; fallback to key
+    btn.textContent = glyph && glyph.trim().length ? glyph : key;
+    btn.style.color = fg;
+    btn.title = key;
     btn.addEventListener("click", () => {
+      // auto-switch brush to tile to avoid confusion
+      state.brush = "tile";
+      if (els.brush) els.brush.value = "tile";
       state.tileSel = code;
       Array.from(els.tilePalette.children).forEach(c => c.classList.remove("active"));
       btn.classList.add("active");
     });
     els.tilePalette.appendChild(btn);
   });
+
   // Props
   els.propPalette.innerHTML = "";
   state.jcdocs.embeddedPropCodes.forEach(code => {
+    const { key, glyph, fg } = getGlyphInfo(false, code);
     const btn = document.createElement("button");
     btn.className = "chip" + (state.propSel === code ? " active" : "");
-    btn.textContent = labelFor(false, code);
+    btn.textContent = glyph && glyph.trim().length ? glyph : key;
+    btn.style.color = fg;
+    btn.title = key;
     btn.addEventListener("click", () => {
+      // auto-switch brush to prop so painting works immediately
+      state.brush = "prop";
+      if (els.brush) els.brush.value = "prop";
       state.propSel = code;
       Array.from(els.propPalette.children).forEach(c => c.classList.remove("active"));
       btn.classList.add("active");
