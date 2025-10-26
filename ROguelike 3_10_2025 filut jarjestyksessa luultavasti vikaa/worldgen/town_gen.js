@@ -594,23 +594,25 @@ function generate(ctx) {
       }
     } catch (_) {}
 
-    // Ensure at least one door exists on the perimeter; if none, carve a single door centered on the bottom edge
-    (function ensurePerimeterDoor() {
-      let hasDoor = false;
-      for (let xx = x0; xx <= x1 && !hasDoor; xx++) {
-        if (inBounds(ctx, xx, y0) && ctx.map[y0][xx] === ctx.TILES.DOOR) { hasDoor = true; break; }
-        if (inBounds(ctx, xx, y1) && ctx.map[y1][xx] === ctx.TILES.DOOR) { hasDoor = true; break; }
-      }
-      for (let yy = y0; yy <= y1 && !hasDoor; yy++) {
-        if (inBounds(ctx, x0, yy) && ctx.map[yy][x0] === ctx.TILES.DOOR) { hasDoor = true; break; }
-        if (inBounds(ctx, x1, yy) && ctx.map[yy][x1] === ctx.TILES.DOOR) { hasDoor = true; break; }
-      }
-      if (!hasDoor) {
-        const cx = x0 + ((w / 2) | 0);
-        const cy = y0 + h - 1;
-        if (inBounds(ctx, cx, cy)) ctx.map[cy][cx] = ctx.TILES.DOOR;
-      }
-    })();
+    // For inns, rely solely on prefab DOOR tiles; do not auto-carve doors.
+    if (String(prefab.category || "").toLowerCase() !== "inn") {
+      (function ensurePerimeterDoor() {
+        let hasDoor = false;
+        for (let xx = x0; xx <= x1 && !hasDoor; xx++) {
+          if (inBounds(ctx, xx, y0) && ctx.map[y0][xx] === ctx.TILES.DOOR) { hasDoor = true; break; }
+          if (inBounds(ctx, xx, y1) && ctx.map[y1][xx] === ctx.TILES.DOOR) { hasDoor = true; break; }
+        }
+        for (let yy = y0; yy <= y1 && !hasDoor; yy++) {
+          if (inBounds(ctx, x0, yy) && ctx.map[yy][x0] === ctx.TILES.DOOR) { hasDoor = true; break; }
+          if (inBounds(ctx, x1, yy) && ctx.map[yy][x1] === ctx.TILES.DOOR) { hasDoor = true; break; }
+        }
+        if (!hasDoor) {
+          const cx = x0 + ((w / 2) | 0);
+          const cy = y0 + h - 1;
+          if (inBounds(ctx, cx, cy)) ctx.map[cy][cx] = ctx.TILES.DOOR;
+        }
+      })();
+    }
 
     // Back-compat: consume explicit props array if present
     try {
@@ -1113,20 +1115,27 @@ function generate(ctx) {
           if (dd < bestD2) { bestD2 = dd; bestDoor = { x: d.x, y: d.y }; }
         }
       }
-      if (!bestDoor) {
-        const dd = ensureDoor(baseRect);
-        bestDoor = { x: dd.x, y: dd.y };
-      }
+      // Do not auto-carve doors for the inn; rely solely on prefab DOOR tiles.
       try {
         const bRec = buildings.find(b => b.x === baseRect.x && b.y === baseRect.y && b.w === baseRect.w && b.h === baseRect.h) || null;
         const pid = (bRec && typeof bRec.prefabId !== "undefined") ? bRec.prefabId : null;
         const pcat = (bRec && typeof bRec.prefabCategory !== "undefined") ? bRec.prefabCategory : null;
-        ctx.tavern = {
-          building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h, prefabId: pid, prefabCategory: pcat },
-          door: { x: bestDoor.x, y: bestDoor.y }
-        };
+        if (bestDoor) {
+          ctx.tavern = {
+            building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h, prefabId: pid, prefabCategory: pcat },
+            door: { x: bestDoor.x, y: bestDoor.y }
+          };
+        } else {
+          ctx.tavern = {
+            building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h, prefabId: pid, prefabCategory: pcat }
+          };
+        }
       } catch (_) {
-        ctx.tavern = { building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
+        if (bestDoor) {
+          ctx.tavern = { building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
+        } else {
+          ctx.tavern = { building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h } };
+        }
       }
     } catch (_) {}
   })();
@@ -1584,42 +1593,11 @@ function generate(ctx) {
     try { addShopSign(b, { x: door.x, y: door.y }, name); } catch (_) {}
   }
 
-  // Guarantee at least one Inn shop: if none was integrated from prefabs, create a fallback from the tavern building
+  // No fallback Inn shop creation; rely on prefab or data-driven shop assignments
   try {
     const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (String(s.type || "").toLowerCase() === "inn") || (/inn/i.test(String(s.name || ""))));
-    if (!hasInn && ctx.tavern && ctx.tavern.building) {
-      const b = ctx.tavern.building;
-      let doorX = (ctx.tavern.door && typeof ctx.tavern.door.x === "number") ? ctx.tavern.door.x : null;
-      let doorY = (ctx.tavern.door && typeof ctx.tavern.door.y === "number") ? ctx.tavern.door.y : null;
-      if (doorX == null || doorY == null) {
-        const dd = ensureDoor(b);
-        doorX = dd.x; doorY = dd.y;
-      }
-      // Compute an inside tile near the door
-      const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
-      let inside = null;
-      for (let i = 0; i < inward.length; i++) {
-        const ix = doorX + inward[i].dx, iy = doorY + inward[i].dy;
-        const insideB = (ix > b.x && ix < b.x + b.w - 1 && iy > b.y && iy < b.y + b.h - 1);
-        if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { inside = { x: ix, y: iy }; break; }
-      }
-      if (!inside) {
-        const cx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2)));
-        const cy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2)));
-        inside = { x: cx, y: cy };
-      }
-      ctx.shops.push({
-        x: doorX,
-        y: doorY,
-        type: "inn",
-        name: "Inn",
-        openMin: 0,
-        closeMin: 0,
-        alwaysOpen: true,
-        building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
-        inside
-      });
-      try { addShopSign(b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
+    if (!hasInn) {
+      try { if (ctx && typeof ctx.log === "function") ctx.log("No Inn shop integrated (prefab-only).", "notice"); } catch (_) {}
     }
   } catch (_) {}
 
