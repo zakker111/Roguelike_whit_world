@@ -582,11 +582,7 @@ function drawCell(ctx, x, y, code) {
     ctx.textBaseline = "middle";
     ctx.fillText(glyph, left + (CELL-1)/2, top + (CELL-1)/2);
   } else {
-    // Fallback: short code
-    ctx.fillStyle = "#cbd5e1";
-    ctx.font = "11px JetBrains Mono, monospace";
-    const t = c.length > 4 ? c.slice(0,4) : c;
-    ctx.fillText(t, left + 3, top + 12);
+    // No text fallback in editor: show background only when glyph is absent
   }
 }
 
