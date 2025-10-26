@@ -68,8 +68,7 @@ function bindEls() {
   els.brush = document.getElementById("brush");
   els.tilePalette = document.getElementById("tile-palette");
   els.propPalette = document.getElementById("prop-palette");
-  els.fillFloorBtn = document.getElementById("fill-floor-btn");
-  els.perimeterWallsBtn = document.getElementById("perimeter-walls-btn");
+  els.eraseBtn = document.getElementById("erase-brush-btn");
   els.grid = document.getElementById("grid");
 
   // Floating hover hint
@@ -291,17 +290,12 @@ function bindUI() {
   els.brush.addEventListener("change", () => {
     state.brush = els.brush.value;
   });
-  els.fillFloorBtn.addEventListener("click", () => {
-    for (let y=0; y<state.h; y++) for (let x=0; x<state.w; x++) state.tiles[y][x] = "FLOOR";
-    drawGrid();
-    lint();
-  });
-  els.perimeterWallsBtn.addEventListener("click", () => {
-    for (let x=0; x<state.w; x++) { state.tiles[0][x] = "WALL"; state.tiles[state.h-1][x] = "WALL"; }
-    for (let y=0; y<state.h; y++) { state.tiles[y][0] = "WALL"; state.tiles[y][state.w-1] = "WALL"; }
-    drawGrid();
-    lint();
-  });
+  if (els.eraseBtn) {
+    els.eraseBtn.addEventListener("click", () => {
+      state.brush = "erase";
+      if (els.brush) els.brush.value = "erase";
+    });
+  }
   // Canvas painting
   els.grid.addEventListener("mousedown", onGridMouse);
   els.grid.addEventListener("mousemove", (e) => {
