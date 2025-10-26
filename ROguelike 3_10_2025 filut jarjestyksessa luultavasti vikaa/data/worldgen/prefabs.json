@@ -132,98 +132,47 @@
   ],
   "inns": [
     {
-      "id": "inn_tavern_1",
-      "name": "Inn & Tavern A",
+      "id": "inn_tavern_medium",
+      "name": "Inn & Tavern",
       "category": "inn",
       "tags": ["two_story","tavern"],
       "size": { "w": 11, "h": 9 },
       "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","WALL","WALL","WINDOW","WALL","WALL","WINDOW","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","DOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+        ["WALL","WALL","WALL","WALL","WALL","DOOR","DOOR","WALL","WALL","WALL","WALL"]
       ],
       "doors": [
-        { "x": 3, "y": 7, "orientation": "S", "type": "double", "role": "main" }
+        { "x": 5, "y": 8, "orientation": "S", "type": "double", "role": "main" }
       ],
       "props": [
         { "x": 2, "y": 2, "type": "counter", "vendor": "inn" },
-        { "x": 6, "y": 3, "type": "table" }
+        { "x": 7, "y": 3, "type": "table" }
       ],
       "upstairsOverlay": {
-        "offset": { "ox": 1, "oy": 1 },
+        "offset": { "x": 1, "y": 1 },
         "w": 9,
         "h": 7,
         "tiles": [
           ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+          ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
           ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+          ["WALL","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","WALL"],
           ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-          ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","WALL"],
-          ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-          ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+          ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
           ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
         ],
         "props": [
           { "x": 2, "y": 2, "type": "bed" },
           { "x": 6, "y": 2, "type": "bed" }
         ]
-      ],
-      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
-    },
-    {
-      "id": "inn_tavern_2",
-      "name": "Inn & Tavern B",
-      "category": "inn",
-      "tags": ["two_story","tavern"],
-      "size": { "w": 13, "h": 9 },
-      "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","DOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
-      ],
-      "doors": [
-        { "x": 3, "y": 7, "orientation": "S", "type": "double", "role": "main" }
-      ],
-      "props": [
-        { "x": 2, "y": 2, "type": "counter", "vendor": "inn" },
-        { "x": 8, "y": 3, "type": "table" }
-      ],
-      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
-    },
-    {
-      "id": "inn_tavern_3",
-      "name": "Inn & Tavern C",
-      "category": "inn",
-      "tags": ["two_story","tavern"],
-      "size": { "w": 10, "h": 8 },
-      "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","DOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
-      ],
-      "doors": [
-        { "x": 3, "y": 6, "orientation": "S", "type": "double", "role": "main" }
-      ],
-      "props": [
-        { "x": 2, "y": 2, "type": "counter", "vendor": "inn" },
-        { "x": 6, "y": 3, "type": "table" }
-      ],
+      },
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
     }
   ]
