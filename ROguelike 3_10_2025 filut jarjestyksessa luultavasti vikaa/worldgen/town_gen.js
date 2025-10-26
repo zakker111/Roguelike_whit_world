@@ -1070,15 +1070,9 @@ function generate(ctx) {
     // Decide whether to proceed with inn assignment
     let proceedInn = true;
     if (!usedPrefabInn) {
-      if (strictNow) {
-        // Strict prefabs: do not carve fallback Inn; report and skip assignment
-        try { if (ctx && typeof ctx.log === "function") ctx.log("Strict prefabs: failed to stamp Inn prefab near plaza. Skipping fallback Inn.", "error"); } catch (_) {}
-        proceedInn = false;
-      } else {
-        // Fallback: carve a hollow rectangle Inn
-        placeBuilding(innRect.x, innRect.y, innRect.w, innRect.h);
-        rectUsedInn = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
-      }
+      // Fallback: carve a hollow rectangle Inn to guarantee at least one inn exists in every town
+      placeBuilding(innRect.x, innRect.y, innRect.w, innRect.h);
+      rectUsedInn = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
     }
 
     if (!proceedInn) return;
@@ -1590,11 +1584,42 @@ function generate(ctx) {
     try { addShopSign(b, { x: door.x, y: door.y }, name); } catch (_) {}
   }
 
-  // Strict prefabs: report when no Inn prefab was placed; skip fallback creation
+  // Guarantee at least one Inn shop: if none was integrated from prefabs, create a fallback from the tavern building
   try {
-    const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (s.type === "inn") || (/inn/i.test(String(s.name || ""))));
-    if (!hasInn) {
-      try { if (ctx && typeof ctx.log === "function") ctx.log("Strict prefabs: no Inn prefab present; skipping fallback Inn assignment.", "error"); } catch (_) {}
+    const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (String(s.type || "").toLowerCase() === "inn") || (/inn/i.test(String(s.name || ""))));
+    if (!hasInn && ctx.tavern && ctx.tavern.building) {
+      const b = ctx.tavern.building;
+      let doorX = (ctx.tavern.door && typeof ctx.tavern.door.x === "number") ? ctx.tavern.door.x : null;
+      let doorY = (ctx.tavern.door && typeof ctx.tavern.door.y === "number") ? ctx.tavern.door.y : null;
+      if (doorX == null || doorY == null) {
+        const dd = ensureDoor(b);
+        doorX = dd.x; doorY = dd.y;
+      }
+      // Compute an inside tile near the door
+      const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
+      let inside = null;
+      for (let i = 0; i < inward.length; i++) {
+        const ix = doorX + inward[i].dx, iy = doorY + inward[i].dy;
+        const insideB = (ix > b.x && ix < b.x + b.w - 1 && iy > b.y && iy < b.y + b.h - 1);
+        if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { inside = { x: ix, y: iy }; break; }
+      }
+      if (!inside) {
+        const cx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2)));
+        const cy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2)));
+        inside = { x: cx, y: cy };
+      }
+      ctx.shops.push({
+        x: doorX,
+        y: doorY,
+        type: "inn",
+        name: "Inn",
+        openMin: 0,
+        closeMin: 0,
+        alwaysOpen: true,
+        building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
+        inside
+      });
+      try { addShopSign(b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
     }
   } catch (_) {}
 
