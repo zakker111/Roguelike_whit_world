@@ -10,16 +10,14 @@ const state = {
   category: "house",
   w: 7, h: 6,
   tiles: [], // 2D array of strings (tile or embedded prop codes)
-  doors: [], // [{x,y,orientation,type,role}]
   // brush
-  brush: "tile", // tile|prop|door|erase
+  brush: "tile", // tile|prop|erase
   tileSel: "FLOOR",
   propSel: "BED",
   // metadata
   id: "house_small_custom_1",
   name: "Custom Small House",
   tags: ["residential","single_story"],
-  constraints: { rotations: [0,90,180,270], mirror: true, mustFaceRoad: true, minSetback: 1 },
   // shop
   shop: { type: "blacksmith", schedule: { open: "08:00", close: "17:00", alwaysOpen: false }, signText: "Blacksmith" },
   // upstairs
@@ -29,7 +27,6 @@ const state = {
   jcdocs: { tiles: [], embeddedPropCodes: [] },
   // assets lookup (glyphs/colors) loaded from data/world/world_assets.json
   assets: { tiles: Object.create(null), props: Object.create(null) },
-  lastDoorPaintPos: null,
 };
 
 const els = {};
@@ -87,16 +84,6 @@ function bindEls() {
   els.prefabId = document.getElementById("prefab-id");
   els.prefabName = document.getElementById("prefab-name");
   els.prefabTags = document.getElementById("prefab-tags");
-  els.doorOrient = document.getElementById("door-orient");
-  els.doorType = document.getElementById("door-type");
-  els.doorRole = document.getElementById("door-role");
-  els.doorApplyBtn = document.getElementById("door-apply-btn");
-  els.doorsList = document.getElementById("doors-list");
-
-  els.rotChecks = Array.from(document.querySelectorAll("input.rot"));
-  els.mirror = document.getElementById("mirror");
-  els.mustFaceRoad = document.getElementById("must-face-road");
-  els.minSetback = document.getElementById("min-setback");
 
   els.shopFields = document.getElementById("shop-fields");
   els.shopType = document.getElementById("shop-type");
@@ -305,27 +292,7 @@ function bindUI() {
   els.prefabName.addEventListener("input", () => state.name = (els.prefabName.value || "").trim());
   els.prefabTags.addEventListener("input", () => state.tags = (els.prefabTags.value || "").split(",").map(s => s.trim()).filter(Boolean));
 
-  // Doors
-  els.doorApplyBtn.addEventListener("click", () => {
-    if (!state.lastDoorPaintPos) return;
-    const {x,y} = state.lastDoorPaintPos;
-    const d = getOrCreateDoorAt(x,y);
-    d.orientation = els.doorOrient.value;
-    d.type = els.doorType.value;
-    d.role = els.doorRole.value;
-    renderDoorList();
-    lint();
-  });
-
-  // Constraints
-  els.rotChecks.forEach(cb => cb.addEventListener("change", () => {
-    const rots = els.rotChecks.filter(c => c.checked).map(c => parseInt(c.value,10));
-    state.constraints.rotations = rots.length ? rots : [0];
-    lint();
-  }));
-  els.mirror.addEventListener("change", () => { state.constraints.mirror = !!els.mirror.checked; lint(); });
-  els.mustFaceRoad.addEventListener("change", () => { state.constraints.mustFaceRoad = !!els.mustFaceRoad.checked; });
-  els.minSetback.addEventListener("input", () => { state.constraints.minSetback = clampInt(els.minSetback.value, 0, 4); });
+  
 
   // Shop
   els.shopType.addEventListener("change", () => state.shop.type = els.shopType.value);
@@ -394,11 +361,6 @@ function syncMetadataFields() {
   els.upY.value = state.up.offset.y;
   els.upW.value = state.up.w;
   els.upH.value = state.up.h;
-  els.mirror.checked = !!state.constraints.mirror;
-  els.mustFaceRoad.checked = !!state.constraints.mustFaceRoad;
-  els.minSetback.value = state.constraints.minSetback;
-  els.rotChecks.forEach(cb => { cb.checked = state.constraints.rotations.includes(parseInt(cb.value,10)); });
-  renderDoorList();
 }
 
 function updateModeVisibility() {
@@ -414,37 +376,12 @@ function onGridMouse(e) {
   if (state.brush === "tile") {
     const sel = String(state.tileSel || "FLOOR").toUpperCase();
     state.tiles[y][x] = sel;
-    if (sel === "DOOR") {
-      // Automatically create/track a door entry for DOOR tiles
-      state.lastDoorPaintPos = { x, y };
-      const d = getOrCreateDoorAt(x, y);
-      if (!d.orientation) d.orientation = "S";
-      if (!d.type) d.type = "single";
-      if (!d.role) d.role = "main";
-    } else {
-      // If overwriting a door tile, remove door metadata
-      const idx = state.doors.findIndex(d => d.x === x && d.y === y);
-      if (idx >= 0) state.doors.splice(idx, 1);
-    }
   } else if (state.brush === "prop") {
     state.tiles[y][x] = String(state.propSel || "TABLE").toUpperCase();
-  } else if (state.brush === "door") {
-    // Legacy path (kept for safety): painting door explicitly
-    state.tiles[y][x] = "DOOR";
-    state.lastDoorPaintPos = {x,y};
-    const d = getOrCreateDoorAt(x,y);
-    // Default values if not set
-    if (!d.orientation) d.orientation = "S";
-    if (!d.type) d.type = "single";
-    if (!d.role) d.role = "main";
   } else if (state.brush === "erase") {
     state.tiles[y][x] = "FLOOR";
-    // Remove door entry if any
-    const idx = state.doors.findIndex(d => d.x === x && d.y === y);
-    if (idx >= 0) state.doors.splice(idx,1);
   }
   drawGrid();
-  renderDoorList();
   lint();
 }
 
@@ -520,9 +457,6 @@ function drawGrid() {
     for (let x=0; x<state.w; x++) {
       const code = state.tiles[y][x];
       drawCell(ctx, x, y, code);
-      // Door pin overlay
-      const d = state.doors.find(d => d.x === x && d.y === y);
-      if (d) drawDoorPin(ctx, x, y);
     }
   }
   // Grid lines
@@ -593,24 +527,8 @@ function drawCell(ctx, x, y, code) {
   }
 }
 
-function drawDoorPin(ctx, x, y) {
-  ctx.fillStyle = "#fca5a5";
-  ctx.beginPath();
-  ctx.arc(1 + x*CELL + CELL-8, 1 + y*CELL + 8, 3, 0, Math.PI*2);
-  ctx.fill();
-}
-
-function getOrCreateDoorAt(x,y) {
-  let d = state.doors.find(d => d.x === x && d.y === y);
-  if (!d) { d = { x, y, orientation:"S", type:"single", role:"main" }; state.doors.push(d); }
-  return d;
-}
-
-function renderDoorList() {
-  els.doorsList.innerHTML = state.doors.map(d => {
-    return `<div>(${d.x},${d.y}) • ${d.orientation} • ${d.type} • ${d.role}</div>`;
-  }).join("");
-}
+// Door metadata controls removed; DOOR tiles are embedded directly in the grid.
+// Placement/runtime can infer door semantics from the grid if needed.
 
 function buildPrefabObject() {
   const obj = {
@@ -620,12 +538,12 @@ function buildPrefabObject() {
     tags: state.tags.slice(),
     size: { w: state.w, h: state.h },
     tiles: state.tiles.map(row => row.slice()),
-    doors: state.doors.map(d => ({ x:d.x, y:d.y, orientation:d.orientation, type:d.type, role:d.role })),
+    // Default, simplified constraints (editor UI removed)
     constraints: {
-      rotations: state.constraints.rotations.slice(),
-      mirror: !!state.constraints.mirror,
-      mustFaceRoad: !!state.constraints.mustFaceRoad,
-      minSetback: clampInt(state.constraints.minSetback, 0, 8),
+      rotations: [0, 90, 180, 270],
+      mirror: true,
+      mustFaceRoad: true,
+      minSetback: 1,
     }
   };
   if (state.category === "shop") {
@@ -653,11 +571,14 @@ function lint() {
     const perOk = perimeterWallsClosed(state.tiles);
     if (!perOk) msgs.push("Hint: perimeter walls are not fully closed.");
   }
-  // At least one door
-  if (!state.doors.length) msgs.push("Hint: add at least one door and mark role=main.");
-  // Doors near perimeter?
-  const badDoors = state.doors.filter(({x,y}) => !(x === 0 || y === 0 || x === state.w-1 || y === state.h-1));
-  if (badDoors.length) msgs.push("Hint: doors are typically placed on perimeter tiles.");
+  // At least one DOOR on perimeter recommended
+  const doors = coordsWithCode(state.tiles, "DOOR");
+  if (doors.length === 0) {
+    msgs.push("Hint: add at least one DOOR on the perimeter.");
+  } else {
+    const perDoor = doors.some(({x,y}) => (x === 0 || y === 0 || x === state.w-1 || y === state.h-1));
+    if (!perDoor) msgs.push("Hint: place at least one DOOR on the perimeter.");
+  }
   // Upstairs STAIRS alignment hint
   if (state.category === "inn" && state.upstairsEnabled) {
     const stairsDown = coordsWithCode(state.tiles, "STAIRS");
