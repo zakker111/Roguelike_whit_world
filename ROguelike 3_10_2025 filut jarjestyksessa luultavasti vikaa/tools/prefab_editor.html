@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Prefab Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base href="/" />
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' data: blob:;
+    img-src 'self' data: https://fav.farm;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src https://fonts.gstatic.com;
+    script-src 'self' 'unsafe-inline';
+    connect-src 'self';
+  ">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/ui/style.css">
+  <link rel="icon" href="https://fav.farm/%F0%9F%8E%B2">
+  <style>
+    /* Scoped additions for editor layout */
+    .editor-wrap { display:grid; grid-template-columns: 240px 1fr 280px; gap:10px; padding:10px; }
+    .panel { background: rgba(20,24,33,0.98); border:1px solid rgba(80,90,120,0.6); border-radius:8px; padding:8px; }
+    .title { font-weight:600; font-size:16px; margin-bottom:8px; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .grid-canvas { background:#0b0c10; border:1px solid rgba(80,90,120,0.5); border-radius:6px; display:block; }
+    .palette { display:grid; grid-template-columns: repeat(2, minmax(100px, 1fr)); gap:6px; }
+    .chip { padding:6px 8px; border:1px solid #334155; border-radius:6px; background:#0f0f12; color:#e5e7eb; cursor:pointer; font-size:12px; }
+    .chip.active { background:#1f2937; }
+    .field { display:flex; flex-direction:column; gap:4px; margin:6px 0; }
+    .field input, .field select { padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px; }
+    .btnbar { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .help { font-size:12px; color:#8a98b0; }
+    .small { font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="ui">
+    <div class="title">Prefab Editor</div>
+    <div class="stats">
+      <button id="back-btn" class="btn small" title="Return to game">Back</button>
+      <span id="status" class="help" style="margin-left:8px;"></span>
+    </div>
+  </div>
+
+  <div class="editor-wrap">
+    <!-- Left: Mode + palettes -->
+    <div class="panel">
+      <div class="title">Mode</div>
+      <div class="row">
+        <label class="help small">Category:</label>
+        <select id="category">
+          <option value="house">House</option>
+          <option value="shop">Shop</option>
+          <option value="inn">Inn</option>
+        </select>
+      </div>
+      <div class="row">
+        <label class="help small">Grid size:</label>
+        <input id="grid-w" type="number" min="3" max="32" step="1" value="7" style="width:70px;" />
+        <input id="grid-h" type="number" min="3" max="32" step="1" value="6" style="width:70px;" />
+        <button id="resize-btn" class="btn small">Resize</button>
+      </div>
+      <div class="row">
+        <label class="help small">Brush:</label>
+        <select id="brush">
+          <option value="tile">Tile</option>
+          <option value="prop">Prop</option>
+          <option value="door">Door</option>
+          <option value="erase">Erase</option>
+        </select>
+      </div>
+      <div class="title" style="margin-top:8px;">Tiles</div>
+      <div id="tile-palette" class="palette"></div>
+      <div class="title" style="margin-top:8px;">Props</div>
+      <div id="prop-palette" class="palette"></div>
+      <div class="row" style="margin-top:8px;">
+        <button id="fill-floor-btn" class="btn small">Fill FLOOR</button>
+        <button id="perimeter-walls-btn" class="btn small" title="Set perimeter to WALLs">Perimeter WALLs</button>
+      </div>
+    </div>
+
+    <!-- Center: Canvas -->
+    <div class="panel">
+      <div class="title">Canvas</div>
+      <canvas id="grid" class="grid-canvas" width="640" height="480"></canvas>
+      <div class="row">
+        <label class="help small">Preview:</label>
+        <button id="preview-rot-0" class="btn small">0°</button>
+        <button id="preview-rot-90" class="btn small">90°</button>
+        <button id="preview-rot-180" class="btn small">180°</button>
+        <button id="preview-rot-270" class="btn small">270°</button>
+        <button id="preview-mirror" class="btn small">Mirror</button>
+      </div>
+    </div>
+
+    <!-- Right: Metadata + export -->
+    <div class="panel">
+      <div class="title">Metadata</div>
+      <div class="field">
+        <label class="help small">ID</label>
+        <input id="prefab-id" type="text" placeholder="house_small_custom_1" />
+      </div>
+      <div class="field">
+        <label class="help small">Name</label>
+        <input id="prefab-name" type="text" placeholder="Custom House" />
+      </div>
+      <div class="field">
+        <label class="help small">Tags (comma-separated)</label>
+        <input id="prefab-tags" type="text" placeholder="residential,single_story" />
+      </div>
+
+      <div class="title" style="margin-top:8px;">Doors</div>
+      <div class="row help small">Use Door brush, then set orientation/type/role for the last tile.</div>
+      <div class="row">
+        <select id="door-orient">
+          <option value="N">N</option><option value="S">S</option><option value="E">E</option><option value="W">W</option>
+        </select>
+        <select id="door-type">
+          <option value="single">single</option><option value="double">double</option>
+        </select>
+        <select id="door-role">
+          <option value="main">main</option><option value="side">side</option><option value="service">service</option>
+        </select>
+        <button id="door-apply-btn" class="btn small">Apply to last door</button>
+      </div>
+      <div id="doors-list" class="help small" style="margin-top:6px;"></div>
+
+      <div class="title" style="margin-top:8px;">Constraints</div>
+      <div class="row">
+        <label class="help small">Rotations:</label>
+        <label class="help small"><input type="checkbox" class="rot" value="0" checked />0</label>
+        <label class="help small"><input type="checkbox" class="rot" value="90" checked />90</label>
+        <label class="help small"><input type="checkbox" class="rot" value="180" checked />180</label>
+        <label class="help small"><input type="checkbox" class="rot" value="270" checked />270</label>
+      </div>
+      <div class="row">
+        <label class="help small"><input id="mirror" type="checkbox" checked />Mirror</label>
+        <label class="help small"><input id="must-face-road" type="checkbox" checked />Must face road</label>
+        <label class="help small">Min setback: <input id="min-setback" type="number" min="0" max="4" step="1" value="1" style="width:60px;" /></label>
+      </div>
+
+      <div id="shop-fields" style="display:none;">
+        <div class="title" style="margin-top:8px;">Shop</div>
+        <div class="field">
+          <label class="help small">Type</label>
+          <select id="shop-type">
+            <option value="blacksmith">blacksmith</option>
+            <option value="apothecary">apothecary</option>
+            <option value="trader">trader</option>
+          </select>
+        </div>
+        <div class="row">
+          <label class="help small">Open:</label>
+          <input id="shop-open" type="time" value="08:00" />
+          <label class="help small">Close:</label>
+          <input id="shop-close" type="time" value="17:00" />
+          <label class="help small"><input id="shop-always" type="checkbox" />Always open</label>
+        </div>
+        <div class="field">
+          <label class="help small">Sign text</label>
+          <input id="shop-sign" type="text" placeholder="Blacksmith" />
+        </div>
+      </div>
+
+      <div id="inn-fields" style="display:none;">
+        <div class="title" style="margin-top:8px;">Upstairs Overlay</div>
+        <div class="row">
+          <label class="help small"><input id="upstairs-enabled" type="checkbox" />Enable</label>
+        </div>
+        <div class="row">
+          <label class="help small">Offset:</label>
+          <input id="up-x" type="number" min="0" max="30" value="1" style="width:60px;" />
+          <input id="up-y" type="number" min="0" max="30" value="1" style="width:60px;" />
+        </div>
+        <div class="row">
+          <label class="help small">Size:</label>
+          <input id="up-w" type="number" min="3" max="32" value="9" style="width:60px;" />
+          <input id="up-h" type="number" min="3" max="32" value="7" style="width:60px;" />
+          <button id="up-resize-btn" class="btn small">Resize</button>
+        </div>
+        <canvas id="up-grid" class="grid-canvas" width="320" height="240" style="margin-top:6px;"></canvas>
+      </div>
+
+      <div class="btnbar">
+        <button id="copy-json-btn" class="btn">Copy JSON</button>
+        <button id="download-json-btn" class="btn">Download JSON</button>
+      </div>
+
+      <div id="lint" class="help" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/tools/prefab_editor.js"></script>
+</body>
+</html>
