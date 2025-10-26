@@ -555,10 +555,67 @@ function generate(ctx) {
         }
       }
     } catch (_) {}
-    const rect = { x: x0, y: y0, w, h };
-    buildings.push(rect);
+    const rect = { x: x0, y: y0, w, h, prefabId: (prefab && prefab.id) ? String(prefab.id) : null, prefabCategory: String(prefab.category || "").toLowerCase() || null };
+      buildings.push(rect);
 
-    // If prefab declares it is a shop, collect for later schedule/sign assignment
+      // Inn: consume upstairsOverlay and record ground stairs if present in prefab tiles
+      try {
+        if (String(prefab.category || "").toLowerCase() === "inn") {
+          // Record ground stairs inside inn building from prefab tiles
+          const stairs = [];
+          for (let yy = y0; yy <= y1; yy++) {
+            for (let xx = x0; xx <= x1; xx++) {
+              if (inBounds(ctx, xx, yy) && ctx.map[yy][xx] === ctx.TILES.STAIRS) stairs.push({ x: xx, y: yy });
+            }
+          }
+          if (stairs.length) {
+            let pair = null;
+            for (let i = 0; i < stairs.length && !pair; i++) {
+              for (let j = i + 1; j < stairs.length && !pair; j++) {
+                const a = stairs[i], b = stairs[j];
+                if (Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1) pair = [a, b];
+              }
+            }
+            ctx.innStairsGround = pair || stairs.slice(0, 2);
+          }
+          // Upstairs overlay from prefab (if present)
+          const ov = prefab.upstairsOverlay;
+          if (ov && Array.isArray(ov.tiles)) {
+            const offX = (ov.offset && (ov.offset.x != null ? ov.offset.x : ov.offset.ox)) | 0;
+            const offY = (ov.offset && (ov.offset.y != null ? ov.offset.y : ov.offset.oy)) | 0;
+            const wUp = (ov.w | 0) || (ov.tiles[0] ? ov.tiles[0].length : 0);
+            const hUp = (ov.h | 0) || ov.tiles.length;
+            const tilesUp = Array.from({ length: hUp }, () => Array(wUp).fill(ctx.TILES.FLOOR));
+            for (let yy = 0; yy < hUp; yy++) {
+              const row = ov.tiles[yy];
+              if (!row) continue;
+              for (let xx = 0; xx < Math.min(wUp, row.length); xx++) {
+                const code = row[xx];
+                let t = ctx.TILES.FLOOR;
+                if (code === "WALL") t = ctx.TILES.WALL;
+                else if (code === "FLOOR") t = ctx.TILES.FLOOR;
+                else if (code === "DOOR") t = ctx.TILES.DOOR;
+                else if (code === "WINDOW") t = ctx.TILES.WINDOW;
+                else if (code === "STAIRS") t = ctx.TILES.STAIRS;
+                tilesUp[yy][xx] = t;
+              }
+            }
+            const propsUp = [];
+            try {
+              if (Array.isArray(ov.props)) {
+                for (const p of ov.props) {
+                  const px = (p.x | 0), py = (p.y | 0);
+                  propsUp.push({ x: (x0 + offX) + px, y: (y0 + offY) + py, type: p.type || "prop", name: p.name || undefined });
+                }
+              }
+            } catch (_) {}
+            ctx.innUpstairs = { offset: { x: x0 + offX, y: y0 + offY }, w: wUp, h: hUp, tiles: tilesUp, props: propsUp };
+            ctx.innUpstairsActive = false;
+          }
+        }
+      } catch (_) {}
+
+      // If prefab declares it is a shop, collect for later schedule/sign assignment
     try {
       if (String(prefab.category || "").toLowerCase() === "shop" || (prefab.shop && prefab.shop.type)) {
         const shopType = (prefab.shop && prefab.shop.type) ? String(prefab.shop.type) : (prefab.tags && prefab.tags.find(t => t !== "shop")) || "shop";
@@ -960,7 +1017,7 @@ function generate(ctx) {
       // If none available (shouldn't happen), push a new building record
       buildings.push({ x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h });
     } else {
-      buildings[targetIdx] = { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h };
+      buildings[targetIdx] = { ...buildings[targetIdx], x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h };
     }
 
     // Record the tavern (Inn) building and its preferred door (closest to plaza)
@@ -977,7 +1034,15 @@ function generate(ctx) {
         const dd = ensureDoor(baseRect);
         bestDoor = { x: dd.x, y: dd.y };
       }
-      ctx.tavern = { building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
+      try {
+        const bRec = buildings.find(b => b.x === baseRect.x && b.y === baseRect.y && b.w === baseRect.w && b.h === baseRect.h) || null;
+        ctx.tavern = {
+          building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h, prefabId: bRec?.prefabId, prefabCategory: bRec?.prefabCategory },
+          door: { x: bestDoor.x, y: bestDoor.y }
+        };
+      } catch (_) {
+        ctx.tavern = { building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
+      }
     } catch (_) {}
   })();
 
@@ -1600,8 +1665,8 @@ function generate(ctx) {
       return false;
     }
     for (const b of buildings) {
-      const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-      const isTavernBld = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
+      // Skip window auto-placement for prefab-stamped buildings; rely on prefab WINDOW tiles
+      if (Bld = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
       let candidates = [];
       const sides = sidePoints(b);
       for (const pts of sides) {
@@ -1675,527 +1740,6 @@ function generate(ctx) {
         }
       }
     } catch (_) {}
-  })();
-
-  // Benches and market decor around the plaza
-  (function placePlazaDecor() {
-    // Place benches along the inner perimeter of the plaza, spaced out
-    const bx0 = ((plaza.x - (plazaW / 2)) | 0) + 1;
-    const bx1 = ((plaza.x + (plazaW / 2)) | 0) - 1;
-    const by0 = ((plaza.y - (plazaH / 2)) | 0) + 1;
-    const by1 = ((plaza.y + (plazaH / 2)) | 0) - 1;
-
-    const benchSpots = [];
-    // top and bottom edges
-    for (let x = bx0; x <= bx1; x += 3) {
-      benchSpots.push({ x, y: by0 });
-      benchSpots.push({ x, y: by1 });
-    }
-    // left and right edges
-    for (let y = by0 + 2; y <= by1 - 2; y += 3) {
-      benchSpots.push({ x: bx0, y });
-      benchSpots.push({ x: bx1, y });
-    }
-    // Try to place up to a limit to avoid clutter
-    let placed = 0;
-    const benchLimitCfg = ((TOWNCFG && TOWNCFG.props && TOWNCFG.props.benchLimit && TOWNCFG.props.benchLimit[townSize]) | 0);
-    const computedLimit = Math.min(12, Math.max(6, Math.floor((plazaW + plazaH) / 3)));
-    let limit = benchLimitCfg > 0 ? benchLimitCfg : computedLimit;
-    // reduce bench density if tavern building is adjacent to plaza
-    (function reduceBenchNearInn() {
-      try {
-        const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-        if (!tav) return;
-        const px0 = ((plaza.x - (plazaW / 2)) | 0), px1 = ((plaza.x + (plazaW / 2)) | 0);
-        const py0 = ((plaza.y - (plazaH / 2)) | 0), py1 = ((plaza.y + (plazaH / 2)) | 0);
-        const bx0 = tav.x, bx1 = tav.x + tav.w - 1;
-        const by0 = tav.y, by1 = tav.y + tav.h - 1;
-        const margin = 2;
-        const adj = !((bx1 < px0 - margin) || (px1 + margin < bx0) || (by1 < py0 - margin) || (py1 + margin < by0));
-        if (adj) limit = Math.max(4, Math.floor(limit * 0.7));
-      } catch (_) {}
-    })();
-    for (const p of benchSpots) {
-      if (placed >= limit) break;
-      // Only place on clear floor and keep a tile free next to the bench
-      if (p.x <= 0 || p.y <= 0 || p.x >= W - 1 || p.y >= H - 1) continue;
-      if (ctx.map[p.y][p.x] !== ctx.TILES.FLOOR) continue;
-      if (ctx.townProps.some(q => q.x === p.x && q.y === p.y)) continue;
-      if ((p.x === ctx.player.x && p.y === ctx.player.y)) continue;
-      if (addProp(p.x, p.y, "bench", "Bench")) placed++;
-    }
-
-    // Single market stall near the plaza (not blocking the center)
-    const stallOffsets = [
-      { dx: -((plazaW / 2) | 0) + 2, dy: 0 },
-      { dx: ((plazaW / 2) | 0) - 2, dy: 0 },
-      { dx: 0, dy: -((plazaH / 2) | 0) + 2 },
-      { dx: 0, dy: ((plazaH / 2) | 0) - 2 },
-    ];
-    const pickIdx = Math.floor(rng() * stallOffsets.length) % stallOffsets.length;
-    const o = stallOffsets[pickIdx];
-    const sx = Math.max(1, Math.min(W - 2, plaza.x + o.dx));
-    const sy = Math.max(1, Math.min(H - 2, plaza.y + o.dy));
-    if (ctx.map[sy][sx] === ctx.TILES.FLOOR) {
-      addProp(sx, sy, "stall", "Market Stall");
-      // scatter a crate/barrel next to the stall if space allows
-      const neighbors = [
-        { x: sx + 1, y: sy }, { x: sx - 1, y: sy },
-        { x: sx, y: sy + 1 }, { x: sx, y: sy - 1 },
-      ];
-      for (const n of neighbors) {
-        if (n.x <= 0 || n.y <= 0 || n.x >= W - 1 || n.y >= H - 1) continue;
-        if (ctx.map[n.y][n.x] !== ctx.TILES.FLOOR) continue;
-        if (ctx.townProps.some(p => p.x === n.x && p.y === n.y)) continue;
-        const kind = ctx.rng() < 0.5 ? "crate" : "barrel";
-        addProp(n.x, n.y, kind, kind === "crate" ? "Crate" : "Barrel");
-        break;
-      }
-    }
-
-    // Quest Board is placed inside the Inn during interior furnishing; no plaza placement here.
-
-    // A few plants to soften the plaza
-    const plantFactor = ((TOWNCFG && TOWNCFG.props && (TOWNCFG.props.plantTryFactor | 0)) || 10);
-    const plantTry = Math.min(8, Math.max(3, Math.floor((plazaW + plazaH) / Math.max(2, plantFactor))));
-    let tries = 0, planted = 0;
-    while (planted < plantTry && tries++ < 80) {
-      const rx = Math.max(1, Math.min(W - 2, plaza.x + (Math.floor(ctx.rng() * plazaW) - (plazaW / 2 | 0))));
-      const ry = Math.max(1, Math.min(H - 2, plaza.y + (Math.floor(ctx.rng() * plazaH) - (plazaH / 2 | 0))));
-      if (ctx.map[ry][rx] !== ctx.TILES.FLOOR) continue;
-      if (ctx.townProps.some(p => p.x === rx && p.y === ry)) continue;
-      if (addProp(rx, ry, "plant", "Plant")) planted++;
-    }
-  })();
-
-  // Furnish building interiors for variety (beds, tables, chairs, fireplace, storage, shelves, plants, rugs)
-  (function furnishInteriors() {
-    function insideFloor(b, x, y) { return x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1 && ctx.map[y][x] === ctx.TILES.FLOOR; }
-    function occupiedTile(x, y) { return ctx.townProps.some(p => p.x === x && p.y === y); }
-    function rectInside(b) {
-      return { x0: b.x + 1, y0: b.y + 1, x1: b.x + b.w - 2, y1: b.y + b.h - 2 };
-    }
-    function clampToRect(x, y, r) {
-      return { x: Math.max(r.x0, Math.min(r.x1, x)), y: Math.max(r.y0, Math.min(r.y1, y)) };
-    }
-    function doorFacing(b, door) {
-      if (!door) return "south";
-      if (door.y === b.y) return "north";
-      if (door.y === b.y + b.h - 1) return "south";
-      if (door.x === b.x) return "west";
-      if (door.x === b.x + b.w - 1) return "east";
-      return "south";
-    }
-    function placeChairNear(x, y, limit = 4, rect = null) {
-      const spots = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-      let placed = 0;
-      for (const d of spots) {
-        if (placed >= limit) break;
-        const nx = x + d.dx, ny = y + d.dy;
-        if (rect && (nx < rect.x0 || nx > rect.x1 || ny < rect.y0 || ny > rect.y1)) continue;
-        if (insideBounds(nx, ny) && ctx.map[ny][nx] === ctx.TILES.FLOOR && !occupiedTile(nx, ny)) {
-          addProp(nx, ny, "chair", "Chair");
-          placed++;
-        }
-      }
-    }
-    function insideBounds(x, y) {
-      const H = ctx.map.length, W = ctx.map[0] ? ctx.map[0].length : 0;
-      return x > 0 && y > 0 && x < W - 1 && y < H - 1;
-    }
-
-    function furnishInn(ctx, b) {
-      const door = (ctx.tavern && ctx.tavern.door) ? ctx.tavern.door : null;
-      const facing = doorFacing(b, door);
-      const r = rectInside(b);
-      const w = (r.x1 - r.x0 + 1), h = (r.y1 - r.y0 + 1);
-
-      // Partition front hall vs sleeping quarters
-      const frontRatio = 0.62;
-      let hallRect, sleepRect, corridorLine = null;
-
-      if (facing === "north") {
-        const hallH = Math.max(3, Math.floor(h * frontRatio));
-        hallRect = { x0: r.x0, y0: r.y0, x1: r.x1, y1: r.y0 + hallH - 1 };
-        sleepRect = { x0: r.x0, y0: hallRect.y1 + 1, x1: r.x1, y1: r.y1 };
-        corridorLine = { axis: "y", x: Math.floor((r.x0 + r.x1) / 2) };
-      } else if (facing === "south") {
-        const hallH = Math.max(3, Math.floor(h * frontRatio));
-        hallRect = { x0: r.x0, y0: r.y1 - hallH + 1, x1: r.x1, y1: r.y1 };
-        sleepRect = { x0: r.x0, y0: r.y0, x1: r.x1, y1: hallRect.y0 - 1 };
-        corridorLine = { axis: "y", x: Math.floor((r.x0 + r.x1) / 2) };
-      } else if (facing === "west") {
-        const hallW = Math.max(4, Math.floor(w * frontRatio));
-        hallRect = { x0: r.x0, y0: r.y0, x1: r.x0 + hallW - 1, y1: r.y1 };
-        sleepRect = { x0: hallRect.x1 + 1, y0: r.y0, x1: r.x1, y1: r.y1 };
-        corridorLine = { axis: "x", y: Math.floor((r.y0 + r.y1) / 2) };
-      } else {
-        const hallW = Math.max(4, Math.floor(w * frontRatio));
-        hallRect = { x0: r.x1 - hallW + 1, y0: r.y0, x1: r.x1, y1: r.y1 };
-        sleepRect = { x0: r.x0, y0: r.y0, x1: hallRect.x0 - 1, y1: r.y1 };
-        corridorLine = { axis: "x", y: Math.floor((r.y0 + r.y1) / 2) };
-      }
-
-      function inRect(rect, x, y) {
-        return x >= rect.x0 && x <= rect.x1 && y >= rect.y0 && y <= rect.y1 && insideFloor(b, x, y) && !occupiedTile(x, y);
-      }
-
-      // Keep a simple corridor clear along center line
-      function isCorridor(x, y) {
-        if (!corridorLine) return false;
-        if (corridorLine.axis === "y") {
-          return Math.abs(x - corridorLine.x) <= 0;
-        } else {
-          return Math.abs(y - corridorLine.y) <= 0;
-        }
-      }
-
-      // Fireplace in hall, away from the door
-      (function placeFireplace() {
-        let best = null, bestD = -1;
-        for (let yy = hallRect.y0; yy <= hallRect.y1; yy++) {
-          for (let xx = hallRect.x0; xx <= hallRect.x1; xx++) {
-            if (!insideFloor(b, xx, yy)) continue;
-            const nearWall = (ctx.map[yy - 1][xx] === ctx.TILES.WALL || ctx.map[yy + 1][xx] === ctx.TILES.WALL || ctx.map[yy][xx - 1] === ctx.TILES.WALL || ctx.map[yy][xx + 1] === ctx.TILES.WALL);
-            if (!nearWall) continue;
-            if (occupiedTile(xx, yy)) continue;
-            const d = door ? Math.abs(xx - door.x) + Math.abs(yy - door.y) : 0;
-            if (d > bestD) { bestD = d; best = { x: xx, y: yy }; }
-          }
-        }
-        if (best) addProp(best.x, best.y, "fireplace", "Fireplace");
-      })();
-
-      // Quest board near inner wall in hall, close to door
-      (function placeQuestBoard() {
-        const hasQB = ctx.townProps.some(p => p && p.type === "quest_board" && p.x > b.x && p.x < b.x + b.w - 1 && p.y > b.y && p.y < b.y + b.h - 1);
-        if (hasQB) return;
-        let best = null, bestD = Infinity;
-        for (let yy = hallRect.y0; yy <= hallRect.y1; yy++) {
-          for (let xx = hallRect.x0; xx <= hallRect.x1; xx++) {
-            if (!insideFloor(b, xx, yy)) continue;
-            const nearWall = (ctx.map[yy - 1][xx] === ctx.TILES.WALL || ctx.map[yy + 1][xx] === ctx.TILES.WALL || ctx.map[yy][xx - 1] === ctx.TILES.WALL || ctx.map[yy][xx + 1] === ctx.TILES.WALL);
-            if (!nearWall) continue;
-            if (occupiedTile(xx, yy)) continue;
-            const d = door ? Math.abs(xx - door.x) + Math.abs(yy - door.y) : 0;
-            if (d < bestD) { bestD = d; best = { x: xx, y: yy }; }
-          }
-        }
-        if (best) addProp(best.x, best.y, "quest_board", "Quest Board");
-      })();
-
-      // Bar counter along a hall wall; shelves behind
-      (function placeBarAndShelves() {
-        let wallX = null, wallY = null, horizontal = true;
-        if (facing === "north" || facing === "south") { wallX = hallRect.x0; horizontal = false; }
-        else { wallY = hallRect.y0; horizontal = true; }
-        const count = Math.max(3, Math.min(6, Math.floor((hallRect.x1 - hallRect.x0 + hallRect.y1 - hallRect.y0) / 6)));
-        let placed = 0;
-        if (horizontal) {
-          for (let xx = hallRect.x0; xx <= hallRect.x1 && placed < count; xx += 2) {
-            const yy = wallY + 1;
-            if (inRect(hallRect, xx, yy) && !isCorridor(xx, yy)) { addProp(xx, yy, "table", "Table"); placed++; }
-            // shelves behind counter against wall
-            const sy = wallY;
-            if (insideBounds(xx, sy) && ctx.map[sy][xx] === ctx.TILES.WALL) {
-              const spot = { x: xx, y: yy - 1 };
-              if (insideFloor(b, spot.x, spot.y) && !occupiedTile(spot.x, spot.y)) addProp(spot.x, spot.y, "shelf", "Shelf");
-            }
-          }
-        } else {
-          for (let yy = hallRect.y0; yy <= hallRect.y1 && placed < count; yy += 2) {
-            const xx = wallX + 1;
-            if (inRect(hallRect, xx, yy) && !isCorridor(xx, yy)) { addProp(xx, yy, "table", "Table"); placed++; }
-            // shelves behind counter against wall
-            const sx = wallX;
-            if (insideBounds(sx, yy) && ctx.map[yy][sx] === ctx.TILES.WALL) {
-              const spot = { x: xx - 1, y: yy };
-              if (insideFloor(b, spot.x, spot.y) && !occupiedTile(spot.x, spot.y)) addProp(spot.x, spot.y, "shelf", "Shelf");
-            }
-          }
-        }
-      })();
-
-      // Tables grid in hall; chairs around tables; some rugs
-      (function placeTablesGrid() {
-        const stepX = 3, stepY = 3;
-        let countT = 0;
-        for (let yy = hallRect.y0 + 1; yy <= hallRect.y1 - 1; yy += stepY) {
-          for (let xx = hallRect.x0 + 1; xx <= hallRect.x1 - 1; xx += stepX) {
-            if (!inRect(hallRect, xx, yy)) continue;
-            if (isCorridor(xx, yy)) continue;
-            if (occupiedTile(xx, yy)) continue;
-            addProp(xx, yy, "table", "Table");
-            countT++;
-            placeChairNear(xx, yy, 4, hallRect);
-            // occasional rug near table
-            const rx = xx, ry = yy + 1;
-            if (inRect(hallRect, rx, ry) && !occupiedTile(rx, ry) && ctx.rng() < 0.4) addProp(rx, ry, "rug", "Rug");
-          }
-        }
-        // ensure minimum seating
-        if (countT < 2) {
-          const cx = Math.floor((hallRect.x0 + hallRect.x1) / 2);
-          const cy = Math.floor((hallRect.y0 + hallRect.y1) / 2);
-          if (inRect(hallRect, cx, cy) && !isCorridor(cx, cy)) {
-            addProp(cx, cy, "table", "Table");
-            placeChairNear(cx, cy, 4, hallRect);
-          }
-        }
-      })();
-
-      // Two-lane stairs portal near the center of the hall; generate upstairs overlay (rooms)
-      (function placeStairsPortalAndUpstairs() {
-        // Find a clear 2-tile horizontal portal near the hall center
-        const cx = Math.floor((hallRect.x0 + hallRect.x1) / 2);
-        const cy = Math.floor((hallRect.y0 + hallRect.y1) / 2);
-        let sx = cx, sy = cy;
-        // Nudge off corridor center if needed
-        if (isCorridor(sx, sy)) {
-          if (sx + 1 <= hallRect.x1 && !isCorridor(sx + 1, sy)) sx = sx + 1;
-          else if (sx - 1 >= hallRect.x0 && !isCorridor(sx - 1, sy)) sx = sx - 1;
-        }
-        const s1 = { x: sx, y: sy };
-        const s2 = { x: Math.min(hallRect.x1, sx + 1), y: sy };
-        function canPlaceStairs(p) {
-          // Allow placing stairs even if a prop currently occupies the tile; we'll clear props after placement.
-          // Do NOT use inRect (it rejects occupied tiles). Check bounds + floor only.
-          const insideHall = (p.x >= hallRect.x0 && p.x <= hallRect.x1 && p.y >= hallRect.y0 && p.y <= hallRect.y1);
-          return insideHall && insideFloor(b, p.x, p.y);
-        }
-        let ok1 = canPlaceStairs(s1), ok2 = canPlaceStairs(s2);
-        if (!ok1 || !ok2) {
-          // Try vertical pair
-          const v1 = { x: cx, y: cy };
-          const v2 = { x: cx, y: Math.min(hallRect.y1, cy + 1) };
-          if (canPlaceStairs(v1) && canPlaceStairs(v2)) {
-            // Use vertical pair directly
-            s1.x = v1.x; s1.y = v1.y;
-            s2.x = v2.x; s2.y = v2.y;
-            ok1 = ok2 = true;
-          } else {
-            // Fallback: search a small neighborhood
-            let placed = 0;
-            for (let dy = -2; dy <= 2 && placed < 2; dy++) {
-              for (let dx = -2; dx <= 2 && placed < 2; dx++) {
-                const nx = cx + dx, ny = cy + dy;
-                const p = { x: nx, y: ny };
-                if (canPlaceStairs(p)) {
-                  if (placed === 0) { s1.x = nx; s1.y = ny; placed = 1; }
-                  else if (Math.abs(nx - s1.x) + Math.abs(ny - s1.y) === 1) { // adjacent
-                    const p2 = { x: nx, y: ny };
-                    if (canPlaceStairs(p2)) { s2.x = nx; s2.y = ny; ok1 = ok2 = true; placed = 2; }
-                  }
-                }
-              }
-            }
-          }
-        }
-        if (ok1 && ok2) {
-          ctx.map[s1.y][s1.x] = ctx.TILES.STAIRS;
-          ctx.map[s2.y][s2.x] = ctx.TILES.STAIRS;
-          // Clear any props that may have been placed on these tiles earlier
-          try {
-            if (Array.isArray(ctx.townProps)) {
-              ctx.townProps = ctx.townProps.filter(p => !((p.x === s1.x && p.y === s1.y) || (p.x === s2.x && p.y === s2.y)));
-            }
-          } catch (_) {}
-          try { ctx.innStairsGround = [{ x: s1.x, y: s1.y }, { x: s2.x, y: s2.y }]; } catch (_) {}
-        }
-        // Generate upstairs overlay with small varied rooms (pre-rendered at town gen)
-        function generateInnUpstairs(ctx, bld, hall) {
-          // Upstairs layout: interior perimeter walls with an open sleeping area; no doors upstairs.
-          const rUp = { x: bld.x + 1, y: bld.y + 1, w: bld.w - 2, h: bld.h - 2 };
-          const wUp = rUp.w | 0;
-          const hUp = rUp.h | 0;
-          const tiles = Array.from({ length: hUp }, () => Array(wUp).fill(ctx.TILES.FLOOR));
-
-          // Perimeter walls inside the building (upstairs)
-          for (let yy = 0; yy < hUp; yy++) {
-            for (let xx = 0; xx < wUp; xx++) {
-              const atBorder = (yy === 0 || yy === hUp - 1 || xx === 0 || xx === wUp - 1);
-              if (atBorder) tiles[yy][xx] = ctx.TILES.WALL;
-            }
-          }
-
-          // Upstairs landing aligned above ground stairs (walkable STAIRS tiles)
-          const upLandingLocal = {
-            x: Math.max(1, Math.min(wUp - 2, s1.x - rUp.x)),
-            y: Math.max(1, Math.min(hUp - 2, s1.y - rUp.y))
-          };
-          tiles[upLandingLocal.y][upLandingLocal.x] = ctx.TILES.STAIRS;
-          if (upLandingLocal.x + 1 < wUp - 1) tiles[upLandingLocal.y][upLandingLocal.x + 1] = ctx.TILES.STAIRS;
-
-          const props = [];
-          const addP = (ax, ay, type, name) => props.push({ x: rUp.x + ax, y: rUp.y + ay, type, name });
-
-          // Beds in a simple grid inside the perimeter (avoid walls and stairs)
-          const colStep = 3, rowStep = 3;
-          for (let yy = 1; yy < hUp - 1; yy += rowStep) {
-            for (let xx = 1; xx < wUp - 1; xx += colStep) {
-              const tHere = tiles[yy][xx];
-              if (tHere === ctx.TILES.FLOOR) {
-                addP(xx, yy, "bed", "Bed");
-                if (ctx.rng() < 0.25 && xx + 1 < wUp - 1 && tiles[yy][xx + 1] === ctx.TILES.FLOOR) addP(xx + 1, yy, "chest", "Chest");
-                if (ctx.rng() < 0.20 && yy + 1 < hUp - 1 && tiles[yy + 1][xx] === ctx.TILES.FLOOR) addP(xx, yy + 1, "rug", "Rug");
-              }
-            }
-          }
-
-          try {
-            ctx.innUpstairs = { offset: { x: rUp.x, y: rUp.y }, w: wUp, h: hUp, tiles, props };
-            ctx.innUpstairsActive = false;
-          } catch (_) {}
-        }
-        generateInnUpstairs(ctx, b, hallRect);
-      })();
-
-      // Storage cluster in a back corner of the hall (away from stairs)
-      (function placeStorageHallCorner() {
-        const corners = [
-          { x: hallRect.x0, y: hallRect.y0 },
-          { x: hallRect.x1, y: hallRect.y0 },
-          { x: hallRect.x0, y: hallRect.y1 },
-          { x: hallRect.x1, y: hallRect.y1 },
-        ];
-        let corner = corners[0];
-        let bestD = -1;
-        for (const c of corners) {
-          const d = door ? Math.abs(c.x - door.x) + Math.abs(c.y - door.y) : 0;
-          if (d > bestD) { bestD = d; corner = c; }
-        }
-        const start = clampToRect(corner.x, corner.y, hallRect);
-        const items = Math.max(3, Math.min(7, Math.floor((hallRect.x1 - hallRect.x0 + hallRect.y1 - hallRect.y0) / 3)));
-        let placed = 0;
-        for (let oy = 0; oy < 3 && placed < items; oy++) {
-          for (let ox = 0; ox < 3 && placed < items; ox++) {
-            const x = facing === "east" ? start.x - ox : start.x + ox;
-            const y = facing === "south" ? start.y - oy : start.y + oy;
-            if (inRect(hallRect, x, y) && !occupiedTile(x, y) && !isCorridor(x, y)) {
-              const r = ctx.rng();
-              const type = r < 0.33 ? "crate" : (r < 0.66 ? "barrel" : "chest");
-              addProp(x, y, type, type[0].toUpperCase() + type.slice(1));
-              placed++;
-            }
-          }
-        }
-      })();
-
-      // Finalize stairs placement: ensure glyph tiles override any leftover props and remain STAIRS
-      (function finalizeStairsPortal() {
-        try {
-          const arr = Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround : [];
-          if (!arr.length) return;
-          // Reassert tile types and clear any props at stair coordinates inside the inn
-          for (const s of arr) {
-            if (!s) continue;
-            if (s.x > b.x && s.x < b.x + b.w - 1 && s.y > b.y && s.y < b.y + b.h - 1) {
-              ctx.map[s.y][s.x] = ctx.TILES.STAIRS;
-            }
-          }
-          if (Array.isArray(ctx.townProps) && arr.length) {
-            ctx.townProps = ctx.townProps.filter(p => !(arr.some(s => s && s.x === p.x && s.y === p.y)));
-          }
-        } catch (_) {}
-      })();
-    }
-
-    for (const b of buildings) {
-      const tav = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-      const isTavernBld = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
-      if (isTavernBld) {
-        furnishInn(ctx, b);
-        continue;
-      }
-
-      // Default building furnishing (kept mostly as before)
-      const borderAdj = [];
-      for (let yy = b.y + 1; yy < b.y + b.h - 1; yy++) {
-        for (let xx = b.x + 1; xx < b.x + b.w - 1; xx++) {
-          if (!insideFloor(b, xx, yy)) continue;
-          if (ctx.map[yy - 1][xx] === ctx.TILES.WALL || ctx.map[yy + 1][xx] === ctx.TILES.WALL || ctx.map[yy][xx - 1] === ctx.TILES.WALL || ctx.map[yy][xx + 1] === ctx.TILES.WALL) {
-            borderAdj.push({ x: xx, y: yy });
-          }
-        }
-      }
-      if (borderAdj.length && ctx.rng() < 0.9) {
-        const f = borderAdj[Math.floor(ctx.rng() * borderAdj.length)];
-        if (!occupiedTile(f.x, f.y)) addProp(f.x, f.y, "fireplace", "Fireplace");
-      }
-
-      const area = b.w * b.h;
-      let bedTarget = Math.max(1, Math.min(3, Math.floor(area / 24)));
-      let bedsPlaced = 0, triesBed = 0;
-      while (bedsPlaced < bedTarget && triesBed++ < 200) {
-        const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-        const yy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-        if (!insideFloor(b, xx, yy)) continue;
-        if (occupiedTile(xx, yy)) continue;
-        addProp(xx, yy, "bed", "Bed"); bedsPlaced++;
-      }
-
-      if (ctx.rng() < 0.8) {
-        let placedT = false, triesT = 0;
-        while (!placedT && triesT++ < 60) {
-          const tx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-          const ty = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-          if (!insideFloor(b, tx, ty) || occupiedTile(tx, ty)) continue;
-          addProp(tx, ty, "table", "Table"); placedT = true;
-        }
-      }
-      let chairCount = ctx.rng() < 0.5 ? 2 : 1;
-      let triesC = 0;
-      while (chairCount > 0 && triesC++ < 80) {
-        const cx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-        const cy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-        if (!insideFloor(b, cx, cy) || occupiedTile(cx, cy)) continue;
-        addProp(cx, cy, "chair", "Chair"); chairCount--;
-      }
-
-      let chestCount = ctx.rng() < 0.5 ? 2 : 1;
-      let crates = ctx.rng() < 0.6 ? 2 : 1;
-      let barrels = ctx.rng() < 0.6 ? 2 : 1;
-
-      let placedC = 0, triesChest = 0;
-      while (placedC < chestCount && triesChest++ < 80) {
-        const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-        const yy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-        if (!insideFloor(b, xx, yy) || occupiedTile(xx, yy)) continue;
-        addProp(xx, yy, "chest", "Chest"); placedC++;
-      }
-      let triesCr = 0;
-      while (crates > 0 && triesCr++ < 120) {
-        const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-        const yy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-        if (!insideFloor(b, xx, yy) || occupiedTile(xx, yy)) continue;
-        addProp(xx, yy, "crate", "Crate"); crates--;
-      }
-      let triesBrl = 0;
-      while (barrels > 0 && triesBrl++ < 120) {
-        const xx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-        const yy = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-        if (!insideFloor(b, xx, yy) || occupiedTile(xx, yy)) continue;
-        addProp(xx, yy, "barrel", "Barrel"); barrels--;
-      }
-
-      let shelves = Math.min(2, Math.floor(area / 30));
-      const shelfSpots = borderAdj.slice();
-      while (shelves-- > 0 && shelfSpots.length) {
-        const s = shelfSpots.splice(Math.floor(ctx.rng() * shelfSpots.length), 1)[0];
-        if (!occupiedTile(s.x, s.y)) addProp(s.x, s.y, "shelf", "Shelf");
-      }
-
-      if (ctx.rng() < 0.5) {
-        const px = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-        const py = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-        if (insideFloor(b, px, py) && !occupiedTile(px, py)) addProp(px, py, "plant", "Plant");
-      }
-      if (ctx.rng() < 0.5) {
-        const rx = Math.floor(ctx.rng() * (b.w - 2)) + b.x + 1;
-        const ry = Math.floor(ctx.rng() * (b.h - 2)) + b.y + 1;
-        if (insideFloor(b, rx, ry) && !occupiedTile(rx, ry)) addProp(rx, ry, "rug", "Rug");
-      }
-    }
   })();
 
   // NPCs via TownAI if present
