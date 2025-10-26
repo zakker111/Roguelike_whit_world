@@ -62,9 +62,10 @@
   }
 
   function propBlocks(type) {
-    // Signs and rugs are walkable; beds should be non-blocking so NPCs can sleep on the bed tile.
-    // Other furniture/props block movement.
-    return !(type === "sign" || type === "rug" || type === "bed");
+    // Only these props block movement: table, shelf, counter.
+    // Everything else is walkable (sign, rug, bed, chair, fireplace, chest, crate, barrel, plant, stall, lamp, well, bench).
+    const t = String(type || "").toLowerCase();
+    return t === "table" || t === "shelf" || t === "counter";
   }
 
   // ---- Inn upstairs helpers (overlay-aware pathing/seating) ----
