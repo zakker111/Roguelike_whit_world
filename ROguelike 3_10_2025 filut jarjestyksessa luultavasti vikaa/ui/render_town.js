@@ -361,7 +361,7 @@ export function draw(ctx, view) {
           else if (t === "rug") glyph = "░";
           else if (t === "fireplace") glyph = "♨";
           else if (t === "counter") glyph = "▭";
-          else if (t === "sign") glyph = "⚑";
+          else if (t === "sign") glyph = "S";
           else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
         }
         if (!color) {
