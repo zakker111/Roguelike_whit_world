@@ -163,7 +163,8 @@
     // Choose directly on a bed tile upstairs
     const beds = innUpstairsBeds(ctx);
     if (!beds.length) return null;
-    const rnd = rngFords.length)];
+    const rnd = rngFor(ctx);
+    return beds[Math.floor(rnd() * beds.length)];
   }
   function chooseInnUpstairsSeat(ctx) {
     const seats = innUpstairsSeatAdj(ctx);
