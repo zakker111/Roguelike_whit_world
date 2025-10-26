@@ -1301,7 +1301,7 @@ function generate(ctx) {
           usedTypes.add(tKey);
           limit--;
         } else {
-          try { if (ctx && typeof ctx.log === "function") ctx.log(`Strict prefabs: failed to stamp shop '${(pref.name ? pref.name : ((pref.shop && pref.shop.type) ? pref.shop.type : "shop"))}' at ${bx},${by}.`, "error"); } catch (__code) new{</}
+          try { if (ctx && typeof ctx.log === "function") ctx.log(`Strict prefabs: failed to stamp shop '${(pref.name ? pref.name : ((pref.shop && pref.shop.type) ? pref.shop.type : "shop"))}' at ${bx},${by}.`, "error"); } catch (_) {}
 
         }
       }
