@@ -1072,9 +1072,39 @@ function generate(ctx) {
     // Decide whether to proceed with inn assignment
     let proceedInn = true;
     if (!usedPrefabInn) {
-      // Fallback: carve a hollow rectangle Inn to guarantee at least one inn exists in every town
-      placeBuilding(innRect.x, innRect.y, innRect.w, innRect.h);
-      rectUsedInn = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
+      // Fallback: try stamping an inn prefab anywhere on the town map (largest-first),
+      // ensuring the placement rectangle does not overlap existing buildings.
+      const PFB2 = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      if (PFB2 && Array.isArray(PFB2.inns) && PFB2.inns.length) {
+        const innsSorted2 = PFB2.inns
+          .slice()
+          .filter(p => p && p.size && typeof p.size.w === "number" && typeof p.size.h === "number")
+          .sort((a, b) => (b.size.w * b.size.h) - (a.size.w * a.size.h));
+        let stamped = false;
+        // Scan the whole map for any clear slot
+        for (let ip = 0; ip < innsSorted2.length && !stamped; ip++) {
+          const pref = innsSorted2[ip];
+          const wInn = pref.size.w | 0, hInn = pref.size.h | 0;
+          for (let y = 2; y <= H - hInn - 2 && !stamped; y++) {
+            for (let x = 2; x <= W - wInn - 2 && !stamped; x++) {
+              // Avoid overlapping existing buildings
+              const overl = findBuildingsOverlappingRect(x, y, wInn, hInn, 0);
+              if (overl && overl.length) continue;
+              // Require clear margin of floor around rectangle
+              if (!isAreaClearForBuilding(x, y, wInn, hInn, 1)) continue;
+              if (stampPrefab(ctx, pref, x, y)) {
+                rectUsedInn = { x, y, w: wInn, h: hInn };
+                usedPrefabInn = true;
+                stamped = true;
+              }
+            }
+          }
+        }
+      }
+      if (!usedPrefabInn) {
+        proceedInn = false;
+      }
+    };
     }
 
     if (!proceedInn) return;
