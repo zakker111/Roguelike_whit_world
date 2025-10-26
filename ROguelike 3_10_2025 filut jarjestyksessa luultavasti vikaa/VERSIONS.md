@@ -1,5 +1,28 @@
 # Game Version History
-Last updated: 2025-10-25 09:50 UTC
+Last updated: 2025-10-26 10:00 UTC
+
+v1.42.0 — Plaza-first towns, guaranteed Inn (prefab-first), prefab interiors, CSP, and single entry module
+- Town generation (worldgen/town_gen.js):
+  - Order: Plaza and roads first; Inn placed second (prefab-first); Shops near plaza third; Houses last. Prevents plaza overlap and protects the Inn from later passes.
+  - Inn guarantee: Always exactly one Inn. Stamps the largest-fitting inn prefab near the plaza; if blocked, scans the map and removes overlapping buildings; final fallback carves a hollow-rectangle inn. Inn is never deleted by shop/plaza cleanup.
+  - Overlap policy: Shop stamping can delete houses but never the Inn. Plaza cleanup skips the Inn.
+  - Perimeter enforcement: After prefab stamping, all building perimeters become WALL unless they are DOOR/WINDOW. A final repair pass converts any lingering non-door/window perimeter tiles to WALL.
+  - Doors and windows: Explicitly stamps doors from prefab metadata; non-inn buildings ensure at least one perimeter door if missing. Inn doors are prefab-only (no auto-carving). Auto window placement is skipped for prefab buildings.
+  - Prefab shops: Prefabs with shop metadata are integrated into ctx.shops with schedule overrides; signs placed at front doors; door selection favors doors marked role="main".
+  - Inn upstairs overlay: Upstairs tiles and embedded props come from prefab.upstairsOverlay; ground stairs recorded; renderer draws upstairs; downstairs props inside the inn are suppressed while upstairs is active.
+  - Cleanup: Removes dangling interior props that end up outside buildings; preserves outdoor props and signs.
+- Prefabs and data:
+  - Added data/worldgen/prefabs.json with inline jcdocs, houses/shops/inns, embedded props inside the tiles grid, door metadata (role="main"), and upstairs overlay offsets {x,y}.
+  - data/loader.js loads prefabs into GameData.prefabs.
+  - data/world/world_assets.json adds COUNTER prop (glyph '▭', wood color) and confirms SIGN uses '⚑'.
+- Rendering (ui/render_town.js):
+  - Draws shop door markers as '⚑' in gold; honors prefab windows/furniture; upstairs overlay rendering and prop suppression downstairs.
+- Boot + security:
+  - New single entry module src/main.js imports all modules in order; logs RNG source/seed; dynamically imports smoketest modules when ?smoketest=1.
+  - index.html simplified to one <script type="module" src="/src/main.js"></script> and a strict CSP meta (blocks third‑party scripts; allows self fonts/images and inline scripts for current inline helpers).
+- Syntax hardening (town_gen.js):
+  - Removed optional chaining/nullish coalescing/spread in hot paths; fixed malformed try/catch and stray tokens; rewrote window placement helper; removed duplicate inn-placement block; balanced braces and eliminated "Illegal return"/"Unexpected token" errors.
+- Deployment: https://4y9cbucemm68.cosine.page
 
 v1.41.20 — Draw/StateSync coalescing, GOD/UI fixes, and syntax repairs
 - core/god_handlers.js:

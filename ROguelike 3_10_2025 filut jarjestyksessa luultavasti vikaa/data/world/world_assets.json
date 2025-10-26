@@ -414,6 +414,19 @@
         ]
       },
       {
+        "id": "counter",
+        "key": "COUNTER",
+        "name": "Counter",
+        "glyph": "▭",
+        "colors": { "fg": "#d7ba7d" },
+        "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["furniture", "shop"],
+        "variants": [
+          { "message": "Shop counter.", "style": "info" }
+        ]
+      },
+      {
         "id": "plant",
         "key": "PLANT",
         "name": "Potted Plant",

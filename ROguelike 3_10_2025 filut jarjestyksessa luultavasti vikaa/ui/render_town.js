@@ -360,6 +360,7 @@ export function draw(ctx, view) {
           else if (t === "plant") glyph = "*";
           else if (t === "rug") glyph = "░";
           else if (t === "fireplace") glyph = "♨";
+          else if (t === "counter") glyph = "▭";
           else if (t === "sign") glyph = "⚑";
           else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
         }
@@ -375,6 +376,7 @@ export function draw(ctx, view) {
           else if (t === "plant") color = "#65a30d";
           else if (t === "rug") color = "#b45309";
           else if (t === "fireplace") color = "#ff6d00";
+          else if (t === "counter") color = "#d7ba7d";
           else if (t === "sign") color = "#d7ba7d";
           else color = "#cbd5e1";
         }
@@ -454,6 +456,8 @@ export function draw(ctx, view) {
             else if (t === "bed") glyph = "u";
             else if (t === "table") glyph = "⊏";
             else if (t === "chair") glyph = "n";
+            else if (t === "counter") glyph = "▭";
+            else if (t === "sign") glyph = "⚑";
             else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
           }
           if (!color) {
@@ -466,6 +470,7 @@ export function draw(ctx, view) {
             else if (t === "bed") color = "#cbd5e1";
             else if (t === "table") color = "#cbd5e1";
             else if (t === "chair") color = "#cbd5e1";
+            else if (t === "counter") color = "#d7ba7d";
             else color = "#cbd5e1";
           }
         }
@@ -491,6 +496,24 @@ export function draw(ctx, view) {
         } else {
           RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
         }
+      }
+    } catch (_) {}
+  })();
+
+  // Shop markers: draw a small flag ⚑ at shop doors once seen (consistent with sign glyph styling)
+  (function drawShopMarkers() {
+    try {
+      if (!Array.isArray(ctx.shops) || !ctx.shops.length) return;
+      for (const s of ctx.shops) {
+        const dx = (s.building && s.building.door && typeof s.building.door.x === "number") ? s.building.door.x : s.x;
+        const dy = (s.building && s.building.door && typeof s.building.door.y === "number") ? s.building.door.y : s.y;
+        if (dx < startX || dx > endX || dy < startY || dy > endY) continue;
+        const everSeen = !!(seen[dy] && seen[dy][dx]);
+        if (!everSeen) continue;
+        const screenX = (dx - startX) * TILE - tileOffsetX;
+        const screenY = (dy - startY) * TILE - tileOffsetY;
+        // match sign color; draw above tiles/props
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, "⚑", "#d7ba7d", TILE);
       }
     } catch (_) {}
   })();

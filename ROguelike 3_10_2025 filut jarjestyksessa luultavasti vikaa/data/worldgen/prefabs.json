@@ -1,0 +1,164 @@
+{
+  "jcdocs": {
+    "title": "Prefab authoring (tiles + embedded props)",
+    "schemaVersion": 1,
+    "tiles": ["WALL","FLOOR","DOOR","WINDOW","STAIRS"],
+    "embeddedPropCodes": ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL"],
+    "usage": [
+      "Place tile codes in the 'tiles' grid; unknown codes default to FLOOR.",
+      "Embed props by placing their code directly in the 'tiles' grid; the underlying tile becomes FLOOR and a prop is placed at that coordinate.",
+      "Doors can be defined as DOOR in the grid or listed in the 'doors' array; stamping guarantees at least one perimeter door if none are present.",
+      "Upstairs overlay supports tiles and embedded props via 'upstairsOverlay' with fields { offset, w, h, tiles } and optional { props }.",
+      "Counters (COUNTER) in a prefab with category 'shop' or 'inn' automatically derive vendor from prefab.shop.type; houses ignore vendor.",
+      "Constraints optionally include rotations [0,90,180,270], mirror, mustFaceRoad, minSetback.",
+      "All codes are case-insensitive but convention is UPPERCASE."
+    ]
+  },
+  "houses": [
+    {
+      "id": "house_small_1",
+      "name": "Small House A",
+      "category": "house",
+      "tags": ["residential", "single_story"],
+      "size": { "w": 7, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WALL","WINDOW","WALL","WALL","WALL"],
+        ["WALL","RUG","BED","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","CHAIR","TABLE","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","TABLE","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
+    },
+    {
+      "id": "house_small_2",
+      "name": "Small House B",
+      "category": "house",
+      "tags": ["residential", "single_story"],
+      "size": { "w": 6, "h": 5 },
+      "tiles": [
+        ["WALL","WALL","WINDOW","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","BED","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 3, "orientation": "S", "type": "single", "role": "main" }],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
+    },
+    {
+      "id": "house_medium_1",
+      "name": "Medium House A",
+      "category": "house",
+      "tags": ["residential"],
+      "size": { "w": 9, "h": 7 },
+      "tiles": [
+        ["WALL","WALL","WINDOW","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","BED","FLOOR","FLOOR","FLOOR","BED","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","WINDOW","FLOOR","FLOOR","FLOOR","WINDOW"],
+        ["WALL","FLOOR","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FIREPLACE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
+    }
+  ],
+  "shops": [
+    {
+      "id": "shop_blacksmith_1",
+      "name": "Blacksmith",
+      "category": "shop",
+      "shop": { "type": "blacksmith", "schedule": { "open": "08:00", "close": "17:00", "alwaysOpen": false }, "signText": "Blacksmith" },
+      "tags": ["shop","blacksmith"],
+      "size": { "w": 8, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FIREPLACE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","WALL","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    },
+    {
+      "id": "shop_apothecary_1",
+      "name": "Apothecary",
+      "category": "shop",
+      "shop": { "type": "apothecary", "schedule": { "open": "09:00", "close": "18:00", "alwaysOpen": false }, "signText": "Apothecary" },
+      "tags": ["shop","apothecary"],
+      "size": { "w": 8, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","BARREL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","CRATE","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FIREPLACE","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    },
+    {
+      "id": "shop_trader_1",
+      "name": "Trader",
+      "category": "shop",
+      "shop": { "type": "trader", "schedule": { "open": "08:00", "close": "18:00", "alwaysOpen": false }, "signText": "Trader" },
+      "tags": ["shop","trader"],
+      "size": { "w": 8, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WINDOW","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FIREPLACE","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    }
+  ],
+  "inns": [
+    {
+      "id": "inn_tavern_medium",
+      "name": "Inn & Tavern",
+      "category": "inn",
+      "tags": ["two_story","tavern"],
+      "size": { "w": 11, "h": 9 },
+      "tiles": [
+        ["WALL","WALL","WALL","WINDOW","DOOR","DOOR","WINDOW","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WINDOW","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
+        ["WALL","FLOOR","CHAIR","CHAIR","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","TABLE","TABLE","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","TABLE","TABLE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WINDOW","FLOOR","CHAIR","CHAIR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FIREPLACE","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","DOOR","DOOR","WALL","WALL","WALL","WALL"]
+      ],
+      "doors": [
+        { "x": 5, "y": 8, "orientation": "S", "type": "double", "role": "main" }
+      ],
+      "upstairsOverlay": {
+        "offset": { "x": 1, "y": 1 },
+        "w": 9,
+        "h": 7,
+        "tiles": [
+          ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+          ["WINDOW","FLOOR","BED","FLOOR","BED","FLOOR","BED","FLOOR","WINDOW"],
+          ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+          ["WALL","BED","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","BED","WALL"],
+          ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+          ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
+          ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+        ]
+      },
+      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    }
+  ]
+}
