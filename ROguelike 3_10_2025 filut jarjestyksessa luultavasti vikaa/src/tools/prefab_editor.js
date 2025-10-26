@@ -65,7 +65,6 @@ function bindEls() {
   els.gridW = document.getElementById("grid-w");
   els.gridH = document.getElementById("grid-h");
   els.resizeBtn = document.getElementById("resize-btn");
-  els.brush = document.getElementById("brush");
   els.tilePalette = document.getElementById("tile-palette");
   els.propPalette = document.getElementById("prop-palette");
   els.eraseBtn = document.getElementById("erase-brush-btn");
@@ -174,9 +173,8 @@ function renderPalettes() {
     btn.style.color = fg;
     btn.title = key;
     btn.addEventListener("click", () => {
-      // auto-switch brush to tile to avoid confusion
+      // auto-select tile mode (implicit, no brush UI)
       state.brush = "tile";
-      if (els.brush) els.brush.value = "tile";
       state.tileSel = code;
       Array.from(els.tilePalette.children).forEach(c => c.classList.remove("active"));
       btn.classList.add("active");
@@ -194,9 +192,8 @@ function renderPalettes() {
     btn.style.color = fg;
     btn.title = key;
     btn.addEventListener("click", () => {
-      // auto-switch brush to prop so painting works immediately
+      // auto-select prop mode (implicit, no brush UI)
       state.brush = "prop";
-      if (els.brush) els.brush.value = "prop";
       state.propSel = code;
       Array.from(els.propPalette.children).forEach(c => c.classList.remove("active"));
       btn.classList.add("active");
@@ -287,13 +284,9 @@ function bindUI() {
     drawGrid();
     lint();
   });
-  els.brush.addEventListener("change", () => {
-    state.brush = els.brush.value;
-  });
   if (els.eraseBtn) {
     els.eraseBtn.addEventListener("click", () => {
       state.brush = "erase";
-      if (els.brush) els.brush.value = "erase";
     });
   }
   // Canvas painting
