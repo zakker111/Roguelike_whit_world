@@ -922,17 +922,21 @@ function generate(ctx) {
       }
     }
 
+    // Decide whether to proceed with inn assignment
+    let proceedInn = true;
     if (!usedPrefabInn) {
       if (strictNow) {
-        // Strict prefabs: do not carve fallback Inn; report error and skip
+        // Strict prefabs: do not carve fallback Inn; report and skip assignment
         try { if (ctx && typeof ctx.log === "function") ctx.log("Strict prefabs: failed to stamp Inn prefab near plaza. Skipping fallback Inn.", "error"); } catch (_) {}
-        return; // abort inn placement in strict mode
+        proceedInn = false;
       } else {
         // Fallback: carve a hollow rectangle Inn
         placeBuilding(innRect.x, innRect.y, innRect.w, innRect.h);
         rectUsedInn = { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h };
       }
     }
+
+    if (!proceedInn) return;
 
     // Choose an existing building to replace/represent the inn, prefer the one closest to rect center
     let targetIdx = -1, bestD = Infinity;
@@ -954,11 +958,11 @@ function generate(ctx) {
     try {
       const baseRect = rectUsedInn || innRect;
       const cds = candidateDoors(baseRect);
-      let bestDoor = null, bestD = Infinity;
+      let bestDoor = null, bestD2 = Infinity;
       for (const d of cds) {
         if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
           const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
-          if (dd < bestD) { bestD = dd; bestDoor = { x: d.x, y: d.y }; }
+          if (dd < bestD2) { bestD2 = dd; bestDoor = { x: d.x, y: d.y }; }
         }
       }
       if (!bestDoor) {
@@ -1379,11 +1383,11 @@ function generate(ctx) {
     if (String(def.type || "").toLowerCase() === "inn") {
       // check for any door on the inn building perimeter and pick one closest to plaza
       const cds = candidateDoors(b);
-      let best = null, bestD = Infinity;
+      let best = null, bestD2 = Infinity;
       for (const d of cds) {
         if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
           const dd = Math.abs(d.x - plaza.x) + Math.abs(d.y - plaza.y);
-          if (dd < bestD) { bestD = dd; best = { x: d.x, y: d.y }; }
+          if (dd < bestD2) { bestD2 = dd; best = { x: d.x, y: d.y }; }
         }
       }
       door = best || ensureDoor(b);
