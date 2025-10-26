@@ -1017,7 +1017,15 @@ function generate(ctx) {
       // If none available (shouldn't happen), push a new building record
       buildings.push({ x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h });
     } else {
-      buildings[targetIdx] = { ...buildings[targetIdx], x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h };
+      const prevB = buildings[targetIdx];
+      buildings[targetIdx] = {
+        x: baseRect.x,
+        y: baseRect.y,
+        w: baseRect.w,
+        h: baseRect.h,
+        prefabId: prevB ? prevB.prefabId : null,
+        prefabCategory: prevB ? prevB.prefabCategory : null
+      };
     }
 
     // Record the tavern (Inn) building and its preferred door (closest to plaza)
@@ -1036,8 +1044,10 @@ function generate(ctx) {
       }
       try {
         const bRec = buildings.find(b => b.x === baseRect.x && b.y === baseRect.y && b.w === baseRect.w && b.h === baseRect.h) || null;
+        const pid = (bRec && typeof bRec.prefabId !== "undefined") ? bRec.prefabId : null;
+        const pcat = (bRec && typeof bRec.prefabCategory !== "undefined") ? bRec.prefabCategory : null;
         ctx.tavern = {
-          building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h, prefabId: bRec?.prefabId, prefabCategory: bRec?.prefabCategory },
+          building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h, prefabId: pid, prefabCategory: pcat },
           door: { x: bestDoor.x, y: bestDoor.y }
         };
       } catch (_) {
@@ -1530,7 +1540,18 @@ function generate(ctx) {
     if (ctx.shops && ctx.shops.length) {
       const innShop = ctx.shops.find(s => (String(s.type || "").toLowerCase() === "inn") || (/inn/i.test(String(s.name || ""))));
       if (innShop && innShop.building && innShop.building.x != null) {
-        ctx.tavern = { building: { x: innShop.building.x, y: innShop.building.y, w: innShop.building.w, h: innShop.building.h }, door: { x: innShop.building.door?.x ?? innShop.x, y: innShop.building.door?.y ?? innShop.y } };
+        (function assignInnTavern() {
+          try {
+            const doorX = (innShop.building && innShop.building.door && typeof innShop.building.door.x === "number") ? innShop.building.door.x : innShop.x;
+            const doorY = (innShop.building && innShop.building.door && typeof innShop.building.door.y === "number") ? innShop.building.door.y : innShop.y;
+            ctx.tavern = {
+              building: { x: innShop.building.x, y: innShop.building.y, w: innShop.building.w, h: innShop.building.h },
+              door: { x: doorX, y: doorY }
+            };
+          } catch (_) {
+            ctx.tavern = { building: { x: innShop.building.x, y: innShop.building.y, w: innShop.building.w, h: innShop.building.h }, door: { x: innShop.x, y: innShop.y } };
+          }
+        })();
         ctx.inn = ctx.tavern;
       }
     }
