@@ -7,18 +7,14 @@
       "tags": ["residential", "single_story"],
       "size": { "w": 7, "h": 6 },
       "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WINDOW","WALL","WALL","WALL"],
+        ["WALL","FLOOR","BED","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","WINDOW","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","TABLE","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
       ],
       "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
-      "props": [
-        { "x": 2, "y": 1, "type": "bed" },
-        { "x": 4, "y": 3, "type": "table" }
-      ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
     },
     {
@@ -28,14 +24,13 @@
       "tags": ["residential", "single_story"],
       "size": { "w": 6, "h": 5 },
       "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","WALL","WINDOW","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","WINDOW","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","BED","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL"]
       ],
       "doors": [{ "x": 3, "y": 3, "orientation": "S", "type": "single", "role": "main" }],
-      "props": [{ "x": 2, "y": 2, "type": "bed" }],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
     },
     {
@@ -45,20 +40,15 @@
       "tags": ["residential"],
       "size": { "w": 9, "h": 7 },
       "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WINDOW","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","BED","FLOOR","FLOOR","FLOOR","BED","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","WINDOW","FLOOR","WINDOW","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
       ],
       "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
-      "props": [
-        { "x": 2, "y": 1, "type": "bed" },
-        { "x": 6, "y": 1, "type": "bed" },
-        { "x": 4, "y": 3, "type": "table" }
-      ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true, "minSetback": 1 }
     }
   ],
@@ -73,16 +63,12 @@
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
       ],
       "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
-      "props": [
-        { "x": 2, "y": 2, "type": "counter", "vendor": "blacksmith" },
-        { "x": 5, "y": 2, "type": "shelf" }
-      ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
     },
     {
@@ -95,16 +81,12 @@
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
       ],
       "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
-      "props": [
-        { "x": 2, "y": 2, "type": "counter", "vendor": "apothecary" },
-        { "x": 5, "y": 2, "type": "shelf" }
-      ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
     },
     {
@@ -115,18 +97,14 @@
       "tags": ["shop","trader"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","WALL","WINDOW","WALL","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
       ],
       "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
-      "props": [
-        { "x": 2, "y": 2, "type": "counter", "vendor": "trader" },
-        { "x": 5, "y": 2, "type": "shelf" }
-      ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
     }
   ],
@@ -140,8 +118,8 @@
       "tiles": [
         ["WALL","WALL","WALL","WINDOW","WALL","WALL","WINDOW","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WINDOW","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
@@ -151,26 +129,18 @@
       "doors": [
         { "x": 5, "y": 8, "orientation": "S", "type": "double", "role": "main" }
       ],
-      "props": [
-        { "x": 2, "y": 2, "type": "counter", "vendor": "inn" },
-        { "x": 7, "y": 3, "type": "table" }
-      ],
       "upstairsOverlay": {
         "offset": { "x": 1, "y": 1 },
         "w": 9,
         "h": 7,
         "tiles": [
           ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-          ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
+          ["WINDOW","FLOOR","BED","FLOOR","FLOOR","FLOOR","BED","FLOOR","WINDOW"],
           ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
           ["WALL","FLOOR","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","WALL"],
           ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
           ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
           ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
-        ],
-        "props": [
-          { "x": 2, "y": 2, "type": "bed" },
-          { "x": 6, "y": 2, "type": "bed" }
         ]
       },
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }

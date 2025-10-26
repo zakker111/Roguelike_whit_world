@@ -486,12 +486,76 @@ function generate(ctx) {
         if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
       }
     }
-    // Stamp tiles
+    // Ensure props array exists so we can place embedded props from tile codes
+    try { if (!Array.isArray(ctx.townProps)) ctx.townProps = []; } catch (_) {}
+    // Helper: map tile code to prop type (null if not a prop)
+    function propTypeForCode(code) {
+      var s = String(code || "").toUpperCase();
+      if (s === "BED") return "bed";
+      if (s === "TABLE") return "table";
+      if (s === "CHAIR") return "chair";
+      if (s === "SHELF") return "shelf";
+      if (s === "COUNTER") return "counter";
+      if (s === "FIREPLACE") return "fireplace";
+      if (s === "CHEST") return "chest";
+      if (s === "CRATE") return "crate";
+      if (s === "BARREL") return "barrel";
+      if (s === "PLANT") return "plant";
+      if (s === "RUG") return "rug";
+      if (s === "QUEST_BOARD") return "quest_board";
+      return null;
+    }
+    // Stamp tiles (supports embedded props codes)
+    // Recognized prop codes in tiles: BED, TABLE, CHAIR, SHELF, RUG, FIREPLACE, CHEST, CRATE, BARREL, PLANT, COUNTER, STALL, LAMP, WELL
+    function vendorForCounter(prefab) {
+      // Assign vendor by prefab category/type when stamping a COUNTER prop
+      try {
+        const cat = String(prefab.category || "").toLowerCase();
+        if (cat === "inn") return "inn";
+        if (cat === "shop") {
+          const t = (prefab.shop && prefab.shop.type) ? String(prefab.shop.type) : null;
+          return t || "shop";
+        }
+      } catch (_) {}
+      return undefined;
+    }
+    const PROPMAP = {
+      BED: "bed",
+      TABLE: "table",
+      CHAIR: "chair",
+      SHELF: "shelf",
+      RUG: "rug",
+      FIREPLACE: "fireplace",
+      CHEST: "chest",
+      CRATE: "crate",
+      BARREL: "barrel",
+      PLANT: "plant",
+      COUNTER: "counter",
+      STALL: "stall",
+      LAMP: "lamp",
+      WELL: "well"
+    };
+    // Ensure props container
+    if (!Array.isArray(ctx.townProps)) ctx.townProps = [];
     for (let yy = 0; yy < h; yy++) {
       const row = prefab.tiles[yy];
       if (!row || row.length !== w) return false;
       for (let xx = 0; xx < w; xx++) {
         const code = row[xx];
+        // Handle props embedded in tiles
+        if (code && PROPMAP[code]) {
+          const px = x0 + xx, py = y0 + yy;
+          // Place prop on floor tile
+          ctx.map[py][px] = ctx.TILES.FLOOR;
+          // Avoid duplicates
+          if (!ctx.townProps.some(q => q.x === px && q.y === py)) {
+            const type = PROPMAP[code];
+            const vendor = (type === "counter") ? vendorForCounter(prefab) : undefined;
+            ctx.townProps.push({ x: px, y: py, type, vendor });
+          }
+          continue;
+        }
+        // Normal tiles
         let t = ctx.TILES.FLOOR;
         if (code === "WALL") t = ctx.TILES.WALL;
         else if (code === "FLOOR") t = ctx.TILES.FLOOR;
@@ -500,6 +564,11 @@ function generate(ctx) {
         else if (code === "STAIRS") t = ctx.TILES.STAIRS;
         // Unknown codes default to FLOOR
         ctx.map[y0 + yy][x0 + xx] = t;
+      }
+    })) {
+            ctx.townProps.push({ x: wx, y: wy, type: ptype });
+          }
+        }
       }
     }
     // Ensure a solid perimeter: convert any non-door/window on the boundary to WALL.
@@ -586,11 +655,55 @@ function generate(ctx) {
             const wUp = (ov.w | 0) || (ov.tiles[0] ? ov.tiles[0].length : 0);
             const hUp = (ov.h | 0) || ov.tiles.length;
             const tilesUp = Array.from({ length: hUp }, () => Array(wUp).fill(ctx.TILES.FLOOR));
+            // Helper for upstairs overlay: map code to prop type
+            function overlayPropTypeForCode(code) {
+              var s = String(code || "").toUpperCase();
+              if (s === "BED") return "bed";
+              if (s === "TABLE") return "table";
+              if (s === "CHAIR") return "chair";
+              if (s === "SHELF") return "shelf";
+              if (s === "COUNTER") return "counter";
+              if (s === "FIREPLACE") return "fireplace";
+              if (s === "CHEST") return "chest";
+              if (s === "CRATE") return "crate";
+              if (s === "BARREL") return "barrel";
+              if (s === "PLANT") return "plant";
+              if (s === "RUG") return "rug";
+              if (s === "QUEST_BOARD") return "quest_board";
+              return null;
+            }
+            const propsUp = [];
+            const PROPMAP2 = {
+              BED: "bed",
+              TABLE: "table",
+              CHAIR: "chair",
+              SHELF: "shelf",
+              RUG: "rug",
+              FIREPLACE: "fireplace",
+              CHEST: "chest",
+              CRATE: "crate",
+              BARREL: "barrel",
+              PLANT: "plant",
+              COUNTER: "counter",
+              STALL: "stall",
+              LAMP: "lamp",
+              WELL: "well"
+            };
+            const propsUp = [];
             for (let yy = 0; yy < hUp; yy++) {
               const row = ov.tiles[yy];
               if (!row) continue;
               for (let xx = 0; xx < Math.min(wUp, row.length); xx++) {
                 const code = row[xx];
+                // Props embedded in upstairs tiles
+                if (code && PROPMAP2[code]) {
+                  const type = PROPMAP2[code];
+                  const px = (x0 + offX) + xx;
+                  const py = (y0 + offY) + yy;
+                  propsUp.push({ x: px, y: py, type });
+                  tilesUp[yy][xx] = ctx.TILES.FLOOR;
+                  continue;
+                }
                 let t = ctx.TILES.FLOOR;
                 if (code === "WALL") t = ctx.TILES.WALL;
                 else if (code === "FLOOR") t = ctx.TILES.FLOOR;
@@ -600,7 +713,7 @@ function generate(ctx) {
                 tilesUp[yy][xx] = t;
               }
             }
-            const propsUp = [];
+            // Back-compat: also consume explicit props array if present
             try {
               if (Array.isArray(ov.props)) {
                 for (const p of ov.props) {
