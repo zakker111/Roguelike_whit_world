@@ -207,18 +207,8 @@ export const UI = {
     const openPrefabBtn = document.getElementById("god-open-prefab-editor-btn");
     openPrefabBtn?.addEventListener("click", () => {
       try {
-        // DEV gate: only enable when DEV flag is set
-        const dev = (window.DEV === true) || (localStorage.getItem("DEV") === "1");
         const target = "/tools/prefab_editor.html";
-        if (dev) {
-          window.location.assign(target);
-        } else {
-          // Hint: allow user to enable DEV via query param
-          const url = new URL(window.location.href);
-          url.searchParams.set("dev", "1");
-          window.location.assign(url.toString());
-          // After reload with dev=1, user can click Prefab Editor again
-        }
+        window.location.assign(target);
       } catch (_) {
         try { window.location.href = "/tools/prefab_editor.html"; } catch (_) {}
       }
