@@ -1678,20 +1678,25 @@ function generate(ctx) {
     function isAdjacent(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) <= 1; }
     function nearDoor(x, y) {
       const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-      for (const d of dirs) {
-        const nx = x + d.dx, ny = y + d.dy;
+      for (let i = 0; i < dirs.length; i++) {
+        const nx = x + dirs[i].dx, ny = y + dirs[i].dy;
         if (!inBounds(ctx, nx, ny)) continue;
         if (ctx.map[ny][nx] === ctx.TILES.DOOR) return true;
       }
       return false;
     }
-    for (const b of buildings) {
+    for (let bi = 0; bi < buildings.length; bi++) {
+      const b = buildings[bi];
       // Skip window auto-placement for prefab-stamped buildings; rely on prefab WINDOW tiles
-      if (Bld = !!(tav && b.x === tav.x && b.y === tav.y && b.w === tav.w && b.h === tav.h);
+      if (b && b.prefabId) continue;
+      const tavB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+      const isTavernBld = !!(tavB && b.x === tavB.x && b.y === tavB.y && b.w === tavB.w && b.h === tavB.h);
       let candidates = [];
       const sides = sidePoints(b);
-      for (const pts of sides) {
-        for (const p of pts) {
+      for (let si = 0; si < sides.length; si++) {
+        const pts = sides[si];
+        for (let pi = 0; pi < pts.length; pi++) {
+          const p = pts[pi];
           if (!inBounds(ctx, p.x, p.y)) continue;
           const t = ctx.map[p.y][p.x];
           // Only convert solid wall tiles, avoid doors and already-placed windows
@@ -1710,10 +1715,14 @@ function generate(ctx) {
       const placed = [];
       let attempts = 0;
       while (placed.length < limit && candidates.length > 0 && attempts++ < candidates.length * 2) {
-        const idx = Math.floor(ctx.rng() * candidates.length);
+        const idx = Math.floor(((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) * candidates.length);
         const p = candidates[idx];
         // Keep spacing: avoid placing next to already placed windows
-        if (placed.some(q => isAdjacent(p, q))) {
+        let adjacent = false;
+        for (let j = 0; j < placed.length; j++) {
+          if (isAdjacent(p, placed[j])) { adjacent = true; break; }
+        }
+        if (adjacent) {
           candidates.splice(idx, 1);
           continue;
         }
