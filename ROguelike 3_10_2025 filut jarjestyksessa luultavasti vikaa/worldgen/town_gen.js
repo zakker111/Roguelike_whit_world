@@ -1463,6 +1463,35 @@ function generate(ctx) {
     }
   } catch (_) {}
 
+  // Cleanup dangling props from removed buildings: ensure interior-only props are only inside valid buildings
+  (function cleanupDanglingProps() {
+    try {
+      if (!Array.isArray(ctx.townProps) || !ctx.townProps.length) return;
+      function insideAnyBuilding(x, y) {
+        for (let i = 0; i < buildings.length; i++) {
+          const B = buildings[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      // Props that should never exist outside a building interior
+      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest"]);
+      ctx.townProps = ctx.townProps.filter(p => {
+        if (!inBounds(ctx, p.x, p.y)) return false;
+        const t = ctx.map[p.y][p.x];
+        // Drop props that sit on non-walkable tiles
+        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS) return false;
+        const inside = insideAnyBuilding(p.x, p.y);
+        // Interior-only items: keep only if inside some building
+        if (interiorOnly.has(String(p.type || "").toLowerCase())) return inside;
+        // Signs: keep only if outside buildings
+        if (String(p.type || "").toLowerCase() === "sign") return !inside;
+        // Other props (crates/barrels/plants/stall) are allowed anywhere if tile is walkable
+        return true;
+      });
+    } catch (_) {}
+  })();
+
   // Town buildings metadata
   ctx.townBuildings = buildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: getExistingDoor(b) }));
 
