@@ -8,7 +8,14 @@
       "Place tile codes in the 'tiles' grid; unknown codes default to FLOOR.",
       "Embed props by placing their code directly in the 'tiles' grid; the underlying tile becomes FLOOR and a prop is placed at that coordinate.",
       "Doors can be defined as DOOR in the grid or listed in the 'doors' array; stamping guarantees at least one perimeter door if none are present.",
-      "Upstairs overlay supports tiles and embedded props via 'upstairsOverlay' { offset, w, h, tiles, props }    {
+      "Upstairs overlay supports tiles and embedded props via 'upstairsOverlay' with fields { offset, w, h, tiles } and optional { props }.",
+      "Counters (COUNTER) in a prefab with category 'shop' or 'inn' automatically derive vendor from prefab.shop.type; houses ignore vendor.",
+      "Constraints optionally include rotations [0,90,180,270], mirror, mustFaceRoad, minSetback.",
+      "All codes are case-insensitive but convention is UPPERCASE."
+    ]
+  },
+  "houses": [
+    {
       "id": "house_small_1",
       "name": "Small House A",
       "category": "house",
