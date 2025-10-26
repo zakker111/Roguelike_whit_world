@@ -1104,7 +1104,6 @@ function generate(ctx) {
       if (!usedPrefabInn) {
         proceedInn = false;
       }
-    };
     }
 
     if (!proceedInn) return;
@@ -1302,7 +1301,8 @@ function generate(ctx) {
           usedTypes.add(tKey);
           limit--;
         } else {
-          try { if (ctx && typeof ctx.log === "function") ctx.log(`Strict prefabs: failed to stamp shop '${pref.name || pref.shop?.type || "shop"}' at ${bx},${by}.`, "error"); } catch (_) {}
+          try { if (ctx && typeof ctx.log === "function") ctx.log(`Strict prefabs: failed to stamp shop '${(pref.name ? pref.name : ((pref.shop && pref.shop.type) ? pref.shop.type : "shop"))}' at ${bx},${by}.`, "error"); } catch (__code) new{</}
+
         }
       }
     } catch (_) {}
