@@ -386,6 +386,79 @@
     const buildings = [];
     // Prefab-stamped shops (collected during placement; integrated later with schedules and signs)
     const prefabShops = [];
+    const STRICT_PREFABS = true;
+
+    // Rect helpers and conflict resolution
+    function rectOverlap(ax, ay, aw, ah, bx, by, bw, bh, margin = 0) {
+      const ax0 = ax - margin, ay0 = ay - margin, ax1 = ax + aw - 1 + margin, ay1 = ay + ah - 1 + margin;
+      const bx0 = bx - margin, by0 = by - margin, bx1 = bx + bw - 1 + margin, by1 = by + bh - 1 + margin;
+      const sepX = (ax1 < bx0) || (bx1 < ax0);
+      const sepY = (ay1 < by0) || (by1 < ay0);
+      return !(sepX || sepY);
+    }
+    function findBuildingsOverlappingRect(x0, y0, w, h, margin = 0) {
+      const out = [];
+      for (let i = 0; i < buildings.length; i++) {
+        const b = buildings[i];
+        if (rectOverlap(b.x, b.y, b.w, b.h, x0, y0, w, h, margin)) out.push(b);
+      }
+      return out;
+    }
+    function removeBuildingAndProps(b) {
+      try {
+        // Clear tiles to FLOOR inside building rect (remove walls/doors/windows)
+        for (let yy = b.y; yy <= b.y + b.h - 1; yy++) {
+          for (let xx = b.x; xx <= b.x + b.w - 1; xx++) {
+            if (inBounds(ctx, xx, yy)) ctx.map[yy][xx] = ctx.TILES.FLOOR;
+          }
+        }
+      } catch (_) {}
+      try {
+        // Remove props inside rect with 1-tile margin (includes signs just outside)
+        ctx.townProps = Array.isArray(ctx.townProps)
+          ? ctx.townProps.filter(p => !(rectOverlap(b.x, b.y, b.w, b.h, p.x, p.y, 1, 1, 1)))
+          : [];
+      } catch (_) {}
+      try {
+        // Remove shops tied to this building
+        ctx.shops = Array.isArray(ctx.shops)
+          ? ctx.shops.filter(s => !(s && s.building && rectOverlap(s.building.x, s.building.y, s.building.w, s.building.h, b.x, b.y, b.w, b.h, 0)))
+          : [];
+        // Also remove any pending prefab shop records mapped to this rect
+        for (let i = prefabShops.length - 1; i >= 0; i--) {
+          const ps = prefabShops[i];
+          if (ps && ps.building && rectOverlap(ps.building.x, ps.building.y, ps.building.w, ps.building.h, b.x, b.y, b.w, b.h, 0)) {
+            prefabShops.splice(i, 1);
+          }
+        }
+      } catch (_) {}
+      try {
+        // Remove from buildings list
+        for (let i = buildings.length - 1; i >= 0; i--) {
+          const q = buildings[i];
+          if (q && q.x === b.x && q.y === b.y && q.w === b.w && q.h === b.h) buildings.splice(i, 1);
+        }
+      } catch (_) {}
+      try {
+        // Invalidate tavern reference if it overlaps
+        const tb = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+        if (tb && rectOverlap(tb.x, tb.y, tb.w, tb.h, b.x, b.y, b.w, b.h, 0)) {
+          ctx.tavern = undefined; ctx.inn = undefined;
+        }
+      } catch (_) {}
+    }
+    function trySlipStamp(ctx, prefab, bx, by, maxSlip = 2) {
+      const offsets = [];
+      for (let d = 1; d <= maxSlip; d++) {
+        offsets.push({ dx: d, dy: 0 }, { dx: -d, dy: 0 }, { dx: 0, dy: d }, { dx: 0, dy: -d });
+        offsets.push({ dx: d, dy: d }, { dx: -d, dy: d }, { dx: d, dy: -d }, { dx: -d, dy: -d });
+      }
+      for (const o of offsets) {
+        const x = bx + o.dx, y = by + o.dy;
+        if (stampPrefab(ctx, prefab, x, y)) return true;
+      }
+      return false;
+    }
 
     // --- Prefab helpers ---
     function stampPrefab(ctx, prefab, bx, by) {
@@ -641,7 +714,7 @@
             if (pref && pref.size) {
               const oxCenter = Math.floor((w - pref.size.w) / 2);
               const oyCenter = Math.floor((h - pref.size.h) / 2);
-              usedPrefab = stampPrefab(ctx, pref, fx + oxCenter, fy + oyCenter);
+              usedPrefab = stampPrefab(ctx, pref, fx + oxCenter, fy + oyCenter) || trySlipStamp(ctx, pref, fx + oxCenter, fy + oyCenter, 2);
             }
           }
         }
@@ -683,6 +756,7 @@
       // Always carve the Inn even if no other buildings exist, to guarantee at least one building
 
       // Target size: scale from plaza dims and ensure larger minimums by town size
+      let rectUsedInn = null;
       const sizeKey = townSize;
       // Make inn a bit smaller than before to keep plaza spacious
       let minW = 18, minH = 12, scaleW = 1.20, scaleH = 1.10; // defaults for "big"
@@ -789,7 +863,7 @@
             const oy = Math.floor((bh - pref.size.h) / 2);
             if (stampPrefab(ctx, pref, bx + ox, by + oy)) {
               usedPrefabInn = true;
-              // stampPrefab already pushed the building rect; avoid duplicate entries
+              rectUsedInn = { x: bx + ox, y: by + oy, w: pref.size.w, h: pref.size.h };
             }
           }
           bw = Math.max(10, bw - 2);
@@ -821,7 +895,8 @@
 
       // Record the tavern (Inn) building and its preferred door (closest to plaza)
       try {
-        const cds = candidateDoors(innRect);
+        const baseRect = rectUsedInn || innRect;
+        const cds = candidateDoors(baseRect);
         let bestDoor = null, bestD = Infinity;
         for (const d of cds) {
           if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) {
@@ -830,10 +905,24 @@
           }
         }
         if (!bestDoor) {
-          const dd = ensureDoor(innRect);
+          const dd = ensureDoor(baseRect);
           bestDoor = { x: dd.x, y: dd.y };
         }
-        ctx.tavern = { building: { x: innRect.x, y: innRect.y, w: innRect.w, h: innRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
+        ctx.tavern = { building: { x: baseRect.x, y: baseRect.y, w: baseRect.w, h: baseRect.h }, door: { x: bestDoor.x, y: bestDoor.y } };
+      } catch (_) {}
+    })();
+
+    // Remove any buildings overlapping the Inn building
+    (function cleanupInnOverlap() {
+      try {
+        const tb = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+        if (!tb) return;
+        const toDel = [];
+        for (const b of buildings) {
+          if (b.x === tb.x && b.y === tb.y && b.w === tb.w && b.h === tb.h) continue;
+          if (rectOverlap(b.x, b.y, b.w, b.h, tb.x, tb.y, tb.w, tb.h, 0)) toDel.push(b);
+        }
+        for (const b of toDel) removeBuildingAndProps(b);
       } catch (_) {}
     })();
 
@@ -887,6 +976,87 @@
             if (!tryPlaceRect(q)) continue;
           }
         }
+      } catch (_) {}
+    })();
+
+    // Place shop prefabs near plaza with conflict resolution
+    (function placeShopPrefabsStrict() {
+      try {
+        const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+        if (!PFB || !Array.isArray(PFB.shops) || !PFB.shops.length) return;
+        const pr = ctx.townPlazaRect;
+        if (!pr) return;
+        const px0 = pr.x0, px1 = pr.x1, py0 = pr.y0, py1 = pr.y1;
+        const sideCenterX = ((px0 + px1) / 2) | 0;
+        const sideCenterY = ((py0 + py1) / 2) | 0;
+        function stampWithResolution(pref, bx, by) {
+          if (stampPrefab(ctx, pref, bx, by)) return true;
+          // Try slip first
+          if (trySlipStamp(ctx, pref, bx, by, 2)) return true;
+          // If still blocked, remove the first overlapping building and try once more
+          const overlaps = findBuildingsOverlappingRect(bx, by, pref.size.w, pref.size.h, 0);
+          if (overlaps.length) {
+            removeBuildingAndProps(overlaps[0]);
+            if (stampPrefab(ctx, pref, bx, by)) return true;
+            if (trySlipStamp(ctx, pref, bx, by, 2)) return true;
+          }
+          return false;
+        }
+        // Choose a few unique shop types based on town size
+        const sizeKey = ctx.townSize || "big";
+        let limit = sizeKey === "city" ? 6 : (sizeKey === "small" ? 3 : 4);
+        const usedTypes = new Set();
+        let sideIdx = 0;
+        const sides = ["west", "east", "north", "south"];
+        let attempts = 0;
+        while (limit > 0 && attempts++ < 20) {
+          // pick a prefab with a new type
+          const candidates = PFB.shops.filter(p => {
+            const t = (p.shop && p.shop.type) ? String(p.shop.type) : null;
+            return !t || !usedTypes.has(t.toLowerCase());
+          });
+          if (!candidates.length) break;
+          const pref = pickPrefab(candidates, ctx.rng || Math.random);
+          if (!pref || !pref.size) break;
+          const tKey = (pref.shop && pref.shop.type) ? String(pref.shop.type).toLowerCase() : `shop_${attempts}`;
+          // compute anchor by side
+          const side = sides[sideIdx % sides.length]; sideIdx++;
+          let bx = 1, by = 1;
+          if (side === "west") {
+            bx = Math.max(1, px0 - 3 - pref.size.w);
+            by = Math.max(1, Math.min((H - pref.size.h - 2), sideCenterY - ((pref.size.h / 2) | 0)));
+          } else if (side === "east") {
+            bx = Math.min(W - pref.size.w - 2, px1 + 3);
+            by = Math.max(1, Math.min((H - pref.size.h - 2), sideCenterY - ((pref.size.h / 2) | 0)));
+          } else if (side === "north") {
+            bx = Math.max(1, Math.min(W - pref.size.w - 2, sideCenterX - ((pref.size.w / 2) | 0)));
+            by = Math.max(1, py0 - 3 - pref.size.h);
+          } else {
+            bx = Math.max(1, Math.min(W - pref.size.w - 2, sideCenterX - ((pref.size.w / 2) | 0)));
+            by = Math.min(H - pref.size.h - 2, py1 + 3);
+          }
+          if (stampWithResolution(pref, bx, by)) {
+            usedTypes.add(tKey);
+            limit--;
+          } else {
+            try { if (ctx && typeof ctx.log === "function") ctx.log(`Strict prefabs: failed to stamp shop '${pref.name || pref.shop?.type || "shop"}' at ${bx},${by}.`, "error"); } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    })();
+
+    // After shops and houses, remove any buildings touching the central plaza footprint
+    (function cleanupBuildingsTouchingPlaza() {
+      try {
+        const pr = ctx.townPlazaRect;
+        if (!pr) return;
+        const pw = pr.x1 - pr.x0 + 1;
+        const ph = pr.y1 - pr.y0 + 1;
+        const toDel = [];
+        for (const b of buildings) {
+          if (rectOverlap(b.x, b.y, b.w, b.h, pr.x0, pr.y0, pw, ph, 0)) toDel.push(b);
+        }
+        for (const b of toDel) removeBuildingAndProps(b);
       } catch (_) {}
     })();
 
@@ -996,14 +1166,16 @@
       return { openMin: o, closeMin: c, alwaysOpen: false };
     }
 
-    // Shop definitions: ensure Inn appears first so it's included even in small towns.
-    let shopDefs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops.slice(0) : [
-      { type: "inn", name: "Inn", alwaysOpen: true },
-      { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
-      { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
-      { type: "armorer", name: "Armorer", open: "08:00", close: "17:00" },
-      { type: "trader", name: "Trader", open: "08:00", close: "18:00" },
-    ];
+    // Shop definitions: disable data-assigned shops in strict prefab mode
+    let shopDefs = STRICT_PREFABS
+      ? []
+      : ((typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops.slice(0) : [
+          { type: "inn", name: "Inn", alwaysOpen: true },
+          { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
+          { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
+          { type: "armorer", name: "Armorer", open: "08:00", close: "17:00" },
+          { type: "trader", name: "Trader", open: "08:00", close: "18:00" },
+        ]);
     try {
       const idxInn = shopDefs.findIndex(d => String(d.type || "").toLowerCase() === "inn" || /inn/i.test(String(d.name || "")));
       if (idxInn > 0) {
