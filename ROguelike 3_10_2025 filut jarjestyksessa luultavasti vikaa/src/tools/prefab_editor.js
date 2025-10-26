@@ -412,10 +412,24 @@ function onGridMouse(e) {
   const y = Math.floor((e.clientY - rect.top - 1) / CELL);
   if (x < 0 || y < 0 || x >= state.w || y >= state.h) return;
   if (state.brush === "tile") {
-    state.tiles[y][x] = String(state.tileSel || "FLOOR").toUpperCase();
+    const sel = String(state.tileSel || "FLOOR").toUpperCase();
+    state.tiles[y][x] = sel;
+    if (sel === "DOOR") {
+      // Automatically create/track a door entry for DOOR tiles
+      state.lastDoorPaintPos = { x, y };
+      const d = getOrCreateDoorAt(x, y);
+      if (!d.orientation) d.orientation = "S";
+      if (!d.type) d.type = "single";
+      if (!d.role) d.role = "main";
+    } else {
+      // If overwriting a door tile, remove door metadata
+      const idx = state.doors.findIndex(d => d.x === x && d.y === y);
+      if (idx >= 0) state.doors.splice(idx, 1);
+    }
   } else if (state.brush === "prop") {
     state.tiles[y][x] = String(state.propSel || "TABLE").toUpperCase();
   } else if (state.brush === "door") {
+    // Legacy path (kept for safety): painting door explicitly
     state.tiles[y][x] = "DOOR";
     state.lastDoorPaintPos = {x,y};
     const d = getOrCreateDoorAt(x,y);
