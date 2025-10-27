@@ -36,7 +36,7 @@ const DATA_FILES = {
   shopRestock: "data/shops/shop_restock.json",
   progression: "data/balance/progression.json",
   animals: "data/entities/animals.json",
-  enemyLoot: "data/enemies/enemy_loot_pools.json",
+  
   // New: prefab registry for town buildings (houses/shops/inns)
   prefabs: "data/worldgen/prefabs.json"
 };
@@ -68,7 +68,7 @@ export const GameData = {
   shopRules: null,
   shopRestock: null,
   progression: null,
-  enemyLoot: null,
+  
   // New: prefab registry grouped by category
   prefabs: null,
   ready: null,
@@ -93,7 +93,7 @@ GameData.ready = (async function loadAll() {
     const [
       assetsCombined,
       items, enemies, npcs, consumables, shops, town, flavor, encounters, config, palette, messages,
-      shopPhases, shopPools, shopRules, shopRestock, progression, animals, enemyLoot, prefabs
+      shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -113,7 +113,7 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.shopRestock).catch(() => null),
       fetchJson(DATA_FILES.progression).catch(() => null),
       fetchJson(DATA_FILES.animals).catch(() => null),
-      fetchJson(DATA_FILES.enemyLoot).catch(() => null),
+      
       fetchJson(DATA_FILES.prefabs).catch(() => null)
     ]);
 
@@ -135,7 +135,7 @@ GameData.ready = (async function loadAll() {
     GameData.shopRestock = (shopRestock && typeof shopRestock === "object") ? shopRestock : null;
     GameData.progression = (progression && typeof progression === "object") ? progression : null;
     GameData.animals = Array.isArray(animals) ? animals : null;
-    GameData.enemyLoot = (enemyLoot && typeof enemyLoot === "object") ? enemyLoot : null;
+    
 
     // Prefabs registry grouped by category
     GameData.prefabs = (prefabs && typeof prefabs === "object") ? prefabs : null;

@@ -234,11 +234,11 @@ export function generate(ctx, source) {
   const coins = baseCoins + bonus;
   drops.push({ name: `${coins} gold`, kind: "gold", amount: coins });
 
-  // Potion drop: only when enemy has potions weights in loot pool; no fallback
+  // Potion drop: only when enemy has embedded potions weights in its lootPools
   (function maybeDropPotion() {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
-    const hasPotionsInPool = !!(pools && pools[type] && pools[type].potions);
+    const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
+    const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(type) : null;
+    const hasPotionsInPool = !!(def && def.lootPools && def.lootPools.potions);
     if (!hasPotionsInPool) return;
     const dropChance = 0.50;
     if (ctx.chance(dropChance)) {
