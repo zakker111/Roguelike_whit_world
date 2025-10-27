@@ -40,8 +40,8 @@
       "size": { "w": 6, "h": 5 },
       "tiles": [
         ["WALL","WALL","WINDOW","WALL","WALL","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","BED","FLOOR","FLOOR","WALL"],
+        ["WALL","TABLE","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","CHAIR","BED","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL"]
       ],
@@ -170,7 +170,7 @@
         ["WALL","FLOOR","TABLE","TABLE","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","TABLE","TABLE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WINDOW","FLOOR","CHAIR","CHAIR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FIREPLACE","WALL"],
+        ["WALL","FIREPLACE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FIREPLACE","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","DOOR","DOOR","WALL","WALL","WALL","WALL"]
       ],
       "doors": [
