@@ -1,8 +1,8 @@
 {
   "__guidelines": [
-    "Purpose: map enemy id -> { weapons: { key: weight, ... }, armor: { key: weight, ... } } to bias drops and weapon attribution.",
+    "Purpose: map enemy id -> { weapons: { key: weight, ... }, armor: { key: weight, ... }, potions: { lesser: w, average: w, strong: w } } to bias drops.",
     "When an enemy dies and its equipChance (from data/enemies.json) succeeds, an item is chosen from its pool only.",
-    "There is no fallback to generic items: if the pool is missing/invalid for an enemy, no equipment drops on that roll.",
+    "Potion drops: if 'potions' is present for an enemy, potion drop chance is slightly higher; weights bias tier when a potion is dropped.",
     "Weights are relative; they do not need to sum to 1. Any positive numbers work.",
     "Item keys must exist in the Items registry (data/items.json id, or window.Items.TYPES). Unknown keys are skipped.",
     "Tiering: item is created at max(item.minTier, enemyTier). Enemy tier is from enemies.json (used via Enemies.equipTierFor).",
@@ -13,26 +13,42 @@
 
   "goblin": {
     "weapons": { "dagger": 0.6, "mace": 0.25, "club": 0.3 },
-    "armor":   { "shield": 0.15 }
+    "armor":   { "shield": 0.15 },
+    "potions": { "lesser": 0.60, "average": 0.30, "strong": 0.10 }
   },
   "bandit": {
     "weapons": { "sword_simple": 0.5, "dagger": 0.3, "axe": 0.2 },
-    "armor":   {}
+    "armor":   {},
+    "potions": { "lesser": 0.45, "average": 0.40, "strong": 0.15 }
   },
   "orc": {
     "weapons": { "axe": 0.5, "greatsword": 0.2 },
-    "armor":   { "helmet": 0.15, "torso_armor": 0.15 }
+    "armor":   { "helmet": 0.15, "torso_armor": 0.15 },
+    "potions": { "lesser": 0.45, "average": 0.40, "strong": 0.15 }
   },
   "troll": {
     "weapons": { "mace": 0.5 },
-    "armor":   { "leg_armor": 0.2, "torso_armor": 0.2, "shield": 0.1 }
+    "armor":   { "leg_armor": 0.2, "torso_armor": 0.2, "shield": 0.1 },
+    "potions": { "lesser": 0.50, "average": 0.35, "strong": 0.15 }
   },
   "skeleton": {
     "weapons": { "sword_simple": 0.4 },
-    "armor":   { "shield": 0.3, "helmet": 0.3 }
+    "armor":   { "shield": 0.3, "helmet": 0.3 },
+    "potions": { "lesser": 0.50, "average": 0.35, "strong": 0.15 }
   },
   "ogre": {
     "weapons": { "greatsword": 0.4, "axe": 0.3 },
-    "armor":   { "torso_armor": 0.2, "helmet": 0.1 }
+    "armor":   { "torso_armor": 0.2, "helmet": 0.1 },
+    "potions": { "lesser": 0.40, "average": 0.35, "strong": 0.25 }
+  },
+  "mime_ghost": {
+    "weapons": {},
+    "armor":   {},
+    "potions": { "lesser": 0.60, "average": 0.30, "strong": 0.10 }
+  },
+  "hell_houndin": {
+    "weapons": {},
+    "armor":   {},
+    "potions": { "lesser": 0.45, "average": 0.35, "strong": 0.20 }
   }
 }

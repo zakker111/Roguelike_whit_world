@@ -25,19 +25,21 @@
  * Returns a plain item object: { kind: "potion", name, heal }
  */
 function pickPotion(ctx, source) {
-  // Prefer JSON-driven consumables when available; fallback to enemy-weighted defaults
-  const CD = (typeof window !== "undefined" && window.GameData && window.GameData.consumables) ? window.GameData.consumables : null;
-  const potions = (CD && Array.isArray(CD.potions)) ? CD.potions : null;
+  // Prefer JSON-driven consumables when available; fallback to enemy-loot-pool weights or hardcoded defaults
+  const GD = (typeof window !== "undefined" && window.GameData) ? window.GameData : null;
+  const CD = GD && GD.consumables ? GD.consumables : null;
+  const potionsReg = (CD && Array.isArray(CD.potions)) ? CD.potions : null;
+
   const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
   const rfn = (RU && typeof RU.getRng === "function")
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
     : ((typeof ctx.rng === "function") ? ctx.rng : null);
-  const r = (typeof rfn === "function") ? rfn() : 0.5;
+  const rnd = (typeof rfn === "function") ? rfn : (() => 0.5);
 
-  function weightedPick(list) {
+  function weightedPick(list, rVal) {
     const total = list.reduce((s, it) => s + (Number(it.weight) || 0), 0);
     if (total <= 0) return list[0];
-    let x = r * total;
+    let x = rVal * total;
     for (const it of list) {
       const w = Number(it.weight) || 0;
       if (x < w) return it;
@@ -46,27 +48,30 @@ function pickPotion(ctx, source) {
     return list[0];
   }
 
-  if (potions && potions.length) {
-    const chosen = weightedPick(potions);
+  if (potionsReg && potionsReg.length) {
+    const rVal = rnd();
+    const chosen = weightedPick(potionsReg, rVal);
     return { name: chosen.name || "potion", kind: "potion", heal: Number(chosen.heal) || 3 };
   }
 
-  // Fallback: use enemy-type weighting when JSON not present
-  const t = source?.type || "goblin";
+  // Fallback: use enemy-loot-pool 'potions' weights when consumables registry is absent
+  const typeKey = String(source?.type || "goblin").toLowerCase();
+  const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
+  const potW = pools && pools[typeKey] && pools[typeKey].potions ? pools[typeKey].potions : null;
+
   let wL = 0.6, wA = 0.3, wS = 0.1;
-  const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
-  if (EM && typeof EM.potionWeightsFor === "function") {
-    const w = EM.potionWeightsFor(t) || {};
-    wL = typeof w.lesser === "number" ? w.lesser : wL;
-    wA = typeof w.average === "number" ? w.average : wA;
-    wS = typeof w.strong === "number" ? w.strong : wS;
+  if (potW && typeof potW === "object") {
+    wL = typeof potW.lesser === "number" ? potW.lesser : wL;
+    wA = typeof potW.average === "number" ? potW.average : wA;
+    wS = typeof potW.strong === "number" ? potW.strong : wS;
   } else {
-    if (t === "troll") { wL = 0.5; wA = 0.35; wS = 0.15; }
-    if (t === "ogre")  { wL = 0.4; wA = 0.35; wS = 0.25; }
+    // Hardcoded fallbacks for some types
+    if (typeKey === "troll") { wL = 0.5; wA = 0.35; wS = 0.15; }
+    if (typeKey === "ogre")  { wL = 0.4; wA = 0.35; wS = 0.25; }
   }
-  const rr = rfn();
-  if (rr < wL) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
-  if (rr < wL + wA) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
+  const rv = rnd();
+  if (rv < wL) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
+  if (rv < wL + wA) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
   return { name: "strong potion (+10 HP)", kind: "potion", heal: 10 };
 }
 
@@ -260,9 +265,16 @@ export function generate(ctx, source) {
   const coins = baseCoins + bonus;
   drops.push({ name: `${coins} gold`, kind: "gold", amount: coins });
 
-  if (ctx.chance(0.35)) {
-    drops.push(pickPotion(ctx, source));
-  }
+  // Potion drop chance: base 35%, boosted to 50% if enemy has potions weights in loot pool
+  (function maybeDropPotion() {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
+    const hasPotionsInPool = !!(pools && pools[type] && pools[type].potions);
+    const dropChance = hasPotionsInPool ? 0.50 : 0.35;
+    if (ctx.chance(dropChance)) {
+      drops.push(pickPotion(ctx, source));
+    }
+  })();
 
   const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
   const tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(type) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
