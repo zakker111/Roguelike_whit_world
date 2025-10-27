@@ -100,13 +100,12 @@ export function enemiesAct(ctx) {
     return true;
   }
 
-  // Faction helpers (minimal matrix: different factions are hostile, all hostile to player)
+  // Faction helpers: consume explicit faction from data; no type-based inference.
+  // Different non-neutral factions are hostile to each other. Player is a distinct faction.
   const factionOf = (en) => {
-    if (!en) return "neutral";
+    if (!en) return "monster";
     if (en.faction) return String(en.faction);
-    const t = String(en.type || "").toLowerCase();
-    if (t.includes("bandit")) return "bandit";
-    if (t.includes("orc")) return "orc";
+    // Default to "monster" when missing; ensure data/enemies.json provides faction for all entries.
     return "monster";
   };
   const isHostileTo = (fa, fb) => {
