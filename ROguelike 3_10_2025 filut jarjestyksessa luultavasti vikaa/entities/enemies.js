@@ -64,7 +64,7 @@ function applyJsonEnemies(json) {
     const xpOk = Array.isArray(row.xp) && row.xp.length > 0;
     if (!hpOk || !atkOk || !xpOk) { warn(`Enemy '${key}' missing hp/atk/xp arrays; using fallbacks where needed.`, row); }
 
-    TYPES[key] = {
+    const def = {
       key,
       glyph: row.glyph || "?",
       color: row.color || "#cbd5e1",
@@ -74,16 +74,20 @@ function applyJsonEnemies(json) {
       _hp: row.hp || [],
       _atk: row.atk || [],
       _xp: row.xp || [],
-      _potionWeights: (row.potionWeights && typeof row.potionWeights === "object") ? row.potionWeights : { lesser: 0.6, average: 0.3, strong: 0.1 },
       _equipChance: typeof row.equipChance === "number" ? row.equipChance : 0.35,
       _weightByDepth: row.weightByDepth || [],
       hp(depth) { return linearAt(this._hp, depth, 3); },
       atk(depth) { return linearAt(this._atk, depth, 1); },
       xp(depth)  { return linearAt(this._xp, depth, 5); },
       weight(depth) { return weightFor(this, depth); },
-      potionWeights: row.potionWeights,
       equipChance: typeof row.equipChance === "number" ? row.equipChance : 0.35,
+      // Optional embedded loot pools (weapons/armor/potions)
+      lootPools: (row.lootPools && typeof row.lootPools === "object") ? row.lootPools : null,
+      // Optional faction (AI hostility); default handled elsewhere
+      faction: row.faction || undefined,
     };
+    TYPES[key] = def;
+    TYPES[String(key).toLowerCase()] = def; // alias lower-case for lookups
   }
 }
 
@@ -92,7 +96,11 @@ export function listTypes() {
 }
 
 export function getTypeDef(type) {
-  return TYPES[type] || null;
+  return TYPES[type] || TYPES[String(type || "").toLowerCase()] || null;
+}
+
+export function getDefById(id) {
+  return getTypeDef(id);
 }
 
 export function colorFor(type) {
@@ -200,6 +208,7 @@ if (typeof window !== "undefined") {
     TYPES,
     listTypes,
     getTypeDef,
+    getDefById,
     colorFor,
     glyphFor,
     equipTierFor,
