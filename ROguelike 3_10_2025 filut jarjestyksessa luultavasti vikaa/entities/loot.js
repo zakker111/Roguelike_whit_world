@@ -25,11 +25,10 @@
  * Returns a plain item object: { kind: "potion", name, heal }
  */
 function pickPotion(ctx, source) {
-  // Use enemy loot pool 'potions' weights only; no fallbacks
-  const GD = (typeof window !== "undefined" && window.GameData) ? window.GameData : null;
-  const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
-  const typeKey = String(source?.type || "").toLowerCase();
-  const potW = pools && typeKey && pools[typeKey] && pools[typeKey].potions ? pools[typeKey].potions : null;
+  // Use embedded enemy lootPools 'potions' weights only
+  const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
+  const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(source?.type || "") : null;
+  const potW = def && def.lootPools && def.lootPools.potions ? def.lootPools.potions : null;
   if (!potW) return null;
 
   const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
@@ -124,12 +123,9 @@ function fallbackEquipment(ctx, tier) {
  */
 function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
   try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
-    const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
-    if (!pools) return null;
-
-    const typeKey = String(enemyType || "").toLowerCase();
-    const pool = pools[typeKey] || pools[enemyType] || pools[String(enemyType || "")];
+    const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
+    const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(enemyType) : null;
+    const pool = def && def.lootPools ? def.lootPools : null;
     if (!pool) return null;
 
     const ItemsMod = (ctx.Items || (typeof window !== "undefined" ? window.Items : null));
@@ -142,13 +138,12 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
       for (const key of Object.keys(obj)) {
         const w = Number(obj[key] || 0);
         if (!(w > 0)) continue;
-        const def = ItemsMod.getTypeDef(key);
-        if (!def) continue;
-        entries.push({ key, def, w });
+        const tdef = ItemsMod.getTypeDef(key);
+        if (!tdef) continue;
+        entries.push({ key, def: tdef, w });
       }
     }
 
-    // Support nested categories { weapons: {...}, armor: {...} } and flat pools for back-compat
     if (pool.weapons || pool.armor) {
       pushFrom(pool.weapons);
       pushFrom(pool.armor);
@@ -158,7 +153,6 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
 
     if (!entries.length) return null;
 
-    // Weighted pick
     const rng = (function () {
       try {
         if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
