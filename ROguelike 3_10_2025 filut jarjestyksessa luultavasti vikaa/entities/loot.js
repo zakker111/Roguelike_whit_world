@@ -116,7 +116,7 @@ function fallbackEquipment(ctx, tier) {
 
 /**
  * Enemy-biased equipment picker:
- * - Uses data/enemy_loot_pools.json (loaded into GameData.enemyLoot) when available.
+ 
  * - Each enemy id maps to { itemKey: weight, ... }.
  * - Picks an item key by weight, clamps tier to the item's minTier, and creates via Items.createByKey.
  * Returns: item object or null if no suitable pool/entries.
