@@ -25,53 +25,28 @@
  * Returns a plain item object: { kind: "potion", name, heal }
  */
 function pickPotion(ctx, source) {
-  // Prefer JSON-driven consumables when available; fallback to enemy-loot-pool weights or hardcoded defaults
+  // Use enemy loot pool 'potions' weights only; no fallbacks
   const GD = (typeof window !== "undefined" && window.GameData) ? window.GameData : null;
-  const CD = GD && GD.consumables ? GD.consumables : null;
-  const potionsReg = (CD && Array.isArray(CD.potions)) ? CD.potions : null;
+  const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
+  const typeKey = String(source?.type || "").toLowerCase();
+  const potW = pools && typeKey && pools[typeKey] && pools[typeKey].potions ? pools[typeKey].potions : null;
+  if (!potW) return null;
 
   const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
   const rfn = (RU && typeof RU.getRng === "function")
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
     : ((typeof ctx.rng === "function") ? ctx.rng : null);
-  const rnd = (typeof rfn === "function") ? rfn : (() => 0.5);
+  const rv = (typeof rfn === "function") ? rfn() : 0.5;
 
-  function weightedPick(list, rVal) {
-    const total = list.reduce((s, it) => s + (Number(it.weight) || 0), 0);
-    if (total <= 0) return list[0];
-    let x = rVal * total;
-    for (const it of list) {
-      const w = Number(it.weight) || 0;
-      if (x < w) return it;
-      x -= w;
-    }
-    return list[0];
-  }
+  const wL = Number(potW.lesser || 0);
+  const wA = Number(potW.average || 0);
+  const wS = Number(potW.strong || 0);
+  const total = wL + wA + wS;
+  if (total <= 0) return null;
 
-  if (potionsReg && potionsReg.length) {
-    const rVal = rnd();
-    const chosen = weightedPick(potionsReg, rVal);
-    return { name: chosen.name || "potion", kind: "potion", heal: Number(chosen.heal) || 3 };
-  }
-
-  // Fallback: use enemy-loot-pool 'potions' weights when consumables registry is absent
-  const typeKey = String(source?.type || "goblin").toLowerCase();
-  const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
-  const potW = pools && pools[typeKey] && pools[typeKey].potions ? pools[typeKey].potions : null;
-
-  let wL = 0.6, wA = 0.3, wS = 0.1;
-  if (potW && typeof potW === "object") {
-    wL = typeof potW.lesser === "number" ? potW.lesser : wL;
-    wA = typeof potW.average === "number" ? potW.average : wA;
-    wS = typeof potW.strong === "number" ? potW.strong : wS;
-  } else {
-    // Hardcoded fallbacks for some types
-    if (typeKey === "troll") { wL = 0.5; wA = 0.35; wS = 0.15; }
-    if (typeKey === "ogre")  { wL = 0.4; wA = 0.35; wS = 0.25; }
-  }
-  const rv = rnd();
-  if (rv < wL) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
-  if (rv < wL + wA) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
+  const roll = rv * total;
+  if (roll < wL) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
+  if (roll < wL + wA) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
   return { name: "strong potion (+10 HP)", kind: "potion", heal: 10 };
 }
 
@@ -265,14 +240,16 @@ export function generate(ctx, source) {
   const coins = baseCoins + bonus;
   drops.push({ name: `${coins} gold`, kind: "gold", amount: coins });
 
-  // Potion drop chance: base 35%, boosted to 50% if enemy has potions weights in loot pool
+  // Potion drop: only when enemy has potions weights in loot pool; no fallback
   (function maybeDropPotion() {
     const GD = (typeof window !== "undefined" ? window.GameData : null);
     const pools = GD && GD.enemyLoot && typeof GD.enemyLoot === "object" ? GD.enemyLoot : null;
     const hasPotionsInPool = !!(pools && pools[type] && pools[type].potions);
-    const dropChance = hasPotionsInPool ? 0.50 : 0.35;
+    if (!hasPotionsInPool) return;
+    const dropChance = 0.50;
     if (ctx.chance(dropChance)) {
-      drops.push(pickPotion(ctx, source));
+      const pot = pickPotion(ctx, source);
+      if (pot) drops.push(pot);
     }
   })();
 
