@@ -1768,3 +1768,7 @@ BUGS
 - VERIFY this happens Dungeon markers color-coded by level on main map and minimap: green (1–2), amber (3), red (4–5). 
 - i dont see what killed enemy in ruins chek encounters too
 - there is something wierd when creature spawns same map in region_map and so one some blood stanes are followed by next region map from ruins or animals(creatures) creatures dont move in map when spawning them
+- minimap shows all chunks when going in ruins, dungeons, towns etc and re entering
+- minimap shows dungeons and towns
+
+
