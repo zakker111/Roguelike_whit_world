@@ -90,16 +90,30 @@ export function draw(ctx, view) {
 
   // Helpers for biome-based outdoor ground tint
   function ensureTownBiome(ctx) {
-    if (ctx.townBiome) return;
     try {
       const WMOD = (typeof window !== "undefined" ? window.World : null);
       const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
-      const wmap = (ctx.world && ctx.world.map) ? ctx.world.map : null;
-      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : (ctx.player.x | 0);
-      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : (ctx.player.y | 0);
+      const world = ctx.world || {};
+      const wmap = world.map || null;
+      // Absolute world coords where the town lives (recorded on entry)
+      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
+      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
+      // Map absolute -> local indices into current window
+      const ox = (world.originX | 0), oy = (world.originY | 0);
+      const lx = (wx - ox) | 0;
+      const ly = (wy - oy) | 0;
+
+      let t = null;
+      if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+        t = wmap[ly][lx];
+      }
+      // Fallback to generator for robustness
+      if (t == null && world.gen && typeof world.gen.tileAt === "function") {
+        t = world.gen.tileAt(wx, wy);
+      }
+
       let key = null;
-      if (WT && wmap && wmap[wy] && typeof wmap[wy][wx] !== "undefined") {
-        const t = wmap[wy][wx];
+      if (WT && t != null) {
         if (t === WT.DESERT) key = "DESERT";
         else if (t === WT.SNOW) key = "SNOW";
         else if (t === WT.BEACH) key = "BEACH";

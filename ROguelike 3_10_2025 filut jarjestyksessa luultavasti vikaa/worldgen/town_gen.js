@@ -364,14 +364,28 @@ function generate(ctx) {
     try {
       const WMOD = (typeof window !== "undefined" ? window.World : null);
       const WTILES = WMOD && WMOD.TILES ? WMOD.TILES : null;
-      const wmap = (ctx.world && ctx.world.map) ? ctx.world.map : null;
-      // Prefer the recorded world return position; else current player position
-      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : (ctx.player.x | 0);
-      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : (ctx.player.y | 0);
+      const world = ctx.world || {};
+      const wmap = world.map || null;
+      // Prefer the recorded world return position; else current player position (absolute world coords)
+      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
+      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
+
+      // Convert absolute world coords -> local indices into current windowed world map
+      const ox = (world.originX | 0), oy = (world.originY | 0);
+      const lx = (wx - ox) | 0;
+      const ly = (wy - oy) | 0;
+
+      let t = null;
+      if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+        t = wmap[ly][lx];
+      }
+      // Fallback: query generator directly by absolute world coords (robust even if outside window)
+      if (t == null && world.gen && typeof world.gen.tileAt === "function") {
+        t = world.gen.tileAt(wx, wy);
+      }
+
       let key = null;
-      if (WTILES && wmap && wmap[wy] && typeof wmap[wy][wx] !== "undefined") {
-        const t = wmap[wy][wx];
-        // Map to canonical biome keys
+      if (WTILES && t != null) {
         if (t === WTILES.DESERT) key = "DESERT";
         else if (t === WTILES.SNOW) key = "SNOW";
         else if (t === WTILES.BEACH) key = "BEACH";
@@ -379,7 +393,7 @@ function generate(ctx) {
         else if (t === WTILES.FOREST) key = "FOREST";
         else if (t === WTILES.GRASS) key = "GRASS";
       }
-      ctx.townBiome = key || ctx.townBiome || "GRASS";
+      ctx.townBiome = key || "GRASS";
       // Persist on world.towns entry if available
       try { if (info && typeof info === "object") info.biome = ctx.townBiome; } catch (_) {}
     } catch (_) {}
