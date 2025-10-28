@@ -189,16 +189,7 @@ export function potionWeightsFor(type) {
 
 export function pickType(depth, rng) {
   const keys = listTypes();
-  if (!keys.length) {
-    try {
-      if (typeof window !== "undefined" && (window.DEV || localStorage.getItem("DEV") === "1")) {
-        const LG = (typeof window !== "undefined" ? window.Logger : null);
-        const msg = `[Enemies] pickType: no enemy types registered at depth=${depth}.`;
-        if (LG && typeof LG.log === "function") LG.log(msg, "warn"); else console.warn(msg);
-      }
-    } catch (_) {}
-    return null;
-  }
+  if (!keys.length) return null;
   const entries = keys.map((k) => ({ key: k, w: TYPES[k].weight(depth) }));
   const total = entries.reduce((s, e) => s + e.w, 0);
   const rfn = (function () {
@@ -210,14 +201,6 @@ export function pickType(depth, rng) {
     return (typeof rng === "function") ? rng : (() => 0.5); // deterministic mid if RNG unavailable
   })();
   if (total <= 0) {
-    try {
-      if (typeof window !== "undefined" && (window.DEV || localStorage.getItem("DEV") === "1")) {
-        const LG = (typeof window !== "undefined" ? window.Logger : null);
-        const details = entries.map(e => `${e.key}:${e.w}`).join(", ");
-        const msg = `[Enemies] pickType: total weight=0 at depth=${depth}. Entries: ${details}`;
-        if (LG && typeof LG.log === "function") LG.log(msg, "warn"); else console.warn(msg);
-      }
-    } catch (_) {}
     // choose first when all weights are zero; indicates data issue
     return entries[0]?.key || null;
   }
@@ -263,14 +246,7 @@ export function createEnemyAt(x, y, depth, rng) {
   }
   const t = type ? getTypeDef(type) : null;
   if (!t) {
-    // Log diagnostics in DEV to trace remaining fallbacks
-    try {
-      if (typeof window !== "undefined" && (window.DEV || localStorage.getItem("DEV") === "1")) {
-        const LG = (typeof window !== "undefined" ? window.Logger : null);
-        const msg = `[Enemies] createEnemyAt: missing def for type='${String(type)}' at depth=${depth}. TYPES keys=${Object.keys(TYPES).join(", ")}`;
-        if (LG && typeof LG.log === "function") LG.log(msg, "warn"); else console.warn(msg);
-      }
-    } catch (_) {}
+    // No JSON types loaded; return null to signal caller to use fallback
     return null;
   }
   const level = levelFor(type, depth, rng);

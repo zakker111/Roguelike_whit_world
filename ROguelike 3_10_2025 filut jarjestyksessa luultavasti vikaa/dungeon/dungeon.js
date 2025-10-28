@@ -295,13 +295,6 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     if (enemy && typeof enemy.x === "number" && typeof enemy.y === "number") {
       ctx.enemies.push(enemy);
     } else {
-      try {
-        const msg = `Fallback enemy spawned (create failed) at (${p.x},${p.y}). Types=${Array.isArray(cycleTypes)?cycleTypes.join(", "):"[]"} ed=${ed}`;
-        if (typeof window !== "undefined" && (window.DEV || localStorage.getItem("DEV") === "1")) {
-          const LG = (typeof window !== "undefined" ? window.Logger : null);
-          if (LG && typeof LG.log === "function") LG.log(msg, "warn"); else console.warn("[DEV] " + msg);
-        }
-      } catch (_) {}
       ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
     }
   }
@@ -333,13 +326,6 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
         if (e && typeof e.x === "number" && typeof e.y === "number") {
           ctx.enemies.push(e);
         } else {
-          try {
-            const msg = `Fallback enemy spawned (extra pack failed) at (${p.x},${p.y}). ed=${ed2}`;
-            if (typeof window !== "undefined" && (window.DEV || localStorage.getItem("DEV") === "1")) {
-              const LG = (typeof window !== "undefined" ? window.Logger : null);
-              if (LG && typeof LG.log === "function") LG.log(msg, "warn"); else console.warn("[DEV] " + msg);
-            }
-          } catch (_) {}
           ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
         }
       }
