@@ -482,17 +482,7 @@ export function draw(ctx, view) {
       ctx2d.strokeStyle = stroke;
       ctx2d.lineWidth = 1;
       ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
-      // Optional small level label
-      try {
-        ctx2d.save();
-        ctx2d.globalAlpha = 0.95;
-        ctx2d.fillStyle = "#0b0f16";
-        ctx2d.font = "bold 12px JetBrains Mono, monospace";
-        ctx2d.textAlign = "center";
-        ctx2d.textBaseline = "middle";
-        ctx2d.fillText(String(lvl), sx + TILE / 2, sy + TILE / 2);
-        ctx2d.restore();
-      } catch (_) {}
+      
     }
     ctx2d.restore();
   } catch (_) {}
