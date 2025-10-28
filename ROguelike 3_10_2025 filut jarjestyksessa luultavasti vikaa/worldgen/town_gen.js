@@ -1971,55 +1971,25 @@ function generate(ctx) {
     }
   })();
 
-  // Plaza fixtures via prefab (fallback to classic well + lamps if prefab unavailable)
+  // Plaza fixtures via prefab only (no fallbacks)
   (function placePlazaPrefabStrict() {
     try {
       const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
       const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
-      if (!plazas.length) {
-        // Fallback classic plaza
-        addProp(plaza.x, plaza.y, "well", "Town Well");
-        addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
-        addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
-        addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
-        addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
-        return;
-      }
+      if (!plazas.length) return;
       // Filter prefabs that fit inside current plaza rectangle
       const fit = plazas.filter(p => p && p.size && (p.size.w | 0) <= plazaW && (p.size.h | 0) <= plazaH);
       const list = (fit.length ? fit : plazas);
       const pref = pickPrefab(list, ctx.rng || rng);
-      if (!pref || !pref.size) {
-        // Fallback classic plaza
-        addProp(plaza.x, plaza.y, "well", "Town Well");
-        addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
-        addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
-        addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
-        addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
-        return;
-      }
+      if (!pref || !pref.size) return;
       // Center the plaza prefab within the carved plaza rectangle
       const bx = ((plaza.x - ((pref.size.w / 2) | 0)) | 0);
       const by = ((plaza.y - ((pref.size.h / 2) | 0)) | 0);
       if (!stampPlazaPrefab(ctx, pref, bx, by)) {
-        // Attempt slight slip
-        if (!trySlipStamp(ctx, pref, bx, by, 2)) {
-          // Fallback classic plaza
-          addProp(plaza.x, plaza.y, "well", "Town Well");
-          addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
-          addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
-          addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
-          addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
-        }
+        // Attempt slight slip only; no fallback
+        trySlipStamp(ctx, pref, bx, by, 2);
       }
-    } catch (_) {
-      // Fallback classic plaza on any error
-      addProp(plaza.x, plaza.y, "well", "Town Well");
-      addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
-      addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
-      addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
-      addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
-    }
+    } catch (_) {}
   })();
 
   // Repair pass: enforce solid building perimeters (convert any non-door/window on borders to WALL)
