@@ -198,7 +198,7 @@ export function pickType(depth, rng) {
         return window.RNGUtils.getRng(rng);
       }
     } catch (_) {}
-    return (typeof rng === "function") ? rng : null;
+    return (typeof rng === "function") ? rng : (() => 0.5); // deterministic mid if RNG unavailable
   })();
   if (total <= 0) {
     // choose first when all weights are zero; indicates data issue
@@ -231,10 +231,22 @@ export function enemyBlockChance(enemy, loc) {
 }
 
 export function createEnemyAt(x, y, depth, rng) {
-  const type = pickType(depth, rng);
+  // Ensure registry is loaded before picking
+  try {
+    if (typeof window !== "undefined" && window.Enemies && typeof window.Enemies.ensureLoaded === "function") {
+      window.Enemies.ensureLoaded();
+    } else {
+      ensureLoaded();
+    }
+  } catch (_) {}
+  let type = pickType(depth, rng);
+  if (!type) {
+    const keys = listTypes();
+    type = keys.length ? keys[0] : null;
+  }
   const t = type ? getTypeDef(type) : null;
   if (!t) {
-    // No JSON types loaded; return null to signal caller to use fallback
+    // Construct a minimal enemy from defaults to avoid runtime fallback_enemy
     return null;
   }
   const level = levelFor(type, depth, rng);
