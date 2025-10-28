@@ -466,12 +466,18 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
   const leftW = Math.max(1, Math.floor(w * clampFrac(edgeFrac * (0.8 + 0.4 * wW))));
   const rightW = Math.max(1, Math.floor(w * clampFrac(edgeFrac * (0.8 + 0.4 * wE))));
 
+  // Safe setter to guard against out-of-bounds indexing for rare edge cases
+  const setTileSafe = (yy, xx, val) => {
+    if (yy >= 0 && yy < h && xx >= 0 && xx < w && sample[yy]) {
+      sample[yy][xx] = val;
+    }
+  };
+
   // Top band (north)
   if (cardinals.N != null) {
     for (let y = 0; y < topH; y++) {
-      const row = sample[y];
       for (let x = 0; x < w; x++) {
-        row[x] = cardinals.N;
+        setTileSafe(y, x, cardinals.N);
       }
     }
   }
@@ -479,9 +485,8 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
   // Bottom band (south)
   if (cardinals.S != null) {
     for (let y = h - botH; y < h; y++) {
-      const row = sample[y];
       for (let x = 0; x < w; x++) {
-        row[x] = cardinals.S;
+        setTileSafe(y, x, cardinals.S);
       }
     }
   }
@@ -489,9 +494,8 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
   // Left band (west)
   if (cardinals.W != null) {
     for (let y = 0; y < h; y++) {
-      const row = sample[y];
       for (let x = 0; x < leftW; x++) {
-        row[x] = cardinals.W;
+        setTileSafe(y, x, cardinals.W);
       }
     }
   }
@@ -499,9 +503,8 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
   // Right band (east)
   if (cardinals.E != null) {
     for (let y = 0; y < h; y++) {
-      const row = sample[y];
       for (let x = w - rightW; x < w; x++) {
-        row[x] = cardinals.E;
+        setTileSafe(y, x, cardinals.E);
       }
     }
   }
@@ -514,7 +517,7 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
     if (diagonals.NW != null) {
       for (let y = 0; y < cornerH; y++) {
         for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
-          sample[y][x] = diagonals.NW;
+          setTileSafe(y, x, diagonals.NW);
         }
       }
     }
@@ -523,7 +526,7 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
       for (let y = 0; y < cornerH; y++) {
         for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
           const xx = w - 1 - x;
-          sample[y][xx] = diagonals.NE;
+          setTileSafe(y, xx, diagonals.NE);
         }
       }
     }
@@ -532,7 +535,7 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
       for (let y = 0; y < cornerH; y++) {
         const yy = h - 1 - y;
         for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
-          sample[yy][x] = diagonals.SW;
+          setTileSafe(yy, x, diagonals.SW);
         }
       }
     }
@@ -542,7 +545,7 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
         const yy = h - 1 - y;
         for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
           const xx = w - 1 - x;
-          sample[yy][xx] = diagonals.SE;
+          setTileSafe(yy, xx, diagonals.SE);
         }
       }
     }
