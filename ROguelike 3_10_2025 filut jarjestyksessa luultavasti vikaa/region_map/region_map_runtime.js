@@ -973,7 +973,10 @@ function open(ctx, size) {
         return;
       }
       const WT = World.TILES;
-      const rng = getRegionRng(ctx);
+      // Use the game's global RNG stream for variety across sessions (still deterministic per run)
+      const rng = (RU && typeof RU.getRng === "function")
+        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((typeof ctx.rng === "function") ? ctx.rng : Math.random);
       const sample = ctx.region.map;
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
@@ -1394,6 +1397,7 @@ function onAction(ctx) {
 
 function tick(ctx) {
   if (!ctx || ctx.mode !== "region") return true;
+
   // If an encounter is active within the region map, drive simple AI and completion check
   if (ctx.region && ctx.region._isEncounter) {
     try {
@@ -1417,6 +1421,71 @@ function tick(ctx) {
           if (pos) markAnimalsCleared(pos.x | 0, pos.y | 0);
         } catch (_) {}
         return true;
+      }
+    } catch (_) {}
+  } else {
+    // Neutral animals wander slowly even when not in an encounter
+    try {
+      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const rfn = (RU && typeof RU.getRng === "function")
+        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((typeof ctx.rng === "function") ? ctx.rng : null);
+
+      const sample = (ctx.region && ctx.region.map) ? ctx.region.map : null;
+      const h = sample ? sample.length : 0;
+      const w = h ? (sample[0] ? sample[0].length : 0) : 0;
+      if (w && h && Array.isArray(ctx.enemies) && ctx.enemies.length) {
+        function walkableAt(x, y) {
+          if (x < 0 || y < 0 || x >= w || y >= h) return false;
+          const t = sample[y][x];
+          // Prefer tiles.json walkability if present
+          try {
+            const def = getTileDef("region", t);
+            if (def && def.properties && typeof def.properties.walkable === "boolean") return !!def.properties.walkable;
+          } catch (_) {}
+          // Fallback to overworld semantics
+          try { return !!World.isWalkable(t); } catch (_) {}
+          const WT = World.TILES;
+          return (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+        }
+        function occupiedAt(x, y) {
+          if (x === (ctx.player.x | 0) && y === (ctx.player.y | 0)) return true;
+          return ctx.enemies.some(e => e && e.x === x && e.y === y);
+        }
+
+        let anyMoved = false;
+        for (const e of ctx.enemies) {
+          if (!e) continue;
+          if (String(e.faction || "") !== "animal") continue;
+          // 30% chance to attempt a small random step
+          const chance = 0.30;
+          const rv = (typeof rfn === "function") ? rfn() : Math.random();
+          if (rv >= chance) continue;
+
+          // Try a few random neighbor steps to find a valid move
+          for (let tries = 0; tries < 6; tries++) {
+            const dx = (((typeof rfn === "function" ? rfn() : Math.random()) * 3) | 0) - 1;
+            const dy = (((typeof rfn === "function" ? rfn() : Math.random()) * 3) | 0) - 1;
+            if (!dx && !dy) continue;
+            const nx = e.x + dx, ny = e.y + dy;
+            if (!walkableAt(nx, ny)) continue;
+            if (occupiedAt(nx, ny)) continue;
+            e.x = nx; e.y = ny;
+            anyMoved = true;
+            break;
+          }
+        }
+
+        if (anyMoved) {
+          try {
+            const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+            if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
+          } catch (_) {}
+          try {
+            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") SS.applyAndRefresh(ctx, {});
+          } catch (_) {}
+        }
       }
     } catch (_) {}
   }
