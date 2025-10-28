@@ -1,5 +1,18 @@
 # Game Version History
-Last updated: 2025-10-26 10:00 UTC
+Last updated: 2025-10-28 00:00 UTC
+
+v1.43.0 — Dungeon difficulty scaling, color-coded dungeon markers, and enemy registry hardening
+- Dungeons
+  - Enemies scale using Effective Difficulty (ED): dungeon level + floor(player.level/2) + 1.
+  - Entry log shows “You explore the dungeon (Level X, Effective Y).”
+  - Hardened enemy creation to ensure JSON registry is applied before spawning; reduced fallback enemies.
+- Overworld
+  - Dungeon markers color-coded by level on main map and minimap: green (1–2), amber (3), red (4–5).
+  - Markers render above fog-of-war for visibility; numeric labels removed.
+- Cleanup
+  - Removed DEV-only fallback logs from production paths; kept deterministic RNG fallback in enemy picker when RNG unavailable.
+  - Fixed extra-packs spawn typo (p.y2 → p.y) and ensured ED applied consistently.
+- Deployment: https://2bvgijn1baw8.cosine.page
 
 v1.42.0 — Plaza-first towns, guaranteed Inn (prefab-first), prefab interiors, CSP, and single entry module
 - Town generation (worldgen/town_gen.js):

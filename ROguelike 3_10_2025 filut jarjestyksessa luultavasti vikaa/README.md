@@ -24,6 +24,12 @@ Overworld and exploration (infinite world)
   - Roads connect nearby towns within the currently streamed window (no dangling roads off-screen).
   - Bridges carve fully across river width (1–3 tiles) for complete crossings.
 - POIs (towns/dungeons) are placed sparsely and deterministically; density slightly increased (~1–2%).
+- Dungeon markers:
+  - Color-coded by dungeon level on the main map and minimap:
+    - Level 1–2: green
+    - Level 3: amber
+    - Level 4–5: red
+  - Numeric labels removed; markers render above fog for visibility.
 - Mountain pass dungeons:
   - If a dungeon entrance is on/adjacent to a Mountain tile, a special portal is placed deeper inside.
   - Stepping on that portal tunnels to a new dungeon “across” the mountain.
@@ -35,6 +41,13 @@ Encounters
 - Exit: stand on the '>' tile and press G to return to the overworld (no auto-exit).
 - Props: pressing G while standing on a prop logs a context message (barrel/crate/bench/campfire, etc.). Lootable containers (chests/corpses) use G to open loot.
 - Merchants: some encounters feature a wandering merchant. Bumping into the merchant opens the Shop UI; premium stock is available.
+
+Dungeons and difficulty scaling
+- Single-floor dungeons; stand on any STAIRS tile to return to the overworld (G).
+- Enemy difficulty scales with Effective Difficulty (ED):
+  - ED = dungeon level + floor(player.level / 2) + 1
+  - Entry log shows “You explore the dungeon (Level X, Effective Y).”
+- Enemy registry loading hardened to avoid fallback enemies; proper types are used when JSON is available.
 
 Towns and Wild Seppo
 - Shops, schedules, plaza, greeters; bump-shop at the door to trade when open.
