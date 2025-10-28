@@ -736,6 +736,55 @@ function generate(ctx) {
     return true;
   }
 
+  // Stamp a plaza prefab (props only; no building record)
+  function stampPlazaPrefab(ctx, prefab, bx, by) {
+    if (!prefab || !prefab.size || !Array.isArray(prefab.tiles)) return false;
+    const w = prefab.size.w | 0, h = prefab.size.h | 0;
+    const x0 = bx, y0 = by, x1 = bx + w - 1, y1 = by + h - 1;
+    if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
+
+    // Ensure area currently walkable (plaza/road floor)
+    for (let yy = y0; yy <= y1; yy++) {
+      for (let xx = x0; xx <= x1; xx++) {
+        if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
+      }
+    }
+
+    // Ensure props container
+    try { if (!Array.isArray(ctx.townProps)) ctx.townProps = []; } catch (_) {}
+
+    const PROPMAP = {
+      BED: "bed", TABLE: "table", CHAIR: "chair", SHELF: "shelf", RUG: "rug",
+      FIREPLACE: "fireplace", CHEST: "chest", CRATE: "crate", BARREL: "barrel",
+      PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench"
+    };
+
+    for (let yy = 0; yy < h; yy++) {
+      const row = prefab.tiles[yy];
+      if (!row || row.length !== w) return false;
+      for (let xx = 0; xx < w; xx++) {
+        const code = row[xx];
+        const wx = x0 + xx, wy = y0 + yy;
+
+        // Embedded prop code: place prop on floor. Vendor hint not applicable to plaza.
+        if (code && PROPMAP[code]) {
+          ctx.map[wy][wx] = ctx.TILES.FLOOR;
+          if (!ctx.townProps.some(q => q && q.x === wx && q.y === wy)) {
+            const type = PROPMAP[code];
+            ctx.townProps.push({ x: wx, y: wy, type });
+          }
+          continue;
+        }
+
+        // For plaza prefabs, any tile code resolves to FLOOR (no walls/doors/windows in plazas)
+        ctx.map[wy][wx] = ctx.TILES.FLOOR;
+      }
+    }
+
+    // Do NOT record a building rect for plaza prefabs
+    return true;
+  }
+
   // Enlarge and position the Inn next to the plaza, with size almost as big as the plaza and double doors facing it
   (function enlargeInnBuilding() {
     // Always carve the Inn even if no other buildings exist, to guarantee at least one building
@@ -1922,12 +1971,56 @@ function generate(ctx) {
     }
   })();
 
-  // Plaza fixtures
-  addProp(plaza.x, plaza.y, "well", "Town Well");
-  addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
-  addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
-  addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
-  addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
+  // Plaza fixtures via prefab (fallback to classic well + lamps if prefab unavailable)
+  (function placePlazaPrefabStrict() {
+    try {
+      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
+      if (!plazas.length) {
+        // Fallback classic plaza
+        addProp(plaza.x, plaza.y, "well", "Town Well");
+        addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
+        addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
+        addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
+        addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
+        return;
+      }
+      // Filter prefabs that fit inside current plaza rectangle
+      const fit = plazas.filter(p => p && p.size && (p.size.w | 0) <= plazaW && (p.size.h | 0) <= plazaH);
+      const list = (fit.length ? fit : plazas);
+      const pref = pickPrefab(list, ctx.rng || rng);
+      if (!pref || !pref.size) {
+        // Fallback classic plaza
+        addProp(plaza.x, plaza.y, "well", "Town Well");
+        addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
+        addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
+        addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
+        addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
+        return;
+      }
+      // Center the plaza prefab within the carved plaza rectangle
+      const bx = ((plaza.x - ((pref.size.w / 2) | 0)) | 0);
+      const by = ((plaza.y - ((pref.size.h / 2) | 0)) | 0);
+      if (!stampPlazaPrefab(ctx, pref, bx, by)) {
+        // Attempt slight slip
+        if (!trySlipStamp(ctx, pref, bx, by, 2)) {
+          // Fallback classic plaza
+          addProp(plaza.x, plaza.y, "well", "Town Well");
+          addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
+          addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
+          addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
+          addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
+        }
+      }
+    } catch (_) {
+      // Fallback classic plaza on any error
+      addProp(plaza.x, plaza.y, "well", "Town Well");
+      addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
+      addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
+      addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
+      addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
+    }
+  })();
 
   // Repair pass: enforce solid building perimeters (convert any non-door/window on borders to WALL)
   (function repairBuildingPerimeters() {

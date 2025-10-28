@@ -192,5 +192,63 @@
       },
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
     }
+  ],
+  "plazas": [
+    {
+      "id": "plaza_well_square",
+      "name": "Plaza — Well & Lamps",
+      "category": "plaza",
+      "size": { "w": 13, "h": 9 },
+      "tiles": [
+        ["FLOOR","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WELL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","FLOOR"]
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true }
+    },
+    {
+      "id": "plaza_market_1",
+      "name": "Plaza — Market Stalls",
+      "category": "plaza",
+      "size": { "w": 15, "h": 11 },
+      "tiles": [
+        ["FLOOR","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","CRATE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","BENCH","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","BENCH","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WELL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","BENCH","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","BENCH","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","CRATE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"]
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true }
+    },
+    {
+      "id": "plaza_garden_1",
+      "name": "Plaza — Garden",
+      "category": "plaza",
+      "size": { "w": 11, "h": 9 },
+      "tiles": [
+        ["FLOOR","FLOOR","PLANT","FLOOR","LAMP","FLOOR","PLANT","FLOOR","LAMP","FLOOR","FLOOR"],
+        ["FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","FLOOR"],
+        ["PLANT","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WELL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["PLANT","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","FLOOR"],
+        ["FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR"],
+        ["FLOOR","FLOOR","PLANT","FLOOR","LAMP","FLOOR","PLANT","FLOOR","LAMP","FLOOR","FLOOR"]
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true }
+    }
   ]
 }
