@@ -1,66 +1,98 @@
 [
-  { "id": "goblin", "glyph": "g", "color": "#8bd5a0", "tier": 1, "blockBase": 0.06,
+  { "id": "goblin", "glyph": "g", "color": "#8bd5a0", "tier": 1, "blockBase": 0.06, "faction": "monster",
     "weightByDepth": [ [0, 0.70], [3, 0.50], [6, 0.35] ],
     "hp": [ [0, 3, 0.5] ],
     "atk": [ [0, 1, 0.25] ],
     "xp":  [ [0, 5, 0.5] ],
     "equipChance": 0.35,
-    "potionWeights": { "lesser": 0.60, "average": 0.30, "strong": 0.10 }
+    "lootPools": {
+      "weapons": { "dagger": 0.6, "mace": 0.25, "club": 0.3 },
+      "armor":   { "shield": 0.15 },
+      "potions": { "lesser": 0.60, "average": 0.30, "strong": 0.10 }
+    }
   },
-  { "id": "mime_ghost", "glyph": "m", "color": "#e6eec7", "tier": 1, "blockBase": 0.06,
+  { "id": "mime_ghost", "glyph": "m", "color": "#e6eec7", "tier": 1, "blockBase": 0.06, "faction": "monster",
     "weightByDepth": [ [0, 0.15], [3, 0.20], [6, 0.20] ],
     "hp": [ [0, 3, 0.5] ],
     "atk": [ [0, 1, 0.25] ],
     "xp":  [ [0, 5, 0.5] ],
     "equipChance": 0.65,
-    "potionWeights": { "lesser": 0.60, "average": 0.30, "strong": 0.10 }
+    "lootPools": {
+      "weapons": {},
+      "armor":   {},
+      "potions": { "lesser": 0.60, "average": 0.30, "strong": 0.10 }
+    }
   },
-  { "id": "hell_houndin", "glyph": "h", "color": "#d65d5d", "tier": 3, "blockBase": 0.07,
+  { "id": "hell_houndin", "glyph": "h", "color": "#d65d5d", "tier": 3, "blockBase": 0.07, "faction": "monster",
     "weightByDepth": [ [0, 0.02], [3, 0.08], [6, 0.12] ],
     "hp": [ [0, 5, 0.9] ],
     "atk": [ [0, 2, 0.33] ],
     "xp":  [ [0, 14, 1.0] ],
     "equipChance": 0.60,
-    "potionWeights": { "lesser": 0.45, "average": 0.35, "strong": 0.20 }
+    "lootPools": {
+      "weapons": {},
+      "armor":   {},
+      "potions": { "lesser": 0.45, "average": 0.35, "strong": 0.20 }
+    }
   },
-  { "id": "troll", "glyph": "T", "color": "#e0af68", "tier": 2, "blockBase": 0.08,
+  { "id": "troll", "glyph": "T", "color": "#e0af68", "tier": 2, "blockBase": 0.08, "faction": "monster",
     "weightByDepth": [ [0, 0.25], [3, 0.35], [6, 0.25] ],
     "hp": [ [0, 6, 0.8] ],
     "atk": [ [0, 2, 0.33] ],
     "xp":  [ [0, 12, 1.0] ],
     "equipChance": 0.55,
-    "potionWeights": { "lesser": 0.50, "average": 0.35, "strong": 0.15 }
+    "lootPools": {
+      "weapons": { "mace": 0.5 },
+      "armor":   { "leg_armor": 0.2, "torso_armor": 0.2, "shield": 0.1 },
+      "potions": { "lesser": 0.50, "average": 0.35, "strong": 0.15 }
+    }
   },
-  { "id": "ogre", "glyph": "O", "color": "#f7768e", "tier": 3, "blockBase": 0.10,
+  { "id": "ogre", "glyph": "O", "color": "#f7768e", "tier": 3, "blockBase": 0.10, "faction": "monster",
     "weightByDepth": [ [0, 0.05], [3, 0.15], [6, 0.20] ],
     "hp": [ [0, 10, 1.2] ],
     "atk": [ [0, 3, 0.5] ],
     "xp":  [ [0, 20, 2.0] ],
     "equipChance": 0.75,
-    "potionWeights": { "lesser": 0.40, "average": 0.35, "strong": 0.25 }
+    "lootPools": {
+      "weapons": { "greatsword": 0.4, "axe": 0.3 },
+      "armor":   { "torso_armor": 0.2, "helmet": 0.1 },
+      "potions": { "lesser": 0.40, "average": 0.35, "strong": 0.25 }
+    }
   },
-  { "id": "skeleton", "glyph": "S", "color": "#bfbfbf", "tier": 2, "blockBase": 0.07,
+  { "id": "skeleton", "glyph": "S", "color": "#bfbfbf", "tier": 2, "blockBase": 0.07, "faction": "monster",
     "weightByDepth": [ [0, 0.10], [3, 0.25], [6, 0.35] ],
     "hp": [ [0, 5, 0.8], [5, 8, 1.0] ],
     "atk": [ [0, 2, 0.5], [5, 3, 0.6] ],
     "xp":  [ [0, 8, 1.0], [5, 12, 1.2] ],
     "equipChance": 0.50,
-    "potionWeights": { "lesser": 0.50, "average": 0.35, "strong": 0.15 }
+    "lootPools": {
+      "weapons": { "sword_simple": 0.4 },
+      "armor":   { "shield": 0.3, "helmet": 0.3 },
+      "potions": { "lesser": 0.50, "average": 0.35, "strong": 0.15 }
+    }
   },
-  { "id": "bandit", "glyph": "b", "color": "#c59d5f", "tier": 2, "blockBase": 0.09,
+  { "id": "bandit", "glyph": "b", "color": "#c59d5f", "tier": 2, "blockBase": 0.09, "faction": "bandit",
     "weightByDepth": [ [0, 0.08], [3, 0.20], [6, 0.30] ],
     "hp": [ [0, 6, 0.7], [5, 9, 0.9] ],
     "atk": [ [0, 2, 0.45], [5, 3, 0.55] ],
     "xp":  [ [0, 10, 1.1], [5, 15, 1.3] ],
     "equipChance": 0.65,
-    "potionWeights": { "lesser": 0.45, "average": 0.40, "strong": 0.15 }
+    "lootPools": {
+      "weapons": { "sword_simple": 0.5, "dagger": 0.3, "axe": 0.2 },
+      "armor":   {},
+      "potions": { "lesser": 0.45, "average": 0.40, "strong": 0.15 }
+    }
   },
-  { "id": "orc", "glyph": "o", "color": "#a3e635", "tier": 2, "blockBase": 0.08,
+  { "id": "orc", "glyph": "o", "color": "#a3e635", "tier": 2, "blockBase": 0.08, "faction": "orc",
     "weightByDepth": [ [0, 0.05], [3, 0.20], [6, 0.25] ],
     "hp": [ [0, 7, 0.9], [5, 10, 1.1] ],
     "atk": [ [0, 2, 0.5], [5, 3, 0.6] ],
     "xp":  [ [0, 12, 1.2], [5, 18, 1.4] ],
     "equipChance": 0.60,
-    "potionWeights": { "lesser": 0.45, "average": 0.40, "strong": 0.15 }
+    "lootPools": {
+      "weapons": { "axe": 0.5, "greatsword": 0.2 },
+      "armor":   { "helmet": 0.15, "torso_armor": 0.15 },
+      "potions": { "lesser": 0.45, "average": 0.40, "strong": 0.15 }
+    }
   }
 ]

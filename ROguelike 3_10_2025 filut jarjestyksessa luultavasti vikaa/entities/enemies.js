@@ -16,6 +16,41 @@ const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
 // Enemy type registry populated exclusively from JSON
 export const TYPES = {};
+// Minimal built-in defaults to prevent full fallback spawns if JSON fails to load
+const DEFAULT_ENEMIES = [
+  { id: "goblin", glyph: "g", color: "#8bd5a0", tier: 1, blockBase: 0.06,
+    weightByDepth: [[0,0.70],[3,0.50],[6,0.35]],
+    hp: [[0,3,0.5]], atk: [[0,1,0.25]], xp: [[0,5,0.5]], equipChance: 0.35
+  },
+  { id: "skeleton", glyph: "S", color: "#bfbfbf", tier: 2, blockBase: 0.07,
+    weightByDepth: [[0,0.10],[3,0.25],[6,0.35]],
+    hp: [[0,5,0.8],[5,8,1.0]], atk: [[0,2,0.5],[5,3,0.6]], xp: [[0,8,1.0],[5,12,1.2]], equipChance: 0.50
+  },
+  { id: "troll", glyph: "T", color: "#e0af68", tier: 2, blockBase: 0.08,
+    weightByDepth: [[0,0.25],[3,0.35],[6,0.25]],
+    hp: [[0,6,0.8]], atk: [[0,2,0.33]], xp: [[0,12,1.0]], equipChance: 0.55
+  },
+  { id: "orc", glyph: "o", color: "#a3e635", tier: 2, blockBase: 0.08,
+    weightByDepth: [[0,0.05],[3,0.20],[6,0.25]],
+    hp: [[0,7,0.9],[5,10,1.1]], atk: [[0,2,0.5],[5,3,0.6]], xp: [[0,12,1.2],[5,18,1.4]], equipChance: 0.60
+  },
+  { id: "ogre", glyph: "O", color: "#f7768e", tier: 3, blockBase: 0.10,
+    weightByDepth: [[0,0.05],[3,0.15],[6,0.20]],
+    hp: [[0,10,1.2]], atk: [[0,3,0.5]], xp: [[0,20,2.0]], equipChance: 0.75
+  },
+  { id: "bandit", glyph: "b", color: "#c59d5f", tier: 2, blockBase: 0.09,
+    weightByDepth: [[0,0.08],[3,0.20],[6,0.30]],
+    hp: [[0,6,0.7],[5,9,0.9]], atk: [[0,2,0.45],[5,3,0.55]], xp: [[0,10,1.1],[5,15,1.3]], equipChance: 0.65
+  },
+  { id: "mime_ghost", glyph: "m", color: "#e6eec7", tier: 1, blockBase: 0.06,
+    weightByDepth: [[0,0.15],[3,0.20],[6,0.20]],
+    hp: [[0,3,0.5]], atk: [[0,1,0.25]], xp: [[0,5,0.5]], equipChance: 0.65
+  },
+  { id: "hell_houndin", glyph: "h", color: "#d65d5d", tier: 3, blockBase: 0.07,
+    weightByDepth: [[0,0.02],[3,0.08],[6,0.12]],
+    hp: [[0,5,0.9]], atk: [[0,2,0.33]], xp: [[0,14,1.0]], equipChance: 0.60
+  },
+];
 
 function linearAt(arr, depth, fallback = 1) {
   // arr: [ [minDepth, base, slope] ... ] choose last <= depth and evaluate base + slope * (depth - minDepth)
@@ -30,7 +65,9 @@ function linearAt(arr, depth, fallback = 1) {
 }
 
 function weightFor(row, depth) {
-  const table = row && Array.isArray(row.weightByDepth) ? row.weightByDepth : [];
+  const table = Array.isArray(row?._weightByDepth) ? row._weightByDepth
+                : Array.isArray(row?.weightByDepth) ? row.weightByDepth
+                : [];
   if (!table.length) return 0.0;
   let w = 0;
   for (const entry of table) {
@@ -64,7 +101,7 @@ function applyJsonEnemies(json) {
     const xpOk = Array.isArray(row.xp) && row.xp.length > 0;
     if (!hpOk || !atkOk || !xpOk) { warn(`Enemy '${key}' missing hp/atk/xp arrays; using fallbacks where needed.`, row); }
 
-    TYPES[key] = {
+    const def = {
       key,
       glyph: row.glyph || "?",
       color: row.color || "#cbd5e1",
@@ -74,25 +111,55 @@ function applyJsonEnemies(json) {
       _hp: row.hp || [],
       _atk: row.atk || [],
       _xp: row.xp || [],
-      _potionWeights: (row.potionWeights && typeof row.potionWeights === "object") ? row.potionWeights : { lesser: 0.6, average: 0.3, strong: 0.1 },
       _equipChance: typeof row.equipChance === "number" ? row.equipChance : 0.35,
       _weightByDepth: row.weightByDepth || [],
+      // Also keep a public copy for compatibility
+      weightByDepth: Array.isArray(row.weightByDepth) ? row.weightByDepth : [],
       hp(depth) { return linearAt(this._hp, depth, 3); },
       atk(depth) { return linearAt(this._atk, depth, 1); },
       xp(depth)  { return linearAt(this._xp, depth, 5); },
       weight(depth) { return weightFor(this, depth); },
-      potionWeights: row.potionWeights,
       equipChance: typeof row.equipChance === "number" ? row.equipChance : 0.35,
+      // Optional embedded loot pools (weapons/armor/potions)
+      lootPools: (row.lootPools && typeof row.lootPools === "object") ? row.lootPools : null,
+      // Optional faction (AI hostility); default handled elsewhere
+      faction: row.faction || undefined,
     };
+    TYPES[key] = def;
+    TYPES[String(key).toLowerCase()] = def; // alias lower-case for lookups
   }
 }
 
 export function listTypes() {
-  return Object.keys(TYPES);
+  // Return only primary keys (not lower-case aliases)
+  const out = [];
+  for (const k of Object.keys(TYPES)) {
+    if (TYPES[k] && TYPES[k].key === k) out.push(k);
+  }
+  return out;
 }
 
 export function getTypeDef(type) {
-  return TYPES[type] || null;
+  return TYPES[type] || TYPES[String(type || "").toLowerCase()] || null;
+}
+
+export function getDefById(id) {
+  return getTypeDef(id);
+}
+
+export function ensureLoaded() {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const hasTypes = !!(TYPES && Object.keys(TYPES).length > 0);
+    if (!hasTypes) {
+      if (GD && Array.isArray(GD.enemies) && GD.enemies.length > 0) {
+        applyJsonEnemies(GD.enemies);
+      } else {
+        // Fallback to built-in defaults to avoid mass fallback enemies
+        applyJsonEnemies(DEFAULT_ENEMIES);
+      }
+    }
+  } catch (_) {}
 }
 
 export function colorFor(type) {
@@ -131,7 +198,7 @@ export function pickType(depth, rng) {
         return window.RNGUtils.getRng(rng);
       }
     } catch (_) {}
-    return (typeof rng === "function") ? rng : null;
+    return (typeof rng === "function") ? rng : (() => 0.5); // deterministic mid if RNG unavailable
   })();
   if (total <= 0) {
     // choose first when all weights are zero; indicates data issue
@@ -164,7 +231,19 @@ export function enemyBlockChance(enemy, loc) {
 }
 
 export function createEnemyAt(x, y, depth, rng) {
-  const type = pickType(depth, rng);
+  // Ensure registry is loaded before picking
+  try {
+    if (typeof window !== "undefined" && window.Enemies && typeof window.Enemies.ensureLoaded === "function") {
+      window.Enemies.ensureLoaded();
+    } else {
+      ensureLoaded();
+    }
+  } catch (_) {}
+  let type = pickType(depth, rng);
+  if (!type) {
+    const keys = listTypes();
+    type = keys.length ? keys[0] : null;
+  }
   const t = type ? getTypeDef(type) : null;
   if (!t) {
     // No JSON types loaded; return null to signal caller to use fallback
@@ -200,6 +279,8 @@ if (typeof window !== "undefined") {
     TYPES,
     listTypes,
     getTypeDef,
+    getDefById,
+    ensureLoaded,
     colorFor,
     glyphFor,
     equipTierFor,

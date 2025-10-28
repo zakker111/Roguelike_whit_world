@@ -100,13 +100,12 @@ export function enemiesAct(ctx) {
     return true;
   }
 
-  // Faction helpers (minimal matrix: different factions are hostile, all hostile to player)
+  // Faction helpers: consume explicit faction from data; no type-based inference.
+  // Different non-neutral factions are hostile to each other. Player is a distinct faction.
   const factionOf = (en) => {
-    if (!en) return "neutral";
+    if (!en) return "monster";
     if (en.faction) return String(en.faction);
-    const t = String(en.type || "").toLowerCase();
-    if (t.includes("bandit")) return "bandit";
-    if (t.includes("orc")) return "orc";
+    // Default to "monster" when missing; ensure data/enemies.json provides faction for all entries.
     return "monster";
   };
   const isHostileTo = (fa, fb) => {
@@ -530,27 +529,27 @@ export function enemiesAct(ctx) {
 
             function weaponNameFromEnemyPool(killer) {
               try {
-                const GD = (typeof window !== "undefined" ? window.GameData : null);
                 const IT = (typeof window !== "undefined" ? window.Items : null);
                 const EN = (typeof window !== "undefined" ? window.Enemies : null);
-                const pools = GD && GD.enemyLoot ? GD.enemyLoot : null;
-                if (!pools || !killer) return null;
+                if (!EN || typeof EN.getDefById !== "function" || !killer) return null;
                 const key = String(killer).toLowerCase();
-                const pool = pools[key];
-                if (!pool || typeof pool !== "object") return null;
+                const def = EN.getDefById(key);
+                if (!def || !def.lootPools || typeof def.lootPools !== "object") return null;
 
-                // Prefer explicit weapons pool if present
+                // Prefer explicit weapons pool if present; otherwise treat flat entries as keys
                 let weaponEntries = null;
-                if (pool.weapons && typeof pool.weapons === "object") {
-                  weaponEntries = Object.keys(pool.weapons).map(k => ({ key: k, w: Math.max(0, Number(pool.weapons[k] || 0)) }));
+                if (def.lootPools.weapons && typeof def.lootPools.weapons === "object") {
+                  weaponEntries = Object.keys(def.lootPools.weapons).map(k => ({ key: k, w: Math.max(0, Number(def.lootPools.weapons[k] || 0)) }));
                 } else {
-                  // Backward compatibility: flat pool; filter only items whose slot is 'hand'
-                  if (!IT || !IT.TYPES) return null;
                   const flat = [];
-                  for (const k of Object.keys(pool)) {
-                    const w = Math.max(0, Number(pool[k] || 0));
-                    const def = IT.TYPES[k];
-                    if (def && def.slot === "hand" && w > 0) flat.push({ key: k, w });
+                  const src = def.lootPools;
+                  for (const k of Object.keys(src)) {
+                    const w = Math.max(0, Number(src[k] || 0));
+                    if (!(w > 0)) continue;
+                    // Validate item key exists and is a hand-slot weapon
+                    if (!IT || typeof IT.getTypeDef !== "function") continue;
+                    const idef = IT.getTypeDef(k);
+                    if (idef && idef.slot === "hand") flat.push({ key: k, w });
                   }
                   weaponEntries = flat;
                 }

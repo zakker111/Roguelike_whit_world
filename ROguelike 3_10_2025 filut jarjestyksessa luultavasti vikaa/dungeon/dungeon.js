@@ -226,6 +226,12 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
   const enemyCount = Math.max(6, Math.floor(baseEnemies * sizeMult));
   const makeEnemy = ctx.enemyFactory || defaultEnemyFactory;
 
+  // Ensure enemy registry is loaded before spawning
+  try {
+    const EM0 = (typeof window !== "undefined" ? window.Enemies : null);
+    if (EM0 && typeof EM0.ensureLoaded === "function") EM0.ensureLoaded();
+  } catch (_) {}
+
   // For now: ensure diversity — cycle through available types so each dungeon has different enemies regardless of level
   const EM = (typeof window !== "undefined" ? window.Enemies : null);
   let cycleTypes = [];
@@ -256,29 +262,30 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
 
   for (let i = 0; i < enemyCount; i++) {
     const p = randomFloor(ctx, rooms, ri);
-    let enemy = makeEnemy(p.x, p.y, depth, drng);
+    const pl = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
+    const ed = Math.max(1, (depth | 0) + Math.floor(Math.max(0, pl) / 2) + 1);
+    let enemy = makeEnemy(p.x, p.y, ed, drng);
 
-    // Enforce JSON-only: if factory failed or we want diversity, build from registry cycling through types
-    if (!enemy || typeof enemy.x !== "number" || typeof enemy.y !== "number" || cycleTypes.length) {
+    // If factory failed, build from registry cycling through types for diversity
+    if (!enemy || typeof enemy.x !== "number" || typeof enemy.y !== "number") {
       enemy = null;
       try {
         if (cycleTypes.length) {
           const pickKey = cycleTypes[i % cycleTypes.length];
           const td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef(pickKey) : null;
           if (td) {
+            const pl = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
+            const ed2 = Math.max(1, (depth | 0) + Math.floor(Math.max(0, pl) / 2) + 1);
             enemy = {
               x: p.x, y: p.y,
               type: pickKey,
               glyph: (td.glyph && td.glyph.length) ? td.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
-              hp: td.hp(depth),
-              atk: td.atk(depth),
-              xp: td.xp(depth),
-              level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, depth, drng) : depth,
+              hp: td.hp(ed2),
+              atk: td.atk(ed2),
+              xp: td.xp(ed2),
+              level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, ed2, drng) : ed2,
               announced: false
             };
-          } else {
-            // No registry definition for this key; skip
-            enemy = null;
           }
         }
       } catch (_) {
@@ -288,7 +295,6 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     if (enemy && typeof enemy.x === "number" && typeof enemy.y === "number") {
       ctx.enemies.push(enemy);
     } else {
-      try { ctx.log && ctx.log("Fallback enemy spawned (dungeon create failed).", "warn"); } catch (_) {}
       ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
     }
   }
@@ -314,11 +320,12 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
         // Avoid player tile and occupied enemy tiles
         const occupied = ctx.enemies.some(e => e && e.x === p.x && e.y === p.y) || (p.x === ctx.player.x && p.y === ctx.player.y);
         if (occupied) continue;
-        let e = makeEnemy(p.x, p.y, depth, drng);
+        const pl2 = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
+        const ed2 = Math.max(1, (depth | 0) + Math.floor(Math.max(0, pl2) / 2) + 1);
+        let e = makeEnemy(p.x, p.y, ed2, drng);
         if (e && typeof e.x === "number" && typeof e.y === "number") {
           ctx.enemies.push(e);
         } else {
-          try { ctx.log && ctx.log("Fallback enemy spawned (extra pack create failed).", "warn"); } catch (_) {}
           ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
         }
       }
@@ -434,8 +441,6 @@ function defaultEnemyFactory(x, y, depth, rng) {
   if (EM && typeof EM.createEnemyAt === "function") {
     return EM.createEnemyAt(x, y, depth, rng);
   }
-  // No fallback: enforce JSON-defined enemies only
-  
   return null;
 }
 

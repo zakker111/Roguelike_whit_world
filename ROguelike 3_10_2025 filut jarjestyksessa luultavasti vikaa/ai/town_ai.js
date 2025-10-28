@@ -62,9 +62,10 @@
   }
 
   function propBlocks(type) {
-    // Signs should be walkable; rugs are decorative and don't block.
-    // All other furniture/props block movement.
-    return !(type === "sign" || type === "rug");
+    // Only these props block movement: table, shelf, counter.
+    // Everything else is walkable (sign, rug, bed, chair, fireplace, chest, crate, barrel, plant, stall, lamp, well, bench).
+    const t = String(type || "").toLowerCase();
+    return t === "table" || t === "shelf" || t === "counter";
   }
 
   // ---- Inn upstairs helpers (overlay-aware pathing/seating) ----
@@ -132,16 +133,15 @@
     }
     return null;
   }
+  // Return raw upstairs bed tiles (stand directly on the bed tile when sleeping)
   function innUpstairsBedAdj(ctx) {
     const up = ctx.innUpstairs;
     if (!up) return [];
-    const occUp = buildOccUpstairs(ctx);
     const out = [];
     const props = Array.isArray(up.props) ? up.props : [];
     for (const p of props) {
-      if (!p || String(p.type || "").toLowerCase() !== "bed") continue;
-      const adj = nearestFreeAdjacentUpstairs(ctx, p.x, p.y, occUp);
-      if (adj) out.push(adj);
+      if (!p) continue;
+      if (String(p.type || "").toLowerCase() === "bed") out.push({ x: p.x, y: p.y });
     }
     return out;
   }
@@ -160,7 +160,8 @@
     return out;
   }
   function chooseInnUpstairsBed(ctx) {
-    const beds = innUpstairsBedAdj(ctx);
+    // Choose directly on a bed tile upstairs
+    const beds = innUpstairsBeds(ctx);
     if (!beds.length) return null;
     const rnd = rngFor(ctx);
     return beds[Math.floor(rnd() * beds.length)];
@@ -1109,6 +1110,21 @@
       return firstFreeInteriorTile(ctx, building);
     }
 
+    // Seat tiles inside a building (chair/bench props positions themselves)
+    function homeSeatTiles(ctx, building) {
+      if (!building) return [];
+      const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      const out = [];
+      for (const p of props) {
+        const t = String(p.type || "").toLowerCase();
+        if (t !== "chair" && t !== "bench") continue;
+        if (p.x > building.x && p.x < building.x + building.w - 1 && p.y > building.y && p.y < building.y + building.h - 1) {
+          out.push({ x: p.x, y: p.y });
+        }
+      }
+      return out;
+    }
+
     // Lightweight per-NPC rate limiting: each NPC only acts every N ticks.
     // Defaults: residents/shopkeepers every 2 ticks, pets every 3 ticks, generic 2.
     const tickMod = ((t && typeof t.turnCounter === "number") ? t.turnCounter : 0) | 0;
@@ -1653,30 +1669,56 @@
             // gentle idle
             if (ctx.rng() < 0.90) continue;
           } else if (n._home && n._home.building) {
+            // Preferred target: bed if present and free; else a chair/bench tile inside home; else fallback to home coords
             const bedSpot = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : null;
-          const sleepTarget = bedSpot ? bedSpot : { x: n._home.x, y: n._home.y };
-          const atExact = (n.x === sleepTarget.x && n.y === sleepTarget.y);
-          const nearBed = bedSpot ? (manhattan(n.x, n.y, bedSpot.x, bedSpot.y) === 1) : false;
-          if (atExact || nearBed) {
-            n._sleeping = true;
-            continue;
-          }
-          // Upstairs inn sleeping: if inside inn upstairs and near an upstairs bed during late night
-          if (inLateWindow && ctx.tavern && ctx.tavern.building && n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
-            const bedsUp = innUpstairsBeds(ctx);
-            for (let i = 0; i < bedsUp.length; i++) {
-              const b = bedsUp[i];
-              if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+            let sleepTarget = null;
+            if (bedSpot && isFreeTile(ctx, bedSpot.x, bedSpot.y)) {
+              sleepTarget = bedSpot;
+            } else {
+              const seats = homeSeatTiles(ctx, n._home.building);
+              if (seats.length) {
+                // pick closest seat to NPC to reduce wandering
+                let pick = seats[0], bd2 = manhattan(n.x, n.y, pick.x, pick.y);
+                for (let i = 1; i < seats.length; i++) {
+                  const s = seats[i];
+                  const d2 = manhattan(n.x, n.y, s.x, s.y);
+                  if (d2 < bd2) { bd2 = d2; pick = s; }
+                }
+                sleepTarget = pick;
+              } else {
+                sleepTarget = { x: n._home.x, y: n._home.y };
+              }
             }
-            if (n._sleeping) continue;
-          }
+            const atExact = (sleepTarget && n.x === sleepTarget.x && n.y === sleepTarget.y);
+            const nearBed = bedSpot ? (manhattan(n.x, n.y, bedSpot.x, bedSpot.y) === 1) : false;
+            if (atExact || nearBed) {
+              n._sleeping = true;
+              continue;
+            }
+            // Upstairs inn sleeping: if inside inn upstairs and near an upstairs bed during late night
+            if (inLateWindow && ctx.tavern && ctx.tavern.building && n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
+              const bedsUp = innUpstairsBeds(ctx);
+              for (let i = 0; i < bedsUp.length; i++) {
+                const b = bedsUp[i];
+                if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+              }
+              if (n._sleeping) continue;
+            }
             // Ensure and follow a deterministic home plan; if blocked, wait and retry
+            if (!n._homePlan || !n._homePlanGoal) {
+              // Plan toward chosen sleepTarget
+              n._homePlan = null; n._homePlanGoal = null;
+            }
+            // If inside building and we have a seat/bed target, step toward it; else use general home plan
+            if (sleepTarget && insideBuilding(n._home.building, n.x, n.y)) {
+              if (stepTowards(ctx, occ, n, sleepTarget.x, sleepTarget.y)) continue;
+            }
             if (!n._homePlan || !n._homePlanGoal) {
               ensureHomePlan(ctx, occ, n);
             }
             if (followHomePlan(ctx, occ, n)) continue;
             // Fallback: attempt routing via door if plan absent
-            if (routeIntoBuilding(ctx, occ, n, n._home.building, sleepTarget)) continue;
+            if (routeIntoBuilding(ctx, occ, n, n._home.building, sleepTarget || { x: n._home.x, y: n._home.y })) continue;
 
             // If still not able to go home and it's very late, seek Inn
             if (inLateWindow) {
@@ -1910,6 +1952,17 @@
           for (let i = 0; i < bedsUpList.length; i++) {
             const b = bedsUpList[i];
             if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+          }
+          // If no bed nearby, allow sleeping on a chair upstairs
+          if (!n._sleeping) {
+            try {
+              const up = ctx.innUpstairs;
+              const props = Array.isArray(up && up.props) ? up.props : [];
+              for (const p of props) {
+                if (String(p.type || "").toLowerCase() !== "chair") continue;
+                if (manhattan(n.x, n.y, p.x, p.y) === 0) { n._sleeping = true; break; }
+              }
+            } catch (_) {}
           }
         }
       }

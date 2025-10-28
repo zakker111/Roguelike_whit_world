@@ -203,6 +203,16 @@ export const UI = {
     this.els.godCheckInnTavernBtn?.addEventListener("click", () => {
       if (typeof this.handlers.onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern();
     });
+    // Prefab Editor (DEV-only route)
+    const openPrefabBtn = document.getElementById("god-open-prefab-editor-btn");
+    openPrefabBtn?.addEventListener("click", () => {
+      try {
+        const target = "/tools/prefab_editor.html";
+        window.location.assign(target);
+      } catch (_) {
+        try { window.location.href = "/tools/prefab_editor.html"; } catch (_) {}
+      }
+    });
     // Status effect test buttons
     this.els.godApplyBleedBtn?.addEventListener("click", () => {
       if (typeof this.handlers.onGodApplyBleed === "function") this.handlers.onGodApplyBleed(3);
