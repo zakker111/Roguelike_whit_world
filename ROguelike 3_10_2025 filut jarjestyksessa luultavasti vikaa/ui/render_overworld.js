@@ -461,7 +461,7 @@ export function draw(ctx, view) {
       RenderCore.drawGlyph(ctx2d, sx, sy, glyph, "#ffd166", TILE);
     }
 
-    // Dungeons: red squares
+    // Dungeons: color-coded squares by level (green=1-2, amber=3, red=4-5)
     ctx2d.save();
     for (const d of dungeons) {
       const lx = (d.x | 0) - ox;
@@ -470,13 +470,29 @@ export function draw(ctx, view) {
       const sx = (lx - startX) * TILE - tileOffsetX;
       const sy = (ly - startY) * TILE - tileOffsetY;
       const s = Math.max(4, Math.floor(TILE * 0.48));
-      ctx2d.fillStyle = "#ef4444";
+      const lvl = Math.max(1, (d.level | 0) || 1);
+      let fill = "#ef4444"; // default red
+      let stroke = "rgba(239, 68, 68, 0.7)";
+      if (lvl <= 2) { fill = "#9ece6a"; stroke = "rgba(158, 206, 106, 0.7)"; }
+      else if (lvl === 3) { fill = "#f4bf75"; stroke = "rgba(244, 191, 117, 0.7)"; }
       ctx2d.globalAlpha = 0.85;
+      ctx2d.fillStyle = fill;
       ctx2d.fillRect(sx + (TILE - s) / 2, sy + (TILE - s) / 2, s, s);
       ctx2d.globalAlpha = 0.95;
-      ctx2d.strokeStyle = "rgba(239, 68, 68, 0.7)";
+      ctx2d.strokeStyle = stroke;
       ctx2d.lineWidth = 1;
       ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
+      // Optional small level label
+      try {
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.95;
+        ctx2d.fillStyle = "#0b0f16";
+        ctx2d.font = "bold 12px JetBrains Mono, monospace";
+        ctx2d.textAlign = "center";
+        ctx2d.textBaseline = "middle";
+        ctx2d.fillText(String(lvl), sx + TILE / 2, sy + TILE / 2);
+        ctx2d.restore();
+      } catch (_) {}
     }
     ctx2d.restore();
   } catch (_) {}
@@ -638,7 +654,12 @@ export function draw(ctx, view) {
             const lx = (d.x | 0) - ox;
             const ly = (d.y | 0) - oy;
             if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
-            ctx2d.fillStyle = "#f7768e";
+            const lvl = Math.max(1, (d.level | 0) || 1);
+            let fill = "#f7768e"; // default pink/red
+            if (lvl <= 2) fill = "#9ece6a"; // green (easy)
+            else if (lvl === 3) fill = "#f4bf75"; // amber (medium)
+            else fill = "#f7768e"; // red (hard)
+            ctx2d.fillStyle = fill;
             ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           ctx2d.restore();

@@ -214,7 +214,14 @@ export function generate(ctx, depth) {
         SS.applyAndRefresh(ctx, {});
       }
     } catch (_) {}
-    ctx.log && ctx.log("You explore the dungeon.");
+    try {
+      const pl = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
+      const dl = Math.max(1, (ctx.floor | 0) || 1);
+      const ed = Math.max(1, dl + Math.floor(Math.max(0, pl) / 2));
+      ctx.log && ctx.log(`You explore the dungeon (Level ${dl}, Effective ${ed}).`);
+    } catch (_) {
+      ctx.log && ctx.log("You explore the dungeon.");
+    }
     save(ctx, true);
     return true;
   }
