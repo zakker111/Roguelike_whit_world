@@ -260,30 +260,26 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     const ed = Math.max(1, (depth | 0) + Math.floor(Math.max(0, pl) / 2) + 1);
     let enemy = makeEnemy(p.x, p.y, ed, drng);
 
-    // Enforce JSON-only: if factory failed or we want diversity, build from registry cycling through types
-    if (!enemy || typeof enemy.x !== "number" || typeof enemy.y !== "number" || cycleTypes.length) {
+    // If factory failed, build from registry cycling through types for diversity
+    if (!enemy || typeof enemy.x !== "number" || typeof enemy.y !== "number") {
       enemy = null;
       try {
         if (cycleTypes.length) {
           const pickKey = cycleTypes[i % cycleTypes.length];
           const td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef(pickKey) : null;
           if (td) {
-            // Effective difficulty: dungeon level + half the player level (rounded down), then +1 notch
             const pl = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
-            const ed = Math.max(1, (depth | 0) + Math.floor(Math.max(0, pl) / 2) + 1);
+            const ed2 = Math.max(1, (depth | 0) + Math.floor(Math.max(0, pl) / 2) + 1);
             enemy = {
               x: p.x, y: p.y,
               type: pickKey,
               glyph: (td.glyph && td.glyph.length) ? td.glyph : ((pickKey && pickKey.length) ? pickKey.charAt(0) : "?"),
-              hp: td.hp(ed),
-              atk: td.atk(ed),
-              xp: td.xp(ed),
-              level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, ed, drng) : ed,
+              hp: td.hp(ed2),
+              atk: td.atk(ed2),
+              xp: td.xp(ed2),
+              level: (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(pickKey, ed2, drng) : ed2,
               announced: false
             };
-          } else {
-            // No registry definition for this key; skip
-            enemy = null;
           }
         }
       } catch (_) {
@@ -438,19 +434,9 @@ function randomFloor(ctx, rooms, ri) {
 
 function defaultEnemyFactory(x, y, depth, rng) {
   const EM = (typeof window !== "undefined" ? window.Enemies : null);
-  // Effective difficulty: dungeon level + half the player level (rounded down), then +1 notch
-  try {
-    const pl = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
-    const ed = Math.max(1, (depth | 0) + Math.floor(Math.max(0, pl) / 2) + 1);
-    if (EM && typeof EM.createEnemyAt === "function") {
-      return EM.createEnemyAt(x, y, ed, rng);
-    }
-  } catch (_) {
-    if (EM && typeof EM.createEnemyAt === "function") {
-      return EM.createEnemyAt(x, y, depth, rng);
-    }
+  if (EM && typeof EM.createEnemyAt === "function") {
+    return EM.createEnemyAt(x, y, depth, rng);
   }
-  // No fallback: enforce JSON-defined enemies only
   return null;
 }
 
