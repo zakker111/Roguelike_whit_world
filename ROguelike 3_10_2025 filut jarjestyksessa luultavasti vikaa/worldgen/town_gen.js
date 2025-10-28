@@ -147,7 +147,11 @@ function spawnGateGreeters(ctx, count = 4) {
   const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
   const existingNear = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
   const target = Math.max(0, Math.min((count | 0), 1 - existingNear));
-  const RAND = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+  // Deterministic RNG: RNGUtils.getRng(ctx.rng) -> ctx.rng -> deterministic 0.5
+  const RU0 = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const RAND = (RU0 && typeof RU0.getRng === "function")
+    ? RU0.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : (function(){ return 0.5; }));
   if (target <= 0) {
     // Keep player space clear but ensure at least one greeter remains in radius
     clearAdjacentNPCsAroundPlayer(ctx);
@@ -193,7 +197,7 @@ function spawnGateGreeters(ctx, count = 4) {
   ];
   let placed = 0;
   // two rings around the gate
-  for (let ring = 1; ring <= 2 && placed < target; ring++) {
+  for (let ring = 1; ring <= 2 && placed &lt; target; ring++) {
     for (const d of dirs) {
       const x = gx + d.dx * ring;
       const y = gy + d.dy * ring;
@@ -1315,7 +1319,10 @@ function generate(ctx) {
           return !t || !usedTypes.has(t.toLowerCase());
         });
         if (!candidates.length) break;
-        const pref = pickPrefab(candidates, ctx.rng || Math.random);
+        const pref = pickPrefab(
+          candidates,
+          (function(){ try { if (ctx && ctx.RNGUtils && typeof ctx.RNGUtils.getRng === "function") return ctx.RNGUtils.getRng(ctx.rng); } catch(_){ } return (typeof ctx.rng === "function") ? ctx.rng : (rng || function(){ return 0.5; }); })()
+        );
         if (!pref || !pref.size) break;
         const tKey = (pref.shop && pref.shop.type) ? String(pref.shop.type).toLowerCase() : `shop_${attempts}`;
         // compute anchor by side
@@ -1903,21 +1910,29 @@ function generate(ctx) {
       const placed = [];
       let attempts = 0;
       while (placed.length < limit && candidates.length > 0 && attempts++ < candidates.length * 2) {
-        const idx = Math.floor(((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) * candidates.length);
-        const p = candidates[idx];
-        // Keep spacing: avoid placing next to already placed windows
-        let adjacent = false;
-        for (let j = 0; j < placed.length; j++) {
-          if (isAdjacent(p, placed[j])) { adjacent = true; break; }
-        }
-        if (adjacent) {
-          candidates.splice(idx, 1);
-          continue;
-        }
-        ctx.map[p.y][p.x] = ctx.TILES.WINDOW;
-        placed.push(p);
-        // Remove adjacent candidates to maintain spacing
-        candidates = candidates.filter(c => !isAdjacent(c, p));
+        (function(){ 
+          const RUw = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+          const RND = (RUw && typeof RUw.getRng === "function")
+            ? RUw.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+            : ((typeof ctx.rng === "function") ? ctx.rng : function(){ return 0.5; });
+          const idx = Math.floor(RND() * candidates.length);
+          const p = candidates[idx];
+          // Keep spacing: avoid placing next to already placed windows
+          let adjacent = false;
+          for (let j = 0; j < placed.length; j++) {
+            if (isAdjacent(p, placed[j])) { adjacent = true; break; }
+          }
+          if (adjacent) {
+            candidates.splice(idx, 1);
+            return;
+          }
+          ctx.map[p.y][p.x] = ctx.TILES.WINDOW;
+          placed.push(p);
+          // Remove adjacent candidates to maintain spacing
+          candidates = candidates.filter(c => !isAdjacent(c, p));
+          return;
+        })();
+        
       }
     }
   })();
