@@ -1,3 +1,4 @@
+
 # Game Version History
 Last updated: 2025-10-28 00:00 UTC
 
@@ -1763,4 +1764,7 @@ BUGS
 - in dungeons when enemies fight each other they are logged(wich is good for now for debugging purpoces) but they give player xp when they kill each other
 - some bloodstanes seem to be generated from ruins/animal(creatures)/encounters in another regional map
 - in dungeons enemies seems to show behind walls(not line of sight)
-- in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters 
+- in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters
+- VERIFY this happens Dungeon markers color-coded by level on main map and minimap: green (1–2), amber (3), red (4–5). 
+- i dont see what killed enemy in ruins chek encounters too
+- there is something wierd when creature spawns same map in region_map and so one some blood stanes are followed by next region map from ruins or animals(creatures) creatures dont move in map when spawning them
