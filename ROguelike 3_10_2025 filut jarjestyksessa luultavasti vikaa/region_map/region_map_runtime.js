@@ -660,14 +660,22 @@ function open(ctx, size) {
         const y0 = Math.max(1, cy - (rh >> 1));
         const x1 = Math.min(w - 2, x0 + rw);
         const y1 = Math.min(h - 2, y0 + rh);
+
+        // Safe setter to guard against out-of-bounds indexing
+        const setTileSafe = (yy, xx, val) => {
+          if (yy >= 0 && yy < h && xx >= 0 && xx < w && sample[yy]) {
+            sample[yy][xx] = val;
+          }
+        };
+
         // Perimeter with gaps
         for (let x = x0; x <= x1; x++) {
-          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y0][x] = ruinWallId;
-          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y1][x] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) setTileSafe(y0, x, ruinWallId);
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) setTileSafe(y1, x, ruinWallId);
         }
         for (let y = y0; y <= y1; y++) {
-          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y][x0] = ruinWallId;
-          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y][x1] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) setTileSafe(y, x0, ruinWallId);
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) setTileSafe(y, x1, ruinWallId);
         }
         // Open 3–5 random gaps in the ring to create entrances
         const gaps = 3 + ((rng() * 3) | 0);
@@ -675,16 +683,32 @@ function open(ctx, size) {
           const side = (rng() * 4) | 0;
           if (side === 0) { // top
             const gx = x0 + 1 + ((rng() * Math.max(1, rw - 2)) | 0);
-            sample[y0][gx] = sample[y0][Math.max(gx - 1, x0 + 1)] = sample[y0][Math.min(gx + 1, x1 - 1)] = sample[y0 + 1][gx] = sample[y0 + 1][Math.max(gx - 1, x0 + 1)] = World.TILES.GRASS;
+            setTileSafe(y0, gx, World.TILES.GRASS);
+            setTileSafe(y0, Math.max(gx - 1, x0 + 1), World.TILES.GRASS);
+            setTileSafe(y0, Math.min(gx + 1, x1 - 1), World.TILES.GRASS);
+            setTileSafe(y0 + 1, gx, World.TILES.GRASS);
+            setTileSafe(y0 + 1, Math.max(gx - 1, x0 + 1), World.TILES.GRASS);
           } else if (side === 1) { // bottom
             const gx = x0 + 1 + ((rng() * Math.max(1, rw - 2)) | 0);
-            sample[y1][gx] = sample[y1][Math.max(gx - 1, x0 + 1)] = sample[y1][Math.min(gx + 1, x1 - 1)] = sample[y1 - 1][gx] = sample[y1 - 1][Math.max(gx - 1, x0 + 1)] = World.TILES.GRASS;
+            setTileSafe(y1, gx, World.TILES.GRASS);
+            setTileSafe(y1, Math.max(gx - 1, x0 + 1), World.TILES.GRASS);
+            setTileSafe(y1, Math.min(gx + 1, x1 - 1), World.TILES.GRASS);
+            setTileSafe(y1 - 1, gx, World.TILES.GRASS);
+            setTileSafe(y1 - 1, Math.max(gx - 1, x0 + 1), World.TILES.GRASS);
           } else if (side === 2) { // left
             const gy = y0 + 1 + ((rng() * Math.max(1, rh - 2)) | 0);
-            sample[gy][x0] = sample[Math.max(gy - 1, y0 + 1)][x0] = sample[Math.min(gy + 1, y1 - 1)][x0] = sample[gy][x0 + 1] = sample[Math.max(gy - 1, y0 + 1)][x0 + 1] = World.TILES.GRASS;
+            setTileSafe(gy, x0, World.TILES.GRASS);
+            setTileSafe(Math.max(gy - 1, y0 + 1), x0, World.TILES.GRASS);
+            setTileSafe(Math.min(gy + 1, y1 - 1), x0, World.TILES.GRASS);
+            setTileSafe(gy, x0 + 1, World.TILES.GRASS);
+            setTileSafe(Math.max(gy - 1, y0 + 1), x0 + 1, World.TILES.GRASS);
           } else { // right
             const gy = y0 + 1 + ((rng() * Math.max(1, rh - 2)) | 0);
-            sample[gy][x1] = sample[Math.max(gy - 1, y0 + 1)][x1] = sample[Math.min(gy + 1, y1 - 1)][x1] = sample[gy][x1 - 1] = sample[Math.max(gy - 1, y0 + 1)][x1 - 1] = World.TILES.GRASS;
+            setTileSafe(gy, x1, World.TILES.GRASS);
+            setTileSafe(Math.max(gy - 1, y0 + 1), x1, World.TILES.GRASS);
+            setTileSafe(Math.min(gy + 1, y1 - 1), x1, World.TILES.GRASS);
+            setTileSafe(gy, x1 - 1, World.TILES.GRASS);
+            setTileSafe(Math.max(gy - 1, y0 + 1), x1 - 1, World.TILES.GRASS);
           }
         }
         // Scatter interior short ruin segments/pillars
@@ -698,14 +722,14 @@ function open(ctx, size) {
             const x = (sx + (horiz ? k : 0)) | 0;
             const y = (sy + (horiz ? 0 : k)) | 0;
             if (x <= x0 || y <= y0 || x >= x1 || y >= y1) continue;
-            if (RU && typeof RU.chance === "function" ? RU.chance(0.85, rng) : (rng() < 0.85)) sample[y][x] = ruinWallId;
+            if (RU && typeof RU.chance === "function" ? RU.chance(0.85, rng) : (rng() < 0.85)) setTileSafe(y, x, ruinWallId);
           }
         }
         // Ensure an inner clearing ring for mobility around center
         for (let y = cy - 2; y <= cy + 2; y++) {
           for (let x = cx - 2; x <= cx + 2; x++) {
             if (x > 0 && y > 0 && x < w - 1 && y < h - 1) {
-              if (sample[y][x] === ruinWallId) sample[y][x] = World.TILES.GRASS;
+              if (sample[y] && sample[y][x] === ruinWallId) setTileSafe(y, x, World.TILES.GRASS);
             }
           }
         }
@@ -747,7 +771,8 @@ function open(ctx, size) {
     height,
     map: sample,
     cursor: { x: spawnX | 0, y: spawnY | 0 },
-    exitTiles: [exitNorth, exitSouth, exitEast],
+    // Include all four exits to avoid edge selection issues on west edge
+    exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
     _hasKnownAnimals: animalsSeenHere(worldX, worldY)
