@@ -1832,7 +1832,7 @@ function generate(ctx) {
         return false;
       }
       // Props that should never exist outside a building interior
-      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest","crate","barrel"]);
+      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest"]);
       ctx.townProps = ctx.townProps.filter(p => {
         if (!inBounds(ctx, p.x, p.y)) return false;
         const t = ctx.map[p.y][p.x];
