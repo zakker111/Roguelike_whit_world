@@ -65,12 +65,14 @@ function linearAt(arr, depth, fallback = 1) {
 }
 
 function weightFor(row, depth) {
-  const table = row && Array.isArray(row._weightByDepth) ? row._weightByDepth
-                : row && Array.isArray(row.weightByDepth) ? row.weightByDepth
+  const table = Array.isArray(row?._weightByDepth) ? row._weightByDepth
+                : Array.isArray(row?.weightByDepth) ? row.weightByDepth
                 : [];
   if (!table.length) return 0.0;
   let w = 0;
- );
+  for (const entry of table) {
+    const minD = entry[0] | 0;
+    const ww = Number(entry[1] || 0);
     if (depth >= minD) w = ww;
   }
   return Math.max(0, w);
