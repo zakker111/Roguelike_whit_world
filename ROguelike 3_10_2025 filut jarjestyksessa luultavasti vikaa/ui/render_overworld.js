@@ -313,6 +313,49 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
+  // Main-map POI icons: towns and dungeons (convert absolute world coords -> local indices using world.origin)
+  try {
+    const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
+    const dungeons = (ctx.world && Array.isArray(ctx.world.dungeons)) ? ctx.world.dungeons : [];
+    const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
+    const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
+
+    // Draw on top of fog: towns (gold glyph)
+    for (const t of towns) {
+      const lx = (t.x | 0) - ox;
+      const ly = (t.y | 0) - oy;
+      if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+      const sx = (lx - startX) * TILE - tileOffsetX;
+      const sy = (ly - startY) * TILE - tileOffsetY;
+      const glyph = (t.size === "city") ? "T" : "t";
+      RenderCore.drawGlyph(ctx2d, sx, sy, glyph, "#ffd166", TILE);
+    }
+
+    // Dungeons: color-coded squares by level (green=1-2, amber=3, red=4-5)
+    ctx2d.save();
+    for (const d of dungeons) {
+      const lx = (d.x | 0) - ox;
+      const ly = (d.y | 0) - oy;
+      if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+      const sx = (lx - startX) * TILE - tileOffsetX;
+      const sy = (ly - startY) * TILE - tileOffsetY;
+      const s = Math.max(4, Math.floor(TILE * 0.48));
+      const lvl = Math.max(1, (d.level | 0) || 1);
+      let fill = "#ef4444"; // default red
+      let stroke = "rgba(239, 68, 68, 0.7)";
+      if (lvl <= 2) { fill = "#9ece6a"; stroke = "rgba(158, 206, 106, 0.7)"; }
+      else if (lvl === 3) { fill = "#f4bf75"; stroke = "rgba(244, 191, 117, 0.7)"; }
+      ctx2d.globalAlpha = 0.85;
+      ctx2d.fillStyle = fill;
+      ctx2d.fillRect(sx + (TILE - s) / 2, sy + (TILE - s) / 2, s, s);
+      ctx2d.globalAlpha = 0.95;
+      ctx2d.strokeStyle = stroke;
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
+    }
+    ctx2d.restore();
+  } catch (_) {}
+
   // Subtle biome embellishments to reduce flat look
   try {
     // Stable hash for x,y -> [0,1)
@@ -443,49 +486,7 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Main-map POI icons: towns and dungeons (convert absolute world coords -> local indices using world.origin)
-  try {
-    const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
-    const dungeons = (ctx.world && Array.isArray(ctx.world.dungeons)) ? ctx.world.dungeons : [];
-    const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
-    const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
-
-    // Towns: gold glyphs — 't' for towns, 'T' for cities
-    for (const t of towns) {
-      const lx = (t.x | 0) - ox;
-      const ly = (t.y | 0) - oy;
-      if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
-      const sx = (lx - startX) * TILE - tileOffsetX;
-      const sy = (ly - startY) * TILE - tileOffsetY;
-      const glyph = (t.size === "city") ? "T" : "t";
-      RenderCore.drawGlyph(ctx2d, sx, sy, glyph, "#ffd166", TILE);
-    }
-
-    // Dungeons: color-coded squares by level (green=1-2, amber=3, red=4-5)
-    ctx2d.save();
-    for (const d of dungeons) {
-      const lx = (d.x | 0) - ox;
-      const ly = (d.y | 0) - oy;
-      if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
-      const sx = (lx - startX) * TILE - tileOffsetX;
-      const sy = (ly - startY) * TILE - tileOffsetY;
-      const s = Math.max(4, Math.floor(TILE * 0.48));
-      const lvl = Math.max(1, (d.level | 0) || 1);
-      let fill = "#ef4444"; // default red
-      let stroke = "rgba(239, 68, 68, 0.7)";
-      if (lvl <= 2) { fill = "#9ece6a"; stroke = "rgba(158, 206, 106, 0.7)"; }
-      else if (lvl === 3) { fill = "#f4bf75"; stroke = "rgba(244, 191, 117, 0.7)"; }
-      ctx2d.globalAlpha = 0.85;
-      ctx2d.fillStyle = fill;
-      ctx2d.fillRect(sx + (TILE - s) / 2, sy + (TILE - s) / 2, s, s);
-      ctx2d.globalAlpha = 0.95;
-      ctx2d.strokeStyle = stroke;
-      ctx2d.lineWidth = 1;
-      ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
-      
-    }
-    ctx2d.restore();
-  } catch (_) {}
+  // Main-map POI icons: towns and dungeons — moved to draw AFTER fog-of-war so markers are visible even on undiscovered tiles
 
   // Per-frame glyph overlay for any tile with a non-blank JSON glyph
   for (let y = startY; y <= endY; y++) {
