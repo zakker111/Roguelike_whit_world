@@ -790,7 +790,9 @@ function open(ctx, size) {
   ctx.enemies = [];
   // Clear decals so blood stains from other modes/regions don't leak into this region session
   try { ctx.decals = []; } catch (_) { ctx.decals = []; }
-  // Restore corpsespses)) {
+  // Restore corpses saved for this region if present; otherwise clear to avoid bleed from previous region tiles
+  try {
+    if (restoredCorpses && Array.isArray(restoredCorpses)) {
       ctx.corpses = restoredCorpses;
     } else {
       ctx.corpses = [];
