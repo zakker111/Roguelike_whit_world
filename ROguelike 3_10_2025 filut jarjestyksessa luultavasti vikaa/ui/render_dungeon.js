@@ -188,10 +188,13 @@ export function draw(ctx, view) {
               oc.fillStyle = fill;
               oc.fillRect(sx, sy, TILE, TILE);
               if (type === TILES.STAIRS && !canTileset) {
-                const tdStairs = getTileDef("dungeon", type) || getTileDef("dungeon", TILES.STAIRS);
-                const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : ">";
-                const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
-                RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
+                // In encounter mode, exits are shown as tinted squares (not '>')
+                if (ctx.mode !== "encounter") {
+                  const tdStairs = getTileDef("dungeon", type) || getTileDef("dungeon", TILES.STAIRS);
+                  const glyph = (tdStairs && Object.prototype.hasOwnProperty.call(tdStairs, "glyph")) ? tdStairs.glyph : ">";
+                  const fg = (tdStairs && tdStairs.colors && tdStairs.colors.fg) || "#d7ba7d";
+                  RenderCore.drawGlyph(oc, sx, sy, glyph, fg, TILE);
+                }
               }
             }
             
@@ -253,6 +256,8 @@ export function draw(ctx, view) {
     for (let x = startX; x <= endX; x++) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
+      // In encounter mode, draw exits as tinted squares only (skip STAIRS glyph)
+      if (ctx.mode === "encounter" && type === TILES.STAIRS) continue;
       const tg = glyphDungeonFor(type);
       const glyph = tg.glyph;
       const fg = tg.fg;
@@ -362,6 +367,30 @@ export function draw(ctx, view) {
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
     }
+  }
+
+  // Encounter exit overlay: tinted squares on STAIRS tiles (like Region Map edges)
+  if (ctx.mode === "encounter") {
+    try {
+      ctx2d.save();
+      ctx2d.fillStyle = "rgba(241,153,40,0.28)";
+      ctx2d.strokeStyle = "rgba(241,153,40,0.80)";
+      ctx2d.lineWidth = 2;
+      for (let y = startY; y <= endY; y++) {
+        const yIn = y >= 0 && y < mapRows;
+        const rowMap = yIn ? map[y] : null;
+        if (!yIn) continue;
+        for (let x = startX; x <= endX; x++) {
+          if (x < 0 || x >= mapCols) continue;
+          if (!rowMap || rowMap[x] !== TILES.STAIRS) continue;
+          const sx = (x - startX) * TILE - tileOffsetX;
+          const sy = (y - startY) * TILE - tileOffsetY;
+          ctx2d.fillRect(sx, sy, TILE, TILE);
+          ctx2d.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
+        }
+      }
+      ctx2d.restore();
+    } catch (_) {}
   }
 
   // decals (e.g., blood stains)
