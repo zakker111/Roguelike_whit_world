@@ -226,6 +226,12 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
   const enemyCount = Math.max(6, Math.floor(baseEnemies * sizeMult));
   const makeEnemy = ctx.enemyFactory || defaultEnemyFactory;
 
+  // Ensure enemy registry is loaded before spawning
+  try {
+    const EM0 = (typeof window !== "undefined" ? window.Enemies : null);
+    if (EM0 && typeof EM0.ensureLoaded === "function") EM0.ensureLoaded();
+  } catch (_) {}
+
   // For now: ensure diversity — cycle through available types so each dungeon has different enemies regardless of level
   const EM = (typeof window !== "undefined" ? window.Enemies : null);
   let cycleTypes = [];

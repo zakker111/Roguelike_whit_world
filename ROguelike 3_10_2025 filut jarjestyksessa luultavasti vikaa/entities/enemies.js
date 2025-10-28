@@ -103,6 +103,16 @@ export function getDefById(id) {
   return getTypeDef(id);
 }
 
+export function ensureLoaded() {
+  try {
+    if (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.enemies)) {
+      if (!TYPES || Object.keys(TYPES).length === 0) {
+        applyJsonEnemies(window.GameData.enemies);
+      }
+    }
+  } catch (_) {}
+}
+
 export function colorFor(type) {
   const t = getTypeDef(type);
   return t ? t.color : "#cbd5e1";
@@ -209,6 +219,7 @@ if (typeof window !== "undefined") {
     listTypes,
     getTypeDef,
     getDefById,
+    ensureLoaded,
     colorFor,
     glyphFor,
     equipTierFor,
