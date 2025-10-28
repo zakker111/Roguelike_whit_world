@@ -359,6 +359,32 @@ function generate(ctx) {
   // Expose size to other modules (AI, UI)
   ctx.townSize = townSize;
 
+  // Derive and persist the town biome from the overworld tile at this town's location
+  (function deriveTownBiome() {
+    try {
+      const WMOD = (typeof window !== "undefined" ? window.World : null);
+      const WTILES = WMOD && WMOD.TILES ? WMOD.TILES : null;
+      const wmap = (ctx.world && ctx.world.map) ? ctx.world.map : null;
+      // Prefer the recorded world return position; else current player position
+      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : (ctx.player.x | 0);
+      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : (ctx.player.y | 0);
+      let key = null;
+      if (WTILES && wmap && wmap[wy] && typeof wmap[wy][wx] !== "undefined") {
+        const t = wmap[wy][wx];
+        // Map to canonical biome keys
+        if (t === WTILES.DESERT) key = "DESERT";
+        else if (t === WTILES.SNOW) key = "SNOW";
+        else if (t === WTILES.BEACH) key = "BEACH";
+        else if (t === WTILES.SWAMP) key = "SWAMP";
+        else if (t === WTILES.FOREST) key = "FOREST";
+        else if (t === WTILES.GRASS) key = "GRASS";
+      }
+      ctx.townBiome = key || ctx.townBiome || "GRASS";
+      // Persist on world.towns entry if available
+      try { if (info && typeof info === "object") info.biome = ctx.townBiome; } catch (_) {}
+    } catch (_) {}
+  })();
+
   // Plaza
   const plaza = { x: (W / 2) | 0, y: (H / 2) | 0 };
   ctx.townPlaza = { x: plaza.x, y: plaza.y };
@@ -1825,6 +1851,30 @@ function generate(ctx) {
 
   // Town buildings metadata
   ctx.townBuildings = buildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: getExistingDoor(b) }));
+
+  // Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors)
+  (function buildOutdoorMask() {
+    try {
+      const rows = H, cols = W;
+      const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
+      function insideAnyBuilding(x, y) {
+        for (let i = 0; i < buildings.length; i++) {
+          const B = buildings[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      for (let yy = 0; yy < rows; yy++) {
+        for (let xx = 0; xx < cols; xx++) {
+          const t = ctx.map[yy][xx];
+          if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
+            mask[yy][xx] = true;
+          }
+        }
+      }
+      ctx.townOutdoorMask = mask;
+    } catch (_) {}
+  })();
 
   // Props
   ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
