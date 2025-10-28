@@ -295,7 +295,13 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     if (enemy && typeof enemy.x === "number" && typeof enemy.y === "number") {
       ctx.enemies.push(enemy);
     } else {
-      try { ctx.log && ctx.log("Fallback enemy spawned (dungeon create failed).", "warn"); } catch (_) {}
+      try {
+        const msg = `Fallback enemy spawned (create failed) at (${p.x},${p.y}). Types=${Array.isArray(cycleTypes)?cycleTypes.join(", "):"[]"} ed=${ed}`;
+        if (typeof window !== "undefined" && (window.DEV || localStorage.getItem("DEV") === "1")) {
+          const LG = (typeof window !== "undefined" ? window.Logger : null);
+          if (LG && typeof LG.log === "function") LG.log(msg, "warn"); else console.warn("[DEV] " + msg);
+        }
+      } catch (_) {}
       ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
     }
   }
@@ -323,11 +329,17 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
         if (occupied) continue;
         const pl2 = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
         const ed2 = Math.max(1, (depth | 0) + Math.floor(Math.max(0, pl2) / 2) + 1);
-        let e = makeEnemy(p.x, p.y2, drng);
+        let e = makeEnemy(p.x, p.y, ed2, drng);
         if (e && typeof e.x === "number" && typeof e.y === "number") {
           ctx.enemies.push(e);
         } else {
-          try { ctx.log && ctx.log("Fallback enemy spawned (extra pack create failed).", "warn"); } catch (_) {}
+          try {
+            const msg = `Fallback enemy spawned (extra pack failed) at (${p.x},${p.y}). ed=${ed2}`;
+            if (typeof window !== "undefined" && (window.DEV || localStorage.getItem("DEV") === "1")) {
+              const LG = (typeof window !== "undefined" ? window.Logger : null);
+              if (LG && typeof LG.log === "function") LG.log(msg, "warn"); else console.warn("[DEV] " + msg);
+            }
+          } catch (_) {}
           ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
         }
       }
