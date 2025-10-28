@@ -65,12 +65,12 @@ function linearAt(arr, depth, fallback = 1) {
 }
 
 function weightFor(row, depth) {
-  const table = row && Array.isArray(row.weightByDepth) ? row.weightByDepth : [];
+  const table = row && Array.isArray(row._weightByDepth) ? row._weightByDepth
+                : row && Array.isArray(row.weightByDepth) ? row.weightByDepth
+                : [];
   if (!table.length) return 0.0;
   let w = 0;
-  for (const entry of table) {
-    const minD = entry[0] | 0;
-    const ww = Number(entry[1] || 0);
+ );
     if (depth >= minD) w = ww;
   }
   return Math.max(0, w);
@@ -111,6 +111,8 @@ function applyJsonEnemies(json) {
       _xp: row.xp || [],
       _equipChance: typeof row.equipChance === "number" ? row.equipChance : 0.35,
       _weightByDepth: row.weightByDepth || [],
+      // Also keep a public copy for compatibility
+      weightByDepth: Array.isArray(row.weightByDepth) ? row.weightByDepth : [],
       hp(depth) { return linearAt(this._hp, depth, 3); },
       atk(depth) { return linearAt(this._atk, depth, 1); },
       xp(depth)  { return linearAt(this._xp, depth, 5); },
