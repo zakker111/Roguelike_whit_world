@@ -788,9 +788,9 @@ function open(ctx, size) {
   ctx.visible = Array.from({ length: height }, () => Array(width).fill(false));
   // Reset transient region entities state; enemies are per-region-session only
   ctx.enemies = [];
-  // Restore corpses saved for this region if present; otherwise clear to avoid bleed from previous region tiles
-  try {
-    if (restoredCorpses && Array.isArray(restoredCorpses)) {
+  // Clear decals so blood stains from other modes/regions don't leak into this region session
+  try { ctx.decals = []; } catch (_) { ctx.decals = []; }
+  // Restore corpsespses)) {
       ctx.corpses = restoredCorpses;
     } else {
       ctx.corpses = [];
