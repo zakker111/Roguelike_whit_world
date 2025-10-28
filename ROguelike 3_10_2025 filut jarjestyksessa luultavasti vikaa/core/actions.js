@@ -316,6 +316,33 @@ export function loot(ctx) {
     return true;
   }
 
+  // Encounter: exit like Region Map; press G on an exit to leave.
+  if (ctx.mode === "encounter") {
+    const here = (ctx.map && ctx.map[ctx.player.y] && ctx.map[ctx.player.y][ctx.player.x]);
+    if (here === ctx.TILES.STAIRS) {
+      try {
+        const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+        if (ER && typeof ER.complete === "function") ER.complete(ctx, "withdraw");
+      } catch (_) {}
+      return true;
+    }
+    // Otherwise prefer to loot underfoot using Loot subsystem
+    try {
+      const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+      if (L && typeof L.lootHere === "function") {
+        L.lootHere(ctx);
+        return true;
+      }
+    } catch (_) {}
+    // If standing on a blood decal, describe it
+    if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
+      ctx.log("The ground here is stained with blood.", "info");
+      return true;
+    }
+    ctx.log("Nothing to do here.", "info");
+    return true;
+  }
+
   if (ctx.mode === "dungeon") {
     // Prefer centralized return flow
     try {
