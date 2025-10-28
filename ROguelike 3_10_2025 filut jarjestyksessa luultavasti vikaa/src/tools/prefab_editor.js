@@ -253,9 +253,14 @@ function bindUI() {
       state.id = "shop_blacksmith_custom_1"; state.name = "Blacksmith (Custom)";
       state.tags = ["shop","blacksmith"];
       state.shop = { type:"blacksmith", schedule:{open:"08:00", close:"17:00", alwaysOpen:false}, signText:"Blacksmith" };
-    } else {
+    } else if (state.category === "inn") {
       state.id = "inn_tavern_custom"; state.name = "Inn & Tavern (Custom)";
       state.tags = ["two_story","tavern"];
+    } else if (state.category === "plaza") {
+      state.id = "plaza_custom_1"; state.name = "Plaza (Custom)";
+      state.tags = ["plaza"];
+      // Ensure upstairs overlay disabled and shop meta hidden
+      state.upstairsEnabled = false;
     }
     syncMetadataFields();
     updateModeVisibility();
@@ -616,17 +621,18 @@ function formatRowsArray(rows, indentSpaces) {
 function lint() {
   const msgs = [];
   // Perimeter walls suggested for house/shop/inn
-  if (["house","shop","inn"].includes(state.category)) {
+  const bldCat = ["house","shop","inn"];
+  if (bldCat.includes(state.category)) {
     const perOk = perimeterWallsClosed(state.tiles);
     if (!perOk) msgs.push("Hint: perimeter walls are not fully closed.");
-  }
-  // At least one DOOR on perimeter recommended
-  const doors = coordsWithCode(state.tiles, "DOOR");
-  if (doors.length === 0) {
-    msgs.push("Hint: add at least one DOOR on the perimeter.");
-  } else {
-    const perDoor = doors.some(({x,y}) => (x === 0 || y === 0 || x === state.w-1 || y === state.h-1));
-    if (!perDoor) msgs.push("Hint: place at least one DOOR on the perimeter.");
+    // At least one DOOR on perimeter recommended for buildings
+    const doors = coordsWithCode(state.tiles, "DOOR");
+    if (doors.length === 0) {
+      msgs.push("Hint: add at least one DOOR on the perimeter.");
+    } else {
+      const perDoor = doors.some(({x,y}) => (x === 0 || y === 0 || x === state.w-1 || y === state.h-1));
+      if (!perDoor) msgs.push("Hint: place at least one DOOR on the perimeter.");
+    }
   }
   // Upstairs STAIRS alignment hint
   if (state.category === "inn" && state.upstairsEnabled) {

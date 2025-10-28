@@ -3,7 +3,7 @@
     "title": "Prefab authoring (tiles + embedded props)",
     "schemaVersion": 1,
     "tiles": ["WALL","FLOOR","DOOR","WINDOW","STAIRS"],
-    "embeddedPropCodes": ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL"],
+    "embeddedPropCodes": ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL","BENCH"],
     "usage": [
       "Place tile codes in the 'tiles' grid; unknown codes default to FLOOR.",
       "Embed props by placing their code directly in the 'tiles' grid; the underlying tile becomes FLOOR and a prop is placed at that coordinate.",
