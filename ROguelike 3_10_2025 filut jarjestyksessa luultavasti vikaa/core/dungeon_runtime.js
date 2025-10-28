@@ -537,28 +537,35 @@ export function killEnemy(ctx, enemy) {
     }
   } catch (_) {}
 
-  // Award XP
+  // Award XP only if the last hit was by the player
   const xp = (typeof enemy.xp === "number") ? enemy.xp : 5;
+  let awardXp = false;
   try {
-    if (ctx.Player && typeof ctx.Player.gainXP === "function") {
-      ctx.Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
-    } else if (typeof window !== "undefined" && window.Player && typeof window.Player.gainXP === "function") {
-      window.Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
-    } else {
-      ctx.player.xp = (ctx.player.xp || 0) + xp;
-      ctx.log && ctx.log(`You gain ${xp} XP.`);
-      while (ctx.player.xp >= ctx.player.xpNext) {
-        ctx.player.xp -= ctx.player.xpNext;
-        ctx.player.level = (ctx.player.level || 1) + 1;
-        ctx.player.maxHp = (ctx.player.maxHp || 1) + 2;
-        ctx.player.hp = ctx.player.maxHp;
-        if ((ctx.player.level % 2) === 0) ctx.player.atk = (ctx.player.atk || 1) + 1;
-        ctx.player.xpNext = Math.floor((ctx.player.xpNext || 20) * 1.3 + 10);
-        ctx.log && ctx.log(`You are now level ${ctx.player.level}. Max HP increased.`, "good");
+    const byStr = (enemy._lastHit && enemy._lastHit.by) ? String(enemy._lastHit.by).toLowerCase() : "";
+    awardXp = (byStr === "player");
+  } catch (_) { awardXp = false; }
+  if (awardXp) {
+    try {
+      if (ctx.Player && typeof ctx.Player.gainXP === "function") {
+        ctx.Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
+      } else if (typeof window !== "undefined" && window.Player && typeof window.Player.gainXP === "function") {
+        window.Player.gainXP(ctx.player, xp, { log: ctx.log, updateUI: ctx.updateUI });
+      } else {
+        ctx.player.xp = (ctx.player.xp || 0) + xp;
+        ctx.log && ctx.log(`You gain ${xp} XP.`);
+        while (ctx.player.xp >= ctx.player.xpNext) {
+          ctx.player.xp -= ctx.player.xpNext;
+          ctx.player.level = (ctx.player.level || 1) + 1;
+          ctx.player.maxHp = (ctx.player.maxHp || 1) + 2;
+          ctx.player.hp = ctx.player.maxHp;
+          if ((ctx.player.level % 2) === 0) ctx.player.atk = (ctx.player.atk || 1) + 1;
+          ctx.player.xpNext = Math.floor((ctx.player.xpNext || 20) * 1.3 + 10);
+          ctx.log && ctx.log(`You are now level ${ctx.player.level}. Max HP increased.`, "good");
+        }
+        ctx.updateUI && ctx.updateUI();
       }
-      ctx.updateUI && ctx.updateUI();
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
 
   // Persist dungeon state so corpses remain on revisit
   try { save(ctx, false); } catch (_) {}
