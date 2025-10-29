@@ -178,13 +178,33 @@ function render(ctx) {
 export function openForNPC(ctx, npc) {
   try {
     const name = (npc && (npc.name || npc.title)) ? (npc.name || npc.title) : "Shopkeeper";
-    const shop = (npc && npc._shopRef) ? npc._shopRef : null;
+    let shop = (npc && npc._shopRef) ? npc._shopRef : null;
 
     // Title
     try {
       const el = ensurePanel();
       const ttl = el ? el.querySelector("#shop-title") : null;
       if (ttl) ttl.textContent = name;
+    } catch (_) {}
+
+    // Encounter merchant support: if no _shopRef but a vendor is provided, create a temporary shop reference.
+    try {
+      if (!shop) {
+        const vendor = (npc && npc.vendor) ? String(npc.vendor).toLowerCase() : "";
+        if (vendor) {
+          const px = (typeof npc.x === "number") ? npc.x : (ctx && ctx.player && typeof ctx.player.x === "number" ? ctx.player.x : 0);
+          const py = (typeof npc.y === "number") ? npc.y : (ctx && ctx.player && typeof ctx.player.y === "number" ? ctx.player.y : 0);
+          shop = {
+            x: px, y: py,
+            type: vendor,
+            name: name,
+            alwaysOpen: true,
+            openMin: 0, closeMin: 0,
+            building: null,
+            inside: { x: px, y: py }
+          };
+        }
+      }
     } catch (_) {}
 
     _shopRef = shop;

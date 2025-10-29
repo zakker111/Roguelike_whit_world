@@ -25,5 +25,13 @@
     "BEACH":  "#dbc398",
     "SNOW":   "#dfe5eb",
     "SWAMP":  "#1e3c27"
+  },
+  "townBiome": {
+    "FOREST": "#1a2e1d",
+    "GRASS":  "#1b3a21",
+    "DESERT": "#c8b37a",
+    "BEACH":  "#d7c08e",
+    "SNOW":   "#93a7b6",
+    "SWAMP":  "#1d3624"
   }
 }

@@ -466,12 +466,18 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
   const leftW = Math.max(1, Math.floor(w * clampFrac(edgeFrac * (0.8 + 0.4 * wW))));
   const rightW = Math.max(1, Math.floor(w * clampFrac(edgeFrac * (0.8 + 0.4 * wE))));
 
+  // Safe setter to guard against out-of-bounds indexing for rare edge cases
+  const setTileSafe = (yy, xx, val) => {
+    if (yy >= 0 && yy < h && xx >= 0 && xx < w && sample[yy]) {
+      sample[yy][xx] = val;
+    }
+  };
+
   // Top band (north)
   if (cardinals.N != null) {
     for (let y = 0; y < topH; y++) {
-      const row = sample[y];
       for (let x = 0; x < w; x++) {
-        row[x] = cardinals.N;
+        setTileSafe(y, x, cardinals.N);
       }
     }
   }
@@ -479,9 +485,8 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
   // Bottom band (south)
   if (cardinals.S != null) {
     for (let y = h - botH; y < h; y++) {
-      const row = sample[y];
       for (let x = 0; x < w; x++) {
-        row[x] = cardinals.S;
+        setTileSafe(y, x, cardinals.S);
       }
     }
   }
@@ -489,9 +494,8 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
   // Left band (west)
   if (cardinals.W != null) {
     for (let y = 0; y < h; y++) {
-      const row = sample[y];
       for (let x = 0; x < leftW; x++) {
-        row[x] = cardinals.W;
+        setTileSafe(y, x, cardinals.W);
       }
     }
   }
@@ -499,9 +503,8 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
   // Right band (east)
   if (cardinals.E != null) {
     for (let y = 0; y < h; y++) {
-      const row = sample[y];
       for (let x = w - rightW; x < w; x++) {
-        row[x] = cardinals.E;
+        setTileSafe(y, x, cardinals.E);
       }
     }
   }
@@ -514,7 +517,7 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
     if (diagonals.NW != null) {
       for (let y = 0; y < cornerH; y++) {
         for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
-          sample[y][x] = diagonals.NW;
+          setTileSafe(y, x, diagonals.NW);
         }
       }
     }
@@ -523,7 +526,7 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
       for (let y = 0; y < cornerH; y++) {
         for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
           const xx = w - 1 - x;
-          sample[y][xx] = diagonals.NE;
+          setTileSafe(y, xx, diagonals.NE);
         }
       }
     }
@@ -532,7 +535,7 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
       for (let y = 0; y < cornerH; y++) {
         const yy = h - 1 - y;
         for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
-          sample[yy][x] = diagonals.SW;
+          setTileSafe(yy, x, diagonals.SW);
         }
       }
     }
@@ -542,7 +545,7 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
         const yy = h - 1 - y;
         for (let x = 0; x < cornerW - Math.floor((cornerW * y) / Math.max(1, cornerH - 1)); x++) {
           const xx = w - 1 - x;
-          sample[yy][xx] = diagonals.SE;
+          setTileSafe(yy, xx, diagonals.SE);
         }
       }
     }
@@ -660,14 +663,22 @@ function open(ctx, size) {
         const y0 = Math.max(1, cy - (rh >> 1));
         const x1 = Math.min(w - 2, x0 + rw);
         const y1 = Math.min(h - 2, y0 + rh);
+
+        // Safe setter to guard against out-of-bounds indexing
+        const setTileSafe = (yy, xx, val) => {
+          if (yy >= 0 && yy < h && xx >= 0 && xx < w && sample[yy]) {
+            sample[yy][xx] = val;
+          }
+        };
+
         // Perimeter with gaps
         for (let x = x0; x <= x1; x++) {
-          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y0][x] = ruinWallId;
-          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y1][x] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) setTileSafe(y0, x, ruinWallId);
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) setTileSafe(y1, x, ruinWallId);
         }
         for (let y = y0; y <= y1; y++) {
-          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y][x0] = ruinWallId;
-          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) sample[y][x1] = ruinWallId;
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) setTileSafe(y, x0, ruinWallId);
+          if (RU && typeof RU.chance === "function" ? RU.chance(0.87, rng) : (rng() > 0.13)) setTileSafe(y, x1, ruinWallId);
         }
         // Open 3–5 random gaps in the ring to create entrances
         const gaps = 3 + ((rng() * 3) | 0);
@@ -675,16 +686,32 @@ function open(ctx, size) {
           const side = (rng() * 4) | 0;
           if (side === 0) { // top
             const gx = x0 + 1 + ((rng() * Math.max(1, rw - 2)) | 0);
-            sample[y0][gx] = sample[y0][Math.max(gx - 1, x0 + 1)] = sample[y0][Math.min(gx + 1, x1 - 1)] = sample[y0 + 1][gx] = sample[y0 + 1][Math.max(gx - 1, x0 + 1)] = World.TILES.GRASS;
+            setTileSafe(y0, gx, World.TILES.GRASS);
+            setTileSafe(y0, Math.max(gx - 1, x0 + 1), World.TILES.GRASS);
+            setTileSafe(y0, Math.min(gx + 1, x1 - 1), World.TILES.GRASS);
+            setTileSafe(y0 + 1, gx, World.TILES.GRASS);
+            setTileSafe(y0 + 1, Math.max(gx - 1, x0 + 1), World.TILES.GRASS);
           } else if (side === 1) { // bottom
             const gx = x0 + 1 + ((rng() * Math.max(1, rw - 2)) | 0);
-            sample[y1][gx] = sample[y1][Math.max(gx - 1, x0 + 1)] = sample[y1][Math.min(gx + 1, x1 - 1)] = sample[y1 - 1][gx] = sample[y1 - 1][Math.max(gx - 1, x0 + 1)] = World.TILES.GRASS;
+            setTileSafe(y1, gx, World.TILES.GRASS);
+            setTileSafe(y1, Math.max(gx - 1, x0 + 1), World.TILES.GRASS);
+            setTileSafe(y1, Math.min(gx + 1, x1 - 1), World.TILES.GRASS);
+            setTileSafe(y1 - 1, gx, World.TILES.GRASS);
+            setTileSafe(y1 - 1, Math.max(gx - 1, x0 + 1), World.TILES.GRASS);
           } else if (side === 2) { // left
             const gy = y0 + 1 + ((rng() * Math.max(1, rh - 2)) | 0);
-            sample[gy][x0] = sample[Math.max(gy - 1, y0 + 1)][x0] = sample[Math.min(gy + 1, y1 - 1)][x0] = sample[gy][x0 + 1] = sample[Math.max(gy - 1, y0 + 1)][x0 + 1] = World.TILES.GRASS;
+            setTileSafe(gy, x0, World.TILES.GRASS);
+            setTileSafe(Math.max(gy - 1, y0 + 1), x0, World.TILES.GRASS);
+            setTileSafe(Math.min(gy + 1, y1 - 1), x0, World.TILES.GRASS);
+            setTileSafe(gy, x0 + 1, World.TILES.GRASS);
+            setTileSafe(Math.max(gy - 1, y0 + 1), x0 + 1, World.TILES.GRASS);
           } else { // right
             const gy = y0 + 1 + ((rng() * Math.max(1, rh - 2)) | 0);
-            sample[gy][x1] = sample[Math.max(gy - 1, y0 + 1)][x1] = sample[Math.min(gy + 1, y1 - 1)][x1] = sample[gy][x1 - 1] = sample[Math.max(gy - 1, y0 + 1)][x1 - 1] = World.TILES.GRASS;
+            setTileSafe(gy, x1, World.TILES.GRASS);
+            setTileSafe(Math.max(gy - 1, y0 + 1), x1, World.TILES.GRASS);
+            setTileSafe(Math.min(gy + 1, y1 - 1), x1, World.TILES.GRASS);
+            setTileSafe(gy, x1 - 1, World.TILES.GRASS);
+            setTileSafe(Math.max(gy - 1, y0 + 1), x1 - 1, World.TILES.GRASS);
           }
         }
         // Scatter interior short ruin segments/pillars
@@ -698,14 +725,14 @@ function open(ctx, size) {
             const x = (sx + (horiz ? k : 0)) | 0;
             const y = (sy + (horiz ? 0 : k)) | 0;
             if (x <= x0 || y <= y0 || x >= x1 || y >= y1) continue;
-            if (RU && typeof RU.chance === "function" ? RU.chance(0.85, rng) : (rng() < 0.85)) sample[y][x] = ruinWallId;
+            if (RU && typeof RU.chance === "function" ? RU.chance(0.85, rng) : (rng() < 0.85)) setTileSafe(y, x, ruinWallId);
           }
         }
         // Ensure an inner clearing ring for mobility around center
         for (let y = cy - 2; y <= cy + 2; y++) {
           for (let x = cx - 2; x <= cx + 2; x++) {
             if (x > 0 && y > 0 && x < w - 1 && y < h - 1) {
-              if (sample[y][x] === ruinWallId) sample[y][x] = World.TILES.GRASS;
+              if (sample[y] && sample[y][x] === ruinWallId) setTileSafe(y, x, World.TILES.GRASS);
             }
           }
         }
@@ -747,7 +774,8 @@ function open(ctx, size) {
     height,
     map: sample,
     cursor: { x: spawnX | 0, y: spawnY | 0 },
-    exitTiles: [exitNorth, exitSouth, exitEast],
+    // Include all four exits to avoid edge selection issues on west edge
+    exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
     _hasKnownAnimals: animalsSeenHere(worldX, worldY)
@@ -760,6 +788,8 @@ function open(ctx, size) {
   ctx.visible = Array.from({ length: height }, () => Array(width).fill(false));
   // Reset transient region entities state; enemies are per-region-session only
   ctx.enemies = [];
+  // Clear decals so blood stains from other modes/regions don't leak into this region session
+  try { ctx.decals = []; } catch (_) { ctx.decals = []; }
   // Restore corpses saved for this region if present; otherwise clear to avoid bleed from previous region tiles
   try {
     if (restoredCorpses && Array.isArray(restoredCorpses)) {
@@ -943,7 +973,10 @@ function open(ctx, size) {
         return;
       }
       const WT = World.TILES;
-      const rng = getRegionRng(ctx);
+      // Use the game's global RNG stream for variety across sessions (still deterministic per run)
+      const rng = (RU && typeof RU.getRng === "function")
+        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((typeof ctx.rng === "function") ? ctx.rng : Math.random);
       const sample = ctx.region.map;
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
@@ -1364,6 +1397,7 @@ function onAction(ctx) {
 
 function tick(ctx) {
   if (!ctx || ctx.mode !== "region") return true;
+
   // If an encounter is active within the region map, drive simple AI and completion check
   if (ctx.region && ctx.region._isEncounter) {
     try {
@@ -1387,6 +1421,71 @@ function tick(ctx) {
           if (pos) markAnimalsCleared(pos.x | 0, pos.y | 0);
         } catch (_) {}
         return true;
+      }
+    } catch (_) {}
+  } else {
+    // Neutral animals wander slowly even when not in an encounter
+    try {
+      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const rfn = (RU && typeof RU.getRng === "function")
+        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((typeof ctx.rng === "function") ? ctx.rng : null);
+
+      const sample = (ctx.region && ctx.region.map) ? ctx.region.map : null;
+      const h = sample ? sample.length : 0;
+      const w = h ? (sample[0] ? sample[0].length : 0) : 0;
+      if (w && h && Array.isArray(ctx.enemies) && ctx.enemies.length) {
+        function walkableAt(x, y) {
+          if (x < 0 || y < 0 || x >= w || y >= h) return false;
+          const t = sample[y][x];
+          // Prefer tiles.json walkability if present
+          try {
+            const def = getTileDef("region", t);
+            if (def && def.properties && typeof def.properties.walkable === "boolean") return !!def.properties.walkable;
+          } catch (_) {}
+          // Fallback to overworld semantics
+          try { return !!World.isWalkable(t); } catch (_) {}
+          const WT = World.TILES;
+          return (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+        }
+        function occupiedAt(x, y) {
+          if (x === (ctx.player.x | 0) && y === (ctx.player.y | 0)) return true;
+          return ctx.enemies.some(e => e && e.x === x && e.y === y);
+        }
+
+        let anyMoved = false;
+        for (const e of ctx.enemies) {
+          if (!e) continue;
+          if (String(e.faction || "") !== "animal") continue;
+          // 30% chance to attempt a small random step
+          const chance = 0.30;
+          const rv = (typeof rfn === "function") ? rfn() : Math.random();
+          if (rv >= chance) continue;
+
+          // Try a few random neighbor steps to find a valid move
+          for (let tries = 0; tries < 6; tries++) {
+            const dx = (((typeof rfn === "function" ? rfn() : Math.random()) * 3) | 0) - 1;
+            const dy = (((typeof rfn === "function" ? rfn() : Math.random()) * 3) | 0) - 1;
+            if (!dx && !dy) continue;
+            const nx = e.x + dx, ny = e.y + dy;
+            if (!walkableAt(nx, ny)) continue;
+            if (occupiedAt(nx, ny)) continue;
+            e.x = nx; e.y = ny;
+            anyMoved = true;
+            break;
+          }
+        }
+
+        if (anyMoved) {
+          try {
+            const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+            if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
+          } catch (_) {}
+          try {
+            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            if (SS && typeof SS.applyAndRefresh === "function") SS.applyAndRefresh(ctx, {});
+          } catch (_) {}
+        }
       }
     } catch (_) {}
   }

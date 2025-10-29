@@ -1,6 +1,40 @@
 s 
 # Game Version History
-Last updated: 2025-10-28 00:00 UTC
+Last updated: 2025-10-29 00:00 UTC
+
+v1.43.2 — Special cat “Pulla”, transactional plaza stamping, and prop cleanup margin
+- Towns
+  - New special cat “Pulla”: same behavior as Jekku. Exactly one designated town per world (pullaHome) chosen at world gen; spawns once near the plaza on first entry, avoids duplicate-by-name.
+  - Jekku unchanged (jekkuHome). When possible, Jekku and Pulla are assigned to different towns.
+
+- Plaza generation
+  - Plaza prefab stamping is now all-or-nothing. The grid shape and target area are validated first; tiles and props are staged and only committed if validation succeeds.
+  - Prevents cases where plaza props were stamped even when the overall plaza placement failed. Slip attempts no longer leave partial props behind.
+
+- Cleanup
+  - When removing an overlapping building during shop/plaza conflict resolution, increased the prop-clear margin from 1 → 2 tiles to reduce leftover interior props on open ground.
+
+- Deployment: https://0dfnvungj20g.cosine.page (Pulla), https://l5oqyeh1wn0n.cosine.page (plaza stamping), https://czkqr7z46ngs.cosine.page (prop cleanup)
+
+v1.43.1 — Town biome inference fix, darker snow ground, and plaza footprint tuning
+- Towns
+  - Biome inference now samples surrounding overworld tiles (skips TOWN/DUNGEON/RUINS) and persists per-town biome (world.towns[].biome).
+  - Renderer uses persisted biome or infers on the fly when missing; TownState.load sets ctx.townBiome on load.
+  - Fixes a bug where all towns adopted the biome from the first town entered.
+
+- Rendering
+  - Outdoor FLOOR tint in towns still applies via ctx.townOutdoorMask; mechanics unchanged.
+  - Snow ground color darkened to improve NPC contrast: townBiome.SNOW updated to #93a7b6 (previously #e3e9ef → #cfd8e3).
+
+- Data
+  - Plaza prefabs made smaller in data/worldgen/prefabs.json:
+    - plaza_well_square: 11×7
+    - plaza_market_1: 13×9
+    - plaza_garden_1: 9×7
+  - Plaza generation now sources layouts from data/worldgen/prefabs.json (the "plazas" array). New plaza variants can be authored in the Prefab Editor (tools/prefab_editor.html); export the JSON and add it to prefabs.json for town generation to use.
+  - Reverted “interior-only” restriction for crates/barrels in town_gen.js to allow outdoor market ambience again.
+
+- Deployment: https://xegnxopmmbow.cosine.page, https://jnkh554shlbf.cosine.page, https://joeh2w4mwjub.cosine.page
 
 v1.43.0 — Dungeon difficulty scaling, color-coded dungeon markers, and enemy registry hardening
 - Dungeons

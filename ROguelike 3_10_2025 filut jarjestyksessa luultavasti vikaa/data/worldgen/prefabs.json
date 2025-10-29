@@ -3,7 +3,7 @@
     "title": "Prefab authoring (tiles + embedded props)",
     "schemaVersion": 1,
     "tiles": ["WALL","FLOOR","DOOR","WINDOW","STAIRS"],
-    "embeddedPropCodes": ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL"],
+    "embeddedPropCodes": ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL","BENCH"],
     "usage": [
       "Place tile codes in the 'tiles' grid; unknown codes default to FLOOR.",
       "Embed props by placing their code directly in the 'tiles' grid; the underlying tile becomes FLOOR and a prop is placed at that coordinate.",
@@ -191,6 +191,58 @@
         ]
       },
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
+    }
+  ],
+  "plazas": [
+    {
+      "id": "plaza_well_square",
+      "name": "Plaza — Well & Lamps",
+      "category": "plaza",
+      "size": { "w": 11, "h": 7 },
+      "tiles": [
+        ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WELL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR"]
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true }
+    },
+    {
+      "id": "plaza_market_1",
+      "name": "Plaza — Market Stalls",
+      "category": "plaza",
+      "size": { "w": 13, "h": 9 },
+      "tiles": [
+        ["FLOOR","STALL","FLOOR","FLOOR","FLOOR","CRATE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["BENCH","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","BENCH"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WELL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["BENCH","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","BENCH"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","STALL","FLOOR","FLOOR","FLOOR","CRATE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"]
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true }
+    },
+    {
+      "id": "plaza_garden_1",
+      "name": "Plaza — Garden",
+      "category": "plaza",
+      "size": { "w": 9, "h": 7 },
+      "tiles": [
+        ["PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT"],
+        ["FLOOR","FLOOR","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","BENCH","FLOOR"],
+        ["FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","WELL","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","BENCH","FLOOR"],
+        ["PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT"]
+      ],
+      "constraints": { "rotations": [0,90,180,270], "mirror": true }
     }
   ]
 }

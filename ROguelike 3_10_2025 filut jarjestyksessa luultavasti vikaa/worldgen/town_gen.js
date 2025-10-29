@@ -359,6 +359,88 @@ function generate(ctx) {
   // Expose size to other modules (AI, UI)
   ctx.townSize = townSize;
 
+  // Derive and persist the town biome from the overworld around this town's location
+  (function deriveTownBiome() {
+    try {
+      const WMOD = (typeof window !== "undefined" ? window.World : null);
+      const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
+      const world = ctx.world || {};
+
+      // Helper: get world tile by absolute coords; prefer current window, fall back to generator
+      function worldTileAtAbs(ax, ay) {
+        const wmap = world.map || null;
+        const ox = world.originX | 0, oy = world.originY | 0;
+        const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
+        if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+          return wmap[ly][lx];
+        }
+        if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
+        return null;
+      }
+
+      // Absolute world coords for this town
+      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
+      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
+
+      // If world.towns entry already has a biome, trust it
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && rec.biome) {
+          ctx.townBiome = rec.biome;
+          return;
+        }
+      } catch (_) {}
+
+      // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
+      let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
+      function bump(tile) {
+        if (!WT) return;
+        if (tile === WT.DESERT) counts.DESERT++;
+        else if (tile === WT.SNOW) counts.SNOW++;
+        else if (tile === WT.BEACH) counts.BEACH++;
+        else if (tile === WT.SWAMP) counts.SWAMP++;
+        else if (tile === WT.FOREST) counts.FOREST++;
+        else if (tile === WT.GRASS) counts.GRASS++;
+      }
+
+      // Search radius growing rings until we find any biome tiles
+      const MAX_R = 6;
+      for (let r = 1; r <= MAX_R; r++) {
+        let any = false;
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // only outer ring
+            const t = worldTileAtAbs(wx + dx, wy + dy);
+            if (t == null) continue;
+            // Skip POI markers
+            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+            bump(t);
+            any = true;
+          }
+        }
+        // If we have any biome counts after this ring, stop
+        const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
+        if (any && total > 0) break;
+      }
+
+      // Pick the biome with the highest count; tie-break by a fixed priority
+      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      let best = "GRASS", bestV = -1;
+      for (const k of order) {
+        const v = counts[k] | 0;
+        if (v > bestV) { bestV = v; best = k; }
+      }
+      ctx.townBiome = best || "GRASS";
+
+      // Persist on world.towns entry if available
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
+        else if (info && typeof info === "object") info.biome = ctx.townBiome;
+      } catch (_) {}
+    } catch (_) {}
+  })();
+
   // Plaza
   const plaza = { x: (W / 2) | 0, y: (H / 2) | 0 };
   ctx.townPlaza = { x: plaza.x, y: plaza.y };
@@ -448,7 +530,7 @@ function generate(ctx) {
     try {
       // Remove props inside rect with 1-tile margin (includes signs just outside)
       ctx.townProps = Array.isArray(ctx.townProps)
-        ? ctx.townProps.filter(p => !(rectOverlap(b.x, b.y, b.w, b.h, p.x, p.y, 1, 1, 1)))
+        ? ctx.townProps.filter(p => !(rectOverlap(b.x, b.y, b.w, b.h, p.x, p.y, 1, 1, 2)))
         : [];
     } catch (_) {}
     try {
@@ -733,6 +815,72 @@ function generate(ctx) {
       }
     } catch (_) {}
 
+    return true;
+  }
+
+  // Stamp a plaza prefab (props only; no building record)
+  // All-or-nothing: stage changes and commit only if the prefab grid fully validates.
+  function stampPlazaPrefab(ctx, prefab, bx, by) {
+    if (!prefab || !prefab.size || !Array.isArray(prefab.tiles)) return false;
+    const w = prefab.size.w | 0, h = prefab.size.h | 0;
+    const x0 = bx, y0 = by, x1 = bx + w - 1, y1 = by + h - 1;
+    if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
+
+    // Validate row shape first: ensure every row exists and matches width
+    for (let yy = 0; yy < h; yy++) {
+      const row = prefab.tiles[yy];
+      if (!row || row.length !== w) return false;
+    }
+
+    // Ensure target area is currently walkable (plaza/road floor)
+    for (let yy = y0; yy <= y1; yy++) {
+      for (let xx = x0; xx <= x1; xx++) {
+        if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
+      }
+    }
+
+    // Stage: collect tile changes and props to add
+    const PROPMAP = {
+      BED: "bed", TABLE: "table", CHAIR: "chair", SHELF: "shelf", RUG: "rug",
+      FIREPLACE: "fireplace", CHEST: "chest", CRATE: "crate", BARREL: "barrel",
+      PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench"
+    };
+    const tileChanges = [];
+    const propsToAdd = [];
+
+    for (let yy = 0; yy < h; yy++) {
+      const row = prefab.tiles[yy];
+      for (let xx = 0; xx < w; xx++) {
+        const code = row[xx];
+        const wx = x0 + xx, wy = y0 + yy;
+
+        // For plaza prefabs, any tile code resolves to FLOOR (no walls/doors/windows in plazas)
+        tileChanges.push({ x: wx, y: wy });
+
+        // Embedded prop code: stage prop on floor. Vendor hint not applicable to plaza.
+        if (code && PROPMAP[code]) {
+          propsToAdd.push({ x: wx, y: wy, type: PROPMAP[code] });
+        }
+      }
+    }
+
+    // Commit staged changes only after full validation
+    try { if (!Array.isArray(ctx.townProps)) ctx.townProps = []; } catch (_) {}
+
+    for (let i = 0; i < tileChanges.length; i++) {
+      const c = tileChanges[i];
+      if (c.y > 0 && c.x > 0 && c.y < H - 1 && c.x < W - 1) {
+        ctx.map[c.y][c.x] = ctx.TILES.FLOOR;
+      }
+    }
+    for (let i = 0; i < propsToAdd.length; i++) {
+      const p = propsToAdd[i];
+      if (!ctx.townProps.some(q => q && q.x === p.x && q.y === p.y)) {
+        ctx.townProps.push({ x: p.x, y: p.y, type: p.type });
+      }
+    }
+
+    // Do NOT record a building rect for plaza prefabs
     return true;
   }
 
@@ -1777,6 +1925,30 @@ function generate(ctx) {
   // Town buildings metadata
   ctx.townBuildings = buildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: getExistingDoor(b) }));
 
+  // Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors)
+  (function buildOutdoorMask() {
+    try {
+      const rows = H, cols = W;
+      const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
+      function insideAnyBuilding(x, y) {
+        for (let i = 0; i < buildings.length; i++) {
+          const B = buildings[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      for (let yy = 0; yy < rows; yy++) {
+        for (let xx = 0; xx < cols; xx++) {
+          const t = ctx.map[yy][xx];
+          if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
+            mask[yy][xx] = true;
+          }
+        }
+      }
+      ctx.townOutdoorMask = mask;
+    } catch (_) {}
+  })();
+
   // Props
   ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
   function addProp(x, y, type, name) {
@@ -1922,12 +2094,26 @@ function generate(ctx) {
     }
   })();
 
-  // Plaza fixtures
-  addProp(plaza.x, plaza.y, "well", "Town Well");
-  addProp(plaza.x - 6, plaza.y - 4, "lamp", "Lamp Post");
-  addProp(plaza.x + 6, plaza.y - 4, "lamp", "Lamp Post");
-  addProp(plaza.x - 6, plaza.y + 4, "lamp", "Lamp Post");
-  addProp(plaza.x + 6, plaza.y + 4, "lamp", "Lamp Post");
+  // Plaza fixtures via prefab only (no fallbacks)
+  (function placePlazaPrefabStrict() {
+    try {
+      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
+      if (!plazas.length) return;
+      // Filter prefabs that fit inside current plaza rectangle
+      const fit = plazas.filter(p => p && p.size && (p.size.w | 0) <= plazaW && (p.size.h | 0) <= plazaH);
+      const list = (fit.length ? fit : plazas);
+      const pref = pickPrefab(list, ctx.rng || rng);
+      if (!pref || !pref.size) return;
+      // Center the plaza prefab within the carved plaza rectangle
+      const bx = ((plaza.x - ((pref.size.w / 2) | 0)) | 0);
+      const by = ((plaza.y - ((pref.size.h / 2) | 0)) | 0);
+      if (!stampPlazaPrefab(ctx, pref, bx, by)) {
+        // Attempt slight slip only; no fallback
+        trySlipStamp(ctx, pref, bx, by, 2);
+      }
+    } catch (_) {}
+  })();
 
   // Repair pass: enforce solid building perimeters (convert any non-door/window on borders to WALL)
   (function repairBuildingPerimeters() {
@@ -1971,38 +2157,49 @@ function generate(ctx) {
   } catch (_) {}
 
   // One special cat: Jekku (spawn in the designated town only)
-  (function placeJekku() {
+// Another special cat: Pulla (same behavior, different name, spawns in its designated town)
+  (function placeSpecialCats() {
     try {
       const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? ctx.worldReturnPos.x : ctx.player.x;
       const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? ctx.worldReturnPos.y : ctx.player.y;
       const info = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t.x === wx && t.y === wy) : null;
-      if (!info || !info.jekkuHome) return;
-      // Avoid duplicate by name if already present
-      if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => String(n.name || "").toLowerCase() === "jekku")) return;
-      // Prefer a free floor near the plaza
-      const spots = [
-        { x: ctx.townPlaza.x + 1, y: ctx.townPlaza.y },
-        { x: ctx.townPlaza.x - 1, y: ctx.townPlaza.y },
-        { x: ctx.townPlaza.x, y: ctx.townPlaza.y + 1 },
-        { x: ctx.townPlaza.x, y: ctx.townPlaza.y - 1 },
-        { x: ctx.townPlaza.x + 2, y: ctx.townPlaza.y },
-        { x: ctx.townPlaza.x - 2, y: ctx.townPlaza.y },
-        { x: ctx.townPlaza.x, y: ctx.townPlaza.y + 2 },
-        { x: ctx.townPlaza.x, y: ctx.townPlaza.y - 2 },
-      ];
-      let pos = null;
-      for (const s of spots) { if (_isFreeTownFloor(ctx, s.x, s.y)) { pos = s; break; } }
-      if (!pos) {
-        // Fallback: any free floor near plaza
-        for (let oy = -3; oy <= 3 && !pos; oy++) {
-          for (let ox = -3; ox <= 3 && !pos; ox++) {
-            const x = ctx.townPlaza.x + ox, y = ctx.townPlaza.y + oy;
-            if (_isFreeTownFloor(ctx, x, y)) pos = { x, y };
+      if (!info) return;
+
+      function spawnCatOnce(nameCheck, displayName) {
+        // Avoid duplicate by name if already present
+        if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => String(n.name || "").toLowerCase() === nameCheck)) return;
+        // Prefer a free floor near the plaza
+        const spots = [
+          { x: ctx.townPlaza.x + 1, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x - 1, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y + 1 },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y - 1 },
+          { x: ctx.townPlaza.x + 2, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x - 2, y: ctx.townPlaza.y },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y + 2 },
+          { x: ctx.townPlaza.x, y: ctx.townPlaza.y - 2 },
+        ];
+        let pos = null;
+        for (const s of spots) { if (_isFreeTownFloor(ctx, s.x, s.y)) { pos = s; break; } }
+        if (!pos) {
+          // Fallback: any free floor near plaza
+          for (let oy = -3; oy <= 3 && !pos; oy++) {
+            for (let ox = -3; ox <= 3 && !pos; ox++) {
+              const x = ctx.townPlaza.x + ox, y = ctx.townPlaza.y + oy;
+              if (_isFreeTownFloor(ctx, x, y)) pos = { x, y };
+            }
           }
         }
+        if (!pos) pos = { x: ctx.townPlaza.x, y: ctx.townPlaza.y };
+        ctx.npcs.push({ x: pos.x, y: pos.y, name: displayName, kind: "cat", lines: ["Meow.", "Purr."], pet: true });
       }
-      if (!pos) pos = { x: ctx.townPlaza.x, y: ctx.townPlaza.y };
-      ctx.npcs.push({ x: pos.x, y: pos.y, name: "Jekku", kind: "cat", lines: ["Meow.", "Purr."], pet: true });
+
+      if (info.jekkuHome) {
+        spawnCatOnce("jekku", "Jekku");
+      }
+      if (info.pullaHome) {
+        spawnCatOnce("pulla", "Pulla");
+      }
     } catch (_) {}
   })();
 

@@ -88,6 +88,100 @@ export function draw(ctx, view) {
 
   
 
+  // Helpers for biome-based outdoor ground tint
+  function ensureTownBiome(ctx) {
+    try {
+      const WMOD = (typeof window !== "undefined" ? window.World : null);
+      const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
+      const world = ctx.world || {};
+
+      // If a biome is already recorded for this town in world.towns, use it
+      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
+      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && rec.biome) { ctx.townBiome = rec.biome; return; }
+      } catch (_) {}
+
+      // Helper: get tile at absolute world coords (prefer current window; fallback to generator)
+      function worldTileAtAbs(ax, ay) {
+        const wmap = world.map || null;
+        const ox = world.originX | 0, oy = world.originY | 0;
+        const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
+        if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+          return wmap[ly][lx];
+        }
+        if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
+        return null;
+      }
+
+      // Sample neighborhood around town (skip POIs) to infer biome
+      let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
+      function bump(tile) {
+        if (!WT) return;
+        if (tile === WT.DESERT) counts.DESERT++;
+        else if (tile === WT.SNOW) counts.SNOW++;
+        else if (tile === WT.BEACH) counts.BEACH++;
+        else if (tile === WT.SWAMP) counts.SWAMP++;
+        else if (tile === WT.FOREST) counts.FOREST++;
+        else if (tile === WT.GRASS) counts.GRASS++;
+      }
+      const MAX_R = 6;
+      for (let r = 1; r <= MAX_R; r++) {
+        let any = false;
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const t = worldTileAtAbs(wx + dx, wy + dy);
+            if (t == null) continue;
+            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+            bump(t);
+            any = true;
+          }
+        }
+        const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
+        if (any && total > 0) break;
+      }
+      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      let best = "GRASS", bestV = -1;
+      for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
+      ctx.townBiome = best || "GRASS";
+    } catch (_) { ctx.townBiome = ctx.townBiome || "GRASS"; }
+  }
+  function townBiomeFill(ctx) {
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
+      if (!pal) return null;
+      const k = String(ctx.townBiome || "").toUpperCase();
+      return pal[k] || null;
+    } catch (_) { return null; }
+  }
+  function ensureOutdoorMask(ctx) {
+    if (Array.isArray(ctx.townOutdoorMask)) return;
+    try {
+      const rows = mapRows, cols = mapCols;
+      const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
+      const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+      function insideAnyBuilding(x, y) {
+        for (let i = 0; i < tbs.length; i++) {
+          const B = tbs[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      for (let yy = 0; yy < rows; yy++) {
+        for (let xx = 0; xx < cols; xx++) {
+          const t = map[yy][xx];
+          if (t === TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
+            mask[yy][xx] = true;
+          }
+        }
+      }
+      ctx.townOutdoorMask = mask;
+    } catch (_) {}
+  }
+
   // Build base offscreen once per map/TILE change
   try {
     if (mapRows && mapCols) {
@@ -107,13 +201,24 @@ export function draw(ctx, view) {
           oc.textAlign = "center";
           oc.textBaseline = "middle";
         } catch (_) {}
+        // Prepare biome fill and outdoor mask
+        ensureTownBiome(ctx);
+        ensureOutdoorMask(ctx);
+        const biomeFill = townBiomeFill(ctx);
+
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
-            const fill = fillTownFor(TILES, type, COLORS);
+            let fill = fillTownFor(TILES, type, COLORS);
+            // Outdoor ground tint by biome for FLOOR tiles
+            try {
+              if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
+                fill = biomeFill;
+              }
+            } catch (_) {}
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -130,6 +235,9 @@ export function draw(ctx, view) {
     } catch (_) {}
   } else {
     // Fallback: draw base tiles in viewport using JSON colors or robust fallback
+    ensureTownBiome(ctx);
+    ensureOutdoorMask(ctx);
+    const biomeFill = townBiomeFill(ctx);
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -143,7 +251,13 @@ export function draw(ctx, view) {
         }
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-        const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+        let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+        // Outdoor ground tint by biome for FLOOR tiles
+        try {
+          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
+            fill = biomeFill;
+          }
+        } catch (_) {}
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }

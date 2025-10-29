@@ -286,11 +286,17 @@ export function generate(ctx, opts = {}) {
     }
   );
 
-  // Choose one town to be Jekku's home (only once per world)
-  if (towns.length) {
-    const idx = (rng() * towns.length) | 0;
-    towns[idx].jekkuHome = true;
+  // Choose one town to be Jekku's home (only once per world) and one for Pulla
+if (towns.length) {
+  const jekkuIndex = (rng() * towns.length) | 0;
+  towns[jekkuIndex].jekkuHome = true;
+
+  let pullaIndex = (rng() * towns.length) | 0;
+  if (towns.length > 1 && pullaIndex === jekkuIndex) {
+    pullaIndex = (pullaIndex + 1) % towns.length;
   }
+  towns[pullaIndex].pullaHome = true;
+}
 
   // Helper: pick dungeon size with probabilities influenced by terrain
   function pickDungeonSizeFor(tile) {
