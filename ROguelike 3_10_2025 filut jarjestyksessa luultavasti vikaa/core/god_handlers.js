@@ -358,6 +358,71 @@ export function install(getCtx) {
         }
       } catch (_) {}
     },
+
+    onGodCheckSigns: () => {
+      const c = getCtx();
+      if (c.mode !== "town") {
+        c.log("Signs check is available in town mode only.", "warn");
+        c.requestDraw && c.requestDraw();
+        return;
+      }
+      const shops = Array.isArray(c.shops) ? c.shops : [];
+      const props = Array.isArray(c.townProps) ? c.townProps : [];
+      const lines = [];
+      const header = `Signs: ${shops.length} shop(s).`;
+
+      function isInside(b, x, y) {
+        return !!(b && x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1);
+      }
+
+      for (let i = 0; i < shops.length; i++) {
+        const s = shops[i];
+        const text = String(s.name || s.type || "Shop");
+        const door = (s.building && s.building.door) ? s.building.door : { x: s.x, y: s.y };
+        const wants = (s && Object.prototype.hasOwnProperty.call(s, "signWanted")) ? !!s.signWanted : true;
+
+        const indices = [];
+        for (let pi = 0; pi < props.length; pi++) {
+          const p = props[pi];
+          if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) {
+            indices.push(pi);
+          }
+        }
+        let outside = 0, insideC = 0;
+        let nearest = null, bestD = Infinity;
+        for (const idx of indices) {
+          const p = props[idx];
+          const inside = isInside(s.building, p.x, p.y);
+          if (inside) insideC++; else outside++;
+          const d = Math.abs(p.x - door.x) + Math.abs(p.y - door.y);
+          if (d < bestD) { bestD = d; nearest = { x: p.x, y: p.y, d }; }
+        }
+        const count = indices.length;
+        const base = `• ${text}: signWanted=${wants ? "true" : "false"}  signs=${count} (outside=${outside}, inside=${insideC})`;
+        const tail = nearest ? `, nearest at (${nearest.x},${nearest.y}) d=${nearest.d}` : (count ? ", nearest: (unknown)" : "");
+        lines.push(base + tail);
+        if (!wants && count > 0) {
+          c.log(`Sign '${text}' present but signWanted=false — consider removing prefab or data-driven sign.`, "warn");
+        }
+      }
+
+      try {
+        const el = document.getElementById("god-check-output");
+        if (el) {
+          const html = [header].concat(lines).map(s => `<div>${s}</div>`).join("");
+          el.innerHTML = html;
+        }
+      } catch (_) {}
+
+      c.log(header, shops.length ? "info" : "warn");
+      lines.forEach(l => c.log(l, "info"));
+      try {
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(c);
+        }
+      } catch (_) {}
+    },
     // Diagnostics
     onGodDiagnostics: () => {
       const c = getCtx();

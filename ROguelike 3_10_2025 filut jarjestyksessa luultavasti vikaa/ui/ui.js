@@ -80,6 +80,8 @@ export const UI = {
     this.els.godCheckHomeBtn = document.getElementById("god-check-home-btn");
     // Check Inn/Tavern button
     this.els.godCheckInnTavernBtn = document.getElementById("god-check-inn-tavern-btn");
+    // Check Signs button
+    this.els.godCheckSignsBtn = document.getElementById("god-check-signs-btn");
     // Smoke test run count (legacy in GOD panel; unused for new panel)
     this.els.godSmokeCount = document.getElementById("god-smoke-count");
     // Smoke config elements
@@ -202,6 +204,9 @@ export const UI = {
     });
     this.els.godCheckInnTavernBtn?.addEventListener("click", () => {
       if (typeof this.handlers.onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern();
+    });
+    this.els.godCheckSignsBtn?.addEventListener("click", () => {
+      if (typeof this.handlers.onGodCheckSigns === "function") this.handlers.onGodCheckSigns();
     });
     // Prefab Editor (DEV-only route)
     const openPrefabBtn = document.getElementById("god-open-prefab-editor-btn");
@@ -756,7 +761,7 @@ export const UI = {
     if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
   },
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -776,8 +781,8 @@ export const UI = {
     if (typeof onTownExit === "function") this.handlers.onTownExit = onTownExit;
     if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
     if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
-    if (typeof onGodDiagnostics === "function") this.handlers.onGodDiagnostics = onGodDiagnostics;
-    if (typeof onGodToggleGrid === "function") this.handlers.onGodToggleGrid = onGodToggleGrid;
+    if (typeof onGodCheckSigns === "function") this.handlers.onGodCheckSigns = onGodCheckSigns;
+    if (typeof onGodDiagnostics === "function") this.handlers.onGodDiagnostics = onGod    if (typeof onGodToggleGrid === "function") this.handlers.onGodToggleGrid = onGodToggleGrid;
     if (typeof onGodApplyBleed === "function") this.handlers.onGodApplyBleed = onGodApplyBleed;
     if (typeof onGodApplyDazed === "function") this.handlers.onGodApplyDazed = onGodApplyDazed;
     if (typeof onGodClearEffects === "function") this.handlers.onGodClearEffects = onGodClearEffects;

@@ -104,7 +104,7 @@
       "id": "shop_blacksmith_1",
       "name": "Blacksmith",
       "category": "shop",
-      "shop": { "type": "blacksmith", "schedule": { "open": "08:00", "close": "17:00", "alwaysOpen": false }, "signText": "Blacksmith" },
+      "shop": { "type": "blacksmith", "schedule": { "open": "08:00", "close": "17:00", "alwaysOpen": false }, "signText": "Blacksmith", "sign": true },
       "tags": ["shop","blacksmith"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
@@ -122,7 +122,7 @@
       "id": "shop_apothecary_1",
       "name": "Apothecary",
       "category": "shop",
-      "shop": { "type": "apothecary", "schedule": { "open": "09:00", "close": "18:00", "alwaysOpen": false }, "signText": "Apothecary" },
+      "shop": { "type": "apothecary", "schedule": { "open": "09:00", "close": "18:00", "alwaysOpen": false }, "signText": "Apothecary", "sign": true },
       "tags": ["shop","apothecary"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
@@ -140,7 +140,7 @@
       "id": "shop_trader_1",
       "name": "Trader",
       "category": "shop",
-      "shop": { "type": "trader", "schedule": { "open": "08:00", "close": "18:00", "alwaysOpen": false }, "signText": "Trader" },
+      "shop": { "type": "trader", "schedule": { "open": "08:00", "close": "18:00", "alwaysOpen": false }, "signText": "Trader", "sign": true },
       "tags": ["shop","trader"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
@@ -161,6 +161,7 @@
       "name": "Inn & Tavern",
       "category": "inn",
       "tags": ["two_story","tavern"],
+      "shop": { "type": "inn", "schedule": { "alwaysOpen": true }, "signText": "Inn", "sign": true },
       "size": { "w": 11, "h": 9 },
       "tiles": [
         ["WALL","WALL","WALL","WINDOW","DOOR","DOOR","WINDOW","WALL","WALL","WALL","WALL"],
