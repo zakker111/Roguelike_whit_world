@@ -1052,6 +1052,86 @@ export const UI = {
     try { return !!RegionModal.isOpen(); } catch (_) { return false; }
   },
 
+  // --- Encounter rate controls (0..100) ---
+  getEncounterRateState() {
+    // Default 50 means baseline frequency; &lt;50 fewer, &gt;50 more
+    try {
+      if (typeof window.ENCOUNTER_RATE === "number" && Number.isFinite(window.ENCOUNTER_RATE)) {
+        const v = Math.max(0, Math.min(100, Math.round(Number(window.ENCOUNTER_RATE))));
+        return v;
+      }
+      const raw = localStorage.getItem("ENCOUNTER_RATE");
+      if (raw != null) {
+        const v = Math.max(0, Math.min(100, Math.round(Number(raw) || 0)));
+        return v;
+      }
+    } catch (_) {}
+    // Config-driven default (Phase 5)
+    try {
+      const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config && window.GameData.config.dev) ? window.GameData.config.dev : null;
+      const v = (cfg && typeof cfg.encounterRateDefault === "number") ? Math.max(0, Math.min(100, Math.round(Number(cfg.encounterRateDefault) || 0))) : 50;
+      return v;
+    } catch (_) {}
+    return 50;
+  },
+
+  setEncounterRateState(val) {
+    const v = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
+    try {
+      window.ENCOUNTER_RATE = v;
+      localStorage.setItem("ENCOUNTER_RATE", String(v));
+    } catch (_) {}
+    this.updateEncounterRateUI();
+  },
+
+  updateEncounterRateUI() {
+    const v = this.getEncounterRateState();
+    if (this.els.godEncRate) this.els.godEncRate.value = String(v);
+    if (this.els.godEncRateValue) this.els.godEncRateValue.textContent = `Encounter rate: ${v}`;
+  },
+
+  // --- Side log mirror controls ---
+  getSideLogState() {
+    try {
+      if (typeof window.LOG_MIRROR === "boolean") return window.LOG_MIRROR;
+      const m = localStorage.getItem("LOG_MIRROR");
+      if (m === "1") return true;
+      if (m === "0") return false;
+    } catch (_) {}
+    return true; // default on
+  },
+
+  setSideLogState(enabled) {
+    try {
+      window.LOG_MIRROR = !!enabled;
+      localStorage.setItem("LOG_MIRROR", enabled ? "1" : "0");
+    } catch (_) {}
+    // Apply immediately
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.init === "function") {
+        window.Logger.init();
+      }
+    } catch (_) {}
+    // Ensure DOM reflects the state even without reinit
+    const el = document.getElementById("log-right");
+    if (el) {
+      el.style.display = enabled ? "" : "none";
+    }
+    this.updateSideLogButton();
+  },
+
+  toggleSideLog() {
+    const cur = this.getSideLogState();
+    this.setSideLogState(!cur);
+  },
+
+  updateSideLogButton() {
+    if (!this.els.godToggleMirrorBtn) return;
+    const on = this.getSideLogState();
+    this.els.godToggleMirrorBtn.textContent = `Side Log: ${on ? "On" : "Off"}`;
+    this.els.godToggleMirrorBtn.title = on ? "Hide side log" : "Show side log";
+  },
+
   // --- Render grid controls ---
   getGridState() {
     try {
