@@ -1,6 +1,25 @@
 s 
 # Game Version History
-Last updated: 2025-10-28 00:00 UTC
+Last updated: 2025-10-29 00:00 UTC
+
+v1.43.1 — Town biome inference fix, darker snow ground, and plaza footprint tuning
+- Towns
+  - Biome inference now samples surrounding overworld tiles (skips TOWN/DUNGEON/RUINS) and persists per-town biome (world.towns[].biome).
+  - Renderer uses persisted biome or infers on the fly when missing; TownState.load sets ctx.townBiome on load.
+  - Fixes a bug where all towns adopted the biome from the first town entered.
+
+- Rendering
+  - Outdoor FLOOR tint in towns still applies via ctx.townOutdoorMask; mechanics unchanged.
+  - Snow ground color darkened to improve NPC contrast: townBiome.SNOW updated to #93a7b6 (previously #e3e9ef → #cfd8e3).
+
+- Data
+  - Plaza prefabs made smaller in data/worldgen/prefabs.json:
+    - plaza_well_square: 11×7
+    - plaza_market_1: 13×9
+    - plaza_garden_1: 9×7
+  - Reverted “interior-only” restriction for crates/barrels in town_gen.js to allow outdoor market ambience again.
+
+- Deployment: https://xegnxopmmbow.cosine.page, https://jnkh554shlbf.cosine.page, https://joeh2w4mwjub.cosine.page
 
 v1.43.0 — Dungeon difficulty scaling, color-coded dungeon markers, and enemy registry hardening
 - Dungeons
