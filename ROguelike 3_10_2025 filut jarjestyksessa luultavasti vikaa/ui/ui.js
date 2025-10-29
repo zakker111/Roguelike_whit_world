@@ -21,6 +21,8 @@ import * as SmokeModal from "/ui/components/smoke_modal.js";
 import * as ConfirmModal from "/ui/components/confirm_modal.js";
 import * as HandChooser from "/ui/components/hand_chooser.js";
 import * as HitChooser from "/ui/components/hit_chooser.js";
+import * as GameOverModal from "/ui/components/game_over_modal.js";
+import * as TownExit from "/ui/components/town_exit.js";
 
 export const UI = {
   els: {},
@@ -102,24 +104,7 @@ export const UI = {
 
     
 
-    // Floating Town Exit button (hidden by default, shown in town)
-    this.els.townExitBtn = document.createElement("button");
-    const b = this.els.townExitBtn;
-    b.textContent = "Exit Town";
-    b.style.position = "fixed";
-    b.style.right = "16px";
-    b.style.bottom = "16px";
-    b.style.padding = "8px 12px";
-    b.style.fontSize = "14px";
-    b.style.background = "#1f2937";
-    b.style.color = "#e5e7eb";
-    b.style.border = "1px solid #334155";
-    b.style.borderRadius = "6px";
-    b.style.boxShadow = "0 8px 24px rgba(0,0,0,0.35)";
-    b.style.cursor = "pointer";
-    b.style.display = "none";
-    b.title = "Leave the town";
-    document.body.appendChild(b);
+    
 
     // Bind static events
     this.els.lootPanel?.addEventListener("click", () => this.hideLoot());
@@ -559,13 +544,7 @@ export const UI = {
       }
     });
 
-    // Town exit button click
-    this.els.townExitBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (typeof this.handlers.onTownExit === "function") {
-        this.handlers.onTownExit();
-      }
-    });
+    
 
     
 
@@ -632,11 +611,11 @@ export const UI = {
   },
 
   showTownExitButton() {
-    if (this.els.townExitBtn) this.els.townExitBtn.style.display = "block";
+    try { TownExit.show(); } catch (_) {}
   },
 
   hideTownExitButton() {
-    if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
+    try { TownExit.hide(); } catch (_) {}
   },
 
   setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
@@ -656,7 +635,10 @@ export const UI = {
     if (typeof onGodSetCritPart === "function") this.handlers.onGodSetCritPart = onGodSetCritPart;
     if (typeof onGodApplySeed === "function") this.handlers.onGodApplySeed = onGodApplySeed;
     if (typeof onGodRerollSeed === "function") this.handlers.onGodRerollSeed = onGodRerollSeed;
-    if (typeof onTownExit === "function") this.handlers.onTownExit = onTownExit;
+    if (typeof onTownExit === "function") {
+      this.handlers.onTownExit = onTownExit;
+      try { TownExit.setHandler(onTownExit); } catch (_) {}
+;
     if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
     if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
     if (typeof onGodCheckSigns === "function") this.handlers.onGodCheckSigns = onGodCheckSigns;
@@ -1312,18 +1294,12 @@ export const UI = {
   },
 
   showGameOver(player, floor) {
-    if (this.els.lootPanel && !this.els.lootPanel.hidden) this.hideLoot();
-    if (!this.els.gameOverPanel) return;
-    const gold = (player.inventory.find(i => i.kind === "gold")?.amount) || 0;
-    if (this.els.gameOverSummary) {
-      this.els.gameOverSummary.textContent = `You died on floor ${floor} (Lv ${player.level}). Gold: ${gold}. XP: ${player.xp}/${player.xpNext}.`;
-    }
-    this.els.gameOverPanel.hidden = false;
+    if (this.isLootOpen()) this.hideLoot();
+    try { GameOverModal.show(player, floor); } catch (_) {}
   },
 
   hideGameOver() {
-    if (!this.els.gameOverPanel) return;
-    this.els.gameOverPanel.hidden = true;
+    try { GameOverModal.hide(); } catch (_) {}
   }
 };
 
