@@ -89,6 +89,8 @@ function cloneForStorage(st) {
     } : null,
     innStairsGround: Array.isArray(st.innStairsGround) ? st.innStairsGround.map(s => ({ x: s.x, y: s.y })) : [],
     townExitAt: st.townExitAt ? { x: st.townExitAt.x, y: st.townExitAt.y } : null,
+    // Persist roads mask when present (for consistent rendering on revisit)
+    townRoads: Array.isArray(st.townRoads) ? st.townRoads : null,
     townName: st.townName || null,
     townSize: st.townSize || null
   };
@@ -119,6 +121,8 @@ export function save(ctx) {
     innUpstairs: ctx.innUpstairs || null,
     innStairsGround: Array.isArray(ctx.innStairsGround) ? ctx.innStairsGround.slice(0) : [],
     townExitAt: ctx.townExitAt || null,
+    // Persist roads mask for rendering on reload
+    townRoads: Array.isArray(ctx.townRoads) ? ctx.townRoads : null,
     townName: ctx.townName || null,
     townSize: ctx.townSize || null
   };
@@ -167,6 +171,61 @@ function applyState(ctx, st, x, y) {
   ctx.townBuildings = Array.isArray(st.townBuildings) ? st.townBuildings : [];
   ctx.townPlaza = st.townPlaza || null;
   ctx.tavern = st.tavern || null;
+  // Roads mask (optional): use persisted mask if present
+  ctx.townRoads = Array.isArray(st.townRoads) ? st.townRoads : null;
+
+  // Sanitize loaded props to avoid stale/dangling remnants from older saves or generation changes.
+  // - Drop props outside bounds or sitting on non-walkable tiles (only FLOOR/STAIRS allowed).
+  // - Enforce interior-only props to exist only inside some building.
+  // - Deduplicate exact coordinate duplicates (keep first).
+  (function sanitizeLoadedTownProps() {
+    try {
+      const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+      const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+      function inB(x, y) { return y >= 0 && y < rows && x >= 0 && x < cols; }
+      function insideAnyBuilding(x, y) {
+        const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+        for (let i = 0; i < tbs.length; i++) {
+          const B = tbs[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest","counter"]);
+      const seenCoord = new Set();
+      const before = Array.isArray(ctx.townProps) ? ctx.townProps.length : 0;
+      const filtered = [];
+      const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      for (let i = 0; i < props.length; i++) {
+        const p = props[i];
+        if (!p) continue;
+        const x = p.x | 0, y = p.y | 0;
+        const key = `${x},${y}`;
+        // Deduplicate exact coordinate duplicates (keep the first encountered)
+        if (seenCoord.has(key)) continue;
+        seenCoord.add(key);
+        // Bounds and tile check
+        if (!inB(x, y)) continue;
+        const t = ctx.map[y][x];
+        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.TILES.ROAD) continue;
+        // Interior-only filtering
+        const typ = String(p.type || "").toLowerCase();
+        if (interiorOnly.has(typ) && !insideAnyBuilding(x, y)) continue;
+        // Keep
+        filtered.push({ x, y, type: p.type, name: p.name });
+      }
+      ctx.townProps = filtered;
+      try {
+        const removed = before - filtered.length;
+        if (removed > 0) {
+          const msg = `TownState: sanitized ${removed} dangling props on load.`;
+          if (typeof window !== "undefined" && window.DEV && ctx.log) ctx.log(msg, "warn");
+          console.log(msg);
+        }
+      } catch (_) {}
+    } catch (_) {}
+  })();
+
   // Restore inn upstairs overlay and stairs portal
   ctx.innUpstairs = st.innUpstairs || null;
   // Sanitize legacy upstairs tiles: convert DOOR/WINDOW to FLOOR; keep WALL/STAIRS intact.
@@ -192,6 +251,69 @@ function applyState(ctx, st, x, y) {
 
   // Ensure we can return to the same overworld tile on exit
   ctx.worldReturnPos = { x, y };
+
+  // Build roads mask if missing (for loaded towns saved before roads were persisted)
+  (function rebuildTownRoadsMaskOnLoad() {
+    try {
+      const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+      const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+      if (!rows || !cols) return;
+      // If a mask exists and matches current dimensions, keep it
+      if (Array.isArray(ctx.townRoads) && ctx.townRoads.length === rows && Array.isArray(ctx.townRoads[0]) && ctx.townRoads[0].length === cols) return;
+
+      const roadsMask = Array.from({ length: rows }, () => Array(cols).fill(false));
+      function inB(x0, y0) { return y0 >= 0 && y0 < rows && x0 >= 0 && x0 < cols; }
+
+      // Carve L-shaped road from gate to plaza (if both exist)
+      try {
+        const gate = ctx.townExitAt || null;
+        const plaza = ctx.townPlaza || { x: (cols / 2) | 0, y: (rows / 2) | 0 };
+        if (gate && inB(gate.x, gate.y) && inB(plaza.x, plaza.y)) {
+          let x = gate.x | 0, y = gate.y | 0;
+          while (x !== plaza.x) { if (inB(x, y)) roadsMask[y][x] = true; x += Math.sign(plaza.x - x); }
+          while (y !== plaza.y) { if (inB(x, y)) roadsMask[y][x] = true; y += Math.sign(plaza.y - y); }
+          if (inB(x, y)) roadsMask[y][x] = true;
+        }
+      } catch (_) {}
+
+      // Grid roads by stride from GameData.town (defaults if missing)
+      let yStride = 8, xStride = 10;
+      try {
+        const TOWNCFG = (typeof window !== "undefined" && window.GameData && window.GameData.town) || null;
+        if (TOWNCFG && TOWNCFG.roads) {
+          if (TOWNCFG.roads.yStride != null) yStride = (TOWNCFG.roads.yStride | 0);
+          if (TOWNCFG.roads.xStride != null) xStride = (TOWNCFG.roads.xStride | 0);
+        }
+      } catch (_) {}
+      yStride = Math.max(2, yStride | 0);
+      xStride = Math.max(2, xStride | 0);
+
+      for (let y = 6; y < rows - 6; y += yStride) {
+        for (let x = 1; x < cols - 1; x++) { roadsMask[y][x] = true; }
+      }
+      for (let x = 6; x < cols - 6; x += xStride) {
+        for (let y = 1; y < rows - 1; y++) { roadsMask[y][x] = true; }
+      }
+
+      // Finalize: clear mask inside building interiors and on non-FLOOR tiles
+      function insideAnyBuilding(x, y) {
+        const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+        for (let i = 0; i < tbs.length; i++) {
+          const B = tbs[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      for (let yy = 0; yy < rows; yy++) {
+        for (let xx = 0; xx < cols; xx++) {
+          if (insideAnyBuilding(xx, yy)) { roadsMask[yy][xx] = false; continue; }
+          if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { roadsMask[yy][xx] = false; }
+        }
+      }
+
+      ctx.townRoads = roadsMask;
+    } catch (_) {}
+  })();
 
   // Ensure town biome is set on load (use persisted world.towns biome or infer from surrounding world tiles)
   try {

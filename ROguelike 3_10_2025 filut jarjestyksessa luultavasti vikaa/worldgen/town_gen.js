@@ -71,7 +71,7 @@ function _isFreeTownFloor(ctx, x, y) {
   } catch (_) {}
   if (!inBounds(ctx, x, y)) return false;
   const t = ctx.map[y][x];
-  if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
+  if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR && t !== ctx.TILES.ROAD) return false;
   if (ctx.player.x === x && ctx.player.y === y) return false;
   if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n.x === x && n.y === y)) return false;
   if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
@@ -109,7 +109,9 @@ function ensureSpawnClear(ctx) {
   // If current tile is not walkable, move to the nearest FLOOR/DOOR tile.
   const H = ctx.map.length;
   const W = ctx.map[0] ? ctx.map[0].length : 0;
-  const isWalk = (x, y) => x >= 0 && y >= 0 && x < W && y < H && (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR);
+  const isWalk = (x, y) => x >= 0 && y >= 0 && x < W && y < H && (
+    ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR || ctx.map[y][x] === ctx.TILES.ROAD
+  );
   if (isWalk(ctx.player.x, ctx.player.y)) return true;
 
   // BFS from current position to nearest walkable
@@ -157,7 +159,7 @@ function spawnGateGreeters(ctx, count = 4) {
         const names = ["Ava", "Borin", "Cora", "Darin", "Eda", "Finn", "Goro", "Hana"];
         const lines = [
           `Welcome to ${ctx.townName || "our town"}.`,
-          "Shops are marked with S.",
+          "Shops are marked with a flag at their doors.",
           "Stay as long as you like.",
           "The plaza is at the center.",
         ];
@@ -187,7 +189,7 @@ function spawnGateGreeters(ctx, count = 4) {
   const names = ["Ava", "Borin", "Cora", "Darin", "Eda", "Finn", "Goro", "Hana"];
   const lines = [
     `Welcome to ${ctx.townName || "our town"}.`,
-    "Shops are marked with S.",
+    "Shops are marked with a flag at their doors.",
     "Stay as long as you like.",
     "The plaza is at the center.",
   ];
@@ -213,7 +215,7 @@ function spawnGateGreeters(ctx, count = 4) {
       const name = "Greeter";
       const lines2 = [
         `Welcome to ${ctx.townName || "our town"}.`,
-        "Shops are marked with S.",
+        "Shops are marked with a flag at their doors.",
         "Stay as long as you like.",
         "The plaza is at the center.",
       ];
@@ -358,6 +360,12 @@ function generate(ctx) {
   ctx.townName = townName;
   // Expose size to other modules (AI, UI)
   ctx.townSize = townSize;
+  // Reset town containers to avoid stale data when generate() is invoked more than once in a session.
+  // This prevents duplicated plaza props or repeated shop/sign placements.
+  ctx.townProps = [];
+  ctx.shops = [];
+  ctx.townBuildings = [];
+  ctx.townPrefabUsage = { houses: [], shops: [], inns: [], plazas: [] };
 
   // Derive and persist the town biome from the overworld around this town's location
   (function deriveTownBiome() {
@@ -469,19 +477,8 @@ function generate(ctx) {
     };
   } catch (_) {}
 
-  // Roads
-  const carveRoad = (x1, y1, x2, y2) => {
-    let x = x1, y = y1;
-    while (x !== x2) { ctx.map[y][x] = ctx.TILES.FLOOR; x += Math.sign(x2 - x); }
-    while (y !== y2) { ctx.map[y][x] = ctx.TILES.FLOOR; y += Math.sign(y2 - y); }
-    ctx.map[y][x] = ctx.TILES.FLOOR;
-  };
-  carveRoad(gate.x, gate.y, plaza.x, gate.y);
-  carveRoad(plaza.x, gate.y, plaza.x, plaza.y);
-  const roadYStride = (TOWNCFG && TOWNCFG.roads && (TOWNCFG.roads.yStride | 0)) || 8;
-  const roadXStride = (TOWNCFG && TOWNCFG.roads && (TOWNCFG.roads.xStride | 0)) || 10;
-  for (let y = 6; y < H - 6; y += Math.max(2, roadYStride)) for (let x = 1; x < W - 1; x++) ctx.map[y][x] = ctx.TILES.FLOOR;
-  for (let x = 6; x < W - 6; x += Math.max(2, roadXStride)) for (let y = 1; y < H - 1; y++) ctx.map[y][x] = ctx.TILES.FLOOR;
+  // Roads (deferred): build after buildings and outdoor mask are known
+  let roadsMask = Array.from({ length: H }, () => Array(W).fill(false));
 
   // Buildings container (either prefab-placed or hollow rectangles as fallback)
   const buildings = [];
@@ -618,7 +615,8 @@ function generate(ctx) {
       COUNTER: "counter",
       STALL: "stall",
       LAMP: "lamp",
-      WELL: "well"
+      WELL: "well",
+      SIGN: "sign"
     };
 
     // Stamp tiles and embedded props
@@ -714,6 +712,19 @@ function generate(ctx) {
     const rect = { x: x0, y: y0, w, h, prefabId: (prefab && prefab.id) ? String(prefab.id) : null, prefabCategory: String(prefab.category || "").toLowerCase() || null };
     buildings.push(rect);
 
+    // Track prefab usage for diagnostics (per category)
+    try {
+      const cat = String(prefab.category || "").toLowerCase();
+      const id = String(prefab.id || "");
+      if (id) {
+        ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [] };
+        if (cat === "house") ctx.townPrefabUsage.houses.push(id);
+        else if (cat === "shop") ctx.townPrefabUsage.shops.push(id);
+        else if (cat === "inn") ctx.townPrefabUsage.inns.push(id);
+        else if (cat === "plaza") ctx.townPrefabUsage.plazas.push(id);
+      }
+    } catch (_) {}
+
     // Inn: consume upstairsOverlay and record ground stairs if present in prefab tiles
     try {
       if (String(prefab.category || "").toLowerCase() === "inn") {
@@ -805,12 +816,20 @@ function generate(ctx) {
             scheduleOverride = { open: s.open || null, close: s.close || null, alwaysOpen: !!s.alwaysOpen };
           }
         } catch (_) {}
+        // Sign placement preference from prefab metadata (default true unless explicitly disabled)
+        let signWanted = true;
+        try {
+          if (prefab.shop && Object.prototype.hasOwnProperty.call(prefab.shop, "sign")) {
+            signWanted = !!prefab.shop.sign;
+          }
+        } catch (_) {}
         prefabShops.push({
           type: shopType,
           building: rect,
           door: doorWorld,
           name: shopName,
-          scheduleOverride
+          scheduleOverride,
+          signWanted
         });
       }
     } catch (_) {}
@@ -843,7 +862,7 @@ function generate(ctx) {
     const PROPMAP = {
       BED: "bed", TABLE: "table", CHAIR: "chair", SHELF: "shelf", RUG: "rug",
       FIREPLACE: "fireplace", CHEST: "chest", CRATE: "crate", BARREL: "barrel",
-      PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench"
+      PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench", SIGN: "sign"
     };
     const tileChanges = [];
     const propsToAdd = [];
@@ -881,6 +900,14 @@ function generate(ctx) {
     }
 
     // Do NOT record a building rect for plaza prefabs
+    // Track plaza prefab usage for diagnostics
+    try {
+      const id = String(prefab.id || "");
+      if (id) {
+        ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [] };
+        ctx.townPrefabUsage.plazas.push(id);
+      }
+    } catch (_) {}
     return true;
   }
 
@@ -1519,15 +1546,6 @@ function generate(ctx) {
   // Integrate prefab-declared shops: resolve schedules, add signs, and mark buildings as used.
   (function integratePrefabShops() {
     try {
-      // Helper: find matching shop def by type from GameData.shops
-      function findShopDefByType(type) {
-        try {
-          const defs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops : null;
-          if (!defs) return null;
-          const tkey = String(type || "").toLowerCase();
-          return defs.find(d => String(d.type || "").toLowerCase() === tkey) || null;
-        } catch (_) { return null; }
-      }
       function parseHHMMToMinutes(s) {
         if (!s || typeof s !== "string") return null;
         const m = s.match(/^(\d{1,2}):(\d{2})$/);
@@ -1536,32 +1554,22 @@ function generate(ctx) {
         const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
         return ((h | 0) * 60 + (min | 0)) % (24 * 60);
       }
-      function scheduleForType(type) {
-        const def = findShopDefByType(type);
-        if (!def) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
-        if (def.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
-        const o = parseHHMMToMinutes(def.open);
-        const c = parseHHMMToMinutes(def.close);
-        if (o == null || c == null) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
-        return { openMin: o, closeMin: c, alwaysOpen: false };
+      function scheduleFromPrefab(ps) {
+        const s = ps && ps.scheduleOverride ? ps.scheduleOverride : null;
+        if (s && s.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
+        if (s && typeof s.open === "string" && typeof s.close === "string") {
+          const o = parseHHMMToMinutes(s.open);
+          const c = parseHHMMToMinutes(s.close);
+          if (o != null && c != null) return { openMin: o, closeMin: c, alwaysOpen: false };
+        }
+        // Default hours when prefab provided no schedule
+        return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
       }
 
       for (const ps of prefabShops) {
         if (!ps || !ps.building) continue;
-        // Add shop entry
-        let sched = scheduleForType(ps.type);
-        // Apply prefab schedule override when present
-        if (ps.scheduleOverride) {
-          const o = parseHHMMToMinutes(ps.scheduleOverride.open);
-          const c = parseHHMMToMinutes(ps.scheduleOverride.close);
-          if (ps.scheduleOverride.alwaysOpen) {
-            sched = { openMin: 0, closeMin: 0, alwaysOpen: true };
-          } else {
-            if (o != null && c != null) {
-              sched = { openMin: o, closeMin: c, alwaysOpen: false };
-            }
-          }
-        }
+        // Add shop entry using schedule only from prefab metadata
+        const sched = scheduleFromPrefab(ps);
         const name = ps.name || ps.type || "Shop";
         // Compute an inside tile near the door
         const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
@@ -1588,7 +1596,7 @@ function generate(ctx) {
           building: { x: ps.building.x, y: ps.building.y, w: ps.building.w, h: ps.building.h, door: { x: ps.door.x, y: ps.door.y } },
           inside
         });
-        try { addShopSign(ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
+        try { addShopSignInside(ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
       }
     } catch (_) {}
   })();
@@ -1810,7 +1818,7 @@ function generate(ctx) {
       inside
     });
     // Ensure a sign near the shop door with the correct shop name (e.g., Inn), prefer placing it outside the building
-    try { addShopSign(b, { x: door.x, y: door.y }, name); } catch (_) {}
+    try { addShopSignInside(b, { x: door.x, y: door.y }, name); } catch (_) {}
   }
 
   // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback from the tavern building
@@ -1849,7 +1857,7 @@ function generate(ctx) {
         building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
         inside
       });
-      try { addShopSign(b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
+      try { addShopSignInside(b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
     }
   } catch (_) {}
 
@@ -1893,6 +1901,120 @@ function generate(ctx) {
     }
   } catch (_) {}
 
+  // Dedupe shop signs: respect per-shop signWanted flag; keep only one sign (nearest to door) outside the building.
+  (function dedupeShopSigns() {
+    try {
+      if (!Array.isArray(ctx.shops) || !Array.isArray(ctx.townProps) || !ctx.townProps.length) return;
+      const props = ctx.townProps;
+      const removeIdx = new Set();
+      function isInside(bld, x, y) {
+        return bld && x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
+      }
+      for (let si = 0; si < ctx.shops.length; si++) {
+        const s = ctx.shops[si];
+        if (!s) continue;
+        const text = String(s.name || s.type || "Shop");
+        const door = (s.building && s.building.door) ? s.building.door : { x: s.x, y: s.y };
+        const namesToMatch = [text];
+        // Inn synonyms: dedupe across common variants
+        if (String(s.type || "").toLowerCase() === "inn") {
+          if (!namesToMatch.includes("Inn")) namesToMatch.push("Inn");
+          if (!namesToMatch.includes("Inn & Tavern")) namesToMatch.push("Inn & Tavern");
+          if (!namesToMatch.includes("Tavern")) namesToMatch.push("Tavern");
+        }
+        // Collect indices of sign props that either match canonical name/synonyms
+        // or are inside the shop building (unnamed embedded signs count as duplicates).
+        const indices = [];
+        for (let i = 0; i < props.length; i++) {
+          const p = props[i];
+          if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
+          const name = String(p.name || "");
+          const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
+          if (namesToMatch.includes(name) || insideThisShop) {
+            indices.push(i);
+          }
+        }
+        const wants = (s && Object.prototype.hasOwnProperty.call(s, "signWanted")) ? !!s.signWanted : true;
+
+        if (!wants) {
+          // Remove all signs for this shop (including synonyms)
+          for (const idx of indices) removeIdx.add(idx);
+          continue;
+        }
+
+        // If multiple signs exist, keep the one closest to the door
+        if (indices.length > 1) {
+          let keepI = indices[0], bestD = Infinity;
+          for (const idx of indices) {
+            const p = props[idx];
+            const d = Math.abs(p.x - door.x) + Math.abs(p.y - door.y);
+            if (d < bestD) { bestD = d; keepI = idx; }
+          }
+          for (const idx of indices) {
+            if (idx !== keepI) removeIdx.add(idx);
+          }
+        }
+
+        // Ensure kept sign (if any) is outside; otherwise re-place outside.
+        // Also canonicalize its text to the shop's name.
+        let keptIdx = -1;
+        for (let i = 0; i < props.length; i++) {
+          if (removeIdx.has(i)) continue;
+          const p = props[i];
+          if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
+          const name = String(p.name || "");
+          const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
+          if (namesToMatch.includes(name) || insideThisShop) { keptIdx = i; break; }
+        }
+        if (keptIdx !== -1) {
+          const p = props[keptIdx];
+          if (s.building && isInside(s.building, p.x, p.y)) {
+            // Already inside: canonicalize name
+            try { if (String(p.name || "") !== text) p.name = text; } catch (_) {}
+          } else {
+            // Move outside sign to inside near door
+            removeIdx.add(keptIdx);
+            try { addShopSignInside(s.building, door, text); } catch (_) {}
+          }
+        } else {
+          // No sign exists; place one inside near the door
+          try { if (s.building) addShopSignInside(s.building, door, text); } catch (_) {}
+        }
+      }
+
+      if (removeIdx.size) {
+        ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
+      }
+    } catch (_) {}
+  })();
+
+  // Dedupe welcome sign globally: keep only the one closest to the gate and ensure one exists.
+  (function dedupeWelcomeSign() {
+    try {
+      if (!Array.isArray(ctx.townProps)) return;
+      const text = `Welcome to ${ctx.townName}`;
+      const props = ctx.townProps;
+      let keepIdx = -1, bestD = Infinity;
+      const removeIdx = new Set();
+      for (let i = 0; i < props.length; i++) {
+        const p = props[i];
+        if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) {
+          const d = Math.abs(p.x - ctx.townExitAt.x) + Math.abs(p.y - ctx.townExitAt.y);
+          if (d < bestD) { bestD = d; keepIdx = i; }
+          removeIdx.add(i);
+        }
+      }
+      if (keepIdx !== -1) removeIdx.delete(keepIdx);
+      if (removeIdx.size) {
+        ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
+      }
+      const hasWelcome = Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text);
+      if (!hasWelcome && ctx.townExitAt) {
+        try { addSignNear(ctx.townExitAt.x, ctx.townExitAt.y, text); } catch (_) {}
+      }
+    } catch (_) {}
+  })();
+
   // Cleanup dangling props from removed buildings: ensure interior-only props are only inside valid buildings
   (function cleanupDanglingProps() {
     try {
@@ -1905,17 +2027,17 @@ function generate(ctx) {
         return false;
       }
       // Props that should never exist outside a building interior
-      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest"]);
+      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest","counter"]);
       ctx.townProps = ctx.townProps.filter(p => {
         if (!inBounds(ctx, p.x, p.y)) return false;
         const t = ctx.map[p.y][p.x];
         // Drop props that sit on non-walkable tiles
-        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS) return false;
+        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.TILES.ROAD) return false;
         const inside = insideAnyBuilding(p.x, p.y);
         // Interior-only items: keep only if inside some building
         if (interiorOnly.has(String(p.type || "").toLowerCase())) return inside;
-        // Signs: keep only if outside buildings
-        if (String(p.type || "").toLowerCase() === "sign") return !inside;
+        // Signs: allow inside or outside; will be deduped per-shop elsewhere
+        if (String(p.type || "").toLowerCase() === "sign") return true;
         // Other props (crates/barrels/plants/stall) are allowed anywhere if tile is walkable
         return true;
       });
@@ -1949,11 +2071,175 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Props
-  ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+  // Build roads after buildings: one main road from gate to plaza, then spurs from every building door to the main road.
+  (function buildRoadsAndPublish() {
+    try {
+      const rows = H, cols = W;
+      function inB(x, y) { return x >= 0 && y >= 0 && x < cols && y < rows; }
+      function insideAnyBuilding(x, y) {
+        for (let i = 0; i < buildings.length; i++) {
+          const B = buildings[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      const outdoor = ctx.townOutdoorMask;
+      function pass(x, y) { return inB(x, y) && outdoor && outdoor[y] && outdoor[y][x]; }
+      const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+
+      function bfs(sx, sy, goalFn) {
+        if (!pass(sx, sy)) return null;
+        const q = [];
+        const seen = new Set();
+        const prev = new Map();
+        const k0 = `${sx},${sy}`;
+        seen.add(k0);
+        q.push({ x: sx, y: sy });
+        let end = null;
+        while (q.length) {
+          const cur = q.shift();
+          if (goalFn(cur.x, cur.y)) { end = cur; break; }
+          for (let i = 0; i < dirs4.length; i++) {
+            const d = dirs4[i];
+            const nx = cur.x + d.dx, ny = cur.y + d.dy;
+            if (!pass(nx, ny)) continue;
+            const key = `${nx},${ny}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            prev.set(key, cur);
+            q.push({ x: nx, y: ny });
+          }
+        }
+        if (!end) return null;
+        const path = [];
+        let cur = { x: end.x, y: end.y };
+        while (cur) {
+          path.push({ x: cur.x, y: cur.y });
+          const p = prev.get(`${cur.x},${cur.y}`);
+          cur = p ? { x: p.x, y: p.y } : null;
+        }
+        path.reverse();
+        return path;
+      }
+
+      function insidePlaza(x, y) {
+        return x >= pr.x0 && x <= pr.x1 && y >= pr.y0 && y <= pr.y1;
+      }
+
+      function markRoadPath(path) {
+        if (!Array.isArray(path) || path.length === 0) return;
+        for (let i = 0; i < path.length; i++) {
+          const p = path[i];
+          if (!inB(p.x, p.y)) continue;
+          // Keep the plaza interior pure FLOOR; do not convert or mark roads inside it
+          if (insidePlaza(p.x, p.y)) continue;
+          const t = ctx.map[p.y][p.x];
+          if (t === ctx.TILES.FLOOR) {
+            ctx.map[p.y][p.x] = ctx.TILES.ROAD;
+            roadsMask[p.y][p.x] = true;
+          } else if (t === ctx.TILES.ROAD) {
+            roadsMask[p.y][p.x] = true;
+          }
+        }
+      }
+      function nearestOutdoorToDoor(door) {
+        const neigh = dirs4;
+        for (let i = 0; i < neigh.length; i++) {
+          const d = neigh[i];
+          const nx = door.x + d.dx, ny = door.y + d.dy;
+          if (!pass(nx, ny)) continue;
+          if (insideAnyBuilding(nx, ny)) continue;
+          return { x: nx, y: ny };
+        }
+        // small radius search
+        for (let r = 1; r <= 2; r++) {
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+              const nx = door.x + dx, ny = door.y + dy;
+              if (!pass(nx, ny)) continue;
+              if (insideAnyBuilding(nx, ny)) continue;
+              return { x: nx, y: ny };
+            }
+          }
+        }
+        return null;
+      }
+
+      // Main road: gate -> plaza center (or nearest outdoor tile inside plaza)
+      const pr = ctx.townPlazaRect || {
+        x0: ((plaza.x - (plazaW / 2)) | 0),
+        y0: ((plaza.y - (plazaH / 2)) | 0),
+        x1: ((plaza.x + (plazaW / 2)) | 0),
+        y1: ((plaza.y + (plazaH / 2)) | 0),
+      };
+      const cx = plaza.x | 0, cy = plaza.y | 0;
+      let pGoal = null;
+      if (pass(cx, cy)) {
+        pGoal = { x: cx, y: cy };
+      } else {
+        let best = null, bd = Infinity;
+        for (let y = pr.y0; y <= pr.y1; y++) {
+          for (let x = pr.x0; x <= pr.x1; x++) {
+            if (!pass(x, y)) continue;
+            const d = Math.abs(x - cx) + Math.abs(y - cy);
+            if (d < bd) { bd = d; best = { x, y }; }
+          }
+        }
+        pGoal = best || { x: cx, y: cy };
+      }
+      const startMain = { x: gate.x, y: gate.y };
+      if (pass(startMain.x, startMain.y) && pGoal) {
+        const pathMain = bfs(startMain.x, startMain.y, (x, y) => x === pGoal.x && y === pGoal.y);
+        markRoadPath(pathMain);
+      }
+
+      // Road set for connecting spurs
+      const roadSet = new Set();
+      for (let yy = 0; yy < H; yy++) {
+        for (let xx = 0; xx < W; xx++) {
+          if (ctx.map[yy][xx] === ctx.TILES.ROAD) {
+            roadsMask[yy][xx] = true;
+            roadSet.add(`${xx},${yy}`);
+          }
+        }
+      }
+
+      function pathToNearestRoad(sx, sy) {
+        return bfs(sx, sy, (x, y) => roadSet.has(`${x},${y}`));
+      }
+
+      const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : buildings;
+      for (let i = 0; i < tbs.length; i++) {
+        const b = tbs[i];
+        const door = b && b.door ? b.door : null;
+        if (!door || typeof door.x !== "number" || typeof door.y !== "number") continue;
+        const startOut = nearestOutdoorToDoor(door);
+        if (!startOut) continue;
+        if (ctx.map[startOut.y][startOut.x] === ctx.TILES.ROAD) {
+          roadsMask[startOut.y][startOut.x] = true;
+          continue;
+        }
+        let path = pathToNearestRoad(startOut.x, startOut.y);
+        if (!path || !path.length) {
+          // Fallback: path to plaza goal
+          path = bfs(startOut.x, startOut.y, (x, y) => x === pGoal.x && y === pGoal.y);
+        }
+        markRoadPath(path);
+        if (Array.isArray(path)) {
+          for (let k = 0; k < path.length; k++) {
+            const p = path[k];
+            roadSet.add(`${p.x},${p.y}`);
+          }
+        }
+      }
+
+      // Publish mask
+      ctx.townRoads = roadsMask;
+    } catch (_) {}
+  })();
   function addProp(x, y, type, name) {
     if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
-    if (ctx.map[y][x] !== ctx.TILES.FLOOR) return false;
+    if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.ROAD) return false;
     if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
     ctx.townProps.push({ x, y, type, name });
     return true;
@@ -1963,48 +2249,62 @@ function generate(ctx) {
     for (const d of dirs) {
       const sx = x + d.dx, sy = y + d.dy;
       if (sx <= 0 || sy <= 0 || sx >= W - 1 || sy >= H - 1) continue;
-      if (ctx.map[sy][sx] !== ctx.TILES.FLOOR) continue;
+      if (ctx.map[sy][sx] !== ctx.TILES.FLOOR && ctx.map[sy][sx] !== ctx.TILES.ROAD) continue;
       if (ctx.townProps.some(p => p.x === sx && p.y === sy)) continue;
       addProp(sx, sy, "sign", text);
       return true;
     }
     return false;
   }
-  // Prefer placing shop signs outside the building, not inside
+  // Prefer placing shop signs inside the building near the door.
   function addShopSign(b, door, text) {
+    // Legacy outside-placer now delegates to inside placement to respect new policy.
+    return addShopSignInside(b, door, text);
+  }
+
+  // Place one shop sign inside the building, near the door if possible.
+  function addShopSignInside(b, door, text) {
     function isInside(bld, x, y) {
       return x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
     }
-    // Ensure we never place a sign inside ANY building interior (not just this shop's building)
-    function isInsideAnyBuilding(x, y) {
-      for (let i = 0; i < buildings.length; i++) {
-        const B = buildings[i];
-        if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
-      }
-      return false;
+    // Candidate inside tiles: directly inward from the door, then a small interior search
+    const candidates = [];
+    const inward = [{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:0},{dx:-1,dy:0}];
+    for (let i = 0; i < inward.length; i++) {
+      const ix = door.x + inward[i].dx, iy = door.y + inward[i].dy;
+      if (isInside(b, ix, iy)) candidates.push({ x: ix, y: iy });
     }
-    let dx = 0, dy = 0;
-    if (door.y === b.y) dy = -1;
-    else if (door.y === b.y + b.h - 1) dy = +1;
-    else if (door.x === b.x) dx = -1;
-    else if (door.x === b.x + b.w - 1) dx = +1;
-    const sx = door.x + dx, sy = door.y + dy;
-    if (sx > 0 && sy > 0 && sx < W - 1 && sy < H - 1) {
-      if (!isInside(b, sx, sy) && !isInsideAnyBuilding(sx, sy) && ctx.map[sy][sx] === ctx.TILES.FLOOR && !ctx.townProps.some(p => p.x === sx && p.y === sy)) {
-        addProp(sx, sy, "sign", text);
-        return true;
+    // Interior search within radius 3 from the door but only inside the building
+    for (let r = 1; r <= 3; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const ix = door.x + dx, iy = door.y + dy;
+          if (!isInside(b, ix, iy)) continue;
+          candidates.push({ x: ix, y: iy });
+        }
       }
     }
-    // Fallback: nearby floor tile that is outside the building and not inside any other building
-    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-    for (const d of dirs) {
-      const nx = door.x + d.dx, ny = door.y + d.dy;
-      if (nx <= 0 || ny <= 0 || nx >= W - 1 || ny >= H - 1) continue;
-      if (isInside(b, nx, ny)) continue;
-      if (isInsideAnyBuilding(nx, ny)) continue;
-      if (ctx.map[ny][nx] !== ctx.TILES.FLOOR) continue;
-      if (ctx.townProps.some(p => p.x === nx && p.y === ny)) continue;
-      addProp(nx, ny, "sign", text);
+    // Fallback: building center if nothing else works
+    candidates.push({
+      x: Math.max(b.x + 1, Math.min(b.x + b.w - 2, (b.x + ((b.w / 2) | 0)))),
+      y: Math.max(b.y + 1, Math.min(b.y + b.h - 2, (b.y + ((b.h / 2) | 0))))
+    });
+
+    let best = null, bestD = Infinity;
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      if (c.x <= 0 || c.y <= 0 || c.x >= W - 1 || c.y >= H - 1) continue;
+      if (!isInside(b, c.x, c.y)) continue;
+      const t = ctx.map[c.y][c.x];
+      if (t !== ctx.TILES.FLOOR) continue;
+      if (ctx.player && ctx.player.x === c.x && ctx.player.y === c.y) continue;
+      if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n.x === c.x && n.y === c.y)) continue;
+      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === c.x && p.y === c.y)) continue;
+      const d = Math.abs(c.x - door.x) + Math.abs(c.y - door.y);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    if (best) {
+      addProp(best.x, best.y, "sign", text);
       return true;
     }
     return false;
@@ -2097,6 +2397,10 @@ function generate(ctx) {
   // Plaza fixtures via prefab only (no fallbacks)
   (function placePlazaPrefabStrict() {
     try {
+      // Guard: if a plaza prefab was already stamped in this generation cycle, skip
+      try {
+        if (ctx.townPrefabUsage && Array.isArray(ctx.townPrefabUsage.plazas) && ctx.townPrefabUsage.plazas.length > 0) return;
+      } catch (_) {}
       const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
       const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
       if (!plazas.length) return;
@@ -2233,7 +2537,7 @@ function generate(ctx) {
       x = Math.max(1, Math.min(W - 2, plaza.x + ox));
       y = Math.max(1, Math.min(H - 2, plaza.y + oy));
     }
-    if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.DOOR) continue;
+    if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.DOOR && ctx.map[y][x] !== ctx.TILES.ROAD) continue;
     if (x === ctx.player.x && y === ctx.player.y) continue;
     if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
     if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;

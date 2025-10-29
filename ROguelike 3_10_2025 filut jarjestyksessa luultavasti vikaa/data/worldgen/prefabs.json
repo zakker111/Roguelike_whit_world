@@ -101,28 +101,10 @@
   ],
   "shops": [
     {
-      "id": "shop_blacksmith_1",
-      "name": "Blacksmith",
-      "category": "shop",
-      "shop": { "type": "blacksmith", "schedule": { "open": "08:00", "close": "17:00", "alwaysOpen": false }, "signText": "Blacksmith" },
-      "tags": ["shop","blacksmith"],
-      "size": { "w": 8, "h": 6 },
-      "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-        ["WALL","FIREPLACE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","WALL","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL","WALL"]
-      ],
-      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
-      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
-    },
-    {
       "id": "shop_apothecary_1",
       "name": "Apothecary",
       "category": "shop",
-      "shop": { "type": "apothecary", "schedule": { "open": "09:00", "close": "18:00", "alwaysOpen": false }, "signText": "Apothecary" },
+      "shop": { "type": "apothecary", "schedule": { "open": "09:00", "close": "18:00", "alwaysOpen": false }, "signText": "Apothecary", "sign": true },
       "tags": ["shop","apothecary"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
@@ -140,7 +122,7 @@
       "id": "shop_trader_1",
       "name": "Trader",
       "category": "shop",
-      "shop": { "type": "trader", "schedule": { "open": "08:00", "close": "18:00", "alwaysOpen": false }, "signText": "Trader" },
+      "shop": { "type": "trader", "schedule": { "open": "08:00", "close": "18:00", "alwaysOpen": false }, "signText": "Trader", "sign": true },
       "tags": ["shop","trader"],
       "size": { "w": 8, "h": 6 },
       "tiles": [
@@ -153,7 +135,48 @@
       ],
       "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
-    }
+    },
+    {
+    "id": "small_blacksmith_custom",
+    "name": "Blacksmith (Custom)",
+    "category": "shop",
+    "tags": [
+        "shop",
+        "blacksmith"
+    ],
+    "size": {
+        "w": 6,
+        "h": 6
+    },
+    "tiles": [
+        ["WALL","WALL","WALL","WINDOW","WALL","WALL"],
+        ["WALL","FLOOR","CHAIR","FLOOR","LAMP","WALL"],
+        ["WALL","STALL","STALL","COUNTER","FLOOR","WALL"],
+        ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
+        ["WALL","SHELF","SHELF","FLOOR","PLANT","WALL"],
+        ["WALL","WALL","WALL","DOOR","WALL","WALL"]
+    ],
+    "constraints": {
+        "rotations": [
+        0,
+        90,
+        180,
+        270
+        ],
+        "mirror": true,
+        "mustFaceRoad": true,
+        "minSetback": 1
+    },
+    "shop": {
+        "type": "blacksmith",
+        "schedule": {
+        "open": "09:00",
+        "close": "18:00",
+        "alwaysOpen": false
+        },
+        "signText": "Blacksmith"
+  }
+}
   ],
   "inns": [
     {
@@ -161,14 +184,15 @@
       "name": "Inn & Tavern",
       "category": "inn",
       "tags": ["two_story","tavern"],
+      "shop": { "type": "inn", "schedule": { "alwaysOpen": true }, "signText": "Inn", "sign": true },
       "size": { "w": 11, "h": 9 },
       "tiles": [
         ["WALL","WALL","WALL","WINDOW","DOOR","DOOR","WINDOW","WALL","WALL","WALL","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WINDOW","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
-        ["WALL","FLOOR","CHAIR","CHAIR","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","TABLE","TABLE","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","TABLE","TABLE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","BED","CHAIR","CHAIR","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","BED","WALL"],
+        ["WALL","BED","TABLE","TABLE","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","BED","WALL"],
+        ["WALL","BED","TABLE","TABLE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","BED","WALL"],
         ["WINDOW","FLOOR","CHAIR","CHAIR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
         ["WALL","FIREPLACE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FIREPLACE","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","DOOR","DOOR","WALL","WALL","WALL","WALL"]
@@ -201,11 +225,11 @@
       "size": { "w": 11, "h": 7 },
       "tiles": [
         ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","FLOOR"],
-        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WELL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","FLOOR"],
-        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","LAMP","FLOOR","FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","BENCH","PLANT","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","PLANT","FLOOR","FLOOR"],
+        ["FLOOR","BENCH","FLOOR","FLOOR","FLOOR","WELL","BENCH","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["FLOOR","BENCH","PLANT","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","PLANT","FLOOR","FLOOR"],
+        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","LAMP","FLOOR","FLOOR","FLOOR","FLOOR"],
         ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR"]
       ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true }
@@ -216,15 +240,15 @@
       "category": "plaza",
       "size": { "w": 13, "h": 9 },
       "tiles": [
-        ["FLOOR","STALL","FLOOR","FLOOR","FLOOR","CRATE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR"],
-        ["FLOOR","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["BENCH","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","BENCH"],
+        ["LAMP","STALL","FLOOR","FLOOR","FLOOR","CRATE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","LAMP"],
+        ["BENCH","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","FLOOR"],
+        ["BENCH","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","BENCH","BENCH"],
         ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WELL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["BENCH","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","PLANT","FLOOR","BENCH"],
+        ["BENCH","FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","BENCH","PLANT","FLOOR","BENCH"],
         ["FLOOR","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","BARREL","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","STALL","FLOOR","FLOOR","FLOOR","CRATE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR"],
-        ["FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"]
+        ["BENCH","STALL","FLOOR","FLOOR","FLOOR","CRATE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","FLOOR"],
+        ["BENCH","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","BENCH","FLOOR","FLOOR","LAMP","FLOOR","FLOOR","FLOOR"],
+        ["LAMP","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","LAMP"]
       ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true }
     },
@@ -235,11 +259,11 @@
       "size": { "w": 9, "h": 7 },
       "tiles": [
         ["PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT"],
-        ["FLOOR","FLOOR","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","BENCH","FLOOR"],
+        ["LAMP","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","BENCH","LAMP"],
         ["FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
         ["FLOOR","FLOOR","FLOOR","FLOOR","WELL","FLOOR","FLOOR","FLOOR","FLOOR"],
         ["FLOOR","PLANT","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","FLOOR","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","BENCH","FLOOR"],
+        ["LAMP","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","BENCH","LAMP"],
         ["PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT","FLOOR","PLANT"]
       ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true }

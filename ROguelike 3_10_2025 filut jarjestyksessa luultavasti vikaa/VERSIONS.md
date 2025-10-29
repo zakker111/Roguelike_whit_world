@@ -1,6 +1,67 @@
 s 
 # Game Version History
-Last updated: 2025-10-29 00:00 UTC
+Last updated: 2025-10-29 14:00 UTC
+
+v1.44.1 — Prefab schedules only, shops.json retired, greeter copy, Prefab Editor schedule/sign, and single-plaza guard
+- Town generation
+  - Greeter copy updated: “Shops are marked with a flag at their doors.”
+  - integratePrefabShops now derives schedules exclusively from prefab metadata (shop.schedule/alwaysOpen). Defaults to 08:00–18:00 when omitted.
+  - Generation reset: clear ctx.townProps/ctx.shops/ctx.townBuildings/ctx.townPrefabUsage at the start of generate() to avoid duplicated props/shops across repeated calls.
+  - Plaza stamping guard: placePlazaPrefabStrict now skips when a plaza prefab was already stamped during the same generation, ensuring one plaza per town.
+- Data loader
+  - data/loader.js: removed loading of data/shops/shops.json; GameData.shops set to null.
+  - Removed file: data/shops/shops.json (no longer used).
+- Prefab Editor
+  - src/tools/prefab_editor.js: shop prefabs export shop.schedule { open, close, alwaysOpen } and shop.sign (default true).
+  - Inn prefabs export shop metadata with type "inn", schedule { alwaysOpen: true }, signText "Inn", sign true.
+- Migration note
+  - With strict prefabs, shops.json is no longer read. Ensure every shop prefab includes schedule metadata. Runtime defaults apply for missing schedules (08:00–18:00); inns are always open.
+- Deployment: https://ef1gt6qat2yd.cosine.page, https://o8iayr1wx2t8.cosine.page, https://hlromzif1iht.cosine.page, https://xzvxd0o4h9p9.cosine.page, https://8jwzqlarkn20.cosine.page
+
+v1.44.0 — Prefab-driven signage, Inn always-open messaging, prop sanitation, keeper adjacency, prefab diagnostics, and pathfinding cache caps
+- Prefabs/Data
+  - data/worldgen/prefabs.json: Explicit `"sign": true` for all shop prefabs. Inn prefab now has `"shop": { type: "inn", schedule: { alwaysOpen: true }, signText: "Inn", sign: true }`.
+  - Prefab jcdocs retained; tiles and embedded prop codes unchanged.
+
+- Shop signage and deduplication
+  - worldgen/town_gen.js:
+    - Implemented `addShopSignInside(building, door, text)` and routed `addShopSign` through it to place a single interior sign per shop (near the door, fallback to building center).
+    - Dedupe logic now:
+      - Treats "Inn", "Inn & Tavern", and "Tavern" as synonyms; canonicalizes the kept sign name.
+      - Removes any outside shop signs; keeps exactly one interior sign nearest to the door.
+      - Detects unnamed embedded interior sign props inside prefab buildings and dedupes them with programmatic signs.
+    - Fixed duplicate declaration bug (“Identifier 'indices' has already been declared”) by consolidating the indices collection in `dedupeShopSigns`.
+
+- Renderer
+  - ui/render_town.js: Suppresses drawing the door marker when an interior sign prop exists to avoid visual double "⚑".
+
+- GOD Panel diagnostics
+  - index.html + ui/ui.js + core/god_handlers.js:
+    - Added "Check Signs" diagnostic: reports per-shop signWanted, counts inside/outside, and nearest sign distance to door.
+    - Added "Check Prefabs" diagnostic: lists loaded prefabs per category and which prefab IDs were actually used in the current town. town_gen records usage in `ctx.townPrefabUsage` (houses/shops/inns/plazas).
+
+- Inn schedule messaging
+  - services/shop_service.js: `shopScheduleStr(shop)` returns "Always open." when `shop.alwaysOpen` is true.
+  - core/town_runtime.js: talk() normalizes Inn keeper flavor lines; replaces schedule-flavored messages with "We're open day and night." when the shop is alwaysOpen.
+
+- Shopkeeper adjacency fix
+  - core/town_runtime.js: `isKeeperAtShop` now accepts diagonal adjacency (Chebyshev distance ≤ 1), so bumping keepers near doors opens the shop reliably.
+
+- Town prop sanitation on load
+  - core/town_state.js: On TownState.applyState, sanitizes loaded `ctx.townProps`:
+    - Drops props out of bounds or on non-walkable tiles (keeps only FLOOR/STAIRS).
+    - Removes interior-only props found outside buildings (bed, table, chair, shelf, rug, fireplace, quest_board, chest, counter).
+    - Deduplicates exact coordinate duplicates.
+    - Logs a summary count under DEV.
+
+- Persistence clearing on new game/reroll
+  - data/god.js + core/game.js: `clearGameStorage(ctx)` and `clearPersistentGameStorage()` wipe town/dungeon/region localStorage keys and in-memory mirrors when starting a new game or rerolling the seed (SEED retained for RNG).
+
+- Pathfinding performance caps
+  - Global LRU cache in `computePathBudgeted` keyed by start→target; reuses valid A* paths and respects existing per-tick budgets.
+  - Reduced worst-case A* expansions (MAX_VISITS lowered; open-list partial sort threshold tightened), eliminating >500 ms spikes during mass replans.
+
+Deployment: https://0c6jgrodwapp.cosine.page (cleanup/dedup), https://8019x7b9y6uu.cosine.page (GOD “Check Signs”), https://g6iu40hwx00k.cosine.page (dedupe bug fix), https://65sonke8i6ns.cosine.page (interior sign dedupe), https://lmao28m327at.cosine.page (marker suppression), https://o5ksh70rx6qw.cosine.page (persistence clearing), https://wj0z2vlv889f.cosine.page (prop sanitation), https://5b5es6t694j5.cosine.page (Inn “Always open”), https://5wf8rpnbefwc.cosine.page (GOD “Check Prefabs”), https://cjfz1v2u39w6.cosine.page (latest deploy)
 
 v1.43.2 — Special cat “Pulla”, transactional plaza stamping, and prop cleanup margin
 - Towns

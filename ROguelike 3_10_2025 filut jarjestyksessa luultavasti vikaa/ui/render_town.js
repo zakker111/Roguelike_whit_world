@@ -56,6 +56,7 @@ function fallbackFillTown(TILES, type, COLORS) {
   try {
     if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
     if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
+    if (type === TILES.ROAD) return "#b0a58a"; // muted brown road
     if (type === TILES.DOOR) return "#3a2f1b";
     if (type === TILES.WINDOW) return "#26728c";
     if (type === TILES.STAIRS) return "#3a2f1b";
@@ -213,9 +214,12 @@ export function draw(ctx, view) {
             const sx = xx * TILE, sy = yy * TILE;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
             let fill = fillTownFor(TILES, type, COLORS);
-            // Outdoor ground tint by biome for FLOOR tiles
+            // Roads: draw a distinct muted road fill; otherwise apply outdoor biome tint for non-road floor
             try {
-              if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
+              if (type === TILES.FLOOR && ctx.townRoads && ctx.townRoads[yy] && ctx.townRoads[yy][xx]) {
+                fill = "#b0a58a"; // muted road color (town)
+              } else if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
+                // Outdoor ground tint by biome for non-road FLOOR tiles
                 fill = biomeFill;
               }
             } catch (_) {}
@@ -252,9 +256,11 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Outdoor ground tint by biome for FLOOR tiles
+        // Roads vs outdoor tint
         try {
-          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
+          if (type === TILES.FLOOR && ctx.townRoads && ctx.townRoads[y] && ctx.townRoads[y][x]) {
+            fill = "#b0a58a"; // muted road color (town)
+          } else if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
             fill = biomeFill;
           }
         } catch (_) {}
@@ -263,6 +269,26 @@ export function draw(ctx, view) {
       }
     }
   }
+
+  // Road overlay pass: ensure roads are visible even if base cache predates the roads mask
+  (function drawRoadOverlay() {
+    try {
+      if (!ctx.townRoads) return;
+      for (let y = startY; y <= endY; y++) {
+        const yIn = y >= 0 && y < mapRows;
+        if (!yIn) continue;
+        for (let x = startX; x <= endX; x++) {
+          if (x < 0 || x >= mapCols) continue;
+          if (map[y][x] !== TILES.FLOOR) continue;
+          if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
+          const screenX = (x - startX) * TILE - tileOffsetX;
+          const screenY = (y - startY) * TILE - tileOffsetY;
+          ctx2d.fillStyle = "#b0a58a"; // road color
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+        }
+      }
+    } catch (_) {}
+  })();
 
   // Inn upstairs overlay: draw upstairs tiles over the inn footprint when active
   (function drawInnUpstairsOverlay() {
@@ -614,7 +640,8 @@ export function draw(ctx, view) {
     } catch (_) {}
   })();
 
-  // Shop markers: draw a small flag ⚑ at shop doors once seen (consistent with sign glyph styling)
+  // Shop markers: draw a small flag ⚑ at shop doors once seen.
+  // To avoid \"double sign\" visuals, suppress the door marker if a shop already has an interior sign prop.
   (function drawShopMarkers() {
     try {
       if (!Array.isArray(ctx.shops) || !ctx.shops.length) return;
@@ -624,6 +651,21 @@ export function draw(ctx, view) {
         if (dx < startX || dx > endX || dy < startY || dy > endY) continue;
         const everSeen = !!(seen[dy] && seen[dy][dx]);
         if (!everSeen) continue;
+
+        // Suppress marker if there is already a sign inside this shop's building
+        let hasSignInside = false;
+        try {
+          if (Array.isArray(ctx.townProps) && s.building) {
+            hasSignInside = ctx.townProps.some(p =>
+              p && String(p.type || "").toLowerCase() === "sign" &&
+              p.x > s.building.x && p.x < s.building.x + s.building.w - 1 &&
+              p.y > s.building.y && p.y < s.building.y + s.building.h - 1
+            );
+          }
+        } catch (_) {}
+
+        if (hasSignInside) continue;
+
         const screenX = (dx - startX) * TILE - tileOffsetX;
         const screenY = (dy - startY) * TILE - tileOffsetY;
         // match sign color; draw above tiles/props

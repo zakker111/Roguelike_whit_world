@@ -59,6 +59,7 @@ export function isShopOpenNow(ctx, shop) {
 
 export function shopScheduleStr(shop) {
   if (!shop) return "";
+  if (shop.alwaysOpen) return "Always open.";
   var h2 = function (min) {
     var hh = ((min / 60) | 0) % 24;
     return String(hh).padStart(2, "0");

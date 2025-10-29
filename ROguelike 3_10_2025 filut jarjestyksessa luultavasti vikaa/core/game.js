@@ -165,6 +165,7 @@
     DOOR: 2,
     STAIRS: 3,
     WINDOW: 4, // town-only: blocks movement, lets light through
+    ROAD: 5,   // town-only: outdoor road; walkable; always brown
   };
 
   // Palette override from JSON when available
@@ -953,7 +954,7 @@
     const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
     if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
     const t = map[y][x];
-    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS;
+    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS || t === TILES.ROAD;
   }
 
   function ensureVisibilityShape() {
@@ -2270,6 +2271,8 @@
 
   // GOD: reroll seed using current time (delegated)
   function rerollSeed() {
+    // Always clear persisted game states before rerolling to avoid cross-seed leaks
+    try { clearPersistentGameStorage(); } catch (_) {}
     const GC = modHandle("GodControls");
     if (GC && typeof GC.rerollSeed === "function") {
       const ctx = getCtx();
@@ -2308,6 +2311,33 @@
     }
   }
 
+  // Clear persisted game state (towns, dungeons, region map) from both localStorage and in-memory mirrors
+  function clearPersistentGameStorage() {
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.removeItem("DUNGEON_STATES_V1");
+        localStorage.removeItem("TOWN_STATES_V1");
+        localStorage.removeItem("REGION_CUTS_V1");
+        localStorage.removeItem("REGION_ANIMALS_V1");
+        localStorage.removeItem("REGION_ANIMALS_V2");
+        localStorage.removeItem("REGION_STATE_V1");
+      }
+    } catch (_) {}
+    try {
+      if (typeof window !== "undefined") {
+        window._DUNGEON_STATES_MEM = Object.create(null);
+        window._TOWN_STATES_MEM = Object.create(null);
+      }
+    } catch (_) {}
+    try {
+      const ctx = getCtx();
+      if (ctx) {
+        if (ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
+        if (ctx._townStates) ctx._townStates = Object.create(null);
+      }
+    } catch (_) {}
+  }
+
   function restartGame() {
     // Prefer centralized DeathFlow (still invoke, but continue to apply a new seed)
     try {
@@ -2317,6 +2347,7 @@
       }
     } catch (_) {}
     hideGameOver();
+    clearPersistentGameStorage();
     floor = 1;
     isDead = false;
     try {

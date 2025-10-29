@@ -23,7 +23,7 @@ const DATA_FILES = {
   enemies: "data/entities/enemies.json",
   npcs: "data/entities/npcs.json",
   consumables: "data/entities/consumables.json",
-  shops: "data/shops/shops.json",
+  
   town: "data/world/town.json",
   flavor: "data/i18n/flavor.json",
   encounters: "data/encounters/encounters.json",
@@ -92,7 +92,7 @@ GameData.ready = (async function loadAll() {
   try {
     const [
       assetsCombined,
-      items, enemies, npcs, consumables, shops, town, flavor, encounters, config, palette, messages,
+      items, enemies, npcs, consumables, town, flavor, encounters, config, palette, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
@@ -100,7 +100,7 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.enemies).catch(() => null),
       fetchJson(DATA_FILES.npcs).catch(() => null),
       fetchJson(DATA_FILES.consumables).catch(() => null),
-      fetchJson(DATA_FILES.shops).catch(() => null),
+      
       fetchJson(DATA_FILES.town).catch(() => null),
       fetchJson(DATA_FILES.flavor).catch(() => null),
       fetchJson(DATA_FILES.encounters).catch(() => null),
@@ -121,7 +121,7 @@ GameData.ready = (async function loadAll() {
     GameData.enemies = Array.isArray(enemies) ? enemies : null;
     GameData.npcs = (npcs && typeof npcs === "object") ? npcs : null;
     GameData.consumables = (consumables && typeof consumables === "object") ? consumables : null;
-    GameData.shops = Array.isArray(shops) ? shops : null;
+    GameData.shops = null;
     GameData.town = (town && typeof town === "object") ? town : null;
     GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
     GameData.encounters = (encounters && typeof encounters === "object") ? encounters : null;

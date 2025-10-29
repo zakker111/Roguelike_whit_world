@@ -133,7 +133,17 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   npc = npc || pick(near, ctx.rng);
 
   const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
-  const line = pick(lines, ctx.rng);
+  let line = pick(lines, ctx.rng);
+  // Normalize keeper lines for Inn: always open, avoid misleading schedule phrases
+  try {
+    const shopRef = npc && (npc._shopRef || null);
+    if (shopRef && String(shopRef.type || "").toLowerCase() === "inn" && !!shopRef.alwaysOpen) {
+      const s = String(line || "").toLowerCase();
+      if (s.includes("open") || s.includes("closed") || s.includes("schedule") || s.includes("dawn") || s.includes("dusk")) {
+        line = "We're open day and night.";
+      }
+    }
+  } catch (_) {}
   ctx.log && ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
 
   // Only shopkeepers can open shops; villagers should not trigger trading.
@@ -153,8 +163,10 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
         inside = (n.x > b.x && n.x < b.x + b.w - 1 && n.y > b.y && n.y < b.y + b.h - 1);
       }
     } catch (_) {}
-    // Adjacent to door (outside or just inside) counts as being "at" the shop for interaction
-    const nearDoor = (Math.abs(n.x - shop.x) + Math.abs(n.y - shop.y)) === 1;
+    // Adjacent to door (outside or just inside) counts as being "at" the shop for interaction.
+    // Accept both cardinal and diagonal adjacency to the door (Chebyshev distance <= 1).
+    const dx = Math.abs(n.x - shop.x), dy = Math.abs(n.y - shop.y);
+    const nearDoor = (dx + dy) === 1 || Math.max(dx, dy) === 1;
     return atDoor || inside || nearDoor;
   }
 

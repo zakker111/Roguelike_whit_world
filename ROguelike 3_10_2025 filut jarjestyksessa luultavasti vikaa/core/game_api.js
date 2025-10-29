@@ -621,7 +621,7 @@ export function create(ctx) {
     // Local map helpers
     isWalkableDungeon: (x, y) => { try { return !!(ctx.inBounds(x, y) && ctx.isWalkable(x, y)); } catch (_) { return false; } },
     getVisibilityAt: (x, y) => { try { if (!ctx.inBounds(x|0, y|0)) return false; const vis = ctx.getVisible(); return !!(vis[y|0] && vis[y|0][x|0]); } catch(_) { return false; } },
-    getTiles: () => { try { return { WALL: ctx.TILES.WALL, FLOOR: ctx.TILES.FLOOR, DOOR: ctx.TILES.DOOR, STAIRS: ctx.TILES.STAIRS, WINDOW: ctx.TILES.WINDOW }; } catch(_) { return { WALL:0,FLOOR:1,DOOR:2,STAIRS:3,WINDOW:4 }; } },
+    getTiles: () => { try { return { WALL: ctx.TILES.WALL, FLOOR: ctx.TILES.FLOOR, DOOR: ctx.TILES.DOOR, STAIRS: ctx.TILES.STAIRS, WINDOW: ctx.TILES.WINDOW, ROAD: ctx.TILES.ROAD }; } catch(_) { return { WALL:0,FLOOR:1,DOOR:2,STAIRS:3,WINDOW:4,ROAD:5 }; } },
     getTile: (x, y) => { try { if (!ctx.inBounds(x|0, y|0)) return null; const m = ctx.getMap(); return m[y|0][x|0]; } catch(_) { return null; } },
     hasEnemy: (x, y) => {
       try {
