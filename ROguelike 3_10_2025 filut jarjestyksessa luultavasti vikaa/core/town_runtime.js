@@ -133,7 +133,17 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   npc = npc || pick(near, ctx.rng);
 
   const lines = Array.isArray(npc.lines) && npc.lines.length ? npc.lines : ["Hey!", "Watch it!", "Careful there."];
-  const line = pick(lines, ctx.rng);
+  let line = pick(lines, ctx.rng);
+  // Normalize keeper lines for Inn: always open, avoid misleading schedule phrases
+  try {
+    const shopRef = npc && (npc._shopRef || null);
+    if (shopRef && String(shopRef.type || "").toLowerCase() === "inn" && !!shopRef.alwaysOpen) {
+      const s = String(line || "").toLowerCase();
+      if (s.includes("open") || s.includes("closed") || s.includes("schedule") || s.includes("dawn") || s.includes("dusk")) {
+        line = "We're open day and night.";
+      }
+    }
+  } catch (_) {}
   ctx.log && ctx.log(`${npc.name || "Villager"}: ${line}`, "info");
 
   // Only shopkeepers can open shops; villagers should not trigger trading.
