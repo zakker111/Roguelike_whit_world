@@ -301,8 +301,8 @@
     fScore.set(startK, h(sx, sy));
     open.push({ x: sx, y: sy, f: fScore.get(startK) });
 
-    // Lower visit cap to reduce worst-case CPU in dense towns
-    const MAX_VISITS = 6000;
+    // Lower visit cap further to reduce worst-case CPU in dense towns
+    const MAX_VISITS = 3500;
     const visited = new Set();
 
     function pushOpen(x, y, f) {
@@ -311,7 +311,7 @@
 
     function popOpen() {
       // Avoid heavy sorts by only partially ordering when queue grows large
-      if (open.length > 24) {
+      if (open.length > 16) {
         open.sort((a, b) => a.f - b.f || h(a.x, a.y) - h(b.x, b.y));
       }
       return open.shift();
@@ -372,13 +372,75 @@
   }
 
   function computePathBudgeted(ctx, occ, sx, sy, tx, ty, opts = {}) {
+    // Initialize per-tick budget lazily if missing
     if (typeof ctx._townPathBudgetRemaining !== "number") {
-      // If not initialized, allow one and initialize lazily to a conservative value
       ctx._townPathBudgetRemaining = 1;
     }
     if (ctx._townPathBudgetRemaining <= 0) return null;
+
+    // Lightweight global path cache keyed by start->target.
+    // Cache is intentionally simple and ignores dynamic NPC occupancy; callers still validate next step.
+    try {
+      if (!ctx._pathCache) {
+        ctx._pathCache = { map: new Map(), order: [], limit: 200 };
+      }
+      const key = `${sx},${sy}->${tx},${ty}`;
+      const m = ctx._pathCache.map;
+      if (m.has(key)) {
+        const cached = m.get(key);
+        // Quick validation: shape and first/last nodes line up; tiles are walkable under current map/props.
+        if (Array.isArray(cached) && cached.length >= 2) {
+          const first = cached[0], last = cached[cached.length - 1];
+          const okEndpoints = (first && first.x === sx && first.y === sy && last && last.x === tx && last.y === ty);
+          if (okEndpoints) {
+            let valid = true;
+            for (let i = 0; i < cached.length; i++) {
+              const p = cached[i];
+              if (!isWalkTown(ctx, p.x, p.y)) { valid = false; break; }
+            }
+            if (valid) {
+              // Touch LRU order
+              try {
+                const idx = ctx._pathCache.order.indexOf(key);
+                if (idx !== -1) { ctx._pathCache.order.splice(idx, 1); }
+                ctx._pathCache.order.push(key);
+              } catch (_) {}
+              // Consume budget and return cached plan
+              ctx._townPathBudgetRemaining--;
+              return cached.slice(0);
+            } else {
+              // Invalidate stale entry
+              m.delete(key);
+            }
+          } else {
+            m.delete(key);
+          }
+        } else {
+          m.delete(key);
+        }
+      }
+    } catch (_) {}
+
+    // No cache hit: compute and store if successful
     ctx._townPathBudgetRemaining--;
-    return computePath(ctx, occ, sx, sy, tx, ty, opts);
+    const path = computePath(ctx, occ, sx, sy, tx, ty, opts);
+    try {
+      if (Array.isArray(path) && path.length >= 2) {
+        const key = `${sx},${sy}->${tx},${ty}`;
+        const m = ctx._pathCache && ctx._pathCache.map;
+        if (m && typeof m.set === "function") {
+          m.set(key, path.slice(0));
+          // Maintain simple LRU eviction
+          const ord = ctx._pathCache.order;
+          ord.push(key);
+          if (ord.length > ctx._pathCache.limit) {
+            const evictKey = ord.shift();
+            try { ctx._pathCache.map.delete(evictKey); } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
+    return path;
   }
 
   function stepTowards(ctx, occ, n, tx, ty, opts = {}) {
