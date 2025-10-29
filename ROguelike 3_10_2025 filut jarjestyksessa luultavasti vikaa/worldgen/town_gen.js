@@ -71,7 +71,7 @@ function _isFreeTownFloor(ctx, x, y) {
   } catch (_) {}
   if (!inBounds(ctx, x, y)) return false;
   const t = ctx.map[y][x];
-  if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
+  if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR && t !== ctx.TILES.ROAD) return false;
   if (ctx.player.x === x && ctx.player.y === y) return false;
   if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n.x === x && n.y === y)) return false;
   if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
@@ -109,7 +109,9 @@ function ensureSpawnClear(ctx) {
   // If current tile is not walkable, move to the nearest FLOOR/DOOR tile.
   const H = ctx.map.length;
   const W = ctx.map[0] ? ctx.map[0].length : 0;
-  const isWalk = (x, y) => x >= 0 && y >= 0 && x < W && y < H && (ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR);
+  const isWalk = (x, y) => x >= 0 && y >= 0 && x < W && y < H && (
+    ctx.map[y][x] === ctx.TILES.FLOOR || ctx.map[y][x] === ctx.TILES.DOOR || ctx.map[y][x] === ctx.TILES.ROAD
+  );
   if (isWalk(ctx.player.x, ctx.player.y)) return true;
 
   // BFS from current position to nearest walkable
@@ -2060,7 +2062,7 @@ function generate(ctx) {
         if (!inBounds(ctx, p.x, p.y)) return false;
         const t = ctx.map[p.y][p.x];
         // Drop props that sit on non-walkable tiles
-        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS) return false;
+        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.T
         const inside = insideAnyBuilding(p.x, p.y);
         // Interior-only items: keep only if inside some building
         if (interiorOnly.has(String(p.type || "").toLowerCase())) return inside;
@@ -2099,7 +2101,8 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Finalize road mask: remove any tiles inside buildings and ensure only outdoor FLOOR tiles remain
+  // Finalize road mask: remove any tiles inside buildings and ensure only outdoor FLOOR tiles remain.
+  // Then convert those road FLOOR tiles to a dedicated ROAD tile so roads render as brown without overlays.
   (function finalizeRoadMask() {
     try {
       if (!roadsMask) return;
@@ -2116,12 +2119,23 @@ function generate(ctx) {
           if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { roadsMask[yy][xx] = false; }
         }
       }
+      // Persist mask for diagnostics and potential overlays
       ctx.townRoads = roadsMask;
+      // Convert outdoor road FLOOR tiles to ROAD tile type
+      if (ctx.TILES && typeof ctx.TILES.ROAD !== "undefined") {
+        for (let yy = 0; yy < H; yy++) {
+          for (let xx = 0; xx < W; xx++) {
+            if (roadsMask[yy][xx] && ctx.map[yy][xx] === ctx.TILES.FLOOR) {
+              ctx.map[yy][xx] = ctx.TILES.ROAD;
+            }
+          }
+        }
+      }
     } catch (_) {}
   })();
   function addProp(x, y, type, name) {
     if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
-    if (ctx.map[y][x] !== ctx.TILES.FLOOR) return false;
+    if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.ROAD) return false;
     if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
     ctx.townProps.push({ x, y, type, name });
     return true;
@@ -2131,7 +2145,7 @@ function generate(ctx) {
     for (const d of dirs) {
       const sx = x + d.dx, sy = y + d.dy;
       if (sx <= 0 || sy <= 0 || sx >= W - 1 || sy >= H - 1) continue;
-      if (ctx.map[sy][sx] !== ctx.TILES.FLOOR) continue;
+      if (ctx.map[sy][sx] !== ctx.TILES.FLOOR && ctx.map[sy][sx] !== ctx.TILES.ROAD) continue;
       if (ctx.townProps.some(p => p.x === sx && p.y === sy)) continue;
       addProp(sx, sy, "sign", text);
       return true;
@@ -2415,7 +2429,7 @@ function generate(ctx) {
       x = Math.max(1, Math.min(W - 2, plaza.x + ox));
       y = Math.max(1, Math.min(H - 2, plaza.y + oy));
     }
-    if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.DOOR) continue;
+    if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.DOOR && ctx.map[y][x] !== ctx.TILES.ROAD) continue;
     if (x === ctx.player.x && y === ctx.player.y) continue;
     if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
     if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;

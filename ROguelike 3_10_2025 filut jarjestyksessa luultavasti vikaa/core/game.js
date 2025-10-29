@@ -165,6 +165,7 @@
     DOOR: 2,
     STAIRS: 3,
     WINDOW: 4, // town-only: blocks movement, lets light through
+    ROAD: 5,   // town-only: outdoor road; walkable; always brown
   };
 
   // Palette override from JSON when available
@@ -953,7 +954,7 @@
     const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
     if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
     const t = map[y][x];
-    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS;
+    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS || t === TILES.ROAD;
   }
 
   function ensureVisibilityShape() {

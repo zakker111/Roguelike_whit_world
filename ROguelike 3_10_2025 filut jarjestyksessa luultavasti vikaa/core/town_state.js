@@ -207,7 +207,7 @@ function applyState(ctx, st, x, y) {
         // Bounds and tile check
         if (!inB(x, y)) continue;
         const t = ctx.map[y][x];
-        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS) continue;
+        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.TILES.ROAD) continue;
         // Interior-only filtering
         const typ = String(p.type || "").toLowerCase();
         if (interiorOnly.has(typ) && !insideAnyBuilding(x, y)) continue;

@@ -56,6 +56,7 @@ function fallbackFillTown(TILES, type, COLORS) {
   try {
     if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
     if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
+    if (type === TILES.ROAD) return "#b0a58a"; // muted brown road
     if (type === TILES.DOOR) return "#3a2f1b";
     if (type === TILES.WINDOW) return "#26728c";
     if (type === TILES.STAIRS) return "#3a2f1b";
