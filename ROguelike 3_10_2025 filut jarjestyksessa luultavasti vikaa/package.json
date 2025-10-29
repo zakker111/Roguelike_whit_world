@@ -8,7 +8,9 @@
     "build": "vite build",
     "preview": "vite preview --port 8080",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "gen:manifest": "node scripts/gen_manifest.js",
+    "analyze:phase1": "node scripts/analyze.js"
   },
   "devDependencies": {
     "vite": "^5.3.3",
