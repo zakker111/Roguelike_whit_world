@@ -471,25 +471,8 @@ function generate(ctx) {
     };
   } catch (_) {}
 
-  // Roads
-  // Track town roads separately so renderer can draw them distinctly from general outdoor ground.
-  const roadsMask = Array.from({ length: H }, () => Array(W).fill(false));
-  const carveRoad = (x1, y1, x2, y2) => {
-    let x = x1, y = y1;
-    while (x !== x2) { ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true; x += Math.sign(x2 - x); }
-    while (y !== y2) { ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true; y += Math.sign(y2 - y); }
-    ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true;
-  };
-  carveRoad(gate.x, gate.y, plaza.x, gate.y);
-  carveRoad(plaza.x, gate.y, plaza.x, plaza.y);
-  const roadYStride = (TOWNCFG && TOWNCFG.roads && (TOWNCFG.roads.yStride | 0)) || 8;
-  const roadXStride = (TOWNCFG && TOWNCFG.roads && (TOWNCFG.roads.xStride | 0)) || 10;
-  for (let y = 6; y < H - 6; y += Math.max(2, roadYStride)) {
-    for (let x = 1; x < W - 1; x++) { ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true; }
-  }
-  for (let x = 6; x < W - 6; x += Math.max(2, roadXStride)) {
-    for (let y = 1; y < H - 1; y++) { ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true; }
-  }
+  // Roads (deferred): build after buildings and outdoor mask are known
+  let roadsMask = Array.from({ length: H }, () => Array(W).fill(false));
 
   // Buildings container (either prefab-placed or hollow rectangles as fallback)
   const buildings = [];
@@ -2101,11 +2084,11 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Finalize road mask: remove any tiles inside buildings and ensure only outdoor FLOOR tiles remain.
-  // Then convert those road FLOOR tiles to a dedicated ROAD tile so roads render as brown without overlays.
-  (function finalizeRoadMask() {
+  // Build roads after buildings: one main road from gate to plaza, then spurs from every building door to the main road.
+  (function buildRoadsAndPublish() {
     try {
-      if (!roadsMask) return;
+      const rows = H, cols = W;
+      function inB(x, y) { return x >= 0 && y >= 0 && x < cols && y < rows; }
       function insideAnyBuilding(x, y) {
         for (let i = 0; i < buildings.length; i++) {
           const B = buildings[i];
@@ -2113,24 +2096,153 @@ function generate(ctx) {
         }
         return false;
       }
-      for (let yy = 0; yy < H; yy++) {
-        for (let xx = 0; xx < W; xx++) {
-          if (insideAnyBuilding(xx, yy)) { roadsMask[yy][xx] = false; continue; }
-          if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { roadsMask[yy][xx] = false; }
+      const outdoor = ctx.townOutdoorMask;
+      function pass(x, y) { return inB(x, y) && outdoor && outdoor[y] && outdoor[y][x]; }
+      const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+
+      function bfs(sx, sy, goalFn) {
+        if (!pass(sx, sy)) return null;
+        const q = [];
+        const seen = new Set();
+        const prev = new Map();
+        const k0 = `${sx},${sy}`;
+        seen.add(k0);
+        q.push({ x: sx, y: sy });
+        let end = null;
+        while (q.length) {
+          const cur = q.shift();
+          if (goalFn(cur.x, cur.y)) { end = cur; break; }
+          for (let i = 0; i < dirs4.length; i++) {
+            const d = dirs4[i];
+            const nx = cur.x + d.dx, ny = cur.y + d.dy;
+            if (!pass(nx, ny)) continue;
+            const key = `${nx},${ny}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            prev.set(key, cur);
+            q.push({ x: nx, y: ny });
+          }
         }
+        if (!end) return null;
+        const path = [];
+        let cur = { x: end.x, y: end.y };
+        while (cur) {
+          path.push({ x: cur.x, y: cur.y });
+          const p = prev.get(`${cur.x},${cur.y}`);
+          cur = p ? { x: p.x, y: p.y } : null;
+        }
+        path.reverse();
+        return path;
       }
-      // Persist mask for diagnostics and potential overlays
-      ctx.townRoads = roadsMask;
-      // Convert outdoor road FLOOR tiles to ROAD tile type
-      if (ctx.TILES && typeof ctx.TILES.ROAD !== "undefined") {
-        for (let yy = 0; yy < H; yy++) {
-          for (let xx = 0; xx < W; xx++) {
-            if (roadsMask[yy][xx] && ctx.map[yy][xx] === ctx.TILES.FLOOR) {
-              ctx.map[yy][xx] = ctx.TILES.ROAD;
-            }
+
+      function markRoadPath(path) {
+        if (!Array.isArray(path) || path.length === 0) return;
+        for (let i = 0; i < path.length; i++) {
+          const p = path[i];
+          if (!inB(p.x, p.y)) continue;
+          const t = ctx.map[p.y][p.x];
+          if (t === ctx.TILES.FLOOR) {
+            ctx.map[p.y][p.x] = ctx.TILES.ROAD;
+            roadsMask[p.y][p.x] = true;
+          } else if (t === ctx.TILES.ROAD) {
+            roadsMask[p.y][p.x] = true;
           }
         }
       }
+
+      function nearestOutdoorToDoor(door) {
+        const neigh = dirs4;
+        for (let i = 0; i < neigh.length; i++) {
+          const d = neigh[i];
+          const nx = door.x + d.dx, ny = door.y + d.dy;
+          if (!pass(nx, ny)) continue;
+          if (insideAnyBuilding(nx, ny)) continue;
+          return { x: nx, y: ny };
+        }
+        // small radius search
+        for (let r = 1; r <= 2; r++) {
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+              const nx = door.x + dx, ny = door.y + dy;
+              if (!pass(nx, ny)) continue;
+              if (insideAnyBuilding(nx, ny)) continue;
+              return { x: nx, y: ny };
+            }
+          }
+        }
+        return null;
+      }
+
+      // Main road: gate -> plaza center (or nearest outdoor tile inside plaza)
+      const pr = ctx.townPlazaRect || {
+        x0: ((plaza.x - (plazaW / 2)) | 0),
+        y0: ((plaza.y - (plazaH / 2)) | 0),
+        x1: ((plaza.x + (plazaW / 2)) | 0),
+        y1: ((plaza.y + (plazaH / 2)) | 0),
+      };
+      const cx = plaza.x | 0, cy = plaza.y | 0;
+      let pGoal = null;
+      if (pass(cx, cy)) {
+        pGoal = { x: cx, y: cy };
+      } else {
+        let best = null, bd = Infinity;
+        for (let y = pr.y0; y <= pr.y1; y++) {
+          for (let x = pr.x0; x <= pr.x1; x++) {
+            if (!pass(x, y)) continue;
+            const d = Math.abs(x - cx) + Math.abs(y - cy);
+            if (d < bd) { bd = d; best = { x, y }; }
+          }
+        }
+        pGoal = best || { x: cx, y: cy };
+      }
+      const startMain = { x: gate.x, y: gate.y };
+      if (pass(startMain.x, startMain.y) && pGoal) {
+        const pathMain = bfs(startMain.x, startMain.y, (x, y) => x === pGoal.x && y === pGoal.y);
+        markRoadPath(pathMain);
+      }
+
+      // Road set for connecting spurs
+      const roadSet = new Set();
+      for (let yy = 0; yy < H; yy++) {
+        for (let xx = 0; xx < W; xx++) {
+          if (ctx.map[yy][xx] === ctx.TILES.ROAD) {
+            roadsMask[yy][xx] = true;
+            roadSet.add(`${xx},${yy}`);
+          }
+        }
+      }
+
+      function pathToNearestRoad(sx, sy) {
+        return bfs(sx, sy, (x, y) => roadSet.has(`${x},${y}`));
+      }
+
+      const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : buildings;
+      for (let i = 0; i < tbs.length; i++) {
+        const b = tbs[i];
+        const door = b && b.door ? b.door : null;
+        if (!door || typeof door.x !== "number" || typeof door.y !== "number") continue;
+        const startOut = nearestOutdoorToDoor(door);
+        if (!startOut) continue;
+        if (ctx.map[startOut.y][startOut.x] === ctx.TILES.ROAD) {
+          roadsMask[startOut.y][startOut.x] = true;
+          continue;
+        }
+        let path = pathToNearestRoad(startOut.x, startOut.y);
+        if (!path || !path.length) {
+          // Fallback: path to plaza goal
+          path = bfs(startOut.x, startOut.y, (x, y) => x === pGoal.x && y === pGoal.y);
+        }
+        markRoadPath(path);
+        if (Array.isArray(path)) {
+          for (let k = 0; k < path.length; k++) {
+            const p = path[k];
+            roadSet.add(`${p.x},${p.y}`);
+          }
+        }
+      }
+
+      // Publish mask
+      ctx.townRoads = roadsMask;
     } catch (_) {}
   })();
   function addProp(x, y, type, name) {
