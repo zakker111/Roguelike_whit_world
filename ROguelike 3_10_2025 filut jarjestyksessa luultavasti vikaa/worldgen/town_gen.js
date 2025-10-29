@@ -618,7 +618,8 @@ function generate(ctx) {
       COUNTER: "counter",
       STALL: "stall",
       LAMP: "lamp",
-      WELL: "well"
+      WELL: "well",
+      SIGN: "sign"
     };
 
     // Stamp tiles and embedded props
@@ -805,12 +806,20 @@ function generate(ctx) {
             scheduleOverride = { open: s.open || null, close: s.close || null, alwaysOpen: !!s.alwaysOpen };
           }
         } catch (_) {}
+        // Sign placement preference from prefab metadata (default true unless explicitly disabled)
+        let signWanted = true;
+        try {
+          if (prefab.shop && Object.prototype.hasOwnProperty.call(prefab.shop, "sign")) {
+            signWanted = !!prefab.shop.sign;
+          }
+        } catch (_) {}
         prefabShops.push({
           type: shopType,
           building: rect,
           door: doorWorld,
           name: shopName,
-          scheduleOverride
+          scheduleOverride,
+          signWanted
         });
       }
     } catch (_) {}
@@ -843,7 +852,7 @@ function generate(ctx) {
     const PROPMAP = {
       BED: "bed", TABLE: "table", CHAIR: "chair", SHELF: "shelf", RUG: "rug",
       FIREPLACE: "fireplace", CHEST: "chest", CRATE: "crate", BARREL: "barrel",
-      PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench"
+      PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench", SIGN: "sign"
     };
     const tileChanges = [];
     const propsToAdd = [];
@@ -1893,7 +1902,7 @@ function generate(ctx) {
     }
   } catch (_) {}
 
-  // Dedupe shop signs: keep only the closest sign to each shop's door and ensure it's outside the building.
+  // Dedupe shop signs: respect per-shop signWanted flag; keep only one sign (nearest to door) outside the building.
   (function dedupeShopSigns() {
     try {
       if (!Array.isArray(ctx.shops) || !Array.isArray(ctx.townProps) || !ctx.townProps.length) return;
@@ -1907,6 +1916,9 @@ function generate(ctx) {
         if (!s) continue;
         const text = String(s.name || s.type || "Shop");
         const door = (s.building && s.building.door) ? s.building.door : { x: s.x, y: s.y };
+        const wants = (s && Object.prototype.hasOwnProperty.call(s, "signWanted")) ? !!s.signWanted : true;
+
+        // Collect all indices of signs matching this shop's text
         const indices = [];
         for (let i = 0; i < props.length; i++) {
           const p = props[i];
@@ -1914,6 +1926,14 @@ function generate(ctx) {
             indices.push(i);
           }
         }
+
+        if (!wants) {
+          // Remove all signs for this shop name
+          for (const idx of indices) removeIdx.add(idx);
+          continue;
+        }
+
+        // If multiple signs exist, keep the one closest to the door
         if (indices.length > 1) {
           let keepI = indices[0], bestD = Infinity;
           for (const idx of indices) {
@@ -1925,7 +1945,8 @@ function generate(ctx) {
             if (idx !== keepI) removeIdx.add(idx);
           }
         }
-        // Ensure kept sign exists and is outside the building
+
+        // Ensure kept sign (if any) is outside; otherwise re-place outside
         let keptIdx = -1;
         for (let i = 0; i < props.length; i++) {
           if (removeIdx.has(i)) continue;
@@ -1939,9 +1960,11 @@ function generate(ctx) {
             try { addShopSign(s.building, door, text); } catch (_) {}
           }
         } else {
+          // No sign exists; place one outside near the door
           try { if (s.building) addShopSign(s.building, door, text); } catch (_) {}
         }
       }
+
       if (removeIdx.size) {
         ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
       }
