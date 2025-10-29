@@ -1127,11 +1127,8 @@ export const UI = {
     try { HelpModal.hide(); } catch (_) {}
   },
 
-  isHelpOpen= "none";
-  },
-
   isHelpOpen() {
-    return !!(this.els.helpPanel && this.els.helpPanel.style.display !== "none");
+    try { return !!HelpModal.isOpen(); } catch (_) { return false; }
   },
 
   // Smoke Test Configuration modal
