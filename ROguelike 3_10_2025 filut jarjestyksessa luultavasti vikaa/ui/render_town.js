@@ -269,6 +269,26 @@ export function draw(ctx, view) {
     }
   }
 
+  // Road overlay pass: ensure roads are visible even if base cache predates the roads mask
+  (function drawRoadOverlay() {
+    try {
+      if (!ctx.townRoads) return;
+      for (let y = startY; y <= endY; y++) {
+        const yIn = y >= 0 && y < mapRows;
+        if (!yIn) continue;
+        for (let x = startX; x <= endX; x++) {
+          if (x < 0 || x >= mapCols) continue;
+          if (map[y][x] !== TILES.FLOOR) continue;
+          if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
+          const screenX = (x - startX) * TILE - tileOffsetX;
+          const screenY = (y - startY) * TILE - tileOffsetY;
+          ctx2d.fillStyle = "#b0a58a"; // road color
+          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Inn upstairs overlay: draw upstairs tiles over the inn footprint when active
   (function drawInnUpstairsOverlay() {
     try {
