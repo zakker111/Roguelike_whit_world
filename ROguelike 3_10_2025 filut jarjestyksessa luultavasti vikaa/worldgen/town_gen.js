@@ -1552,7 +1552,7 @@ function generate(ctx) {
         if (s && s.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
         if (s && typeof s.open === "string" && typeof s.close === "string") {
           const o = parseHHMM(s.open);
-          const c = parseHHMM(s.close)</Minutes(s.close);
+          const c = parseHHMM(s.close);
           if (o != null && c != null) return { openMin: o, closeMin: c, alwaysOpen: false };
         }
         // Default hours when prefab provided no schedule
@@ -1853,9 +1853,8 @@ function generate(ctx) {
       const out = [], seenInn = false;
       for (let i = 0; i < ctx.shops.length; i++) {
         const s = ctx.shops[i];
-        const isInn = (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes
-        if (isInn) {
-          if (!seenInn) { out.push(s); seenInn = true; }
+        const isInn = (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes("inn"));
+        if (isInn          if (!seenInn) { out.push(s); seenInn = true; }
           else {
             // drop duplicate inn
             continue;
