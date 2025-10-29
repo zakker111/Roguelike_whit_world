@@ -811,17 +811,22 @@ export const UI = {
         this._lastHpText = hpStr;
       }
     }
-    // Floor + level + XP + time + perf
+    // Floor + level + XP + time + turn calc ms (always), draw perf (toggle)
     if (this.els.floorEl) {
       const t = time || {};
       const hhmm = t.hhmm || "";
       const phase = t.phase ? t.phase : "";
       const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
-      let perfStr = "";
-      if (this.getPerfState() && perf && (typeof perf.lastTurnMs === "number" || typeof perf.lastDrawMs === "number")) {
-        perfStr = `  Perf: T ${(perf.lastTurnMs || 0).toFixed(1)}ms  D ${(perf.lastDrawMs || 0).toFixed(1)}ms`;
+      let turnStr = "";
+      if (perf && typeof perf.lastTurnMs === "number") {
+        turnStr = `  Turn: ${perf.lastTurnMs.toFixed(1)}ms`;
       }
-      const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${perfStr}`;
+      // Optional extra perf: show draw time only when Perf HUD is enabled
+      let perfStr = "";
+      if (this.getPerfState() && perf && (typeof perf.lastDrawMs === "number")) {
+        perfStr = `  Draw: ${perf.lastDrawMs.toFixed(1)}ms`;
+      }
+      const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${turnStr}${perfStr}`;
       if (floorStr !== this._lastFloorText) {
         this.els.floorEl.textContent = floorStr;
         this._lastFloorText = floorStr;
