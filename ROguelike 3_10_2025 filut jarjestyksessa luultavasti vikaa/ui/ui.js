@@ -23,6 +23,7 @@ import * as HandChooser from "/ui/components/hand_chooser.js";
 import * as HitChooser from "/ui/components/hit_chooser.js";
 import * as GameOverModal from "/ui/components/game_over_modal.js";
 import * as TownExit from "/ui/components/town_exit.js";
+import * as GodPanel from "/ui/components/god_panel.js";
 
 export const UI = {
   els: {},
@@ -120,313 +121,9 @@ export const UI = {
     this.els.godOpenBtn?.addEventListener("click", () => this.showGod());
     // Help panel open (same as F1)
     this.els.helpOpenBtn?.addEventListener("click", () => this.showHelp());
-    this.els.godHealBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodHeal === "function") this.handlers.onGodHeal();
-    });
-    this.els.godSpawnBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodSpawn === "function") this.handlers.onGodSpawn();
-    });
-    this.els.godSpawnEnemyBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodSpawnEnemy === "function") this.handlers.onGodSpawnEnemy();
-    });
-    this.els.godSpawnStairsBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodSpawnStairs === "function") this.handlers.onGodSpawnStairs();
-    });
-    this.els.godCheckHomeBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodCheckHomes === "function") this.handlers.onGodCheckHomes();
-    });
-    this.els.godCheckInnTavernBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern();
-    });
-    this.els.godCheckSignsBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodCheckSigns === "function") this.handlers.onGodCheckSigns();
-    });
-    this.els.godCheckPrefabsBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodCheckPrefabs === "function") this.handlers.onGodCheckPrefabs();
-    });
-    // Prefab Editor (DEV-only route)
-    const openPrefabBtn = document.getElementById("god-open-prefab-editor-btn");
-    openPrefabBtn?.addEventListener("click", () => {
-      try {
-        const target = "/tools/prefab_editor.html";
-        window.location.assign(target);
-      } catch (_) {
-        try { window.location.href = "/tools/prefab_editor.html"; } catch (_) {}
-      }
-    });
-    // Status effect test buttons
-    this.els.godApplyBleedBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodApplyBleed === "function") this.handlers.onGodApplyBleed(3);
-    });
-    this.els.godApplyDazedBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodApplyDazed === "function") this.handlers.onGodApplyDazed(2);
-    });
-    this.els.godClearEffectsBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodClearEffects === "function") this.handlers.onGodClearEffects();
-    });
-    const diagBtn = document.getElementById("god-diagnostics-btn");
-    diagBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodDiagnostics === "function") this.handlers.onGodDiagnostics();
-    });
-    const newGameBtn = document.getElementById("god-newgame-btn");
-    newGameBtn?.addEventListener("click", () => {
-      // Close GOD panel and trigger restart/new game
-      try { this.hideGod(); } catch (_) {}
-      if (typeof this.handlers.onRestart === "function") this.handlers.onRestart();
-    });
-    const smokeBtn = document.getElementById("god-run-smoke-btn");
-    smokeBtn?.addEventListener("click", () => {
-      // Close GOD mode and open Smoke Config panel
-      try { this.hideGod(); } catch (_) {}
-      try { this.showSmoke(); } catch (_) {}
-    });
 
-    // Analysis buttons (client-side report)
-    this.els.godRunAnalysisBtn = document.getElementById("god-run-analysis-btn");
-    this.els.godDownloadAnalysisBtn = document.getElementById("god-download-analysis-btn");
-    this.els.godAnalysisOutput = document.getElementById("god-analysis-output");
-    if (this.els.godRunAnalysisBtn) {
-      this.els.godRunAnalysisBtn.addEventListener("click", async () => {
-        if (!ClientAnalyzer || typeof ClientAnalyzer.runClientAnalysis !== "function") return;
-        try {
-          // Disable while running
-          const btn = this.els.godRunAnalysisBtn;
-          btn.disabled = true;
-          const prevText = btn.textContent;
-          btn.textContent = "Running…";
-          const { markdown, topFiles, duplicates, filesScanned } = await ClientAnalyzer.runClientAnalysis();
-          // Cache for download
-          this._lastAnalysisMD = markdown;
-          this._lastAnalysisURL = ClientAnalyzer.makeDownloadURL(markdown);
-          // Enable download button
-          if (this.els.godDownloadAnalysisBtn) {
-            this.els.godDownloadAnalysisBtn.disabled = !this._lastAnalysisURL;
-          }
-          // Render a short summary in GOD panel
-          if (this.els.godAnalysisOutput) {
-            const lines = [];
-            lines.push(`Files scanned: ${filesScanned}`);
-            lines.push("Top files:");
-            topFiles.slice(0, 8).forEach((m) => {
-              lines.push(`- ${m.file} — ${m.lines} lines`);
-            });
-            lines.push(`Duplication candidates: ${duplicates.length} (showing up to 8 below)`);
-            duplicates.slice(0, 8).forEach((d) => {
-              lines.push(`• ${d.files.length} files — ${d.files.slice(0, 3).join(", ")}${d.files.length > 3 ? ", …" : ""}`);
-            });
-            this.els.godAnalysisOutput.innerHTML = lines.map((s) => `<div>${s}</div>`).join("");
-          }
-          // Restore button
-          btn.textContent = prevText || "Run Analysis";
-          btn.disabled = false;
-        } catch (e) {
-          try { console.error(e); } catch (_) {}
-          if (this.els.godAnalysisOutput) {
-            this.els.godAnalysisOutput.innerHTML = `<div style="color:#f87171;">Analysis failed. See console for details.</div>`;
-          }
-          if (this.els.godRunAnalysisBtn) {
-            this.els.godRunAnalysisBtn.textContent = "Run Analysis";
-            this.els.godRunAnalysisBtn.disabled = false;
-          }
-        }
-      });
-    }
-    if (this.els.godDownloadAnalysisBtn) {
-      this.els.godDownloadAnalysisBtn.addEventListener("click", () => {
-        try {
-          if (!this._lastAnalysisURL && this._lastAnalysisMD) {
-            this._lastAnalysisURL = ClientAnalyzer.makeDownloadURL(this._lastAnalysisMD);
-          }
-          if (this._lastAnalysisURL) {
-            const a = document.createElement("a");
-            a.href = this._lastAnalysisURL;
-            a.download = "phase1_report_client.md";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          }
-        } catch (_) {}
-      });
-      // Initially disabled until a report is generated
-      this.els.godDownloadAnalysisBtn.disabled = true;
-    }
-    
-    if (this.els.godFov) {
-      const updateFov = () => {
-        const val = parseInt(this.els.godFov.value, 10);
-        this.setGodFov(val);
-        if (typeof this.handlers.onGodSetFov === "function") this.handlers.onGodSetFov(val);
-      };
-      this.els.godFov.addEventListener("input", updateFov);
-      this.els.godFov.addEventListener("change", updateFov);
-    }
-    if (this.els.godEncRate) {
-      const updateEncRate = () => {
-        const val = parseInt(this.els.godEncRate.value, 10);
-        this.setEncounterRateState(val);
-        if (typeof this.handlers.onGodSetEncounterRate === "function") this.handlers.onGodSetEncounterRate(val);
-      };
-      this.els.godEncRate.addEventListener("input", updateEncRate);
-      this.els.godEncRate.addEventListener("change", updateEncRate);
-    }
-    // Populate encounter select with templates once GameData is ready
-    (function initEncounterSelect(self) {
-      try {
-        const apply = () => {
-          const el = self.els.godEncSelect;
-          if (!el) return;
-          const GD = (typeof window !== "undefined" ? window.GameData : null);
-          const list = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
-          const opts = ['<option value="">(auto)</option>'].concat(
-            list.map(t => {
-              const id = String(t.id || "");
-              const name = String(t.name || id || "encounter");
-              return `<option value="${id}">${name}</option>`;
-            })
-          ).join("");
-          el.innerHTML = opts;
-        };
-        if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
-          window.GameData.ready.then(() => apply());
-        } else {
-          apply();
-        }
-      } catch (_) {}
-    })(this);
-    if (this.els.godEncStartBtn) {
-      this.els.godEncStartBtn.addEventListener("click", () => {
-        const sel = this.els.godEncSelect ? (this.els.godEncSelect.value || "") : "";
-        if (typeof this.handlers.onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow(sel);
-      });
-    }
-    if (this.els.godEncArmBtn) {
-      this.els.godEncArmBtn.addEventListener("click", () => {
-        const sel = this.els.godEncSelect ? (this.els.godEncSelect.value || "") : "";
-        if (typeof this.handlers.onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove(sel);
-      });
-    }
-    if (this.els.godToggleMirrorBtn) {
-      this.els.godToggleMirrorBtn.addEventListener("click", () => {
-        this.toggleSideLog();
-      });
-      // initialize label
-      this.updateSideLogButton();
-    }
-    if (this.els.godToggleCritBtn) {
-      this.els.godToggleCritBtn.addEventListener("click", (ev) => {
-        const btn = ev.currentTarget;
-        const next = !this.getAlwaysCritState();
-        this.setAlwaysCritState(next);
-        if (typeof this.handlers.onGodSetAlwaysCrit === "function") {
-          this.handlers.onGodSetAlwaysCrit(next);
-        }
-        // When enabling, ask for preferred hit location
-        if (next) {
-          // Prevent this click from triggering the global document click handler that hides choosers
-          ev.stopPropagation();
-          const rect = btn.getBoundingClientRect();
-          this.showHitChooser(rect.left, rect.bottom + 6, (part) => {
-            if (part && part !== "cancel") {
-              this.setCritPartState(part);
-              if (typeof this.handlers.onGodSetCritPart === "function") {
-                this.handlers.onGodSetCritPart(part);
-              }
-            }
-          });
-        }
-      });
-      this.updateAlwaysCritButton();
-    }
-    if (this.els.godToggleGridBtn) {
-      this.els.godToggleGridBtn.addEventListener("click", () => {
-        const next = !this.getGridState();
-        this.setGridState(next);
-        this.updateGridButton();
-        // Notify game so ctx.drawGrid can be set (ctx-first render preference)
-        if (typeof this.handlers.onGodToggleGrid === "function") {
-          try { this.handlers.onGodToggleGrid(next); } catch (_) {}
-        }
-      });
-      this.updateGridButton();
-    }
-    // Town overlay toggle
-    this.els.godToggleTownOverlayBtn = document.getElementById("god-toggle-town-overlay-btn");
-    if (this.els.godToggleTownOverlayBtn) {
-      this.els.godToggleTownOverlayBtn.addEventListener("click", () => {
-        const next = !this.getTownOverlayState();
-        this.setTownOverlayState(next);
-        this.updateTownOverlayButton();
-      });
-      this.updateTownOverlayButton();
-    }
-    // Town paths toggle
-    this.els.godToggleTownPathsBtn = document.getElementById("god-toggle-town-paths-btn");
-    if (this.els.godToggleTownPathsBtn) {
-      this.els.godToggleTownPathsBtn.addEventListener("click", () => {
-        const next = !this.getTownPathsState();
-        this.setTownPathsState(next);
-        this.updateTownPathsButton();
-      });
-      this.updateTownPathsButton();
-    }
-    // Home paths toggle
-    this.els.godToggleHomePathsBtn = document.getElementById("god-toggle-home-paths-btn");
-    if (this.els.godToggleHomePathsBtn) {
-      this.els.godToggleHomePathsBtn.addEventListener("click", () => {
-        const next = !this.getHomePathsState();
-        this.setHomePathsState(next);
-        this.updateHomePathsButton();
-      });
-      this.updateHomePathsButton();
-    }
-    // Route paths toggle (current destination)
-    this.els.godToggleRoutePathsBtn = document.getElementById("god-toggle-route-paths-btn");
-    if (this.els.godToggleRoutePathsBtn) {
-      this.els.godToggleRoutePathsBtn.addEventListener("click", () => {
-        const next = !this.getRoutePathsState();
-        this.setRoutePathsState(next);
-        this.updateRoutePathsButton();
-      });
-      this.updateRoutePathsButton();
-    }
-    // Perf overlay toggle
-    this.els.godTogglePerfBtn = document.getElementById("god-toggle-perf-btn");
-    if (this.els.godTogglePerfBtn) {
-      this.els.godTogglePerfBtn.addEventListener("click", () => {
-        const next = !this.getPerfState();
-        this.setPerfState(next);
-        this.updatePerfButton();
-      });
-      this.updatePerfButton();
-    }
-    // Minimap toggle
-    this.els.godToggleMinimapBtn = document.getElementById("god-toggle-minimap-btn");
-    if (this.els.godToggleMinimapBtn) {
-      this.els.godToggleMinimapBtn.addEventListener("click", () => {
-        const next = !this.getMinimapState();
-        this.setMinimapState(next);
-        this.updateMinimapButton();
-      });
-      this.updateMinimapButton();
-    }
-    
-    // RNG seed controls
-    if (this.els.godApplySeedBtn) {
-      this.els.godApplySeedBtn.addEventListener("click", () => {
-        const raw = (this.els.godSeedInput && this.els.godSeedInput.value) ? this.els.godSeedInput.value.trim() : "";
-        const n = Number(raw);
-        if (Number.isFinite(n) && n >= 0) {
-          if (typeof this.handlers.onGodApplySeed === "function") this.handlers.onGodApplySeed(n >>> 0);
-        } else {
-          // no-op; optionally show hint
-        }
-      });
-    }
-    if (this.els.godRerollSeedBtn) {
-      this.els.godRerollSeedBtn.addEventListener("click", () => {
-        if (typeof this.handlers.onGodRerollSeed === "function") this.handlers.onGodRerollSeed();
-      });
-    }
+    // GOD panel wiring moved to component
+    try { if (GodPanel && typeof GodPanel.init === "function") GodPanel.init(this); } catch (_) {}
     this.updateSeedUI();
     this.updateEncounterRateUI();
 
@@ -863,15 +560,23 @@ export const UI = {
     if (this.isLootOpen()) this.hideLoot();
     if (this.isInventoryOpen()) this.hideInventory();
     if (this.isSmokeOpen()) this.hideSmoke();
-    if (this.els.godPanel) this.els.godPanel.hidden = false;
+    try { GodPanel.show(); } catch (_) { if (this.els.godPanel) this.els.godPanel.hidden = false; }
   },
 
   hideGod() {
-    if (this.els.godPanel) this.els.godPanel.hidden = true;
+    try { GodPanel.hide(); } catch (_) { if (this.els.godPanel) this.els.godPanel.hidden = true; }
   },
 
   isGodOpen() {
-    return !!(this.els.godPanel && !this.els.godPanel.hidden);
+    try { return !!GodPanel.isOpen(); } catch (_) { return !!(this.els.godPanel && !this.els.godPanel.hidden); }
+  },
+
+  // Update FOV value label and slider position
+  setGodFov(val) {
+    try {
+      if (this.els.godFovValue) this.els.godFovValue.textContent = `FOV: ${val}`;
+      if (this.els.godFov) this.els.godFov.value = String(val);
+    } catch (_) {}
   },
 
   // ---- Region Map modal ----
