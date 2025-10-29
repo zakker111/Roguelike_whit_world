@@ -94,34 +94,58 @@ export function draw(ctx, view) {
       const WMOD = (typeof window !== "undefined" ? window.World : null);
       const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
       const world = ctx.world || {};
-      const wmap = world.map || null;
-      // Absolute world coords where the town lives (recorded on entry)
+
+      // If a biome is already recorded for this town in world.towns, use it
       const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
       const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
-      // Map absolute -> local indices into current window
-      const ox = (world.originX | 0), oy = (world.originY | 0);
-      const lx = (wx - ox) | 0;
-      const ly = (wy - oy) | 0;
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && rec.biome) { ctx.townBiome = rec.biome; return; }
+      } catch (_) {}
 
-      let t = null;
-      if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
-        t = wmap[ly][lx];
-      }
-      // Fallback to generator for robustness
-      if (t == null && world.gen && typeof world.gen.tileAt === "function") {
-        t = world.gen.tileAt(wx, wy);
+      // Helper: get tile at absolute world coords (prefer current window; fallback to generator)
+      function worldTileAtAbs(ax, ay) {
+        const wmap = world.map || null;
+        const ox = world.originX | 0, oy = world.originY | 0;
+        const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
+        if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+          return wmap[ly][lx];
+        }
+        if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
+        return null;
       }
 
-      let key = null;
-      if (WT && t != null) {
-        if (t === WT.DESERT) key = "DESERT";
-        else if (t === WT.SNOW) key = "SNOW";
-        else if (t === WT.BEACH) key = "BEACH";
-        else if (t === WT.SWAMP) key = "SWAMP";
-        else if (t === WT.FOREST) key = "FOREST";
-        else if (t === WT.GRASS) key = "GRASS";
+      // Sample neighborhood around town (skip POIs) to infer biome
+      let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
+      function bump(tile) {
+        if (!WT) return;
+        if (tile === WT.DESERT) counts.DESERT++;
+        else if (tile === WT.SNOW) counts.SNOW++;
+        else if (tile === WT.BEACH) counts.BEACH++;
+        else if (tile === WT.SWAMP) counts.SWAMP++;
+        else if (tile === WT.FOREST) counts.FOREST++;
+        else if (tile === WT.GRASS) counts.GRASS++;
       }
-      ctx.townBiome = key || "GRASS";
+      const MAX_R = 6;
+      for (let r = 1; r <= MAX_R; r++) {
+        let any = false;
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const t = worldTileAtAbs(wx + dx, wy + dy);
+            if (t == null) continue;
+            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+            bump(t);
+            any = true;
+          }
+        }
+        const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
+        if (any && total > 0) break;
+      }
+      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      let best = "GRASS", bestV = -1;
+      for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
+      ctx.townBiome = best || "GRASS";
     } catch (_) { ctx.townBiome = ctx.townBiome || "GRASS"; }
   }
   function townBiomeFill(ctx) {

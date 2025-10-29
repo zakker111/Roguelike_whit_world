@@ -359,43 +359,85 @@ function generate(ctx) {
   // Expose size to other modules (AI, UI)
   ctx.townSize = townSize;
 
-  // Derive and persist the town biome from the overworld tile at this town's location
+  // Derive and persist the town biome from the overworld around this town's location
   (function deriveTownBiome() {
     try {
       const WMOD = (typeof window !== "undefined" ? window.World : null);
-      const WTILES = WMOD && WMOD.TILES ? WMOD.TILES : null;
+      const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
       const world = ctx.world || {};
-      const wmap = world.map || null;
-      // Prefer the recorded world return position; else current player position (absolute world coords)
+
+      // Helper: get world tile by absolute coords; prefer current window, fall back to generator
+      function worldTileAtAbs(ax, ay) {
+        const wmap = world.map || null;
+        const ox = world.originX | 0, oy = world.originY | 0;
+        const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
+        if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+          return wmap[ly][lx];
+        }
+        if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
+        return null;
+      }
+
+      // Absolute world coords for this town
       const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
       const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
 
-      // Convert absolute world coords -> local indices into current windowed world map
-      const ox = (world.originX | 0), oy = (world.originY | 0);
-      const lx = (wx - ox) | 0;
-      const ly = (wy - oy) | 0;
+      // If world.towns entry already has a biome, trust it
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && rec.biome) {
+          ctx.townBiome = rec.biome;
+          return;
+        }
+      } catch (_) {}
 
-      let t = null;
-      if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
-        t = wmap[ly][lx];
-      }
-      // Fallback: query generator directly by absolute world coords (robust even if outside window)
-      if (t == null && world.gen && typeof world.gen.tileAt === "function") {
-        t = world.gen.tileAt(wx, wy);
+      // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
+      let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
+      function bump(tile) {
+        if (!WT) return;
+        if (tile === WT.DESERT) counts.DESERT++;
+        else if (tile === WT.SNOW) counts.SNOW++;
+        else if (tile === WT.BEACH) counts.BEACH++;
+        else if (tile === WT.SWAMP) counts.SWAMP++;
+        else if (tile === WT.FOREST) counts.FOREST++;
+        else if (tile === WT.GRASS) counts.GRASS++;
       }
 
-      let key = null;
-      if (WTILES && t != null) {
-        if (t === WTILES.DESERT) key = "DESERT";
-        else if (t === WTILES.SNOW) key = "SNOW";
-        else if (t === WTILES.BEACH) key = "BEACH";
-        else if (t === WTILES.SWAMP) key = "SWAMP";
-        else if (t === WTILES.FOREST) key = "FOREST";
-        else if (t === WTILES.GRASS) key = "GRASS";
+      // Search radius growing rings until we find any biome tiles
+      const MAX_R = 6;
+      for (let r = 1; r <= MAX_R; r++) {
+        let any = false;
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // only outer ring
+            const t = worldTileAtAbs(wx + dx, wy + dy);
+            if (t == null) continue;
+            // Skip POI markers
+            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+            bump(t);
+            any = true;
+          }
+        }
+        // If we have any biome counts after this ring, stop
+        const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
+        if (any && total > 0) break;
       }
-      ctx.townBiome = key || "GRASS";
+
+      // Pick the biome with the highest count; tie-break by a fixed priority
+      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      let best = "GRASS", bestV = -1;
+      for (const k of order) {
+        const v = counts[k] | 0;
+        if (v > bestV) { bestV = v; best = k; }
+      }
+      ctx.townBiome = best || "GRASS";
+
       // Persist on world.towns entry if available
-      try { if (info && typeof info === "object") info.biome = ctx.townBiome; } catch (_) {}
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
+        else if (info && typeof info === "object") info.biome = ctx.townBiome;
+      } catch (_) {}
     } catch (_) {}
   })();
 
