@@ -19,7 +19,7 @@ const state = {
   name: "Custom Small House",
   tags: ["residential","single_story"],
   // shop
-  shop: { type: "blacksmith", schedule: { open: "08:00", close: "17:00", alwaysOpen: false }, signText: "Blacksmith" },
+  shop: { type: "blacksmith", schedule: { open: "08:00", close: "17:00", alwaysOpen: false }, signText: "Blacksmith", sign: true },
   // upstairs
   upstairsEnabled: false,
   up: { offset: {x:1,y:1}, w:9, h:7, tiles: [] },
@@ -252,10 +252,12 @@ function bindUI() {
     } else if (state.category === "shop") {
       state.id = "shop_blacksmith_custom_1"; state.name = "Blacksmith (Custom)";
       state.tags = ["shop","blacksmith"];
-      state.shop = { type:"blacksmith", schedule:{open:"08:00", close:"17:00", alwaysOpen:false}, signText:"Blacksmith" };
+      state.shop = { type:"blacksmith", schedule:{open:"08:00", close:"17:00", alwaysOpen:false}, signText:"Blacksmith", sign: true };
     } else if (state.category === "inn") {
       state.id = "inn_tavern_custom"; state.name = "Inn & Tavern (Custom)";
       state.tags = ["two_story","tavern"];
+      // Ensure inn prefabs always include shop metadata with 24/7 schedule
+      state.shop = { type:"inn", schedule:{open:"00:00", close:"00:00", alwaysOpen:true}, signText:"Inn", sign: true };
     } else if (state.category === "plaza") {
       state.id = "plaza_custom_1"; state.name = "Plaza (Custom)";
       state.tags = ["plaza"];
@@ -553,7 +555,17 @@ function buildPrefabObject() {
     obj.shop = {
       type: state.shop.type,
       schedule: { open: state.shop.schedule.open, close: state.shop.schedule.close, alwaysOpen: !!state.shop.schedule.alwaysOpen },
-      signText: state.shop.signText || ""
+      signText: state.shop.signText || "",
+      sign: (typeof state.shop.sign === "boolean") ? state.shop.sign : true
+    };
+  }
+  // For inns, include shop metadata with alwaysOpen schedule by default
+  if (state.category === "inn") {
+    obj.shop = {
+      type: "inn",
+      schedule: { alwaysOpen: true },
+      signText: state.shop && state.shop.signText ? state.shop.signText : "Inn",
+      sign: (state.shop && typeof state.shop.sign === "boolean") ? state.shop.sign : true
     };
   }
   if (state.category === "inn" && state.upstairsEnabled) {
