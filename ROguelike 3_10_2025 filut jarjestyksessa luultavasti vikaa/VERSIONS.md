@@ -1,6 +1,22 @@
 s 
 # Game Version History
-Last updated: 2025-10-29 12:00 UTC
+Last updated: 2025-10-29 14:00 UTC
+
+v1.44.1 — Prefab schedules only, shops.json retired, greeter copy, Prefab Editor schedule/sign, and single-plaza guard
+- Town generation
+  - Greeter copy updated: “Shops are marked with a flag at their doors.”
+  - integratePrefabShops now derives schedules exclusively from prefab metadata (shop.schedule/alwaysOpen). Defaults to 08:00–18:00 when omitted.
+  - Generation reset: clear ctx.townProps/ctx.shops/ctx.townBuildings/ctx.townPrefabUsage at the start of generate() to avoid duplicated props/shops across repeated calls.
+  - Plaza stamping guard: placePlazaPrefabStrict now skips when a plaza prefab was already stamped during the same generation, ensuring one plaza per town.
+- Data loader
+  - data/loader.js: removed loading of data/shops/shops.json; GameData.shops set to null.
+  - Removed file: data/shops/shops.json (no longer used).
+- Prefab Editor
+  - src/tools/prefab_editor.js: shop prefabs export shop.schedule { open, close, alwaysOpen } and shop.sign (default true).
+  - Inn prefabs export shop metadata with type "inn", schedule { alwaysOpen: true }, signText "Inn", sign true.
+- Migration note
+  - With strict prefabs, shops.json is no longer read. Ensure every shop prefab includes schedule metadata. Runtime defaults apply for missing schedules (08:00–18:00); inns are always open.
+- Deployment: https://ef1gt6qat2yd.cosine.page, https://o8iayr1wx2t8.cosine.page, https://hlromzif1iht.cosine.page, https://xzvxd0o4h9p9.cosine.page, https://8jwzqlarkn20.cosine.page
 
 v1.44.0 — Prefab-driven signage, Inn always-open messaging, prop sanitation, keeper adjacency, prefab diagnostics, and pathfinding cache caps
 - Prefabs/Data
