@@ -159,7 +159,7 @@ function spawnGateGreeters(ctx, count = 4) {
         const names = ["Ava", "Borin", "Cora", "Darin", "Eda", "Finn", "Goro", "Hana"];
         const lines = [
           `Welcome to ${ctx.townName || "our town"}.`,
-          "Shops are marked with S.",
+          "Shops are marked with a flag at their doors.",
           "Stay as long as you like.",
           "The plaza is at the center.",
         ];
@@ -189,7 +189,7 @@ function spawnGateGreeters(ctx, count = 4) {
   const names = ["Ava", "Borin", "Cora", "Darin", "Eda", "Finn", "Goro", "Hana"];
   const lines = [
     `Welcome to ${ctx.townName || "our town"}.`,
-    "Shops are marked with S.",
+    "Shops are marked with a flag at their doors.",
     "Stay as long as you like.",
     "The plaza is at the center.",
   ];
@@ -215,7 +215,7 @@ function spawnGateGreeters(ctx, count = 4) {
       const name = "Greeter";
       const lines2 = [
         `Welcome to ${ctx.townName || "our town"}.`,
-        "Shops are marked with S.",
+        "Shops are marked with a flag at their doors.",
         "Stay as long as you like.",
         "The plaza is at the center.",
       ];
@@ -1540,15 +1540,6 @@ function generate(ctx) {
   // Integrate prefab-declared shops: resolve schedules, add signs, and mark buildings as used.
   (function integratePrefabShops() {
     try {
-      // Helper: find matching shop def by type from GameData.shops
-      function findShopDefByType(type) {
-        try {
-          const defs = (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops : null;
-          if (!defs) return null;
-          const tkey = String(type || "").toLowerCase();
-          return defs.find(d => String(d.type || "").toLowerCase() === tkey) || null;
-        } catch (_) { return null; }
-      }
       function parseHHMMToMinutes(s) {
         if (!s || typeof s !== "string") return null;
         const m = s.match(/^(\d{1,2}):(\d{2})$/);
@@ -1557,32 +1548,22 @@ function generate(ctx) {
         const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
         return ((h | 0) * 60 + (min | 0)) % (24 * 60);
       }
-      function scheduleForType(type) {
-        const def = findShopDefByType(type);
-        if (!def) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
-        if (def.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
-        const o = parseHHMMToMinutes(def.open);
-        const c = parseHHMMToMinutes(def.close);
-        if (o == null || c == null) return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
-        return { openMin: o, closeMin: c, alwaysOpen: false };
+      function scheduleFromPrefab(ps) {
+        const s = ps && ps.scheduleOverride ? ps.scheduleOverride : null;
+        if (s && s.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
+        if (s && typeof s.open === "string" && typeof s.close === "string") {
+          const o = parseHHMMToMinutes(s.open);
+          const c = parseHHMMToMinutes(s.close);
+          if (o != null && c != null) return { openMin: o, closeMin: c, alwaysOpen: false };
+        }
+        // Default hours when prefab provided no schedule
+        return { openMin: ((8|0)*60), closeMin: ((18|0)*60), alwaysOpen: false };
       }
 
       for (const ps of prefabShops) {
         if (!ps || !ps.building) continue;
-        // Add shop entry
-        let sched = scheduleForType(ps.type);
-        // Apply prefab schedule override when present
-        if (ps.scheduleOverride) {
-          const o = parseHHMMToMinutes(ps.scheduleOverride.open);
-          const c = parseHHMMToMinutes(ps.scheduleOverride.close);
-          if (ps.scheduleOverride.alwaysOpen) {
-            sched = { openMin: 0, closeMin: 0, alwaysOpen: true };
-          } else {
-            if (o != null && c != null) {
-              sched = { openMin: o, closeMin: c, alwaysOpen: false };
-            }
-          }
-        }
+        // Add shop entry using schedule only from prefab metadata
+        const sched = scheduleFromPrefab(ps);
         const name = ps.name || ps.type || "Shop";
         // Compute an inside tile near the door
         const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
