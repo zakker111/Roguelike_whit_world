@@ -715,6 +715,19 @@ function generate(ctx) {
     const rect = { x: x0, y: y0, w, h, prefabId: (prefab && prefab.id) ? String(prefab.id) : null, prefabCategory: String(prefab.category || "").toLowerCase() || null };
     buildings.push(rect);
 
+    // Track prefab usage for diagnostics (per category)
+    try {
+      const cat = String(prefab.category || "").toLowerCase();
+      const id = String(prefab.id || "");
+      if (id) {
+        ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [] };
+        if (cat === "house") ctx.townPrefabUsage.houses.push(id);
+        else if (cat === "shop") ctx.townPrefabUsage.shops.push(id);
+        else if (cat === "inn") ctx.townPrefabUsage.inns.push(id);
+        else if (cat === "plaza") ctx.townPrefabUsage.plazas.push(id);
+      }
+    } catch (_) {}
+
     // Inn: consume upstairsOverlay and record ground stairs if present in prefab tiles
     try {
       if (String(prefab.category || "").toLowerCase() === "inn") {
@@ -890,6 +903,14 @@ function generate(ctx) {
     }
 
     // Do NOT record a building rect for plaza prefabs
+    // Track plaza prefab usage for diagnostics
+    try {
+      const id = String(prefab.id || "");
+      if (id) {
+        ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [] };
+        ctx.townPrefabUsage.plazas.push(id);
+      }
+    } catch (_) {}
     return true;
   }
 

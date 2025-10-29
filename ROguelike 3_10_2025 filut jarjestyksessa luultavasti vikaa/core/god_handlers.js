@@ -423,6 +423,71 @@ export function install(getCtx) {
         }
       } catch (_) {}
     },
+
+    onGodCheckPrefabs: () => {
+      const c = getCtx();
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const pref = GD && GD.prefabs ? GD.prefabs : null;
+
+      const loadedH = Array.isArray(pref?.houses) ? pref.houses.length : 0;
+      const loadedS = Array.isArray(pref?.shops) ? pref.shops.length : 0;
+      const loadedI = Array.isArray(pref?.inns) ? pref.inns.length : 0;
+      const loadedP = Array.isArray(pref?.plazas) ? pref.plazas.length : 0;
+
+      const lines = [];
+      const header = `Prefabs loaded: houses=${loadedH}, shops=${loadedS}, inns=${loadedI}, plazas=${loadedP}.`;
+
+      // Usage in current town (if any)
+      const usage = c.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [] };
+      function uniq(arr) {
+        const set = new Set(arr || []);
+        return Array.from(set);
+      }
+      const usedH = uniq(usage.houses);
+      const usedS = uniq(usage.shops);
+      const usedI = uniq(usage.inns);
+      const usedP = uniq(usage.plazas);
+
+      const strictActive = !!pref && (loadedH + loadedS + loadedI + loadedP) > 0;
+
+      lines.push(`Strict prefabs mode: ${strictActive ? "active" : "inactive"} (town generation prefers prefabs when available).`);
+      // Town-only details
+      if (c.mode === "town") {
+        // Report tavern prefab id if present
+        try {
+          const tB = c.tavern && c.tavern.building ? c.tavern.building : null;
+          const tId = tB && tB.prefabId ? String(tB.prefabId) : "";
+          if (tId) {
+            lines.push(`Inn prefab used: ${tId}`);
+          } else {
+            lines.push("Inn prefab used: (none or rectangle fallback)");
+          }
+        } catch (_) {}
+
+        lines.push(`Houses used in this town: ${usedH.length}${usedH.length ? " — " + usedH.slice(0, 8).join(", ") + (usedH.length > 8 ? ", …" : "") : ""}`);
+        lines.push(`Shops used in this town: ${usedS.length}${usedS.length ? " — " + usedS.slice(0, 8).join(", ") + (usedS.length > 8 ? ", …" : "") : ""}`);
+        lines.push(`Plaza prefab used: ${usedP.length}${usedP.length ? " — " + usedP.slice(0, 1).join(", ") : ""}`);
+      } else {
+        lines.push("Enter a town to see which prefabs were used in that generation.");
+      }
+
+      try {
+        const el = document.getElementById("god-check-output");
+        if (el) {
+          const html = [header].concat(lines).map(s => `<div>${s}</div>`).join("");
+          el.innerHTML = html;
+        }
+      } catch (_) {}
+
+      c.log(header, (loadedH + loadedS + loadedI + loadedP) ? "info" : "warn");
+      lines.forEach(l => c.log(l, "info"));
+      try {
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(c);
+        }
+      } catch (_) {}
+    },
     // Diagnostics
     onGodDiagnostics: () => {
       const c = getCtx();
