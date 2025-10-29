@@ -1546,14 +1546,7 @@ function generate(ctx) {
   // Integrate prefab-declared shops: resolve schedules, add signs, and mark buildings as used.
   (function integratePrefabShops() {
     try {
-      function parseHHMMToMinutes(s) {
-        if (!s || typeof s !== "string") return null;
-        const m = s.match(/^(\d{1,2}):(\d{2})$/);
-        if (!m) return null;
-        const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
-        const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
-        return ((h | 0) * 60 + (min | 0)) % (24 * 60);
-      }
+      
       function scheduleFromPrefab(ps) {
         const s = ps && ps.scheduleOverride ? ps.scheduleOverride : null;
         if (s && s.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
@@ -1602,14 +1595,7 @@ function generate(ctx) {
   })();
 
   // Data-first shop selection: use GameData.shops when available
-  function parseHHMMToMinutes(s) {
-    if (!s || typeof s !== "string") return null;
-    const m = s.match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return null;
-    const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
-    const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
-    return ((h | 0) * 60 + (min | 0)) % (24 * 60);
-  }
+  
   function minutesOfDay(ctx, h, m = 0) {
     try {
       if (ctx && ctx.ShopService && typeof ctx.ShopService.minutesOfDay === "function") {
@@ -1823,7 +1809,7 @@ function generate(ctx) {
 
   // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback from the tavern building
   try {
-    const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (String(s.type || "").toLowerCase() === "inn") || (/inn/i.test(String(s.name || ""))));
+    const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes("inn")));
     if (!hasInn && ctx.tavern && ctx.tavern.building) {
       const b = ctx.tavern.building;
       // Prefer existing door on perimeter; otherwise ensure one
@@ -1867,7 +1853,7 @@ function generate(ctx) {
       const out = [], seenInn = false;
       for (let i = 0; i < ctx.shops.length; i++) {
         const s = ctx.shops[i];
-        const isInn = (String(s.type || "").toLowerCase() === "inn") || (/inn/i.test(String(s.name || "")));
+        const isInn = (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes
         if (isInn) {
           if (!seenInn) { out.push(s); seenInn = true; }
           else {
@@ -1882,7 +1868,7 @@ function generate(ctx) {
     }
     // Ensure ctx.tavern points to the single Inn building if present
     if (ctx.shops && ctx.shops.length) {
-      const innShop = ctx.shops.find(s => (String(s.type || "").toLowerCase() === "inn") || (/inn/i.test(String(s.name || ""))));
+      const innShop = ctx.shops.find(s => (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes("inn")));
       if (innShop && innShop.building && innShop.building.x != null) {
         (function assignInnTavern() {
           try {
