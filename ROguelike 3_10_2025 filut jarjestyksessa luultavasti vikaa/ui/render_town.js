@@ -213,9 +213,12 @@ export function draw(ctx, view) {
             const sx = xx * TILE, sy = yy * TILE;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
             let fill = fillTownFor(TILES, type, COLORS);
-            // Outdoor ground tint by biome for FLOOR tiles
+            // Roads: draw a distinct muted road fill; otherwise apply outdoor biome tint for non-road floor
             try {
-              if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
+              if (type === TILES.FLOOR && ctx.townRoads && ctx.townRoads[yy] && ctx.townRoads[yy][xx]) {
+                fill = "#b0a58a"; // muted road color (town)
+              } else if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
+                // Outdoor ground tint by biome for non-road FLOOR tiles
                 fill = biomeFill;
               }
             } catch (_) {}
@@ -252,9 +255,11 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Outdoor ground tint by biome for FLOOR tiles
+        // Roads vs outdoor tint
         try {
-          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
+          if (type === TILES.FLOOR && ctx.townRoads && ctx.townRoads[y] && ctx.townRoads[y][x]) {
+            fill = "#b0a58a"; // muted road color (town)
+          } else if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
             fill = biomeFill;
           }
         } catch (_) {}

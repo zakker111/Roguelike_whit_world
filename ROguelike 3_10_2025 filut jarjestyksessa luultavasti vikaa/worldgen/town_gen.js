@@ -470,18 +470,24 @@ function generate(ctx) {
   } catch (_) {}
 
   // Roads
+  // Track town roads separately so renderer can draw them distinctly from general outdoor ground.
+  const roadsMask = Array.from({ length: H }, () => Array(W).fill(false));
   const carveRoad = (x1, y1, x2, y2) => {
     let x = x1, y = y1;
-    while (x !== x2) { ctx.map[y][x] = ctx.TILES.FLOOR; x += Math.sign(x2 - x); }
-    while (y !== y2) { ctx.map[y][x] = ctx.TILES.FLOOR; y += Math.sign(y2 - y); }
-    ctx.map[y][x] = ctx.TILES.FLOOR;
+    while (x !== x2) { ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true; x += Math.sign(x2 - x); }
+    while (y !== y2) { ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true; y += Math.sign(y2 - y); }
+    ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true;
   };
   carveRoad(gate.x, gate.y, plaza.x, gate.y);
   carveRoad(plaza.x, gate.y, plaza.x, plaza.y);
   const roadYStride = (TOWNCFG && TOWNCFG.roads && (TOWNCFG.roads.yStride | 0)) || 8;
   const roadXStride = (TOWNCFG && TOWNCFG.roads && (TOWNCFG.roads.xStride | 0)) || 10;
-  for (let y = 6; y < H - 6; y += Math.max(2, roadYStride)) for (let x = 1; x < W - 1; x++) ctx.map[y][x] = ctx.TILES.FLOOR;
-  for (let x = 6; x < W - 6; x += Math.max(2, roadXStride)) for (let y = 1; y < H - 1; y++) ctx.map[y][x] = ctx.TILES.FLOOR;
+  for (let y = 6; y < H - 6; y += Math.max(2, roadYStride)) {
+    for (let x = 1; x < W - 1; x++) { ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true; }
+  }
+  for (let x = 6; x < W - 6; x += Math.max(2, roadXStride)) {
+    for (let y = 1; y < H - 1; y++) { ctx.map[y][x] = ctx.TILES.FLOOR; roadsMask[y][x] = true; }
+  }
 
   // Buildings container (either prefab-placed or hollow rectangles as fallback)
   const buildings = [];
@@ -2093,8 +2099,25 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Props
-  ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+  // Finalize road mask: remove any tiles inside buildings and ensure only outdoor FLOOR tiles remain
+  (function finalizeRoadMask() {
+    try {
+      if (!roadsMask) return;
+      function insideAnyBuilding(x, y) {
+        for (let i = 0;  <i buildings.length; i++) {
+          const B = buildings[i];
+          if (x > B.x &&  <x B.x + B.w - 1 && y > B.y &&  <y B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      for (let yy = 0; y <y H; yy++) {
+        for (let xx = 0; x <x W; xx++) {
+          if (insideAnyBuilding(xx, yy)) { roadsMask[yy][xx] = false; continue; }
+          if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { roadsMask[yy][xx] = false; }
+        }
+      }
+      ctx.townRoads = roadsMask;
+    } catch: [];
   function addProp(x, y, type, name) {
     if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
     if (ctx.map[y][x] !== ctx.TILES.FLOOR) return false;
