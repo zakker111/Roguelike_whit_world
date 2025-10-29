@@ -69,7 +69,7 @@ function _advanceTime(ctx, minutes) {
 function _restUntil(ctx, hhmm) {
   try {
     const t = ctx.time;
-    const goal = (function parseHHMM(s){ const m=s.match(/^(\d{1,2}):(\d{2})$/); if(!m) return 6*60; const h=(parseInt(m[1],10)||0)%24; const mi=(parseInt(m[2],10)||0)%60; return h*60+mi; })(String(hhmm||"06:00"));
+    const goal = (function safeHHMMToMinutes(s){ try { const v = parseHHMM(String(s || "")); return (v == null) ? 6*60 : v; } catch (_) { return 6*60; } })(String(hhmm||"06:00"));
     const cur = t ? (t.hours * 60 + t.minutes) : 0;
     let delta = goal - cur; if (delta <= 0) delta += 24 * 60;
     _advanceTime(ctx, delta);
@@ -261,6 +261,7 @@ export function interact(ctx, prop) {
   return true;
 }
 
+import { parseHHMM } from "./time_service.js";
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
   window.PropsService = { interact };
