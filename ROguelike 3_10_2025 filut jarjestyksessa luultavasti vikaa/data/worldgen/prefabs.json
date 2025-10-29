@@ -101,24 +101,6 @@
   ],
   "shops": [
     {
-      "id": "shop_blacksmith_1",
-      "name": "Blacksmith",
-      "category": "shop",
-      "shop": { "type": "blacksmith", "schedule": { "open": "08:00", "close": "17:00", "alwaysOpen": false }, "signText": "Blacksmith", "sign": true },
-      "tags": ["shop","blacksmith"],
-      "size": { "w": 8, "h": 6 },
-      "tiles": [
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-        ["WALL","FIREPLACE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","WALL","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL","WALL"]
-      ],
-      "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
-      "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
-    },
-    {
       "id": "shop_apothecary_1",
       "name": "Apothecary",
       "category": "shop",
