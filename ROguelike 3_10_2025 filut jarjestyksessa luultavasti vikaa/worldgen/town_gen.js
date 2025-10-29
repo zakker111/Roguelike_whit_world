@@ -1854,8 +1854,11 @@ function generate(ctx) {
       for (let i = 0; i < ctx.shops.length; i++) {
         const s = ctx.shops[i];
         const isInn = (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes("inn"));
-        if (isInn          if (!seenInn) { out.push(s); seenInn = true; }
-          else {
+        if (isInn) {
+          if (!seenInn) {
+            out.push(s);
+            seenInn = true;
+          } else {
             // drop duplicate inn
             continue;
           }
