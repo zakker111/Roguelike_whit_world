@@ -16,6 +16,8 @@
  */
 import * as ClientAnalyzer from "/analysis/client_analyzer.js";
 import * as HelpModal from "/ui/components/help_modal.js";
+import * as RegionModal from "/ui/components/region_modal.js";
+import * as SmokeModal from "/ui/components/smoke_modal.js";
 
 export const UI = {
   els: {},
@@ -1039,225 +1041,15 @@ export const UI = {
     if (this.isInventoryOpen()) this.hideInventory();
     if (this.isGodOpen()) this.hideGod();
     if (this.isSmokeOpen()) this.hideSmoke();
-
-    // Create panel lazily
-    if (!this.els.regionPanel) {
-      const panel = document.createElement("div");
-      panel.id = "region-panel";
-      panel.style.position = "fixed";
-      panel.style.left = "50%";
-      panel.style.top = "50%";
-      panel.style.transform = "translate(-50%, -50%)";
-      panel.style.zIndex = "40000";
-      panel.style.background = "rgba(20,24,33,0.98)";
-      panel.style.border = "1px solid rgba(80,90,120,0.6)";
-      panel.style.borderRadius = "8px";
-      panel.style.padding = "8px";
-      panel.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
-      panel.style.minWidth = "420px";
-      panel.style.minHeight = "300px";
-      panel.style.maxWidth = "92vw";
-      panel.style.maxHeight = "80vh";
-      panel.style.display = "none";
-
-      const close = document.createElement("div");
-      close.textContent = "Close (Esc)";
-      close.style.color = "#94a3b8";
-      close.style.fontSize = "12px";
-      close.style.margin = "4px 0 6px 0";
-
-      const canvas = document.createElement("canvas");
-      canvas.id = "region-canvas";
-      // responsive size
-      const vw = Math.max(640, Math.floor(window.innerWidth * 0.7));
-      const vh = Math.max(360, Math.floor(window.innerHeight * 0.6));
-      canvas.width = Math.min(vw, Math.floor(window.innerWidth * 0.92));
-      canvas.height = Math.min(vh, Math.floor(window.innerHeight * 0.80));
-      canvas.style.display = "block";
-      canvas.style.background = "#0b0c10";
-      canvas.style.border = "1px solid rgba(80,90,120,0.5)";
-      canvas.style.borderRadius = "6px";
-
-      panel.appendChild(close);
-      panel.appendChild(canvas);
-      document.body.appendChild(panel);
-      this.els.regionPanel = panel;
-      this.els.regionCanvas = canvas;
-
-      // Click outside to close
-      panel.addEventListener("click", (e) => {
-        if (e.target === panel) {
-          this.hideRegionMap();
-          e.stopPropagation();
-        }
-      });
-    }
-
-    // Show panel
-    this.els.regionPanel.style.display = "block";
-    // Render contents via RegionMap if available
-    try {
-      const RM = (typeof window !== "undefined" ? window.RegionMap : null);
-      if (RM && typeof RM.draw === "function") {
-        RM.draw(ctx || (window.GameAPI && typeof window.GameAPI.getCtx === "function" ? window.GameAPI.getCtx() : null));
-      }
-    } catch (_) {}
+    try { RegionModal.show(ctx); } catch (_) {}
   },
 
   hideRegionMap() {
-    if (this.els.regionPanel) this.els.regionPanel.style.display = "none";
+    try { RegionModal.hide(); } catch (_) {}
   },
 
   isRegionMapOpen() {
-    return !!(this.els.regionPanel && this.els.regionPanel.style.display !== "none");
-  },
-
-  // ---- Help / Controls + Character Sheet (F1) ----
-  showHelp(ctx = null) {
-    // Close other modals for clarity
-    if (this.isLootOpen()) this.hideLoot();
-    if (this.isInventoryOpen()) this.hideInventory();
-    if (this.isGodOpen()) this.hideGod();
-    if (this.isSmokeOpen()) this.hideSmoke();
-    if (this.isRegionMapOpen()) this.hideRegionMap();
-    try { HelpModal.show(ctx); } catch (_) {}
-  },
-
-  hideHelp() {
-    try { HelpModal.hide(); } catch (_) {}
-  },
-
-  isHelpOpen() {
-    try { return !!HelpModal.isOpen(); } catch (_) { return false; }
-  },
-
-  // Smoke Test Configuration modal
-  showSmoke() {
-    if (this.isLootOpen()) this.hideLoot();
-    if (this.isInventoryOpen()) this.hideInventory();
-    if (this.isGodOpen()) this.hideGod();
-    if (this.els.smokePanel) {
-      // Build options on open to reflect any future changes
-      this.renderSmokeOptions();
-      this.els.smokePanel.hidden = false;
-    }
-  },
-
-  hideSmoke() {
-    if (this.els.smokePanel) this.els.smokePanel.hidden = true;
-  },
-
-  isSmokeOpen() {
-    return !!(this.els.smokePanel && !this.els.smokePanel.hidden);
-  },
-
-  renderSmokeOptions() {
-    if (!this.els.smokeList) return;
-    const scenarios = [
-      ["world", "World"],
-      ["dungeon", "Dungeon"],
-      ["inventory", "Inventory"],
-      ["combat", "Combat"],
-      ["dungeon_persistence", "Dungeon Persistence"],
-      ["town", "Town"],
-      ["town_diagnostics", "Town Diagnostics"],
-      ["overlays", "Overlays"],
-      ["determinism", "Determinism"]
-    ];
-    const html = scenarios.map(([key, label]) => {
-      return `<label style="display:flex; align-items:center; gap:6px;">
-        <input type="checkbox" class="smoke-sel" value="${key}" checked />
-        <span>${label}</span>
-      </label>`;
-    }).join("");
-    this.els.smokeList.innerHTML = html;
-  },
-
-  setGodFov(val) {
-    if (!this.els.godFov) return;
-    const v = Math.max(parseInt(this.els.godFov.min || "3", 10), Math.min(parseInt(this.els.godFov.max || "14", 10), parseInt(val, 10) || 0));
-    this.els.godFov.value = String(v);
-    if (this.els.godFovValue) this.els.godFovValue.textContent = `FOV: ${v}`;
-  },
-
-  // --- Encounter rate controls (0..100) ---
-  getEncounterRateState() {
-    // Default 50 means baseline frequency; <50 fewer, >50 more
-    try {
-      if (typeof window.ENCOUNTER_RATE === "number" && Number.isFinite(window.ENCOUNTER_RATE)) {
-        const v = Math.max(0, Math.min(100, Math.round(Number(window.ENCOUNTER_RATE))));
-        return v;
-      }
-      const raw = localStorage.getItem("ENCOUNTER_RATE");
-      if (raw != null) {
-        const v = Math.max(0, Math.min(100, Math.round(Number(raw) || 0)));
-        return v;
-      }
-    } catch (_) {}
-    // Config-driven default (Phase 5)
-    try {
-      const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config && window.GameData.config.dev) ? window.GameData.config.dev : null;
-      const v = (cfg && typeof cfg.encounterRateDefault === "number") ? Math.max(0, Math.min(100, Math.round(Number(cfg.encounterRateDefault) || 0))) : 50;
-      return v;
-    } catch (_) {}
-    return 50;
-  },
-
-  setEncounterRateState(val) {
-    const v = Math.max(0, Math.min(100, Math.round(Number(val) || 0)));
-    try {
-      window.ENCOUNTER_RATE = v;
-      localStorage.setItem("ENCOUNTER_RATE", String(v));
-    } catch (_) {}
-    this.updateEncounterRateUI();
-  },
-
-  updateEncounterRateUI() {
-    const v = this.getEncounterRateState();
-    if (this.els.godEncRate) this.els.godEncRate.value = String(v);
-    if (this.els.godEncRateValue) this.els.godEncRateValue.textContent = `Encounter rate: ${v}`;
-  },
-
-  // --- Side log mirror controls ---
-  getSideLogState() {
-    try {
-      if (typeof window.LOG_MIRROR === "boolean") return window.LOG_MIRROR;
-      const m = localStorage.getItem("LOG_MIRROR");
-      if (m === "1") return true;
-      if (m === "0") return false;
-    } catch (_) {}
-    return true; // default on
-  },
-
-  setSideLogState(enabled) {
-    try {
-      window.LOG_MIRROR = !!enabled;
-      localStorage.setItem("LOG_MIRROR", enabled ? "1" : "0");
-    } catch (_) {}
-    // Apply immediately
-    try {
-      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.init === "function") {
-        window.Logger.init();
-      }
-    } catch (_) {}
-    // Ensure DOM reflects the state even without reinit
-    const el = document.getElementById("log-right");
-    if (el) {
-      el.style.display = enabled ? "" : "none";
-    }
-    this.updateSideLogButton();
-  },
-
-  toggleSideLog() {
-    const cur = this.getSideLogState();
-    this.setSideLogState(!cur);
-  },
-
-  updateSideLogButton() {
-    if (!this.els.godToggleMirrorBtn) return;
-    const on = this.getSideLogState();
-    this.els.godToggleMirrorBtn.textContent = `Side Log: ${on ? "On" : "Off"}`;
-    this.els.godToggleMirrorBtn.title = on ? "Hide side log" : "Show side log";
+    try { return !!RegionModal.isOpen(); } catch (_) { return false; }
   },
 
   // --- Render grid controls ---
@@ -1333,6 +1125,24 @@ export const UI = {
     this.els.godTogglePerfBtn.title = on ? "Hide performance timings in HUD" : "Show performance timings in HUD";
   },
 
+  // ---- Smoke Test Configuration modal ----
+  showSmoke() {
+    if (this.isLootOpen()) this.hideLoot();
+    if (this.isInventoryOpen()) this.hideInventory();
+    if (this.isGodOpen()) this.hideGod();
+    // Build options on open to reflect any future changes
+    try { this.renderSmokeOptions(); } catch (_) {}
+    try { SmokeModal.show(); } catch (_) {}
+  },
+
+  hideSmoke() {
+    try { SmokeModal.hide(); } catch (_) {}
+  },
+
+  isSmokeOpen() {
+    try { return !!SmokeModal.isOpen(); } catch (_) { return false; }
+  },
+
   // --- Minimap controls ---
   getMinimapState() {
     try {
@@ -1369,7 +1179,6 @@ export const UI = {
   },
 
   
-
   
 
   // --- Town debug overlay controls ---
