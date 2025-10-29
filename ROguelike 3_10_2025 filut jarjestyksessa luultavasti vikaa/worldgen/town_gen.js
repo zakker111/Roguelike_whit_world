@@ -2062,7 +2062,7 @@ function generate(ctx) {
         if (!inBounds(ctx, p.x, p.y)) return false;
         const t = ctx.map[p.y][p.x];
         // Drop props that sit on non-walkable tiles
-        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.T
+        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.TILES.ROAD) return false;
         const inside = insideAnyBuilding(p.x, p.y);
         // Interior-only items: keep only if inside some building
         if (interiorOnly.has(String(p.type || "").toLowerCase())) return inside;
