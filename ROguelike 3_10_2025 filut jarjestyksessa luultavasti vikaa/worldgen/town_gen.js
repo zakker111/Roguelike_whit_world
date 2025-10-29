@@ -1916,6 +1916,20 @@ function generate(ctx) {
         if (!s) continue;
         const text = String(s.name || s.type || "Shop");
         const door = (s.building && s.building.door) ? s.building.door : { x: s.x, y: s.y };
+        const namesToMatch = [text];
+        // Inn synonyms: dedupe across common variants
+        if (String(s.type || "").toLowerCase() === "inn") {
+          if (!namesToMatch.includes("Inn")) namesToMatch.push("Inn");
+          if (!namesToMatch.includes("Inn & Tavern")) namesToMatch.push("Inn & Tavern");
+          if (!namesToMatch.includes("Tavern")) namesToMatch.push("Tavern");
+        }
+        const indices = [];
+        for (let i = 0; i < props.length; i++) {
+          const p = props[i];
+          if (p && String(p.type || "").toLowerCase() === "sign" && namesToMatch.includes(String(p.name || ""))) {
+            indices.push(i);
+          }
+        };
         const wants = (s && Object.prototype.hasOwnProperty.call(s, "signWanted")) ? !!s.signWanted : true;
 
         // Collect all indices of signs matching this shop's text
@@ -2075,7 +2089,8 @@ function generate(ctx) {
     }
     return false;
   }
-  // Prefer placing shop signs outside the building, not inside
+  // Prefer placing shop signs outside the building, not inside.
+  // More robust: search a small radius around the door to avoid plaza props blocking immediate neighbors.
   function addShopSign(b, door, text) {
     function isInside(bld, x, y) {
       return x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
@@ -2088,28 +2103,42 @@ function generate(ctx) {
       }
       return false;
     }
+    // Primary outward direction from door (cardinal)
     let dx = 0, dy = 0;
     if (door.y === b.y) dy = -1;
     else if (door.y === b.y + b.h - 1) dy = +1;
     else if (door.x === b.x) dx = -1;
     else if (door.x === b.x + b.w - 1) dx = +1;
+
+    // Build candidate list: immediate outward tile, then rings at radius 1..3 around door (cardinal first).
+    const candidates = [];
     const sx = door.x + dx, sy = door.y + dy;
     if (sx > 0 && sy > 0 && sx < W - 1 && sy < H - 1) {
-      if (!isInside(b, sx, sy) && !isInsideAnyBuilding(sx, sy) && ctx.map[sy][sx] === ctx.TILES.FLOOR && !ctx.townProps.some(p => p.x === sx && p.y === sy)) {
-        addProp(sx, sy, "sign", text);
-        return true;
-      }
+      candidates.push({ x: sx, y: sy });
     }
-    // Fallback: nearby floor tile that is outside the building and not inside any other building
-    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-    for (const d of dirs) {
-      const nx = door.x + d.dx, ny = door.y + d.dy;
-      if (nx <= 0 || ny <= 0 || nx >= W - 1 || ny >= H - 1) continue;
-      if (isInside(b, nx, ny)) continue;
-      if (isInsideAnyBuilding(nx, ny)) continue;
-      if (ctx.map[ny][nx] !== ctx.TILES.FLOOR) continue;
-      if (ctx.townProps.some(p => p.x === nx && p.y === ny)) continue;
-      addProp(nx, ny, "sign", text);
+    const dirsCard = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+    const dirsDiag = [{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
+    for (let r = 1; r <= 3; r++) {
+      for (const d of dirsCard) candidates.push({ x: door.x + d.dx * r, y: door.y + d.dy * r });
+      for (const d of dirsDiag) candidates.push({ x: door.x + d.dx * r, y: door.y + d.dy * r });
+    }
+    // Filter and pick the nearest valid outdoor FLOOR tile not occupied by props/NPC/player
+    let best = null, bestD = Infinity;
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      if (c.x <= 0 || c.y <= 0 || c.x >= W - 1 || c.y >= H - 1) continue;
+      if (isInside(b, c.x, c.y)) continue;
+      if (isInsideAnyBuilding(c.x, c.y)) continue;
+      const t = ctx.map[c.y][c.x];
+      if (t !== ctx.TILES.FLOOR) continue;
+      if (ctx.player && ctx.player.x === c.x && ctx.player.y === c.y) continue;
+      if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n.x === c.x && n.y === c.y)) continue;
+      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === c.x && p.y === c.y)) continue;
+      const d = Math.abs(c.x - door.x) + Math.abs(c.y - door.y);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    if (best) {
+      addProp(best.x, best.y, "sign", text);
       return true;
     }
     return false;
