@@ -10,6 +10,7 @@
  *   setCritPart(ctx, part)
  *   applySeed(ctx, seedUint32)
  *   rerollSeed(ctx)
+ *   clearGameStorage(ctx)
  */
 import { attachGlobal } from "../utils/global.js";
 
@@ -296,10 +297,40 @@ export function applySeed(ctx, seedUint32) {
   } catch (_) {}
 }
 
+export function clearGameStorage(ctx) {
+  // Clear persisted game states across modes to ensure a clean start
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem("DUNGEON_STATES_V1");
+      localStorage.removeItem("TOWN_STATES_V1");
+      localStorage.removeItem("REGION_CUTS_V1");
+      localStorage.removeItem("REGION_ANIMALS_V1");
+      localStorage.removeItem("REGION_ANIMALS_V2");
+      localStorage.removeItem("REGION_STATE_V1");
+    }
+  } catch (_) {}
+  // Clear in-memory session mirrors
+  try {
+    if (typeof window !== "undefined") {
+      window._DUNGEON_STATES_MEM = Object.create(null);
+      window._TOWN_STATES_MEM = Object.create(null);
+    }
+  } catch (_) {}
+  try {
+    if (ctx) {
+      if (ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
+      if (ctx._townStates) ctx._townStates = Object.create(null);
+    }
+  } catch (_) {}
+  try { ctx.log && ctx.log("Cleared persisted game state (towns, dungeons, regions).", "notice"); } catch (_) {}
+}
+
 export function rerollSeed(ctx) {
+  // Always clear persisted game states when rerolling seed to avoid cross-seed leaks
+  try { clearGameStorage(ctx); } catch (_) {}
   const s = (Date.now() % 0xffffffff) >>> 0;
   applySeed(ctx, s);
 }
 
 // Back-compat: attach to window via helper
-attachGlobal("God", { heal, spawnStairsHere, spawnItems, spawnEnemyNearby, setAlwaysCrit, setCritPart, applySeed, rerollSeed });
+attachGlobal("God", { heal, spawnStairsHere, spawnItems, spawnEnemyNearby, setAlwaysCrit, setCritPart, applySeed, rerollSeed, clearGameStorage });
