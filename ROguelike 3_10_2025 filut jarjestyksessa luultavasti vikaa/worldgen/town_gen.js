@@ -1558,8 +1558,8 @@ function generate(ctx) {
         const s = ps && ps.scheduleOverride ? ps.scheduleOverride : null;
         if (s && s.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
         if (s && typeof s.open === "string" && typeof s.close === "string") {
-          const o = parseHHMMToMinutes(s.open);
-          const c = parseHHMMToMinutes(s.close);
+          const o = parseHHMM(s.open);
+          const c = parseHHMM(s.close)</Minutes(s.close);
           if (o != null && c != null) return { openMin: o, closeMin: c, alwaysOpen: false };
         }
         // Default hours when prefab provided no schedule
@@ -1621,8 +1621,8 @@ function generate(ctx) {
   function scheduleFromData(row) {
     if (!row) return { openMin: minutesOfDay(ctx, 8), closeMin: minutesOfDay(ctx, 18), alwaysOpen: false };
     if (row.alwaysOpen) return { openMin: 0, closeMin: 0, alwaysOpen: true };
-    const o = parseHHMMToMinutes(row.open);
-    const c = parseHHMMToMinutes(row.close);
+    const o = parseHHMM(row.open);
+    const c = parseHHMM(row.close);
     if (o == null || c == null) return { openMin: minutesOfDay(ctx, 8), closeMin: minutesOfDay(ctx, 18), alwaysOpen: false };
     return { openMin: o, closeMin: c, alwaysOpen: false };
   }
@@ -2631,6 +2631,7 @@ function shopAt(ctx, x, y) {
   return null;
 }
 
+import { parseHHMM } from "../services/time_service.js";
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper and export for ESM
 export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
