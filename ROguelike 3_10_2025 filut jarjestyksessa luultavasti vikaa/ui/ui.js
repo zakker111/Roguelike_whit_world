@@ -18,6 +18,9 @@ import * as ClientAnalyzer from "/analysis/client_analyzer.js";
 import * as HelpModal from "/ui/components/help_modal.js";
 import * as RegionModal from "/ui/components/region_modal.js";
 import * as SmokeModal from "/ui/components/smoke_modal.js";
+import * as ConfirmModal from "/ui/components/confirm_modal.js";
+import * as HandChooser from "/ui/components/hand_chooser.js";
+import * as HitChooser from "/ui/components/hit_chooser.js";
 
 export const UI = {
   els: {},
@@ -97,67 +100,7 @@ export const UI = {
     this.els.smokeCount = document.getElementById("smoke-count");
     
 
-    // transient hand-chooser element
-    this.els.handChooser = document.createElement("div");
-    this.els.handChooser.style.position = "fixed";
-    this.els.handChooser.style.display = "none";
-    this.els.handChooser.style.zIndex = "50000";
-    this.els.handChooser.style.background = "rgba(20,24,33,0.98)";
-    this.els.handChooser.style.border = "1px solid rgba(80,90,120,0.6)";
-    this.els.handChooser.style.borderRadius = "6px";
-    this.els.handChooser.style.padding = "8px";
-    this.els.handChooser.style.boxShadow = "0 8px 28px rgba(0,0,0,0.4)";
-    this.els.handChooser.innerHTML = `
-      <div style="color:#cbd5e1; font-size:12px; margin-bottom:6px;">Equip to:</div>
-      <div style="display:flex; gap:6px;">
-        <button data-hand="left" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Left</button>
-        <button data-hand="right" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Right</button>
-        <button data-hand="cancel" style="padding:6px 10px; background:#111827; color:#9ca3af; border:1px solid #374151; border-radius:4px; cursor:pointer;">Cancel</button>
-      </div>
-    `;
-    document.body.appendChild(this.els.handChooser);
-
-    // transient crit-hit-part chooser
-    this.els.hitChooser = document.createElement("div");
-    this.els.hitChooser.style.position = "fixed";
-    this.els.hitChooser.style.display = "none";
-    this.els.hitChooser.style.zIndex = "50000";
-    this.els.hitChooser.style.background = "rgba(20,24,33,0.98)";
-    this.els.hitChooser.style.border = "1px solid rgba(80,90,120,0.6)";
-    this.els.hitChooser.style.borderRadius = "6px";
-    this.els.hitChooser.style.padding = "8px";
-    this.els.hitChooser.style.boxShadow = "0 8px 28px rgba(0,0,0,0.4)";
-    this.els.hitChooser.innerHTML = `
-      <div style="color:#cbd5e1; font-size:12px; margin-bottom:6px;">Force crit to:</div>
-      <div style="display:flex; gap:6px; flex-wrap:wrap; max-width:280px;">
-        <button data-part="torso" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Torso</button>
-        <button data-part="head" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Head</button>
-        <button data-part="hands" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Hands</button>
-        <button data-part="legs" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Legs</button>
-        <button data-part="cancel" style="padding:6px 10px; background:#111827; color:#9ca3af; border:1px solid #374151; border-radius:4px; cursor:pointer;">Cancel</button>
-      </div>
-    `;
-    document.body.appendChild(this.els.hitChooser);
-
-    // Transient confirm dialog
-    this.els.confirm = document.createElement("div");
-    this.els.confirm.style.position = "fixed";
-    this.els.confirm.style.display = "none";
-    this.els.confirm.style.zIndex = "50001";
-    this.els.confirm.style.background = "rgba(20,24,33,0.98)";
-    this.els.confirm.style.border = "1px solid rgba(80,90,120,0.6)";
-    this.els.confirm.style.borderRadius = "8px";
-    this.els.confirm.style.padding = "12px";
-    this.els.confirm.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
-    this.els.confirm.style.minWidth = "280px";
-    this.els.confirm.innerHTML = `
-      <div id="ui-confirm-text" style="color:#e5e7eb; font-size:14px; margin-bottom:10px;">Are you sure?</div>
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button data-act="cancel" style="padding:6px 10px; background:#111827; color:#9ca3af; border:1px solid #374151; border-radius:4px; cursor:pointer;">Cancel</button>
-        <button data-act="ok" style="padding:6px 12px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">OK</button>
-      </div>
-    `;
-    document.body.appendChild(this.els.confirm);
+    
 
     // Floating Town Exit button (hidden by default, shown in town)
     this.els.townExitBtn = document.createElement("button");
@@ -616,41 +559,6 @@ export const UI = {
       }
     });
 
-    // Hand chooser click
-    this.els.handChooser.addEventListener("click", (e) => {
-      const btn = e.target.closest("button");
-      if (!btn) return;
-      e.stopPropagation(); // prevent outside click handler from firing first
-      const hand = btn.dataset.hand;
-      const cb = this._handChooserCb;
-      this.hideHandChooser();
-      if (typeof cb === "function") cb(hand);
-    });
-
-    // Hit chooser click
-    this.els.hitChooser.addEventListener("click", (e) => {
-      const btn = e.target.closest("button");
-      if (!btn) return;
-      e.stopPropagation();
-      const part = btn.dataset.part;
-      const cb = this._hitChooserCb;
-      this.hideHitChooser();
-      if (typeof cb === "function") cb(part);
-    });
-
-    // Confirm dialog click
-    this.els.confirm.addEventListener("click", (e) => {
-      const btn = e.target.closest("button");
-      if (!btn) return;
-      e.stopPropagation();
-      const act = btn.dataset.act;
-      const okCb = this._confirmOkCb;
-      const cancelCb = this._confirmCancelCb;
-      this.hideConfirm();
-      if (act === "ok" && typeof okCb === "function") okCb();
-      else if (act === "cancel" && typeof cancelCb === "function") cancelCb();
-    });
-
     // Town exit button click
     this.els.townExitBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -659,21 +567,7 @@ export const UI = {
       }
     });
 
-    // Hide choosers on any outside click (not in capture phase)
-    document.addEventListener("click", (e) => {
-      if (this.els.handChooser && this.els.handChooser.style.display !== "none" && !this.els.handChooser.contains(e.target)) {
-        this.hideHandChooser();
-      }
-      if (this.els.hitChooser && this.els.hitChooser.style.display !== "none" && !this.els.hitChooser.contains(e.target)) {
-        this.hideHitChooser();
-      }
-      if (this.els.confirm && this.els.confirm.style.display !== "none" && !this.els.confirm.contains(e.target)) {
-        // Treat outside click as cancel
-        const cancelCb = this._confirmCancelCb;
-        this.hideConfirm();
-        if (typeof cancelCb === "function") cancelCb();
-      }
-    });
+    
 
     // Fallback keyboard handler to ensure Esc closes panels even if Input.init isn't active
     document.addEventListener("keydown", (e) => {
@@ -715,50 +609,26 @@ export const UI = {
   },
 
   showConfirm(text, pos, onOk, onCancel) {
-    if (!this.els.confirm) {
+    try { ConfirmModal.show(text, pos, onOk, onCancel); } catch (_) {
       // fallback
-      const ans = window.confirm(text || "Are you sure?");
-      if (ans && typeof onOk === "function") onOk();
-      else if (!ans && typeof onCancel === "function") onCancel();
-      return;
+      try {
+        const ans = window.confirm(text || "Are you sure?");
+        if (ans && typeof onOk === "function") onOk();
+        else if (!ans && typeof onCancel === "function") onCancel();
+      } catch (_) {}
     }
-    const box = this.els.confirm;
-    const p = document.getElementById("ui-confirm-text");
-    if (p) p.textContent = text || "Are you sure?";
-    this._confirmOkCb = onOk;
-    this._confirmCancelCb = onCancel;
-    // Default position: center
-    let left = Math.round((window.innerWidth - box.offsetWidth) / 2);
-    let top = Math.round((window.innerHeight - box.offsetHeight) / 2);
-    // Safe handling for optional pos (can be null/undefined)
-    const hasPos = pos && typeof pos === "object";
-    const x = hasPos && typeof pos.x === "number" ? pos.x : undefined;
-    const y = hasPos && typeof pos.y === "number" ? pos.y : undefined;
-    if (typeof x === "number" && typeof y === "number") {
-      left = Math.max(10, Math.min(window.innerWidth - 300, Math.round(x)));
-      top = Math.max(10, Math.min(window.innerHeight - 120, Math.round(y)));
-    }
-    box.style.left = `${left}px`;
-    box.style.top = `${top}px`;
-    box.style.display = "block";
   },
 
   hideConfirm() {
-    if (!this.els.confirm) return;
-    this.els.confirm.style.display = "none";
-    this._confirmOkCb = null;
-    this._confirmCancelCb = null;
+    try { ConfirmModal.hide(); } catch (_) {}
   },
 
   isConfirmOpen() {
-    return !!(this.els.confirm && this.els.confirm.style.display !== "none");
+    try { return !!ConfirmModal.isOpen(); } catch (_) { return false; }
   },
 
   cancelConfirm() {
-    if (!this.els.confirm) return;
-    const cancelCb = this._confirmCancelCb;
-    this.hideConfirm();
-    if (typeof cancelCb === "function") cancelCb();
+    try { ConfirmModal.cancel(); } catch (_) {}
   },
 
   showTownExitButton() {
@@ -971,31 +841,19 @@ export const UI = {
   },
 
   showHandChooser(x, y, cb) {
-    if (!this.els.handChooser) return;
-    this._handChooserCb = cb;
-    this.els.handChooser.style.left = `${Math.round(x)}px`;
-    this.els.handChooser.style.top = `${Math.round(y)}px`;
-    this.els.handChooser.style.display = "block";
+    try { HandChooser.show(x, y, cb); } catch (_) {}
   },
 
   hideHandChooser() {
-    if (!this.els.handChooser) return;
-    this.els.handChooser.style.display = "none";
-    this._handChooserCb = null;
+    try { HandChooser.hide(); } catch (_) {}
   },
 
   showHitChooser(x, y, cb) {
-    if (!this.els.hitChooser) return;
-    this._hitChooserCb = cb;
-    this.els.hitChooser.style.left = `${Math.round(x)}px`;
-    this.els.hitChooser.style.top = `${Math.round(y)}px`;
-    this.els.hitChooser.style.display = "block";
+    try { HitChooser.show(x, y, cb); } catch (_) {}
   },
 
   hideHitChooser() {
-    if (!this.els.hitChooser) return;
-    this.els.hitChooser.style.display = "none";
-    this._hitChooserCb = null;
+    try { HitChooser.hide(); } catch (_) {}
   },
 
   showLoot(list) {
