@@ -153,8 +153,10 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
         inside = (n.x > b.x && n.x < b.x + b.w - 1 && n.y > b.y && n.y < b.y + b.h - 1);
       }
     } catch (_) {}
-    // Adjacent to door (outside or just inside) counts as being "at" the shop for interaction
-    const nearDoor = (Math.abs(n.x - shop.x) + Math.abs(n.y - shop.y)) === 1;
+    // Adjacent to door (outside or just inside) counts as being "at" the shop for interaction.
+    // Accept both cardinal and diagonal adjacency to the door (Chebyshev distance <= 1).
+    const dx = Math.abs(n.x - shop.x), dy = Math.abs(n.y - shop.y);
+    const nearDoor = (dx + dy) === 1 || Math.max(dx, dy) === 1;
     return atDoor || inside || nearDoor;
   }
 
