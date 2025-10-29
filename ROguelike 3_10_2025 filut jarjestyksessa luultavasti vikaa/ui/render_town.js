@@ -614,7 +614,8 @@ export function draw(ctx, view) {
     } catch (_) {}
   })();
 
-  // Shop markers: draw a small flag ⚑ at shop doors once seen (consistent with sign glyph styling)
+  // Shop markers: draw a small flag ⚑ at shop doors once seen.
+  // To avoid \"double sign\" visuals, suppress the door marker if a shop already has an interior sign prop.
   (function drawShopMarkers() {
     try {
       if (!Array.isArray(ctx.shops) || !ctx.shops.length) return;
@@ -624,6 +625,21 @@ export function draw(ctx, view) {
         if (dx < startX || dx > endX || dy < startY || dy > endY) continue;
         const everSeen = !!(seen[dy] && seen[dy][dx]);
         if (!everSeen) continue;
+
+        // Suppress marker if there is already a sign inside this shop's building
+        let hasSignInside = false;
+        try {
+          if (Array.isArray(ctx.townProps) && s.building) {
+            hasSignInside = ctx.townProps.some(p =>
+              p && String(p.type || "").toLowerCase() === "sign" &&
+              p.x > s.building.x && p.x < s.building.x + s.building.w - 1 &&
+              p.y > s.building.y && p.y < s.building.y + s.building.h - 1
+            );
+          }
+        } catch (_) {}
+
+        if (hasSignInside) continue;
+
         const screenX = (dx - startX) * TILE - tileOffsetX;
         const screenY = (dy - startY) * TILE - tileOffsetY;
         // match sign color; draw above tiles/props
