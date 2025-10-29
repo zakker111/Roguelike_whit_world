@@ -530,7 +530,7 @@ function generate(ctx) {
     try {
       // Remove props inside rect with 1-tile margin (includes signs just outside)
       ctx.townProps = Array.isArray(ctx.townProps)
-        ? ctx.townProps.filter(p => !(rectOverlap(b.x, b.y, b.w, b.h, p.x, p.y, 1, 1, 1)))
+        ? ctx.townProps.filter(p => !(rectOverlap(b.x, b.y, b.w, b.h, p.x, p.y, 1, 1, 2)))
         : [];
     } catch (_) {}
     try {
