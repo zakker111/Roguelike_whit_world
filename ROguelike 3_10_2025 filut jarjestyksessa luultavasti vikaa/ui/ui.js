@@ -24,6 +24,7 @@ import * as HitChooser from "/ui/components/hit_chooser.js";
 import * as GameOverModal from "/ui/components/game_over_modal.js";
 import * as TownExit from "/ui/components/town_exit.js";
 import * as GodPanel from "/ui/components/god_panel.js";
+import * as InventoryPanel from "/ui/components/inventory_panel.js";
 
 export const UI = {
   els: {},
@@ -124,6 +125,8 @@ export const UI = {
 
     // GOD panel wiring moved to component
     try { if (GodPanel && typeof GodPanel.init === "function") GodPanel.init(this); } catch (_) {}
+    // Inventory panel wiring moved to component
+    try { if (InventoryPanel && typeof InventoryPanel.init === "function") InventoryPanel.init(this); } catch (__code) new{</}
     this.updateSeedUI();
     this.updateEncounterRateUI();
 
@@ -188,58 +191,8 @@ export const UI = {
       });
     }
 
-    // Delegate equip slot clicks (unequip)
-    this.els.equipSlotsEl?.addEventListener("click", (ev) => {
-      const span = ev.target.closest("span.name[data-slot]");
-      if (!span) return;
-      const slot = span.dataset.slot;
-      if (slot && typeof this.handlers.onUnequip === "function") {
-        this.handlers.onUnequip(slot);
-      }
-    });
-    // Delegate inventory clicks
-    this.els.invPanel?.addEventListener("click", (ev) => {
-      const li = ev.target.closest("li");
-      if (!li || !li.dataset.index) return;
-      const idx = parseInt(li.dataset.index, 10);
-      if (!Number.isFinite(idx)) return;
-      const kind = li.dataset.kind;
-      if (kind === "equip") {
-        const slot = li.dataset.slot || "";
-        const twoH = li.dataset.twohanded === "true";
-        if (twoH) {
-          ev.preventDefault();
-          if (typeof this.handlers.onEquip === "function") this.handlers.onEquip(idx);
-          return;
-        }
-        if (slot === "hand") {
-          ev.preventDefault();
-          ev.stopPropagation();
-          // If exactly one hand is empty, equip to that hand immediately
-          const st = this._equipState || {};
-          const leftEmpty = !!st.leftEmpty;
-          const rightEmpty = !!st.rightEmpty;
-          if (leftEmpty !== rightEmpty) {
-            const hand = leftEmpty ? "left" : "right";
-            if (typeof this.handlers.onEquipHand === "function") this.handlers.onEquipHand(idx, hand);
-            return;
-          }
-          // Otherwise show hand chooser near the clicked element
-          const rect = li.getBoundingClientRect();
-          this.showHandChooser(rect.left, rect.bottom + 6, (hand) => {
-            if (hand && (hand === "left" || hand === "right")) {
-              if (typeof this.handlers.onEquipHand === "function") this.handlers.onEquipHand(idx, hand);
-            }
-          });
-        } else {
-          ev.preventDefault();
-          if (typeof this.handlers.onEquip === "function") this.handlers.onEquip(idx);
-        }
-      } else if (kind === "potion" || kind === "drink") {
-        ev.preventDefault();
-        if (typeof this.handlers.onDrink === "function") this.handlers.onDrink(idx);
-      }
-    });
+    
+    
 
     
 
@@ -395,128 +348,20 @@ export const UI = {
   },
 
   renderInventory(player, describeItem) {
-    // remember current equip occupancy for quick decisions
-    this._equipState = {
-      leftEmpty: !(player.equipment && player.equipment.left),
-      rightEmpty: !(player.equipment && player.equipment.right),
-    };
-
-    // Equipment slots (cache HTML to avoid unnecessary DOM writes)
-    if (this.els.equipSlotsEl) {
-      const slots = [
-        ["left", "Left hand"],
-        ["right", "Right hand"],
-        ["head", "Head"],
-        ["torso", "Torso"],
-        ["legs", "Legs"],
-        ["hands", "Hands"],
-      ];
-      const html = slots.map(([key, label]) => {
-        const it = player.equipment[key];
-        if (it) {
-          const name = describeItem(it);
-          const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-          const title = `Decay: ${dec.toFixed(0)}%`;
-          return `<div class="slot"><strong>${label}:</strong> <span class="name" data-slot="${key}" title="${title}" style="cursor:pointer; text-decoration:underline dotted;">${name}</span></div>`;
-        } else {
-          return `<div class="slot"><strong>${label}:</strong> <span class="name"><span class='empty'>(empty)</span></span></div>`;
-        }
-      }).join("");
-      if (html !== this._lastEquipHTML) {
-        this.els.equipSlotsEl.innerHTML = html;
-        this._lastEquipHTML = html;
-      }
-    }
-    // Inventory list (skip rebuild when unchanged)
-    if (this.els.invList) {
-      const key = Array.isArray(player.inventory)
-        ? player.inventory.map(it => [
-            it.kind || "misc",
-            it.slot || "",
-            it.name || "",
-            (typeof it.atk === "number" ? it.atk : ""),
-            (typeof it.def === "number" ? it.def : ""),
-            (typeof it.decay === "number" ? it.decay : ""),
-            (typeof it.count === "number" ? it.count : ""),
-            (typeof it.amount === "number" ? it.amount : "")
-          ].join("|")).join(";;")
-        : "";
-      if (key !== this._lastInvListKey) {
-        this.els.invList.innerHTML = "";
-        player.inventory.forEach((it, idx) => {
-          const li = document.createElement("li");
-          li.dataset.index = String(idx);
-          li.dataset.kind = it.kind || "misc";
-
-          // Build display label with counts/stats where helpful
-          const baseLabel = (typeof describeItem === "function")
-            ? describeItem(it)
-            : ((typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function")
-                ? window.ItemDescribe.describe(it)
-                : (it.name || "item"));
-          let label = baseLabel;
-
-          if (it.kind === "potion" || it.kind === "drink") {
-            const count = (it.count && it.count > 1) ? ` x${it.count}` : "";
-            label = `${baseLabel}${count}`;
-          } else if (it.kind === "gold") {
-            const amount = Number(it.amount || 0);
-            label = `${baseLabel}: ${amount}`;
-          } else if (it.kind === "equip") {
-            const stats = [];
-            if (typeof it.atk === "number") stats.push(`+${Number(it.atk).toFixed(1)} atk`);
-            if (typeof it.def === "number") stats.push(`+${Number(it.def).toFixed(1)} def`);
-            if (stats.length) label = `${baseLabel} (${stats.join(", ")})`;
-          }
-
-          if (it.kind === "equip" && it.slot === "hand") {
-            li.dataset.slot = "hand";
-            const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-            if (it.twoHanded) {
-              li.dataset.twohanded = "true";
-              li.title = `Two-handed • Decay: ${dec.toFixed(0)}%`;
-            } else {
-              // If exactly one hand is empty, hint which one will be used automatically
-              let autoHint = "";
-              if (this._equipState) {
-                if (this._equipState.leftEmpty && !this._equipState.rightEmpty) autoHint = " (Left is empty)";
-                else if (this._equipState.rightEmpty && !this._equipState.leftEmpty) autoHint = " (Right is empty)";
-              }
-              li.title = `Click to equip${autoHint ? autoHint : " (choose hand)"} • Decay: ${dec.toFixed(0)}%`;
-            }
-            li.style.cursor = "pointer";
-          } else if (it.kind === "equip") {
-            li.dataset.slot = it.slot || "";
-            const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-            li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
-            li.style.cursor = "pointer";
-          } else if (it.kind === "potion" || it.kind === "drink") {
-            li.style.cursor = "pointer";
-            li.title = "Click to drink";
-          } else {
-            li.style.opacity = "0.7";
-            li.style.cursor = "default";
-          }
-
-          li.textContent = label;
-          this.els.invList.appendChild(li);
-        });
-        this._lastInvListKey = key;
-      }
-    }
+    try { InventoryPanel.render(player, describeItem); } catch (_) {}
   },
 
   showInventory() {
-    if (this.els.lootPanel && !this.els.lootPanel.hidden) this.hideLoot();
-    if (this.els.invPanel) this.els.invPanel.hidden = false;
+    if (this.isLootOpen()) this.hideLoot();
+    try { InventoryPanel.show(); } catch (_) { if (this.els.invPanel) this.els.invPanel.hidden = false; }
   },
 
   hideInventory() {
-    if (this.els.invPanel) this.els.invPanel.hidden = true;
+    try { InventoryPanel.hide(); } catch (_) { if (this.els.invPanel) this.els.invPanel.hidden = true; }
   },
 
   isInventoryOpen() {
-    return !!(this.els.invPanel && !this.els.invPanel.hidden);
+    try { return !!InventoryPanel.isOpen(); } catch (_) { return !!(this.els.invPanel && !this.els.invPanel.hidden); }
   },
 
   showHandChooser(x, y, cb) {
