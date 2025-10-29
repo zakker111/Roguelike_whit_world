@@ -126,7 +126,7 @@ export const UI = {
     // GOD panel wiring moved to component
     try { if (GodPanel && typeof GodPanel.init === "function") GodPanel.init(this); } catch (_) {}
     // Inventory panel wiring moved to component
-    try { if (InventoryPanel && typeof InventoryPanel.init === "function") InventoryPanel.init(this); } catch (__code) new{</}
+    try { if (InventoryPanel && typeof InventoryPanel.init === "function") InventoryPanel.init(this); } catch (_) {}
     this.updateSeedUI();
     this.updateEncounterRateUI();
 
