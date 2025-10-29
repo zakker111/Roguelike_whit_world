@@ -638,7 +638,7 @@ export const UI = {
     if (typeof onTownExit === "function") {
       this.handlers.onTownExit = onTownExit;
       try { TownExit.setHandler(onTownExit); } catch (_) {}
-;
+    }
     if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
     if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
     if (typeof onGodCheckSigns === "function") this.handlers.onGodCheckSigns = onGodCheckSigns;
