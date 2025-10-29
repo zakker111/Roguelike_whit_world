@@ -360,6 +360,12 @@ function generate(ctx) {
   ctx.townName = townName;
   // Expose size to other modules (AI, UI)
   ctx.townSize = townSize;
+  // Reset town containers to avoid stale data when generate() is invoked more than once in a session.
+  // This prevents duplicated plaza props or repeated shop/sign placements.
+  ctx.townProps = [];
+  ctx.shops = [];
+  ctx.townBuildings = [];
+  ctx.townPrefabUsage = { houses: [], shops: [], inns: [], plazas: [] };
 
   // Derive and persist the town biome from the overworld around this town's location
   (function deriveTownBiome() {
@@ -2391,6 +2397,10 @@ function generate(ctx) {
   // Plaza fixtures via prefab only (no fallbacks)
   (function placePlazaPrefabStrict() {
     try {
+      // Guard: if a plaza prefab was already stamped in this generation cycle, skip
+      try {
+        if (ctx.townPrefabUsage && Array.isArray(ctx.townPrefabUsage.plazas) && ctx.townPrefabUsage.plazas.length > 0) return;
+      } catch (_) {}
       const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
       const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
       if (!plazas.length) return;
