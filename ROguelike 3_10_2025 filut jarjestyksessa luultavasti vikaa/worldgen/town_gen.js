@@ -2145,11 +2145,11 @@ function generate(ctx) {
           const p = path[i];
           if (!inB(p.x, p.y)) continue;
           // Keep the plaza interior pure FLOOR; do not convert or mark roads inside it
-          if          roadsMask[p.y][p.x] = true;
-          }
-        }
-      }
-
+          if (insidePlaza(p.x, p.y)) continue;
+          const t = ctx.map[p.y][p.x];
+          if (t === ctx.TILES.FLOOR) {
+            ctx.map[p.y][p.x] = ctx.TILES.ROAD;
+            roadsMask[p.y][
       function nearestOutdoorToDoor(door) {
         const neigh = dirs4;
         for (let i = 0; i < neigh.length; i++) {
