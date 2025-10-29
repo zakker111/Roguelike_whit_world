@@ -819,47 +819,64 @@ function generate(ctx) {
   }
 
   // Stamp a plaza prefab (props only; no building record)
+  // All-or-nothing: stage changes and commit only if the prefab grid fully validates.
   function stampPlazaPrefab(ctx, prefab, bx, by) {
     if (!prefab || !prefab.size || !Array.isArray(prefab.tiles)) return false;
     const w = prefab.size.w | 0, h = prefab.size.h | 0;
     const x0 = bx, y0 = by, x1 = bx + w - 1, y1 = by + h - 1;
     if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
 
-    // Ensure area currently walkable (plaza/road floor)
+    // Validate row shape first: ensure every row exists and matches width
+    for (let yy = 0; yy < h; yy++) {
+      const row = prefab.tiles[yy];
+      if (!row || row.length !== w) return false;
+    }
+
+    // Ensure target area is currently walkable (plaza/road floor)
     for (let yy = y0; yy <= y1; yy++) {
       for (let xx = x0; xx <= x1; xx++) {
         if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
       }
     }
 
-    // Ensure props container
-    try { if (!Array.isArray(ctx.townProps)) ctx.townProps = []; } catch (_) {}
-
+    // Stage: collect tile changes and props to add
     const PROPMAP = {
       BED: "bed", TABLE: "table", CHAIR: "chair", SHELF: "shelf", RUG: "rug",
       FIREPLACE: "fireplace", CHEST: "chest", CRATE: "crate", BARREL: "barrel",
       PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench"
     };
+    const tileChanges = [];
+    const propsToAdd = [];
 
     for (let yy = 0; yy < h; yy++) {
       const row = prefab.tiles[yy];
-      if (!row || row.length !== w) return false;
       for (let xx = 0; xx < w; xx++) {
         const code = row[xx];
         const wx = x0 + xx, wy = y0 + yy;
 
-        // Embedded prop code: place prop on floor. Vendor hint not applicable to plaza.
-        if (code && PROPMAP[code]) {
-          ctx.map[wy][wx] = ctx.TILES.FLOOR;
-          if (!ctx.townProps.some(q => q && q.x === wx && q.y === wy)) {
-            const type = PROPMAP[code];
-            ctx.townProps.push({ x: wx, y: wy, type });
-          }
-          continue;
-        }
-
         // For plaza prefabs, any tile code resolves to FLOOR (no walls/doors/windows in plazas)
-        ctx.map[wy][wx] = ctx.TILES.FLOOR;
+        tileChanges.push({ x: wx, y: wy });
+
+        // Embedded prop code: stage prop on floor. Vendor hint not applicable to plaza.
+        if (code && PROPMAP[code]) {
+          propsToAdd.push({ x: wx, y: wy, type: PROPMAP[code] });
+        }
+      }
+    }
+
+    // Commit staged changes only after full validation
+    try { if (!Array.isArray(ctx.townProps)) ctx.townProps = []; } catch (_) {}
+
+    for (let i = 0; i < tileChanges.length; i++) {
+      const c = tileChanges[i];
+      if (c.y > 0 && c.x > 0 && c.y < H - 1 && c.x < W - 1) {
+        ctx.map[c.y][c.x] = ctx.TILES.FLOOR;
+      }
+    }
+    for (let i = 0; i < propsToAdd.length; i++) {
+      const p = propsToAdd[i];
+      if (!ctx.townProps.some(q => q && q.x === p.x && q.y === p.y)) {
+        ctx.townProps.push({ x: p.x, y: p.y, type: p.type });
       }
     }
 
