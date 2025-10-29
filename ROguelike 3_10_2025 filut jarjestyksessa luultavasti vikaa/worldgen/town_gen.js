@@ -1893,6 +1893,88 @@ function generate(ctx) {
     }
   } catch (_) {}
 
+  // Dedupe shop signs: keep only the closest sign to each shop's door and ensure it's outside the building.
+  (function dedupeShopSigns() {
+    try {
+      if (!Array.isArray(ctx.shops) || !Array.isArray(ctx.townProps) || !ctx.townProps.length) return;
+      const props = ctx.townProps;
+      const removeIdx = new Set();
+      function isInside(bld, x, y) {
+        return bld && x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
+      }
+      for (let si = 0; si < ctx.shops.length; si++) {
+        const s = ctx.shops[si];
+        if (!s) continue;
+        const text = String(s.name || s.type || "Shop");
+        const door = (s.building && s.building.door) ? s.building.door : { x: s.x, y: s.y };
+        const indices = [];
+        for (let i = 0; i < props.length; i++) {
+          const p = props[i];
+          if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) {
+            indices.push(i);
+          }
+        }
+        if (indices.length > 1) {
+          let keepI = indices[0], bestD = Infinity;
+          for (const idx of indices) {
+            const p = props[idx];
+            const d = Math.abs(p.x - door.x) + Math.abs(p.y - door.y);
+            if (d < bestD) { bestD = d; keepI = idx; }
+          }
+          for (const idx of indices) {
+            if (idx !== keepI) removeIdx.add(idx);
+          }
+        }
+        // Ensure kept sign exists and is outside the building
+        let keptIdx = -1;
+        for (let i = 0; i < props.length; i++) {
+          if (removeIdx.has(i)) continue;
+          const p = props[i];
+          if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) { keptIdx = i; break; }
+        }
+        if (keptIdx !== -1) {
+          const p = props[keptIdx];
+          if (s.building && isInside(s.building, p.x, p.y)) {
+            removeIdx.add(keptIdx);
+            try { addShopSign(s.building, door, text); } catch (_) {}
+          }
+        } else {
+          try { if (s.building) addShopSign(s.building, door, text); } catch (_) {}
+        }
+      }
+      if (removeIdx.size) {
+        ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
+      }
+    } catch (_) {}
+  })();
+
+  // Dedupe welcome sign globally: keep only the one closest to the gate and ensure one exists.
+  (function dedupeWelcomeSign() {
+    try {
+      if (!Array.isArray(ctx.townProps)) return;
+      const text = `Welcome to ${ctx.townName}`;
+      const props = ctx.townProps;
+      let keepIdx = -1, bestD = Infinity;
+      const removeIdx = new Set();
+      for (let i = 0; i < props.length; i++) {
+        const p = props[i];
+        if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) {
+          const d = Math.abs(p.x - ctx.townExitAt.x) + Math.abs(p.y - ctx.townExitAt.y);
+          if (d < bestD) { bestD = d; keepIdx = i; }
+          removeIdx.add(i);
+        }
+      }
+      if (keepIdx !== -1) removeIdx.delete(keepIdx);
+      if (removeIdx.size) {
+        ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
+      }
+      const hasWelcome = Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text);
+      if (!hasWelcome && ctx.townExitAt) {
+        try { addSignNear(ctx.townExitAt.x, ctx.townExitAt.y, text); } catch (_) {}
+      }
+    } catch (_) {}
+  })();
+
   // Cleanup dangling props from removed buildings: ensure interior-only props are only inside valid buildings
   (function cleanupDanglingProps() {
     try {
@@ -1905,7 +1987,7 @@ function generate(ctx) {
         return false;
       }
       // Props that should never exist outside a building interior
-      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest"]);
+      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest","counter"]);
       ctx.townProps = ctx.townProps.filter(p => {
         if (!inBounds(ctx, p.x, p.y)) return false;
         const t = ctx.map[p.y][p.x];
