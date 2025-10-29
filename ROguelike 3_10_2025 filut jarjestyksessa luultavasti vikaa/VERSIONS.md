@@ -2,6 +2,20 @@ s
 # Game Version History
 Last updated: 2025-10-29 00:00 UTC
 
+v1.43.2 — Special cat “Pulla”, transactional plaza stamping, and prop cleanup margin
+- Towns
+  - New special cat “Pulla”: same behavior as Jekku. Exactly one designated town per world (pullaHome) chosen at world gen; spawns once near the plaza on first entry, avoids duplicate-by-name.
+  - Jekku unchanged (jekkuHome). When possible, Jekku and Pulla are assigned to different towns.
+
+- Plaza generation
+  - Plaza prefab stamping is now all-or-nothing. The grid shape and target area are validated first; tiles and props are staged and only committed if validation succeeds.
+  - Prevents cases where plaza props were stamped even when the overall plaza placement failed. Slip attempts no longer leave partial props behind.
+
+- Cleanup
+  - When removing an overlapping building during shop/plaza conflict resolution, increased the prop-clear margin from 1 → 2 tiles to reduce leftover interior props on open ground.
+
+- Deployment: https://0dfnvungj20g.cosine.page (Pulla), https://l5oqyeh1wn0n.cosine.page (plaza stamping), https://czkqr7z46ngs.cosine.page (prop cleanup)
+
 v1.43.1 — Town biome inference fix, darker snow ground, and plaza footprint tuning
 - Towns
   - Biome inference now samples surrounding overworld tiles (skips TOWN/DUNGEON/RUINS) and persists per-town biome (world.towns[].biome).
