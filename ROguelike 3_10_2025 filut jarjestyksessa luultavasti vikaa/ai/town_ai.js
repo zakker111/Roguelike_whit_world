@@ -54,7 +54,7 @@
     if (y < 0 || y >= map.length) return false;
     if (x < 0 || x >= (map[0] ? map[0].length : 0)) return false;
     const t = map[y][x];
-    return t === TILES.FLOOR || t === TILES.DOOR;
+    return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.ROAD;
   }
 
   function insideBuilding(b, x, y) {
@@ -698,7 +698,8 @@
     const { map, TILES, player, npcs, townProps } = ctx;
     if (y < 0 || y >= map.length) return false;
     if (x < 0 || x >= (map[0] ? map[0].length : 0)) return false;
-    if (map[y][x] !== TILES.FLOOR && map[y][x] !== TILES.DOOR) return false;
+    const t = map[y][x];
+    if (t !== TILES.FLOOR && t !== TILES.DOOR && t !== TILES.ROAD) return false;
     if (x === player.x && y === player.y) return false;
     const occ = ctx._occ;
     if (occ ? occ.has(`${x},${y}`) : (Array.isArray(npcs) && npcs.some(n => n.x === x && n.y === y))) return false;
