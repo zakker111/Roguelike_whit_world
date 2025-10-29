@@ -1923,11 +1923,15 @@ function generate(ctx) {
           if (!namesToMatch.includes("Inn & Tavern")) namesToMatch.push("Inn & Tavern");
           if (!namesToMatch.includes("Tavern")) namesToMatch.push("Tavern");
         }
-        // Collect indices of signs matching canonical name or synonyms
+        // Collect indices of sign props that either match canonical name/synonyms
+        // or are inside the shop building (unnamed embedded signs count as duplicates).
         const indices = [];
         for (let i = 0; i < props.length; i++) {
           const p = props[i];
-          if (p && String(p.type || "").toLowerCase() === "sign" && namesToMatch.includes(String(p.name || ""))) {
+          if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
+          const name = String(p.name || "");
+          const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
+          if (namesToMatch.includes(name) || insideThisShop) {
             indices.push(i);
           }
         }
@@ -1958,7 +1962,10 @@ function generate(ctx) {
         for (let i = 0; i < props.length; i++) {
           if (removeIdx.has(i)) continue;
           const p = props[i];
-          if (p && String(p.type || "").toLowerCase() === "sign" && namesToMatch.includes(String(p.name || ""))) { keptIdx = i; break; }
+          if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
+          const name = String(p.name || "");
+          const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
+          if (namesToMatch.includes(name) || insideThisShop) { keptIdx = i; break; }
         }
         if (keptIdx !== -1) {
           const p = props[keptIdx];
