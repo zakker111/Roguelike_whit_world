@@ -25,6 +25,7 @@ import * as GameOverModal from "/ui/components/game_over_modal.js";
 import * as TownExit from "/ui/components/town_exit.js";
 import * as GodPanel from "/ui/components/god_panel.js";
 import * as InventoryPanel from "/ui/components/inventory_panel.js";
+import * as LootPanel from "/ui/components/loot_panel.js";
 
 export const UI = {
   els: {},
@@ -49,6 +50,7 @@ export const UI = {
     this.els.logEl = document.getElementById("log");
     this.els.lootPanel = document.getElementById("loot-panel");
     this.els.lootList = document.getElementById("loot-list");
+    try { if (LootPanel && typeof LootPanel.init === "function") LootPanel.init(); } catch (_) {}
     this.els.gameOverPanel = document.getElementById("gameover-panel");
     this.els.gameOverSummary = document.getElementById("gameover-summary");
     this.els.restartBtn = document.getElementById("restart-btn");
@@ -381,23 +383,29 @@ export const UI = {
   },
 
   showLoot(list) {
-    if (!this.els.lootPanel || !this.els.lootList) return;
-    this.els.lootList.innerHTML = "";
-    list.forEach(name => {
-      const li = document.createElement("li");
-      li.textContent = name;
-      this.els.lootList.appendChild(li);
-    });
-    this.els.lootPanel.hidden = false;
+    try { LootPanel.show(list || []); } catch (_) {
+      if (!this.els.lootPanel || !this.els.lootList) return;
+      this.els.lootList.innerHTML = "";
+      (list || []).forEach(name => {
+        const li = document.createElement("li");
+        li.textContent = String(name || "");
+        this.els.lootList.appendChild(li);
+      });
+      this.els.lootPanel.hidden = false;
+    }
   },
 
   hideLoot() {
-    if (!this.els.lootPanel) return;
-    this.els.lootPanel.hidden = true;
+    try { LootPanel.hide(); } catch (_) {
+      if (!this.els.lootPanel) return;
+      this.els.lootPanel.hidden = true;
+    }
   },
 
   isLootOpen() {
-    return !!(this.els.lootPanel && !this.els.lootPanel.hidden);
+    try { return !!LootPanel.isOpen(); } catch (_) {
+      return !!(this.els.lootPanel && !this.els.lootPanel.hidden);
+    }
   },
 
   // GOD mode modal
