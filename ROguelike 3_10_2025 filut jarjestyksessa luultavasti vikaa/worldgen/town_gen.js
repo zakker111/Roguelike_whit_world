@@ -1597,7 +1597,7 @@ function generate(ctx) {
           building: { x: ps.building.x, y: ps.building.y, w: ps.building.w, h: ps.building.h, door: { x: ps.door.x, y: ps.door.y } },
           inside
         });
-        try { addShopSign(ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
+        try { addShopSignInside(ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
       }
     } catch (_) {}
   })();
@@ -1819,7 +1819,7 @@ function generate(ctx) {
       inside
     });
     // Ensure a sign near the shop door with the correct shop name (e.g., Inn), prefer placing it outside the building
-    try { addShopSign(b, { x: door.x, y: door.y }, name); } catch (_) {}
+    try { addShopSignInside(b, { x: door.x, y: door.y }, name); } catch (_) {}
   }
 
   // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback from the tavern building
@@ -1858,7 +1858,7 @@ function generate(ctx) {
         building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
         inside
       });
-      try { addShopSign(b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
+      try { addShopSignInside(b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
     }
   } catch (_) {}
 
@@ -1963,14 +1963,16 @@ function generate(ctx) {
         if (keptIdx !== -1) {
           const p = props[keptIdx];
           if (s.building && isInside(s.building, p.x, p.y)) {
-            removeIdx.add(keptIdx);
-            try { addShopSign(s.building, door, text); } catch (_) {}
-          } else {
+            // Already inside: canonicalize name
             try { if (String(p.name || "") !== text) p.name = text; } catch (_) {}
+          } else {
+            // Move outside sign to inside near door
+            removeIdx.add(keptIdx);
+            try { addShopSignInside(s.building, door, text); } catch (_) {}
           }
         } else {
-          // No sign exists; place one outside near the door
-          try { if (s.building) addShopSign(s.building, door, text); } catch (_) {}
+          // No sign exists; place one inside near the door
+          try { if (s.building) addShopSignInside(s.building, door, text); } catch (_) {}
         }
       }
 
@@ -2028,8 +2030,8 @@ function generate(ctx) {
         const inside = insideAnyBuilding(p.x, p.y);
         // Interior-only items: keep only if inside some building
         if (interiorOnly.has(String(p.type || "").toLowerCase())) return inside;
-        // Signs: keep only if outside buildings
-        if (String(p.type || "").toLowerCase() === "sign") return !inside;
+        // Signs: allow inside or outside; will be deduped per-shop elsewhere
+        if (String(p.type || "").toLowerCase() === "sign") return true;
         // Other props (crates/barrels/plants/stall) are allowed anywhere if tile is walkable
         return true;
       });
@@ -2084,46 +2086,45 @@ function generate(ctx) {
     }
     return false;
   }
-  // Prefer placing shop signs outside the building, not inside.
-  // More robust: search a small radius around the door to avoid plaza props blocking immediate neighbors.
+  // Prefer placing shop signs inside the building near the door.
   function addShopSign(b, door, text) {
+    // Legacy outside-placer now delegates to inside placement to respect new policy.
+    return addShopSignInside(b, door, text);
+  }
+
+  // Place one shop sign inside the building, near the door if possible.
+  function addShopSignInside(b, door, text) {
     function isInside(bld, x, y) {
       return x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
     }
-    // Ensure we never place a sign inside ANY building interior (not just this shop's building)
-    function isInsideAnyBuilding(x, y) {
-      for (let i = 0; i < buildings.length; i++) {
-        const B = buildings[i];
-        if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
-      }
-      return false;
-    }
-    // Primary outward direction from door (cardinal)
-    let dx = 0, dy = 0;
-    if (door.y === b.y) dy = -1;
-    else if (door.y === b.y + b.h - 1) dy = +1;
-    else if (door.x === b.x) dx = -1;
-    else if (door.x === b.x + b.w - 1) dx = +1;
-
-    // Build candidate list: immediate outward tile, then rings at radius 1..3 around door (cardinal first).
+    // Candidate inside tiles: directly inward from the door, then a small interior search
     const candidates = [];
-    const sx = door.x + dx, sy = door.y + dy;
-    if (sx > 0 && sy > 0 && sx < W - 1 && sy < H - 1) {
-      candidates.push({ x: sx, y: sy });
+    const inward = [{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:0},{dx:-1,dy:0}];
+    for (let i = 0; i < inward.length; i++) {
+      const ix = door.x + inward[i].dx, iy = door.y + inward[i].dy;
+      if (isInside(b, ix, iy)) candidates.push({ x: ix, y: iy });
     }
-    const dirsCard = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-    const dirsDiag = [{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
+    // Interior search within radius 3 from the door but only inside the building
     for (let r = 1; r <= 3; r++) {
-      for (const d of dirsCard) candidates.push({ x: door.x + d.dx * r, y: door.y + d.dy * r });
-      for (const d of dirsDiag) candidates.push({ x: door.x + d.dx * r, y: door.y + d.dy * r });
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const ix = door.x + dx, iy = door.y + dy;
+          if (!isInside(b, ix, iy)) continue;
+          candidates.push({ x: ix, y: iy });
+        }
+      }
     }
-    // Filter and pick the nearest valid outdoor FLOOR tile not occupied by props/NPC/player
+    // Fallback: building center if nothing else works
+    candidates.push({
+      x: Math.max(b.x + 1, Math.min(b.x + b.w - 2, (b.x + ((b.w / 2) | 0)))),
+      y: Math.max(b.y + 1, Math.min(b.y + b.h - 2, (b.y + ((b.h / 2) | 0))))
+    });
+
     let best = null, bestD = Infinity;
     for (let i = 0; i < candidates.length; i++) {
       const c = candidates[i];
       if (c.x <= 0 || c.y <= 0 || c.x >= W - 1 || c.y >= H - 1) continue;
-      if (isInside(b, c.x, c.y)) continue;
-      if (isInsideAnyBuilding(c.x, c.y)) continue;
+      if (!isInside(b, c.x, c.y)) continue;
       const t = ctx.map[c.y][c.x];
       if (t !== ctx.TILES.FLOOR) continue;
       if (ctx.player && ctx.player.x === c.x && ctx.player.y === c.y) continue;
