@@ -2135,17 +2135,17 @@ function generate(ctx) {
         return path;
       }
 
+      function insidePlaza(x, y) {
+        return x >= pr.x0 && x <= pr.x1 && y >= pr.y0 && y <= pr.y1;
+      }
+
       function markRoadPath(path) {
         if (!Array.isArray(path) || path.length === 0) return;
-        for (let i = 0; i < path.length; i++) {
+        for (let i = 0;  <x path.length; i++) {
           const p = path[i];
           if (!inB(p.x, p.y)) continue;
-          const t = ctx.map[p.y][p.x];
-          if (t === ctx.TILES.FLOOR) {
-            ctx.map[p.y][p.x] = ctx.TILES.ROAD;
-            roadsMask[p.y][p.x] = true;
-          } else if (t === ctx.TILES.ROAD) {
-            roadsMask[p.y][p.x] = true;
+          // Keep the plaza interior pure FLOOR; do not convert or mark roads inside it
+          if          roadsMask[p.y][p.x] = true;
           }
         }
       }
