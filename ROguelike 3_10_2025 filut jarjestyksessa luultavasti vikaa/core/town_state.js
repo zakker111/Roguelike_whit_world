@@ -167,6 +167,59 @@ function applyState(ctx, st, x, y) {
   ctx.townBuildings = Array.isArray(st.townBuildings) ? st.townBuildings : [];
   ctx.townPlaza = st.townPlaza || null;
   ctx.tavern = st.tavern || null;
+
+  // Sanitize loaded props to avoid stale/dangling remnants from older saves or generation changes.
+  // - Drop props outside bounds or sitting on non-walkable tiles (only FLOOR/STAIRS allowed).
+  // - Enforce interior-only props to exist only inside some building.
+  // - Deduplicate exact coordinate duplicates (keep first).
+  (function sanitizeLoadedTownProps() {
+    try {
+      const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+      const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+      function inB(x, y) { return y >= 0 && y < rows && x >= 0 && x < cols; }
+      function insideAnyBuilding(x, y) {
+        const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+        for (let i = 0; i < tbs.length; i++) {
+          const B = tbs[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
+      }
+      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest","counter"]);
+      const seenCoord = new Set();
+      const before = Array.isArray(ctx.townProps) ? ctx.townProps.length : 0;
+      const filtered = [];
+      const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      for (let i = 0; i < props.length; i++) {
+        const p = props[i];
+        if (!p) continue;
+        const x = p.x | 0, y = p.y | 0;
+        const key = `${x},${y}`;
+        // Deduplicate exact coordinate duplicates (keep the first encountered)
+        if (seenCoord.has(key)) continue;
+        seenCoord.add(key);
+        // Bounds and tile check
+        if (!inB(x, y)) continue;
+        const t = ctx.map[y][x];
+        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS) continue;
+        // Interior-only filtering
+        const typ = String(p.type || "").toLowerCase();
+        if (interiorOnly.has(typ) && !insideAnyBuilding(x, y)) continue;
+        // Keep
+        filtered.push({ x, y, type: p.type, name: p.name });
+      }
+      ctx.townProps = filtered;
+      try {
+        const removed = before - filtered.length;
+        if (removed > 0) {
+          const msg = `TownState: sanitized ${removed} dangling props on load.`;
+          if (typeof window !== "undefined" && window.DEV && ctx.log) ctx.log(msg, "warn");
+          console.log(msg);
+        }
+      } catch (_) {}
+    } catch (_) {}
+  })();
+
   // Restore inn upstairs overlay and stairs portal
   ctx.innUpstairs = st.innUpstairs || null;
   // Sanitize legacy upstairs tiles: convert DOOR/WINDOW to FLOOR; keep WALL/STAIRS intact.
