@@ -153,7 +153,48 @@
       ],
       "doors": [{ "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }],
       "constraints": { "rotations": [0,90,180,270], "mirror": true, "mustFaceRoad": true }
-    }
+    },
+    {
+    "id": "small_blacksmith_custom",
+    "name": "Blacksmith (Custom)",
+    "category": "shop",
+    "tags": [
+        "shop",
+        "blacksmith"
+    ],
+    "size": {
+        "w": 6,
+        "h": 6
+    },
+    "tiles": [
+        ["WALL","WALL","WALL","WINDOW","WALL","WALL"],
+        ["WALL","FLOOR","CHAIR","FLOOR","LAMP","WALL"],
+        ["WALL","STALL","STALL","COUNTER","FLOOR","WALL"],
+        ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
+        ["WALL","SHELF","SHELF","FLOOR","PLANT","WALL"],
+        ["WALL","WALL","WALL","DOOR","WALL","WALL"]
+    ],
+    "constraints": {
+        "rotations": [
+        0,
+        90,
+        180,
+        270
+        ],
+        "mirror": true,
+        "mustFaceRoad": true,
+        "minSetback": 1
+    },
+    "shop": {
+        "type": "blacksmith",
+        "schedule": {
+        "open": "09:00",
+        "close": "18:00",
+        "alwaysOpen": false
+        },
+        "signText": "Blacksmith"
+  }
+}
   ],
   "inns": [
     {
