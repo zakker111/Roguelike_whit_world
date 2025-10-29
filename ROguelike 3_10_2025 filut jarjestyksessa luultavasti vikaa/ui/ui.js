@@ -1082,6 +1082,53 @@ export const UI = {
     try { return !!SmokeModal.isOpen(); } catch (_) { return false; }
   },
 
+  // Build or refresh the Smoke scenarios checkbox list
+  renderSmokeOptions() {
+    try {
+      const container = this.els.smokeList || document.getElementById("smoke-scenarios");
+      if (!container) return;
+
+      // Capture existing selection (if re-rendering)
+      const prev = new Set();
+      try {
+        const existing = Array.from(container.querySelectorAll("input.smoke-sel"));
+        existing.forEach((inp) => {
+          if (inp.checked && inp.value) prev.add(inp.value);
+        });
+      } catch (_) {}
+
+      // Canonical scenario list (extendable)
+      const scenarios = [
+        { id: "world", label: "World" },
+        { id: "inventory", label: "Inventory" },
+        { id: "dungeon", label: "Dungeon" },
+        { id: "combat", label: "Combat" },
+        { id: "dungeon_persistence", label: "Dungeon Persistence" },
+        { id: "town", label: "Town" },
+        { id: "town_diagnostics", label: "Town Diagnostics" },
+        { id: "overlays", label: "Overlays" },
+        { id: "determinism", label: "Determinism" },
+        { id: "encounters", label: "Encounters" },
+        { id: "api", label: "API" },
+        { id: "town_flows", label: "Town Flows" },
+      ];
+
+      // Render checkboxes
+      const html = scenarios.map((s) => {
+        const checked = prev.has(s.id) ? " checked" : "";
+        const title = s.label || s.id;
+        return `
+          <label style="display:flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid #253047; border-radius:6px; background:#0f1117;">
+            <input type="checkbox" class="smoke-sel" value="${s.id}"${checked} />
+            <span style="color:#cbd5e1; font-size:13px;">${title}</span>
+          </label>
+        `;
+      }).join("");
+
+      container.innerHTML = html;
+    } catch (_) {}
+  },
+
   // --- Minimap controls ---
   getMinimapState() {
     try {
