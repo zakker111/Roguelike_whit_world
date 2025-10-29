@@ -1052,6 +1052,25 @@ export const UI = {
     try { return !!RegionModal.isOpen(); } catch (_) { return false; }
   },
 
+  // ---- Help / Controls + Character Sheet (F1) ----
+  showHelp(ctx = null) {
+    // Close other modals for clarity
+    if (this.isLootOpen()) this.hideLoot();
+    if (this.isInventoryOpen()) this.hideInventory();
+    if (this.isGodOpen()) this.hideGod();
+    if (this.isSmokeOpen()) this.hideSmoke();
+    if (this.isRegionMapOpen()) this.hideRegionMap();
+    try { HelpModal.show(ctx); } catch (_) {}
+  },
+
+  hideHelp() {
+    try { HelpModal.hide(); } catch (_) {}
+  },
+
+  isHelpOpen() {
+    try { return !!HelpModal.isOpen(); } catch (_) { return false; }
+  },
+
   // --- Encounter rate controls (0..100) ---
   getEncounterRateState() {
     // Default 50 means baseline frequency; &lt;50 fewer, &gt;50 more
