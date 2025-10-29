@@ -23,8 +23,8 @@ export function isWalkableTile(ctx, x, y) {
   if (!inBounds(ctx, x, y)) return false;
   const t = ctx.map[y][x];
   const T = ctx.TILES || {};
-  // Walkable tiles for dungeon/town maps
-  return t === T.FLOOR || t === T.DOOR || t === T.STAIRS;
+  // Walkable tiles for dungeon/town maps (include ROAD for towns)
+  return t === T.FLOOR || t === T.DOOR || t === T.STAIRS || t === T.ROAD;
 }
 
 // Generic free-floor check for dungeon or town maps (ignores town props by default)
