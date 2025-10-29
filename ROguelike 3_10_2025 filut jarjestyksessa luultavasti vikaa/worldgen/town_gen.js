@@ -1923,26 +1923,18 @@ function generate(ctx) {
           if (!namesToMatch.includes("Inn & Tavern")) namesToMatch.push("Inn & Tavern");
           if (!namesToMatch.includes("Tavern")) namesToMatch.push("Tavern");
         }
+        // Collect indices of signs matching canonical name or synonyms
         const indices = [];
         for (let i = 0; i < props.length; i++) {
           const p = props[i];
           if (p && String(p.type || "").toLowerCase() === "sign" && namesToMatch.includes(String(p.name || ""))) {
             indices.push(i);
           }
-        };
+        }
         const wants = (s && Object.prototype.hasOwnProperty.call(s, "signWanted")) ? !!s.signWanted : true;
 
-        // Collect all indices of signs matching this shop's text
-        const indices = [];
-        for (let i = 0; i < props.length; i++) {
-          const p = props[i];
-          if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) {
-            indices.push(i);
-          }
-        }
-
         if (!wants) {
-          // Remove all signs for this shop name
+          // Remove all signs for this shop (including synonyms)
           for (const idx of indices) removeIdx.add(idx);
           continue;
         }
@@ -1960,18 +1952,21 @@ function generate(ctx) {
           }
         }
 
-        // Ensure kept sign (if any) is outside; otherwise re-place outside
+        // Ensure kept sign (if any) is outside; otherwise re-place outside.
+        // Also canonicalize its text to the shop's name.
         let keptIdx = -1;
         for (let i = 0; i < props.length; i++) {
           if (removeIdx.has(i)) continue;
           const p = props[i];
-          if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) { keptIdx = i; break; }
+          if (p && String(p.type || "").toLowerCase() === "sign" && namesToMatch.includes(String(p.name || ""))) { keptIdx = i; break; }
         }
         if (keptIdx !== -1) {
           const p = props[keptIdx];
           if (s.building && isInside(s.building, p.x, p.y)) {
             removeIdx.add(keptIdx);
             try { addShopSign(s.building, door, text); } catch (_) {}
+          } else {
+            try { if (String(p.name || "") !== text) p.name = text; } catch (_) {}
           }
         } else {
           // No sign exists; place one outside near the door
