@@ -18,8 +18,8 @@ import { minutesOfDay as tsMinutesOfDay, parseHHMM } from "./time_service.js";
  * - calculatePrice(shopType, item, phase, demandState)
  * - buyItem(ctx, shop, idx)              // decrements qty and gives item to player
  * - sellItem(ctx, shop, playerInvIdx)    // validates and buys from player
- */>
-// moved to TimeService.parseHHMM
+ */
+ // moved to TimeService.parseHHMM
 
 export function minutesOfDay(h, m, dayMinutes) {
   // Delegate to TimeService.minutesOfDay to avoid duplication
@@ -30,7 +30,9 @@ export function isOpenAt(shop, minutes) {
   if (!shop) return false;
   if (shop.alwaysOpen) return true;
   if (typeof shop.openMin !== "number" || typeof shop.closeMin !== "number") return false;
-  var o = shop.opennutes < c);
+  var o = shop.openMin | 0, c = shop.closeMin | 0;
+  if (o === c) return false; // treat as closed all day
+  return (c > o) ? (minutes >= o && minutes < c) : (minutes >= o || minutes < c);
 }
 
 export function isShopOpenNow(ctx, shop) {
