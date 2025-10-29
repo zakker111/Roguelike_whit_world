@@ -2104,20 +2104,21 @@ function generate(ctx) {
     try {
       if (!roadsMask) return;
       function insideAnyBuilding(x, y) {
-        for (let i = 0;  <i buildings.length; i++) {
+        for (let i = 0; i < buildings.length; i++) {
           const B = buildings[i];
-          if (x > B.x &&  <x B.x + B.w - 1 && y > B.y &&  <y B.y + B.h - 1) return true;
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
         }
         return false;
       }
-      for (let yy = 0; y <y H; yy++) {
-        for (let xx = 0; x <x W; xx++) {
+      for (let yy = 0; yy < H; yy++) {
+        for (let xx = 0; xx < W; xx++) {
           if (insideAnyBuilding(xx, yy)) { roadsMask[yy][xx] = false; continue; }
           if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { roadsMask[yy][xx] = false; }
         }
       }
       ctx.townRoads = roadsMask;
-    } catch: [];
+    } catch (_) {}
+  })();
   function addProp(x, y, type, name) {
     if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
     if (ctx.map[y][x] !== ctx.TILES.FLOOR) return false;
