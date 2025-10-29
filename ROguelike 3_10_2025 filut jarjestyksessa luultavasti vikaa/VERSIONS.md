@@ -17,6 +17,7 @@ v1.43.1 — Town biome inference fix, darker snow ground, and plaza footprint tu
     - plaza_well_square: 11×7
     - plaza_market_1: 13×9
     - plaza_garden_1: 9×7
+  - Plaza generation now sources layouts from data/worldgen/prefabs.json (the "plazas" array). New plaza variants can be authored in the Prefab Editor (tools/prefab_editor.html); export the JSON and add it to prefabs.json for town generation to use.
   - Reverted “interior-only” restriction for crates/barrels in town_gen.js to allow outdoor market ambience again.
 
 - Deployment: https://xegnxopmmbow.cosine.page, https://jnkh554shlbf.cosine.page, https://joeh2w4mwjub.cosine.page
