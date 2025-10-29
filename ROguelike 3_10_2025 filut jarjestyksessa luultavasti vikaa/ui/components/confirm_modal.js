@@ -69,20 +69,23 @@ function ensurePanel() {
   // Button clicks
   cancelBtn.addEventListener("click", (e) => {
     e.stopPropagation();
+    const cb = _cancelCb;
     hide();
-    try { if (typeof _cancelCb === "function") _cancelCb(); } catch (_) {}
+    try { if (typeof cb === "function") cb(); } catch (_) {}
   });
   okBtn.addEventListener("click", (e) => {
     e.stopPropagation();
+    const cb = _okCb;
     hide();
-    try { if (typeof _okCb === "function") _okCb(); } catch (_) {}
+    try { if (typeof cb === "function") cb(); } catch (_) {}
   });
 
   // Outside click cancels
   panel.addEventListener("click", (e) => {
     if (e.target === panel) {
+      const cb = _cancelCb;
       hide();
-      try { if (typeof _cancelCb === "function") _cancelCb(); } catch (_) {}
+      try { if(_) {}
       e.stopPropagation();
     }
   });
