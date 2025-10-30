@@ -2788,35 +2788,37 @@
   }
 
   
-  initWorld();
-  setupInput();
+  // Orchestrator-controlled boot: these actions are now exposed as functions and invoked from core/game_orchestrator.js
 
-  // Mouse/click support delegated to ui/input_mouse.js
-  try {
-    const IM = modHandle("InputMouse");
-    if (IM && typeof IM.init === "function") {
-      IM.init({
-        canvasId: "game",
-        getMode: () => mode,
-        TILE,
-        getCamera: () => camera,
-        getPlayer: () => ({ x: player.x, y: player.y }),
-        inBounds: (x, y) => inBounds(x, y),
-        isWalkable: (x, y) => isWalkable(x, y),
-        getCorpses: () => corpses,
-        getEnemies: () => enemies,
-        tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
-        lootCorpse: () => lootCorpse(),
-        doAction: () => doAction(),
-        isAnyModalOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isAnyModalOpen === "function" && UIO.isAnyModalOpen(getCtx()));
-        },
-      });
-    }
-  } catch (_) {}
+  // Initialize mouse/click support (was previously executed at import time)
+  export function initMouseSupport() {
+    try {
+      const IM = modHandle("InputMouse");
+      if (IM && typeof IM.init === "function") {
+        IM.init({
+          canvasId: "game",
+          getMode: () => mode,
+          TILE,
+          getCamera: () => camera,
+          getPlayer: () => ({ x: player.x, y: player.y }),
+          inBounds: (x, y) => inBounds(x, y),
+          isWalkable: (x, y) => isWalkable(x, y),
+          getCorpses: () => corpses,
+          getEnemies: () => enemies,
+          tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
+          lootCorpse: () => lootCorpse(),
+          doAction: () => doAction(),
+          isAnyModalOpen: () => {
+            const UIO = modHandle("UIOrchestration");
+            return !!(UIO && typeof UIO.isAnyModalOpen === "function" && UIO.isAnyModalOpen(getCtx()));
+          },
+        });
+      }
+    } catch (_) {}
+  }
 
-  {
+  // Start the render loop (or draw once if loop module is unavailable)
+  export function startLoop() {
     const GL = modHandle("GameLoop");
     if (GL && typeof GL.start === "function") {
       GL.start(() => getRenderCtx());
@@ -2828,140 +2830,143 @@
     }
   }
 
-  // Ensure a redraw occurs once tiles.json finishes loading so JSON-only colors/glyphs apply
-  try {
-    if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
-      window.GameData.ready.then(() => {
-        // Request a draw which will rebuild offscreen caches against the now-loaded tiles.json
-        requestDraw();
-      });
-    }
-  } catch (_) {}
+  // Request a redraw once assets (e.g., tiles.json) have fully loaded
+  export function scheduleAssetsReadyDraw() {
+    try {
+      if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
+        window.GameData.ready.then(() => {
+          // Request a draw which will rebuild offscreen caches against the now-loaded tiles.json
+          requestDraw();
+        });
+      }
+    } catch (_) {}
+  }
 
-  // Expose GameAPI via builder
-  try {
-    if (typeof window !== "undefined" && window.GameAPIBuilder && typeof window.GameAPIBuilder.create === "function") {
-      window.GameAPI = window.GameAPIBuilder.create({
-        getMode: () => mode,
-        getWorld: () => world,
-        getPlayer: () => player,
-        getEnemies: () => enemies,
-        getNPCs: () => npcs,
-        getTownProps: () => townProps,
-        getCorpses: () => corpses,
-        getShops: () => shops,
-        getDungeonExit: () => dungeonExitAt,
-        getTownGate: () => townExitAt,
-        getMap: () => map,
-        getVisible: () => visible,
-        getCamera: () => camera,
-        getOccupancy: () => occupancy,
-        getDecals: () => decals,
-        getPerfStats: () => ({ lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }),
-        TILES,
-        tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
-        enterTownIfOnTile: () => enterTownIfOnTile(),
-        enterDungeonIfOnEntrance: () => enterDungeonIfOnEntrance(),
-        isWalkable: (x, y) => isWalkable(x, y),
-        inBounds: (x, y) => inBounds(x, y),
-        updateCamera: () => updateCamera(),
-        recomputeFOV: () => recomputeFOV(),
-        requestDraw: () => requestDraw(),
-        updateUI: () => updateUI(),
-        renderInventoryPanel: () => renderInventoryPanel(),
-        equipItemByIndex: (idx) => equipItemByIndex(idx),
-        equipItemByIndexHand: (idx, hand) => equipItemByIndexHand(idx, hand),
-        unequipSlot: (slot) => unequipSlot(slot),
-        drinkPotionByIndex: (idx) => drinkPotionByIndex(idx),
-        addPotionToInventory: (heal, name) => addPotionToInventory(heal, name),
-        getPlayerAttack: () => getPlayerAttack(),
-        getPlayerDefense: () => getPlayerDefense(),
-        isShopOpenNow: (shop) => isShopOpenNow(shop),
-        shopScheduleStr: (shop) => shopScheduleStr(shop),
-        advanceTimeMinutes: (mins) => advanceTimeMinutes(mins),
-        // Mode transitions
-        returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
-        returnToWorldFromTown: () => returnToWorldFromTown(),
-        initWorld: () => initWorld(),
-        // Encounter helper: enter and sync a unique encounter map, using dungeon enemies under the hood
-        enterEncounter: (template, biome, difficulty = 1) => {
-          const ER = modHandle("EncounterRuntime");
-          if (ER && typeof ER.enter === "function") {
+  // Build and expose GameAPI facade (previously executed at import time)
+  export function buildGameAPI() {
+    try {
+      if (typeof window !== "undefined" && window.GameAPIBuilder && typeof window.GameAPIBuilder.create === "function") {
+        window.GameAPI = window.GameAPIBuilder.create({
+          getMode: () => mode,
+          getWorld: () => world,
+          getPlayer: () => player,
+          getEnemies: () => enemies,
+          getNPCs: () => npcs,
+          getTownProps: () => townProps,
+          getCorpses: () => corpses,
+          getShops: () => shops,
+          getDungeonExit: () => dungeonExitAt,
+          getTownGate: () => townExitAt,
+          getMap: () => map,
+          getVisible: () => visible,
+          getCamera: () => camera,
+          getOccupancy: () => occupancy,
+          getDecals: () => decals,
+          getPerfStats: () => ({ lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }),
+          TILES,
+          tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
+          enterTownIfOnTile: () => enterTownIfOnTile(),
+          enterDungeonIfOnEntrance: () => enterDungeonIfOnEntrance(),
+          isWalkable: (x, y) => isWalkable(x, y),
+          inBounds: (x, y) => inBounds(x, y),
+          updateCamera: () => updateCamera(),
+          recomputeFOV: () => recomputeFOV(),
+          requestDraw: () => requestDraw(),
+          updateUI: () => updateUI(),
+          renderInventoryPanel: () => renderInventoryPanel(),
+          equipItemByIndex: (idx) => equipItemByIndex(idx),
+          equipItemByIndexHand: (idx, hand) => equipItemByIndexHand(idx, hand),
+          unequipSlot: (slot) => unequipSlot(slot),
+          drinkPotionByIndex: (idx) => drinkPotionByIndex(idx),
+          addPotionToInventory: (heal, name) => addPotionToInventory(heal, name),
+          getPlayerAttack: () => getPlayerAttack(),
+          getPlayerDefense: () => getPlayerDefense(),
+          isShopOpenNow: (shop) => isShopOpenNow(shop),
+          shopScheduleStr: (shop) => shopScheduleStr(shop),
+          advanceTimeMinutes: (mins) => advanceTimeMinutes(mins),
+          // Mode transitions
+          returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
+          returnToWorldFromTown: () => returnToWorldFromTown(),
+          initWorld: () => initWorld(),
+          // Encounter helper: enter and sync a unique encounter map, using dungeon enemies under the hood
+          enterEncounter: (template, biome, difficulty = 1) => {
+            const ER = modHandle("EncounterRuntime");
+            if (ER && typeof ER.enter === "function") {
+              const ctx = getCtx();
+              const ok = ER.enter(ctx, { template, biome, difficulty });
+              if (ok) {
+                applyCtxSyncAndRefresh(ctx);
+              }
+              return ok;
+            }
+            return false;
+          },
+          // Open Region Map at current overworld tile and sync orchestrator state
+          openRegionMap: () => {
+            const Cap = modHandle("Capabilities");
             const ctx = getCtx();
-            const ok = ER.enter(ctx, { template, biome, difficulty });
-            if (ok) {
-              applyCtxSyncAndRefresh(ctx);
+            if (Cap && typeof Cap.safeCall === "function") {
+              const res = Cap.safeCall(ctx, "RegionMapRuntime", "open", ctx);
+              const ok = !!(res && res.ok && res.result);
+              if (ok) applyCtxSyncAndRefresh(ctx);
+              return ok;
             }
-            return ok;
-          }
-          return false;
-        },
-        // Open Region Map at current overworld tile and sync orchestrator state
-        openRegionMap: () => {
-          const Cap = modHandle("Capabilities");
-          const ctx = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") {
-            const res = Cap.safeCall(ctx, "RegionMapRuntime", "open", ctx);
-            const ok = !!(res && res.ok && res.result);
-            if (ok) applyCtxSyncAndRefresh(ctx);
-            return ok;
-          }
-          const RM = modHandle("RegionMapRuntime");
-          if (RM && typeof RM.open === "function") {
-            const ok = !!RM.open(ctx);
-            if (ok) applyCtxSyncAndRefresh(ctx);
-            return ok;
-          }
-          return false;
-        },
-        // Start an encounter inside the active Region Map (ctx.mode === "region")
-        startRegionEncounter: (template, biome) => {
-          const Cap = modHandle("Capabilities");
-          const ctx = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") {
-            const res = Cap.safeCall(ctx, "EncounterRuntime", "enterRegion", ctx, { template, biome });
-            const ok = !!(res && res.ok && res.result);
-            if (ok) {
-              applyCtxSyncAndRefresh(ctx);
-              // If the Region Map overlay modal is open, repaint it to show spawned enemies immediately
-              try {
-                const UIO = modHandle("UIOrchestration");
-                if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
-                  UIO.showRegionMap(ctx);
-                }
-              } catch (_) {}
+            const RM = modHandle("RegionMapRuntime");
+            if (RM && typeof RM.open === "function") {
+              const ok = !!RM.open(ctx);
+              if (ok) applyCtxSyncAndRefresh(ctx);
+              return ok;
             }
-            return ok;
-          }
-          const ER = modHandle("EncounterRuntime");
-          if (ER && typeof ER.enterRegion === "function") {
-            const ok = !!ER.enterRegion(ctx, { template, biome });
-            if (ok) {
-              applyCtxSyncAndRefresh(ctx);
-              try {
-                const UIO = modHandle("UIOrchestration");
-                if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
-                  UIO.showRegionMap(ctx);
-                }
-              } catch (_) {}
+            return false;
+          },
+          // Start an encounter inside the active Region Map (ctx.mode === "region")
+          startRegionEncounter: (template, biome) => {
+            const Cap = modHandle("Capabilities");
+            const ctx = getCtx();
+            if (Cap && typeof Cap.safeCall === "function") {
+              const res = Cap.safeCall(ctx, "EncounterRuntime", "enterRegion", ctx, { template, biome });
+              const ok = !!(res && res.ok && res.result);
+              if (ok) {
+                applyCtxSyncAndRefresh(ctx);
+                // If the Region Map overlay modal is open, repaint it to show spawned enemies immediately
+                try {
+                  const UIO = modHandle("UIOrchestration");
+                  if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
+                    UIO.showRegionMap(ctx);
+                  }
+                } catch (_) {}
+              }
+              return ok;
             }
-            return ok;
-          }
-          return false;
-        },
-        // GOD/helpers
-        setAlwaysCrit: (v) => setAlwaysCrit(v),
-        setCritPart: (part) => setCritPart(part),
-        godSpawnEnemyNearby: (count) => godSpawnEnemyNearby(count),
-        godSpawnItems: (count) => godSpawnItems(count),
-        generateLoot: (source) => generateLoot(source),
-        getClock: () => getClock(),
-        getCtx: () => getCtx(),
-        log: (msg, type) => log(msg, type),
-      });
-    }
-  } catch (_) {}
-
+            const ER = modHandle("EncounterRuntime");
+            if (ER && typeof ER.enterRegion === "function") {
+              const ok = !!ER.enterRegion(ctx, { template, biome });
+              if (ok) {
+                applyCtxSyncAndRefresh(ctx);
+                try {
+                  const UIO = modHandle("UIOrchestration");
+                  if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
+                    UIO.showRegionMap(ctx);
+                  }
+                } catch (_) {}
+              }
+              return ok;
+            }
+            return false;
+          },
+          // GOD/helpers
+          setAlwaysCrit: (v) => setAlwaysCrit(v),
+          setCritPart: (part) => setCritPart(part),
+          godSpawnEnemyNearby: (count) => godSpawnEnemyNearby(count),
+          godSpawnItems: (count) => godSpawnItems(count),
+          generateLoot: (source) => generateLoot(source),
+          getClock: () => getClock(),
+          getCtx: () => getCtx(),
+          log: (msg, type) => log(msg, type),
+        });
+      }
+    } catch (_) {}
+  }
 
 
 // ESM exports for module consumers
@@ -2969,6 +2974,11 @@ export {
   getCtx,
   requestDraw,
   initWorld,
+  setupInput,
+  initMouseSupport,
+  startLoop,
+  scheduleAssetsReadyDraw,
+  buildGameAPI,
   generateLevel,
   tryMovePlayer,
   doAction,

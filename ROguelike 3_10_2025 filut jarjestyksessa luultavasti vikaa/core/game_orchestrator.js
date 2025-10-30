@@ -1,18 +1,23 @@
 /**
- * GameOrchestrator (minimal)
- * Provides a stable entrypoint for booting the game.
- * For now, core/game.js still performs world/input/loop boot on import.
- * This module exists so we can later move boot logic here without changing src/main.js.
+ * GameOrchestrator
+ * Stable entrypoint that boots the game by calling explicit helpers from core/game.js.
+ * Keeps behavior identical but moves side-effects out of game.js.
  */
 
-// Importing game.js triggers its side-effectful boot (init world, input, loop).
-import "./game.js";
+import { initWorld, setupInput, initMouseSupport, startLoop, scheduleAssetsReadyDraw, buildGameAPI } from "./game.js";
 
-// Public API (placeholder for future explicit boot control)
 export function start() {
-  // No-op for now — game.js already booted.
+  try { buildGameAPI(); } catch (_) {}
+  try { initWorld(); } catch (_) {}
+  try { setupInput(); } catch (_) {}
+  try { initMouseSupport(); } catch (_) {}
+  try { startLoop(); } catch (_) {}
+  try { scheduleAssetsReadyDraw(); } catch (_) {}
   return true;
 }
+
+// Auto-start to match previous behavior (game booted on import before this refactor)
+try { start(); } catch (_) {}
 
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach orchestrator handle to window
