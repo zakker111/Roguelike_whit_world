@@ -82,6 +82,13 @@ export const UI = {
     this.els.godToggleMirrorBtn = document.getElementById("god-toggle-mirror-btn");
     this.els.godToggleCritBtn = document.getElementById("god-toggle-crit-btn");
     this.els.godToggleGridBtn = document.getElementById("god-toggle-grid-btn");
+    // Additional GOD toggle buttons (needed for updating button labels/titles)
+    this.els.godTogglePerfBtn = document.getElementById("god-toggle-perf-btn");
+    this.els.godToggleMinimapBtn = document.getElementById("god-toggle-minimap-btn");
+    this.els.godToggleTownOverlayBtn = document.getElementById("god-toggle-town-overlay-btn");
+    this.els.godToggleTownPathsBtn = document.getElementById("god-toggle-town-paths-btn");
+    this.els.godToggleHomePathsBtn = document.getElementById("god-toggle-home-paths-btn");
+    this.els.godToggleRoutePathsBtn = document.getElementById("god-toggle-route-paths-btn");
     this.els.godSeedInput = document.getElementById("god-seed-input");
     this.els.godApplySeedBtn = document.getElementById("god-apply-seed-btn");
     this.els.godRerollSeedBtn = document.getElementById("god-reroll-seed-btn");
