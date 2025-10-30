@@ -488,12 +488,7 @@ function generate(ctx) {
   // Enforce strict prefab mode when prefab registry has loaded
   function prefabsAvailable() {
     try {
-      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
-      if (!PFB || typeof PFB !== "object") return false;
-      const hasHouses = Array.isArray(PFB.houses) && PFB.houses.length > 0;
-      const hasInns = Array.isArray(PFB.inns) && PFB.inns.length > 0;
-      const hasShops = Array.isArray(PFB.shops) && PFB.shops.length > 0;
-      return hasHouses || hasInns || hasShops;
+      return Prefabs.prefabsAvailable();
     } catch (_) { return false; }
   }
   const strictNow = !!STRICT_PREFABS && !!prefabsAvailable();
@@ -559,237 +554,15 @@ function generate(ctx) {
     } catch (_) {}
   }
   function trySlipStamp(ctx, prefab, bx, by, maxSlip = 2) {
-    const offsets = [];
-    for (let d = 1; d <= maxSlip; d++) {
-      offsets.push({ dx: d, dy: 0 }, { dx: -d, dy: 0 }, { dx: 0, dy: d }, { dx: 0, dy: -d });
-      offsets.push({ dx: d, dy: d }, { dx: -d, dy: d }, { dx: d, dy: -d }, { dx: -d, dy: -d });
-    }
-    for (const o of offsets) {
-      const x = bx + o.dx, y = by + o.dy;
-      if (stampPrefab(ctx, prefab, x, y)) return true;
-    }
-    return false;
+    // Delegate to module implementation (passes buildings reference for rect recording)
+    return Prefabs.trySlipStamp(ctx, prefab, bx, by, maxSlip, buildings);
   }
 
   // --- Prefab helpers ---
   function stampPrefab(ctx, prefab, bx, by) {
-    if (!prefab || !prefab.size || !Array.isArray(prefab.tiles)) return false;
-    const w = prefab.size.w | 0, h = prefab.size.h | 0;
-    // Bounds and clear margin check
-    const x0 = bx, y0 = by, x1 = bx + w - 1, y1 = by + h - 1;
-    if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
-    for (let yy = y0; yy <= y1; yy++) {
-      for (let xx = x0; xx <= x1; xx++) {
-        if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
-      }
-    }
-
-    // Ensure props container
-    try { if (!Array.isArray(ctx.townProps)) ctx.townProps = []; } catch (_) {}
-
-    // Vendor hint for embedded COUNTER props
-    function vendorForCounter(prefab) {
-      try {
-        const cat = String(prefab.category || "").toLowerCase();
-        if (cat === "inn") return "inn";
-        if (cat === "shop") {
-          const t = (prefab.shop && prefab.shop.type) ? String(prefab.shop.type) : null;
-          return t || "shop";
-        }
-      } catch (_) {}
-      return undefined;
-    }
-
-    // Recognized prop codes in tiles
-    const PROPMAP = {
-      BED: "bed",
-      TABLE: "table",
-      CHAIR: "chair",
-      SHELF: "shelf",
-      RUG: "rug",
-      FIREPLACE: "fireplace",
-      CHEST: "chest",
-      CRATE: "crate",
-      BARREL: "barrel",
-      PLANT: "plant",
-      COUNTER: "counter",
-      STALL: "stall",
-      LAMP: "lamp",
-      WELL: "well",
-      SIGN: "sign"
-    };
-
-    // Stamp tiles and embedded props
-    for (let yy = 0; yy < h; yy++) {
-      const row = prefab.tiles[yy];
-      if (!row || row.length !== w) return false;
-      for (let xx = 0; xx < w; xx++) {
-        const code = row[xx];
-        const wx = x0 + xx, wy = y0 + yy;
-
-        // Embedded prop code
-        if (code && PROPMAP[code]) {
-          // props sit on floor
-          ctx.map[wy][wx] = ctx.TILES.FLOOR;
-          if (!ctx.townProps.some(q => q && q.x === wx && q.y === wy)) {
-            const type = PROPMAP[code];
-            const vendor = (type === "counter") ? vendorForCounter(prefab) : undefined;
-            ctx.townProps.push({ x: wx, y: wy, type, vendor });
-          }
-          continue;
-        }
-
-        // Normal tile mapping
-        let t = ctx.TILES.FLOOR;
-        if (code === "WALL") t = ctx.TILES.WALL;
-        else if (code === "FLOOR") t = ctx.TILES.FLOOR;
-        else if (code === "DOOR") t = ctx.TILES.DOOR;
-        else if (code === "WINDOW") t = ctx.TILES.WINDOW;
-        else if (code === "STAIRS") t = ctx.TILES.STAIRS;
-        ctx.map[wy][wx] = t;
-      }
-    }
-
-    // Ensure a solid perimeter: convert any non-door/window on the boundary to WALL.
-    for (let yy = y0; yy <= y1; yy++) {
-      for (let xx = x0; xx <= x1; xx++) {
-        const isBorder = (yy === y0 || yy === y1 || xx === x0 || xx === x1);
-        if (!isBorder) continue;
-        const cur = ctx.map[yy][xx];
-        if (cur !== ctx.TILES.DOOR && cur !== ctx.TILES.WINDOW) {
-          ctx.map[yy][xx] = ctx.TILES.WALL;
-        }
-      }
-    }
-
-    // Explicitly stamp doors from prefab metadata (in case tiles[] omitted them)
-    try {
-      if (Array.isArray(prefab.doors)) {
-        for (const d of prefab.doors) {
-          if (d && typeof d.x === "number" && typeof d.y === "number") {
-            const dx = x0 + (d.x | 0), dy = y0 + (d.y | 0);
-            if (inBounds(ctx, dx, dy)) ctx.map[dy][dx] = ctx.TILES.DOOR;
-          }
-        }
-      }
-    } catch (_) {}
-
-    // For inns, rely solely on prefab DOOR tiles; do not auto-carve doors.
-    if (String(prefab.category || "").toLowerCase() !== "inn") {
-      (function ensurePerimeterDoor() {
-        let hasDoor = false;
-        for (let xx = x0; xx <= x1 && !hasDoor; xx++) {
-          if (inBounds(ctx, xx, y0) && ctx.map[y0][xx] === ctx.TILES.DOOR) { hasDoor = true; break; }
-          if (inBounds(ctx, xx, y1) && ctx.map[y1][xx] === ctx.TILES.DOOR) { hasDoor = true; break; }
-        }
-        for (let yy = y0; yy <= y1 && !hasDoor; yy++) {
-          if (inBounds(ctx, x0, yy) && ctx.map[yy][x0] === ctx.TILES.DOOR) { hasDoor = true; break; }
-          if (inBounds(ctx, x1, yy) && ctx.map[yy][x1] === ctx.TILES.DOOR) { hasDoor = true; break; }
-        }
-        if (!hasDoor) {
-          const cx = x0 + ((w / 2) | 0);
-          const cy = y0 + h - 1;
-          if (inBounds(ctx, cx, cy)) ctx.map[cy][cx] = ctx.TILES.DOOR;
-        }
-      })();
-    }
-
-    // Back-compat: consume explicit props array if present
-    try {
-      if (Array.isArray(prefab.props)) {
-        for (const p of prefab.props) {
-          const px = x0 + (p.x | 0), py = y0 + (p.y | 0);
-          if (px > 0 && py > 0 && px < W - 1 && py < H - 1 && ctx.map[py][px] === ctx.TILES.FLOOR) {
-            if (!ctx.townProps.some(q => q && q.x === px && q.y === py)) {
-              ctx.townProps.push({ x: px, y: py, type: p.type || "prop", name: p.name || undefined, vendor: p.vendor || undefined });
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    // Record building rect
-    const rect = { x: x0, y: y0, w, h, prefabId: (prefab && prefab.id) ? String(prefab.id) : null, prefabCategory: String(prefab.category || "").toLowerCase() || null };
-    buildings.push(rect);
-
-    // Track prefab usage for diagnostics (per category)
-    try {
-      const cat = String(prefab.category || "").toLowerCase();
-      const id = String(prefab.id || "");
-      if (id) {
-        ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [] };
-        if (cat === "house") ctx.townPrefabUsage.houses.push(id);
-        else if (cat === "shop") ctx.townPrefabUsage.shops.push(id);
-        else if (cat === "inn") ctx.townPrefabUsage.inns.push(id);
-        else if (cat === "plaza") ctx.townPrefabUsage.plazas.push(id);
-      }
-    } catch (_) {}
-
-    // Inn: consume upstairsOverlay and record ground stairs if present in prefab tiles
-    try {
-      if (String(prefab.category || "").toLowerCase() === "inn") {
-        // Record ground stairs inside inn building from prefab tiles
-        const stairs = [];
-        for (let yy = y0; yy <= y1; yy++) {
-          for (let xx = x0; xx <= x1; xx++) {
-            if (inBounds(ctx, xx, yy) && ctx.map[yy][xx] === ctx.TILES.STAIRS) stairs.push({ x: xx, y: yy });
-          }
-        }
-        if (stairs.length) {
-          let pair = null;
-          for (let i = 0; i < stairs.length && !pair; i++) {
-            for (let j = i + 1; j < stairs.length && !pair; j++) {
-              const a = stairs[i], b = stairs[j];
-              if (Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1) pair = [a, b];
-            }
-          }
-          ctx.innStairsGround = pair || stairs.slice(0, 2);
-        }
-        // Upstairs overlay from prefab (if present)
-        const ov = prefab.upstairsOverlay;
-        if (ov && Array.isArray(ov.tiles)) {
-          const offX = (ov.offset && (ov.offset.x != null ? ov.offset.x : ov.offset.ox)) | 0;
-          const offY = (ov.offset && (ov.offset.y != null ? ov.offset.y : ov.offset.oy)) | 0;
-          const wUp = (ov.w | 0) || (ov.tiles[0] ? ov.tiles[0].length : 0);
-          const hUp = (ov.h | 0) || ov.tiles.length;
-          const tilesUp = Array.from({ length: hUp }, () => Array(wUp).fill(ctx.TILES.FLOOR));
-          const propsUp = [];
-          for (let yy = 0; yy < hUp; yy++) {
-            const row = ov.tiles[yy];
-            if (!row) continue;
-            for (let xx = 0; xx < Math.min(wUp, row.length); xx++) {
-              const code = row[xx];
-              // Embedded upstairs props
-              if (code && PROPMAP[code]) {
-                const px = (x0 + offX) + xx;
-                const py = (y0 + offY) + yy;
-                propsUp.push({ x: px, y: py, type: PROPMAP[code] });
-                tilesUp[yy][xx] = ctx.TILES.FLOOR;
-                continue;
-              }
-              let t = ctx.TILES.FLOOR;
-              if (code === "WALL") t = ctx.TILES.WALL;
-              else if (code === "FLOOR") t = ctx.TILES.FLOOR;
-              else if (code === "DOOR") t = ctx.TILES.DOOR;
-              else if (code === "WINDOW") t = ctx.TILES.WINDOW;
-              else if (code === "STAIRS") t = ctx.TILES.STAIRS;
-              tilesUp[yy][xx] = t;
-            }
-          }
-          // Back-compat: explicit upstairs props list
-          try {
-            if (Array.isArray(ov.props)) {
-              for (const p of ov.props) {
-                const px = (p.x | 0), py = (p.y | 0);
-                propsUp.push({ x: (x0 + offX) + px, y: (y0 + offY) + py, type: p.type || "prop", name: p.name || undefined });
-              }
-            }
-          } catch (_) {}
-          ctx.innUpstairs = { offset: { x: x0 + offX, y: y0 + offY }, w: wUp, h: hUp, tiles: tilesUp, props: propsUp };
-          ctx.innUpstairsActive = false;
-        }
-      }
-    } catch (_) {}
+    // Delegate to module implementation (passes buildings reference for rect recording and upstairs overlay handling)
+    return Prefabs.stampPrefab(ctx, prefab, bx, by, buildings);
+  }
 
     // If prefab declares it is a shop, collect for later schedule/sign assignment
     try {
@@ -840,75 +613,8 @@ function generate(ctx) {
   // Stamp a plaza prefab (props only; no building record)
   // All-or-nothing: stage changes and commit only if the prefab grid fully validates.
   function stampPlazaPrefab(ctx, prefab, bx, by) {
-    if (!prefab || !prefab.size || !Array.isArray(prefab.tiles)) return false;
-    const w = prefab.size.w | 0, h = prefab.size.h | 0;
-    const x0 = bx, y0 = by, x1 = bx + w - 1, y1 = by + h - 1;
-    if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
-
-    // Validate row shape first: ensure every row exists and matches width
-    for (let yy = 0; yy < h; yy++) {
-      const row = prefab.tiles[yy];
-      if (!row || row.length !== w) return false;
-    }
-
-    // Ensure target area is currently walkable (plaza/road floor)
-    for (let yy = y0; yy <= y1; yy++) {
-      for (let xx = x0; xx <= x1; xx++) {
-        if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
-      }
-    }
-
-    // Stage: collect tile changes and props to add
-    const PROPMAP = {
-      BED: "bed", TABLE: "table", CHAIR: "chair", SHELF: "shelf", RUG: "rug",
-      FIREPLACE: "fireplace", CHEST: "chest", CRATE: "crate", BARREL: "barrel",
-      PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench", SIGN: "sign"
-    };
-    const tileChanges = [];
-    const propsToAdd = [];
-
-    for (let yy = 0; yy < h; yy++) {
-      const row = prefab.tiles[yy];
-      for (let xx = 0; xx < w; xx++) {
-        const code = row[xx];
-        const wx = x0 + xx, wy = y0 + yy;
-
-        // For plaza prefabs, any tile code resolves to FLOOR (no walls/doors/windows in plazas)
-        tileChanges.push({ x: wx, y: wy });
-
-        // Embedded prop code: stage prop on floor. Vendor hint not applicable to plaza.
-        if (code && PROPMAP[code]) {
-          propsToAdd.push({ x: wx, y: wy, type: PROPMAP[code] });
-        }
-      }
-    }
-
-    // Commit staged changes only after full validation
-    try { if (!Array.isArray(ctx.townProps)) ctx.townProps = []; } catch (_) {}
-
-    for (let i = 0; i < tileChanges.length; i++) {
-      const c = tileChanges[i];
-      if (c.y > 0 && c.x > 0 && c.y < H - 1 && c.x < W - 1) {
-        ctx.map[c.y][c.x] = ctx.TILES.FLOOR;
-      }
-    }
-    for (let i = 0; i < propsToAdd.length; i++) {
-      const p = propsToAdd[i];
-      if (!ctx.townProps.some(q => q && q.x === p.x && q.y === p.y)) {
-        ctx.townProps.push({ x: p.x, y: p.y, type: p.type });
-      }
-    }
-
-    // Do NOT record a building rect for plaza prefabs
-    // Track plaza prefab usage for diagnostics
-    try {
-      const id = String(prefab.id || "");
-      if (id) {
-        ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [] };
-        ctx.townPrefabUsage.plazas.push(id);
-      }
-    } catch (_) {}
-    return true;
+    // Delegate to module implementation
+    return Prefabs.stampPlazaPrefab(ctx, prefab, bx, by);
   }
 
   // Enlarge and position the Inn next to the plaza, with size almost as big as the plaza and double doors facing it
@@ -1168,9 +874,8 @@ function generate(ctx) {
   })();
 
   function pickPrefab(list, rng) {
-    if (!Array.isArray(list) || list.length === 0) return null;
-    const idx = Math.floor(rng() * list.length) % list.length;
-    return list[idx];
+    // Delegate to module implementation
+    return Prefabs.pickPrefab(list, rng);
   }
 
   // --- Hollow rectangle fallback helpers ---
@@ -2062,167 +1767,7 @@ function generate(ctx) {
   // Build roads after buildings: one main road from gate to plaza, then spurs from every building door to the main road.
   (function buildRoadsAndPublish() {
     try {
-      const rows = H, cols = W;
-      function inB(x, y) { return x >= 0 && y >= 0 && x < cols && y < rows; }
-      function insideAnyBuilding(x, y) {
-        for (let i = 0; i < buildings.length; i++) {
-          const B = buildings[i];
-          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
-        }
-        return false;
-      }
-      const outdoor = ctx.townOutdoorMask;
-      function pass(x, y) { return inB(x, y) && outdoor && outdoor[y] && outdoor[y][x]; }
-      const dirs4 = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-
-      function bfs(sx, sy, goalFn) {
-        if (!pass(sx, sy)) return null;
-        const q = [];
-        const seen = new Set();
-        const prev = new Map();
-        const k0 = `${sx},${sy}`;
-        seen.add(k0);
-        q.push({ x: sx, y: sy });
-        let end = null;
-        while (q.length) {
-          const cur = q.shift();
-          if (goalFn(cur.x, cur.y)) { end = cur; break; }
-          for (let i = 0; i < dirs4.length; i++) {
-            const d = dirs4[i];
-            const nx = cur.x + d.dx, ny = cur.y + d.dy;
-            if (!pass(nx, ny)) continue;
-            const key = `${nx},${ny}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            prev.set(key, cur);
-            q.push({ x: nx, y: ny });
-          }
-        }
-        if (!end) return null;
-        const path = [];
-        let cur = { x: end.x, y: end.y };
-        while (cur) {
-          path.push({ x: cur.x, y: cur.y });
-          const p = prev.get(`${cur.x},${cur.y}`);
-          cur = p ? { x: p.x, y: p.y } : null;
-        }
-        path.reverse();
-        return path;
-      }
-
-      function insidePlaza(x, y) {
-        return x >= pr.x0 && x <= pr.x1 && y >= pr.y0 && y <= pr.y1;
-      }
-
-      function markRoadPath(path) {
-        if (!Array.isArray(path) || path.length === 0) return;
-        for (let i = 0; i < path.length; i++) {
-          const p = path[i];
-          if (!inB(p.x, p.y)) continue;
-          // Keep the plaza interior pure FLOOR; do not convert or mark roads inside it
-          if (insidePlaza(p.x, p.y)) continue;
-          const t = ctx.map[p.y][p.x];
-          if (t === ctx.TILES.FLOOR) {
-            ctx.map[p.y][p.x] = ctx.TILES.ROAD;
-            roadsMask[p.y][p.x] = true;
-          } else if (t === ctx.TILES.ROAD) {
-            roadsMask[p.y][p.x] = true;
-          }
-        }
-      }
-      function nearestOutdoorToDoor(door) {
-        const neigh = dirs4;
-        for (let i = 0; i < neigh.length; i++) {
-          const d = neigh[i];
-          const nx = door.x + d.dx, ny = door.y + d.dy;
-          if (!pass(nx, ny)) continue;
-          if (insideAnyBuilding(nx, ny)) continue;
-          return { x: nx, y: ny };
-        }
-        // small radius search
-        for (let r = 1; r <= 2; r++) {
-          for (let dy = -r; dy <= r; dy++) {
-            for (let dx = -r; dx <= r; dx++) {
-              const nx = door.x + dx, ny = door.y + dy;
-              if (!pass(nx, ny)) continue;
-              if (insideAnyBuilding(nx, ny)) continue;
-              return { x: nx, y: ny };
-            }
-          }
-        }
-        return null;
-      }
-
-      // Main road: gate -> plaza center (or nearest outdoor tile inside plaza)
-      const pr = ctx.townPlazaRect || {
-        x0: ((plaza.x - (plazaW / 2)) | 0),
-        y0: ((plaza.y - (plazaH / 2)) | 0),
-        x1: ((plaza.x + (plazaW / 2)) | 0),
-        y1: ((plaza.y + (plazaH / 2)) | 0),
-      };
-      const cx = plaza.x | 0, cy = plaza.y | 0;
-      let pGoal = null;
-      if (pass(cx, cy)) {
-        pGoal = { x: cx, y: cy };
-      } else {
-        let best = null, bd = Infinity;
-        for (let y = pr.y0; y <= pr.y1; y++) {
-          for (let x = pr.x0; x <= pr.x1; x++) {
-            if (!pass(x, y)) continue;
-            const d = Math.abs(x - cx) + Math.abs(y - cy);
-            if (d < bd) { bd = d; best = { x, y }; }
-          }
-        }
-        pGoal = best || { x: cx, y: cy };
-      }
-      const startMain = { x: gate.x, y: gate.y };
-      if (pass(startMain.x, startMain.y) && pGoal) {
-        const pathMain = bfs(startMain.x, startMain.y, (x, y) => x === pGoal.x && y === pGoal.y);
-        markRoadPath(pathMain);
-      }
-
-      // Road set for connecting spurs
-      const roadSet = new Set();
-      for (let yy = 0; yy < H; yy++) {
-        for (let xx = 0; xx < W; xx++) {
-          if (ctx.map[yy][xx] === ctx.TILES.ROAD) {
-            roadsMask[yy][xx] = true;
-            roadSet.add(`${xx},${yy}`);
-          }
-        }
-      }
-
-      function pathToNearestRoad(sx, sy) {
-        return bfs(sx, sy, (x, y) => roadSet.has(`${x},${y}`));
-      }
-
-      const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : buildings;
-      for (let i = 0; i < tbs.length; i++) {
-        const b = tbs[i];
-        const door = b && b.door ? b.door : null;
-        if (!door || typeof door.x !== "number" || typeof door.y !== "number") continue;
-        const startOut = nearestOutdoorToDoor(door);
-        if (!startOut) continue;
-        if (ctx.map[startOut.y][startOut.x] === ctx.TILES.ROAD) {
-          roadsMask[startOut.y][startOut.x] = true;
-          continue;
-        }
-        let path = pathToNearestRoad(startOut.x, startOut.y);
-        if (!path || !path.length) {
-          // Fallback: path to plaza goal
-          path = bfs(startOut.x, startOut.y, (x, y) => x === pGoal.x && y === pGoal.y);
-        }
-        markRoadPath(path);
-        if (Array.isArray(path)) {
-          for (let k = 0; k < path.length; k++) {
-            const p = path[k];
-            roadSet.add(`${p.x},${p.y}`);
-          }
-        }
-      }
-
-      // Publish mask
-      ctx.townRoads = roadsMask;
+      Roads.build(ctx);
     } catch (_) {}
   })();
   function addProp(x, y, type, name) {
@@ -2620,6 +2165,8 @@ function shopAt(ctx, x, y) {
 }
 
 import { parseHHMM } from "../services/time_service.js";
+import * as Prefabs from "./prefabs.js";
+import * as Roads from "./roads.js";
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper and export for ESM
 export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
