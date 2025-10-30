@@ -321,12 +321,27 @@ export function init(UI) {
   // RNG controls
   const seedApply = byId("god-apply-seed-btn");
   const seedInput = byId("god-seed-input");
-  if (seedApply) {
-    seedApply.addEventListener("click", () => {
-      const raw = (seedInput && seedInput.value) ? seedInput.value.trim() : "";
-      const n = Number(raw);
+  function applySeedFromInput() {
+    try {
+      const raw = (seedInput && typeof seedInput.value === "string") ? seedInput.value.trim() : "";
+      // Keep digits only; ignore any non-numeric characters
+      const digits = raw.replace(/[^\d]/g, "");
+      if (!digits) return;
+      const n = Number(digits);
       if (Number.isFinite(n) && n >= 0) {
         if (typeof UI.handlers.onGodApplySeed === "function") UI.handlers.onGodApplySeed(n >>> 0);
+      }
+    } catch (_) {}
+  }
+  if (seedApply) {
+    seedApply.addEventListener("click", applySeedFromInput);
+  }
+  if (seedInput) {
+    // Press Enter inside the seed box to apply immediately
+    seedInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        applySeedFromInput();
       }
     });
   }
