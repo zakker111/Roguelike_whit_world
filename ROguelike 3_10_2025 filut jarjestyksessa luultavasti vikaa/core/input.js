@@ -34,6 +34,19 @@ export function init(handlers) {
     window.removeEventListener("keydown", _onKey);
   }
   _onKey = (e) => {
+    // Allow typing inside editable elements (inputs, textareas, selects, contentEditable)
+    // except Esc which should still close the current modal.
+    try {
+      const tgt = e.target;
+      const tag = (tgt && tgt.tagName) ? String(tgt.tagName).toLowerCase() : "";
+      const isEditable = (tag === "input" || tag === "textarea" || tag === "select" || (tgt && !!tgt.isContentEditable));
+      const isEsc = (e.key === "Escape" || e.key === "Esc");
+      if (isEditable && !isEsc) {
+        // Let the browser/UI handle the keystroke so users can type numbers/text.
+        return;
+      }
+    } catch (_) {}
+
     // Dead screen: only R restarts (Enter disabled)
     if (_handlers.isDead && _handlers.isDead()) {
       if (e.key && (e.key.toLowerCase() === "r")) {
