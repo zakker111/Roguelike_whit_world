@@ -1313,7 +1313,25 @@
   
 
   function enterTownIfOnTile() {
-    // Prefer unified ModesTransitions facade
+    // Prefer app-level ModeController facade
+    try {
+      const MC = modHandle("ModeController");
+      if (MC && typeof MC.enterTownIfOnTile === "function") {
+        const ctx = getCtx();
+        const ok = !!MC.enterTownIfOnTile(ctx);
+        if (ok) {
+          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
+          applyCtxSyncAndRefresh(ctx);
+          try {
+            const TR = modHandle("TownRuntime");
+            if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
+          } catch (_) {}
+        }
+        return ok;
+      }
+    } catch (_) {}
+
+    // Fallback to core facades
     try {
       const MT = modHandle("ModesTransitions");
       if (MT && typeof MT.enterTownIfOnTile === "function") {
@@ -1346,10 +1364,45 @@
       return ok;
     }
     return false;
+  } catch (_) {}
+        }
+        return ok;
+      }
+    } catch (_) {}
+
+    const M = modHandle("Modes");
+    if (M && typeof M.enterTownIfOnTile === "function") {
+      const ctx = getCtx();
+      const ok = !!M.enterTownIfOnTile(ctx);
+      if (ok) {
+        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
+        applyCtxSyncAndRefresh(ctx);
+        try {
+          const TR = modHandle("TownRuntime");
+          if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
+        } catch (_) {}
+      }
+      return ok;
+    }
+    return false;
   }
 
   function enterDungeonIfOnEntrance() {
-    // Prefer unified ModesTransitions facade
+    // Prefer app-level ModeController facade
+    try {
+      const MC = modHandle("ModeController");
+      if (MC && typeof MC.enterDungeonIfOnEntrance === "function") {
+        const ctx = getCtx();
+        const ok = !!MC.enterDungeonIfOnEntrance(ctx);
+        if (ok) {
+          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
+          applyCtxSyncAndRefresh(ctx);
+        }
+        return ok;
+      }
+    } catch (_) {}
+
+    // Fallback to core facades
     try {
       const MT = modHandle("ModesTransitions");
       if (MT && typeof MT.enterDungeonIfOnEntrance === "function") {
@@ -1375,9 +1428,53 @@
     }
     return false;
   }
+        return ok;
+      }
+    } catch (_) {}
+
+    const M = modHandle("Modes");
+    if (M && typeof M.enterDungeonIfOnEntrance === "function") {
+      const ctx = getCtx();
+      const ok = !!M.enterDungeonIfOnEntrance(ctx);
+      if (ok) {
+        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
+        applyCtxSyncAndRefresh(ctx);
+      }
+      return ok;
+    }
+    return false;
+  }
 
   function leaveTownNow() {
-    // Prefer unified ModesTransitions facade
+    // Prefer app-level ModeController facade
+    try {
+      const MC = modHandle("ModeController");
+      if (MC && typeof MC.leaveTownNow === "function") {
+        const ctx = getCtx();
+        MC.leaveTownNow(ctx);
+        applyCtxSyncAndRefresh(ctx);
+        return;
+      }
+    } catch (_) {}
+    // Fallback to core facades
+    try {
+      const MT = modHandle("ModesTransitions");
+      if (MT && typeof MT.leaveTownNow === "function") {
+        const ctx = getCtx();
+        MT.leaveTownNow(ctx);
+        applyCtxSyncAndRefresh(ctx);
+        return;
+      }
+    } catch (_) {}
+    const M = modHandle("Modes");
+    if (M && typeof M.leaveTownNow === "function") {
+      const ctx = getCtx();
+      M.leaveTownNow(ctx);
+      applyCtxSyncAndRefresh(ctx);
+      return;
+    }
+  }
+    // Fallback: ModesTransitions then Modes
     try {
       const MT = modHandle("ModesTransitions");
       if (MT && typeof MT.leaveTownNow === "function") {
@@ -1398,6 +1495,25 @@
 
   function requestLeaveTown() {
     try {
+      const MC = modHandle("ModeController");
+      if (MC && typeof MC.requestLeaveTown === "function") {
+        MC.requestLeaveTown(getCtx());
+        return;
+      }
+    } catch (_) {}
+    try {
+      const MT = modHandle("ModesTransitions");
+      if (MT && typeof MT.requestLeaveTown === "function") {
+        MT.requestLeaveTown(getCtx());
+        return;
+      }
+    } catch (_) {}
+    const M = modHandle("Modes");
+    if (M && typeof M.requestLeaveTown === "function") {
+      M.requestLeaveTown(getCtx());
+    }
+  }
+    try {
       const MT = modHandle("ModesTransitions");
       if (MT && typeof MT.requestLeaveTown === "function") {
         MT.requestLeaveTown(getCtx());
@@ -1412,7 +1528,19 @@
 
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
-    // Prefer unified ModesTransitions facade
+    // Prefer app-level ModeController facade
+    try {
+      const MC = modHandle("ModeController");
+      if (MC && typeof MC.returnToWorldFromTown === "function") {
+        const ctx = getCtx();
+        const ok = !!MC.returnToWorldFromTown(ctx);
+        if (ok) {
+          applyCtxSyncAndRefresh(ctx);
+          return true;
+        }
+      }
+    } catch (_) {}
+    // Fallback to core facades
     try {
       const MT = modHandle("ModesTransitions");
       if (MT && typeof MT.returnToWorldFromTown === "function") {
@@ -1451,6 +1579,19 @@
   }
 
   function returnToWorldIfAtExit() {
+    // Prefer app-level ModeController facade
+    try {
+      const MC = modHandle("ModeController");
+      if (MC && typeof MC.returnToWorldIfAtExit === "function") {
+        const ctx = getCtx();
+        const ok = MC.returnToWorldIfAtExit(ctx);
+        if (ok) {
+          applyCtxSyncAndRefresh(ctx);
+        }
+        return ok;
+      }
+    } catch (_) {}
+    // Fallback to core facades
     try {
       const MT = modHandle("ModesTransitions");
       if (MT && typeof MT.returnToWorldIfAtExit === "function") {
