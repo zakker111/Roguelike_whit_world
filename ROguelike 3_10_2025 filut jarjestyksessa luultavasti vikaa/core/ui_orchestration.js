@@ -66,6 +66,13 @@ export function requestDraw(ctx) {
   } catch (_) {}
 }
 
+export function updateStats(ctx) {
+  const u = U(ctx);
+  if (u && typeof u.updateStats === "function") {
+    u.updateStats(ctx);
+  }
+}
+
 export function renderInventory(ctx) {
   const ic = IC(ctx);
   if (ic && typeof ic.render === "function") {
@@ -343,6 +350,7 @@ import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper
 attachGlobal("UIOrchestration", {
   requestDraw,
+  updateStats,
   renderInventory,
   showInventory,
   hideInventory,

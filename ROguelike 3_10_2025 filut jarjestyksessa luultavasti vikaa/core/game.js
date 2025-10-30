@@ -466,10 +466,10 @@
         if (res && res.ok && !!res.result) { renderInventoryPanel(); return; }
       }
     } catch (_) {}
-    const UB = modHandle("UIBridge");
+    const UIO = modHandle("UIOrchestration");
     let open = false;
     try {
-      if (UB && typeof UB.isInventoryOpen === "function") open = !!UB.isInventoryOpen();
+      if (UIO && typeof UIO.isInventoryOpen === "function") open = !!UIO.isInventoryOpen(getCtx());
     } catch (_) {}
     if (open) renderInventoryPanel();
   }
@@ -779,24 +779,15 @@
 
   
   function log(msg, type = "info") {
-    // Mirror logs to console only in DEV for noise control
+    // Prefer UI logger; avoid direct DOM fallbacks
     try { if (window.DEV) console.debug(`[${type}] ${msg}`); } catch (_) {}
     const LG = modHandle("Logger");
     if (LG && typeof LG.log === "function") {
       LG.log(msg, type);
       return;
     }
-    // Fallback (in case logger.js isn't loaded)
-    const el = document.getElementById("log");
-    if (!el) return;
-    const div = document.createElement("div");
-    div.className = `entry ${type}`;
-    div.textContent = msg;
-    el.prepend(div);
-    const MAX = 60;
-    while (el.childNodes.length > MAX) {
-      el.removeChild(el.lastChild);
-    }
+    // Fallback: console only
+    try { console.log(`[${type}] ${msg}`); } catch (_) {}
   }
 
   
@@ -1628,7 +1619,7 @@
           else if (type === "campfire") {
             // Prompt to cook raw meat if available
             try {
-              const UB = modHandle("UIBridge");
+              const UIO = modHandle("UIOrchestration");
               // Count raw meat in inventory
               const inv = ctxMod.player.inventory || [];
               let rawMeatIdxs = [];
@@ -1681,13 +1672,13 @@
                   log(`You cook ${rawCount} meat into ${rawCount} meat (cooked).`, "good");
                   updateUI();
                   // Re-render inventory panel if open
-                  try { const UB2 = modHandle("UIBridge"); if (UB2 && typeof UB2.renderInventory === "function") UB2.renderInventory(getCtx()); } catch (_) {}
+                  try { const UIO2 = modHandle("UIOrchestration"); if (UIO2 && typeof UIO2.renderInventory === "function") UIO2.renderInventory(getCtx()); } catch (_) {}
                 };
                 const onCancel = () => {
                   log("You warm your hands by the fire.", "info");
                 };
-                if (UB && typeof UB.showConfirm === "function") {
-                  UB.showConfirm(ctxMod, prompt, null, onOk, onCancel);
+                if (UIO && typeof UIO.showConfirm === "function") {
+                  UIO.showConfirm(ctxMod, prompt, null, onOk, onCancel);
                 } else {
                   // Fallback: immediate cook without UI
                   onOk();
@@ -1701,9 +1692,9 @@
           }
           else if (type === "merchant") {
             try {
-              const UB = modHandle("UIBridge");
-              if (UB && typeof UB.showShop === "function") {
-                UB.showShop(ctxMod, { name: p.name || "Merchant", vendor: p.vendor || "merchant" });
+              const UIO = modHandle("UIOrchestration");
+              if (UIO && typeof UIO.showShop === "function") {
+                UIO.showShop(ctxMod, { name: p.name || "Merchant", vendor: p.vendor || "merchant" });
               } else {
                 log("The merchant nods. (Trading UI not available)", "warn");
               }
@@ -1966,15 +1957,10 @@
         if (res && res.ok) return;
       }
     } catch (_) {}
-    // Fallback: UIBridge
-    const UB = modHandle("UIBridge");
-    let wasOpen = false;
-    try {
-      if (UB && typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen();
-    } catch (_) {}
-    if (UB && typeof UB.showLoot === "function") {
-      UB.showLoot(getCtx(), list);
-      if (!wasOpen) requestDraw();
+    // Direct UIOrchestration fallback only
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.showLoot === "function") {
+      UIO.showLoot(getCtx(), list);
     }
   }
 
@@ -1990,12 +1976,12 @@
         if (res && res.ok) return;
       }
     } catch (_) {}
-    // Fallback: UIBridge
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.hideLoot === "function") {
-      let wasOpen = true;
-      try { if (typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen(); } catch (_) {}
-      UB.hideLoot(getCtx());
+    // Direct UIOrchestration fallback only
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.hideLoot === "function") {
+      let wasOpen = false;
+      try { if (typeof UIO.isLootOpen === "function") wasOpen = !!UIO.isLootOpen(getCtx()); } catch (_) {}
+      UIO.hideLoot(getCtx());
       if (wasOpen) requestDraw();
     }
   }
@@ -2047,10 +2033,10 @@
         if (res && res.ok) return;
       }
     } catch (_) {}
-    // Fallback: UIBridge
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.renderInventory === "function") {
-      UB.renderInventory(getCtx());
+    // Fallback: UIOrchestration
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.renderInventory === "function") {
+      UIO.renderInventory(getCtx());
       return;
     }
   }
@@ -2065,25 +2051,27 @@
         if (res && res.ok) return;
       }
     } catch (_) {}
-    const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
-      // Prefer UIOrchestration isInventoryOpen; fallback to UIBridge
       const Cap = modHandle("Capabilities");
       const ctxLocal = getCtx();
       if (Cap && typeof Cap.safeCall === "function") {
         const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
         if (r && r.ok) wasOpen = !!r.result;
       }
-      if (!wasOpen && UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+      if (!wasOpen) {
+        const UIO = modHandle("UIOrchestration");
+        if (UIO && typeof UIO.isInventoryOpen === "function") wasOpen = !!UIO.isInventoryOpen(getCtx());
+      }
     } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.show === "function") {
       IC.show(getCtx());
     } else {
       renderInventoryPanel();
-      if (UB && typeof UB.showInventory === "function") {
-        UB.showInventory(getCtx());
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.showInventory === "function") {
+        UIO.showInventory(getCtx());
       }
     }
     if (!wasOpen) requestDraw();
@@ -2099,17 +2087,18 @@
         if (res && res.ok) return;
       }
     } catch (_) {}
-    const UB = modHandle("UIBridge");
     let wasOpen = false;
     try {
-      // Prefer UIOrchestration isInventoryOpen; fallback to UIBridge
       const Cap = modHandle("Capabilities");
       const ctxLocal = getCtx();
       if (Cap && typeof Cap.safeCall === "function") {
         const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
         if (r && r.ok) wasOpen = !!r.result;
       }
-      if (!wasOpen && UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen();
+      if (!wasOpen) {
+        const UIO = modHandle("UIOrchestration");
+        if (UIO && typeof UIO.isInventoryOpen === "function") wasOpen = !!UIO.isInventoryOpen(getCtx());
+      }
     } catch (_) {}
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.hide === "function") {
@@ -2117,8 +2106,9 @@
       if (wasOpen) requestDraw();
       return;
     }
-    if (UB && typeof UB.hideInventory === "function") {
-      UB.hideInventory(getCtx());
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.hideInventory === "function") {
+      UIO.hideInventory(getCtx());
       if (wasOpen) requestDraw();
       return;
     }
@@ -2304,10 +2294,9 @@
         if (res && res.ok) return;
       }
     } catch (_) {}
-    // Fallback: UIBridge
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.hideGameOver === "function") {
-      UB.hideGameOver(getCtx());
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.hideGameOver === "function") {
+      UIO.hideGameOver(getCtx());
     }
   }
 
@@ -2468,18 +2457,18 @@
 
   
   function updateUI() {
-    // Prefer UIBridge via Capabilities.safeCall
+    // Prefer UIOrchestration via Capabilities.safeCall
     try {
       const Cap = modHandle("Capabilities");
       const ctxLocal = getCtx();
       if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIBridge", "updateStats", ctxLocal);
+        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "updateStats", ctxLocal);
         if (res && res.ok) return;
       }
     } catch (_) {}
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.updateStats === "function") {
-      UB.updateStats(getCtx());
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.updateStats === "function") {
+      UIO.updateStats(getCtx());
     }
   }
 
@@ -2922,9 +2911,9 @@
               applyCtxSyncAndRefresh(ctx);
               // If the Region Map overlay modal is open, repaint it to show spawned enemies immediately
               try {
-                const UB = modHandle("UIBridge");
-                if (UB && typeof UB.isRegionMapOpen === "function" && UB.isRegionMapOpen() && typeof UB.showRegionMap === "function") {
-                  UB.showRegionMap(ctx);
+                const UIO = modHandle("UIOrchestration");
+                if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
+                  UIO.showRegionMap(ctx);
                 }
               } catch (_) {}
             }
@@ -2936,9 +2925,9 @@
             if (ok) {
               applyCtxSyncAndRefresh(ctx);
               try {
-                const UB = modHandle("UIBridge");
-                if (UB && typeof UB.isRegionMapOpen === "function" && UB.isRegionMapOpen() && typeof UB.showRegionMap === "function") {
-                  UB.showRegionMap(ctx);
+                const UIO = modHandle("UIOrchestration");
+                if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
+                  UIO.showRegionMap(ctx);
                 }
               } catch (_) {}
             }
