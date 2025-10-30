@@ -265,14 +265,7 @@ export function generate(ctx, source) {
  * Uses UI.showLoot when present, otherwise writes directly to the fallback DOM panel.
  */
 function showLoot(ctx, list) {
-  // Require bridge/UI orchestration; no DOM fallback
-  try {
-    const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
-    if (UB && typeof UB.showLoot === "function") {
-      UB.showLoot(ctx, list || []);
-      return;
-    }
-  } catch (_) {}
+  // Route solely via UIOrchestration; no direct UIBridge usage
   try {
     const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
     if (UIO && typeof UIO.showLoot === "function") {
@@ -288,14 +281,7 @@ function showLoot(ctx, list) {
  * Hide the loot panel. Uses UI.hideLoot when present or a simple DOM toggle otherwise.
  */
 function hideLoot(ctx) {
-  // Require bridge/UI orchestration; no DOM fallback
-  try {
-    const UB = (ctx && ctx.UIBridge) || (typeof window !== "undefined" ? window.UIBridge : null);
-    if (UB && typeof UB.hideLoot === "function") {
-      UB.hideLoot(ctx);
-      return;
-    }
-  } catch (_) {}
+  // Route solely via UIOrchestration; no direct UIBridge usage
   try {
     const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
     if (UIO && typeof UIO.hideLoot === "function") {
@@ -370,12 +356,12 @@ export function lootHere(ctx) {
         if (!equipped) {
           player.inventory.push(item);
         } else {
-          // Rerender inventory if open (prefer UIBridge)
+          // Rerender inventory if open via UIOrchestration
           let invOpen = false;
           try {
-            const UB = (ctx && ctx.UIBridge) || null;
-            if (UB && typeof UB.isInventoryOpen === "function") {
-              invOpen = !!UB.isInventoryOpen();
+            const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+            if (UIO && typeof UIO.isInventoryOpen === "function") {
+              invOpen = !!UIO.isInventoryOpen(ctx);
             }
           } catch (_) {}
           if (invOpen && typeof ctx.renderInventory === "function") ctx.renderInventory();

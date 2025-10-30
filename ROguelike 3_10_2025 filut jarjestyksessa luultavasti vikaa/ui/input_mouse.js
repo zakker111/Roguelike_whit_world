@@ -46,10 +46,7 @@ export function init(opts) {
               var UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
               if (UIO && typeof UIO.isAnyModalOpen === "function") return !!UIO.isAnyModalOpen((typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.getCtx === "function") ? window.GameAPI.getCtx() : null);
             } catch (_) {}
-            try {
-              var UB = (typeof window !== "undefined" ? window.UIBridge : null);
-              return !!(UB && typeof UB.isAnyModalOpen === "function" && UB.isAnyModalOpen());
-            } catch (_) { return false; }
+            return false;
           })()) return;
         } catch (_) {}
 

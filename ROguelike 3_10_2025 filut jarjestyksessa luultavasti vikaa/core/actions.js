@@ -131,8 +131,8 @@ function isInnStairsTile(ctx, x, y) {
 export function doAction(ctx) {
   // Hide loot UI if open
   try {
-    const UB = ctx && ctx.UIBridge;
-    if (UB && typeof UB.hideLoot === "function") UB.hideLoot(ctx);
+    const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.hideLoot === "function") UIO.hideLoot(ctx);
   } catch (_) {}
 
   if (ctx.mode === "world") {

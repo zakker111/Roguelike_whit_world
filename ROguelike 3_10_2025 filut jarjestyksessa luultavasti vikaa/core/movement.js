@@ -165,11 +165,13 @@ export function tryMove(ctx, dx, dy) {
             const props = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : [];
             const onMerchant = props.find(pr => pr && pr.type === "merchant" && pr.x === ctx.player.x && pr.y === ctx.player.y);
             if (onMerchant) {
-              const UB = mod("UIBridge");
-              if (UB && typeof UB.showShop === "function") {
-                const already = (typeof UB.isShopOpen === "function") ? !!UB.isShopOpen() : false;
-                if (!already) UB.showShop(ctx, { name: onMerchant.name || "Merchant", vendor: onMerchant.vendor || "merchant" });
-              }
+              try {
+                const UIO = mod("UIOrchestration");
+                if (UIO && typeof UIO.showShop === "function") {
+                  const already = (typeof UIO.isShopOpen === "function") ? !!UIO.isShopOpen(ctx) : false;
+                  if (!already) UIO.showShop(ctx, { name: onMerchant.name || "Merchant", vendor: onMerchant.vendor || "merchant" });
+                }
+              } catch (_) {}
             }
           } catch (_) {}
           try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
