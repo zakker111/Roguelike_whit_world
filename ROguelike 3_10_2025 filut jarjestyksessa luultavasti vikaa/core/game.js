@@ -300,11 +300,11 @@
         lastDrawMs: (typeof PERF.avgDrawMs === "number" && PERF.avgDrawMs > 0 ? PERF.avgDrawMs : (PERF.lastDrawMs || 0)),
       }),
       requestDraw,
-      _code
+      log,
       isWalkable, inBounds,
       // Prefer modules to use ctx.utils.*; keep these for backward use and fallbacks.
       round1, randInt, chance, randFloat,
-      enemyColor, describeItem,
+       enemyColor, describeItem,
       setFovRadius,
       // expose recompute/update for modules like DungeonState
       recomputeFOV: () => recomputeFOV(),
