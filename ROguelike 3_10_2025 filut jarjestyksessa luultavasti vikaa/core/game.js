@@ -1364,27 +1364,6 @@
       return ok;
     }
     return false;
-  } catch (_) {}
-        }
-        return ok;
-      }
-    } catch (_) {}
-
-    const M = modHandle("Modes");
-    if (M && typeof M.enterTownIfOnTile === "function") {
-      const ctx = getCtx();
-      const ok = !!M.enterTownIfOnTile(ctx);
-      if (ok) {
-        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-        applyCtxSyncAndRefresh(ctx);
-        try {
-          const TR = modHandle("TownRuntime");
-          if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
-        } catch (_) {}
-      }
-      return ok;
-    }
-    return false;
   }
 
   function enterDungeonIfOnEntrance() {
@@ -1412,22 +1391,6 @@
           _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
           applyCtxSyncAndRefresh(ctx);
         }
-        return ok;
-      }
-    } catch (_) {}
-
-    const M = modHandle("Modes");
-    if (M && typeof M.enterDungeonIfOnEntrance === "function") {
-      const ctx = getCtx();
-      const ok = !!M.enterDungeonIfOnEntrance(ctx);
-      if (ok) {
-        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-        applyCtxSyncAndRefresh(ctx);
-      }
-      return ok;
-    }
-    return false;
-  }
         return ok;
       }
     } catch (_) {}
@@ -1474,24 +1437,6 @@
       return;
     }
   }
-    // Fallback: ModesTransitions then Modes
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.leaveTownNow === "function") {
-        const ctx = getCtx();
-        MT.leaveTownNow(ctx);
-        applyCtxSyncAndRefresh(ctx);
-        return;
-      }
-    } catch (_) {}
-    const M = modHandle("Modes");
-    if (M && typeof M.leaveTownNow === "function") {
-      const ctx = getCtx();
-      M.leaveTownNow(ctx);
-      applyCtxSyncAndRefresh(ctx);
-      return;
-    }
-  }
 
   function requestLeaveTown() {
     try {
@@ -1501,18 +1446,6 @@
         return;
       }
     } catch (_) {}
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.requestLeaveTown === "function") {
-        MT.requestLeaveTown(getCtx());
-        return;
-      }
-    } catch (_) {}
-    const M = modHandle("Modes");
-    if (M && typeof M.requestLeaveTown === "function") {
-      M.requestLeaveTown(getCtx());
-    }
-  }
     try {
       const MT = modHandle("ModesTransitions");
       if (MT && typeof MT.requestLeaveTown === "function") {
