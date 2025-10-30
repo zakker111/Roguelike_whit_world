@@ -107,7 +107,8 @@ import '/core/capabilities.js';
 import '/core/god_handlers.js';
 
 // Finally: game orchestrator (boots world, sets up input, starts loop/render)
-import '/core/game.js';
+// Minimal orchestrator keeps current boot-in-game.js behavior behind a stable entrypoint.
+import '/core/game_orchestrator.js';
 
 // Boot diagnostics: log RNG source and seed once registries are loaded.
 (function () {
