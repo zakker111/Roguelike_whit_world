@@ -85,7 +85,7 @@ function ensurePanel() {
     if (e.target === panel) {
       const cb = _cancelCb;
       hide();
-      try { if(_) {}
+      try { if (typeof cb === "function") cb(); } catch (_) {}
       e.stopPropagation();
     }
   });
@@ -133,8 +133,9 @@ export function hide() {
 }
 
 export function cancel() {
+  const cb = _cancelCb;
   hide();
-  try { if (typeof _cancelCb === "function") _cancelCb(); } catch (_) {}
+  try { if (typeof cb === "function") cb(); } catch (_) {}
 }
 
 export function isOpen() {
