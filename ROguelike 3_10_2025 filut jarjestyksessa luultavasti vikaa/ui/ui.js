@@ -655,8 +655,8 @@ export const UI = {
         });
       } catch (_) {}
 
-      // Canonical scenario list (extendable)
-      const scenarios = [
+      // Default list (fallback)
+      let scenarios = [
         { id: "world", label: "World" },
         { id: "inventory", label: "Inventory" },
         { id: "dungeon", label: "Dungeon" },
@@ -671,19 +671,39 @@ export const UI = {
         { id: "town_flows", label: "Town Flows" },
       ];
 
-      // Render checkboxes
-      const html = scenarios.map((s) => {
-        const checked = prev.has(s.id) ? " checked" : "";
-        const title = s.label || s.id;
-        return `
-          <label style="display:flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid #253047; border-radius:6px; background:#0f1117;">
-            <input type="checkbox" class="smoke-sel" value="${s.id}"${checked} />
-            <span style="color:#cbd5e1; font-size:13px;">${title}</span>
-          </label>
-        `;
-      }).join("");
+      // Try to load manifest if present
+      const apply = (arr) => {
+        // Render checkboxes
+        const html = arr.map((s) => {
+          const id = (s && s.id) ? s.id : "";
+          if (!id) return "";
+          const checked = prev.has(id) ? " checked" : "";
+          const title = s.label || id;
+          return `
+            <label style="display:flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid #253047; border-radius:6px; background:#0f1117;">
+              <input type="checkbox" class="smoke-sel" value="${id}"${checked} />
+              <span style="color:#cbd5e1; font-size:13px;">${title}</span>
+            </label>
+          `;
+        }).join("");
+        container.innerHTML = html;
+      };
 
-      container.innerHTML = html;
+      try {
+        fetch("/smoketest/scenarios.json", { cache: "no-cache" })
+          .then((r) => r.ok ? r.json() : null)
+          .then((j) => {
+            const arr = (j && Array.isArray(j.scenarios)) ? j.scenarios : null;
+            if (arr && arr.length) {
+              apply(arr);
+            } else {
+              apply(scenarios);
+            }
+          })
+          .catch(() => apply(scenarios));
+      } catch (_) {
+        apply(scenarios);
+      }
     } catch (_) {}
   },
 

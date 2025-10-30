@@ -1,0 +1,16 @@
+{
+  "scenarios": [
+    { "id": "world", "label": "World" },
+    { "id": "inventory", "label": "Inventory" },
+    { "id": "dungeon", "label": "Dungeon" },
+    { "id": "combat", "label": "Combat" },
+    { "id": "dungeon_persistence", "label": "Dungeon Persistence" },
+    { "id": "town", "label": "Town" },
+    { "id": "town_diagnostics", "label": "Town Diagnostics" },
+    { "id": "overlays", "label": "Overlays" },
+    { "id": "determinism", "label": "Determinism" },
+    { "id": "encounters", "label": "Encounters" },
+    { "id": "api", "label": "API" },
+    { "id": "town_flows", "label": "Town Flows" }
+  ]
+}
