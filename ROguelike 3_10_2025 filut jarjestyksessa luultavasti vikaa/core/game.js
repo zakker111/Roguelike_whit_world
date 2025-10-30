@@ -296,8 +296,8 @@
       time: getClock(),
       // Perf stats for HUD overlay (smoothed via EMA when available)
       getPerfStats: () => ({
-        lastTurnMs: (typeof PERF.avgTurnMs === "number" && PERF.avgTurnMs > 0 ? PERF.avgTurnMs : (PERF.lastTurnMs || 0: (typeof PERF.avgDrawMs === "number" ? PERF.avgDrawMs : (PERF.lastDrawMs || 0))
-      }),
+        lastTurnMs: (typeof PERF.avgTurnMs === "number" && PERF.avgTurnMs > 0 ? PERF.avgTurnMs : (PERF.lastTurnMs || 0)),
+        lastDrawMs: (typeof PERF.avgDrawMs === "number" && PERF.avgDrawMs > 0 ? PERF.avgDrawMs : (PERF.lastDrawMs),
       requestDraw,
       log,
       isWalkable, inBounds,
