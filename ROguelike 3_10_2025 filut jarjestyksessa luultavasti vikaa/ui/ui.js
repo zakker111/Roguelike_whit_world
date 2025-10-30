@@ -26,6 +26,7 @@ import * as TownExit from "/ui/components/town_exit.js";
 import * as GodPanel from "/ui/components/god_panel.js";
 import * as InventoryPanel from "/ui/components/inventory_panel.js";
 import * as LootPanel from "/ui/components/loot_panel.js";
+import * as Hud from "/ui/components/hud.js";
 
 export const UI = {
   els: {},
@@ -47,6 +48,7 @@ export const UI = {
   init() {
     this.els.hpEl = document.getElementById("health");
     this.els.floorEl = document.getElementById("floor");
+    try { if (Hud && typeof Hud.init === "function") Hud.init(); } catch (_) {}
     this.els.logEl = document.getElementById("log");
     this.els.lootPanel = document.getElementById("loot-panel");
     this.els.lootList = document.getElementById("loot-list");
@@ -305,40 +307,9 @@ export const UI = {
   },
 
   updateStats(player, floor, getAtk, getDef, time, perf) {
-    // HP + statuses
-    if (this.els.hpEl) {
-      const parts = [`HP: ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}`];
-      const statuses = [];
-      if (player.bleedTurns && player.bleedTurns > 0) statuses.push(`Bleeding (${player.bleedTurns})`);
-      if (player.dazedTurns && player.dazedTurns > 0) statuses.push(`Dazed (${player.dazedTurns})`);
-      parts.push(`  Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`);
-      const hpStr = parts.join("");
-      if (hpStr !== this._lastHpText) {
-        this.els.hpEl.textContent = hpStr;
-        this._lastHpText = hpStr;
-      }
-    }
-    // Floor + level + XP + time + turn calc ms (always), draw perf (toggle)
-    if (this.els.floorEl) {
-      const t = time || {};
-      const hhmm = t.hhmm || "";
-      const phase = t.phase ? t.phase : "";
-      const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
-      let turnStr = "";
-      if (perf && typeof perf.lastTurnMs === "number") {
-        turnStr = `  Turn: ${perf.lastTurnMs.toFixed(1)}ms`;
-      }
-      // Optional extra perf: show draw time only when Perf HUD is enabled
-      let perfStr = "";
-      if (this.getPerfState() && perf && (typeof perf.lastDrawMs === "number")) {
-        perfStr = `  Draw: ${perf.lastDrawMs.toFixed(1)}ms`;
-      }
-      const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${turnStr}${perfStr}`;
-      if (floorStr !== this._lastFloorText) {
-        this.els.floorEl.textContent = floorStr;
-        this._lastFloorText = floorStr;
-      }
-    }
+    // Delegate HUD (HP/Floor/Time/Perf) to component
+    try { if (Hud && typeof Hud.update === "function") Hud.update(player, floor, time, perf, this.getPerfState()); } catch (_) {}
+
     // Inventory stats summary
     if (this.els.invStatsEl && typeof getAtk === "function" && typeof getDef === "function") {
       const invStr = `Attack: ${getAtk().toFixed(1)}   Defense: ${getDef().toFixed(1)}`;
