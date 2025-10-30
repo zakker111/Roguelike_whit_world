@@ -10,6 +10,7 @@
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint .",
     "format": "prettier --write .",
     "gen:manifest": "node scripts/gen_manifest.js",
+    "gen:smoke": "node scripts/gen_smoke_manifest.js",
     "analyze:phase1": "node scripts/analyze.js"
   },
   "devDependencies": {
