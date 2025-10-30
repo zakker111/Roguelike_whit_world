@@ -296,8 +296,7 @@
       time: getClock(),
       // Perf stats for HUD overlay (smoothed via EMA when available)
       getPerfStats: () => ({
-        lastTurnMs: (typeof PERF.avgTurnMs === "number" ? PERF.avgTurnMs : (PERF.lastTurnMs || 0)),
-        lastDrawMs: (typeof PERF.avgDrawMs === "number" ? PERF.avgDrawMs : (PERF.lastDrawMs || 0))
+        lastTurnMs: (typeof PERF.avgTurnMs === "number" && PERF.avgTurnMs > 0 ? PERF.avgTurnMs : (PERF.lastTurnMs || 0: (typeof PERF.avgDrawMs === "number" ? PERF.avgDrawMs : (PERF.lastDrawMs || 0))
       }),
       requestDraw,
       log,
@@ -1064,7 +1063,14 @@
       if (RO && typeof RO.getRenderCtx === "function") {
         const base = RO.getRenderCtx(getCtx());
         // Ensure PERF sink uses local PERF tracker
-        try { base.onDrawMeasured = (ms) => { PERF.lastDrawMs = ms; }; } catch (_) {}
+        try { base.onDrawMeasured = (ms) => {
+          PERF.lastDrawMs = ms;
+          try {
+            const a = 0.35;
+            if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = ms;
+            else PERF.avgDrawMs = (a * ms) + ((1 - a) * PERF.avgDrawMs);
+          } catch (_) {}
+        }; } catch (_) {}
         return base;
       }
     } catch (_) {}
@@ -1089,7 +1095,14 @@
       dungeonProps,
       enemyColor: (t) => enemyColor(t),
       time: getClock(),
-      onDrawMeasured: (ms) => { PERF.lastDrawMs = ms; },
+      onDrawMeasured: (ms) => {
+        PERF.lastDrawMs = ms;
+        try {
+          const a = 0.35;
+          if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = ms;
+          else PERF.avgDrawMs = (a * ms) + ((1 - a) * PERF.avgDrawMs);
+        } catch (_) {}
+      },
     };
   }
 
