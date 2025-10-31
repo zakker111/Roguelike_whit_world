@@ -711,7 +711,7 @@ function generate(ctx) {
     }
 
     // Decide whether to proceed with inn assignment
-    let proceedInn = true;
+    
     if (!usedPrefabInn) {
       // Second pass: try stamping an inn prefab anywhere on the map (largest-first), allowing removal of overlapping buildings
       const PFB2 = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
@@ -776,7 +776,7 @@ function generate(ctx) {
       }
     }
 
-    if (!proceedInn) return;
+    
 
     // Choose an existing building to replace/represent the inn, prefer the one closest to baseRect center,
     // and ensure the building record matches the actual stamped inn rectangle so furnishing runs correctly.
@@ -1308,11 +1308,7 @@ function generate(ctx) {
   const scored = buildings.map(b => ({ b, d: Math.abs((b.x + ((b.w / 2))) - plaza.x) + Math.abs((b.y + ((b.h / 2))) - plaza.y) }));
   scored.sort((a, b) => a.d - b.d);
   // Track largest building by area for assigning the inn
-  const largest = buildings.reduce((best, cur) => {
-    const area = cur.w * cur.h;
-    if (!best || area > (best.w * best.h)) return cur;
-    return best;
-  }, null);
+  
 
   // Vary number of shops by town size
   function shopLimitBySize(sizeKey) {
@@ -1758,10 +1754,7 @@ function generate(ctx) {
     return false;
   }
   // Prefer placing shop signs inside the building near the door.
-  function addShopSign(b, door, text) {
-    // Legacy outside-placer now delegates to inside placement to respect new policy.
-    return addShopSignInside(b, door, text);
-  }
+// Legacy addShopSign helper removed; use addShopSignInside directly.
 
   // Place one shop sign inside the building, near the door if possible.
   function addShopSignInside(b, door, text) {
@@ -2097,40 +2090,7 @@ function generate(ctx) {
   return true;
 }
 
-// ---- Shop helpers for interactProps (delegate to ShopService) ----
-function isShopOpenNow(ctx, shop = null) {
-  try {
-    if (ctx && ctx.ShopService && typeof ctx.ShopService.isShopOpenNow === "function") {
-      return ctx.ShopService.isShopOpenNow(ctx, shop);
-    }
-    if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.isShopOpenNow === "function") {
-      return window.ShopService.isShopOpenNow(ctx, shop);
-    }
-  } catch (_){}
-  return false;
-}
-function shopScheduleStr(ctx, shop) {
-  try {
-    if (ctx && ctx.ShopService && typeof ctx.ShopService.shopScheduleStr === "function") {
-      return ctx.ShopService.shopScheduleStr(shop);
-    }
-    if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.shopScheduleStr === "function") {
-      return window.ShopService.shopScheduleStr(shop);
-    }
-  } catch (_){}
-  return "";
-}
-function shopAt(ctx, x, y) {
-  try {
-    if (ctx && ctx.ShopService && typeof ctx.ShopService.shopAt === "function") {
-      return ctx.ShopService.shopAt(ctx, x, y);
-    }
-    if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.shopAt === "function") {
-      return window.ShopService.shopAt(ctx, x, y);
-    }
-  } catch (_){}
-  return null;
-}
+// Shop helpers moved to ShopService; local duplicates removed.
 
 import { parseHHMM } from "../services/time_service.js";
 import * as Prefabs from "./prefabs.js";
