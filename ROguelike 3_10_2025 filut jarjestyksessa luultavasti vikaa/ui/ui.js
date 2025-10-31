@@ -14,7 +14,7 @@
  * - GOD panel includes: Heal, spawn items/enemy, FOV slider, side log toggle, Always Crit toggle with body-part chooser.
  * - Persists user toggles in localStorage (LOG_MIRROR, ALWAYS_CRIT, ALWAYS_CRIT_PART).
  */
-import * as ClientAnalyzer from "/analysis/client_analyzer.js";
+
 import * as HelpModal from "/ui/components/help_modal.js";
 import * as RegionModal from "/ui/components/region_modal.js";
 import * as SmokeModal from "/ui/components/smoke_modal.js";
