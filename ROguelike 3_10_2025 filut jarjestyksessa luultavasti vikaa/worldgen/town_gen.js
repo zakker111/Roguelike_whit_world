@@ -34,23 +34,7 @@ function inBounds(ctx, x, y) {
   return x >= 0 && y >= 0 && x < cols && y < rows;
 }
 
-// Prefab embedded prop code mapping (shared by ground floor and upstairs overlay)
-function prefabPropType(code) {
-  var s = String(code || "").toUpperCase();
-  if (s === "BED") return "bed";
-  if (s === "TABLE") return "table";
-  if (s === "CHAIR") return "chair";
-  if (s === "SHELF") return "shelf";
-  if (s === "COUNTER") return "counter";
-  if (s === "FIREPLACE") return "fireplace";
-  if (s === "CHEST") return "chest";
-  if (s === "CRATE") return "crate";
-  if (s === "BARREL") return "barrel";
-  if (s === "PLANT") return "plant";
-  if (s === "RUG") return "rug";
-  if (s === "QUEST_BOARD") return "quest_board";
-  return null;
-}
+
 
 function _manhattan(ctx, ax, ay, bx, by) {
   try {
