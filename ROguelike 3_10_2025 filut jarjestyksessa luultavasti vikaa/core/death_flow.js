@@ -40,11 +40,7 @@ export function show(ctx) {
       return;
     }
   } catch (_) {}
-  const UB = mod("UIBridge");
-  if (UB && typeof UB.showGameOver === "function") {
-    UB.showGameOver(ctx);
-    requestDraw(ctx);
-  }
+  // No direct UIBridge fallback — UI must be routed via UIOrchestration
 }
 
 export function hide(ctx) {
@@ -55,10 +51,7 @@ export function hide(ctx) {
       return;
     }
   } catch (_) {}
-  const UB = mod("UIBridge");
-  if (UB && typeof UB.hideGameOver === "function") {
-    UB.hideGameOver(ctx);
-  }
+  // No direct UIBridge fallback — UI must be routed via UIOrchestration
 }
 
 export function restart(ctx) {

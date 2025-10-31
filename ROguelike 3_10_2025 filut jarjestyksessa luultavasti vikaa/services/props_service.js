@@ -69,7 +69,7 @@ function _advanceTime(ctx, minutes) {
 function _restUntil(ctx, hhmm) {
   try {
     const t = ctx.time;
-    const goal = (function parseHHMM(s){ const m=s.match(/^(\d{1,2}):(\d{2})$/); if(!m) return 6*60; const h=(parseInt(m[1],10)||0)%24; const mi=(parseInt(m[2],10)||0)%60; return h*60+mi; })(String(hhmm||"06:00"));
+    const goal = (function safeHHMMToMinutes(s){ try { const v = parseHHMM(String(s || "")); return (v == null) ? 6*60 : v; } catch (_) { return 6*60; } })(String(hhmm||"06:00"));
     const cur = t ? (t.hours * 60 + t.minutes) : 0;
     let delta = goal - cur; if (delta <= 0) delta += 24 * 60;
     _advanceTime(ctx, delta);
@@ -139,17 +139,34 @@ function _signSchedule(ctx, p, template, style) {
 }
 
 function _sleepModal(ctx, defaultMinutes, logTemplate) {
+  const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
   const UB = (typeof window !== "undefined" ? window.UIBridge : (ctx.UIBridge || null));
   const mins = Math.max(30, defaultMinutes | 0);
   const afterTime = function (m) {
     const prev = ctx.player.hp;
-    const healFrac = Math.min(0.6, Math.max(0.08, m / 600)); // 60% at 10h, min 8%
+    const healFrac = Math.min(0.6, Math.max(0.08, m / 600));
     const res = _healByPercent(ctx, healFrac);
     const timeStr = _timeHHMM(ctx);
     const msg = _renderTemplate(logTemplate || "You sleep for ${minutes} minutes (${time}). HP ${prev} -> ${hp}.", { minutes: m, time: timeStr, prev: prev.toFixed ? prev.toFixed(1) : prev, hp: (res.hp.toFixed ? res.hp.toFixed(1) : res.hp) });
     _log(ctx, msg, "good");
   };
   try {
+    // Prefer UIOrchestration if it exposes showSleep/animateSleep
+    if (UIO && typeof UIO.showSleep === "function") {
+      UIO.showSleep(ctx, {
+        min: 30, max: 720, step: 30, value: mins,
+        onConfirm: function (m) {
+          if (UIO && typeof UIO.animateSleep === "function") {
+            UIO.animateSleep(ctx, m, afterTime);
+          } else {
+            _advanceTime(ctx, m);
+            afterTime(m);
+          }
+        }
+      });
+      return;
+    }
+    // Fallback to UIBridge if still present
     if (UB && typeof UB.showSleep === "function") {
       UB.showSleep(ctx, {
         min: 30, max: 720, step: 30, value: mins,
@@ -162,17 +179,17 @@ function _sleepModal(ctx, defaultMinutes, logTemplate) {
           }
         }
       });
-    } else {
-      _advanceTime(ctx, mins);
-      afterTime(mins);
-      // Unified refresh via StateSync (avoid duplicate draws when animateSleep is available)
-      try {
-        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
-        if (SS && typeof SS.applyAndRefresh === "function") {
-          SS.applyAndRefresh(ctx, {});
-        }
-      } catch (_) {}
+      return;
     }
+    // Final fallback: no UI — advance time directly
+    _advanceTime(ctx, mins);
+    afterTime(mins);
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
   } catch (_) {}
 }
 
@@ -244,11 +261,11 @@ export function interact(ctx, prop) {
     return true;
   }
   if (eff && eff.type === "questBoard") {
-    // Open Quest Board panel (placeholder UI)
+    // Open Quest Board panel (placeholder UI) via UIOrchestration where available
     try {
-      const UB = (typeof window !== "undefined" ? window.UIBridge : (ctx.UIBridge || null));
-      const wasOpen = UB && typeof UB.isQuestBoardOpen === "function" ? !!UB.isQuestBoardOpen() : false;
-      if (UB && typeof UB.showQuestBoard === "function") UB.showQuestBoard(ctx);
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
+      const wasOpen = UIO && typeof UIO.isQuestBoardOpen === "function" ? !!UIO.isQuestBoardOpen(ctx) : false;
+      if (UIO && typeof UIO.showQuestBoard === "function") UIO.showQuestBoard(ctx);
       // Request draw only if open-state changed
       try { if (!wasOpen && typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
     } catch (_) {}
@@ -261,6 +278,7 @@ export function interact(ctx, prop) {
   return true;
 }
 
+import { parseHHMM } from "./time_service.js";
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
   window.PropsService = { interact };

@@ -369,7 +369,17 @@ export function install(getCtx) {
       const shops = Array.isArray(c.shops) ? c.shops : [];
       const props = Array.isArray(c.townProps) ? c.townProps : [];
       const lines = [];
-      const header = `Signs: ${shops.length} shop(s).`;
+
+      // Summary: list unique sign texts from props so you can quickly see which shops are present
+      const signProps = props.filter(p => p && String(p.type || "").toLowerCase() === "sign");
+      const nameCounts = new Map();
+      for (const p of signProps) {
+        const nm = String(p.name || "").trim();
+        if (!nm) continue;
+        nameCounts.set(nm, (nameCounts.get(nm) || 0) + 1);
+      }
+      const uniqueNames = Array.from(nameCounts.keys()).sort((a, b) => a.localeCompare(b));
+      const header = `Signs: ${shops.length} shop(s). Sign texts (${uniqueNames.length}): ${uniqueNames.join(", ") || "(none)"}`;
 
       function isInside(b, x, y) {
         return !!(b && x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1);
@@ -377,33 +387,57 @@ export function install(getCtx) {
 
       for (let i = 0; i < shops.length; i++) {
         const s = shops[i];
-        const text = String(s.name || s.type || "Shop");
+        const shopLabel = String(s.name || s.type || "Shop");
         const door = (s.building && s.building.door) ? s.building.door : { x: s.x, y: s.y };
         const wants = (s && Object.prototype.hasOwnProperty.call(s, "signWanted")) ? !!s.signWanted : true;
 
-        const indices = [];
+        // Find signs with matching text and collect their exact texts and positions
+        const matches = [];
         for (let pi = 0; pi < props.length; pi++) {
           const p = props[pi];
-          if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) {
-            indices.push(pi);
+          if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
+          if (String(p.name || "") === shopLabel) {
+            matches.push(p);
           }
         }
+
         let outside = 0, insideC = 0;
         let nearest = null, bestD = Infinity;
-        for (const idx of indices) {
-          const p = props[idx];
+        for (const p of matches) {
           const inside = isInside(s.building, p.x, p.y);
           if (inside) insideC++; else outside++;
           const d = Math.abs(p.x - door.x) + Math.abs(p.y - door.y);
           if (d < bestD) { bestD = d; nearest = { x: p.x, y: p.y, d }; }
         }
-        const count = indices.length;
-        const base = `• ${text}: signWanted=${wants ? "true" : "false"}  signs=${count} (outside=${outside}, inside=${insideC})`;
+        const count = matches.length;
+        const base = `• ${shopLabel}: signWanted=${wants ? "true" : "false"}  signs=${count} (outside=${outside}, inside=${insideC})`;
         const tail = nearest ? `, nearest at (${nearest.x},${nearest.y}) d=${nearest.d}` : (count ? ", nearest: (unknown)" : "");
         lines.push(base + tail);
-        if (!wants && count > 0) {
-          c.log(`Sign '${text}' present but signWanted=false — consider removing prefab or data-driven sign.`, "warn");
+
+        // Also list the exact sign texts and positions for this shop
+        if (matches.length) {
+          const details = matches.slice(0, 6).map(p => {
+            const where = isInside(s.building, p.x, p.y) ? "inside" : "outside";
+            const label = String(p.name || "");
+            return `'${label}' @ (${p.x},${p.y}, ${where})`;
+          });
+          lines.push(`   signs: ${details.join("; ")}${matches.length > 6 ? " …" : ""}`);
         }
+
+        if (!wants && count > 0) {
+          c.log(`Sign '${shopLabel}' present but signWanted=false — consider removing prefab or data-driven sign.`, "warn");
+        }
+      }
+
+      // Show any sign props that do not match a known shop label (could be welcome signs or mismatched names)
+      const shopLabels = new Set(shops.map(s => String(s.name || s.type || "Shop")));
+      const extras = signProps.filter(p => !shopLabels.has(String(p.name || "")));
+      if (extras.length) {
+        lines.push(`Other signs (${extras.length}):`);
+        extras.slice(0, 12).forEach(p => {
+          lines.push(`   '${String(p.name || "")}' @ (${p.x},${p.y})`);
+        });
+        if (extras.length > 12) lines.push(`   …and ${extras.length - 12} more`);
       }
 
       try {

@@ -14,7 +14,19 @@
  * - GOD panel includes: Heal, spawn items/enemy, FOV slider, side log toggle, Always Crit toggle with body-part chooser.
  * - Persists user toggles in localStorage (LOG_MIRROR, ALWAYS_CRIT, ALWAYS_CRIT_PART).
  */
-import * as ClientAnalyzer from "/analysis/client_analyzer.js";
+
+import * as HelpModal from "/ui/components/help_modal.js";
+import * as RegionModal from "/ui/components/region_modal.js";
+import * as SmokeModal from "/ui/components/smoke_modal.js";
+import * as ConfirmModal from "/ui/components/confirm_modal.js";
+import * as HandChooser from "/ui/components/hand_chooser.js";
+import * as HitChooser from "/ui/components/hit_chooser.js";
+import * as GameOverModal from "/ui/components/game_over_modal.js";
+import * as TownExit from "/ui/components/town_exit.js";
+import * as GodPanel from "/ui/components/god_panel.js";
+import * as InventoryPanel from "/ui/components/inventory_panel.js";
+import * as LootPanel from "/ui/components/loot_panel.js";
+import * as Hud from "/ui/components/hud.js";
 
 export const UI = {
   els: {},
@@ -36,9 +48,11 @@ export const UI = {
   init() {
     this.els.hpEl = document.getElementById("health");
     this.els.floorEl = document.getElementById("floor");
+    try { if (Hud && typeof Hud.init === "function") Hud.init(); } catch (_) {}
     this.els.logEl = document.getElementById("log");
     this.els.lootPanel = document.getElementById("loot-panel");
     this.els.lootList = document.getElementById("loot-list");
+    try { if (LootPanel && typeof LootPanel.init === "function") LootPanel.init(); } catch (_) {}
     this.els.gameOverPanel = document.getElementById("gameover-panel");
     this.els.gameOverSummary = document.getElementById("gameover-summary");
     this.els.restartBtn = document.getElementById("restart-btn");
@@ -68,6 +82,13 @@ export const UI = {
     this.els.godToggleMirrorBtn = document.getElementById("god-toggle-mirror-btn");
     this.els.godToggleCritBtn = document.getElementById("god-toggle-crit-btn");
     this.els.godToggleGridBtn = document.getElementById("god-toggle-grid-btn");
+    // Additional GOD toggle buttons (needed for updating button labels/titles)
+    this.els.godTogglePerfBtn = document.getElementById("god-toggle-perf-btn");
+    this.els.godToggleMinimapBtn = document.getElementById("god-toggle-minimap-btn");
+    this.els.godToggleTownOverlayBtn = document.getElementById("god-toggle-town-overlay-btn");
+    this.els.godToggleTownPathsBtn = document.getElementById("god-toggle-town-paths-btn");
+    this.els.godToggleHomePathsBtn = document.getElementById("god-toggle-home-paths-btn");
+    this.els.godToggleRoutePathsBtn = document.getElementById("god-toggle-route-paths-btn");
     this.els.godSeedInput = document.getElementById("god-seed-input");
     this.els.godApplySeedBtn = document.getElementById("god-apply-seed-btn");
     this.els.godRerollSeedBtn = document.getElementById("god-reroll-seed-btn");
@@ -94,86 +115,9 @@ export const UI = {
     this.els.smokeCount = document.getElementById("smoke-count");
     
 
-    // transient hand-chooser element
-    this.els.handChooser = document.createElement("div");
-    this.els.handChooser.style.position = "fixed";
-    this.els.handChooser.style.display = "none";
-    this.els.handChooser.style.zIndex = "50000";
-    this.els.handChooser.style.background = "rgba(20,24,33,0.98)";
-    this.els.handChooser.style.border = "1px solid rgba(80,90,120,0.6)";
-    this.els.handChooser.style.borderRadius = "6px";
-    this.els.handChooser.style.padding = "8px";
-    this.els.handChooser.style.boxShadow = "0 8px 28px rgba(0,0,0,0.4)";
-    this.els.handChooser.innerHTML = `
-      <div style="color:#cbd5e1; font-size:12px; margin-bottom:6px;">Equip to:</div>
-      <div style="display:flex; gap:6px;">
-        <button data-hand="left" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Left</button>
-        <button data-hand="right" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Right</button>
-        <button data-hand="cancel" style="padding:6px 10px; background:#111827; color:#9ca3af; border:1px solid #374151; border-radius:4px; cursor:pointer;">Cancel</button>
-      </div>
-    `;
-    document.body.appendChild(this.els.handChooser);
+    
 
-    // transient crit-hit-part chooser
-    this.els.hitChooser = document.createElement("div");
-    this.els.hitChooser.style.position = "fixed";
-    this.els.hitChooser.style.display = "none";
-    this.els.hitChooser.style.zIndex = "50000";
-    this.els.hitChooser.style.background = "rgba(20,24,33,0.98)";
-    this.els.hitChooser.style.border = "1px solid rgba(80,90,120,0.6)";
-    this.els.hitChooser.style.borderRadius = "6px";
-    this.els.hitChooser.style.padding = "8px";
-    this.els.hitChooser.style.boxShadow = "0 8px 28px rgba(0,0,0,0.4)";
-    this.els.hitChooser.innerHTML = `
-      <div style="color:#cbd5e1; font-size:12px; margin-bottom:6px;">Force crit to:</div>
-      <div style="display:flex; gap:6px; flex-wrap:wrap; max-width:280px;">
-        <button data-part="torso" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Torso</button>
-        <button data-part="head" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Head</button>
-        <button data-part="hands" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Hands</button>
-        <button data-part="legs" style="padding:6px 10px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">Legs</button>
-        <button data-part="cancel" style="padding:6px 10px; background:#111827; color:#9ca3af; border:1px solid #374151; border-radius:4px; cursor:pointer;">Cancel</button>
-      </div>
-    `;
-    document.body.appendChild(this.els.hitChooser);
-
-    // Transient confirm dialog
-    this.els.confirm = document.createElement("div");
-    this.els.confirm.style.position = "fixed";
-    this.els.confirm.style.display = "none";
-    this.els.confirm.style.zIndex = "50001";
-    this.els.confirm.style.background = "rgba(20,24,33,0.98)";
-    this.els.confirm.style.border = "1px solid rgba(80,90,120,0.6)";
-    this.els.confirm.style.borderRadius = "8px";
-    this.els.confirm.style.padding = "12px";
-    this.els.confirm.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
-    this.els.confirm.style.minWidth = "280px";
-    this.els.confirm.innerHTML = `
-      <div id="ui-confirm-text" style="color:#e5e7eb; font-size:14px; margin-bottom:10px;">Are you sure?</div>
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button data-act="cancel" style="padding:6px 10px; background:#111827; color:#9ca3af; border:1px solid #374151; border-radius:4px; cursor:pointer;">Cancel</button>
-        <button data-act="ok" style="padding:6px 12px; background:#1f2937; color:#e5e7eb; border:1px solid #334155; border-radius:4px; cursor:pointer;">OK</button>
-      </div>
-    `;
-    document.body.appendChild(this.els.confirm);
-
-    // Floating Town Exit button (hidden by default, shown in town)
-    this.els.townExitBtn = document.createElement("button");
-    const b = this.els.townExitBtn;
-    b.textContent = "Exit Town";
-    b.style.position = "fixed";
-    b.style.right = "16px";
-    b.style.bottom = "16px";
-    b.style.padding = "8px 12px";
-    b.style.fontSize = "14px";
-    b.style.background = "#1f2937";
-    b.style.color = "#e5e7eb";
-    b.style.border = "1px solid #334155";
-    b.style.borderRadius = "6px";
-    b.style.boxShadow = "0 8px 24px rgba(0,0,0,0.35)";
-    b.style.cursor = "pointer";
-    b.style.display = "none";
-    b.title = "Leave the town";
-    document.body.appendChild(b);
+    
 
     // Bind static events
     this.els.lootPanel?.addEventListener("click", () => this.hideLoot());
@@ -189,313 +133,11 @@ export const UI = {
     this.els.godOpenBtn?.addEventListener("click", () => this.showGod());
     // Help panel open (same as F1)
     this.els.helpOpenBtn?.addEventListener("click", () => this.showHelp());
-    this.els.godHealBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodHeal === "function") this.handlers.onGodHeal();
-    });
-    this.els.godSpawnBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodSpawn === "function") this.handlers.onGodSpawn();
-    });
-    this.els.godSpawnEnemyBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodSpawnEnemy === "function") this.handlers.onGodSpawnEnemy();
-    });
-    this.els.godSpawnStairsBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodSpawnStairs === "function") this.handlers.onGodSpawnStairs();
-    });
-    this.els.godCheckHomeBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodCheckHomes === "function") this.handlers.onGodCheckHomes();
-    });
-    this.els.godCheckInnTavernBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern();
-    });
-    this.els.godCheckSignsBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodCheckSigns === "function") this.handlers.onGodCheckSigns();
-    });
-    this.els.godCheckPrefabsBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodCheckPrefabs === "function") this.handlers.onGodCheckPrefabs();
-    });
-    // Prefab Editor (DEV-only route)
-    const openPrefabBtn = document.getElementById("god-open-prefab-editor-btn");
-    openPrefabBtn?.addEventListener("click", () => {
-      try {
-        const target = "/tools/prefab_editor.html";
-        window.location.assign(target);
-      } catch (_) {
-        try { window.location.href = "/tools/prefab_editor.html"; } catch (_) {}
-      }
-    });
-    // Status effect test buttons
-    this.els.godApplyBleedBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodApplyBleed === "function") this.handlers.onGodApplyBleed(3);
-    });
-    this.els.godApplyDazedBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodApplyDazed === "function") this.handlers.onGodApplyDazed(2);
-    });
-    this.els.godClearEffectsBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodClearEffects === "function") this.handlers.onGodClearEffects();
-    });
-    const diagBtn = document.getElementById("god-diagnostics-btn");
-    diagBtn?.addEventListener("click", () => {
-      if (typeof this.handlers.onGodDiagnostics === "function") this.handlers.onGodDiagnostics();
-    });
-    const newGameBtn = document.getElementById("god-newgame-btn");
-    newGameBtn?.addEventListener("click", () => {
-      // Close GOD panel and trigger restart/new game
-      try { this.hideGod(); } catch (_) {}
-      if (typeof this.handlers.onRestart === "function") this.handlers.onRestart();
-    });
-    const smokeBtn = document.getElementById("god-run-smoke-btn");
-    smokeBtn?.addEventListener("click", () => {
-      // Close GOD mode and open Smoke Config panel
-      try { this.hideGod(); } catch (_) {}
-      try { this.showSmoke(); } catch (_) {}
-    });
 
-    // Analysis buttons (client-side report)
-    this.els.godRunAnalysisBtn = document.getElementById("god-run-analysis-btn");
-    this.els.godDownloadAnalysisBtn = document.getElementById("god-download-analysis-btn");
-    this.els.godAnalysisOutput = document.getElementById("god-analysis-output");
-    if (this.els.godRunAnalysisBtn) {
-      this.els.godRunAnalysisBtn.addEventListener("click", async () => {
-        if (!ClientAnalyzer || typeof ClientAnalyzer.runClientAnalysis !== "function") return;
-        try {
-          // Disable while running
-          const btn = this.els.godRunAnalysisBtn;
-          btn.disabled = true;
-          const prevText = btn.textContent;
-          btn.textContent = "Running…";
-          const { markdown, topFiles, duplicates, filesScanned } = await ClientAnalyzer.runClientAnalysis();
-          // Cache for download
-          this._lastAnalysisMD = markdown;
-          this._lastAnalysisURL = ClientAnalyzer.makeDownloadURL(markdown);
-          // Enable download button
-          if (this.els.godDownloadAnalysisBtn) {
-            this.els.godDownloadAnalysisBtn.disabled = !this._lastAnalysisURL;
-          }
-          // Render a short summary in GOD panel
-          if (this.els.godAnalysisOutput) {
-            const lines = [];
-            lines.push(`Files scanned: ${filesScanned}`);
-            lines.push("Top files:");
-            topFiles.slice(0, 8).forEach((m) => {
-              lines.push(`- ${m.file} — ${m.lines} lines`);
-            });
-            lines.push(`Duplication candidates: ${duplicates.length} (showing up to 8 below)`);
-            duplicates.slice(0, 8).forEach((d) => {
-              lines.push(`• ${d.files.length} files — ${d.files.slice(0, 3).join(", ")}${d.files.length > 3 ? ", …" : ""}`);
-            });
-            this.els.godAnalysisOutput.innerHTML = lines.map((s) => `<div>${s}</div>`).join("");
-          }
-          // Restore button
-          btn.textContent = prevText || "Run Analysis";
-          btn.disabled = false;
-        } catch (e) {
-          try { console.error(e); } catch (_) {}
-          if (this.els.godAnalysisOutput) {
-            this.els.godAnalysisOutput.innerHTML = `<div style="color:#f87171;">Analysis failed. See console for details.</div>`;
-          }
-          if (this.els.godRunAnalysisBtn) {
-            this.els.godRunAnalysisBtn.textContent = "Run Analysis";
-            this.els.godRunAnalysisBtn.disabled = false;
-          }
-        }
-      });
-    }
-    if (this.els.godDownloadAnalysisBtn) {
-      this.els.godDownloadAnalysisBtn.addEventListener("click", () => {
-        try {
-          if (!this._lastAnalysisURL && this._lastAnalysisMD) {
-            this._lastAnalysisURL = ClientAnalyzer.makeDownloadURL(this._lastAnalysisMD);
-          }
-          if (this._lastAnalysisURL) {
-            const a = document.createElement("a");
-            a.href = this._lastAnalysisURL;
-            a.download = "phase1_report_client.md";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          }
-        } catch (_) {}
-      });
-      // Initially disabled until a report is generated
-      this.els.godDownloadAnalysisBtn.disabled = true;
-    }
-    
-    if (this.els.godFov) {
-      const updateFov = () => {
-        const val = parseInt(this.els.godFov.value, 10);
-        this.setGodFov(val);
-        if (typeof this.handlers.onGodSetFov === "function") this.handlers.onGodSetFov(val);
-      };
-      this.els.godFov.addEventListener("input", updateFov);
-      this.els.godFov.addEventListener("change", updateFov);
-    }
-    if (this.els.godEncRate) {
-      const updateEncRate = () => {
-        const val = parseInt(this.els.godEncRate.value, 10);
-        this.setEncounterRateState(val);
-        if (typeof this.handlers.onGodSetEncounterRate === "function") this.handlers.onGodSetEncounterRate(val);
-      };
-      this.els.godEncRate.addEventListener("input", updateEncRate);
-      this.els.godEncRate.addEventListener("change", updateEncRate);
-    }
-    // Populate encounter select with templates once GameData is ready
-    (function initEncounterSelect(self) {
-      try {
-        const apply = () => {
-          const el = self.els.godEncSelect;
-          if (!el) return;
-          const GD = (typeof window !== "undefined" ? window.GameData : null);
-          const list = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
-          const opts = ['<option value="">(auto)</option>'].concat(
-            list.map(t => {
-              const id = String(t.id || "");
-              const name = String(t.name || id || "encounter");
-              return `<option value="${id}">${name}</option>`;
-            })
-          ).join("");
-          el.innerHTML = opts;
-        };
-        if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
-          window.GameData.ready.then(() => apply());
-        } else {
-          apply();
-        }
-      } catch (_) {}
-    })(this);
-    if (this.els.godEncStartBtn) {
-      this.els.godEncStartBtn.addEventListener("click", () => {
-        const sel = this.els.godEncSelect ? (this.els.godEncSelect.value || "") : "";
-        if (typeof this.handlers.onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow(sel);
-      });
-    }
-    if (this.els.godEncArmBtn) {
-      this.els.godEncArmBtn.addEventListener("click", () => {
-        const sel = this.els.godEncSelect ? (this.els.godEncSelect.value || "") : "";
-        if (typeof this.handlers.onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove(sel);
-      });
-    }
-    if (this.els.godToggleMirrorBtn) {
-      this.els.godToggleMirrorBtn.addEventListener("click", () => {
-        this.toggleSideLog();
-      });
-      // initialize label
-      this.updateSideLogButton();
-    }
-    if (this.els.godToggleCritBtn) {
-      this.els.godToggleCritBtn.addEventListener("click", (ev) => {
-        const btn = ev.currentTarget;
-        const next = !this.getAlwaysCritState();
-        this.setAlwaysCritState(next);
-        if (typeof this.handlers.onGodSetAlwaysCrit === "function") {
-          this.handlers.onGodSetAlwaysCrit(next);
-        }
-        // When enabling, ask for preferred hit location
-        if (next) {
-          // Prevent this click from triggering the global document click handler that hides choosers
-          ev.stopPropagation();
-          const rect = btn.getBoundingClientRect();
-          this.showHitChooser(rect.left, rect.bottom + 6, (part) => {
-            if (part && part !== "cancel") {
-              this.setCritPartState(part);
-              if (typeof this.handlers.onGodSetCritPart === "function") {
-                this.handlers.onGodSetCritPart(part);
-              }
-            }
-          });
-        }
-      });
-      this.updateAlwaysCritButton();
-    }
-    if (this.els.godToggleGridBtn) {
-      this.els.godToggleGridBtn.addEventListener("click", () => {
-        const next = !this.getGridState();
-        this.setGridState(next);
-        this.updateGridButton();
-        // Notify game so ctx.drawGrid can be set (ctx-first render preference)
-        if (typeof this.handlers.onGodToggleGrid === "function") {
-          try { this.handlers.onGodToggleGrid(next); } catch (_) {}
-        }
-      });
-      this.updateGridButton();
-    }
-    // Town overlay toggle
-    this.els.godToggleTownOverlayBtn = document.getElementById("god-toggle-town-overlay-btn");
-    if (this.els.godToggleTownOverlayBtn) {
-      this.els.godToggleTownOverlayBtn.addEventListener("click", () => {
-        const next = !this.getTownOverlayState();
-        this.setTownOverlayState(next);
-        this.updateTownOverlayButton();
-      });
-      this.updateTownOverlayButton();
-    }
-    // Town paths toggle
-    this.els.godToggleTownPathsBtn = document.getElementById("god-toggle-town-paths-btn");
-    if (this.els.godToggleTownPathsBtn) {
-      this.els.godToggleTownPathsBtn.addEventListener("click", () => {
-        const next = !this.getTownPathsState();
-        this.setTownPathsState(next);
-        this.updateTownPathsButton();
-      });
-      this.updateTownPathsButton();
-    }
-    // Home paths toggle
-    this.els.godToggleHomePathsBtn = document.getElementById("god-toggle-home-paths-btn");
-    if (this.els.godToggleHomePathsBtn) {
-      this.els.godToggleHomePathsBtn.addEventListener("click", () => {
-        const next = !this.getHomePathsState();
-        this.setHomePathsState(next);
-        this.updateHomePathsButton();
-      });
-      this.updateHomePathsButton();
-    }
-    // Route paths toggle (current destination)
-    this.els.godToggleRoutePathsBtn = document.getElementById("god-toggle-route-paths-btn");
-    if (this.els.godToggleRoutePathsBtn) {
-      this.els.godToggleRoutePathsBtn.addEventListener("click", () => {
-        const next = !this.getRoutePathsState();
-        this.setRoutePathsState(next);
-        this.updateRoutePathsButton();
-      });
-      this.updateRoutePathsButton();
-    }
-    // Perf overlay toggle
-    this.els.godTogglePerfBtn = document.getElementById("god-toggle-perf-btn");
-    if (this.els.godTogglePerfBtn) {
-      this.els.godTogglePerfBtn.addEventListener("click", () => {
-        const next = !this.getPerfState();
-        this.setPerfState(next);
-        this.updatePerfButton();
-      });
-      this.updatePerfButton();
-    }
-    // Minimap toggle
-    this.els.godToggleMinimapBtn = document.getElementById("god-toggle-minimap-btn");
-    if (this.els.godToggleMinimapBtn) {
-      this.els.godToggleMinimapBtn.addEventListener("click", () => {
-        const next = !this.getMinimapState();
-        this.setMinimapState(next);
-        this.updateMinimapButton();
-      });
-      this.updateMinimapButton();
-    }
-    
-    // RNG seed controls
-    if (this.els.godApplySeedBtn) {
-      this.els.godApplySeedBtn.addEventListener("click", () => {
-        const raw = (this.els.godSeedInput && this.els.godSeedInput.value) ? this.els.godSeedInput.value.trim() : "";
-        const n = Number(raw);
-        if (Number.isFinite(n) && n >= 0) {
-          if (typeof this.handlers.onGodApplySeed === "function") this.handlers.onGodApplySeed(n >>> 0);
-        } else {
-          // no-op; optionally show hint
-        }
-      });
-    }
-    if (this.els.godRerollSeedBtn) {
-      this.els.godRerollSeedBtn.addEventListener("click", () => {
-        if (typeof this.handlers.onGodRerollSeed === "function") this.handlers.onGodRerollSeed();
-      });
-    }
+    // GOD panel wiring moved to component
+    try { if (GodPanel && typeof GodPanel.init === "function") GodPanel.init(this); } catch (_) {}
+    // Inventory panel wiring moved to component
+    try { if (InventoryPanel && typeof InventoryPanel.init === "function") InventoryPanel.init(this); } catch (_) {}
     this.updateSeedUI();
     this.updateEncounterRateUI();
 
@@ -560,117 +202,12 @@ export const UI = {
       });
     }
 
-    // Delegate equip slot clicks (unequip)
-    this.els.equipSlotsEl?.addEventListener("click", (ev) => {
-      const span = ev.target.closest("span.name[data-slot]");
-      if (!span) return;
-      const slot = span.dataset.slot;
-      if (slot && typeof this.handlers.onUnequip === "function") {
-        this.handlers.onUnequip(slot);
-      }
-    });
-    // Delegate inventory clicks
-    this.els.invPanel?.addEventListener("click", (ev) => {
-      const li = ev.target.closest("li");
-      if (!li || !li.dataset.index) return;
-      const idx = parseInt(li.dataset.index, 10);
-      if (!Number.isFinite(idx)) return;
-      const kind = li.dataset.kind;
-      if (kind === "equip") {
-        const slot = li.dataset.slot || "";
-        const twoH = li.dataset.twohanded === "true";
-        if (twoH) {
-          ev.preventDefault();
-          if (typeof this.handlers.onEquip === "function") this.handlers.onEquip(idx);
-          return;
-        }
-        if (slot === "hand") {
-          ev.preventDefault();
-          ev.stopPropagation();
-          // If exactly one hand is empty, equip to that hand immediately
-          const st = this._equipState || {};
-          const leftEmpty = !!st.leftEmpty;
-          const rightEmpty = !!st.rightEmpty;
-          if (leftEmpty !== rightEmpty) {
-            const hand = leftEmpty ? "left" : "right";
-            if (typeof this.handlers.onEquipHand === "function") this.handlers.onEquipHand(idx, hand);
-            return;
-          }
-          // Otherwise show hand chooser near the clicked element
-          const rect = li.getBoundingClientRect();
-          this.showHandChooser(rect.left, rect.bottom + 6, (hand) => {
-            if (hand && (hand === "left" || hand === "right")) {
-              if (typeof this.handlers.onEquipHand === "function") this.handlers.onEquipHand(idx, hand);
-            }
-          });
-        } else {
-          ev.preventDefault();
-          if (typeof this.handlers.onEquip === "function") this.handlers.onEquip(idx);
-        }
-      } else if (kind === "potion" || kind === "drink") {
-        ev.preventDefault();
-        if (typeof this.handlers.onDrink === "function") this.handlers.onDrink(idx);
-      }
-    });
+    
+    
 
-    // Hand chooser click
-    this.els.handChooser.addEventListener("click", (e) => {
-      const btn = e.target.closest("button");
-      if (!btn) return;
-      e.stopPropagation(); // prevent outside click handler from firing first
-      const hand = btn.dataset.hand;
-      const cb = this._handChooserCb;
-      this.hideHandChooser();
-      if (typeof cb === "function") cb(hand);
-    });
+    
 
-    // Hit chooser click
-    this.els.hitChooser.addEventListener("click", (e) => {
-      const btn = e.target.closest("button");
-      if (!btn) return;
-      e.stopPropagation();
-      const part = btn.dataset.part;
-      const cb = this._hitChooserCb;
-      this.hideHitChooser();
-      if (typeof cb === "function") cb(part);
-    });
-
-    // Confirm dialog click
-    this.els.confirm.addEventListener("click", (e) => {
-      const btn = e.target.closest("button");
-      if (!btn) return;
-      e.stopPropagation();
-      const act = btn.dataset.act;
-      const okCb = this._confirmOkCb;
-      const cancelCb = this._confirmCancelCb;
-      this.hideConfirm();
-      if (act === "ok" && typeof okCb === "function") okCb();
-      else if (act === "cancel" && typeof cancelCb === "function") cancelCb();
-    });
-
-    // Town exit button click
-    this.els.townExitBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (typeof this.handlers.onTownExit === "function") {
-        this.handlers.onTownExit();
-      }
-    });
-
-    // Hide choosers on any outside click (not in capture phase)
-    document.addEventListener("click", (e) => {
-      if (this.els.handChooser && this.els.handChooser.style.display !== "none" && !this.els.handChooser.contains(e.target)) {
-        this.hideHandChooser();
-      }
-      if (this.els.hitChooser && this.els.hitChooser.style.display !== "none" && !this.els.hitChooser.contains(e.target)) {
-        this.hideHitChooser();
-      }
-      if (this.els.confirm && this.els.confirm.style.display !== "none" && !this.els.confirm.contains(e.target)) {
-        // Treat outside click as cancel
-        const cancelCb = this._confirmCancelCb;
-        this.hideConfirm();
-        if (typeof cancelCb === "function") cancelCb();
-      }
-    });
+    
 
     // Fallback keyboard handler to ensure Esc closes panels even if Input.init isn't active
     document.addEventListener("keydown", (e) => {
@@ -712,58 +249,34 @@ export const UI = {
   },
 
   showConfirm(text, pos, onOk, onCancel) {
-    if (!this.els.confirm) {
+    try { ConfirmModal.show(text, pos, onOk, onCancel); } catch (_) {
       // fallback
-      const ans = window.confirm(text || "Are you sure?");
-      if (ans && typeof onOk === "function") onOk();
-      else if (!ans && typeof onCancel === "function") onCancel();
-      return;
+      try {
+        const ans = window.confirm(text || "Are you sure?");
+        if (ans && typeof onOk === "function") onOk();
+        else if (!ans && typeof onCancel === "function") onCancel();
+      } catch (_) {}
     }
-    const box = this.els.confirm;
-    const p = document.getElementById("ui-confirm-text");
-    if (p) p.textContent = text || "Are you sure?";
-    this._confirmOkCb = onOk;
-    this._confirmCancelCb = onCancel;
-    // Default position: center
-    let left = Math.round((window.innerWidth - box.offsetWidth) / 2);
-    let top = Math.round((window.innerHeight - box.offsetHeight) / 2);
-    // Safe handling for optional pos (can be null/undefined)
-    const hasPos = pos && typeof pos === "object";
-    const x = hasPos && typeof pos.x === "number" ? pos.x : undefined;
-    const y = hasPos && typeof pos.y === "number" ? pos.y : undefined;
-    if (typeof x === "number" && typeof y === "number") {
-      left = Math.max(10, Math.min(window.innerWidth - 300, Math.round(x)));
-      top = Math.max(10, Math.min(window.innerHeight - 120, Math.round(y)));
-    }
-    box.style.left = `${left}px`;
-    box.style.top = `${top}px`;
-    box.style.display = "block";
   },
 
   hideConfirm() {
-    if (!this.els.confirm) return;
-    this.els.confirm.style.display = "none";
-    this._confirmOkCb = null;
-    this._confirmCancelCb = null;
+    try { ConfirmModal.hide(); } catch (_) {}
   },
 
   isConfirmOpen() {
-    return !!(this.els.confirm && this.els.confirm.style.display !== "none");
+    try { return !!ConfirmModal.isOpen(); } catch (_) { return false; }
   },
 
   cancelConfirm() {
-    if (!this.els.confirm) return;
-    const cancelCb = this._confirmCancelCb;
-    this.hideConfirm();
-    if (typeof cancelCb === "function") cancelCb();
+    try { ConfirmModal.cancel(); } catch (_) {}
   },
 
   showTownExitButton() {
-    if (this.els.townExitBtn) this.els.townExitBtn.style.display = "block";
+    try { TownExit.show(); } catch (_) {}
   },
 
   hideTownExitButton() {
-    if (this.els.townExitBtn) this.els.townExitBtn.style.display = "none";
+    try { TownExit.hide(); } catch (_) {}
   },
 
   setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
@@ -783,7 +296,10 @@ export const UI = {
     if (typeof onGodSetCritPart === "function") this.handlers.onGodSetCritPart = onGodSetCritPart;
     if (typeof onGodApplySeed === "function") this.handlers.onGodApplySeed = onGodApplySeed;
     if (typeof onGodRerollSeed === "function") this.handlers.onGodRerollSeed = onGodRerollSeed;
-    if (typeof onTownExit === "function") this.handlers.onTownExit = onTownExit;
+    if (typeof onTownExit === "function") {
+      this.handlers.onTownExit = onTownExit;
+      try { TownExit.setHandler(onTownExit); } catch (_) {}
+    }
     if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
     if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
     if (typeof onGodCheckSigns === "function") this.handlers.onGodCheckSigns = onGodCheckSigns;
@@ -798,35 +314,9 @@ export const UI = {
   },
 
   updateStats(player, floor, getAtk, getDef, time, perf) {
-    // HP + statuses
-    if (this.els.hpEl) {
-      const parts = [`HP: ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}`];
-      const statuses = [];
-      if (player.bleedTurns && player.bleedTurns > 0) statuses.push(`Bleeding (${player.bleedTurns})`);
-      if (player.dazedTurns && player.dazedTurns > 0) statuses.push(`Dazed (${player.dazedTurns})`);
-      parts.push(`  Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`);
-      const hpStr = parts.join("");
-      if (hpStr !== this._lastHpText) {
-        this.els.hpEl.textContent = hpStr;
-        this._lastHpText = hpStr;
-      }
-    }
-    // Floor + level + XP + time + perf
-    if (this.els.floorEl) {
-      const t = time || {};
-      const hhmm = t.hhmm || "";
-      const phase = t.phase ? t.phase : "";
-      const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
-      let perfStr = "";
-      if (this.getPerfState() && perf && (typeof perf.lastTurnMs === "number" || typeof perf.lastDrawMs === "number")) {
-        perfStr = `  Perf: T ${(perf.lastTurnMs || 0).toFixed(1)}ms  D ${(perf.lastDrawMs || 0).toFixed(1)}ms`;
-      }
-      const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${perfStr}`;
-      if (floorStr !== this._lastFloorText) {
-        this.els.floorEl.textContent = floorStr;
-        this._lastFloorText = floorStr;
-      }
-    }
+    // Delegate HUD (HP/Floor/Time/Perf) to component
+    try { if (Hud && typeof Hud.update === "function") Hud.update(player, floor, time, perf, this.getPerfState()); } catch (_) {}
+
     // Inventory stats summary
     if (this.els.invStatsEl && typeof getAtk === "function" && typeof getDef === "function") {
       const invStr = `Attack: ${getAtk().toFixed(1)}   Defense: ${getDef().toFixed(1)}`;
@@ -838,176 +328,62 @@ export const UI = {
   },
 
   renderInventory(player, describeItem) {
-    // remember current equip occupancy for quick decisions
-    this._equipState = {
-      leftEmpty: !(player.equipment && player.equipment.left),
-      rightEmpty: !(player.equipment && player.equipment.right),
-    };
-
-    // Equipment slots (cache HTML to avoid unnecessary DOM writes)
-    if (this.els.equipSlotsEl) {
-      const slots = [
-        ["left", "Left hand"],
-        ["right", "Right hand"],
-        ["head", "Head"],
-        ["torso", "Torso"],
-        ["legs", "Legs"],
-        ["hands", "Hands"],
-      ];
-      const html = slots.map(([key, label]) => {
-        const it = player.equipment[key];
-        if (it) {
-          const name = describeItem(it);
-          const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-          const title = `Decay: ${dec.toFixed(0)}%`;
-          return `<div class="slot"><strong>${label}:</strong> <span class="name" data-slot="${key}" title="${title}" style="cursor:pointer; text-decoration:underline dotted;">${name}</span></div>`;
-        } else {
-          return `<div class="slot"><strong>${label}:</strong> <span class="name"><span class='empty'>(empty)</span></span></div>`;
-        }
-      }).join("");
-      if (html !== this._lastEquipHTML) {
-        this.els.equipSlotsEl.innerHTML = html;
-        this._lastEquipHTML = html;
-      }
-    }
-    // Inventory list (skip rebuild when unchanged)
-    if (this.els.invList) {
-      const key = Array.isArray(player.inventory)
-        ? player.inventory.map(it => [
-            it.kind || "misc",
-            it.slot || "",
-            it.name || "",
-            (typeof it.atk === "number" ? it.atk : ""),
-            (typeof it.def === "number" ? it.def : ""),
-            (typeof it.decay === "number" ? it.decay : ""),
-            (typeof it.count === "number" ? it.count : ""),
-            (typeof it.amount === "number" ? it.amount : "")
-          ].join("|")).join(";;")
-        : "";
-      if (key !== this._lastInvListKey) {
-        this.els.invList.innerHTML = "";
-        player.inventory.forEach((it, idx) => {
-          const li = document.createElement("li");
-          li.dataset.index = String(idx);
-          li.dataset.kind = it.kind || "misc";
-
-          // Build display label with counts/stats where helpful
-          const baseLabel = (typeof describeItem === "function")
-            ? describeItem(it)
-            : ((typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function")
-                ? window.ItemDescribe.describe(it)
-                : (it.name || "item"));
-          let label = baseLabel;
-
-          if (it.kind === "potion" || it.kind === "drink") {
-            const count = (it.count && it.count > 1) ? ` x${it.count}` : "";
-            label = `${baseLabel}${count}`;
-          } else if (it.kind === "gold") {
-            const amount = Number(it.amount || 0);
-            label = `${baseLabel}: ${amount}`;
-          } else if (it.kind === "equip") {
-            const stats = [];
-            if (typeof it.atk === "number") stats.push(`+${Number(it.atk).toFixed(1)} atk`);
-            if (typeof it.def === "number") stats.push(`+${Number(it.def).toFixed(1)} def`);
-            if (stats.length) label = `${baseLabel} (${stats.join(", ")})`;
-          }
-
-          if (it.kind === "equip" && it.slot === "hand") {
-            li.dataset.slot = "hand";
-            const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-            if (it.twoHanded) {
-              li.dataset.twohanded = "true";
-              li.title = `Two-handed • Decay: ${dec.toFixed(0)}%`;
-            } else {
-              // If exactly one hand is empty, hint which one will be used automatically
-              let autoHint = "";
-              if (this._equipState) {
-                if (this._equipState.leftEmpty && !this._equipState.rightEmpty) autoHint = " (Left is empty)";
-                else if (this._equipState.rightEmpty && !this._equipState.leftEmpty) autoHint = " (Right is empty)";
-              }
-              li.title = `Click to equip${autoHint ? autoHint : " (choose hand)"} • Decay: ${dec.toFixed(0)}%`;
-            }
-            li.style.cursor = "pointer";
-          } else if (it.kind === "equip") {
-            li.dataset.slot = it.slot || "";
-            const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
-            li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
-            li.style.cursor = "pointer";
-          } else if (it.kind === "potion" || it.kind === "drink") {
-            li.style.cursor = "pointer";
-            li.title = "Click to drink";
-          } else {
-            li.style.opacity = "0.7";
-            li.style.cursor = "default";
-          }
-
-          li.textContent = label;
-          this.els.invList.appendChild(li);
-        });
-        this._lastInvListKey = key;
-      }
-    }
+    try { InventoryPanel.render(player, describeItem); } catch (_) {}
   },
 
   showInventory() {
-    if (this.els.lootPanel && !this.els.lootPanel.hidden) this.hideLoot();
-    if (this.els.invPanel) this.els.invPanel.hidden = false;
+    if (this.isLootOpen()) this.hideLoot();
+    try { InventoryPanel.show(); } catch (_) { if (this.els.invPanel) this.els.invPanel.hidden = false; }
   },
 
   hideInventory() {
-    if (this.els.invPanel) this.els.invPanel.hidden = true;
+    try { InventoryPanel.hide(); } catch (_) { if (this.els.invPanel) this.els.invPanel.hidden = true; }
   },
 
   isInventoryOpen() {
-    return !!(this.els.invPanel && !this.els.invPanel.hidden);
+    try { return !!InventoryPanel.isOpen(); } catch (_) { return !!(this.els.invPanel && !this.els.invPanel.hidden); }
   },
 
   showHandChooser(x, y, cb) {
-    if (!this.els.handChooser) return;
-    this._handChooserCb = cb;
-    this.els.handChooser.style.left = `${Math.round(x)}px`;
-    this.els.handChooser.style.top = `${Math.round(y)}px`;
-    this.els.handChooser.style.display = "block";
+    try { HandChooser.show(x, y, cb); } catch (_) {}
   },
 
   hideHandChooser() {
-    if (!this.els.handChooser) return;
-    this.els.handChooser.style.display = "none";
-    this._handChooserCb = null;
+    try { HandChooser.hide(); } catch (_) {}
   },
 
   showHitChooser(x, y, cb) {
-    if (!this.els.hitChooser) return;
-    this._hitChooserCb = cb;
-    this.els.hitChooser.style.left = `${Math.round(x)}px`;
-    this.els.hitChooser.style.top = `${Math.round(y)}px`;
-    this.els.hitChooser.style.display = "block";
+    try { HitChooser.show(x, y, cb); } catch (_) {}
   },
 
   hideHitChooser() {
-    if (!this.els.hitChooser) return;
-    this.els.hitChooser.style.display = "none";
-    this._hitChooserCb = null;
+    try { HitChooser.hide(); } catch (_) {}
   },
 
   showLoot(list) {
-    if (!this.els.lootPanel || !this.els.lootList) return;
-    this.els.lootList.innerHTML = "";
-    list.forEach(name => {
-      const li = document.createElement("li");
-      li.textContent = name;
-      this.els.lootList.appendChild(li);
-    });
-    this.els.lootPanel.hidden = false;
+    try { LootPanel.show(list || []); } catch (_) {
+      if (!this.els.lootPanel || !this.els.lootList) return;
+      this.els.lootList.innerHTML = "";
+      (list || []).forEach(name => {
+        const li = document.createElement("li");
+        li.textContent = String(name || "");
+        this.els.lootList.appendChild(li);
+      });
+      this.els.lootPanel.hidden = false;
+    }
   },
 
   hideLoot() {
-    if (!this.els.lootPanel) return;
-    this.els.lootPanel.hidden = true;
+    try { LootPanel.hide(); } catch (_) {
+      if (!this.els.lootPanel) return;
+      this.els.lootPanel.hidden = true;
+    }
   },
 
   isLootOpen() {
-    return !!(this.els.lootPanel && !this.els.lootPanel.hidden);
+    try { return !!LootPanel.isOpen(); } catch (_) {
+      return !!(this.els.lootPanel && !this.els.lootPanel.hidden);
+    }
   },
 
   // GOD mode modal
@@ -1015,15 +391,23 @@ export const UI = {
     if (this.isLootOpen()) this.hideLoot();
     if (this.isInventoryOpen()) this.hideInventory();
     if (this.isSmokeOpen()) this.hideSmoke();
-    if (this.els.godPanel) this.els.godPanel.hidden = false;
+    try { GodPanel.show(); } catch (_) { if (this.els.godPanel) this.els.godPanel.hidden = false; }
   },
 
   hideGod() {
-    if (this.els.godPanel) this.els.godPanel.hidden = true;
+    try { GodPanel.hide(); } catch (_) { if (this.els.godPanel) this.els.godPanel.hidden = true; }
   },
 
   isGodOpen() {
-    return !!(this.els.godPanel && !this.els.godPanel.hidden);
+    try { return !!GodPanel.isOpen(); } catch (_) { return !!(this.els.godPanel && !this.els.godPanel.hidden); }
+  },
+
+  // Update FOV value label and slider position
+  setGodFov(val) {
+    try {
+      if (this.els.godFovValue) this.els.godFovValue.textContent = `FOV: ${val}`;
+      if (this.els.godFov) this.els.godFov.value = String(val);
+    } catch (_) {}
   },
 
   // ---- Region Map modal ----
@@ -1033,77 +417,15 @@ export const UI = {
     if (this.isInventoryOpen()) this.hideInventory();
     if (this.isGodOpen()) this.hideGod();
     if (this.isSmokeOpen()) this.hideSmoke();
-
-    // Create panel lazily
-    if (!this.els.regionPanel) {
-      const panel = document.createElement("div");
-      panel.id = "region-panel";
-      panel.style.position = "fixed";
-      panel.style.left = "50%";
-      panel.style.top = "50%";
-      panel.style.transform = "translate(-50%, -50%)";
-      panel.style.zIndex = "40000";
-      panel.style.background = "rgba(20,24,33,0.98)";
-      panel.style.border = "1px solid rgba(80,90,120,0.6)";
-      panel.style.borderRadius = "8px";
-      panel.style.padding = "8px";
-      panel.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
-      panel.style.minWidth = "420px";
-      panel.style.minHeight = "300px";
-      panel.style.maxWidth = "92vw";
-      panel.style.maxHeight = "80vh";
-      panel.style.display = "none";
-
-      const close = document.createElement("div");
-      close.textContent = "Close (Esc)";
-      close.style.color = "#94a3b8";
-      close.style.fontSize = "12px";
-      close.style.margin = "4px 0 6px 0";
-
-      const canvas = document.createElement("canvas");
-      canvas.id = "region-canvas";
-      // responsive size
-      const vw = Math.max(640, Math.floor(window.innerWidth * 0.7));
-      const vh = Math.max(360, Math.floor(window.innerHeight * 0.6));
-      canvas.width = Math.min(vw, Math.floor(window.innerWidth * 0.92));
-      canvas.height = Math.min(vh, Math.floor(window.innerHeight * 0.80));
-      canvas.style.display = "block";
-      canvas.style.background = "#0b0c10";
-      canvas.style.border = "1px solid rgba(80,90,120,0.5)";
-      canvas.style.borderRadius = "6px";
-
-      panel.appendChild(close);
-      panel.appendChild(canvas);
-      document.body.appendChild(panel);
-      this.els.regionPanel = panel;
-      this.els.regionCanvas = canvas;
-
-      // Click outside to close
-      panel.addEventListener("click", (e) => {
-        if (e.target === panel) {
-          this.hideRegionMap();
-          e.stopPropagation();
-        }
-      });
-    }
-
-    // Show panel
-    this.els.regionPanel.style.display = "block";
-    // Render contents via RegionMap if available
-    try {
-      const RM = (typeof window !== "undefined" ? window.RegionMap : null);
-      if (RM && typeof RM.draw === "function") {
-        RM.draw(ctx || (window.GameAPI && typeof window.GameAPI.getCtx === "function" ? window.GameAPI.getCtx() : null));
-      }
-    } catch (_) {}
+    try { RegionModal.show(ctx); } catch (_) {}
   },
 
   hideRegionMap() {
-    if (this.els.regionPanel) this.els.regionPanel.style.display = "none";
+    try { RegionModal.hide(); } catch (_) {}
   },
 
   isRegionMapOpen() {
-    return !!(this.els.regionPanel && this.els.regionPanel.style.display !== "none");
+    try { return !!RegionModal.isOpen(); } catch (_) { return false; }
   },
 
   // ---- Help / Controls + Character Sheet (F1) ----
@@ -1114,183 +436,20 @@ export const UI = {
     if (this.isGodOpen()) this.hideGod();
     if (this.isSmokeOpen()) this.hideSmoke();
     if (this.isRegionMapOpen()) this.hideRegionMap();
-
-    // Create panel lazily
-    if (!this.els.helpPanel) {
-      const panel = document.createElement("div");
-      panel.id = "help-panel";
-      panel.style.position = "fixed";
-      panel.style.left = "50%";
-      panel.style.top = "50%";
-      panel.style.transform = "translate(-50%, -50%)";
-      panel.style.zIndex = "40000";
-      panel.style.background = "rgba(20,24,33,0.98)";
-      panel.style.border = "1px solid rgba(80,90,120,0.6)";
-      panel.style.borderRadius = "8px";
-      panel.style.padding = "12px";
-      panel.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
-      panel.style.minWidth = "520px";
-      panel.style.maxWidth = "92vw";
-      panel.style.maxHeight = "80vh";
-      panel.style.overflow = "auto";
-      panel.style.display = "none";
-
-      const close = document.createElement("div");
-      close.textContent = "Close (Esc)";
-      close.style.color = "#94a3b8";
-      close.style.fontSize = "12px";
-      close.style.margin = "0 0 10px 0";
-
-      const content = document.createElement("div");
-      content.id = "help-content";
-      content.style.color = "#e5e7eb";
-      content.style.fontSize = "13px";
-      content.style.lineHeight = "1.45";
-
-      panel.appendChild(close);
-      panel.appendChild(content);
-      document.body.appendChild(panel);
-      this.els.helpPanel = panel;
-      this.els.helpContent = content;
-
-      // Click outside to close
-      panel.addEventListener("click", (e) => {
-        if (e.target === panel) {
-          this.hideHelp();
-          e.stopPropagation();
-        }
-      });
-    }
-
-    // Build controls + character sheet text
-    const p = (ctx && ctx.player) ? ctx.player : null;
-    const atk = (ctx && typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : (p ? (p.atk || 1) : 1);
-    const def = (ctx && typeof ctx.getPlayerDefense === "function") ? ctx.getPlayerDefense() : (p ? 0 : 0);
-    const hpStr = p ? `HP ${p.hp.toFixed(1)}/${p.maxHp.toFixed(1)}` : "";
-    const levelStr = p ? `Level ${p.level}  XP ${p.xp}/${p.xpNext}` : "";
-    const statuses = [];
-    if (p && p.bleedTurns && p.bleedTurns > 0) statuses.push(`Bleeding (${p.bleedTurns})`);
-    if (p && p.dazedTurns && p.dazedTurns > 0) statuses.push(`Dazed (${p.dazedTurns})`);
-    const injuries = (p && Array.isArray(p.injuries)) ? p.injuries : [];
-    const injHTML = injuries.length ? injuries.slice(0, 16).map((inj) => {
-      // Support both string and object formats
-      let name = "";
-      let healable = true;
-      let dur = 0;
-      if (typeof inj === "string") {
-        name = inj;
-        healable = !(/scar|missing finger/i.test(name));
-        dur = healable ? 0 : 0;
-      } else {
-        name = inj.name || "injury";
-        healable = (typeof inj.healable === "boolean") ? inj.healable : !(/scar|missing finger/i.test(name));
-        dur = (inj.durationTurns | 0);
-      }
-      const color = healable ? "#f59e0b" /* amber for healing */ : "#ef4444" /* red for permanent */;
-      const tail = healable ? (dur > 0 ? ` (healing)` : ` (healing)`) : " (permanent)";
-      return `<li style="color:${color};">${name}${tail}</li>`;
-    }).join("") : "<li>(none)</li>";
-
-    const html = [
-      "<div style='font-size:16px; font-weight:600; margin-bottom:8px;'>Controls</div>",
-      "<div style='display:grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 10px;'>",
-      "<div>Move: Arrow keys / Numpad (8-dir)</div><div>Wait: Numpad5</div>",
-      "<div>Action/Interact: G</div><div>Inventory: I</div>",
-      "<div>GOD panel: P</div><div>FOV: [ and ] (or +/-)</div>",
-      "<div>Help / Character Sheet: F1</div><div>Brace (dungeon): B</div>",
-      "<div>Local Region Map: G (overworld/RUINS; M disabled)</div><div></div>",
-      "</div>",
-      "<div style='font-size:16px; font-weight:600; margin: 6px 0;'>Character Sheet</div>",
-      `<div>${hpStr}  •  Attack ${atk.toFixed(1)}  Defense ${def.toFixed(1)}</div>`,
-      `<div>${levelStr}</div>`,
-      `<div>Status: ${statuses.length ? statuses.join(", ") : "None"}</div>`,
-      "<div style='margin-top:6px;'>Injuries:</div>",
-      `<ul style='margin:4px 0 0 14px;'>${injHTML}</ul>`,
-      // Skills: small passive buffs that grow with use
-      (function () {
-        try {
-          const s = (p && p.skills) ? p.skills : null;
-          if (!s) return "";
-          const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
-          const oneBuff = clamp(Math.floor((s.oneHand || 0) / 20) * 0.01, 0, 0.05);
-          const twoBuff = clamp(Math.floor((s.twoHand || 0) / 20) * 0.01, 0, 0.06);
-          const bluntBuff = clamp(Math.floor((s.blunt || 0) / 25) * 0.01, 0, 0.04);
-          const pct = (v) => `${Math.round(v * 100)}%`;
-          const lines = [
-            `<li>One-handed: +${pct(oneBuff)} damage (uses: ${Math.floor(s.oneHand || 0)})</li>`,
-            `<li>Two-handed: +${pct(twoBuff)} damage (uses: ${Math.floor(s.twoHand || 0)})</li>`,
-            `<li>Blunt: +${pct(bluntBuff)} damage (uses: ${Math.floor(s.blunt || 0)})</li>`,
-          ].join("");
-          return "<div style='margin-top:6px;'>Skills (passive damage buffs):</div>" +
-                 `<ul style='margin:4px 0 0 14px;'>${lines}</ul>`;
-        } catch (_) { return ""; }
-      })()
-    ].join("");
-
-    this.els.helpContent.innerHTML = html;
-    this.els.helpPanel.style.display = "block";
+    try { HelpModal.show(ctx); } catch (_) {}
   },
 
   hideHelp() {
-    if (this.els.helpPanel) this.els.helpPanel.style.display = "none";
+    try { HelpModal.hide(); } catch (_) {}
   },
 
   isHelpOpen() {
-    return !!(this.els.helpPanel && this.els.helpPanel.style.display !== "none");
-  },
-
-  // Smoke Test Configuration modal
-  showSmoke() {
-    if (this.isLootOpen()) this.hideLoot();
-    if (this.isInventoryOpen()) this.hideInventory();
-    if (this.isGodOpen()) this.hideGod();
-    if (this.els.smokePanel) {
-      // Build options on open to reflect any future changes
-      this.renderSmokeOptions();
-      this.els.smokePanel.hidden = false;
-    }
-  },
-
-  hideSmoke() {
-    if (this.els.smokePanel) this.els.smokePanel.hidden = true;
-  },
-
-  isSmokeOpen() {
-    return !!(this.els.smokePanel && !this.els.smokePanel.hidden);
-  },
-
-  renderSmokeOptions() {
-    if (!this.els.smokeList) return;
-    const scenarios = [
-      ["world", "World"],
-      ["dungeon", "Dungeon"],
-      ["inventory", "Inventory"],
-      ["combat", "Combat"],
-      ["dungeon_persistence", "Dungeon Persistence"],
-      ["town", "Town"],
-      ["town_diagnostics", "Town Diagnostics"],
-      ["overlays", "Overlays"],
-      ["determinism", "Determinism"]
-    ];
-    const html = scenarios.map(([key, label]) => {
-      return `<label style="display:flex; align-items:center; gap:6px;">
-        <input type="checkbox" class="smoke-sel" value="${key}" checked />
-        <span>${label}</span>
-      </label>`;
-    }).join("");
-    this.els.smokeList.innerHTML = html;
-  },
-
-  setGodFov(val) {
-    if (!this.els.godFov) return;
-    const v = Math.max(parseInt(this.els.godFov.min || "3", 10), Math.min(parseInt(this.els.godFov.max || "14", 10), parseInt(val, 10) || 0));
-    this.els.godFov.value = String(v);
-    if (this.els.godFovValue) this.els.godFovValue.textContent = `FOV: ${v}`;
+    try { return !!HelpModal.isOpen(); } catch (_) { return false; }
   },
 
   // --- Encounter rate controls (0..100) ---
   getEncounterRateState() {
-    // Default 50 means baseline frequency; <50 fewer, >50 more
+    // Default 50 means baseline frequency; &lt;50 fewer, &gt;50 more
     try {
       if (typeof window.ENCOUNTER_RATE === "number" && Number.isFinite(window.ENCOUNTER_RATE)) {
         const v = Math.max(0, Math.min(100, Math.round(Number(window.ENCOUNTER_RATE))));
@@ -1441,6 +600,91 @@ export const UI = {
     this.els.godTogglePerfBtn.title = on ? "Hide performance timings in HUD" : "Show performance timings in HUD";
   },
 
+  // ---- Smoke Test Configuration modal ----
+  showSmoke() {
+    if (this.isLootOpen()) this.hideLoot();
+    if (this.isInventoryOpen()) this.hideInventory();
+    if (this.isGodOpen()) this.hideGod();
+    // Build options on open to reflect any future changes
+    try { this.renderSmokeOptions(); } catch (_) {}
+    try { SmokeModal.show(); } catch (_) {}
+  },
+
+  hideSmoke() {
+    try { SmokeModal.hide(); } catch (_) {}
+  },
+
+  isSmokeOpen() {
+    try { return !!SmokeModal.isOpen(); } catch (_) { return false; }
+  },
+
+  // Build or refresh the Smoke scenarios checkbox list
+  renderSmokeOptions() {
+    try {
+      const container = this.els.smokeList || document.getElementById("smoke-scenarios");
+      if (!container) return;
+
+      // Capture existing selection (if re-rendering)
+      const prev = new Set();
+      try {
+        const existing = Array.from(container.querySelectorAll("input.smoke-sel"));
+        existing.forEach((inp) => {
+          if (inp.checked && inp.value) prev.add(inp.value);
+        });
+      } catch (_) {}
+
+      // Default list (fallback)
+      let scenarios = [
+        { id: "world", label: "World" },
+        { id: "inventory", label: "Inventory" },
+        { id: "dungeon", label: "Dungeon" },
+        { id: "combat", label: "Combat" },
+        { id: "dungeon_persistence", label: "Dungeon Persistence" },
+        { id: "town", label: "Town" },
+        { id: "town_diagnostics", label: "Town Diagnostics" },
+        { id: "overlays", label: "Overlays" },
+        { id: "determinism", label: "Determinism" },
+        { id: "encounters", label: "Encounters" },
+        { id: "api", label: "API" },
+        { id: "town_flows", label: "Town Flows" },
+      ];
+
+      // Try to load manifest if present
+      const apply = (arr) => {
+        // Render checkboxes
+        const html = arr.map((s) => {
+          const id = (s && s.id) ? s.id : "";
+          if (!id) return "";
+          const checked = prev.has(id) ? " checked" : "";
+          const title = s.label || id;
+          return `
+            <label style="display:flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid #253047; border-radius:6px; background:#0f1117;">
+              <input type="checkbox" class="smoke-sel" value="${id}"${checked} />
+              <span style="color:#cbd5e1; font-size:13px;">${title}</span>
+            </label>
+          `;
+        }).join("");
+        container.innerHTML = html;
+      };
+
+      try {
+        fetch("/smoketest/scenarios.json", { cache: "no-cache" })
+          .then((r) => r.ok ? r.json() : null)
+          .then((j) => {
+            const arr = (j && Array.isArray(j.scenarios)) ? j.scenarios : null;
+            if (arr && arr.length) {
+              apply(arr);
+            } else {
+              apply(scenarios);
+            }
+          })
+          .catch(() => apply(scenarios));
+      } catch (_) {
+        apply(scenarios);
+      }
+    } catch (_) {}
+  },
+
   // --- Minimap controls ---
   getMinimapState() {
     try {
@@ -1477,7 +721,6 @@ export const UI = {
   },
 
   
-
   
 
   // --- Town debug overlay controls ---
@@ -1654,18 +897,12 @@ export const UI = {
   },
 
   showGameOver(player, floor) {
-    if (this.els.lootPanel && !this.els.lootPanel.hidden) this.hideLoot();
-    if (!this.els.gameOverPanel) return;
-    const gold = (player.inventory.find(i => i.kind === "gold")?.amount) || 0;
-    if (this.els.gameOverSummary) {
-      this.els.gameOverSummary.textContent = `You died on floor ${floor} (Lv ${player.level}). Gold: ${gold}. XP: ${player.xp}/${player.xpNext}.`;
-    }
-    this.els.gameOverPanel.hidden = false;
+    if (this.isLootOpen()) this.hideLoot();
+    try { GameOverModal.show(player, floor); } catch (_) {}
   },
 
   hideGameOver() {
-    if (!this.els.gameOverPanel) return;
-    this.els.gameOverPanel.hidden = true;
+    try { GameOverModal.hide(); } catch (_) {}
   }
 };
 

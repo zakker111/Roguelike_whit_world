@@ -12,7 +12,8 @@
  * - showRegionMap(ctx), hideRegionMap(ctx), isRegionMapOpen(ctx)
  * - hideShop(ctx), isShopOpen(ctx)
  * - hideSmoke(ctx), isSmokeOpen(ctx)
- * - hideSleep(ctx), isSleepOpen(ctx)
+ * - showSleep(ctx), hideSleep(ctx), isSleepOpen(ctx), animateSleep(ctx, minutes, cb)
+ * - showQuestBoard(ctx), hideQuestBoard(ctx), isQuestBoardOpen(ctx)
  * - cancelConfirm(ctx), isConfirmOpen(ctx)
  * - isAnyModalOpen(ctx)
  */
@@ -64,6 +65,13 @@ export function requestDraw(ctx) {
       r.draw(ctx.getRenderCtx());
     }
   } catch (_) {}
+}
+
+export function updateStats(ctx) {
+  const u = U(ctx);
+  if (u && typeof u.updateStats === "function") {
+    u.updateStats(ctx);
+  }
 }
 
 export function renderInventory(ctx) {
@@ -291,6 +299,16 @@ export function isSmokeOpen(ctx) {
   return false;
 }
 
+export function showSleep(ctx, opts) {
+  const u = U(ctx);
+  let wasOpen = false;
+  try { if (u && typeof u.isSleepOpen === "function") wasOpen = !!u.isSleepOpen(); } catch (_) {}
+  if (u && typeof u.showSleep === "function") {
+    u.showSleep(ctx, opts || {});
+    if (!wasOpen) requestDraw(ctx);
+  }
+}
+
 export function hideSleep(ctx) {
   const u = U(ctx);
   let wasOpen = false;
@@ -305,6 +323,13 @@ export function isSleepOpen(ctx) {
   const u = U(ctx);
   try { if (u && typeof u.isSleepOpen === "function") return !!u.isSleepOpen(); } catch (_) {}
   return false;
+}
+
+export function animateSleep(ctx, minutes, afterTimeCb) {
+  const u = U(ctx);
+  if (u && typeof u.animateSleep === "function") {
+    u.animateSleep(ctx, minutes, afterTimeCb);
+  }
 }
 
 export function cancelConfirm(ctx) {
@@ -343,6 +368,7 @@ import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper
 attachGlobal("UIOrchestration", {
   requestDraw,
+  updateStats,
   renderInventory,
   showInventory,
   hideInventory,
@@ -368,8 +394,10 @@ attachGlobal("UIOrchestration", {
   showSmoke,
   hideSmoke,
   isSmokeOpen,
+  showSleep,
   hideSleep,
   isSleepOpen,
+  animateSleep,
   showConfirm,
   cancelConfirm,
   isConfirmOpen,
@@ -388,5 +416,29 @@ attachGlobal("UIOrchestration", {
       // Do not force a draw here; button hide is DOM-only
       u.hideTownExitButton(ctx);
     }
+  },
+  // Quest Board panel
+  showQuestBoard: (ctx) => {
+    const u = U(ctx);
+    let wasOpen = false;
+    try { if (u && typeof u.isQuestBoardOpen === "function") wasOpen = !!u.isQuestBoardOpen(); } catch (_) {}
+    if (u && typeof u.showQuestBoard === "function") {
+      u.showQuestBoard(ctx);
+      if (!wasOpen) requestDraw(ctx);
+    }
+  },
+  hideQuestBoard: (ctx) => {
+    const u = U(ctx);
+    let wasOpen = false;
+    try { if (u && typeof u.isQuestBoardOpen === "function") wasOpen = !!u.isQuestBoardOpen(); } catch (_) {}
+    if (u && typeof u.hideQuestBoard === "function") {
+      u.hideQuestBoard(ctx);
+      if (wasOpen) requestDraw(ctx);
+    }
+  },
+  isQuestBoardOpen: (ctx) => {
+    const u = U(ctx);
+    try { if (u && typeof u.isQuestBoardOpen === "function") return !!u.isQuestBoardOpen(); } catch (_) {}
+    return false;
   }
 });

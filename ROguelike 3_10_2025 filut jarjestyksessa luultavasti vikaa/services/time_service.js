@@ -8,7 +8,44 @@
  *   TS.getClock(turnCounter) -> { hours, minutes, hhmm, phase, totalMinutes, minutesPerTurn, cycleTurns, turnCounter }
  *   TS.minutesUntil(turnCounter, hour, minute) -> delta minutes
  *   TS.advanceMinutes(turnCounter, minutes) -> new turnCounter
+ *
+ * Standalone helpers (can be used without a service instance):
+ *   parseHHMM("08:30") -> 510
+ *   minutesOfDay(8, 30, 1440) -> 510
+ *   hhmmFromMinutes(510) -> "08:30"
  */
+
+/**
+ * Parse an "HH:MM" string to minutes after midnight (0..1439). Returns null if invalid.
+ */
+export function parseHHMM(s) {
+  if (!s || typeof s !== "string") return null;
+  const m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
+  const min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
+  return ((h | 0) * 60 + (min | 0)) % (24 * 60);
+}
+
+/**
+ * Convenience: convert hours/minutes to minutes of day with a custom day length if desired.
+ */
+export function minutesOfDay(h, m = 0, dayMinutes = 24 * 60) {
+  const DAY = (typeof dayMinutes === "number" && isFinite(dayMinutes)) ? dayMinutes : 24 * 60;
+  let v = ((h | 0) * 60 + (m | 0)) % DAY;
+  if (v < 0) v += DAY;
+  return v;
+}
+
+/**
+ * Format minutes after midnight (0..1439) as "HH:MM".
+ */
+export function hhmmFromMinutes(mins) {
+  const m = Math.max(0, (mins | 0)) % (24 * 60);
+  const h = ((m / 60) | 0) % 24;
+  const mm = m % 60;
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
 
 export function create(opts = {}) {
   const DAY_MINUTES = Number.isFinite(opts.dayMinutes) ? opts.dayMinutes : 24 * 60;
@@ -66,4 +103,4 @@ export function create(opts = {}) {
 
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper
-attachGlobal("TimeService", { create });
+attachGlobal("TimeService", { create, parseHHMM, minutesOfDay, hhmmFromMinutes });

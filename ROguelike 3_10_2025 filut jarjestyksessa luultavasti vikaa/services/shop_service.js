@@ -1,3 +1,5 @@
+import { minutesOfDay as tsMinutesOfDay, parseHHMM } from "./time_service.js";
+
 /**
  * ShopService: centralized helpers for shop schedules, phases, pools, and inventory persistence.
  *
@@ -17,22 +19,11 @@
  * - buyItem(ctx, shop, idx)              // decrements qty and gives item to player
  * - sellItem(ctx, shop, playerInvIdx)    // validates and buys from player
  */
-
-function _parseHHMMToMinutes(s) {
-  if (!s || typeof s !== "string") return null;
-  var m = s.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  var h = Math.max(0, Math.min(23, parseInt(m[1], 10) || 0));
-  var min = Math.max(0, Math.min(59, parseInt(m[2], 10) || 0));
-  return ((h | 0) * 60 + (min | 0)) % (24 * 60);
-}
+ // moved to TimeService.parseHHMM
 
 export function minutesOfDay(h, m, dayMinutes) {
-  var DAY = (typeof dayMinutes === "number" && isFinite(dayMinutes)) ? dayMinutes : 24 * 60;
-  var hh = (h | 0), mm = (m | 0);
-  var v = (hh * 60 + mm) % DAY;
-  if (v < 0) v += DAY;
-  return v;
+  // Delegate to TimeService.minutesOfDay to avoid duplication
+  return tsMinutesOfDay(h, m, dayMinutes);
 }
 
 export function isOpenAt(shop, minutes) {
@@ -86,8 +77,8 @@ export function getPhase(ctx) {
     if (!phases) return "morning";
     for (var i = 0; i < phases.length; i++) {
       var p = phases[i];
-      var s = _parseHHMMToMinutes(p.start);
-      var e = _parseHHMMToMinutes(p.end);
+      var s = parseHHMM(p.start);
+      var e = parseHHMM(p.end);
       if (s == null || e == null) continue;
       if (e >= s) {
         if (curMin >= s && curMin <= e) return p.id;
@@ -414,7 +405,7 @@ export function restockIfNeeded(ctx, shop) {
 
   // Mini restock at configured time: replace one consumable-like slot
   if (rest && typeof rest.miniRestockAt === "string") {
-    var miniMin = _parseHHMMToMinutes(rest.miniRestockAt);
+    var miniMin = parseHHMM(rest.miniRestockAt);
     if (miniMin != null && st.nextRestockMin !== miniMin) {
       st.nextRestockMin = miniMin;
     }
@@ -592,6 +583,7 @@ export function sellItem(ctx, shop, playerInvIdx) {
   try { ctx.log && ctx.log("You sold " + (ctx.describeItem ? ctx.describeItem(it) : (it && it.name) || "item") + " for " + pay + " gold.", "good"); } catch (_) {}
   return true;
 }
+
 
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper

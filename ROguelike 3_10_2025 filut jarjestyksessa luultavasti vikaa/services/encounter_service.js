@@ -265,14 +265,16 @@ export function maybeTryEncounter(ctx) {
         if (res && res.ok) return true;
       }
     } catch (_) {}
-    // Fallback: UIBridge only (no window.confirm fallback)
-    const UI = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
-    if (UI && typeof UI.showConfirm === "function") {
-      UI.showConfirm(ctx, text, null, () => enter(), () => cancel());
-    } else {
-      // No confirm UI available; cancel by default
-      cancel();
-    }
+    // Fallback: UIOrchestration direct (no UIBridge/browser confirm)
+    try {
+      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.showConfirm === "function") {
+        UIO.showConfirm(ctx, text, null, () => enter(), () => cancel());
+      } else {
+        // No confirm UI available; cancel by default
+        cancel();
+      }
+    } catch (_) { cancel(); }
     return true;
   } catch (e) {
     if (e && e._earlyExit) return true;

@@ -304,21 +304,17 @@ export function resetFromDefaults(player) {
 // Force HUD refresh and broadcast a change event
 export function forceUpdate(player) {
   try {
-    if (typeof window !== "undefined" && window.UIBridge && typeof window.UIBridge.updateStats === "function") {
-      // Prefer ctx from GameAPI/Game for accurate floor/time/stats wiring
+    // Prefer UIOrchestration to update HUD
+    if (typeof window !== "undefined" && window.UIOrchestration && typeof window.UIOrchestration.updateStats === "function") {
       let ctx = null;
       try {
         if (window.GameAPI && typeof window.GameAPI.getCtx === "function") {
           ctx = window.GameAPI.getCtx();
         }
       } catch (_) {}
-      if (ctx) {
-        // Ensure player reference reflects current object
-        try { ctx.player = player; } catch (_) {}
-        window.UIBridge.updateStats(ctx);
-      } else {
+      if (!ctx) {
         // Minimal fallback context
-        const minimal = {
+        ctx = {
           player,
           floor: 1,
           getPlayerAttack: () => getAttack(player),
@@ -327,11 +323,13 @@ export function forceUpdate(player) {
         };
         try {
           if (window.GameAPI && typeof window.GameAPI.getClock === "function") {
-            minimal.time = window.GameAPI.getClock();
+            ctx.time = window.GameAPI.getClock();
           }
         } catch (_) {}
-        window.UIBridge.updateStats(minimal);
+      } else {
+        try { ctx.player = player; } catch (_) {}
       }
+      window.UIOrchestration.updateStats(ctx);
     } else if (typeof window !== "undefined" && window.UI && typeof window.UI.updateStats === "function") {
       // Fallback directly to UI with a derived floor (prefer GameAPI ctx)
       let floor = 1;

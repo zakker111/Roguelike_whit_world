@@ -39,41 +39,56 @@ function requestDraw(ctx) {
 export function render(ctx) {
   const IC = mod("InventoryController");
   if (IC && typeof IC.render === "function") { IC.render(ctx); return; }
-  const UB = mod("UIBridge");
-  if (UB && typeof UB.renderInventory === "function") { UB.renderInventory(ctx); }
+  try {
+    const UIO = mod("UIOrchestration");
+    if (UIO && typeof UIO.renderInventory === "function") {
+      UIO.renderInventory(ctx);
+      return;
+    }
+  } catch (_) {}
 }
 
 export function show(ctx) {
-  const UB = mod("UIBridge");
   let wasOpen = false;
-  try { if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen(); } catch (_) {}
+  try {
+    const UIO = mod("UIOrchestration");
+    if (UIO && typeof UIO.isInventoryOpen === "function") wasOpen = !!UIO.isInventoryOpen(ctx);
+  } catch (_) {}
   const IC = mod("InventoryController");
   if (IC && typeof IC.show === "function") {
     IC.show(ctx);
   } else {
     render(ctx);
-    if (UB && typeof UB.showInventory === "function") {
-      UB.showInventory(ctx);
-    }
+    try {
+      const UIO = mod("UIOrchestration");
+      if (UIO && typeof UIO.showInventory === "function") {
+        UIO.showInventory(ctx);
+      }
+    } catch (_) {}
   }
   if (!wasOpen) requestDraw(ctx);
 }
 
 export function hide(ctx) {
-  const UB = mod("UIBridge");
   let wasOpen = false;
-  try { if (UB && typeof UB.isInventoryOpen === "function") wasOpen = !!UB.isInventoryOpen(); } catch (_) {}
+  try {
+    const UIO = mod("UIOrchestration");
+    if (UIO && typeof UIO.isInventoryOpen === "function") wasOpen = !!UIO.isInventoryOpen(ctx);
+  } catch (_) {}
   const IC = mod("InventoryController");
   if (IC && typeof IC.hide === "function") {
     IC.hide(ctx);
     if (wasOpen) requestDraw(ctx);
     return;
   }
-  if (UB && typeof UB.hideInventory === "function") {
-    UB.hideInventory(ctx);
-    if (wasOpen) requestDraw(ctx);
-    return;
-  }
+  try {
+    const UIO = mod("UIOrchestration");
+    if (UIO && typeof UIO.hideInventory === "function") {
+      UIO.hideInventory(ctx);
+      if (wasOpen) requestDraw(ctx);
+      return;
+    }
+  } catch (_) {}
   if (wasOpen) requestDraw(ctx);
 }
 

@@ -198,10 +198,21 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
   if (isKeeper) {
     try {
       const shopRef = npc._shopRef || null;
-      if (shopRef && isKeeperAtShop(npc, shopRef)) {
-        tryOpenShopRef(shopRef, npc);
-      } else if (shopRef) {
-        ctx.log && ctx.log(`${npc.name || "Shopkeeper"} is away from the ${shopRef.name || "shop"}.`, "info");
+      if (shopRef) {
+        if (isKeeperAtShop(npc, shopRef)) {
+          // Primary path: keeper at or near the shop door (or inside) — open directly if hours allow
+          tryOpenShopRef(shopRef, npc);
+        } else {
+          // Fallback: if the shop is currently open, allow trading when bumping the keeper anywhere
+          // This makes trading more forgiving when the keeper is on their way or patrolling nearby.
+          const openNow = isShopOpenNow(ctx, shopRef);
+          if (openNow) {
+            tryOpenShopRef(shopRef, npc);
+          } else {
+            const sched = shopScheduleStr(ctx, shopRef);
+            ctx.log && ctx.log(`${npc.name || "Shopkeeper"} is away from the ${shopRef.name || "shop"}. ${sched ? "(" + sched + ")" : ""}`, "info");
+          }
+        }
       }
     } catch (_) {}
     return true;

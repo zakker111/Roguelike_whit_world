@@ -32,23 +32,24 @@ function requestDraw(ctx) {
 }
 
 export function show(ctx, list) {
-  const UB = mod("UIBridge");
-  let wasOpen = false;
-  try { if (UB && typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen(); } catch (_) {}
-  if (UB && typeof UB.showLoot === "function") {
-    UB.showLoot(ctx, list);
-    if (!wasOpen) requestDraw(ctx);
-  }
+  try {
+    const UIO = mod("UIOrchestration");
+    if (UIO && typeof UIO.showLoot === "function") {
+      // UIOrchestration handles draw if open-state changes
+      UIO.showLoot(ctx, list);
+      return;
+    }
+  } catch (_) {}
 }
 
 export function hide(ctx) {
-  const UB = mod("UIBridge");
-  let wasOpen = true;
-  try { if (UB && typeof UB.isLootOpen === "function") wasOpen = !!UB.isLootOpen(); } catch (_) {}
-  if (UB && typeof UB.hideLoot === "function") {
-    UB.hideLoot(ctx);
-    if (wasOpen) requestDraw(ctx);
-  }
+  try {
+    const UIO = mod("UIOrchestration");
+    if (UIO && typeof UIO.hideLoot === "function") {
+      UIO.hideLoot(ctx);
+      return;
+    }
+  } catch (_) {}
 }
 
 export function loot(ctx) {
