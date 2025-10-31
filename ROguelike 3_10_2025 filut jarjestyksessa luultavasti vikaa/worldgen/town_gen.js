@@ -564,51 +564,7 @@ function generate(ctx) {
     return Prefabs.stampPrefab(ctx, prefab, bx, by, buildings);
   }
 
-    // If prefab declares it is a shop, collect for later schedule/sign assignment
-    try {
-      if (String(prefab.category || "").toLowerCase() === "shop" || (prefab.shop && prefab.shop.type)) {
-        const shopType = (prefab.shop && prefab.shop.type) ? String(prefab.shop.type) : (prefab.tags && prefab.tags.find(t => t !== "shop")) || "shop";
-        const shopName = String(prefab.name || (prefab.shop && prefab.shop.signText) || (shopType[0].toUpperCase() + shopType.slice(1)));
-        // Choose front door: prefer role=main else first door; translate to world coords
-        let doorWorld = null;
-        if (Array.isArray(prefab.doors) && prefab.doors.length) {
-          let d0 = prefab.doors.find(d => String(d.role || "").toLowerCase() === "main") || prefab.doors[0];
-          if (d0 && typeof d0.x === "number" && typeof d0.y === "number") {
-            doorWorld = { x: x0 + (d0.x | 0), y: y0 + (d0.y | 0) };
-          }
-        }
-        // If no explicit door, pick midpoint on bottom edge
-        if (!doorWorld) {
-          doorWorld = { x: x0 + ((w / 2) | 0), y: y0 + h - 1 };
-        }
-        // Optional schedule override from prefab
-        let scheduleOverride = null;
-        try {
-          const s = prefab.shop && prefab.shop.schedule;
-          if (s && (s.open || s.close || s.alwaysOpen != null)) {
-            scheduleOverride = { open: s.open || null, close: s.close || null, alwaysOpen: !!s.alwaysOpen };
-          }
-        } catch (_) {}
-        // Sign placement preference from prefab metadata (default true unless explicitly disabled)
-        let signWanted = true;
-        try {
-          if (prefab.shop && Object.prototype.hasOwnProperty.call(prefab.shop, "sign")) {
-            signWanted = !!prefab.shop.sign;
-          }
-        } catch (_) {}
-        prefabShops.push({
-          type: shopType,
-          building: rect,
-          door: doorWorld,
-          name: shopName,
-          scheduleOverride,
-          signWanted
-        });
-      }
-    } catch (_) {}
-
-    return true;
-  }
+    
 
   // Stamp a plaza prefab (props only; no building record)
   // All-or-nothing: stage changes and commit only if the prefab grid fully validates.
