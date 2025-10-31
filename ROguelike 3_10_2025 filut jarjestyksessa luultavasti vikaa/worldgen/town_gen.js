@@ -1276,7 +1276,7 @@ function generate(ctx) {
           signWanted: (ps && Object.prototype.hasOwnProperty.call(ps, "signWanted")) ? !!ps.signWanted : true,
           building: { x: ps.building.x, y: ps.building.y, w: ps.building.w, h: ps.building.h, door: { x: ps.door.x, y: ps.door.y } },
           inside
-       _code }new)</;
+        });
 
         try { addShopSignInside(ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
       }
