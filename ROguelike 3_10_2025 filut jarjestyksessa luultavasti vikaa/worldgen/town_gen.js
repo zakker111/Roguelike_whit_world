@@ -555,13 +555,39 @@ function generate(ctx) {
   }
   function trySlipStamp(ctx, prefab, bx, by, maxSlip = 2) {
     // Delegate to module implementation (passes buildings reference for rect recording)
-    return Prefabs.trySlipStamp(ctx, prefab, bx, by, maxSlip, buildings);
+    const res = Prefabs.trySlipStamp(ctx, prefab, bx, by, maxSlip, buildings);
+    if (res && res.ok && res.shop && res.rect) {
+      try {
+        prefabShops.push({
+          type: res.shop.type,
+          building: { x: res.rect.x, y: res.rect.y, w: res.rect.w, h: res.rect.h },
+          door: { x: res.shop.door.x, y: res.shop.door.y },
+          name: res.shop.name,
+          scheduleOverride: res.shop.scheduleOverride,
+          signWanted: res.shop.signWanted
+        });
+      } catch (_) {}
+    }
+    return !!res;
   }
 
   // --- Prefab helpers ---
   function stampPrefab(ctx, prefab, bx, by) {
     // Delegate to module implementation (passes buildings reference for rect recording and upstairs overlay handling)
-    return Prefabs.stampPrefab(ctx, prefab, bx, by, buildings);
+    const res = Prefabs.stampPrefab(ctx, prefab, bx, by, buildings);
+    if (res && res.ok && res.shop && res.rect) {
+      try {
+        prefabShops.push({
+          type: res.shop.type,
+          building: { x: res.rect.x, y: res.rect.y, w: res.rect.w, h: res.rect.h },
+          door: { x: res.shop.door.x, y: res.shop.door.y },
+          name: res.shop.name,
+          scheduleOverride: res.shop.scheduleOverride,
+          signWanted: res.shop.signWanted
+        });
+      } catch (_) {}
+    }
+    return !!res;
   }
 
     
@@ -1247,9 +1273,11 @@ function generate(ctx) {
           openMin: sched.openMin,
           closeMin: sched.closeMin,
           alwaysOpen: !!sched.alwaysOpen,
+          signWanted: (ps && Object.prototype.hasOwnProperty.call(ps, "signWanted")) ? !!ps.signWanted : true,
           building: { x: ps.building.x, y: ps.building.y, w: ps.building.w, h: ps.building.h, door: { x: ps.door.x, y: ps.door.y } },
           inside
-        });
+       _code }new)</;
+
         try { addShopSignInside(ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
       }
     } catch (_) {}

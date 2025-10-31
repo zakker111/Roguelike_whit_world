@@ -40,23 +40,24 @@ export function trySlipStamp(ctx, prefab, bx, by, maxSlip = 2, buildings) {
   }
   for (const o of offsets) {
     const x = bx + o.dx, y = by + o.dy;
-    if (stampPrefab(ctx, prefab, x, y, buildings)) return true;
+    const res = stampPrefab(ctx, prefab, x, y, buildings);
+    if (res && res.ok) return res;
   }
-  return false;
+  return null;
 }
 
 export function stampPrefab(ctx, prefab, bx, by, buildings) {
-  if (!prefab || !prefab.size || !Array.isArray(prefab.tiles)) return false;
+  if (!prefab || !prefab.size || !Array.isArray(prefab.tiles)) return null;
   const H = Array.isArray(ctx.map) ? ctx.map.length : 0;
   const W = H && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
 
   const w = prefab.size.w | 0, h = prefab.size.h | 0;
   // Bounds and clear margin check
   const x0 = bx, y0 = by, x1 = bx + w - 1, y1 = by + h - 1;
-  if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return false;
+  if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return null;
   for (let yy = y0; yy <= y1; yy++) {
     for (let xx = x0; xx <= x1; xx++) {
-      if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
+      if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return null;
     }
   }
 
@@ -98,7 +99,7 @@ export function stampPrefab(ctx, prefab, bx, by, buildings) {
   // Stamp tiles and embedded props
   for (let yy = 0; yy < h; yy++) {
     const row = prefab.tiles[yy];
-    if (!row || row.length !== w) return false;
+    if (!row || row.length !== w) return null;
     for (let xx = 0; xx < w; xx++) {
       const code = row[xx];
       const wx = x0 + xx, wy = y0 + yy;
@@ -284,7 +285,43 @@ export function stampPrefab(ctx, prefab, bx, by, buildings) {
     }
   } catch (_) {}
 
-  return true;
+  // Build optional shop meta for shop prefabs
+  let shop = null;
+  try {
+    const cat = String(prefab.category || "").toLowerCase();
+    const hasShopType = !!(prefab.shop && prefab.shop.type);
+    if (cat === "shop" || hasShopType) {
+      const shopType = hasShopType ? String(prefab.shop.type) : ((prefab.tags && prefab.tags.find(t => t !== "shop")) || "shop");
+      const shopName = String(prefab.name || (prefab.shop && prefab.shop.signText) || (shopType.charAt(0).toUpperCase() + shopType.slice(1)));
+      // Choose front door: prefer role=main else first
+      let doorWorld = null;
+      if (Array.isArray(prefab.doors) && prefab.doors.length) {
+        let d0 = prefab.doors.find(d => String(d.role || "").toLowerCase() === "main") || prefab.doors[0];
+        if (d0 && typeof d0.x === "number" && typeof d0.y === "number") {
+          doorWorld = { x: x0 + (d0.x | 0), y: y0 + (d0.y | 0) };
+        }
+      }
+      if (!doorWorld) {
+        doorWorld = { x: x0 + ((w / 2) | 0), y: y0 + h - 1 };
+      }
+      let scheduleOverride = null;
+      try {
+        const s = prefab.shop && prefab.shop.schedule;
+        if (s && (s.open || s.close || s.alwaysOpen != null)) {
+          scheduleOverride = { open: s.open || null, close: s.close || null, alwaysOpen: !!s.alwaysOpen };
+        }
+      } catch (_) {}
+      let signWanted = true;
+      try {
+        if (prefab.shop && Object.prototype.hasOwnProperty.call(prefab.shop, "sign")) {
+          signWanted = !!prefab.shop.sign;
+        }
+      } catch (_) {}
+      shop = { type: shopType, name: shopName, door: doorWorld, scheduleOverride, signWanted };
+    }
+  } catch (_) {}
+
+  return { ok: true, rect, shop };
 }
 
 export function stampPlazaPrefab(ctx, prefab, bx, by) {
