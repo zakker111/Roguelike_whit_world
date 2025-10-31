@@ -478,7 +478,7 @@ function generate(ctx) {
   } catch (_) {}
 
   // Roads (deferred): build after buildings and outdoor mask are known
-  let roadsMask = Array.from({ length: H }, () => Array(W).fill(false));
+  
 
   // Buildings container (either prefab-placed or hollow rectangles as fallback)
   const buildings = [];
