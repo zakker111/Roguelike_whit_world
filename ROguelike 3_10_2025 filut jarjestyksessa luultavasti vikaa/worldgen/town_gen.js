@@ -1452,8 +1452,8 @@ function generate(ctx) {
       building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: door.x, y: door.y } },
       inside
     });
-    // Ensure a sign near the shop door with the correct shop name (e.g., Inn), prefer placing it outside the building
-    try { ShopsSigns.addShopSignInside(ctx, b, {oor.y }, name); } catch (_) {}
+    // Ensure a sign near the shop door with the correct shop name (e.g., Inn), placed inside near the door
+    try { ShopsSigns.addShopSignInside(ctx, b, { x: door.x, y: door.y }, name); } catch (_) {}
   }
 
   // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback from the tavern building
@@ -1492,7 +1492,7 @@ function generate(ctx) {
         building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
         inside
       });
-      try { ShopsSigns.addShopSignInside(ctx, b, { x: doorX, y: doorY }, "Inn"); }    }
+      try { ShopsSigns.addShopSignInside(ctx, b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
   } catch (_) {}
 
   // Safety: deduplicate Inn entries if any logic created more than one
