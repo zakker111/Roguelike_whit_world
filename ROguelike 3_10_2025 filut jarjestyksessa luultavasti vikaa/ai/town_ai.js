@@ -870,6 +870,36 @@
     // Expose fast occupancy to helpers for this tick
     ctx._occ = occ;
 
+    // Innkeeper hard clamp: ensure the innkeeper is always inside the Inn building.
+    // If found outside for any reason (spawn collision, pathing jitter), snap them to a free interior tile.
+    try {
+      for (let i = 0; i < npcs.length; i++) {
+        const n = npcs[i];
+        if (!n || !n.isShopkeeper) continue;
+        const shop = n._shopRef || null;
+        if (!shop || String(shop.type || "").toLowerCase() !== "inn" || !shop.building) continue;
+        const B = shop.building;
+        const insideNow = insideBuilding(B, n.x, n.y);
+        if (insideNow) continue;
+        // Temporarily release this NPC's current tile from occupancy while searching a free interior
+        const prevKey = `${n.x},${n.y}`;
+        if (occ.has(prevKey)) occ.delete(prevKey);
+        // Preferred interior target: configured inside tile, then adjacent to door, then first free interior, then center
+        let target = null;
+        const prefer = (shop.inside ? { x: shop.inside.x, y: shop.inside.y } : null);
+        if (prefer && insideBuilding(B, prefer.x, prefer.y) && isFreeTile(ctx, prefer.x, prefer.y)) {
+          target = prefer;
+        } else {
+          const nearDoor = nearestFreeAdjacent(ctx, shop.x, shop.y, B);
+          target = nearDoor || firstFreeInteriorTile(ctx, B) || { x: Math.max(B.x + 1, Math.min(B.x + B.w - 2, (B.x + ((B.w / 2) | 0)))), y: Math.max(B.y + 1, Math.min(B.y + B.h - 2, (B.y + ((B.h / 2) | 0)))) };
+        }
+        // Snap inside and mark downstairs
+        const newKey = `${target.x},${target.y}`;
+        n.x = target.x; n.y = target.y; n._floor = "ground";
+        occ.add(newKey);
+      }
+    } catch (_) {}
+
     // Initialize per-tick pathfinding budget to avoid heavy recomputation (lowered)
     initPathBudget(ctx, npcs.length);
 
