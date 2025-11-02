@@ -608,10 +608,8 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   // Ensure expand-shift is enabled during normal movement (may have been suspended during transitions)
   if (ctx._suspendExpandShift) ctx._suspendExpandShift = false;
 
-  // Top-edge water band: treat any attempt to move above row 0 as blocked (like water), do not expand upward
-  if (ny < 0) {
-    return false;
-  }
+  // Pure infinite movement: allow expansion upward as well (no top-edge hard boundary)
+  // Note: ensureInBounds will prepend rows at the top when ny < 0, preserving world coords.
 
   // Expand if outside (only for infinite worlds)
   try {

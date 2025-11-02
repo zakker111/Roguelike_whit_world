@@ -175,7 +175,8 @@ export function draw(ctx, view) {
   // Top-edge boundary: render an organic shoreline + water to disguise the hard boundary.
   // Visual only; world data isn't changed. Movement into y < 0 is blocked in world_runtime.
   try {
-    if (startY < 0) {
+    // Skip top-edge boundary cosmetic when running the infinite world (map expands upward).
+    if (startY < 0 && !(ctx.world && ctx.world.type === "infinite")) {
       // Stable 1D hash for column variation
       function h1(n) {
         let x = (n | 0) * 374761393;
