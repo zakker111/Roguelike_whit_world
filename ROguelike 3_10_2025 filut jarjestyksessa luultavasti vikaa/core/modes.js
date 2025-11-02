@@ -100,9 +100,32 @@ export function leaveTownNow(ctx) {
     if (Array.isArray(ctx.npcs)) ctx.npcs.length = 0;
     if (Array.isArray(ctx.shops)) ctx.shops.length = 0;
   } catch (_) {}
-  if (ctx.worldReturnPos) {
-    ctx.player.x = ctx.worldReturnPos.x;
-    ctx.player.y = ctx.worldReturnPos.y;
+  if (ctx.worldReturnPos && ctx.world) {
+    const rx = ctx.worldReturnPos.x | 0;
+    const ry = ctx.worldReturnPos.y | 0;
+    const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+    if (WR && typeof WR.ensureInBounds === "function") {
+      // Avoid snap during expansion
+      ctx._suspendExpandShift = true;
+      try {
+        let lx = rx - (ctx.world.originX | 0);
+        let ly = ry - (ctx.world.originY | 0);
+        WR.ensureInBounds(ctx, lx, ly, 32);
+      } finally {
+        ctx._suspendExpandShift = false;
+      }
+      const lx2 = rx - (ctx.world.originX | 0);
+      const ly2 = ry - (ctx.world.originY | 0);
+      ctx.player.x = lx2;
+      ctx.player.y = ly2;
+    } else {
+      const lx = rx - (ctx.world.originX | 0);
+      const ly = ry - (ctx.world.originY | 0);
+      const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+      const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+      ctx.player.x = Math.max(0, Math.min((cols ? cols - 1 : 0), lx));
+      ctx.player.y = Math.max(0, Math.min((rows ? rows - 1 : 0), ly));
+    }
   }
   try {
     const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);

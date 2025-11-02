@@ -80,9 +80,11 @@ export function enter(ctx, info) {
   ctx.encounterBiome = biome;
   ctx.encounterDifficulty = difficulty;
 
-  // Remember return position in overworld
-  const worldX = ctx.player.x | 0;
-  const worldY = ctx.player.y | 0;
+  // Remember return position in overworld (absolute world coordinates)
+  const ox = (ctx.world && typeof ctx.world.originX === "number") ? (ctx.world.originX | 0) : 0;
+  const oy = (ctx.world && typeof ctx.world.originY === "number") ? (ctx.world.originY | 0) : 0;
+  const worldX = ox + (ctx.player.x | 0);
+  const worldY = oy + (ctx.player.y | 0);
   ctx.worldReturnPos = { x: worldX, y: worldY };
 
   // Switch to encounter mode and build a small tactical map
@@ -824,11 +826,34 @@ export function complete(ctx, outcome = "victory") {
     ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
     ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
   }
-  // Restore player to the entry tile
+  // Restore player to the entry tile (convert absolute world coords -> local window indices)
   try {
     const pos = ctx.worldReturnPos || null;
-    if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
-      ctx.player.x = pos.x; ctx.player.y = pos.y;
+    if (pos && typeof pos.x === "number" && typeof pos.y === "number" && ctx.world) {
+      const rx = pos.x | 0, ry = pos.y | 0;
+      const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+      if (WR && typeof WR.ensureInBounds === "function") {
+        // Avoid player/camera snap during left/top expansion
+        ctx._suspendExpandShift = true;
+        try {
+          let lx = rx - (ctx.world.originX | 0);
+          let ly = ry - (ctx.world.originY | 0);
+          WR.ensureInBounds(ctx, lx, ly, 32);
+        } finally {
+          ctx._suspendExpandShift = false;
+        }
+        const lx2 = rx - (ctx.world.originX | 0);
+        const ly2 = ry - (ctx.world.originY | 0);
+        ctx.player.x = lx2; ctx.player.y = ly2;
+      } else {
+        // Fallback: clamp conversion without expansion
+        const lx = rx - (ctx.world.originX | 0);
+        const ly = ry - (ctx.world.originY | 0);
+        const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+        const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+        ctx.player.x = Math.max(0, Math.min((cols ? cols - 1 : 0), lx));
+        ctx.player.y = Math.max(0, Math.min((rows ? rows - 1 : 0), ly));
+      }
     }
   } catch (_) {}
   try {
