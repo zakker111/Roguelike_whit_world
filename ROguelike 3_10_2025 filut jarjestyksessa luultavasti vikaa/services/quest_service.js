@@ -518,6 +518,8 @@
           const a = qs.active[i];
           if (!a || a.instanceId !== qid) continue;
           if (a.kind !== "encounter") return;
+          // Clear any lingering marker reference (world marker is already removed on entry)
+          try { a.marker = null; } catch (_) {}
           if (victory) {
             a.status = "completedPendingTurnIn";
             try { ctx.log && ctx.log("Quest objective complete. Return to the Quest Board to claim your reward.", "good"); } catch (_) {}

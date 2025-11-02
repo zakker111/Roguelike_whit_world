@@ -113,7 +113,8 @@ function render(ctx) {
           status = "Gather the requested items.";
         } else if (q.kind === "encounter") {
           const completed = (q.status === "completedPendingTurnIn");
-          status = q.marker ? "An E marker was placed on the overworld." : (completed ? "Completed — claim at the Quest Board." : "Seek the objective.");
+          // Prefer completed status over marker hint to avoid misleading messaging after victory
+          status = completed ? "Completed — claim at the Quest Board." : (q.marker ? "An E marker was placed on the overworld." : "Seek the objective.");
           if (completed && q.instanceId) {
             btnActive = `<button data-claim-active="${q.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`;
           }
