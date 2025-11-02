@@ -199,17 +199,25 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
     try {
       const shopRef = npc._shopRef || null;
       if (shopRef) {
+        // Inn: always open and interactable anywhere inside — open immediately on bump
+        const isInn = String(shopRef.type || "").toLowerCase() === "inn";
+        if (isInn) {
+          tryOpenShopRef(shopRef, npc);
+          return true;
+        }
+
         if (isKeeperAtShop(npc, shopRef)) {
-          // Primary path: keeper at or near the shop door (or inside) — open directly if hours allow
+          // Keeper at or near the shop door (or inside) — open directly if hours allow
           tryOpenShopRef(shopRef, npc);
         } else {
           // Fallback: if the shop is currently open, allow trading when bumping the keeper anywhere
           // This makes trading more forgiving when the keeper is on their way or patrolling nearby.
-          const openNow = isShopOpenNow(ctx, shopRef);
+          const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
+          const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, shopRef) : false;
           if (openNow) {
             tryOpenShopRef(shopRef, npc);
           } else {
-            const sched = shopScheduleStr(ctx, shopRef);
+            const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(shopRef) : "";
             ctx.log && ctx.log(`${npc.name || "Shopkeeper"} is away from the ${shopRef.name || "shop"}. ${sched ? "(" + sched + ")" : ""}`, "info");
           }
         }
