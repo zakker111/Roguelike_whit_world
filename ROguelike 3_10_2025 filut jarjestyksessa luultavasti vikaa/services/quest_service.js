@@ -100,6 +100,57 @@
     }
     townQ.active = still;
   }
+  function _isNearestTownToPlayer(ctx, town) {
+    try {
+      const pos = _absPlayerPos(ctx);
+      const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
+      if (!towns.length || !town) return false;
+      // Manhattan distance
+      let best = null, bestD = Infinity;
+      for (const t of towns) {
+        if (!t) continue;
+        const d = Math.abs((t.x | 0) - (pos.x | 0)) + Math.abs((t.y | 0) - (pos.y | 0));
+        if (d < bestD) { bestD = d; best = t; }
+      }
+      return !!(best && (best.x | 0) === (town.x | 0) && (best.y | 0) === (town.y | 0));
+    } catch (_) { return false; }
+  }
+
+  function _ensureEncounterOfferForTown(ctx, town, townQ) {
+    try {
+      const GD = _gd();
+      const templates = (GD && GD.quests && Array.isArray(GD.quests.templates)) ? GD.quests.templates : [];
+      const encTemplates = templates.filter(t => t && String(t.kind || "").toLowerCase() === "encounter");
+      if (!encTemplates.length) return;
+      const hasAvailEnc = Array.isArray(townQ.available) && townQ.available.some(q => q && String(q.kind || "").toLowerCase() === "encounter");
+      const hasActiveEnc = Array.isArray(townQ.active) && townQ.active.some(q => q && String(q.kind || "").toLowerCase() === "encounter");
+      if (hasAvailEnc || hasActiveEnc) return;
+
+      // Pick first encounter (fallback: id "bandits_farm" if present)
+      let tmpl = encTemplates.find(t => t.id === "bandits_farm") || encTemplates[0];
+      if (!tmpl) return;
+      const now = _nowTurn(ctx);
+      const ttl = (typeof tmpl.expiresTurns === "number") ? (tmpl.expiresTurns | 0) : 360;
+      // Avoid duplicates by templateId across active/completed
+      try {
+        const avoidId = tmpl.id;
+        const dupAct = Array.isArray(townQ.active) && townQ.active.some(q => q && q.templateId === avoidId);
+        const dupComp = Array.isArray(townQ.completed) && townQ.completed.some(q => q && q.templateId === avoidId);
+        if (dupAct || dupComp) return;
+      } catch (_) {}
+
+      const offer = {
+        templateId: tmpl.id,
+        kind: tmpl.kind,
+        title: tmpl.title || tmpl.id,
+        desc: tmpl.desc || "",
+        offerAtTurn: now,
+        expiresAtTurn: now + Math.max(60, ttl),
+      };
+      townQ.available = Array.isArray(townQ.available) ? townQ.available.concat([offer]) : [offer];
+    } catch (_) {}
+  }
+
   function _rerollAvailableIfNeeded(ctx, town, townQ) {
     const GD = _gd();
     const templates = (GD && GD.quests && Array.isArray(GD.quests.templates)) ? GD.quests.templates : [];
@@ -110,6 +161,10 @@
     const validAvail = avail.filter(q => q && typeof q.expiresAtTurn === "number" ? (_nowTurn(ctx) < q.expiresAtTurn) : true);
     if (validAvail.length >= 1) {
       townQ.available = validAvail;
+      // Ensure nearest-to-player town always has at least one encounter offer
+      if (_isNearestTownToPlayer(ctx, town)) {
+        _ensureEncounterOfferForTown(ctx, town, townQ);
+      }
       return;
     }
     // Generate 1-3 fresh offers
@@ -134,6 +189,10 @@
       };
     });
     townQ.available = newAvail;
+    // Ensure nearest-to-player town always has at least one encounter offer
+    if (_isNearestTownToPlayer(ctx, town)) {
+      _ensureEncounterOfferForTown(ctx, town, townQ);
+    }
     townQ.lastRerollTurn = now;
   }
   function _ensureWorldMarkers(ctx) {
