@@ -1137,6 +1137,43 @@ function generate(ctx) {
       const px0 = pr.x0, px1 = pr.x1, py0 = pr.y0, py1 = pr.y1;
       const sideCenterX = ((px0 + px1) / 2) | 0;
       const sideCenterY = ((py0 + py1) / 2) | 0;
+
+      // Compute an anchor for stamping based on plaza side with slight variation along the edge,
+      // keeping a 3-tile walkway buffer from the plaza footprint.
+      function anchorForSide(side, pref) {
+        const rw = pref.size.w | 0, rh = pref.size.h | 0;
+        const rng = _rng(ctx);
+        // quarter offsets along the plaza side to stagger shops
+        const qx = Math.max(1, Math.floor((px1 - px0) * 0.25));
+        const qy = Math.max(1, Math.floor((py1 - py0) * 0.25));
+        const jitterX = ((rng() * 4) | 0) - 2; // -2..+1
+        const jitterY = ((rng() * 4) | 0) - 2;
+
+        let bx = 1, by = 1;
+        if (side === "west") {
+          // place to the left of plaza with slight vertical variation
+          const baseY = Math.max(1, Math.min(H - rh - 2, sideCenterY - ((rh / 2) | 0) + jitterY));
+          bx = Math.max(1, px0 - 3 - rw);
+          by = baseY;
+        } else if (side === "east") {
+          const baseY = Math.max(1, Math.min(H - rh - 2, sideCenterY - ((rh / 2) | 0) + jitterY));
+          bx = Math.min(W - rw - 2, px1 + 3);
+          by = baseY;
+        } else if (side === "north") {
+          const baseX = Math.max(1, Math.min(W - rw - 2, sideCenterX - ((rw / 2) | 0) + jitterX));
+          bx = baseX;
+          by = Math.max(1, py0 - 3 - rh);
+        } else { // south
+          const baseX = Math.max(1, Math.min(W - rw - 2, sideCenterX - ((rw / 2) | 0) + jitterX));
+          bx = baseX;
+          by = Math.min(H - rh - 2, py1 + 3);
+        }
+        // Clamp within bounds to respect 1-tile margin from map edges
+        bx = Math.max(1, Math.min(W - rw - 2, bx));
+        by = Math.max(1, Math.min(H - rh - 2, by));
+        return { bx, by };
+      }
+
       function stampWithResolution(pref, bx, by) {
         if (stampPrefab(ctx, pref, bx, by)) return true;
         // Try slip first
@@ -1175,22 +1212,11 @@ function generate(ctx) {
         const pref = pickPrefab(candidates, _rng(ctx));
         if (!pref || !pref.size) break;
         const tKey = (pref.shop && pref.shop.type) ? String(pref.shop.type).toLowerCase() : `shop_${attempts}`;
-        // compute anchor by side
+        // compute anchor by side (stagger positions using quarter offsets and jitter)
         const side = sides[sideIdx % sides.length]; sideIdx++;
-        let bx = 1, by = 1;
-        if (side === "west") {
-          bx = Math.max(1, px0 - 3 - pref.size.w);
-          by = Math.max(1, Math.min((H - pref.size.h - 2), sideCenterY - ((pref.size.h / 2) | 0)));
-        } else if (side === "east") {
-          bx = Math.min(W - pref.size.w - 2, px1 + 3);
-          by = Math.max(1, Math.min((H - pref.size.h - 2), sideCenterY - ((pref.size.h / 2) | 0)));
-        } else if (side === "north") {
-          bx = Math.max(1, Math.min(W - pref.size.w - 2, sideCenterX - ((pref.size.w / 2) | 0)));
-          by = Math.max(1, py0 - 3 - pref.size.h);
-        } else {
-          bx = Math.max(1, Math.min(W - pref.size.w - 2, sideCenterX - ((pref.size.w / 2) | 0)));
-          by = Math.min(H - pref.size.h - 2, py1 + 3);
-        }
+        const anch = anchorForSide(side, pref);
+        const bx = anch.bx, by = anch.by;
+
         if (stampWithResolution(pref, bx, by)) {
           usedTypes.add(tKey);
           limit--;
@@ -2028,38 +2054,106 @@ function generate(ctx) {
     ...baseLines
   ];
   const tbCount = Array.isArray(ctx.townBuildings) ? ctx.townBuildings.length : 12;
-  const roamTarget = Math.min(14, Math.max(6, Math.floor(tbCount / 2)));
-  let placed = 0, tries = 0;
-  while (placed < roamTarget && tries++ < 800) {
-    const onRoad = ctx.rng() < 0.4;
-    let x, y;
-    if (onRoad) {
-      if (ctx.rng() < 0.5) { y = gate.y; x = Math.max(2, Math.min(W - 3, Math.floor(ctx.rng() * (W - 4)) + 2)); }
-      else { x = plaza.x; y = Math.max(2, Math.min(H - 3, Math.floor(ctx.rng() * (H - 4)) + 2)); }
-    } else {
-      const ox = Math.floor(ctx.rng() * 21) - 10;
-      const oy = Math.floor(ctx.rng() * 17) - 8;
-      x = Math.max(1, Math.min(W - 2, plaza.x + ox));
-      y = Math.max(1, Math.min(H - 2, plaza.y + oy));
+
+  // Time-of-day influence on roaming crowd size
+  const phase = (ctx.time && ctx.time.phase) ? ctx.time.phase : "day";
+  let roamTarget = Math.min(14, Math.max(6, Math.floor(tbCount / 2)));
+  if (phase === "day") roamTarget = Math.min(18, Math.max(roamTarget, Math.floor(tbCount * 0.7)));
+  if (phase === "night") roamTarget = Math.max(4, Math.floor(roamTarget * 0.6));
+
+  // Helper: prefer spawning near open shop doors during daytime to create street-level activity
+  function openShopDoors() {
+    const list = [];
+    try {
+      const SS = ctx.ShopService || (typeof window !== "undefined" ? window.ShopService : null);
+      for (const s of (Array.isArray(ctx.shops) ? ctx.shops : [])) {
+        if (!s || !s.building || !s.building.door) continue;
+        const door = s.building.door;
+        const openNow = SS && typeof SS.isShopOpenNow === "function" ? SS.isShopOpenNow(ctx, s) : (phase === "day");
+        if (openNow) list.push({ x: door.x, y: door.y, type: s.type || "shop" });
+      }
+    } catch (_) {}
+    return list;
+  }
+  function freeOutsideNear(x0, y0, radius = 3) {
+    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
+    // try direct outward tiles first
+    for (const d of dirs) {
+      const x = x0 + d.dx, y = y0 + d.dy;
+      if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) continue;
+      const t = ctx.map[y][x];
+      if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) continue;
+      if (x === ctx.player.x && y === ctx.player.y) continue;
+      if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
+      if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;
+      if (ctx.townProps.some(p => p.x === x && p.y === y)) continue;
+      return { x, y };
     }
-    if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.DOOR && ctx.map[y][x] !== ctx.TILES.ROAD) continue;
-    if (x === ctx.player.x && y === ctx.player.y) continue;
-    if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
-    if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;
-    if (ctx.townProps.some(p => p.x === x && p.y === y)) continue;
+    // then small radius search
+    const rng = _rng(ctx);
+    for (let tries = 0; tries < 40; tries++) {
+      const dx = (((rng() * (radius * 2 + 1)) | 0) - radius);
+      const dy = (((rng() * (radius * 2 + 1)) | 0) - radius);
+      const x = x0 + dx, y = y0 + dy;
+      if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) continue;
+      if (Math.abs(dx) + Math.abs(dy) > radius) continue;
+      const t = ctx.map[y][x];
+      if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) continue;
+      if (x === ctx.player.x && y === ctx.player.y) continue;
+      if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
+      if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;
+      if (ctx.townProps.some(p => p.x === x && p.y === y)) continue;
+      return { x, y };
+    }
+    return null;
+  }
+
+  let placed = 0, tries = 0;
+  const shopDoors = (phase === "day") ? openShopDoors() : [];
+  let shopIdx = 0;
+
+  while (placed < roamTarget && tries++ < 900) {
+    let x, y;
+
+    // First, try to place near open shop doors (daytime only), round-robin over unique shops
+    if (shopDoors.length && shopIdx < shopDoors.length) {
+      const d = shopDoors[shopIdx++];
+      const pos = freeOutsideNear(d.x, d.y, 4);
+      if (pos) { x = pos.x; y = pos.y; }
+    }
+
+    // Fallbacks: roads (gate/plaza axes) or plaza halo
+    if (x == null || y == null) {
+      const onRoad = _rng(ctx)() < 0.55; // bias toward road activity
+      if (onRoad) {
+        if (_rng(ctx)() < 0.5) { y = gate.y; x = Math.max(2, Math.min(W - 3, Math.floor(_rng(ctx)() * (W - 4)) + 2)); }
+        else { x = plaza.x; y = Math.max(2, Math.min(H - 3, Math.floor(_rng(ctx)() * (H - 4)) + 2)); }
+      } else {
+        const ox = Math.floor(_rng(ctx)() * 21) - 10;
+        const oy = Math.floor(_rng(ctx)() * 17) - 8;
+        x = Math.max(1, Math.min(W - 2, plaza.x + ox));
+        y = Math.max(1, Math.min(H - 2, plaza.y + oy));
+      }
+      if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.DOOR && ctx.map[y][x] !== ctx.TILES.ROAD) continue;
+      if (x === ctx.player.x && y === ctx.player.y) continue;
+      if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
+      if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;
+      if (ctx.townProps.some(p => p.x === x && p.y === y)) continue;
+    }
+
     // Assign a home immediately to avoid "no-home" diagnostics for roamers
     let homeRef = null;
     try {
       const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
       if (tbs.length) {
-        const b = tbs[Math.floor(rng() * tbs.length)];
+        const b = tbs[Math.floor(_rng(ctx)() * tbs.length)];
         const hx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, (b.x + ((b.w / 2) | 0))));
         const hy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, (b.y + ((b.h / 2) | 0))));
         const door = (b && b.door && typeof b.door.x === "number" && typeof b.door.y === "number") ? { x: b.door.x, y: b.door.y } : null;
         homeRef = { building: b, x: hx, y: hy, door };
       }
     } catch (_) {}
-    ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesInn: rng() < 0.45, _home: homeRef });
+    ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesInn: _rng(ctx)() < 0.45, _home: homeRef });
     placed++;
   }
 

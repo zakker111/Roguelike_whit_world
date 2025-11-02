@@ -74,7 +74,7 @@ function tilesRef() {
 }
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
+let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _roadsRef: null };
 
 
 export function draw(ctx, view) {
@@ -188,13 +188,14 @@ export function draw(ctx, view) {
     if (mapRows && mapCols) {
       const wpx = mapCols * TILE;
       const hpx = mapRows * TILE;
-      const needsRebuild = (!TOWN.canvas) || TOWN.mapRef !== map || TOWN.wpx !== wpx || TOWN.hpx !== hpx || TOWN.TILE !== TILE || TOWN._tilesRef !== tilesRef();
+      const needsRebuild = (!TOWN.canvas) || TOWN.mapRef !== map || TOWN.wpx !== wpx || TOWN.hpx !== hpx || TOWN.TILE !== TILE || TOWN._tilesRef !== tilesRef() || TOWN._roadsRef !== ctx.townRoads;
       if (needsRebuild) {
         TOWN.mapRef = map;
         TOWN.wpx = wpx;
         TOWN.hpx = hpx;
         TOWN.TILE = TILE;
         TOWN._tilesRef = tilesRef();
+        TOWN._roadsRef = ctx.townRoads;
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         try {
