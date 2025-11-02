@@ -957,8 +957,7 @@ export function tick(ctx) {
             QS.onEncounterComplete(ctx, { questInstanceId: qid, enemiesRemaining: 0 });
           }
         } catch (_) {}
-   _code  new </}
-  }
+      }
     } else {
       // If new enemies appear (edge-case), allow re-announcement once they are cleared again
       _clearAnnounced = false;
