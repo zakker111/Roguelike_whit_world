@@ -74,7 +74,7 @@ export function enter(ctx, info) {
   if (!ctx || !ctx.world || !ctx.world.map) return false;
   // Reset clear-announcement/quest-notification guards for this encounter session
   _clearAnnounced = false;
-  _victse;
+  _victoryNotified = false;
 
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { count: { min: 2, max: 3 } } ] };
   const biome = info && info.biome ? String(info.biome).toUpperCase() : null;
