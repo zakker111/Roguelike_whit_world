@@ -1493,6 +1493,7 @@ function generate(ctx) {
         inside
       });
       try { ShopsSigns.addShopSignInside(ctx, b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
+    }
   } catch (_) {}
 
   // Safety: deduplicate Inn entries if any logic created more than one
