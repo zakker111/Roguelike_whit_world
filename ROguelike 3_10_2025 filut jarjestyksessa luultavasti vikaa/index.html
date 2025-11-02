@@ -12,7 +12,7 @@
     img-src 'self' data: https://fav.farm;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src https://fonts.gstatic.com;
-    script-src 'self' 'unsafe-inline';
+    script-src 'self';
     connect-src 'self';
   ">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,18 +21,7 @@
   <link rel="icon" href="https://fav.farm/%F0%9F%8E%B2">
 </head>
 <body>
-  <script>
-    (function() {
-      try {
-        var p = String(location.pathname || '');
-        if (p.indexOf('/index.html/index.html') !== -1) {
-          var url = new URL(location.href);
-          url.pathname = '/index.html';
-          location.replace(url.toString());
-        }
-      } catch (_) {}
-    })();
-  </script>
+  <script type="module" src="/src/boot/normalize_path.js"></script>
   <div class="ui">
     <div class="title">Tiny Roguelike</div>
     <div class="stats">
@@ -48,17 +37,8 @@
   <div class="log" id="log"></div>
   <!-- Optional right-side live log mirror -->
   <div class="log side" id="log-right"></div>
-  <script>
-    // Apply mirror preference to the side log's visibility
-    (function () {
-      try {
-        var el = document.getElementById("log-right");
-        if (el && window.LOG_MIRROR === false) {
-          el.style.display = "none";
-        }
-      } catch (_) {}
-    })();
-  </script>
+  <script type="module" src="/src/boot/boot_flags.js"></script>
+  <script type="module" src="/src/boot/init_dom.js"></script>
 
   <div id="loot-panel" class="loot-panel" hidden>
     <div class="loot-title">Loot acquired</div>
@@ -193,27 +173,7 @@
   </div>
 
   <!-- Boot flags and persisted preferences -->
-  <script>
-    (function () {
-      try {
-        const params = new URLSearchParams(location.search);
-        // DEV flag
-        if (params.get("dev") === "1") { window.DEV = true; localStorage.setItem("DEV", "1"); }
-        if (params.get("dev") === "0") { window.DEV = false; localStorage.removeItem("DEV"); }
-        if (localStorage.getItem("DEV") === "1") window.DEV = true;
-
-        // Log mirror toggle (?mirror=1 or ?mirror=0), persisted
-        if (params.get("mirror") === "1") { window.LOG_MIRROR = true; localStorage.setItem("LOG_MIRROR", "1"); }
-        if (params.get("mirror") === "0") { window.LOG_MIRROR = false; localStorage.setItem("LOG_MIRROR", "0"); }
-        if (typeof window.LOG_MIRROR === "undefined") {
-          const m = localStorage.getItem("LOG_MIRROR");
-          if (m === "1") window.LOG_MIRROR = true;
-          else if (m === "0") window.LOG_MIRROR = false;
-          // default: enabled unless user turned it off
-        }
-      } catch (_) {}
-    })();
-  </script>
+  
 
   <!-- Single entry module: imports all game modules and boots -->
   <script type="module" src="/src/main.js"></script>

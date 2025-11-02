@@ -1429,7 +1429,7 @@ function tick(ctx) {
       const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
       const rfn = (RU && typeof RU.getRng === "function")
         ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-        : ((typeof ctx.rng === "function") ? ctx.rng : null);
+        : ((typeof ctx.rng === "function") ? ctx.rng : getRegionRng(ctx));
 
       const sample = (ctx.region && ctx.region.map) ? ctx.region.map : null;
       const h = sample ? sample.length : 0;
@@ -1459,13 +1459,13 @@ function tick(ctx) {
           if (String(e.faction || "") !== "animal") continue;
           // 30% chance to attempt a small random step
           const chance = 0.30;
-          const rv = (typeof rfn === "function") ? rfn() : Math.random();
+          const rv = (typeof rfn === "function") ? rfn() : 0.5;
           if (rv >= chance) continue;
 
           // Try a few random neighbor steps to find a valid move
           for (let tries = 0; tries < 6; tries++) {
-            const dx = (((typeof rfn === "function" ? rfn() : Math.random()) * 3) | 0) - 1;
-            const dy = (((typeof rfn === "function" ? rfn() : Math.random()) * 3) | 0) - 1;
+            const dx = (((typeof rfn === "function" ? rfn() : 0.5) * 3) | 0) - 1;
+            const dy = (((typeof rfn === "function" ? rfn() : 0.5) * 3) | 0) - 1;
             if (!dx && !dy) continue;
             const nx = e.x + dx, ny = e.y + dy;
             if (!walkableAt(nx, ny)) continue;
