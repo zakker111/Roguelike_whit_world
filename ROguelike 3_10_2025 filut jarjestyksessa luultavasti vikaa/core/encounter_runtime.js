@@ -601,8 +601,8 @@ export function enter(ctx, info) {
   try {
     ctx._questInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
     _currentQuestInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
-;
-}
+  } catch (_) {}
+  return true;
 
 export function tryMoveEncounter(ctx, dx, dy) {
   if (!ctx || ctx.mode !== "encounter") return false;
