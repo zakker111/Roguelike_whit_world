@@ -1576,28 +1576,7 @@ function generate(ctx) {
   ctx.townBuildings = buildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: getExistingDoor(b) }));
 
   // Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors)
-  (function buildOutdoorMask() {
-    try {
-      const rows = H, cols = W;
-      const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
-      function insideAnyBuilding(x, y) {
-        for (let i = 0; i < buildings.length; i++) {
-          const B = buildings[i];
-          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
-        }
-        return false;
-      }
-      for (let yy = 0; yy < rows; yy++) {
-        for (let xx = 0; xx < cols; xx++) {
-          const t = ctx.map[yy][xx];
-          if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
-            mask[yy][xx] = true;
-          }
-        }
-      }
-      ctx.townOutdoorMask = mask;
-    } catch (_) {}
-  })();
+  try { Diagnostics.buildOutdoorMask(ctx, buildings); } catch (_) {}
 
   // Build roads after buildings: one main road from gate to plaza, then spurs from every building door to the main road.
   (function buildRoadsAndPublish() {
@@ -1812,6 +1791,7 @@ import * as Roads from "./roads.js";
 import * as DoorsWindows from "./doors_windows.js";
 import * as Plaza from "./plaza.js";
 import * as ShopsSigns from "./shops_signs.js";
+import * as Diagnostics from "./diagnostics.js";
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper and export for ESM
 export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
