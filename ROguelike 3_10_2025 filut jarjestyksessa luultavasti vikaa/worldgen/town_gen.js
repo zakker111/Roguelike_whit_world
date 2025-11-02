@@ -1019,30 +1019,10 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Doors and shops near plaza (compact): just mark doors and create shop entries
-  function candidateDoors(b) {
-    return [
-      { x: b.x + ((b.w / 2) | 0), y: b.y, ox: 0, oy: -1 },                      // top
-      { x: b.x + b.w - 1, y: b.y + ((b.h / 2) | 0), ox: +1, oy: 0 },            // right
-      { x: b.x + ((b.w / 2) | 0), y: b.y + b.h - 1, ox: 0, oy: +1 },            // bottom
-      { x: b.x, y: b.y + ((b.h / 2) | 0), ox: -1, oy: 0 },                      // left
-    ];
-  }
-  function ensureDoor(b) {
-    const cands = candidateDoors(b);
-    const good = cands.filter(d => inBounds({ map: ctx.map }, d.x + d.ox, d.y + d.oy) && ctx.map[d.y + d.oy][d.x + d.ox] === ctx.TILES.FLOOR);
-    const pick = (good.length ? good : cands)[(Math.floor(ctx.rng() * (good.length ? good.length : cands.length))) % (good.length ? good.length : cands.length)];
-    if (inBounds(ctx, pick.x, pick.y)) ctx.map[pick.y][pick.x] = ctx.TILES.DOOR;
-    return pick;
-  }
-  function getExistingDoor(b) {
-    const cds = candidateDoors(b);
-    for (const d of cds) {
-      if (inBounds(ctx, d.x, d.y) && ctx.map[d.y][d.x] === ctx.TILES.DOOR) return { x: d.x, y: d.y };
-    }
-    const dd = ensureDoor(b);
-    return { x: dd.x, y: dd.y };
-  }
+  // Doors and shops near plaza: delegate to DoorsWindows module
+  const candidateDoors = (b) => DoorsWindows.candidateDoors(ctx, b);
+  const ensureDoor = (b) => DoorsWindows.ensureDoor(ctx, b);
+  const getExistingDoor = (b) => DoorsWindows.getExistingDoor(ctx, b);
 
   // Remove any buildings overlapping the Inn building
   (function cleanupInnOverlap() {
@@ -1818,100 +1798,11 @@ function generate(ctx) {
   } catch (_) {}
   addSignNear(gate.x, gate.y, `Welcome to ${ctx.townName}`);
 
-  // Windows along building walls (spaced, not near doors)
-  (function placeWindowsOnAll() {
-    function sidePoints(b) {
-      // Exclude corners for aesthetics; only true perimeter segments
-      return [
-        Array.from({ length: Math.max(0, b.w - 2) }, (_, i) => ({ x: b.x + 1 + i, y: b.y })),              // top
-        Array.from({ length: Math.max(0, b.w - 2) }, (_, i) => ({ x: b.x + 1 + i, y: b.y + b.h - 1 })),    // bottom
-        Array.from({ length: Math.max(0, b.h - 2) }, (_, i) => ({ x: b.x, y: b.y + 1 + i })),              // left
-        Array.from({ length: Math.max(0, b.h - 2) }, (_, i) => ({ x: b.x + b.w - 1, y: b.y + 1 + i })),    // right
-      ];
-    }
-    function isAdjacent(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) <= 1; }
-    function nearDoor(x, y) {
-      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-      for (let i = 0; i < dirs.length; i++) {
-        const nx = x + dirs[i].dx, ny = y + dirs[i].dy;
-        if (!inBounds(ctx, nx, ny)) continue;
-        if (ctx.map[ny][nx] === ctx.TILES.DOOR) return true;
-      }
-      return false;
-    }
-    for (let bi = 0; bi < buildings.length; bi++) {
-      const b = buildings[bi];
-      // Skip window auto-placement for prefab-stamped buildings; rely on prefab WINDOW tiles
-      if (b && b.prefabId) continue;
-      const tavB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-      const isTavernBld = !!(tavB && b.x === tavB.x && b.y === tavB.y && b.w === tavB.w && b.h === tavB.h);
-      let candidates = [];
-      const sides = sidePoints(b);
-      for (let si = 0; si < sides.length; si++) {
-        const pts = sides[si];
-        for (let pi = 0; pi < pts.length; pi++) {
-          const p = pts[pi];
-          if (!inBounds(ctx, p.x, p.y)) continue;
-          const t = ctx.map[p.y][p.x];
-          // Only convert solid wall tiles, avoid doors and already-placed windows
-          if (t !== ctx.TILES.WALL) continue;
-          if (nearDoor(p.x, p.y)) continue;
-          candidates.push(p);
-        }
-      }
-      if (!candidates.length) continue;
-      // Limit by perimeter size so larger buildings get a few more windows but not too many
-      let limit = Math.min(3, Math.max(1, Math.floor((b.w + b.h) / 12)));
-      if (isTavernBld) {
-        limit = Math.max(1, Math.floor(limit * 0.7));
-      }
-      limit = Math.max(1, Math.min(limit, 4));
-      const placed = [];
-      let attempts = 0;
-      while (placed.length < limit && candidates.length > 0 && attempts++ < candidates.length * 2) {
-        const idx = Math.floor(((typeof ctx.rng === "function") ? ctx.rng() : 0.5) * candidates.length);
-        const p = candidates[idx];
-        // Keep spacing: avoid placing next to already placed windows
-        let adjacent = false;
-        for (let j = 0; j < placed.length; j++) {
-          if (isAdjacent(p, placed[j])) { adjacent = true; break; }
-        }
-        if (adjacent) {
-          candidates.splice(idx, 1);
-          continue;
-        }
-        ctx.map[p.y][p.x] = ctx.TILES.WINDOW;
-        placed.push(p);
-        // Remove adjacent candidates to maintain spacing
-        candidates = candidates.filter(c => !isAdjacent(c, p));
-      }
-    }
-  })();
+  // Windows along building walls (spaced, not near doors) — delegated
+  try { DoorsWindows.placeWindowsOnAll(ctx, buildings); } catch (_) {}
 
-  // Plaza fixtures via prefab only (no fallbacks)
-  (function placePlazaPrefabStrict() {
-    try {
-      // Guard: if a plaza prefab was already stamped in this generation cycle, skip
-      try {
-        if (ctx.townPrefabUsage && Array.isArray(ctx.townPrefabUsage.plazas) && ctx.townPrefabUsage.plazas.length > 0) return;
-      } catch (_) {}
-      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
-      const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
-      if (!plazas.length) return;
-      // Filter prefabs that fit inside current plaza rectangle
-      const fit = plazas.filter(p => p && p.size && (p.size.w | 0) <= plazaW && (p.size.h | 0) <= plazaH);
-      const list = (fit.length ? fit : plazas);
-      const pref = pickPrefab(list, ctx.rng || rng);
-      if (!pref || !pref.size) return;
-      // Center the plaza prefab within the carved plaza rectangle
-      const bx = ((plaza.x - ((pref.size.w / 2) | 0)) | 0);
-      const by = ((plaza.y - ((pref.size.h / 2) | 0)) | 0);
-      if (!stampPlazaPrefab(ctx, pref, bx, by)) {
-        // Attempt slight slip only; no fallback
-        trySlipStamp(ctx, pref, bx, by, 2);
-      }
-    } catch (_) {}
-  })();
+  // Plaza fixtures via prefab only (no fallbacks) — delegated
+  try { Plaza.placePlazaPrefabStrict(ctx, plaza, plazaW, plazaH); } catch (_) {}
 
   // Repair pass: enforce solid building perimeters (convert any non-door/window on borders to WALL)
   (function repairBuildingPerimeters() {
@@ -2095,6 +1986,8 @@ function generate(ctx) {
 import { parseHHMM } from "../services/time_service.js";
 import * as Prefabs from "./prefabs.js";
 import * as Roads from "./roads.js";
+import * as DoorsWindows from "./doors_windows.js";
+import * as Plaza from "./plaza.js";
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper and export for ESM
 export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
