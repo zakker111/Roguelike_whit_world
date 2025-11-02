@@ -317,27 +317,49 @@
   }
 
   function getTurnIns(ctx) {
-    // Only innkeepers process rewards; we show turn-ins regardless of mode, but UX is at the inn.
+    // Turn-in candidates:
+    // - Active gather quests with sufficient items in inventory
+    // - Active encounter quests with status completedPendingTurnIn
+    // - Available gather quests in the CURRENT town when inventory already satisfies requirements (requiresAccept=true)
     const out = [];
     try {
-      // Gather from any town; but typical UX is to claim in the town where accepted.
+      const rng = _rng(ctx);
       const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
       for (const t of towns) {
         const qs = t && t.quests ? t.quests : null;
         if (!qs) continue;
-        // Gather: check inventory
+        // Active quests
         for (const a of (qs.active || [])) {
           if (!a) continue;
           if (a.kind === "gather") {
             const inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : [];
             const have = _materialCountInInventory(inv, a.material?.type, a.material?.name);
             if (have >= (a.amount | 0)) {
-              const gold = _randInt(_rng(ctx), a.rewardGoldMin | 0, a.rewardGoldMax | 0);
-              out.push({ instanceId: a.instanceId, title: a.title, gold });
+              const gold = _randInt(rng, a.rewardGoldMin | 0, a.rewardGoldMax | 0);
+              out.push({ instanceId: a.instanceId, title: a.title, gold, requiresAccept: false });
             }
           } else if (a.kind === "encounter" && a.status === "completedPendingTurnIn") {
-            const gold = _randInt(_rng(ctx), a.rewardGoldMin | 0, a.rewardGoldMax | 0);
-            out.push({ instanceId: a.instanceId, title: a.title, gold });
+            const gold = _randInt(rng, a.rewardGoldMin | 0, a.rewardGoldMax | 0);
+            out.push({ instanceId: a.instanceId, title: a.title, gold, requiresAccept: false });
+          }
+        }
+      }
+      // Available gather (current town only): allow immediate claim from the board
+      const curTown = _currentTownEntry(ctx);
+      if (curTown && curTown.quests) {
+        for (const av of (curTown.quests.available || [])) {
+          if (!av || av.kind !== "gather") continue;
+          const inv = ctx.player && ctx.player.inventory ? ctx.player.inventory : [];
+          // Resolve template for material and reward ranges
+          const tmpl = _templateById(av.templateId) || {};
+          const mat = tmpl.material || {};
+          const amt = (tmpl.amount | 0) || (av.amount | 0) || 1;
+          const have = _materialCountInInventory(inv, mat.type || av.material?.type, mat.name || av.material?.name);
+          if (have >= amt) {
+            const goldMin = (tmpl.rewardGoldMin | 0) || (av.rewardGoldMin | 0) || 5;
+            const goldMax = (tmpl.rewardGoldMax | 0) || (av.rewardGoldMax | 0) || 10;
+            const gold = _randInt(rng, goldMin, goldMax);
+            out.push({ templateId: av.templateId, title: av.title || tmpl.title || av.templateId, gold, requiresAccept: true });
           }
         }
       }
@@ -383,6 +405,38 @@
     try { ctx.log && ctx.log(`Quest complete: ${found.title}. You receive ${pay} gold.`, "good"); } catch (_) {}
     _applyAndRefresh(ctx);
     return true;
+  }
+
+  // Accept a gather quest by template in the current town and immediately claim it if inventory satisfies.
+  function claimTemplate(ctx, templateId) {
+    const town = _currentTownEntry(ctx);
+    if (!town) { try { ctx.log && ctx.log("No town context to claim the quest.", "warn"); } catch (_) {} return false; }
+    const st = _ensureTownQuestState(ctx, town);
+    // Is it already active?
+    let inst = (st.active || []).find(a => a && a.templateId === templateId);
+    if (!inst) {
+      // Accept now
+      const ok = !!accept(ctx, templateId);
+      if (!ok) return false;
+      inst = (st.active || []).find(a => a && a.templateId === templateId);
+    }
+    if (!inst) return false;
+    return claim(ctx, inst.instanceId);
+  }
+
+  // Claim all eligible quests (including auto-accept gather quests in the current town)
+  function claimAllEligible(ctx) {
+    const list = getTurnIns(ctx);
+    let any = false;
+    for (const row of list) {
+      if (!row) continue;
+      if (row.requiresAccept && row.templateId) {
+        any = claimTemplate(ctx, row.templateId) || any;
+      } else if (row.instanceId) {
+        any = claim(ctx, row.instanceId) || any;
+      }
+    }
+    return any;
   }
 
   function maybeTriggerOnWorldStep(ctx) {
@@ -552,6 +606,8 @@
     accept,
     getTurnIns,
     claim,
+    claimTemplate,
+    claimAllEligible,
     maybeTriggerOnWorldStep, // legacy (no longer called automatically on step)
     triggerAtMarkerIfHere,
     onEncounterComplete

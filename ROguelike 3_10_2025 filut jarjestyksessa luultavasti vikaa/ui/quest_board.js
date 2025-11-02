@@ -134,7 +134,9 @@ function render(ctx) {
       html += ti.map((row) => {
         const g = row.gold | 0;
         const text = `<div><div style="color:#e5e7eb;">${row.title || "Quest"}</div><div style="color:#fbbf24;font-size:12px;">${g}g</div></div>`;
-        const btn = `<button data-claim="${row.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`;
+        const btn = row.requiresAccept
+          ? `<button data-claim-tid="${row.templateId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`
+          : `<button data-claim="${row.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`;
         return row(text + btn);
       }).join("");
     }
@@ -157,7 +159,7 @@ function render(ctx) {
       };
     }
 
-    // Wire Claim buttons
+    // Wire Claim buttons (by instance)
     const cButtons = body.querySelectorAll("button[data-claim]");
     for (let i = 0; i < cButtons.length; i++) {
       const btn = cButtons[i];
@@ -172,15 +174,29 @@ function render(ctx) {
         } catch (_) {}
       };
     }
+    // Wire Claim buttons (by template; auto-accept)
+    const tButtons = body.querySelectorAll("button[data-claim-tid]");
+    for (let i = 0; i < tButtons.length; i++) {
+      const btn = tButtons[i];
+      btn.onclick = function () {
+        try {
+          const tid = String(btn.getAttribute("data-claim-tid") || "");
+          if (!tid) return;
+          if (typeof window !== "undefined" && window.QuestService && typeof window.QuestService.claimTemplate === "function") {
+            window.QuestService.claimTemplate(ctx, tid);
+            render(ctx);
+          }
+        } catch (_) {}
+      };
+    }
     // Wire Claim all
     const claimAll = body.querySelector("#questboard-claim-all");
     if (claimAll) {
       claimAll.onclick = function () {
         try {
           const QS = (typeof window !== "undefined" ? window.QuestService : null);
-          const list = (QS && typeof QS.getTurnIns === "function") ? QS.getTurnIns(ctx) : [];
-          if (QS && typeof QS.claim === "function") {
-            for (let i = 0; i < list.length; i++) { QS.claim(ctx, list[i].instanceId); }
+          if (QS && typeof QS.claimAllEligible === "function") {
+            QS.claimAllEligible(ctx);
           }
           render(ctx);
         } catch (_) {}
