@@ -552,8 +552,9 @@
     accept,
     getTurnIns,
     claim,
-    maybeTriggerOnWorldStep,
-    triggerAtMarkerIfte
+    maybeTriggerOnWorldStep, // legacy (no longer called automatically on step)
+    triggerAtMarkerIfHere,
+    onEncounterComplete
   };
 
   if (typeof window !== "undefined") window.QuestService = api;
