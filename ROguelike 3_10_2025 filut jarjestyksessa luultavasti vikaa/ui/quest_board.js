@@ -130,7 +130,7 @@ function render(ctx) {
           const canComplete = completed && q.instanceId;
           btnActive = canComplete
             ? `<button data-claim-active="${q.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Complete</button>`
-            : (q.instanceId ? `<button data-claim-active="${q.instanceId}" style="padding:4px 8px;background:#1f2937;color:#9ca3af;border:1px solid #334155;border-radius:4px;cursor:not-allowed;">Complete</button>` : "");
+            : `<button disabled title="Not completed yet" style="padding:4px 8px;background:#1f2937;color:#9ca3af;border:1px solid #334155;border-radius:4px;cursor:not-allowed;">Complete</button>`;
         }
         const due = fmtTimeLeft(ctx, q.expiresAtTurn);
         const text = `<div><div style="color:#e5e7eb;">${q.title || q.templateId}</div><div style="color:#94a3b8;font-size:12px;">${status}</div><div style="color:#93c5fd;font-size:12px;margin-top:2px;">Expires in ${due}</div></div>`;
