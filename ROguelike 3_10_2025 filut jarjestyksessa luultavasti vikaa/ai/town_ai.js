@@ -1428,7 +1428,9 @@
             routeIntoBuilding(ctx, occ, n, innB, targetInside);
             continue;
           }
-          // Inside: patrol between interior spots (chairs/tables or free interior)
+          // Inside: patrol between interior spots (chairs/tables or free interior) on the ground floor only
+          // Force ground floor for innkeeper
+          n._floor = "ground";
           // Arrived at patrol goal?
           if (n._patrolGoal && n.x === n._patrolGoal.x && n.y === n._patrolGoal.y) {
             n._patrolStayTurns = randInt(ctx, 8, 14);
@@ -1436,33 +1438,20 @@
           }
           if (n._patrolStayTurns && n._patrolStayTurns > 0) {
             n._patrolStayTurns--;
-            // slight fidget to look alive
+            // slight fidget to look alive (stay inside)
             if (ctx.rng() < 0.08) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
             continue;
           }
           if (!n._patrolGoal) {
-            // Occasionally pick an upstairs seat to patrol to
-            const upSeatChance = 0.30;
-            let next = null;
-            if (ctx.innUpstairs && ctx.rng() < upSeatChance) {
-              const seatUp = chooseInnUpstairsSeat(ctx);
-              if (seatUp) {
-                n._patrolGoalUp = { x: seatUp.x, y: seatUp.y };
-              }
+            // Ground-only patrol target: choose a seat or free interior tile
+            const seat = chooseInnSeat(ctx);
+            const next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
+              try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
+            })() || null;
+            if (next && !(next.x === n.x && next.y === n.y)) {
+              n._patrolGoal = { x: next.x, y: next.y };
             }
-            if (!n._patrolGoalUp) {
-              const seat = chooseInnSeat(ctx);
-              next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
-                try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
-              })() || null;
-              if (next && !(next.x === n.x && next.y === n.y)) {
-                n._patrolGoal = { x: next.x, y: next.y };
-              }
-            }
-          }
-          if (n._patrolGoalUp) {
-            if (routeIntoInnUpstairs(ctx, occ, n, n._patrolGoalUp)) continue;
-            // If route failed, clear and fallback to ground patrol next tick
+            // Clear any stale upstairs goal
             n._patrolGoalUp = null;
           }
           if (n._patrolGoal) {
