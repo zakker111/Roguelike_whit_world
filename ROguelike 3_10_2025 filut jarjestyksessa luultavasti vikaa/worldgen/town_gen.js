@@ -62,6 +62,17 @@ function _isFreeTownFloor(ctx, x, y) {
   return true;
 }
 
+// Deterministic RNG helper: prefer RNGUtils.getRng(ctx.rng) -> ctx.rng -> stable fallback (() => 0.5)
+function _rng(ctx) {
+  try {
+    const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+    if (RU && typeof RU.getRng === "function") {
+      return RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
+    }
+  } catch (_) {}
+  return (typeof ctx.rng === "function") ? ctx.rng : (() => 0.5);
+}
+
 // ---- Interactions ----
 function interactProps(ctx) {
   if (ctx.mode !== "town") return false;
@@ -133,7 +144,7 @@ function spawnGateGreeters(ctx, count = 4) {
   const gx = ctx.townExitAt.x, gy = ctx.townExitAt.y;
   const existingNear = Array.isArray(ctx.npcs) ? ctx.npcs.filter(n => _manhattan(ctx, n.x, n.y, gx, gy) <= RADIUS).length : 0;
   const target = Math.max(0, Math.min((count | 0), 1 - existingNear));
-  const RAND = (typeof ctx.rng === "function") ? ctx.rng : Math.random;
+  const RAND = _rng(ctx);
   if (target <= 0) {
     // Keep player space clear but ensure at least one greeter remains in radius
     clearAdjacentNPCsAroundPlayer(ctx);
@@ -1161,7 +1172,7 @@ function generate(ctx) {
           return !t || !usedTypes.has(t.toLowerCase());
         });
         if (!candidates.length) break;
-        const pref = pickPrefab(candidates, ctx.rng || Math.random);
+        const pref = pickPrefab(candidates, _rng(ctx));
         if (!pref || !pref.size) break;
         const tKey = (pref.shop && pref.shop.type) ? String(pref.shop.type).toLowerCase() : `shop_${attempts}`;
         // compute anchor by side
@@ -1869,7 +1880,7 @@ function generate(ctx) {
       const placed = [];
       let attempts = 0;
       while (placed.length < limit && candidates.length > 0 && attempts++ < candidates.length * 2) {
-        const idx = Math.floor(((typeof ctx.rng === "function") ? ctx.rng() : Math.random()) * candidates.length);
+        const idx = Math.floor(_rng(ctx)() * candidates.length);
         const p = candidates[idx];
         // Keep spacing: avoid placing next to already placed windows
         let adjacent = false;

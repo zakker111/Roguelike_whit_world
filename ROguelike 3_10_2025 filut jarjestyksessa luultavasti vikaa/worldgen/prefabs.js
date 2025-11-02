@@ -27,8 +27,17 @@ export function prefabsAvailable() {
 
 export function pickPrefab(list, rng) {
   if (!Array.isArray(list) || list.length === 0) return null;
-  const r = (typeof rng === "function") ? rng() : Math.random();
-  const idx = Math.floor(r * list.length) % list.length;
+  // Deterministic RNG resolution: prefer provided rng; else use global RNGUtils; else stable fallback.
+  let rfn = null;
+  try {
+    if (typeof rng === "function") {
+      rfn = rng;
+    } else if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+      rfn = window.RNGUtils.getRng(undefined);
+    }
+  } catch (_) {}
+  if (typeof rfn !== "function") rfn = () => 0.5;
+  const idx = Math.floor(rfn() * list.length) % list.length;
   return list[idx];
 }
 
