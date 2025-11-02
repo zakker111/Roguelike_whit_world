@@ -662,30 +662,7 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
       try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.survivalism = (ctx.player.skills.survivalism || 0) + 0.2; } catch (_) {}
     }
 
-    // Foraging: small chance to find berries in forests/grass
-    if (WT && (tileHere === WT.FOREST || tileHere === WT.GRASS)) {
-      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-      const rfn = (RU && typeof RU.getRng === "function")
-        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-        : ((typeof ctx.rng === "function") ? ctx.rng : Math.random);
-      const found = (typeof RU !== "undefined" && RU && typeof RU.chance === "function") ? RU.chance(0.03, rfn) : (rfn() < 0.03);
-      if (found) {
-        try {
-          const inv = ctx.player.inventory || (ctx.player.inventory = []);
-          const existing = inv.find(it => it && it.kind === "material" && (String(it.name || it.type || "").toLowerCase() === "berries"));
-          if (existing) {
-            if (typeof existing.amount === "number") existing.amount += 1;
-            else if (typeof existing.count === "number") existing.count += 1;
-            else existing.amount = 1;
-          } else {
-            inv.push({ kind: "material", type: "berries", name: "berries", amount: 1 });
-          }
-          ctx.player.skills.foraging = (ctx.player.skills.foraging || 0) + 1;
-          if (ctx.log) ctx.log("You forage berries.", "good");
-          if (typeof ctx.updateUI === "function") ctx.updateUI();
-        } catch (_) {}
-      }
-    }
+    // Foraging via region map berry bushes only (overworld walking no longer grants berries)
   } catch (_) {}
 
   // Encounter roll before advancing time (modules may switch mode)

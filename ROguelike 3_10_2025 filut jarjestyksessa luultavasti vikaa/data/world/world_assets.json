@@ -144,6 +144,16 @@
         "appearsIn": ["region", "town"],
         "tags": ["decor", "woods"]
       },
+      {
+        "id": 14,
+        "key": "BERRY_BUSH",
+        "name": "Berry Bush",
+        "glyph": "*",
+        "colors": { "fill": "#0f3b1e", "fg": "#a3e635" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["region"],
+        "tags": ["decor", "forage", "bush"]
+      },
 
       {
         "id": 0,
