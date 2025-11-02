@@ -77,6 +77,11 @@ export function enter(ctx, info) {
   // Reset clear-announcement/quest-notification guards for this encounter session
   _clearAnnounced = false;
   _victoryNotified = false;
+  // Reset quest instance id unless provided for this encounter
+  try {
+    ctx._questInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
+    _currentQuestInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
+  } catch (_) {}
 
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { count: { min: 2, max: 3 } } ] };
   const biome = info && info.biome ? String(info.biome).toUpperCase() : null;
@@ -594,12 +599,9 @@ export function enter(ctx, info) {
   ctx.encounterInfo = { id: template.id, name: template.name || "Encounter" };
   // Carry quest instance metadata if provided so QuestService can resolve completion later
   try {
-    if (info && info.questInstanceId) {
-      ctx._questInstanceId = info.questInstanceId;
-      _currentQuestInstanceId = info.questInstanceId;
-    }
-  } catch (_) {}
-  return true;
+    ctx._questInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
+    _currentQuestInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
+;
 }
 
 export function tryMoveEncounter(ctx, dx, dy) {
@@ -880,6 +882,7 @@ export function complete(ctx, outcome = "victory") {
   } catch (_) {}
   // Clear quest instance flag
   try { ctx._questInstanceId = null; } catch (_) {}
+  try { _currentQuestInstanceId = null; } catch (_) {}
   try {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
