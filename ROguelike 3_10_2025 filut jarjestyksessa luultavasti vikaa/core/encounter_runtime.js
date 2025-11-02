@@ -9,6 +9,8 @@
 // Module-level flags to avoid spamming logs or duplicate quest notifications across ctx recreations
 let _clearAnnounced = false;
 let _victoryNotified = false;
+// Persist the active quest instance id across ctx recreations
+let _currentQuestInstanceId = null;
 
 function createDungeonEnemyAt(ctx, x, y, depth) {
   // Prefer the same factory used by dungeon floors
@@ -591,7 +593,12 @@ export function enter(ctx, info) {
   } catch (_) {}
   ctx.encounterInfo = { id: template.id, name: template.name || "Encounter" };
   // Carry quest instance metadata if provided so QuestService can resolve completion later
-  try { if (info && info.questInstanceId) ctx._questInstanceId = info.questInstanceId; } catch (_) {}
+  try {
+    if (info && info.questInstanceId) {
+      ctx._questInstanceId = info.questInstanceId;
+      _currentQuestInstanceId = info.questInstanceId;
+    }
+  } catch (_) {}
   return true;
 }
 
@@ -867,7 +874,8 @@ export function complete(ctx, outcome = "victory") {
     const QS = ctx.QuestService || (typeof window !== "undefined" ? window.QuestService : null);
     if (QS && typeof QS.onEncounterComplete === "function") {
       const enemiesRemaining = Array.isArray(ctx.enemies) ? (ctx.enemies.length | 0) : 0;
-      QS.onEncounterComplete(ctx, { questInstanceId: ctx._questInstanceId || null, enemiesRemaining });
+      const qid = ctx._questInstanceId || _currentQuestInstanceId || null;
+      QS.onEncounterComplete(ctx, { questInstanceId: qid, enemiesRemaining });
     }
   } catch (_) {}
   // Clear quest instance flag
@@ -944,12 +952,13 @@ export function tick(ctx) {
         _victoryNotified = true;
         try {
           const QS = ctx.QuestService || (typeof window !== "undefined" ? window.QuestService : null);
-          const qid = ctx._questInstanceId || null;
+          const qid = ctx._questInstanceId || _currentQuestInstanceId || null;
           if (QS && typeof QS.onEncounterComplete === "function" && qid) {
             QS.onEncounterComplete(ctx, { questInstanceId: qid, enemiesRemaining: 0 });
           }
         } catch (_) {}
-      }
+   _code  new </}
+  }
     } else {
       // If new enemies appear (edge-case), allow re-announcement once they are cleared again
       _clearAnnounced = false;
