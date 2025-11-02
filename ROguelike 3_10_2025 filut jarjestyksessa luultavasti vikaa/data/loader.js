@@ -23,6 +23,14 @@ const DATA_FILES = {
   enemies: "data/entities/enemies.json",
   npcs: "data/entities/npcs.json",
   consumables: "data/entities/consumables.json",
+
+  // Materials/crafting registries
+  materials: "data/entities/materials.json",
+  craftingRecipes: "data/crafting/recipes.json",
+
+  // Loot/foraging pools
+  materialPools: "data/loot/material_pools.json",
+  foragingPools: "data/loot/foraging_pools.json",
   
   town: "data/world/town.json",
   flavor: "data/i18n/flavor.json",
@@ -68,6 +76,12 @@ export const GameData = {
   shopRules: null,
   shopRestock: null,
   progression: null,
+
+  // New: materials/crafting and pools
+  materials: null,
+  crafting: null,
+  materialPools: null,
+  foragingPools: null,
   
   // New: prefab registry grouped by category
   prefabs: null,
@@ -92,7 +106,9 @@ GameData.ready = (async function loadAll() {
   try {
     const [
       assetsCombined,
-      items, enemies, npcs, consumables, town, flavor, encounters, config, palette, messages,
+      items, enemies, npcs, consumables,
+      materials, craftingRecipes, materialPools, foragingPools,
+      town, flavor, encounters, config, palette, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
@@ -100,6 +116,11 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.enemies).catch(() => null),
       fetchJson(DATA_FILES.npcs).catch(() => null),
       fetchJson(DATA_FILES.consumables).catch(() => null),
+
+      fetchJson(DATA_FILES.materials).catch(() => null),
+      fetchJson(DATA_FILES.craftingRecipes).catch(() => null),
+      fetchJson(DATA_FILES.materialPools).catch(() => null),
+      fetchJson(DATA_FILES.foragingPools).catch(() => null),
       
       fetchJson(DATA_FILES.town).catch(() => null),
       fetchJson(DATA_FILES.flavor).catch(() => null),
@@ -122,6 +143,13 @@ GameData.ready = (async function loadAll() {
     GameData.npcs = (npcs && typeof npcs === "object") ? npcs : null;
     GameData.consumables = (consumables && typeof consumables === "object") ? consumables : null;
     GameData.shops = null;
+
+    // New data domains
+    GameData.materials = (materials && typeof materials === "object") ? materials : null;
+    GameData.crafting = (craftingRecipes && typeof craftingRecipes === "object") ? craftingRecipes : null;
+    GameData.materialPools = (materialPools && typeof materialPools === "object") ? materialPools : null;
+    GameData.foragingPools = (foragingPools && typeof foragingPools === "object") ? foragingPools : null;
+
     GameData.town = (town && typeof town === "object") ? town : null;
     GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
     GameData.encounters = (encounters && typeof encounters === "object") ? encounters : null;

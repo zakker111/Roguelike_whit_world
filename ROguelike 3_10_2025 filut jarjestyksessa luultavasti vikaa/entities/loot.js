@@ -190,8 +190,78 @@ function pickEnemyBiasedEquipment(ctx, enemyType, tier) {
 export function generate(ctx, source) {
   const type = (source && source.type) ? String(source.type).toLowerCase() : "goblin";
 
-  // Special case: neutral animals drop meat/leather; no gold/equipment
+  // Helper: material registry lookup for pretty names
+  function materialNameFor(id) {
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const M = GD && GD.materials && (Array.isArray(GD.materials.materials) ? GD.materials.materials : GD.materials.list);
+      if (Array.isArray(M)) {
+        const entry = M.find(m => m && String(m.id).toLowerCase() === String(id).toLowerCase());
+        if (entry && entry.name) return String(entry.name);
+      }
+    } catch (_) {}
+    return String(id);
+  }
+
+  // Helper: roll material drops from JSON pools if present
+  function rollMaterialsFromPools(enemy) {
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const pools = GD && GD.materialPools ? GD.materialPools : null;
+      if (!pools || typeof pools !== "object") return null;
+
+      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const rng = (RU && typeof RU.getRng === "function")
+        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((typeof ctx.rng === "function") ? ctx.rng : null);
+      const chance = (p) => {
+        try {
+          if (RU && typeof RU.chance === "function") return RU.chance(p, rng);
+        } catch (_) {}
+        return p >= 1; // deterministic yes only for p>=1 when no RNG
+      };
+      const randint = (min, max) => {
+        if (min > max) { const t = min; min = max; max = t; }
+        if (typeof rng === "function") {
+          const r = rng();
+          return min + Math.floor(r * (max - min + 1));
+        }
+        return Math.floor((min + max) / 2);
+      };
+
+      const eType = (enemy && enemy.type) ? String(enemy.type).toLowerCase() : String(type || "");
+      const faction = (enemy && enemy.faction) ? String(enemy.faction).toLowerCase() : null;
+
+      // Pools can define per-enemy and per-faction lists
+      const byEnemy = pools.enemies && pools.enemies[eType];
+      const byFaction = faction && pools.factions && pools.factions[faction];
+      const base = Array.isArray(byEnemy) ? byEnemy
+                : Array.isArray(byFaction) ? byFaction
+                : null;
+      if (!base) return null;
+
+      const out = [];
+      for (const entry of base) {
+        if (!entry || !entry.id) continue;
+        const p = (typeof entry.chance === "number") ? entry.chance : 1;
+        if (p < 1 && !chance(p)) continue;
+        const min = Math.max(0, Number(entry.min != null ? entry.min : 1) | 0);
+        const max = Math.max(min, Number(entry.max != null ? entry.max : min) | 0);
+        const amt = randint(min, max);
+        if (amt > 0) {
+          out.push({ kind: "material", type: String(entry.id), name: materialNameFor(entry.id), amount: amt });
+        }
+      }
+      return out;
+    } catch (_) { return null; }
+  }
+
+  // Special case: neutral animals drop meat/leather; prefer JSON pools when available
   if (type === "deer" || type === "boar" || type === "fox") {
+    const jsonDrops = rollMaterialsFromPools(source);
+    if (Array.isArray(jsonDrops) && jsonDrops.length > 0) {
+      return jsonDrops;
+    }
     const drops = [];
     const rngFn = (function () {
       try {

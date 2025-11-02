@@ -1,0 +1,13 @@
+{
+  "recipes": [
+    {
+      "id": "cook_meat",
+      "name": "Cook Meat",
+      "station": "campfire",
+      "time": 1,
+      "skill": { "id": "cooking", "min": 0 },
+      "inputs": [{ "id": "meat", "amount": 1 }],
+      "outputs": [{ "id": "meat_cooked", "amount": 1 }]
+    }
+  ]
+}
