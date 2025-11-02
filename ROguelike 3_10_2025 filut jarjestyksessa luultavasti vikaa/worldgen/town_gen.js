@@ -1242,7 +1242,7 @@ function generate(ctx) {
           inside
         });
 
-        try { addShopSignInside(ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
+        try { ShopsSigns.addShopSignInside(ctx, ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
       }
     } catch (_) {}
   })();
@@ -1453,7 +1453,7 @@ function generate(ctx) {
       inside
     });
     // Ensure a sign near the shop door with the correct shop name (e.g., Inn), prefer placing it outside the building
-    try { addShopSignInside(b, { x: door.x, y: door.y }, name); } catch (_) {}
+    try { ShopsSigns.addShopSignInside(ctx, b, {oor.y }, name); } catch (_) {}
   }
 
   // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback from the tavern building
@@ -1492,8 +1492,7 @@ function generate(ctx) {
         building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
         inside
       });
-      try { addShopSignInside(b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
-    }
+      try { ShopsSigns.addShopSignInside(ctx, b, { x: doorX, y: doorY }, "Inn"); }    }
   } catch (_) {}
 
   // Safety: deduplicate Inn entries if any logic created more than one
@@ -1538,119 +1537,11 @@ function generate(ctx) {
     }
   } catch (_) {}
 
-  // Dedupe shop signs: respect per-shop signWanted flag; keep only one sign (nearest to door) outside the building.
-  (function dedupeShopSigns() {
-    try {
-      if (!Array.isArray(ctx.shops) || !Array.isArray(ctx.townProps) || !ctx.townProps.length) return;
-      const props = ctx.townProps;
-      const removeIdx = new Set();
-      function isInside(bld, x, y) {
-        return bld && x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
-      }
-      for (let si = 0; si < ctx.shops.length; si++) {
-        const s = ctx.shops[si];
-        if (!s) continue;
-        const text = String(s.name || s.type || "Shop");
-        const door = (s.building && s.building.door) ? s.building.door : { x: s.x, y: s.y };
-        const namesToMatch = [text];
-        // Inn synonyms: dedupe across common variants
-        if (String(s.type || "").toLowerCase() === "inn") {
-          if (!namesToMatch.includes("Inn")) namesToMatch.push("Inn");
-          if (!namesToMatch.includes("Inn & Tavern")) namesToMatch.push("Inn & Tavern");
-          if (!namesToMatch.includes("Tavern")) namesToMatch.push("Tavern");
-        }
-        // Collect indices of sign props that either match canonical name/synonyms
-        // or are inside the shop building (unnamed embedded signs count as duplicates).
-        const indices = [];
-        for (let i = 0; i < props.length; i++) {
-          const p = props[i];
-          if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
-          const name = String(p.name || "");
-          const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
-          if (namesToMatch.includes(name) || insideThisShop) {
-            indices.push(i);
-          }
-        }
-        const wants = (s && Object.prototype.hasOwnProperty.call(s, "signWanted")) ? !!s.signWanted : true;
+  // Dedupe shop signs: respect per-shop signWanted flag and keep one canonical sign
+  try { ShopsSigns.dedupeShopSigns(ctx); } catch (_) {}
 
-        if (!wants) {
-          // Remove all signs for this shop (including synonyms)
-          for (const idx of indices) removeIdx.add(idx);
-          continue;
-        }
-
-        // If multiple signs exist, keep the one closest to the door
-        if (indices.length > 1) {
-          let keepI = indices[0], bestD = Infinity;
-          for (const idx of indices) {
-            const p = props[idx];
-            const d = Math.abs(p.x - door.x) + Math.abs(p.y - door.y);
-            if (d < bestD) { bestD = d; keepI = idx; }
-          }
-          for (const idx of indices) {
-            if (idx !== keepI) removeIdx.add(idx);
-          }
-        }
-
-        // Ensure kept sign (if any) is outside; otherwise re-place outside.
-        // Also canonicalize its text to the shop's name.
-        let keptIdx = -1;
-        for (let i = 0; i < props.length; i++) {
-          if (removeIdx.has(i)) continue;
-          const p = props[i];
-          if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
-          const name = String(p.name || "");
-          const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
-          if (namesToMatch.includes(name) || insideThisShop) { keptIdx = i; break; }
-        }
-        if (keptIdx !== -1) {
-          const p = props[keptIdx];
-          if (s.building && isInside(s.building, p.x, p.y)) {
-            // Already inside: canonicalize name
-            try { if (String(p.name || "") !== text) p.name = text; } catch (_) {}
-          } else {
-            // Move outside sign to inside near door
-            removeIdx.add(keptIdx);
-            try { addShopSignInside(s.building, door, text); } catch (_) {}
-          }
-        } else {
-          // No sign exists; place one inside near the door
-          try { if (s.building) addShopSignInside(s.building, door, text); } catch (_) {}
-        }
-      }
-
-      if (removeIdx.size) {
-        ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
-      }
-    } catch (_) {}
-  })();
-
-  // Dedupe welcome sign globally: keep only the one closest to the gate and ensure one exists.
-  (function dedupeWelcomeSign() {
-    try {
-      if (!Array.isArray(ctx.townProps)) return;
-      const text = `Welcome to ${ctx.townName}`;
-      const props = ctx.townProps;
-      let keepIdx = -1, bestD = Infinity;
-      const removeIdx = new Set();
-      for (let i = 0; i < props.length; i++) {
-        const p = props[i];
-        if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) {
-          const d = Math.abs(p.x - ctx.townExitAt.x) + Math.abs(p.y - ctx.townExitAt.y);
-          if (d < bestD) { bestD = d; keepIdx = i; }
-          removeIdx.add(i);
-        }
-      }
-      if (keepIdx !== -1) removeIdx.delete(keepIdx);
-      if (removeIdx.size) {
-        ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
-      }
-      const hasWelcome = Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text);
-      if (!hasWelcome && ctx.townExitAt) {
-        try { addSignNear(ctx.townExitAt.x, ctx.townExitAt.y, text); } catch (_) {}
-      }
-    } catch (_) {}
-  })();
+  // Dedupe welcome sign and ensure one exists near the gate
+  try { ShopsSigns.dedupeWelcomeSign(ctx, ctx.townExitAt, `Welcome to ${ctx.townName}`); } catch (_) {}
 
   // Cleanup dangling props from removed buildings: ensure interior-only props are only inside valid buildings
   (function cleanupDanglingProps() {
@@ -1715,88 +1606,20 @@ function generate(ctx) {
     } catch (_) {}
   })();
   function addProp(x, y, type, name) {
-    if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
-    if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.ROAD) return false;
-    if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return false;
-    ctx.townProps.push({ x, y, type, name });
-    return true;
+    return ShopsSigns.addProp(ctx, x, y, type, name);
   }
   function addSignNear(x, y, text) {
-    const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
-    for (const d of dirs) {
-      const sx = x + d.dx, sy = y + d.dy;
-      if (sx <= 0 || sy <= 0 || sx >= W - 1 || sy >= H - 1) continue;
-      if (ctx.map[sy][sx] !== ctx.TILES.FLOOR && ctx.map[sy][sx] !== ctx.TILES.ROAD) continue;
-      if (ctx.townProps.some(p => p.x === sx && p.y === sy)) continue;
-      addProp(sx, sy, "sign", text);
-      return true;
-    }
-    return false;
+    return ShopsSigns.addSignNear(ctx, x, y, text);
   }
   // Prefer placing shop signs inside the building near the door.
 // Legacy addShopSign helper removed; use addShopSignInside directly.
 
   // Place one shop sign inside the building, near the door if possible.
   function addShopSignInside(b, door, text) {
-    function isInside(bld, x, y) {
-      return x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
-    }
-    // Candidate inside tiles: directly inward from the door, then a small interior search
-    const candidates = [];
-    const inward = [{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:0},{dx:-1,dy:0}];
-    for (let i = 0; i < inward.length; i++) {
-      const ix = door.x + inward[i].dx, iy = door.y + inward[i].dy;
-      if (isInside(b, ix, iy)) candidates.push({ x: ix, y: iy });
-    }
-    // Interior search within radius 3 from the door but only inside the building
-    for (let r = 1; r <= 3; r++) {
-      for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-          const ix = door.x + dx, iy = door.y + dy;
-          if (!isInside(b, ix, iy)) continue;
-          candidates.push({ x: ix, y: iy });
-        }
-      }
-    }
-    // Fallback: building center if nothing else works
-    candidates.push({
-      x: Math.max(b.x + 1, Math.min(b.x + b.w - 2, (b.x + ((b.w / 2) | 0)))),
-      y: Math.max(b.y + 1, Math.min(b.y + b.h - 2, (b.y + ((b.h / 2) | 0))))
-    });
-
-    let best = null, bestD = Infinity;
-    for (let i = 0; i < candidates.length; i++) {
-      const c = candidates[i];
-      if (c.x <= 0 || c.y <= 0 || c.x >= W - 1 || c.y >= H - 1) continue;
-      if (!isInside(b, c.x, c.y)) continue;
-      const t = ctx.map[c.y][c.x];
-      if (t !== ctx.TILES.FLOOR) continue;
-      if (ctx.player && ctx.player.x === c.x && ctx.player.y === c.y) continue;
-      if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n.x === c.x && n.y === c.y)) continue;
-      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === c.x && p.y === c.y)) continue;
-      const d = Math.abs(c.x - door.x) + Math.abs(c.y - door.y);
-      if (d < bestD) { bestD = d; best = c; }
-    }
-    if (best) {
-      addProp(best.x, best.y, "sign", text);
-      return true;
-    }
-    return false;
+    return ShopsSigns.addShopSignInside(ctx, b, door, text);
   }
-  // Welcome sign: ensure only one near the gate (dedupe within a small radius), then add single canonical sign
-  try {
-    if (Array.isArray(ctx.townProps)) {
-      const R = 3;
-      for (let i = ctx.townProps.length - 1; i >= 0; i--) {
-        const p = ctx.townProps[i];
-        if (p && p.type === "sign") {
-          const d = Math.abs(p.x - gate.x) + Math.abs(p.y - gate.y);
-          if (d <= R) ctx.townProps.splice(i, 1);
-        }
-      }
-    }
-  } catch (_) {}
-  addSignNear(gate.x, gate.y, `Welcome to ${ctx.townName}`);
+  // Welcome sign: dedupe and ensure single canonical sign near the gate
+  try { ShopsSigns.dedupeWelcomeSign(ctx, gate, `Welcome to ${ctx.townName}`); } catch (_) {}
 
   // Windows along building walls (spaced, not near doors) — delegated
   try { DoorsWindows.placeWindowsOnAll(ctx, buildings); } catch (_) {}
@@ -1988,6 +1811,7 @@ import * as Prefabs from "./prefabs.js";
 import * as Roads from "./roads.js";
 import * as DoorsWindows from "./doors_windows.js";
 import * as Plaza from "./plaza.js";
+import * as ShopsSigns from "./shops_signs.js";
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper and export for ESM
 export { generate, ensureSpawnClear, spawnGateGreeters, interactProps };
