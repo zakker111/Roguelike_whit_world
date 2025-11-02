@@ -195,21 +195,104 @@
     } catch (_) {}
   }
 
+  // Global set of templateIds currently active in any town
+  function _globalActiveTemplateSet(ctx) {
+    const out = new Set();
+    try {
+      const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
+      for (const t of towns) {
+        const qs = t && t.quests ? t.quests : null;
+        if (!qs) continue;
+        for (const a of (qs.active || [])) {
+          if (a && a.templateId) out.add(a.templateId);
+        }
+      }
+    } catch (_) {}
+    return out;
+  }
+
+  // Is the template active in a different town?
+  function _isTemplateActiveInOtherTown(ctx, templateId, town) {
+    try {
+      const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
+      const curKey = _townKeyForWorldPos(ctx, town.x, town.y);
+      for (const t of towns) {
+        if (!t) continue;
+        const key = _townKeyForWorldPos(ctx, t.x, t.y);
+        if (key === curKey) continue;
+        const qs = t.quests || null;
+        if (!qs) continue;
+        const found = (qs.active || []).some(a => a && a.templateId === templateId);
+        if (found) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  // One-time seeding: nearest-to-player town gets all three starter quests (planks, berries, bandits)
+  function _seedStartTownAllThree(ctx, town, townQ) {
+    try {
+      if (!ctx || !ctx.world || !Array.isArray(ctx.world.towns) || !town) return;
+      if (ctx.world._questsSeeded) return;
+      if (!_isNearestTownToPlayer(ctx, town)) return;
+      const GD = _gd();
+      const templates = (GD && GD.quests && Array.isArray(GD.quests.templates)) ? GD.quests.templates : [];
+      const ids = [];
+      const tPlanks = templates.find(t => t.id === "gather_planks_10");
+      const tBerries = templates.find(t => t.id === "gather_berries_10");
+      const tBandits = templates.find(t => t.id === "bandits_farm");
+      if (tPlanks) ids.push(tPlanks.id);
+      if (tBerries) ids.push(tBerries.id);
+      if (tBandits) ids.push(tBandits.id);
+
+      // Helper: check existence in this town
+      const existsHere = (tid) => {
+        const inAvail = Array.isArray(townQ.available) && townQ.available.some(q => q && q.templateId === tid);
+        const inActive = Array.isArray(townQ.active) && townQ.active.some(q => q && q.templateId === tid);
+        const inComp = Array.isArray(townQ.completed) && townQ.completed.some(q => q && q.templateId === tid);
+        return inAvail || inActive || inComp;
+      };
+
+      const now = _nowTurn(ctx);
+      for (const id of ids) {
+        const tmpl = templates.find(t => t.id === id);
+        if (!tmpl || existsHere(id)) continue;
+        const ttl = (typeof tmpl.expiresTurns === "number") ? (tmpl.expiresTurns | 0) : 360;
+        townQ.available.push({
+          templateId: tmpl.id,
+          kind: tmpl.kind,
+          title: tmpl.title || tmpl.id,
+          desc: tmpl.desc || "",
+          offerAtTurn: now,
+          expiresAtTurn: now + Math.max(60, ttl),
+        });
+      }
+      ctx.world._questsSeeded = true;
+      ctx.world._questSeedTownKey = _townKeyForWorldPos(ctx, town.x, town.y);
+    } catch (_) {}
+  }
+
   function _rerollAvailableIfNeeded(ctx, town, townQ) {
     const GD = _gd();
     const templates = (GD && GD.quests && Array.isArray(GD.quests.templates)) ? GD.quests.templates : [];
     if (!templates.length) return;
     _cleanExpired(ctx, townQ);
+
+    // Global uniqueness: avoid offering templates that are already active in other towns
+    const globalActive = _globalActiveTemplateSet(ctx);
+
     // If we already have 1-3 available, keep them until they expire; otherwise roll new ones.
     const avail = townQ.available || [];
     const validAvail = avail.filter(q => q && typeof q.expiresAtTurn === "number" ? (_nowTurn(ctx) < q.expiresAtTurn) : true);
     if (validAvail.length >= 1) {
-      townQ.available = validAvail;
+      // Filter out ones that became active elsewhere to avoid confusing offers
+      const validAvail2 = validAvail.filter(q => !globalActive.has(q.templateId));
+      townQ.available = validAvail2;
       // Only guarantee an encounter offer when the board is otherwise empty,
       // to avoid injecting encounters right after accepting a gather quest.
-      // If you want encounters always posted regardless of other offers, re-enable below.
-      // if (_isNearestrn;
+      return;
     }
+
     // Generate 1-3 fresh offers
     const rng = _rng(ctx);
     const count = 1 + ((rng() * 3) | 0); // 1..3
@@ -217,7 +300,10 @@
     try {
       for (const a of townQ.active) if (a) avoid.add(a.templateId);
       for (const c of townQ.completed) if (c) avoid.add(c.templateId);
+      // Also avoid templates active in other towns
+      for (const id of globalActive) avoid.add(id);
     } catch (_) {}
+
     const picked = _chooseN(rng, templates, count, avoid);
     const now = _nowTurn(ctx);
     const newAvail = picked.map(t => {
@@ -232,12 +318,8 @@
       };
     });
     townQ.available = newAvail;
-    // For nearest-to-player town:
-    // - Ensure gather offers (planks/berries) are posted, so after accepting an encounter players see gather tasks to do.
-    // - Only guarantee an encounter offer when the board is otherwise empty (handled earlier case).
-    if (_isNearestTownToPlayer(ctx, town)) {
-      _ensureGatherOffersForTown(ctx, town, townQ);
-    }
+
+    // Seeding of starter quests is handled separately in _seedStartTownAllThree (once only)
     townQ.lastRerollTurn = now;
   }
   function _ensureWorldMarkers(ctx) {
@@ -329,6 +411,8 @@
     const town = _currentTownEntry(ctx);
     if (!town) return { townKey: "", available: [], active: [], completed: [] };
     const st = _ensureTownQuestState(ctx, town);
+    // Seed all three starter quests once for the nearest town to the player
+    _seedStartTownAllThree(ctx, town, st);
     _rerollAvailableIfNeeded(ctx, town, st);
     const key = _townKeyForWorldPos(ctx, town.x, town.y);
     return { townKey: key, available: st.available.slice(0), active: st.active.slice(0), completed: st.completed.slice(0) };
@@ -343,6 +427,14 @@
     const offer = st.available[idx];
     const tmpl = _templateById(templateId);
     if (!tmpl) { try { ctx.log && ctx.log("Quest template missing.", "bad"); } catch (_) {} return false; }
+
+    // Global uniqueness: block acceptance if this template is active in any other town
+    try {
+      if (_isTemplateActiveInOtherTown(ctx, templateId, town)) {
+        try { ctx.log && ctx.log("This quest has already been accepted in another town.", "warn"); } catch (_) {}
+        return false;
+      }
+    } catch (_) {}
 
     st.available.splice(idx, 1);
     const now = _nowTurn(ctx);
