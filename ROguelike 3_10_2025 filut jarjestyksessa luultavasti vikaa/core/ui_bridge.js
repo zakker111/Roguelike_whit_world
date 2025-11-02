@@ -27,9 +27,12 @@
  * - showRegionMap(ctx)        // opens Region Map modal
  * - hideRegionMap(ctx)        // hides Region Map modal
  * - isRegionMapOpen()         // query open state
- * - showHelp(ctx)             // opens Help/Controls + Character Sheet
+ * - showHelp(ctx)             // opens Help/Controls panel
  * - hideHelp(ctx)             // hides Help panel
  * - isHelpOpen()              // query open state
+ * - showCharacter(ctx)        // opens Character Sheet panel
+ * - hideCharacter(ctx)        // hides Character Sheet panel
+ * - isCharacterOpen()         // query open state
  * Notes:
  * - Thin layer: delegates to window.UI if present (and window.ShopUI for shop panel).
  * - Keeps calls consistent and reduces direct UI wiring inside core/game.js.
@@ -188,6 +191,19 @@ export function hideHelp(ctx) {
 }
 export function isHelpOpen() {
   try { return !!(hasUI() && window.UI.isHelpOpen && window.UI.isHelpOpen()); } catch (_) { return false; }
+}
+
+// Character Sheet wrappers
+export function showCharacter(ctx) {
+  if (!hasUI()) return;
+  try { window.UI.showCharacter && window.UI.showCharacter(ctx); } catch (_) {}
+}
+export function hideCharacter(ctx) {
+  if (!hasUI()) return;
+  try { window.UI.hideCharacter && window.UI.hideCharacter(); } catch (_) {}
+}
+export function isCharacterOpen() {
+  try { return !!(hasUI() && window.UI.isCharacterOpen && window.UI.isCharacterOpen()); } catch (_) { return false; }
 }
 
 // ---- Sleep panel (Inn beds) ----
@@ -462,6 +478,7 @@ export function isAnyModalOpen() {
       isSmokeOpen() ||
       isRegionMapOpen() ||
       isHelpOpen() ||
+      isCharacterOpen() ||
       isSleepOpen() ||
       isQuestBoardOpen()
     );
@@ -543,10 +560,13 @@ if (typeof window !== "undefined") {
     isRegionMapOpen,
     showRegionMap,
     hideRegionMap,
-    // Help/Controls + Character Sheet
+    // Help/Controls and Character Sheet
     isHelpOpen,
     showHelp,
     hideHelp,
+    isCharacterOpen,
+    showCharacter,
+    hideCharacter,
     // Sleep panel (Inn)
     isSleepOpen,
     showSleep,

@@ -16,6 +16,7 @@
  */
 
 import * as HelpModal from "/ui/components/help_modal.js";
+import * as CharacterModal from "/ui/components/character_modal.js";
 import * as RegionModal from "/ui/components/region_modal.js";
 import * as SmokeModal from "/ui/components/smoke_modal.js";
 import * as ConfirmModal from "/ui/components/confirm_modal.js";
@@ -226,6 +227,9 @@ export const UI = {
           e.preventDefault();
         } else if (this.isHelpOpen && this.isHelpOpen()) {
           this.hideHelp();
+          e.preventDefault();
+        } else if (this.isCharacterOpen && this.isCharacterOpen()) {
+          this.hideCharacter();
           e.preventDefault();
         } else if (this.isRegionMapOpen && this.isRegionMapOpen()) {
           this.hideRegionMap();
@@ -445,6 +449,25 @@ export const UI = {
 
   isHelpOpen() {
     try { return !!HelpModal.isOpen(); } catch (_) { return false; }
+  },
+
+  // ---- Character Sheet (C) ----
+  showCharacter(ctx = null) {
+    // Close other modals for clarity
+    if (this.isLootOpen()) this.hideLoot();
+    if (this.isInventoryOpen()) this.hideInventory();
+    if (this.isGodOpen()) this.hideGod();
+    if (this.isSmokeOpen()) this.hideSmoke();
+    if (this.isRegionMapOpen()) this.hideRegionMap();
+    try { CharacterModal.show(ctx); } catch (_) {}
+  },
+
+  hideCharacter() {
+    try { CharacterModal.hide(); } catch (_) {}
+  },
+
+  isCharacterOpen() {
+    try { return !!CharacterModal.isOpen(); } catch (_) { return false; }
   },
 
   // --- Encounter rate controls (0..100) ---

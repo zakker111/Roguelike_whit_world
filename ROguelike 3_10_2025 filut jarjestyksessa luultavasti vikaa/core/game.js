@@ -1933,6 +1933,21 @@
           const ctxLocal = getCtx();
           if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideHelp", ctxLocal);
         },
+        // Character Sheet (C)
+        isCharacterOpen: () => {
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isCharacterOpen === "function" && UIO.isCharacterOpen(getCtx()));
+        },
+        onShowCharacter: () => {
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showCharacter", ctxLocal);
+        },
+        onHideCharacter: () => {
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideCharacter", ctxLocal);
+        },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
         onLoot: () => doAction(),
