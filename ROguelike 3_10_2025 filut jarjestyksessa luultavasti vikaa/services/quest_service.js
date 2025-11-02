@@ -644,6 +644,10 @@
       if (have < (found.amount | 0)) { try { ctx.log && ctx.log("You don't have the required items.", "warn"); } catch (_) {} return false; }
       _removeMaterialFromInventory(inv, found.material?.type, found.material?.name, found.amount | 0);
     } else if (found.kind === "encounter") {
+      // Fallback: if status hasn't been updated yet, proactively set completion now
+      if (found.status !== "completedPendingTurnIn") {
+        try { onEncounterComplete(ctx, { questInstanceId: found.instanceId, enemiesRemaining: 0 }); } catch (_) {}
+      }
       if (found.status !== "completedPendingTurnIn") { try { ctx.log && ctx.log("This task is not complete yet.", "warn"); } catch (_) {} return false; }
     }
 
