@@ -129,6 +129,10 @@
       // Pick first encounter (fallback: id "bandits_farm" if present)
       let tmpl = encTemplates.find(t => t.id === "bandits_farm") || encTemplates[0];
       if (!tmpl) return;
+
+      // Ownership check: skip if owned by a different town
+      if (!_ownerMatchesTown(ctx, tmpl.id, town)) return;
+
       const now = _nowTurn(ctx);
       const ttl = (typeof tmpl.expiresTurns === "number") ? (tmpl.expiresTurns | 0) : 360;
       // Avoid duplicates by templateId across active/completed
@@ -148,10 +152,14 @@
         expiresAtTurn: now + Math.max(60, ttl),
       };
       townQ.available = Array.isArray(townQ.available) ? townQ.available.concat([offer]) : [offer];
+
+      // Claim ownership for this town (on offer)
+      _setOwnerIfUnset(ctx, tmpl.id, town);
     } catch (_) {}
   }
 
   // Ensure standard gather offers (wood planks, berries) exist for a town's board if not already active/available/completed.
+  // Enforce ownership: if a template is owned by another town, do not add it here.
   function _ensureGatherOffersForTown(ctx, town, townQ) {
     try {
       const GD = _gd();
@@ -181,6 +189,9 @@
         if (_exists(id)) continue;
         const tmpl = gatherTemplates.find(t => t.id === id);
         if (!tmpl) continue;
+        // Ownership check: skip if owned by a different town
+        if (!_ownerMatchesTown(ctx, tmpl.id, town)) continue;
+
         const ttl = (typeof tmpl.expiresTurns === "number") ? (tmpl.expiresTurns | 0) : 360;
         const offer = {
           templateId: tmpl.id,
@@ -191,6 +202,9 @@
           expiresAtTurn: now + Math.max(60, ttl),
         };
         townQ.available = Array.isArray(townQ.available) ? townQ.available.concat([offer]) : [offer];
+
+        // Claim ownership for this town (on offer)
+        _setOwnerIfUnset(ctx, tmpl.id, town);
       }
     } catch (_) {}
   }
@@ -227,6 +241,31 @@
       }
     } catch (_) {}
     return false;
+  }
+
+  // ----- Ownership mapping: templateId -> townKey -----
+  function _owners(ctx) {
+    try {
+      ctx.world._questOwners = ctx.world._questOwners || Object.create(null);
+      return ctx.world._questOwners;
+    } catch (_) { return Object.create(null); }
+  }
+  function _ownerTownOf(ctx, templateId) {
+    try { const own = _owners(ctx); return own[templateId] || null; } catch (_) { return null; }
+  }
+  function _setOwnerIfUnset(ctx, templateId, town) {
+    try {
+      const own = _owners(ctx);
+      const key = _townKeyForWorldPos(ctx, town.x, town.y);
+      if (!own[templateId]) own[templateId] = key;
+    } catch (_) {}
+  }
+  function _ownerMatchesTown(ctx, templateId, town) {
+    try {
+      const key = _townKeyForWorldPos(ctx, town.x, town.y);
+      const ownKey = _ownerTownOf(ctx, templateId);
+      return !ownKey || ownKey === key;
+    } catch (_) { return true; }
   }
 
   // One-time seeding: nearest-to-player town gets all three starter quests (planks, berries, bandits)
@@ -266,6 +305,8 @@
           offerAtTurn: now,
           expiresAtTurn: now + Math.max(60, ttl),
         });
+        // Claim ownership to the starting town for seeded templates
+        _setOwnerIfUnset(ctx, tmpl.id, town);
       }
       ctx.world._questsSeeded = true;
       ctx.world._questSeedTownKey = _townKeyForWorldPos(ctx, town.x, town.y);
@@ -285,11 +326,13 @@
     const avail = townQ.available || [];
     const validAvail = avail.filter(q => q && typeof q.expiresAtTurn === "number" ? (_nowTurn(ctx) < q.expiresAtTurn) : true);
     if (validAvail.length >= 1) {
-      // Filter out ones that became active elsewhere to avoid confusing offers
-      const validAvail2 = validAvail.filter(q => !globalActive.has(q.templateId));
+      // Filter out ones that became active elsewhere or owned by other towns to avoid confusing offers
+      const validAvail2 = validAvail.filter(q => {
+        if (!q) return false;
+        if (globalActive.has(q.templateId)) return false;
+        return _ownerMatchesTown(ctx, q.templateId, town);
+      });
       townQ.available = validAvail2;
-      // Only guarantee an encounter offer when the board is otherwise empty,
-      // to avoid injecting encounters right after accepting a gather quest.
       return;
     }
 
@@ -304,7 +347,10 @@
       for (const id of globalActive) avoid.add(id);
     } catch (_) {}
 
-    const picked = _chooseN(rng, templates, count, avoid);
+    // Filter template pool by ownership: only pick templates unowned or owned by this town
+    const pool = templates.filter(t => _ownerMatchesTown(ctx, t.id, town) && !avoid.has(t.id));
+
+    const picked = _chooseN(rng, pool, count, new Set()); // already filtered by avoid
     const now = _nowTurn(ctx);
     const newAvail = picked.map(t => {
       const ttl = (typeof t.expiresTurns === "number") ? (t.expiresTurns | 0) : 360;
@@ -318,6 +364,14 @@
       };
     });
     townQ.available = newAvail;
+
+    // Claim ownership for newly offered templates (so other towns won't also offer them)
+    try {
+      for (const av of newAvail) {
+        const tmplId = av && av.templateId;
+        if (tmplId) _setOwnerIfUnset(ctx, tmplId, town);
+      }
+    } catch (_) {}
 
     // Seeding of starter quests is handled separately in _seedStartTownAllThree (once only)
     townQ.lastRerollTurn = now;
@@ -434,7 +488,16 @@
         try { ctx.log && ctx.log("This quest has already been accepted in another town.", "warn"); } catch (_) {}
         return false;
       }
-    } catch (_) {}
+      // Ownership uniqueness: if owned by a different town, block acceptance here
+      if (!_ownerMatchesTown(ctx, templateId, town)) {
+        try {
+          const ownKey = _ownerTownOf(ctx, templateId);
+          ctx.log && ctx.log("This quest belongs to a different town.", "warn");
+        } catch (_) {}
+        return false;
+      }
+    } catch (__code) new{</}
+
 
     st.available.splice(idx, 1);
     const now = _nowTurn(ctx);
@@ -462,11 +525,11 @@
       _addMarker(ctx, marker.x, marker.y, inst.instanceId);
     }
 
+    // Claim ownership for this town (on acceptance)
+    _setOwnerIfUnset(ctx, tmpl.id, town);
+
     st.active.push(inst);
     try { ctx.log && ctx.log(`Accepted quest: ${inst.title}`, "good"); } catch (_) {}
-    _applyAndRefresh(ctx);
-    return true;
-  }
 
   function _materialCountInInventory(inv, type, name) {
     let total = 0;
