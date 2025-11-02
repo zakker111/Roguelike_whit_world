@@ -151,6 +151,50 @@
     } catch (_) {}
   }
 
+  // Ensure standard gather offers (wood planks, berries) exist for a town's board if not already active/available/completed.
+  function _ensureGatherOffersForTown(ctx, town, townQ) {
+    try {
+      const GD = _gd();
+      const templates = (GD && GD.quests && Array.isArray(GD.quests.templates)) ? GD.quests.templates : [];
+      const gatherTemplates = templates.filter(t => t && String(t.kind || "").toLowerCase() === "gather");
+
+      // Helper: does town have templateId already (in available/active/completed)
+      function _exists(templateId) {
+        const inAvail = Array.isArray(townQ.available) && townQ.available.some(q => q && q.templateId === templateId);
+        const inActive = Array.isArray(townQ.active) && townQ.active.some(q => q && q.templateId === templateId);
+        const inComp = Array.isArray(townQ.completed) && townQ.completed.some(q => q && q.templateId === templateId);
+        return inAvail || inActive || inComp;
+      }
+
+      const idsWanted = new Set();
+      // Prefer explicit template IDs when present
+      const tPlanks = gatherTemplates.find(t => t.id === "gather_planks_10")
+                       || gatherTemplates.find(t => t.material && String(t.material.name || "").toLowerCase() === "planks");
+      const tBerries = gatherTemplates.find(t => t.id === "gather_berries_10")
+                        || gatherTemplates.find(t => t.material && String(t.material.name || "").toLowerCase() === "berries");
+      if (tPlanks) idsWanted.add(tPlanks.id);
+      if (tBerries) idsWanted.add(tBerries.id);
+
+      const now = _nowTurn(ctx);
+      for (const id of idsWanted) {
+        if (!id) continue;
+        if (_exists(id)) continue;
+        const tmpl = gatherTemplates.find(t => t.id === id);
+        if (!tmpl) continue;
+        const ttl = (typeof tmpl.expiresTurns === "number") ? (tmpl.expiresTurns | 0) : 360;
+        const offer = {
+          templateId: tmpl.id,
+          kind: tmpl.kind,
+          title: tmpl.title || tmpl.id,
+          desc: tmpl.desc || "",
+          offerAtTurn: now,
+          expiresAtTurn: now + Math.max(60, ttl),
+        };
+        townQ.available = Array.isArray(townQ.available) ? townQ.available.concat([offer]) : [offer];
+      }
+    } catch (_) {}
+  }
+
   function _rerollAvailableIfNeeded(ctx, town, townQ) {
     const GD = _gd();
     const templates = (GD && GD.quests && Array.isArray(GD.quests.templates)) ? GD.quests.templates : [];
@@ -188,9 +232,11 @@
       };
     });
     townQ.available = newAvail;
-    // Ensure nearest-to-player town always has at least one encounter offer
+    // For nearest-to-player town:
+    // - Ensure gather offers (planks/berries) are posted, so after accepting an encounter players see gather tasks to do.
+    // - Only guarantee an encounter offer when the board is otherwise empty (handled earlier case).
     if (_isNearestTownToPlayer(ctx, town)) {
-      _ensureEncounterOfferForTown(ctx, town, townQ);
+      _ensureGatherOffersForTown(ctx, town, townQ);
     }
     townQ.lastRerollTurn = now;
   }
