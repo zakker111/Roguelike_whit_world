@@ -1757,6 +1757,8 @@
                   } else {
                     inv.push({ kind: "material", type: "meat_cooked", name: cookedName, amount: rawCount });
                   }
+                  // Cooking skill gain scales with items cooked
+                  try { ctxMod.player.skills = ctxMod.player.skills || {}; ctxMod.player.skills.cooking = (ctxMod.player.skills.cooking || 0) + Math.max(1, rawCount); } catch (_) {}
                   log(`You cook ${rawCount} meat into ${rawCount} meat (cooked).`, "good");
                   updateUI();
                   // Re-render inventory panel if open
@@ -2614,10 +2616,18 @@
       } catch (_) {}
 
       // Biome-weighted chance (more generous to ensure visibility)
-      const base =
+      let base =
         (tHere === WT.FOREST) ? 0.55 :
         (tHere === WT.GRASS)  ? 0.35 :
         (tHere === WT.BEACH)  ? 0.20 : 0.0;
+      // Survivalism slightly increases hint chance (up to +5%)
+      try {
+        const s = (player && player.skills) ? player.skills : null;
+        if (s) {
+          const survBuff = Math.max(0, Math.min(0.05, Math.floor((s.survivalism || 0) / 25) * 0.01));
+          base = Math.min(0.80, base * (1 + survBuff));
+        }
+      } catch (_) {}
 
       // Pity: if we've been on wild tiles a long time without a hint, force one
       const PITY_TURNS = 40;

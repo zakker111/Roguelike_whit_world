@@ -34,11 +34,17 @@ export const defaults = {
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
   injuries: [],
-  // Passive combat skills (increment with attacks; provide small damage buffs)
+  // Passive skills
+  // Combat: increment with attacks; provide small damage buffs
+  // Non-combat: increment via world/region interactions
   skills: {
     oneHand: 0,
     twoHand: 0,
-    blunt: 0
+    blunt: 0,
+    // Non-combat
+    foraging: 0,
+    cooking: 0,
+    survivalism: 0
   }
 };
 
@@ -87,6 +93,9 @@ export function normalize(p) {
       oneHand: Math.max(0, (s.oneHand | 0)),
       twoHand: Math.max(0, (s.twoHand | 0)),
       blunt: Math.max(0, (s.blunt | 0)),
+      foraging: Math.max(0, (s.foraging | 0)),
+      cooking: Math.max(0, (s.cooking | 0)),
+      survivalism: Math.max(0, (s.survivalism | 0)),
     };
   } catch (_) {}
   return p;

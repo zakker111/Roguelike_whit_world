@@ -1018,7 +1018,15 @@ function open(ctx, size) {
       }
 
       // Probability for at most a single animal
-      const pOne = Math.max(0, Math.min(0.6, 0.12 + forestBias * 0.35 + grassBias * 0.25 + beachBias * 0.12));
+      let pOne = Math.max(0, Math.min(0.6, 0.12 + forestBias * 0.35 + grassBias * 0.25 + beachBias * 0.12));
+      // Survivalism slightly increases chance to spot animals (up to +5%)
+      try {
+        const s = (ctx.player && ctx.player.skills) ? ctx.player.skills : null;
+        if (s) {
+          const survBuff = Math.max(0, Math.min(0.05, Math.floor((s.survivalism || 0) / 25) * 0.01));
+          pOne = Math.min(0.75, pOne * (1 + survBuff));
+        }
+      } catch (_) {}
       const spawnOne = (typeof RU !== "undefined" && RU && typeof RU.chance === "function") ? RU.chance(pOne, rng) : (rng() < pOne);
       let count = spawnOne ? 1 : 0;
 
@@ -1136,6 +1144,8 @@ function open(ctx, size) {
       try {
         if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {
           markAnimalsSeen(worldX | 0, worldY | 0);
+          // Survivalism skill gain for spotting wildlife
+          try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.survivalism = (ctx.player.skills.survivalism || 0) + 1; } catch (_) {}
           // Also update flag in this session
           ctx.region._hasKnownAnimals = true;
 
@@ -1356,7 +1366,9 @@ function onAction(ctx) {
       // Log and convert this spot back to forest for visualization
       if (ctx.log) ctx.log("You cut the tree.", "notice");
       try {
-        ctx.region.map[cursor.y][cursor.x] = WT.FOREST;
+        // Foraging skill gain
+        try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.foraging = (ctx.player.skills.foraging || 0) + 1; } catch (_) {}
+        ctx.region.map[cursor.y][cursor.x] = World.TILES.FOREST;
         // Reflect change via orchestrator refresh
         try {
           const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);

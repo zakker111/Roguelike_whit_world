@@ -98,13 +98,20 @@ function buildContent(ctx) {
       const twoBuff = clamp(Math.floor((s.twoHand || 0) / 20) * 0.01, 0, 0.06);
       const bluntBuff = clamp(Math.floor((s.blunt || 0) / 25) * 0.01, 0, 0.04);
       const pct = (v) => `${Math.round(v * 100)}%`;
-      const lines = [
+      const combatLines = [
         `<li>One-handed: +${pct(oneBuff)} damage (uses: ${Math.floor(s.oneHand || 0)})</li>`,
         `<li>Two-handed: +${pct(twoBuff)} damage (uses: ${Math.floor(s.twoHand || 0)})</li>`,
         `<li>Blunt: +${pct(bluntBuff)} damage (uses: ${Math.floor(s.blunt || 0)})</li>`,
       ].join("");
+      const nonCombatLines = [
+        `<li>Foraging: uses ${Math.floor(s.foraging || 0)}</li>`,
+        `<li>Cooking: uses ${Math.floor(s.cooking || 0)}</li>`,
+        `<li>Survivalism: uses ${Math.floor(s.survivalism || 0)}</li>`,
+      ].join("");
       return "<div style='margin-top:6px;'>Skills (passive damage buffs):</div>" +
-             `<ul style='margin:4px 0 0 14px;'>${lines}</ul>`;
+             `<ul style='margin:4px 0 0 14px;'>${combatLines}</ul>` +
+             "<div style='margin-top:10px;'>Non-combat:</div>" +
+             `<ul style='margin:4px 0 0 14px;'>${nonCombatLines}</ul>`;
     } catch (_) { return ""; }
   })();
 
