@@ -358,26 +358,7 @@ export function lootHere(ctx) {
       return true;
     }
 
-    // Flavor: show death notes if present on any corpse underfoot
-    try {
-      for (const c of list) {
-        const meta = c && c.meta;
-        if (meta && (meta.killedBy || meta.wound)) {
-          const FS = (typeof window !== "undefined" ? window.FlavorService : null);
-          const line = (FS && typeof FS.describeCorpse === "function")
-            ? FS.describeCorpse(meta)
-            : (() => {
-                const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
-                const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
-                const viaStr = meta.via ? `(${meta.via})` : "";
-                const parts = [woundStr, killerStr].filter(Boolean).join(" ");
-                return `${parts} ${viaStr}`.trim();
-              })();
-          if (line) ctx.log && ctx.log(line, "info");
-        }
-      }
-    } catch (_) {}
-
+    // Determine if there is any loot underfoot first
     const container = list.find(c => Array.isArray(c.loot) && c.loot.length > 0);
     if (!container) {
       // No loot left underfoot; show flavor per fresh examination and avoid repeated spam
@@ -423,6 +404,26 @@ export function lootHere(ctx) {
       ctx.turn && ctx.turn();
       return true;
     }
+
+    // Show corpse description once when first examined (avoid duplicate logs)
+    try {
+      for (const c of list) {
+        if (!c._examined && c.meta && (c.meta.killedBy || c.meta.wound)) {
+          const FS = (typeof window !== "undefined" ? window.FlavorService : null);
+          const line = (FS && typeof FS.describeCorpse === "function")
+            ? FS.describeCorpse(c.meta)
+            : (() => {
+                const killerStr = c.meta.killedBy ? `Killed by ${c.meta.killedBy}.` : "";
+                const woundStr = c.meta.wound ? `Wound: ${c.meta.wound}.` : "";
+                const viaStr = c.meta.via ? `(${c.meta.via})` : "";
+                const parts = [woundStr, killerStr].filter(Boolean).join(" ");
+                return `${parts} ${viaStr}`.trim();
+              })();
+          if (line) ctx.log && ctx.log(line, "info");
+          c._examined = true;
+        }
+      }
+    } catch (_) {}
 
     // Delegate to Loot.lootHere for actual loot transfer if available
     try {
