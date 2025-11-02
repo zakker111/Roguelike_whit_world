@@ -761,6 +761,53 @@
     rerenderInventoryIfOpen();
   }
 
+  // Eat edible materials: berries (+1 HP) and cooked meat (+2 HP).
+  function eatFoodByIndex(idx) {
+    // Prefer centralized InventoryFlow
+    try {
+      const IF = modHandle("InventoryFlow");
+      if (IF && typeof IF.eatByIndex === "function") {
+        IF.eatByIndex(getCtx(), idx);
+        return;
+      }
+    } catch (_) {}
+    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
+    const it = player.inventory[idx];
+    if (!it || it.kind !== "material") return;
+    const nm = String(it.type || it.name || "").toLowerCase();
+    let heal = 0;
+    let label = it.name || nm;
+    if (nm === "meat_cooked" || nm === "meat (cooked)") {
+      heal = 2;
+      if (!it.name) label = "meat (cooked)";
+    } else if (nm === "berries") {
+      heal = 1;
+      if (!it.name) label = "berries";
+    } else {
+      return;
+    }
+    const prev = player.hp;
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+    const gained = player.hp - prev;
+    if (gained > 0) {
+      log(`You eat ${label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
+    } else {
+      log(`You eat ${label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
+    }
+    // decrement one from stack
+    if (typeof it.amount === "number") {
+      it.amount = Math.max(0, (it.amount | 0) - 1);
+      if (it.amount <= 0) player.inventory.splice(idx, 1);
+    } else if (typeof it.count === "number") {
+      it.count = Math.max(0, (it.count | 0) - 1);
+      if (it.count <= 0) player.inventory.splice(idx, 1);
+    } else {
+      player.inventory.splice(idx, 1);
+    }
+    updateUI();
+    rerenderInventoryIfOpen();
+  }
+
   
   function equipIfBetter(item) {
     // Delegate via ctx-first handle
@@ -2801,6 +2848,7 @@
           onEquipHand: (idx, hand) => equipItemByIndexHand(idx, hand),
           onUnequip: (slot) => unequipSlot(slot),
           onDrink: (idx) => drinkPotionByIndex(idx),
+          onEat: (idx) => eatFoodByIndex(idx),
           onRestart: () => restartGame(),
           onWait: () => turn(),
           onTownExit: () => requestLeaveTown()
