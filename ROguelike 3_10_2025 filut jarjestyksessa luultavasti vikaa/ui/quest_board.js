@@ -186,7 +186,7 @@ function render(ctx) {
           render(ctx);
         } catch (_) {}
       };
-    } catch (_) {}
+    }
 }
 
 export function hide() {
