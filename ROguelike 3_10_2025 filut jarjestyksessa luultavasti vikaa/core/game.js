@@ -1632,11 +1632,24 @@
     if (mode === "world") {
       if (!enterTownIfOnTile()) {
         if (!enterDungeonIfOnEntrance()) {
+          // Quest marker start: pressing G on an 'E' tile starts the quest encounter
+          {
+            const QS = modHandle("QuestService");
+            if (QS && typeof QS.triggerAtMarkerIfHere === "function") {
+              const ctxQ = getCtx();
+              const started = !!QS.triggerAtMarkerIfHere(ctxQ);
+              if (started) {
+                applyCtxSyncAndRefresh(ctxQ);
+                return;
+              }
+            }
+          }
+
           // Open Region map when pressing G on a walkable overworld tile
           const ctxMod = getCtx();
           const Cap = modHandle("Capabilities");
           if (Cap && typeof Cap.safeCall === "function") {
-            const res = Cap.safeCall(ctxMod, "RegionMapRuntime", "open", ctxMod);
+            const res = Cap.safeCall(ctxMod, "UIOrchestration", "showRegionMap", ctxMod);
             const ok = !!(res && res.ok && res.result);
             if (ok) {
               // Sync mutated ctx (mode -> "region") and refresh

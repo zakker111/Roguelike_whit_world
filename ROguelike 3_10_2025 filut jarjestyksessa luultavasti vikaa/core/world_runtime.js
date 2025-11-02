@@ -665,15 +665,15 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
     // Foraging via region map berry bushes only (overworld walking no longer grants berries)
   } catch (_) {}
 
-  // Quest markers: trigger quest encounter immediately if stepping onto an active marker
+  // Quest markers: if standing on an active marker, show a hint; starting the quest now requires pressing G
   try {
-    const QS = ctx.QuestService || (typeof window !== "undefined" ? window.QuestService : null);
-    if (QS && typeof QS.maybeTriggerOnWorldStep === "function") {
-      QS.maybeTriggerOnWorldStep(ctx);
-      // QS may have switched mode to 'encounter'; in that case, skip ambient encounters this step.
-      if (ctx.mode !== "world") {
-        try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
-        return true;
+    const markers = Array.isArray(ctx.world?.questMarkers) ? ctx.world.questMarkers : [];
+    if (markers.length) {
+      const rx = ((ctx.world?.originX | 0) + (ctx.player.x | 0)) | 0;
+      const ry = ((ctx.world?.originY | 0) + (ctx.player.y | 0)) | 0;
+      const here = markers.find(m => m && (m.x | 0) === rx && (m.y | 0) === ry);
+      if (here) {
+        try { ctx.log && ctx.log("Quest location: Press G to start the encounter.", "notice"); } catch (_) {}
       }
     }
   } catch (_) {}
