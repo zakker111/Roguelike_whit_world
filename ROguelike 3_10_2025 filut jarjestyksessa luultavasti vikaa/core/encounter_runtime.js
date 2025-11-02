@@ -603,8 +603,10 @@ export function enter(ctx, info) {
     _currentQuestInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
   } catch (_) {}
   return true;
+}
 
 export function tryMoveEncounter(ctx, dx, dy) {
+
   if (!ctx || ctx.mode !== "encounter") return false;
   const nx = ctx.player.x + (dx | 0);
   const ny = ctx.player.y + (dy | 0);
