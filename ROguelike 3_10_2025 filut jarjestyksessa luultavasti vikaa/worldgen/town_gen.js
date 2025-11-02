@@ -1467,44 +1467,62 @@ function generate(ctx) {
     } catch (_) {}
   }
 
-  // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback from the tavern building
+  // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback (prefer tavern building; else pick a good candidate)
   try {
     const hasInn = Array.isArray(ctx.shops) && ctx.shops.some(s => (String(s.type || "").toLowerCase() === "inn") || (String(s.name || "").toLowerCase().includes("inn")));
-    if (!hasInn && ctx.tavern && ctx.tavern.building) {
-      const b = ctx.tavern.building;
-      // Prefer existing door on perimeter; otherwise ensure one
-      let doorX = (ctx.tavern.door && typeof ctx.tavern.door.x === "number") ? ctx.tavern.door.x : null;
-      let doorY = (ctx.tavern.door && typeof ctx.tavern.door.y === "number") ? ctx.tavern.door.y : null;
-      if (doorX == null || doorY == null) {
-        const dd = ensureDoor(b);
-        doorX = dd.x; doorY = dd.y;
+    if (!hasInn) {
+      // Choose building: tavern if set, else the closest-to-plaza reasonably large building
+      let b = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+      if (!b) {
+        try {
+          const scoredB = Array.isArray(buildings) ? buildings.map(bb => ({
+            b: bb,
+            d: Math.abs((bb.x + ((bb.w / 2))) - plaza.x) + Math.abs((bb.y + ((bb.h / 2))) - plaza.y),
+            area: (bb.w | 0) * (bb.h | 0)
+          })) : [];
+          scoredB.sort((a, b2) => a.d - b2.d || b2.area - a.area);
+          b = scoredB.length ? scoredB[0].b : null;
+        } catch (_) {}
       }
-      // Compute an inside tile near the door
-      const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
-      let inside = null;
-      for (let i = 0; i < inward.length; i++) {
-        const ix = doorX + inward[i].dx, iy = doorY + inward[i].dy;
-        const insideB = (ix > b.x && ix < b.x + b.w - 1 && iy > b.y && iy < b.y + b.h - 1);
-        if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { inside = { x: ix, y: iy }; break; }
+      if (b) {
+        // Ensure door on perimeter
+        let doorX = (ctx.tavern && ctx.tavern.door && typeof ctx.tavern.door.x === "number") ? ctx.tavern.door.x : null;
+        let doorY = (ctx.tavern && ctx.tavern.door && typeof ctx.tavern.door.y === "number") ? ctx.tavern.door.y : null;
+        if (doorX == null || doorY == null) {
+          const dd = ensureDoor(b);
+          doorX = dd.x; doorY = dd.y;
+        }
+        // Compute an inside tile near the door
+        const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
+        let inside = null;
+        for (let i = 0; i < inward.length; i++) {
+          const ix = doorX + inward[i].dx, iy = doorY + inward[i].dy;
+          const insideB = (ix > b.x && ix < b.x + b.w - 1 && iy > b.y && iy < b.y + b.h - 1);
+          if (insideB && ctx.map[iy][ix] === ctx.TILES.FLOOR) { inside = { x: ix, y: iy }; break; }
+        }
+        if (!inside) {
+          const cx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2)));
+          const cy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2)));
+          inside = { x: cx, y: cy };
+        }
+        ctx.shops.push({
+          x: doorX,
+          y: doorY,
+          type: "inn",
+          name: "Inn",
+          openMin: 0,
+          closeMin: 0,
+          alwaysOpen: true,
+          building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
+          inside
+        });
+        // Update tavern reference
+        try { ctx.tavern = { building: { x: b.x, y: b.y, w: b.w, h: b.h }, door: { x: doorX, y: doorY } }; ctx.inn = ctx.tavern; } catch (_) {}
+        // Signs: inside and an outside marker for visibility
+        try { ShopsSigns.addShopSignInside(ctx, b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
+        try { ShopsSigns.addOutsideSignNearDoor(ctx, b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
+        try { if (ctx && typeof ctx.log === "function") ctx.log("Inn fallback created.", "notice"); } catch (_) {}
       }
-      if (!inside) {
-        const cx = Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2)));
-        const cy = Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2)));
-        inside = { x: cx, y: cy };
-      }
-      ctx.shops.push({
-        x: doorX,
-        y: doorY,
-        type: "inn",
-        name: "Inn",
-        openMin: 0,
-        closeMin: 0,
-        alwaysOpen: true,
-        building: { x: b.x, y: b.y, w: b.w, h: b.h, door: { x: doorX, y: doorY } },
-        inside
-      });
-      try { ShopsSigns.addShopSignInside(ctx, b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
-      try { ShopsSigns.addOutsideSignNearDoor(ctx, b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
     }
   } catch (_) {}
 
