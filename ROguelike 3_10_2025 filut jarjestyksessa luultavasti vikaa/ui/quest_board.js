@@ -71,12 +71,11 @@ function fmtTimeLeft(ctx, expiresAtTurn) {
 }
 
 function render(ctx) {
-  try {
-    const el = ensurePanel();
-    if (!el) return;
-    const qs = (typeof window !== "undefined" && window.QuestService && typeof window.QuestService.listForCurrentTown === "function")
-      ? window.QuestService.listForCurrentTown(ctx)
-      : { available: [], active: [], completed: [] };
+  const el = ensurePanel();
+  if (!el) return;
+  const qs = (typeof window !== "undefined" && window.QuestService && typeof window.QuestService.listForCurrentTown === "function")
+    ? window.QuestService.listForCurrentTown(ctx)
+    : { available: [], active: [], completed: [] };
 
     const body = el.querySelector("#questboard-body");
     if (!body) return;
