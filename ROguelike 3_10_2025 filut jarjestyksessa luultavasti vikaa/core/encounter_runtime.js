@@ -6,8 +6,9 @@
  * - tryMoveEncounter(ctx, dx, dy): movement during encounter (bump to attack)
  * - tick(ctx): drives AI and completes encounter on kill-all
  */
-// Module-level flag to avoid spamming "Area clear" logs across ctx recreations
+// Module-level flags to avoid spamming logs or duplicate quest notifications across ctx recreations
 let _clearAnnounced = false;
+let _victoryNotified = false;
 
 function createDungeonEnemyAt(ctx, x, y, depth) {
   // Prefer the same factory used by dungeon floors
@@ -71,8 +72,9 @@ function createEnemyOfType(ctx, x, y, depth, type) {
 
 export function enter(ctx, info) {
   if (!ctx || !ctx.world || !ctx.world.map) return false;
-  // Reset clear-announcement guard for this encounter session
+  // Reset clear-announcement/quest-notification guards for this encounter session
   _clearAnnounced = false;
+  _victse;
 
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { count: { min: 2, max: 3 } } ] };
   const biome = info && info.biome ? String(info.biome).toUpperCase() : null;
@@ -930,15 +932,28 @@ export function tick(ctx) {
 
   // Do NOT auto-return to overworld on victory. Keep the encounter map active so player can loot or explore.
   // Announce clear state only once per encounter session (guarded by a module-level flag).
+  // Also, proactively notify QuestService of victory so the Quest Board can show "Claim" on re-entry even if exit is delayed.
   try {
     if (Array.isArray(ctx.enemies) && ctx.enemies.length === 0) {
       if (!_clearAnnounced) {
         _clearAnnounced = true;
         try { ctx.log && ctx.log("Area clear. Step onto an exit (>) to leave when ready.", "notice"); } catch (_) {}
       }
+      // Proactive quest victory notification (only once per encounter session)
+      if (!_victoryNotified) {
+        _victoryNotified = true;
+        try {
+          const QS = ctx.QuestService || (typeof window !== "undefined" ? window.QuestService : null);
+          const qid = ctx._questInstanceId || null;
+          if (QS && typeof QS.onEncounterComplete === "function" && qid) {
+            QS.onEncounterComplete(ctx, { questInstanceId: qid, enemiesRemaining: 0 });
+          }
+        } catch (_) {}
+      }
     } else {
       // If new enemies appear (edge-case), allow re-announcement once they are cleared again
       _clearAnnounced = false;
+      _victoryNotified = false;
     }
   } catch (_) {}
   return true;
