@@ -80,7 +80,7 @@ function render(ctx) {
     const body = el.querySelector("#questboard-body");
     if (!body) return;
 
-    function row(html) {
+    function makeRow(html) {
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' + html + '</div>';
     }
 
@@ -96,7 +96,7 @@ function render(ctx) {
         const due = fmtTimeLeft(ctx, q.expiresAtTurn);
         const btn = `<button data-accept="${q.templateId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Accept</button>`;
         const text = `<div><div style="color:#e5e7eb;">${q.title || q.templateId}</div><div style="color:#94a3b8;font-size:12px;">${q.desc || ""}</div><div style="color:#93c5fd;font-size:12px;margin-top:2px;">Expires in ${due}</div></div>`;
-        return row(text + btn);
+        return makeRow(text + btn);
       }).join("");
     }
 
@@ -108,14 +108,19 @@ function render(ctx) {
     } else {
       html += ac.map((q) => {
         let status = "";
+        let btnActive = "";
         if (q.kind === "gather") {
           status = "Gather the requested items.";
         } else if (q.kind === "encounter") {
-          status = q.marker ? "An E marker was placed on the overworld." : (q.status === "completedPendingTurnIn" ? "Completed — claim at the Quest Board." : "Seek the objective.");
+          const completed = (q.status === "completedPendingTurnIn");
+          status = q.marker ? "An E marker was placed on the overworld." : (completed ? "Completed — claim at the Quest Board." : "Seek the objective.");
+          if (completed && q.instanceId) {
+            btnActive = `<button data-claim-active="${q.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`;
+          }
         }
         const due = fmtTimeLeft(ctx, q.expiresAtTurn);
         const text = `<div><div style="color:#e5e7eb;">${q.title || q.templateId}</div><div style="color:#94a3b8;font-size:12px;">${status}</div><div style="color:#93c5fd;font-size:12px;margin-top:2px;">Expires in ${due}</div></div>`;
-        return row(text);
+        return makeRow(text + btnActive);
       }).join("");
     }
 
@@ -131,13 +136,13 @@ function render(ctx) {
     } else {
       // Claim all button
       html += '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button id="questboard-claim-all" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim all</button></div>';
-      html += ti.map((row) => {
-        const g = row.gold | 0;
-        const text = `<div><div style="color:#e5e7eb;">${row.title || "Quest"}</div><div style="color:#fbbf24;font-size:12px;">${g}g</div></div>`;
-        const btn = row.requiresAccept
-          ? `<button data-claim-tid="${row.templateId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`
-          : `<button data-claim="${row.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`;
-        return row(text + btn);
+      html += ti.map((ent) => {
+        const g = ent.gold | 0;
+        const text = `<div><div style="color:#e5e7eb;">${ent.title || "Quest"}</div><div style="color:#fbbf24;font-size:12px;">${g}g</div></div>`;
+        const btn = ent.requiresAccept
+          ? `<button data-claim-tid="${ent.templateId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`
+          : `<button data-claim="${ent.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`;
+        return makeRow(text + btn);
       }).join("");
     }
 
@@ -184,6 +189,21 @@ function render(ctx) {
           if (!tid) return;
           if (typeof window !== "undefined" && window.QuestService && typeof window.QuestService.claimTemplate === "function") {
             window.QuestService.claimTemplate(ctx, tid);
+            render(ctx);
+          }
+        } catch (_) {}
+      };
+    }
+    // Wire Claim buttons shown in Active section (completed encounters)
+    const aButtons = body.querySelectorAll("button[data-claim-active]");
+    for (let i = 0; i < aButtons.length; i++) {
+      const btn = aButtons[i];
+      btn.onclick = function () {
+        try {
+          const id = String(btn.getAttribute("data-claim-active") || "");
+          if (!id) return;
+          if (typeof window !== "undefined" && window.QuestService && typeof window.QuestService.claim === "function") {
+            window.QuestService.claim(ctx, id);
             render(ctx);
           }
         } catch (_) {}
