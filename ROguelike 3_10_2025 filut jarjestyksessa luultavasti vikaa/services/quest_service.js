@@ -490,14 +490,10 @@
       }
       // Ownership uniqueness: if owned by a different town, block acceptance here
       if (!_ownerMatchesTown(ctx, templateId, town)) {
-        try {
-          const ownKey = _ownerTownOf(ctx, templateId);
-          ctx.log && ctx.log("This quest belongs to a different town.", "warn");
-        } catch (_) {}
+        try { ctx.log && ctx.log("This quest belongs to a different town.", "warn"); } catch (_) {}
         return false;
       }
-    } catch (__code) new{</}
-
+    } catch (_) {}
 
     st.available.splice(idx, 1);
     const now = _nowTurn(ctx);
@@ -530,6 +526,9 @@
 
     st.active.push(inst);
     try { ctx.log && ctx.log(`Accepted quest: ${inst.title}`, "good"); } catch (_) {}
+    _applyAndRefresh(ctx);
+    return true;
+  }
 
   function _materialCountInInventory(inv, type, name) {
     let total = 0;
