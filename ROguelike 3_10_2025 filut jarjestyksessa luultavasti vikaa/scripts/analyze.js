@@ -2,8 +2,11 @@
 // Run: node scripts/analyze.js
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const ROOT = path.resolve(path.join(process.cwd(), "ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa"));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ROOT = path.resolve(path.join(__dirname, ".."));
 const OUT_DIR = path.join(ROOT, "analysis");
 const OUT_FILE = path.join(OUT_DIR, "phase1_report.md");
 

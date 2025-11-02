@@ -2,8 +2,11 @@
 // Run: node scripts/gen_smoke_manifest.js
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const ROOT = path.resolve(path.join(process.cwd(), "ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa"));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ROOT = path.resolve(path.join(__dirname, ".."));
 const SCEN_DIR = path.join(ROOT, "smoketest", "scenarios");
 const OUT_FILE = path.join(ROOT, "smoketest", "scenarios.json");
 

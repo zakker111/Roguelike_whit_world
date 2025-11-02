@@ -14,8 +14,11 @@
 import { createServer } from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.join(process.cwd(), 'ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa'));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ROOT = __dirname;
 
 function serveFile(res, filePath, contentType = 'text/plain; charset=utf-8') {
   try {
