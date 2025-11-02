@@ -1243,6 +1243,11 @@ function generate(ctx) {
         });
 
         try { ShopsSigns.addShopSignInside(ctx, ps.building, { x: ps.door.x, y: ps.door.y }, name); } catch (_) {}
+        try {
+          if (String(ps.type || "").toLowerCase() === "inn") {
+            ShopsSigns.addOutsideSignNearDoor(ctx, ps.building, { x: ps.door.x, y: ps.door.y }, name);
+          }
+        } catch (_) {}
       }
     } catch (_) {}
   })();
@@ -1454,6 +1459,12 @@ function generate(ctx) {
     });
     // Ensure a sign near the shop door with the correct shop name (e.g., Inn), placed inside near the door
     try { ShopsSigns.addShopSignInside(ctx, b, { x: door.x, y: door.y }, name); } catch (_) {}
+    // For Inn, also add an outside sign next to the door so it's visible immediately
+    try {
+      if (String(def.type || "").toLowerCase() === "inn") {
+        ShopsSigns.addOutsideSignNearDoor(ctx, b, { x: door.x, y: door.y }, name);
+      }
+    } catch (_) {}
   }
 
   // Guarantee an Inn shop exists: if none integrated from prefabs/data, create a fallback from the tavern building
@@ -1493,6 +1504,7 @@ function generate(ctx) {
         inside
       });
       try { ShopsSigns.addShopSignInside(ctx, b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
+      try { ShopsSigns.addOutsideSignNearDoor(ctx, b, { x: doorX, y: doorY }, "Inn"); } catch (_) {}
     }
   } catch (_) {}
 
