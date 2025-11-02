@@ -114,9 +114,9 @@ function render(ctx) {
         } else if (q.kind === "encounter") {
           const completed = (q.status === "completedPendingTurnIn");
           // Prefer completed status over marker hint to avoid misleading messaging after victory
-          status = completed ? "Completed — claim at the Quest Board." : (q.marker ? "An E marker was placed on the overworld." : "Seek the objective.");
+          status = completed ? "Completed — ready to complete." : (q.marker ? "An E marker was placed on the overworld." : "Seek the objective.");
           if (completed && q.instanceId) {
-            btnActive = `<button data-claim-active="${q.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`;
+            btnActive = `<button data-claim-active="${q.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Complete</button>`;
           }
         }
         const due = fmtTimeLeft(ctx, q.expiresAtTurn);
@@ -135,14 +135,14 @@ function render(ctx) {
     if (!ti.length) {
       html += '<div style="color:#94a3b8;margin-bottom:8px;">No quests ready to turn in.</div>';
     } else {
-      // Claim all button
-      html += '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button id="questboard-claim-all" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim all</button></div>';
+      // Complete all button
+      html += '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button id="questboard-claim-all" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Complete all</button></div>';
       html += ti.map((ent) => {
         const g = ent.gold | 0;
         const text = `<div><div style="color:#e5e7eb;">${ent.title || "Quest"}</div><div style="color:#fbbf24;font-size:12px;">${g}g</div></div>`;
         const btn = ent.requiresAccept
-          ? `<button data-claim-tid="${ent.templateId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`
-          : `<button data-claim="${ent.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`;
+          ? `<button data-claim-tid="${ent.templateId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Complete</button>`
+          : `<button data-claim="${ent.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Complete</button>`;
         return makeRow(text + btn);
       }).join("");
     }
