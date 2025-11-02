@@ -165,6 +165,18 @@ export function init(handlers) {
       return;
     }
 
+    // Character Sheet shortcut (C) - opens the same Help/Character Sheet panel
+    if ((e.key && e.key.toLowerCase() === "c") || e.code === "KeyC") {
+      e.preventDefault();
+      // Mirror F1 behavior; while Help is open, gating above blocks this and Esc closes it.
+      if (_handlers.isHelpOpen && _handlers.isHelpOpen()) {
+        _handlers.onHideHelp && _handlers.onHideHelp();
+      } else {
+        _handlers.onShowHelp && _handlers.onShowHelp();
+      }
+      return;
+    }
+
     // FOV adjust
     if (e.code === "BracketLeft" || e.key === "[" || e.code === "Minus" || e.code === "NumpadSubtract" || e.key === "-") {
       e.preventDefault();

@@ -114,7 +114,7 @@ function buildContent(ctx) {
     "<div>Move: Arrow keys / Numpad (8-dir)</div><div>Wait: Numpad5</div>",
     "<div>Action/Interact: G</div><div>Inventory: I</div>",
     "<div>GOD panel: P</div><div>FOV: [ and ] (or +/-)</div>",
-    "<div>Help / Character Sheet: F1</div><div>Brace (dungeon): B</div>",
+    "<div>Help / Character Sheet: F1 or C</div><div>Brace (dungeon): B</div>",
     "<div>Local Region Map: G (overworld/RUINS; M disabled)</div><div></div>",
     "</div>",
     "<div style='font-size:16px; font-weight:600; margin: 6px 0;'>Character Sheet</div>",
