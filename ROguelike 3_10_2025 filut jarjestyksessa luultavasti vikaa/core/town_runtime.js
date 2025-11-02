@@ -246,11 +246,29 @@ export function tryMoveTown(ctx, dx, dy) {
   } catch (_) {}
 
   // When upstairs overlay is active, ignore downstairs NPC blocking inside the inn footprint
+  // BUT: if the occupant at the bump tile is the innkeeper, still treat it as a talk bump to open the shop UI.
   try {
     if (ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building) {
       const b = ctx.tavern.building;
       const insideInn = (nx > b.x && nx < b.x + b.w - 1 && ny > b.y && ny < b.y + b.h - 1);
-      if (insideInn) npcBlocked = false;
+      if (insideInn) {
+        // Find occupant NPC at destination tile
+        let occupant = null;
+        try {
+          const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+          occupant = npcs.find(n => n && n.x === nx && n.y === ny) || null;
+        } catch (_) {}
+        const isInnKeeper = !!(occupant && occupant.isShopkeeper && occupant._shopRef && String(occupant._shopRef.type || "").toLowerCase() === "inn");
+        if (isInnKeeper) {
+          // Open shop UI via talk even when overlay is active
+          if (typeof talk === "function") {
+            talk(ctx, nx, ny);
+          }
+          return true;
+        }
+        // Otherwise, allow walking through downstairs NPCs while upstairs overlay is active
+        npcBlocked = false;
+      }
     }
   } catch (_) {}
 
