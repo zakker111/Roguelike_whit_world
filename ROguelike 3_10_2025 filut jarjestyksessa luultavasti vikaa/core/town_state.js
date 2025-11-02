@@ -391,6 +391,39 @@ function applyState(ctx, st, x, y) {
     if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
 
+  // Re-link shop references to nearby shopkeepers when loading from persistence.
+  // NPC snapshots do not carry _shopRef, so attach by proximity to the shop door or interior.
+  (function relinkShopsToKeepers() {
+    try {
+      const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+      const shops = Array.isArray(ctx.shops) ? ctx.shops : [];
+      for (const s of shops) {
+        if (!s) continue;
+        let best = null;
+        let bestScore = Infinity;
+        for (const n of npcs) {
+          if (!n || !n.isShopkeeper) continue;
+          // Determine if inside the building footprint
+          let inside = false;
+          try {
+            const b = s.building || null;
+            if (b) inside = (n.x > b.x && n.x < b.x + b.w - 1 && n.y > b.y && n.y < b.y + b.h - 1);
+          } catch (_) {}
+          const dx = Math.abs(n.x - s.x), dy = Math.abs(n.y - s.y);
+          const nearDoor = (dx + dy) === 1 || Math.max(dx, dy) <= 1;
+          const close = (dx + dy) <= 2;
+          if (inside || nearDoor || close) {
+            const score = inside ? 0 : (nearDoor ? 1 : (dx + dy));
+            if (score < bestScore) { bestScore = score; best = n; }
+          }
+        }
+        if (best && !best._shopRef) {
+          best._shopRef = s;
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Visual refresh via StateSync when available
   try {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);

@@ -197,7 +197,34 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
 
   if (isKeeper) {
     try {
-      const shopRef = npc._shopRef || null;
+      let shopRef = npc._shopRef || null;
+
+      // Fallback: if keeper lacks a shopRef (e.g., after re-entering town from persistence),
+      // attach the nearest shop by proximity to door or interior.
+      if (!shopRef && Array.isArray(ctx.shops)) {
+        let best = null;
+        let bestScore = Infinity;
+        for (const s of ctx.shops) {
+          if (!s) continue;
+          let inside = false;
+          try {
+            const b = s.building || null;
+            if (b) inside = (npc.x > b.x && npc.x < b.x + b.w - 1 && npc.y > b.y && npc.y < b.y + b.h - 1);
+          } catch (_) {}
+          const dx = Math.abs(npc.x - s.x), dy = Math.abs(npc.y - s.y);
+          const nearDoor = (dx + dy) === 1 || Math.max(dx, dy) <= 1;
+          const close = (dx + dy) <= 2;
+          if (inside || nearDoor || close) {
+            const score = inside ? 0 : (nearDoor ? 1 : (dx + dy));
+            if (score < bestScore) { bestScore = score; best = s; }
+          }
+        }
+        if (best) {
+          npc._shopRef = best;
+          shopRef = best;
+        }
+      }
+
       if (shopRef) {
         // Inn: always open and interactable anywhere inside — open immediately on bump
         const isInn = String(shopRef.type || "").toLowerCase() === "inn";
@@ -221,6 +248,9 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
             ctx.log && ctx.log(`${npc.name || "Shopkeeper"} is away from the ${shopRef.name || "shop"}. ${sched ? "(" + sched + ")" : ""}`, "info");
           }
         }
+      } else {
+        // No shop resolved; log and return
+        ctx.log && ctx.log(`${npc.name || "Shopkeeper"}: shop not found nearby.`, "warn");
       }
     } catch (_) {}
     return true;
