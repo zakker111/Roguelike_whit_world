@@ -112,12 +112,25 @@ function render(ctx) {
         if (q.kind === "gather") {
           status = "Gather the requested items.";
         } else if (q.kind === "encounter") {
-          const completed = (q.status === "completedPendingTurnIn");
+          // Consider completed if status says so OR getTurnIns reports this quest eligible
+          let completed = (q.status === "completedPendingTurnIn");
+          try {
+            const QS = (typeof window !== "undefined" ? window.QuestService : null);
+            const list = (QS && typeof QS.getTurnIns === "function") ? QS.getTurnIns(ctx) : [];
+            if (!completed && Array.isArray(list)) {
+              completed = list.some(ent =>
+                (ent && ent.instanceId && q.instanceId && ent.instanceId === q.instanceId) ||
+                (ent && ent.templateId && q.templateId && ent.templateId === q.templateId)
+              );
+            }
+          } catch (_) {}
           // Prefer completed status over marker hint to avoid misleading messaging after victory
-          status = completed ? "Completed — ready to complete." : (q.marker ? "An E marker was placed on the overworld." : "Seek the objective.");
-          if (completed && q.instanceId) {
-            btnActive = `<button data-claim-active="${q.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Complete</button>`;
-          }
+          status = completed ? "Completed — claim your reward." : (q.marker ? "An E marker was placed on the overworld." : "Seek the objective.");
+          // Show Complete button when eligible; else still allow trying to complete (will show a warning if not ready)
+          const canComplete = completed && q.instanceId;
+          btnActive = canComplete
+            ? `<button data-claim-active="${q.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Complete</button>`
+            : (q.instanceId ? `<button data-claim-active="${q.instanceId}" style="padding:4px 8px;background:#1f2937;color:#9ca3af;border:1px solid #334155;border-radius:4px;cursor:not-allowed;">Complete</button>` : "");
         }
         const due = fmtTimeLeft(ctx, q.expiresAtTurn);
         const text = `<div><div style="color:#e5e7eb;">${q.title || q.templateId}</div><div style="color:#94a3b8;font-size:12px;">${status}</div><div style="color:#93c5fd;font-size:12px;margin-top:2px;">Expires in ${due}</div></div>`;
