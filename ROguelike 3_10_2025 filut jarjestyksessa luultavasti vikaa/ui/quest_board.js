@@ -110,13 +110,33 @@ function render(ctx) {
       html += ac.map((q) => {
         let status = "";
         if (q.kind === "gather") {
-          status = "Bring the requested items to the innkeeper.";
+          status = "Gather the requested items.";
         } else if (q.kind === "encounter") {
-          status = q.marker ? "An E marker was placed on the overworld." : (q.status === "completedPendingTurnIn" ? "Completed — claim at the inn." : "Seek the objective.");
+          status = q.marker ? "An E marker was placed on the overworld." : (q.status === "completedPendingTurnIn" ? "Completed — claim at the Quest Board." : "Seek the objective.");
         }
         const due = fmtTimeLeft(ctx, q.expiresAtTurn);
         const text = `<div><div style="color:#e5e7eb;">${q.title || q.templateId}</div><div style="color:#94a3b8;font-size:12px;">${status}</div><div style="color:#93c5fd;font-size:12px;margin-top:2px;">Expires in ${due}</div></div>`;
         return row(text);
+      }).join("");
+    }
+
+    // Turn-ins (claim rewards here)
+    let ti = [];
+    try {
+      const QS = (typeof window !== "undefined" ? window.QuestService : null);
+      ti = (QS && typeof QS.getTurnIns === "function") ? QS.getTurnIns(ctx) : [];
+    } catch (_) {}
+    html += '<div style="margin:10px 0 6px 0;color:#e2e8f0;font-weight:600;">Eligible turn-ins</div>';
+    if (!ti.length) {
+      html += '<div style="color:#94a3b8;margin-bottom:8px;">No quests ready to turn in.</div>';
+    } else {
+      // Claim all button
+      html += '<div style="display:flex;justify-content:flex-end;margin-bottom:6px;"><button id="questboard-claim-all" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim all</button></div>';
+      html += ti.map((row) => {
+        const g = row.gold | 0;
+        const text = `<div><div style="color:#e5e7eb;">${row.title || "Quest"}</div><div style="color:#fbbf24;font-size:12px;">${g}g</div></div>`;
+        const btn = `<button data-claim="${row.instanceId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>`;
+        return row(text + btn);
       }).join("");
     }
 
@@ -137,7 +157,36 @@ function render(ctx) {
         } catch (_) {}
       };
     }
-  } catch (_) {}
+
+    // Wire Claim buttons
+    const cButtons = body.querySelectorAll("button[data-claim]");
+    for (let i = 0; i < cButtons.length; i++) {
+      const btn = cButtons[i];
+      btn.onclick = function () {
+        try {
+          const id = String(btn.getAttribute("data-claim") || "");
+          if (!id) return;
+          if (typeof window !== "undefined" && window.QuestService && typeof window.QuestService.claim === "function") {
+            window.QuestService.claim(ctx, id);
+            render(ctx);
+          }
+        } catch (_) {}
+      };
+    }
+    // Wire Claim all
+    const claimAll = body.querySelector("#questboard-claim-all");
+    if (claimAll) {
+      claimAll.onclick = function () {
+        try {
+          const QS = (typeof window !== "undefined" ? window.QuestService : null);
+          const list = (QS && typeof QS.getTurnIns === "function") ? QS.getTurnIns(ctx) : [];
+          if (QS && typeof QS.claim === "function") {
+            for (let i = 0; i < list.length; i++) { QS.claim(ctx, list[i].instanceId); }
+          }
+          render(ctx);
+        } catch (_) {}
+      };
+    } catch (_) {}
 }
 
 export function hide() {

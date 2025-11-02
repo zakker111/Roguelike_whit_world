@@ -466,7 +466,7 @@
           if (a.kind !== "encounter") return;
           if (victory) {
             a.status = "completedPendingTurnIn";
-            try { ctx.log && ctx.log("Quest objective complete. Speak to the innkeeper to claim your reward.", "good"); } catch (_) {}
+            try { ctx.log && ctx.log("Quest objective complete. Return to the Quest Board to claim your reward.", "good"); } catch (_) {}
           } else {
             // Withdraw early -> fail
             a.status = "failed";
