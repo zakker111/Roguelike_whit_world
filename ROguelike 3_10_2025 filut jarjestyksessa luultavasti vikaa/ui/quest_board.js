@@ -1,6 +1,6 @@
 /**
- * QuestBoardUI: minimal quest board panel.
- * Shows a simple modal with title "Quest Board" and a close button.
+ * QuestBoardUI: simple quest board panel with Accept actions.
+ * Lists available and active quests for the current town (via QuestService).
  * DOM-only; canvas redraw is managed by callers (PropsService/UIBridge).
  */
 
@@ -41,7 +41,7 @@ function ensurePanel() {
     el.style.border = "1px solid #334155";
     el.style.borderRadius = "8px";
     el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
-    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="questboard-title">Quest Board</strong><button id="questboard-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="questboard-body" style="color:#94a3b8;">No quests yet.</div>';
+    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="questboard-title">Quest Board</strong><button id="questboard-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="questboard-body" style="color:#94a3b8;"></div>';
     document.body.appendChild(el);
     try {
       const btn = el.querySelector("#questboard-close-btn");
@@ -55,6 +55,89 @@ function ensurePanel() {
   } catch (_) {
     return null;
   }
+}
+
+function fmtTimeLeft(ctx, expiresAtTurn) {
+  try {
+    const now = (ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+    const left = Math.max(0, (expiresAtTurn | 0) - now);
+    const minsPerTurn = (ctx.time && typeof ctx.time.minutesPerTurn === "number") ? ctx.time.minutesPerTurn : ((24 * 60) / 360);
+    const mins = Math.round(left * minsPerTurn);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  } catch (_) { return ""; }
+}
+
+function render(ctx) {
+  try {
+    const el = ensurePanel();
+    if (!el) return;
+    const qs = (typeof window !== "undefined" && window.QuestService && typeof window.QuestService.listForCurrentTown === "function")
+      ? window.QuestService.listForCurrentTown(ctx)
+      : { available: [], active: [], completed: [] };
+
+    const body = el.querySelector("#questboard-body");
+    if (!body) return;
+
+    function row(html) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' + html + '</div>';
+    }
+
+    let html = "";
+
+    // Available
+    const av = Array.isArray(qs.available) ? qs.available : [];
+    html += '<div style="margin:4px 0 6px 0;color:#e2e8f0;font-weight:600;">Available</div>';
+    if (!av.length) {
+      html += '<div style="color:#94a3b8;margin-bottom:8px;">No quests posted at the moment.</div>';
+    } else {
+      html += av.map((q) => {
+        const due = fmtTimeLeft(ctx, q.expiresAtTurn);
+        const btn = `<button data-accept="${q.templateId}" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Accept</button>`;
+        const text = `<div><div style="color:#e5e7eb;">${q.title || q.templateId}</div><div style="color:#94a3b8;font-size:12px;">${q.desc || ""}</div><div style="color:#93c5fd;font-size:12px;margin-top:2px;">Expires in ${due}</div></div>`;
+        return row(text + btn);
+      }).join("");
+    }
+
+    // Active
+    const ac = Array.isArray(qs.active) ? qs.active : [];
+    html += '<div style="margin:10px 0 6px 0;color:#e2e8f0;font-weight:600;">Active</div>';
+    if (!ac.length) {
+      html += '<div style="color:#94a3b8;margin-bottom:8px;">No active quests.</div>';
+    } else {
+      html += ac.map((q) => {
+        let status = "";
+        if (q.kind === "gather") {
+          status = "Bring the requested items to the innkeeper.";
+        } else if (q.kind === "encounter") {
+          status = q.marker ? "An E marker was placed on the overworld." : (q.status === "completedPendingTurnIn" ? "Completed — claim at the inn." : "Seek the objective.");
+        }
+        const due = fmtTimeLeft(ctx, q.expiresAtTurn);
+        const text = `<div><div style="color:#e5e7eb;">${q.title || q.templateId}</div><div style="color:#94a3b8;font-size:12px;">${status}</div><div style="color:#93c5fd;font-size:12px;margin-top:2px;">Expires in ${due}</div></div>`;
+        return row(text);
+      }).join("");
+    }
+
+    body.innerHTML = html;
+
+    // Wire Accept buttons
+    const buttons = body.querySelectorAll("button[data-accept]");
+    for (let i = 0; i < buttons.length; i++) {
+      const btn = buttons[i];
+      btn.onclick = function () {
+        try {
+          const tid = String(btn.getAttribute("data-accept") || "");
+          if (!tid) return;
+          if (typeof window !== "undefined" && window.QuestService && typeof window.QuestService.accept === "function") {
+            window.QuestService.accept(ctx, tid);
+            render(ctx);
+          }
+        } catch (_) {}
+      };
+    }
+  } catch (_) {}
 }
 
 export function hide() {
@@ -80,7 +163,7 @@ export function open(ctx) {
     const ttl = el.querySelector("#questboard-title");
     if (ttl) ttl.textContent = "Quest Board";
   } catch (_) {}
-  // No quest logic yet — placeholder panel only
+  render(ctx);
 }
 
 import { attachGlobal } from "../utils/global.js";

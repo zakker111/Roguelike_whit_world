@@ -586,6 +586,8 @@ export function enter(ctx, info) {
     }
   } catch (_) {}
   ctx.encounterInfo = { id: template.id, name: template.name || "Encounter" };
+  // Carry quest instance metadata if provided so QuestService can resolve completion later
+  try { if (info && info.questInstanceId) ctx._questInstanceId = info.questInstanceId; } catch (_) {}
   return true;
 }
 
@@ -833,6 +835,16 @@ export function complete(ctx, outcome = "victory") {
     if (outcome === "victory") ctx.log && ctx.log("You prevail and return to the overworld.", "good");
     else ctx.log && ctx.log("You withdraw and return to the overworld.", "info");
   } catch (_) {}
+  // Notify QuestService about quest-related encounters
+  try {
+    const QS = ctx.QuestService || (typeof window !== "undefined" ? window.QuestService : null);
+    if (QS && typeof QS.onEncounterComplete === "function") {
+      const enemiesRemaining = Array.isArray(ctx.enemies) ? (ctx.enemies.length | 0) : 0;
+      QS.onEncounterComplete(ctx, { questInstanceId: ctx._questInstanceId || null, enemiesRemaining });
+    }
+  } catch (_) {}
+  // Clear quest instance flag
+  try { ctx._questInstanceId = null; } catch (_) {}
   try {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {

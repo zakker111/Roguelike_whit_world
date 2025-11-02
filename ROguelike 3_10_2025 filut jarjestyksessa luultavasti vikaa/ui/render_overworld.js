@@ -354,6 +354,20 @@ export function draw(ctx, view) {
       ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
     }
     ctx2d.restore();
+
+    // Active quest markers: bright amber 'E' glyph at absolute positions in ctx.world.questMarkers
+    const qms = (ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
+    if (qms.length) {
+      for (const m of qms) {
+        if (!m) continue;
+        const lx = (m.x | 0) - ox;
+        const ly = (m.y | 0) - oy;
+        if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+        const sx = (lx - startX) * TILE - tileOffsetX;
+        const sy = (ly - startY) * TILE - tileOffsetY;
+        RenderCore.drawGlyph(ctx2d, sx, sy, "E", "#fbbf24", TILE);
+      }
+    }
   } catch (_) {}
 
   // Subtle biome embellishments to reduce flat look
@@ -627,10 +641,11 @@ export function draw(ctx, view) {
           ctx2d.drawImage(MINI.canvas, bx, by);
         }
 
-        // POI markers: towns (gold), dungeons (red) - convert absolute world coords to local indices
+        // POI markers: towns (gold), dungeons (red), quest markers (amber) - convert absolute world coords to local indices
         try {
           const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
           const dungeons = Array.isArray(ctx.world?.dungeons) ? ctx.world.dungeons : [];
+          const qms = Array.isArray(ctx.world?.questMarkers) ? ctx.world.questMarkers : [];
           const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
           const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
           ctx2d.save();
@@ -652,6 +667,16 @@ export function draw(ctx, view) {
             else fill = "#f7768e"; // red (hard)
             ctx2d.fillStyle = fill;
             ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
+          }
+          // Quest markers: amber
+          if (qms && qms.length) {
+            ctx2d.fillStyle = "#fbbf24";
+            for (const m of qms) {
+              const lx = (m.x | 0) - ox;
+              const ly = (m.y | 0) - oy;
+              if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
+              ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
+            }
           }
           ctx2d.restore();
         } catch (_) {}

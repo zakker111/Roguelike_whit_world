@@ -31,7 +31,7 @@ function ensurePanel() {
     el.style.border = "1px solid #334155";
     el.style.borderRadius = "8px";
     el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
-    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="shop-title">Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="shop-list"></div><hr style="border-color:#1f2937;"><div id="sell-list"></div>';
+    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="shop-title">Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="quest-rewards" style="margin-bottom:8px;"></div><div id="shop-list"></div><hr style="border-color:#1f2937;"><div id="sell-list"></div>';
     document.body.appendChild(el);
     try {
       const btn = el.querySelector("#shop-close-btn");
@@ -99,6 +99,7 @@ function render(ctx) {
   if (!el) return;
   el.hidden = false;
   const goldDiv = el.querySelector("#shop-gold");
+  const questDiv = el.querySelector("#quest-rewards");
   const listDiv = el.querySelector("#shop-list");
   const sellDiv = el.querySelector("#sell-list");
 
@@ -106,6 +107,44 @@ function render(ctx) {
     const g = playerGold(ctx);
     if (goldDiv) goldDiv.textContent = "Gold: " + g.cur;
   } catch (_) {}
+
+  // Quest rewards section (only at inns typically)
+  if (questDiv) {
+    try {
+      const QS = (typeof window !== "undefined" ? window.QuestService : null);
+      const list = (QS && typeof QS.getTurnIns === "function") ? QS.getTurnIns(ctx) : [];
+      if (list && list.length) {
+        questDiv.innerHTML = '<div style="margin:4px 0 6px 0;color:#e2e8f0;">Quest rewards</div>' + list.map(function (row) {
+          const g = row.gold | 0;
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #1f2937;">' +
+                 '<div>' + (row.title || "Quest") + ' — <span style="color:#fbbf24;">' + g + 'g</span></div>' +
+                 '<button data-claim="' + row.instanceId + '" style="padding:4px 8px;background:#243244;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Claim</button>' +
+                 '</div>';
+        }).join("");
+        const buttons = questDiv.querySelectorAll("button[data-claim]");
+        for (let j = 0; j < buttons.length; j++) {
+          (function (btn) {
+            btn.onclick = function () {
+              try {
+                const id = String(btn.getAttribute("data-claim") || "");
+                if (!id) return;
+                if (QS && typeof QS.claim === "function") {
+                  QS.claim(ctx, id);
+                  // Refresh stock and rewards UI
+                  _stock = window.ShopService && typeof window.ShopService.getInventoryForShop === "function" && _shopRef
+                    ? window.ShopService.getInventoryForShop(ctx, _shopRef)
+                    : [];
+                  render(ctx);
+                }
+              } catch (_) {}
+            };
+          })(buttons[j]);
+        }
+      } else {
+        questDiv.innerHTML = "";
+      }
+    } catch (_) { questDiv.innerHTML = ""; }
+  }
 
   if (listDiv) {
     if (!_stock || !_stock.length) {

@@ -665,6 +665,19 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
     // Foraging via region map berry bushes only (overworld walking no longer grants berries)
   } catch (_) {}
 
+  // Quest markers: trigger quest encounter immediately if stepping onto an active marker
+  try {
+    const QS = ctx.QuestService || (typeof window !== "undefined" ? window.QuestService : null);
+    if (QS && typeof QS.maybeTriggerOnWorldStep === "function") {
+      QS.maybeTriggerOnWorldStep(ctx);
+      // QS may have switched mode to 'encounter'; in that case, skip ambient encounters this step.
+      if (ctx.mode !== "world") {
+        try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+        return true;
+      }
+    }
+  } catch (_) {}
+
   // Encounter roll before advancing time (modules may switch mode)
   try {
     const ES = ctx.EncounterService || (typeof window !== "undefined" ? window.EncounterService : null);

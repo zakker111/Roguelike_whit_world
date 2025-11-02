@@ -35,6 +35,8 @@ const DATA_FILES = {
   town: "data/world/town.json",
   flavor: "data/i18n/flavor.json",
   encounters: "data/encounters/encounters.json",
+  // New: quest templates (available/active are dynamic per-town)
+  quests: "data/quests/quests.json",
   config: "data/config/config.json",
   palette: "data/world/palette.json",
   messages: "data/i18n/messages.json",
@@ -67,6 +69,8 @@ export const GameData = {
   flavor: null,
   tiles: null,
   encounters: null,
+  // New: quest templates
+  quests: null,
   config: null,
   palette: null,
   messages: null,
@@ -108,7 +112,7 @@ GameData.ready = (async function loadAll() {
       assetsCombined,
       items, enemies, npcs, consumables,
       materials, craftingRecipes, materialPools, foragingPools,
-      town, flavor, encounters, config, palette, messages,
+      town, flavor, encounters, quests, config, palette, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
@@ -125,6 +129,7 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.town).catch(() => null),
       fetchJson(DATA_FILES.flavor).catch(() => null),
       fetchJson(DATA_FILES.encounters).catch(() => null),
+      fetchJson(DATA_FILES.quests).catch(() => null),
       fetchJson(DATA_FILES.config).catch(() => null),
       fetchJson(DATA_FILES.palette).catch(() => null),
       fetchJson(DATA_FILES.messages).catch(() => null),
@@ -153,9 +158,10 @@ GameData.ready = (async function loadAll() {
     GameData.town = (town && typeof town === "object") ? town : null;
     GameData.flavor = (flavor && typeof flavor === "object") ? flavor : null;
     GameData.encounters = (encounters && typeof encounters === "object") ? encounters : null;
+    GameData.quests = (quests && typeof quests === "object") ? quests : null;
     GameData.config = (config && typeof config === "object") ? config : null;
     GameData.palette = (palette && typeof palette === "object") ? palette : null;
-    GameData.messages = (messages && typeof messages === "object") ? messages : null;
+    GameData.messages = (messages && typeof messagesull;
 
     GameData.shopPhases = (shopPhases && typeof shopPhases === "object") ? shopPhases : null;
     GameData.shopPools = (shopPools && typeof shopPools === "object") ? shopPools : null;
