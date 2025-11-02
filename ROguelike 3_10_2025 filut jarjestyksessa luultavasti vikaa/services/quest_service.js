@@ -161,11 +161,10 @@
     const validAvail = avail.filter(q => q && typeof q.expiresAtTurn === "number" ? (_nowTurn(ctx) < q.expiresAtTurn) : true);
     if (validAvail.length >= 1) {
       townQ.available = validAvail;
-      // Ensure nearest-to-player town always has at least one encounter offer
-      if (_isNearestTownToPlayer(ctx, town)) {
-        _ensureEncounterOfferForTown(ctx, town, townQ);
-      }
-      return;
+      // Only guarantee an encounter offer when the board is otherwise empty,
+      // to avoid injecting encounters right after accepting a gather quest.
+      // If you want encounters always posted regardless of other offers, re-enable below.
+      // if (_isNearestrn;
     }
     // Generate 1-3 fresh offers
     const rng = _rng(ctx);
