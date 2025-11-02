@@ -161,7 +161,7 @@ GameData.ready = (async function loadAll() {
     GameData.quests = (quests && typeof quests === "object") ? quests : null;
     GameData.config = (config && typeof config === "object") ? config : null;
     GameData.palette = (palette && typeof palette === "object") ? palette : null;
-    GameData.messages = (messages && typeof messagesull;
+    GameData.messages = (messages && typeof messages === "object") ? messages : null;
 
     GameData.shopPhases = (shopPhases && typeof shopPhases === "object") ? shopPhases : null;
     GameData.shopPools = (shopPools && typeof shopPools === "object") ? shopPools : null;
