@@ -336,13 +336,12 @@
             return isInnKeeper && nextIsDoor && insideNow;
           } catch (_) { return false; }
         })();
-        // Innkeeper restriction: do not step outside the Inn if currently inside
+        // Bound-building restriction: if NPC is bound to a building and currently inside it, do not step outside
         let avoidExit = false;
         try {
-          const isInnKeeper = !!(n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn");
-          const B = isInnKeeper ? (n._shopRef && n._shopRef.building) : null;
-          const insideNow = !!(B && insideBuilding(B, n.x, n.y));
-          if (isInnKeeper && insideNow && B && !insideBuilding(B, next.x, next.y)) {
+          const BBound = n._boundToBuilding || null;
+          const insideBoundNow = !!(BBound && insideBuilding(BBound, n.x, n.y));
+          if (BBound && insideBoundNow && !insideBuilding(BBound, next.x, next.y)) {
             avoidExit = true;
           }
         } catch (_) {}
@@ -437,15 +436,13 @@
       }
       if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
 
-      // Innkeeper: avoid stepping onto the inn door tile while already inside the building
+      // Bound-building: avoid stepping onto a door tile while inside; never step outside the bound building
       try {
-        const isInnKeeper = !!(n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn");
-        const B = isInnKeeper ? (n._shopRef && n._shopRef.building) : null;
-        const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
+        const BBound = n._boundToBuilding || null;
+        const insideBoundNow = BBound ? insideBuilding(BBound, n.x, n.y) : false;
         const nextIsDoor = (ctx.map[ny] && ctx.map[ny][nx] === ctx.TILES.DOOR);
-        if (isInnKeeper && insideNow && nextIsDoor) continue;
-        // Also: do not step outside the Inn if currently inside
-        if (isInnKeeper && insideNow && B && !insideBuilding(B, nx, ny)) continue;
+        if (BBound && insideBoundNow && nextIsDoor) continue;
+        if (BBound && insideBoundNow && !insideBuilding(BBound, nx, ny)) continue;
       } catch (_) {}
 
       const isBack = prevKey && keyN === prevKey;
@@ -682,6 +679,8 @@
           _shopRef: s,
           _home: home,
           _livesAtShop: !!livesInShop,
+          // Hard-binding: Inn keeper is bound to the inn building and must stay inside at all times
+          _boundToBuilding: isInn ? s.building : null
         });
       }
     })();
@@ -881,27 +880,26 @@
     // Expose fast occupancy to helpers for this tick
     ctx._occ = occ;
 
-    // Innkeeper hard clamp: ensure the innkeeper is always inside the Inn building.
+    // Bound-building hard clamp: ensure NPCs marked with _boundToBuilding stay inside their building.
     // If found outside for any reason (spawn collision, pathing jitter), snap them to a free interior tile.
     try {
       for (let i = 0; i < npcs.length; i++) {
         const n = npcs[i];
-        if (!n || !n.isShopkeeper) continue;
-        const shop = n._shopRef || null;
-        if (!shop || String(shop.type || "").toLowerCase() !== "inn" || !shop.building) continue;
-        const B = shop.building;
+        if (!n || !n._boundToBuilding) continue;
+        const B = n._boundToBuilding;
         const insideNow = insideBuilding(B, n.x, n.y);
         if (insideNow) continue;
         // Temporarily release this NPC's current tile from occupancy while searching a free interior
         const prevKey = `${n.x},${n.y}`;
         if (occ.has(prevKey)) occ.delete(prevKey);
-        // Preferred interior target: configured inside tile, then adjacent to door, then first free interior, then center
+        // Preferred interior target: shop.inside when available, then adjacent to door, then first free interior, then center
         let target = null;
-        const prefer = (shop.inside ? { x: shop.inside.x, y: shop.inside.y } : null);
+        const prefer = (n._workInside ? { x: n._workInside.x, y: n._workInside.y } : null);
         if (prefer && insideBuilding(B, prefer.x, prefer.y) && isFreeTile(ctx, prefer.x, prefer.y)) {
           target = prefer;
         } else {
-          const nearDoor = nearestFreeAdjacent(ctx, shop.x, shop.y, B);
+          const door = (B && B.door) ? { x: B.door.x, y: B.door.y } : null;
+          const nearDoor = door ? nearestFreeAdjacent(ctx, door.x, door.y, B) : null;
           target = nearDoor || firstFreeInteriorTile(ctx, B) || { x: Math.max(B.x + 1, Math.min(B.x + B.w - 2, (B.x + ((B.w / 2) | 0)))), y: Math.max(B.y + 1, Math.min(B.y + B.h - 2, (B.y + ((B.h / 2) | 0)))) };
         }
         // Snap inside and mark downstairs
