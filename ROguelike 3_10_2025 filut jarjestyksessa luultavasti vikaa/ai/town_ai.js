@@ -977,19 +977,7 @@
       );
       return beds;
     }
-    // Legacy ground-only inn target finder (kept for reference; not used)
-    function chooseInnTargetGroundLegacy(ctx) {
-      const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-      if (!innB) return null;
-      const beds = innBedSpots(ctx);
-      if (beds.length) {
-        const b = beds[randInt(ctx, 0, beds.length - 1)];
-        return { x: b.x, y: b.y };
-      }
-      const door = ctx.tavern.door || { x: innB.x + ((innB.w / 2) | 0), y: innB.y + ((innB.h / 2) | 0) };
-      const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, innB);
-      return inSpot || { x: door.x, y: door.y };
-    }
+    
 
     // Inn seating: pick floor tiles adjacent to chairs/tables inside the Inn (ground)
     function innSeatSpots(ctx) {

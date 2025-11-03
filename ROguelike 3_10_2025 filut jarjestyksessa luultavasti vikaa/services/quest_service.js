@@ -698,68 +698,7 @@
     return any;
   }
 
-  function maybeTriggerOnWorldStep(ctx) {
-    if (!ctx || ctx.mode !== "world" || !ctx.world) return;
-    _ensureWorldMarkers(ctx);
-    const pos = _absPlayerPos(ctx);
-    const markers = ctx.world.questMarkers || [];
-    const here = markers.find(m => m && (m.x | 0) === (pos.x | 0) && (m.y | 0) === (pos.y | 0));
-    if (!here) return;
-    // Find the quest instance for this marker
-    let quest = null;
-    let townRef = null;
-    try {
-      const towns = Array.isArray(ctx.world?.towns) ? ctx.world.towns : [];
-      for (const t of towns) {
-        const qs = t && t.quests ? t.quests : null;
-        if (!qs) continue;
-        const q = (qs.active || []).find(a => a && a.instanceId === here.instanceId);
-        if (q) { quest = q; townRef = t; break; }
-      }
-    } catch (_) {}
-    if (!quest || !townRef) { _removeMarker(ctx, pos.x, pos.y, here.instanceId); return; }
-    if (quest.kind !== "encounter") { _removeMarker(ctx, pos.x, pos.y, here.instanceId); return; }
-
-    // Start the special encounter; prefer EncounterRuntime.enter directly to pass questInstanceId
-    const GD = _gd();
-    const tmpl = _templateById(quest.templateId) || {};
-    const encT = tmpl.encounter || {};
-    const biome = (function guessBiome() {
-      try {
-        if (typeof window !== "undefined" && window.World && window.World.TILES) {
-          const WT = window.World.TILES;
-          const t = ctx.world.map[ctx.player.y][ctx.player.x];
-          // Not strictly used; EncounterRuntime chooses generator by biome only when generator==='auto'
-          if (t === WT.FOREST) return "FOREST";
-          if (t === WT.GRASS) return "GRASS";
-          if (t === WT.DESERT) return "DESERT";
-          if (t === WT.SWAMP) return "SWAMP";
-          if (t === WT.SNOW) return "SNOW";
-          if (t === WT.BEACH) return "BEACH";
-        }
-      } catch (_) {}
-      return "GRASS";
-    })();
-
-    try {
-      const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
-      if (ER && typeof ER.enter === "function") {
-        ER.enter(ctx, {
-          template: {
-            id: "quest_bandits_farm",
-            name: tmpl.title || "Quest Encounter",
-            map: { generator: (encT.map && encT.map.generator) ? encT.map.generator : "camp", w: (encT.map && encT.map.w) || 26, h: (encT.map && encT.map.h) || 18 },
-            groups: Array.isArray(encT.groups) && encT.groups.length ? encT.groups : [{ type: "bandit", count: { min: 3, max: 5 } }]
-          },
-          biome,
-          difficulty: (encT.difficulty | 0) || 2,
-          questInstanceId: quest.instanceId
-        });
-        // One-time marker removal upon entering
-        _removeMarker(ctx, pos.x, pos.y, quest.instanceId);
-      }
-    } catch (_) {}
-  }
+  
 
   function onEncounterComplete(ctx, payload) {
     // Decide outcome based on enemies remaining at time of pressing G on exit tile
@@ -869,7 +808,7 @@
     claim,
     claimTemplate,
     claimAllEligible,
-    maybeTriggerOnWorldStep, // legacy (no longer called automatically on step)
+    
     triggerAtMarkerIfHere,
     onEncounterComplete
   };
