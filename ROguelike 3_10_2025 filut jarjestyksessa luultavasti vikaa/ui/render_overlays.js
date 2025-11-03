@@ -254,37 +254,85 @@ export function drawLampGlow(ctx, view) {
     }
 
     const { ctx2d, TILE } = Object.assign({}, view);
-    ctx2d.save();
-    ctx2d.globalCompositeOperation = "lighter";
+
+    // Collect visible light emitters for this turn
+    const lights = [];
     for (const p of ctx.townProps) {
       const def = propDefFor(p.type);
       const emits = !!(def && def.properties && def.properties.emitsLight);
       if (!emits) continue;
-
-      const px = p.x, py = p.y;
-      if (px < view.startX || px > view.endX || py < view.startY || py > view.endY) continue;
-      if (!ctx.visible[py] || !ctx.visible[py][px]) continue;
-
-      const cx = (px - view.startX) * TILE - view.tileOffsetX + TILE / 2;
-      const cy = (py - view.startY) * TILE - view.tileOffsetY + TILE / 2;
-
-      const glowTiles = (def && def.light && typeof def.light.glowTiles === "number") ? def.light.glowTiles : 2.2;
-      const r = TILE * glowTiles;
-
-      const base = (def && def.light && typeof def.light.color === "string")
+      // Only draw when the lamp tile is currently visible
+      const visNow = !!(ctx.visible[p.y] && ctx.visible[p.y][p.x]);
+      if (!visNow) continue;
+      // Record minimal draw info
+      const baseColor = (def && def.light && typeof def.light.color === "string")
         ? def.light.color
         : (def && def.colors && def.colors.fg) ? def.colors.fg : "#ffd166";
-
-      const grad = ctx2d.createRadialGradient(cx, cy, 4, cx, cy, r);
-      grad.addColorStop(0, rgba(base, 0.60));
-      grad.addColorStop(0.4, rgba(base, 0.25));
-      grad.addColorStop(1, rgba(base, 0.0));
-      ctx2d.fillStyle = grad;
-      ctx2d.beginPath();
-      ctx2d.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx2d.fill();
+      const glowTiles = (def && def.light && typeof def.light.glowTiles === "number") ? def.light.glowTiles : 2.2;
+      lights.push({ x: p.x, y: p.y, color: baseColor, rTiles: glowTiles });
     }
-    ctx2d.restore();
+
+    // Offscreen cache keyed by map/TILE/phase/turn to avoid rebuilding within the same turn
+    const mapRows = ctx.map.length;
+    const mapCols = ctx.map[0] ? ctx.map[0].length : 0;
+    const wpx = mapCols * TILE, hpx = mapRows * TILE;
+    const turn = (ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+    const phase = ctx.time && ctx.time.phase ? String(ctx.time.phase) : "";
+
+    let layer = ctx._lampGlowLayer || null;
+    const needsRebuild =
+      !layer ||
+      layer.mapRef !== ctx.map ||
+      layer.TILE !== TILE ||
+      layer.wpx !== wpx ||
+      layer.hpx !== hpx ||
+      layer.phase !== phase ||
+      layer.turn !== turn ||
+      layer.count !== lights.length;
+
+    if (needsRebuild) {
+      const off = document.createElement("canvas");
+      off.width = wpx;
+      off.height = hpx;
+      const oc = off.getContext("2d");
+      oc.globalCompositeOperation = "lighter";
+
+      for (let i = 0; i < lights.length; i++) {
+        const L = lights[i];
+        const cx = L.x * TILE + TILE / 2;
+        const cy = L.y * TILE + TILE / 2;
+        const r = TILE * L.rTiles;
+        const grad = oc.createRadialGradient(cx, cy, 4, cx, cy, r);
+        grad.addColorStop(0, rgba(L.color, 0.60));
+        grad.addColorStop(0.4, rgba(L.color, 0.25));
+        grad.addColorStop(1, rgba(L.color, 0.0));
+        oc.fillStyle = grad;
+        oc.beginPath();
+        oc.arc(cx, cy, r, 0, Math.PI * 2);
+        oc.fill();
+      }
+
+      layer = {
+        canvas: off,
+        mapRef: ctx.map,
+        TILE,
+        wpx,
+        hpx,
+        phase,
+        turn,
+        count: lights.length
+      };
+      ctx._lampGlowLayer = layer;
+    }
+
+    // Blit only the visible viewport region additively
+    const cam = view.cam;
+    if (layer && layer.canvas && cam && cam.width && cam.height) {
+      ctx2d.save();
+      ctx2d.globalCompositeOperation = "lighter";
+      ctx2d.drawImage(layer.canvas, cam.x, cam.y, cam.width, cam.height, 0, 0, cam.width, cam.height);
+      ctx2d.restore();
+    }
   } catch (_) {}
 }
 
