@@ -761,6 +761,53 @@
     rerenderInventoryIfOpen();
   }
 
+  // Eat edible materials: berries (+1 HP) and cooked meat (+2 HP).
+  function eatFoodByIndex(idx) {
+    // Prefer centralized InventoryFlow
+    try {
+      const IF = modHandle("InventoryFlow");
+      if (IF && typeof IF.eatByIndex === "function") {
+        IF.eatByIndex(getCtx(), idx);
+        return;
+      }
+    } catch (_) {}
+    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
+    const it = player.inventory[idx];
+    if (!it || it.kind !== "material") return;
+    const nm = String(it.type || it.name || "").toLowerCase();
+    let heal = 0;
+    let label = it.name || nm;
+    if (nm === "meat_cooked" || nm === "meat (cooked)") {
+      heal = 2;
+      if (!it.name) label = "meat (cooked)";
+    } else if (nm === "berries") {
+      heal = 1;
+      if (!it.name) label = "berries";
+    } else {
+      return;
+    }
+    const prev = player.hp;
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+    const gained = player.hp - prev;
+    if (gained > 0) {
+      log(`You eat ${label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
+    } else {
+      log(`You eat ${label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
+    }
+    // decrement one from stack
+    if (typeof it.amount === "number") {
+      it.amount = Math.max(0, (it.amount | 0) - 1);
+      if (it.amount <= 0) player.inventory.splice(idx, 1);
+    } else if (typeof it.count === "number") {
+      it.count = Math.max(0, (it.count | 0) - 1);
+      if (it.count <= 0) player.inventory.splice(idx, 1);
+    } else {
+      player.inventory.splice(idx, 1);
+    }
+    updateUI();
+    rerenderInventoryIfOpen();
+  }
+
   
   function equipIfBetter(item) {
     // Delegate via ctx-first handle
@@ -1585,38 +1632,31 @@
     if (mode === "world") {
       if (!enterTownIfOnTile()) {
         if (!enterDungeonIfOnEntrance()) {
-          // Open Region map when pressing G on a walkable overworld tile
-          const ctxMod = getCtx();
-          const Cap = modHandle("Capabilities");
-          if (Cap && typeof Cap.safeCall === "function") {
-            const res = Cap.safeCall(ctxMod, "RegionMapRuntime", "open", ctxMod);
-            const ok = !!(res && res.ok && res.result);
-            if (ok) {
-              // Sync mutated ctx (mode -> "region") and refresh
-              applyCtxSyncAndRefresh(ctxMod);
-            } else {
-              // Fallback to direct open to differentiate "module missing" vs "cannot open here"
-              const RM = modHandle("RegionMapRuntime");
-              if (RM && typeof RM.open === "function") {
-                const ok2 = !!RM.open(ctxMod);
-                if (ok2) {
-                  applyCtxSyncAndRefresh(ctxMod);
-                } else {
-                  log("Region Map cannot be opened here.", "warn");
-                }
-              } else {
-                log("Region map module not available.", "warn");
+          // Quest marker start: pressing G on an 'E' tile starts the quest encounter
+          {
+            const QS = modHandle("QuestService");
+            if (QS && typeof QS.triggerAtMarkerIfHere === "function") {
+              const ctxQ = getCtx();
+              const started = !!QS.triggerAtMarkerIfHere(ctxQ);
+              if (started) {
+                applyCtxSyncAndRefresh(ctxQ);
+                return;
               }
             }
-          } else {
-            const RM = modHandle("RegionMapRuntime");
-            if (RM && typeof RM.open === "function") {
-              const ok = !!RM.open(ctxMod);
-              if (ok) applyCtxSyncAndRefresh(ctxMod);
-              else log("Region Map cannot be opened here.", "warn");
+          }
+
+          // Open Region map when pressing G on a walkable overworld tile (no overlay panel)
+          const ctxMod = getCtx();
+          const RM = modHandle("RegionMapRuntime");
+          if (RM && typeof RM.open === "function") {
+            const ok = !!RM.open(ctxMod);
+            if (ok) {
+              applyCtxSyncAndRefresh(ctxMod);
             } else {
-              log("Region map module not available.", "warn");
+              log("Region Map cannot be opened here.", "warn");
             }
+          } else {
+            log("Region map module not available.", "warn");
           }
         }
       }
@@ -1757,6 +1797,8 @@
                   } else {
                     inv.push({ kind: "material", type: "meat_cooked", name: cookedName, amount: rawCount });
                   }
+                  // Cooking skill gain scales with items cooked
+                  try { ctxMod.player.skills = ctxMod.player.skills || {}; ctxMod.player.skills.cooking = (ctxMod.player.skills.cooking || 0) + Math.max(1, rawCount); } catch (_) {}
                   log(`You cook ${rawCount} meat into ${rawCount} meat (cooked).`, "good");
                   updateUI();
                   // Re-render inventory panel if open
@@ -1903,21 +1945,7 @@
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
         },
-        // Region Map
-        isRegionMapOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(getCtx()));
-        },
-        onShowRegionMap: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showRegionMap", ctxLocal);
-        },
-        onHideRegionMap: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideRegionMap", ctxLocal);
-        },
+        
         // Help / Controls + Character Sheet (F1)
         isHelpOpen: () => {
           const UIO = modHandle("UIOrchestration");
@@ -1932,6 +1960,21 @@
           const Cap = modHandle("Capabilities");
           const ctxLocal = getCtx();
           if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideHelp", ctxLocal);
+        },
+        // Character Sheet (C)
+        isCharacterOpen: () => {
+          const UIO = modHandle("UIOrchestration");
+          return !!(UIO && typeof UIO.isCharacterOpen === "function" && UIO.isCharacterOpen(getCtx()));
+        },
+        onShowCharacter: () => {
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showCharacter", ctxLocal);
+        },
+        onHideCharacter: () => {
+          const Cap = modHandle("Capabilities");
+          const ctxLocal = getCtx();
+          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideCharacter", ctxLocal);
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
@@ -2599,10 +2642,18 @@
       } catch (_) {}
 
       // Biome-weighted chance (more generous to ensure visibility)
-      const base =
+      let base =
         (tHere === WT.FOREST) ? 0.55 :
         (tHere === WT.GRASS)  ? 0.35 :
         (tHere === WT.BEACH)  ? 0.20 : 0.0;
+      // Survivalism slightly increases hint chance (up to +5%)
+      try {
+        const s = (player && player.skills) ? player.skills : null;
+        if (s) {
+          const survBuff = Math.max(0, Math.min(0.05, Math.floor((s.survivalism || 0) / 25) * 0.01));
+          base = Math.min(0.80, base * (1 + survBuff));
+        }
+      } catch (_) {}
 
       // Pity: if we've been on wild tiles a long time without a hint, force one
       const PITY_TURNS = 40;
@@ -2776,6 +2827,7 @@
           onEquipHand: (idx, hand) => equipItemByIndexHand(idx, hand),
           onUnequip: (slot) => unequipSlot(slot),
           onDrink: (idx) => drinkPotionByIndex(idx),
+          onEat: (idx) => eatFoodByIndex(idx),
           onRestart: () => restartGame(),
           onWait: () => turn(),
           onTownExit: () => requestLeaveTown()
@@ -3002,13 +3054,6 @@
               const ok = !!(res && res.ok && res.result);
               if (ok) {
                 applyCtxSyncAndRefresh(ctx);
-                // If the Region Map overlay modal is open, repaint it to show spawned enemies immediately
-                try {
-                  const UIO = modHandle("UIOrchestration");
-                  if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
-                    UIO.showRegionMap(ctx);
-                  }
-                } catch (_) {}
               }
               return ok;
             }
@@ -3017,12 +3062,7 @@
               const ok = !!ER.enterRegion(ctx, { template, biome });
               if (ok) {
                 applyCtxSyncAndRefresh(ctx);
-                try {
-                  const UIO = modHandle("UIOrchestration");
-                  if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
-                    UIO.showRegionMap(ctx);
-                  }
-                } catch (_) {}
+                
               }
               return ok;
             }

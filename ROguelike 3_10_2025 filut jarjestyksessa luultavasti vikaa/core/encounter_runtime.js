@@ -6,8 +6,11 @@
  * - tryMoveEncounter(ctx, dx, dy): movement during encounter (bump to attack)
  * - tick(ctx): drives AI and completes encounter on kill-all
  */
-// Module-level flag to avoid spamming "Area clear" logs across ctx recreations
+// Module-level flags to avoid spamming logs or duplicate quest notifications across ctx recreations
 let _clearAnnounced = false;
+let _victoryNotified = false;
+// Persist the active quest instance id across ctx recreations
+let _currentQuestInstanceId = null;
 
 function createDungeonEnemyAt(ctx, x, y, depth) {
   // Prefer the same factory used by dungeon floors
@@ -71,8 +74,14 @@ function createEnemyOfType(ctx, x, y, depth, type) {
 
 export function enter(ctx, info) {
   if (!ctx || !ctx.world || !ctx.world.map) return false;
-  // Reset clear-announcement guard for this encounter session
+  // Reset clear-announcement/quest-notification guards for this encounter session
   _clearAnnounced = false;
+  _victoryNotified = false;
+  // Reset quest instance id unless provided for this encounter
+  try {
+    ctx._questInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
+    _currentQuestInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
+  } catch (_) {}
 
   const template = info && info.template ? info.template : { id: "ambush_forest", name: "Ambush", map: { w: 24, h: 16 }, groups: [ { count: { min: 2, max: 3 } } ] };
   const biome = info && info.biome ? String(info.biome).toUpperCase() : null;
@@ -80,9 +89,11 @@ export function enter(ctx, info) {
   ctx.encounterBiome = biome;
   ctx.encounterDifficulty = difficulty;
 
-  // Remember return position in overworld
-  const worldX = ctx.player.x | 0;
-  const worldY = ctx.player.y | 0;
+  // Remember return position in overworld (absolute world coordinates)
+  const ox = (ctx.world && typeof ctx.world.originX === "number") ? (ctx.world.originX | 0) : 0;
+  const oy = (ctx.world && typeof ctx.world.originY === "number") ? (ctx.world.originY | 0) : 0;
+  const worldX = ox + (ctx.player.x | 0);
+  const worldY = oy + (ctx.player.y | 0);
   ctx.worldReturnPos = { x: worldX, y: worldY };
 
   // Switch to encounter mode and build a small tactical map
@@ -586,10 +597,16 @@ export function enter(ctx, info) {
     }
   } catch (_) {}
   ctx.encounterInfo = { id: template.id, name: template.name || "Encounter" };
+  // Carry quest instance metadata if provided so QuestService can resolve completion later
+  try {
+    ctx._questInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
+    _currentQuestInstanceId = (info && info.questInstanceId) ? info.questInstanceId : null;
+  } catch (_) {}
   return true;
 }
 
 export function tryMoveEncounter(ctx, dx, dy) {
+
   if (!ctx || ctx.mode !== "encounter") return false;
   const nx = ctx.player.x + (dx | 0);
   const ny = ctx.player.y + (dy | 0);
@@ -822,17 +839,52 @@ export function complete(ctx, outcome = "victory") {
     ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
     ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
   }
-  // Restore player to the entry tile
+  // Restore player to the entry tile (convert absolute world coords -> local window indices)
   try {
     const pos = ctx.worldReturnPos || null;
-    if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
-      ctx.player.x = pos.x; ctx.player.y = pos.y;
+    if (pos && typeof pos.x === "number" && typeof pos.y === "number" && ctx.world) {
+      const rx = pos.x | 0, ry = pos.y | 0;
+      const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+      if (WR && typeof WR.ensureInBounds === "function") {
+        // Avoid player/camera snap during left/top expansion
+        ctx._suspendExpandShift = true;
+        try {
+          let lx = rx - (ctx.world.originX | 0);
+          let ly = ry - (ctx.world.originY | 0);
+          WR.ensureInBounds(ctx, lx, ly, 32);
+        } finally {
+          ctx._suspendExpandShift = false;
+        }
+        const lx2 = rx - (ctx.world.originX | 0);
+        const ly2 = ry - (ctx.world.originY | 0);
+        ctx.player.x = lx2; ctx.player.y = ly2;
+      } else {
+        // Fallback: clamp conversion without expansion
+        const lx = rx - (ctx.world.originX | 0);
+        const ly = ry - (ctx.world.originY | 0);
+        const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+        const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+        ctx.player.x = Math.max(0, Math.min((cols ? cols - 1 : 0), lx));
+        ctx.player.y = Math.max(0, Math.min((rows ? rows - 1 : 0), ly));
+      }
     }
   } catch (_) {}
   try {
     if (outcome === "victory") ctx.log && ctx.log("You prevail and return to the overworld.", "good");
     else ctx.log && ctx.log("You withdraw and return to the overworld.", "info");
   } catch (_) {}
+  // Notify QuestService about quest-related encounters
+  try {
+    const QS = ctx.QuestService || (typeof window !== "undefined" ? window.QuestService : null);
+    if (QS && typeof QS.onEncounterComplete === "function") {
+      const enemiesRemaining = Array.isArray(ctx.enemies) ? (ctx.enemies.length | 0) : 0;
+      const qid = ctx._questInstanceId || _currentQuestInstanceId || null;
+      QS.onEncounterComplete(ctx, { questInstanceId: qid, enemiesRemaining });
+    }
+  } catch (_) {}
+  // Clear quest instance flag
+  try { ctx._questInstanceId = null; } catch (_) {}
+  try { _currentQuestInstanceId = null; } catch (_) {}
   try {
     const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
     if (SS && typeof SS.applyAndRefresh === "function") {
@@ -893,15 +945,28 @@ export function tick(ctx) {
 
   // Do NOT auto-return to overworld on victory. Keep the encounter map active so player can loot or explore.
   // Announce clear state only once per encounter session (guarded by a module-level flag).
+  // Also, proactively notify QuestService of victory so the Quest Board can show "Claim" on re-entry even if exit is delayed.
   try {
     if (Array.isArray(ctx.enemies) && ctx.enemies.length === 0) {
       if (!_clearAnnounced) {
         _clearAnnounced = true;
         try { ctx.log && ctx.log("Area clear. Step onto an exit (>) to leave when ready.", "notice"); } catch (_) {}
       }
+      // Proactive quest victory notification (only once per encounter session)
+      if (!_victoryNotified) {
+        _victoryNotified = true;
+        try {
+          const QS = ctx.QuestService || (typeof window !== "undefined" ? window.QuestService : null);
+          const qid = ctx._questInstanceId || _currentQuestInstanceId || null;
+          if (QS && typeof QS.onEncounterComplete === "function" && qid) {
+            QS.onEncounterComplete(ctx, { questInstanceId: qid, enemiesRemaining: 0 });
+          }
+        } catch (_) {}
+      }
     } else {
       // If new enemies appear (edge-case), allow re-announcement once they are cleared again
       _clearAnnounced = false;
+      _victoryNotified = false;
     }
   } catch (_) {}
   return true;

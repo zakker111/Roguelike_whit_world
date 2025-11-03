@@ -243,9 +243,29 @@ export function maybeTryEncounter(ctx) {
     if (!tmpl) { STATE.movesSinceLast += 1; return false; }
 
     const difficulty = computeDifficulty(ctx, biome);
-    const text = `${tmpl.name || "Encounter"} (Difficulty ${difficulty}): ${biome.toLowerCase()} — Enter?`;
+    // Build enemy preview from template groups
+    try {
+      const groups = Array.isArray(tmpl.groups) ? tmpl.groups : [];
+      let minTotal = 0, maxTotal = 0;
+      const types = new Set();
+      for (const g of groups) {
+        const cmin = (g && g.count && typeof g.count.min === "number") ? (g.count.min | 0) : 1;
+        const cmax = (g && g.count && typeof g.count.max === "number") ? (g.count.max | 0) : Math.max(1, cmin + 2);
+        minTotal += Math.max(0, cmin);
+        maxTotal += Math.max(cmin, cmax);
+        if (g && typeof g.type === "string" && g.type.trim()) types.add(g.type.trim());
+      }
+      const typeList = types.size ? Array.from(types).join(", ") : "mixed";
+      const rangeStr = (minTotal && maxTotal && minTotal !== maxTotal) ? `${minTotal}-${maxTotal}` : `${Math.max(1, maxTotal || minTotal || 1)}`;
+      var text = `${tmpl.name || "Encounter"}\nDifficulty: ${difficulty}\nEnemies: ${rangeStr}${types.size ? ` (types: ${typeList})` : ""}\nBiome: ${String(biome || "").toLowerCase()}\n\nEnter?`;
+      // eslint-disable-next-line no-var
+    } catch (_) {
+      var text = `${tmpl.name || "Encounter"} (Difficulty ${difficulty}): ${String(biome || "").toLowerCase()} — Enter?`;
+    }
     const enter = () => {
       if (tryEnter(ctx, tmpl, biome, difficulty)) {
+        // Survivalism skill gain when accepting encounters
+        try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.survivalism = (ctx.player.skills.survivalism || 0) + 1; } catch (_) {}
         STATE.movesSinceLast = 0;
         STATE.cooldownMoves = 10;
         return true;

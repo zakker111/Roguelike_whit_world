@@ -10,6 +10,7 @@
  * - unequipSlot(ctx, slot)
  * - drinkPotionByIndex(ctx, idx)
  * - addPotionToInventory(ctx, heal, name)
+ * - eatByIndex(ctx, idx)
  */
 
 function mod(name) {
@@ -210,6 +211,48 @@ export function addPotionToInventory(ctx, heal = 3, name = `potion (+${heal} HP)
   }
 }
 
+// Eat edible materials: berries (+1 HP) and cooked meat (+2 HP).
+export function eatByIndex(ctx, idx) {
+  const inv = ctx.player.inventory || [];
+  if (!inv || idx < 0 || idx >= inv.length) return;
+  const it = inv[idx];
+  if (!it || it.kind !== "material") return;
+  const nm = String(it.type || it.name || "").toLowerCase();
+  let heal = 0;
+  let label = it.name || nm;
+  if (nm === "meat_cooked" || nm === "meat (cooked)") {
+    heal = 2;
+    if (!it.name) label = "meat (cooked)";
+  } else if (nm === "berries") {
+    heal = 1;
+    if (!it.name) label = "berries";
+  } else {
+    return;
+  }
+  const prev = ctx.player.hp;
+  ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + heal);
+  const gained = ctx.player.hp - prev;
+  try {
+    if (gained > 0) ctx.log && ctx.log(`You eat ${label} and restore ${gained.toFixed(1)} HP (HP ${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)}).`, "good");
+    else ctx.log && ctx.log(`You eat ${label} but feel no different (HP ${ctx.player.hp.toFixed(1)}/${ctx.player.maxHp.toFixed(1)}).`, "warn");
+  } catch (_) {}
+  // decrement one from stack
+  if (typeof it.amount === "number") {
+    it.amount = Math.max(0, (it.amount | 0) - 1);
+    if (it.amount <= 0) inv.splice(idx, 1);
+  } else if (typeof it.count === "number") {
+    it.count = Math.max(0, (it.count | 0) - 1);
+    if (it.count <= 0) inv.splice(idx, 1);
+  } else {
+    inv.splice(idx, 1);
+  }
+  try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+  try {
+    const UIO = mod("UIOrchestration");
+    if (UIO && typeof UIO.renderInventory === "function") UIO.renderInventory(ctx);
+  } catch (_) {}
+}
+
 import { attachGlobal } from "../utils/global.js";
 attachGlobal("InventoryFlow", {
   render, show, hide,
@@ -217,5 +260,6 @@ attachGlobal("InventoryFlow", {
   equipItemByIndexHand,
   unequipSlot,
   drinkPotionByIndex,
-  addPotionToInventory
+  addPotionToInventory,
+  eatByIndex
 });

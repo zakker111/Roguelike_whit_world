@@ -93,7 +93,8 @@ export function stampPrefab(ctx, prefab, bx, by, buildings) {
     STALL: "stall",
     LAMP: "lamp",
     WELL: "well",
-    SIGN: "sign"
+    SIGN: "sign",
+    QUEST_BOARD: "quest_board"
   };
 
   // Stamp tiles and embedded props
@@ -256,6 +257,7 @@ export function stampPrefab(ctx, prefab, bx, by, buildings) {
                 LAMP: "lamp",
                 WELL: "well",
                 SIGN: "sign",
+                QUEST_BOARD: "quest_board",
               };
               propsUp.push({ x: px, y: py, type: pm[code] });
               tilesUp[yy][xx] = ctx.TILES.FLOOR;
@@ -350,7 +352,7 @@ export function stampPlazaPrefab(ctx, prefab, bx, by) {
   const PROPMAP = {
     BED: "bed", TABLE: "table", CHAIR: "chair", SHELF: "shelf", RUG: "rug",
     FIREPLACE: "fireplace", CHEST: "chest", CRATE: "crate", BARREL: "barrel",
-    PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench", SIGN: "sign"
+    PLANT: "plant", COUNTER: "counter", STALL: "stall", LAMP: "lamp", WELL: "well", BENCH: "bench", SIGN: "sign", QUEST_BOARD: "quest_board"
   };
   const tileChanges = [];
   const propsToAdd = [];

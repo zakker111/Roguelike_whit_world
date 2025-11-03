@@ -240,9 +240,10 @@ function applyRegionCuts(sample, key) {
     if (parts.length !== 2) continue;
     const x = (Number(parts[0]) | 0), y = (Number(parts[1]) | 0);
     if (x < 0 || y < 0 || x >= w || y >= h) continue;
-    // Only convert if currently a TREE to avoid clobbering non-tree tiles
+    // Only convert if currently a TREE or BERRY_BUSH to avoid clobbering non-decor tiles
     try {
-      if (sample[y][x] === WT.TREE) sample[y][x] = WT.FOREST;
+      const t = sample[y][x];
+      if (t === WT.TREE || t === WT.BERRY_BUSH) sample[y][x] = WT.FOREST;
     } catch (_) {}
   }
 }
@@ -578,6 +579,32 @@ function addSparseTreesInForests(sample, density = 0.08, rng) {
   }
 }
 
+// Sprinkle scarce BERRY_BUSH tiles in wooded areas (mostly forest), never in desert.
+// Does not block FOV. Avoid adjacency to other bushes and trees.
+function addBerryBushesInForests(sample, forestDensity = 0.025, rng) {
+  const WT = World.TILES;
+  const h = sample.length, w = sample[0] ? sample[0].length : 0;
+  if (!w || !h) return;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const t = sample[y][x];
+      if (t !== WT.FOREST) continue; // only in forests for now
+      if (rng() >= forestDensity) continue;
+      let nearBusy = false;
+      for (let dy = -1; dy <= 1 && !nearBusy; dy++) {
+        for (let dx = -1; dx <= 1 && !nearBusy; dx++) {
+          if (!dx && !dy) continue;
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          const nt = sample[ny][nx];
+          if (nt === WT.TREE || nt === WT.BERRY_BUSH) nearBusy = true;
+        }
+      }
+      if (!nearBusy) sample[y][x] = WT.BERRY_BUSH;
+    }
+  }
+}
+
 function open(ctx, size) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
   // Capture world position for persistence keying
@@ -629,9 +656,10 @@ function open(ctx, size) {
   // RNGUtils handle (chance/int/float) when available; falls back to direct rng comparisons
   const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
   addMinorWaterAndBeaches(sample, rng);
-  // Sprinkle sparse trees in forest tiles for region visualization
+  // Sprinkle sparse trees and scarce berry bushes for region visualization/foraging
   addSparseTreesInForests(sample, 0.10, rng);
-  // Apply persisted tree cuts for this region so trees don't respawn
+  addBerryBushesInForests(sample, 0.025, rng);
+  // Apply persisted cuts for this region so trees/bushes don't respawn
   try {
     const cutKey = regionCutKey(worldX, worldY, width, height);
     applyRegionCuts(sample, cutKey);
@@ -1018,7 +1046,15 @@ function open(ctx, size) {
       }
 
       // Probability for at most a single animal
-      const pOne = Math.max(0, Math.min(0.6, 0.12 + forestBias * 0.35 + grassBias * 0.25 + beachBias * 0.12));
+      let pOne = Math.max(0, Math.min(0.6, 0.12 + forestBias * 0.35 + grassBias * 0.25 + beachBias * 0.12));
+      // Survivalism slightly increases chance to spot animals (up to +5%)
+      try {
+        const s = (ctx.player && ctx.player.skills) ? ctx.player.skills : null;
+        if (s) {
+          const survBuff = Math.max(0, Math.min(0.05, Math.floor((s.survivalism || 0) / 25) * 0.01));
+          pOne = Math.min(0.75, pOne * (1 + survBuff));
+        }
+      } catch (_) {}
       const spawnOne = (typeof RU !== "undefined" && RU && typeof RU.chance === "function") ? RU.chance(pOne, rng) : (rng() < pOne);
       let count = spawnOne ? 1 : 0;
 
@@ -1136,6 +1172,8 @@ function open(ctx, size) {
       try {
         if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {
           markAnimalsSeen(worldX | 0, worldY | 0);
+          // Survivalism skill gain for spotting wildlife
+          try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.survivalism = (ctx.player.skills.survivalism || 0) + 1; } catch (_) {}
           // Also update flag in this session
           ctx.region._hasKnownAnimals = true;
 
@@ -1348,15 +1386,52 @@ function onAction(ctx) {
     }
   } catch (_) {}
 
-  // 2) Chop tree if standing on a TREE tile
+  // 2) Harvest berry bush or chop tree if standing on those tiles
   try {
     const WT = World.TILES;
     const t = (ctx.region.map[cursor.y] && ctx.region.map[cursor.y][cursor.x]);
+
+    if (t === WT.BERRY_BUSH) {
+      // Pick berries and remove bush (convert to forest)
+      try {
+        const inv = ctx.player.inventory || (ctx.player.inventory = []);
+        const existing = inv.find(it => it && it.kind === "material" && (String(it.name || it.type || "").toLowerCase() === "berries"));
+        if (existing) {
+          if (typeof existing.amount === "number") existing.amount += 1;
+          else if (typeof existing.count === "number") existing.count += 1;
+          else existing.amount = 1;
+        } else {
+          inv.push({ kind: "material", type: "berries", name: "berries", amount: 1 });
+        }
+        // Foraging skill gain
+        try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.foraging = (ctx.player.skills.foraging || 0) + 1; } catch (_) {}
+        if (ctx.log) ctx.log("You pick berries.", "good");
+        // Remove the bush so it can't be farmed repeatedly
+        ctx.region.map[cursor.y][cursor.x] = World.TILES.FOREST;
+        // Persist removal
+        try {
+          if (ctx.region && typeof ctx.region._cutKey === "string" && ctx.region._cutKey) {
+            addRegionCut(ctx.region._cutKey, cursor.x | 0, cursor.y | 0);
+          }
+        } catch (_) {}
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+        try {
+          const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+          if (SS && typeof SS.applyAndRefresh === "function") {
+            SS.applyAndRefresh(ctx, {});
+          }
+        } catch (_) {}
+      } catch (_) {}
+      return true;
+    }
+
     if (t === WT.TREE) {
       // Log and convert this spot back to forest for visualization
       if (ctx.log) ctx.log("You cut the tree.", "notice");
       try {
-        ctx.region.map[cursor.y][cursor.x] = WT.FOREST;
+        // Foraging skill gain
+        try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.foraging = (ctx.player.skills.foraging || 0) + 1; } catch (_) {}
+        ctx.region.map[cursor.y][cursor.x] = World.TILES.FOREST;
         // Reflect change via orchestrator refresh
         try {
           const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);

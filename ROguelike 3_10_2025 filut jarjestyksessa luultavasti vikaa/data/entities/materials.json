@@ -1,0 +1,32 @@
+{
+  "materials": [
+    {
+      "id": "meat",
+      "name": "meat",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["animal", "food", "raw"]
+    },
+    {
+      "id": "meat_cooked",
+      "name": "meat (cooked)",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["food", "cooked"]
+    },
+    {
+      "id": "leather",
+      "name": "leather",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["animal", "craft"]
+    },
+    {
+      "id": "berries",
+      "name": "berries",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["forage", "food", "raw"]
+    }
+  ]
+}

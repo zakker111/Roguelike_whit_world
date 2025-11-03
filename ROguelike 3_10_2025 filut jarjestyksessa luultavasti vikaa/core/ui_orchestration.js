@@ -214,31 +214,34 @@ export function isHelpOpen(ctx) {
   return false;
 }
 
-export function showRegionMap(ctx) {
+// --- Character Sheet wrappers ---
+export function showCharacter(ctx) {
   const u = U(ctx);
   let wasOpen = false;
-  try { if (u && typeof u.isRegionMapOpen === "function") wasOpen = !!u.isRegionMapOpen(); } catch (_) {}
-  if (u && typeof u.showRegionMap === "function") {
-    u.showRegionMap(ctx);
+  try { if (u && typeof u.isCharacterOpen === "function") wasOpen = !!u.isCharacterOpen(); } catch (_) {}
+  if (u && typeof u.showCharacter === "function") {
+    u.showCharacter(ctx);
     if (!wasOpen) requestDraw(ctx);
   }
 }
 
-export function hideRegionMap(ctx) {
+export function hideCharacter(ctx) {
   const u = U(ctx);
   let wasOpen = false;
-  try { if (u && typeof u.isRegionMapOpen === "function") wasOpen = !!u.isRegionMapOpen(); } catch (_) {}
-  if (u && typeof u.hideRegionMap === "function") {
-    u.hideRegionMap(ctx);
+  try { if (u && typeof u.isCharacterOpen === "function") wasOpen = !!u.isCharacterOpen(); } catch (_) {}
+  if (u && typeof u.hideCharacter === "function") {
+    u.hideCharacter(ctx);
     if (wasOpen) requestDraw(ctx);
   }
 }
 
-export function isRegionMapOpen(ctx) {
+export function isCharacterOpen(ctx) {
   const u = U(ctx);
-  try { if (u && typeof u.isRegionMapOpen === "function") return !!u.isRegionMapOpen(); } catch (_) {}
+  try { if (u && typeof u.isCharacterOpen === "function") return !!u.isCharacterOpen(); } catch (_) {}
   return false;
 }
+
+
 
 export function showShop(ctx, npc) {
   const u = U(ctx);
@@ -384,9 +387,9 @@ attachGlobal("UIOrchestration", {
   showHelp,
   hideHelp,
   isHelpOpen,
-  showRegionMap,
-  hideRegionMap,
-  isRegionMapOpen,
+  showCharacter,
+  hideCharacter,
+  isCharacterOpen,
   showShop,
   hideShop,
   isShopOpen,

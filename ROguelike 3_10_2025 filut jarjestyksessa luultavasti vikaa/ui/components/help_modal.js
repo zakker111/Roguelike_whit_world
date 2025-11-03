@@ -1,5 +1,5 @@
 /**
- * HelpModal: Help/Controls + Character Sheet modal split out from ui/ui.js
+ * HelpModal: Help/Controls panel (no Character Sheet content)
  *
  * Exports (ESM + window.HelpModal):
  * - show(ctx)
@@ -60,70 +60,15 @@ function ensurePanel() {
 }
 
 function buildContent(ctx) {
-  const p = (ctx && ctx.player) ? ctx.player : null;
-  const atk = (ctx && typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : (p ? (p.atk || 1) : 1);
-  const def = (ctx && typeof ctx.getPlayerDefense === "function") ? ctx.getPlayerDefense() : (p ? 0 : 0);
-  const hpStr = p ? `HP ${p.hp.toFixed(1)}/${p.maxHp.toFixed(1)}` : "";
-  const levelStr = p ? `Level ${p.level}  XP ${p.xp}/${p.xpNext}` : "";
-  const statuses = [];
-  if (p && p.bleedTurns && p.bleedTurns > 0) statuses.push(`Bleeding (${p.bleedTurns})`);
-  if (p && p.dazedTurns && p.dazedTurns > 0) statuses.push(`Dazed (${p.dazedTurns})`);
-
-  const injuries = (p && Array.isArray(p.injuries)) ? p.injuries : [];
-  const injHTML = injuries.length ? injuries.slice(0, 16).map((inj) => {
-    // Support both string and object formats
-    let name = "";
-    let healable = true;
-    let dur = 0;
-    if (typeof inj === "string") {
-      name = inj;
-      healable = !(/scar|missing finger/i.test(name));
-      dur = healable ? 0 : 0;
-    } else {
-      name = inj.name || "injury";
-      healable = (typeof inj.healable === "boolean") ? inj.healable : !(/scar|missing finger/i.test(name));
-      dur = (inj.durationTurns | 0);
-    }
-    const color = healable ? "#f59e0b" /* amber for healing */ : "#ef4444" /* red for permanent */;
-    const tail = healable ? (dur > 0 ? ` (healing)` : ` (healing)`) : " (permanent)";
-    return `<li style="color:${color};">${name}${tail}</li>`;
-  }).join("") : "<li>(none)</li>";
-
-  const skillsHTML = (function () {
-    try {
-      const s = (p && p.skills) ? p.skills : null;
-      if (!s) return "";
-      const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
-      const oneBuff = clamp(Math.floor((s.oneHand || 0) / 20) * 0.01, 0, 0.05);
-      const twoBuff = clamp(Math.floor((s.twoHand || 0) / 20) * 0.01, 0, 0.06);
-      const bluntBuff = clamp(Math.floor((s.blunt || 0) / 25) * 0.01, 0, 0.04);
-      const pct = (v) => `${Math.round(v * 100)}%`;
-      const lines = [
-        `<li>One-handed: +${pct(oneBuff)} damage (uses: ${Math.floor(s.oneHand || 0)})</li>`,
-        `<li>Two-handed: +${pct(twoBuff)} damage (uses: ${Math.floor(s.twoHand || 0)})</li>`,
-        `<li>Blunt: +${pct(bluntBuff)} damage (uses: ${Math.floor(s.blunt || 0)})</li>`,
-      ].join("");
-      return "<div style='margin-top:6px;'>Skills (passive damage buffs):</div>" +
-             `<ul style='margin:4px 0 0 14px;'>${lines}</ul>`;
-    } catch (_) { return ""; }
-  })();
-
   const html = [
     "<div style='font-size:16px; font-weight:600; margin-bottom:8px;'>Controls</div>",
     "<div style='display:grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 10px;'>",
     "<div>Move: Arrow keys / Numpad (8-dir)</div><div>Wait: Numpad5</div>",
     "<div>Action/Interact: G</div><div>Inventory: I</div>",
     "<div>GOD panel: P</div><div>FOV: [ and ] (or +/-)</div>",
-    "<div>Help / Character Sheet: F1</div><div>Brace (dungeon): B</div>",
-    "<div>Local Region Map: G (overworld/RUINS; M disabled)</div><div></div>",
-    "</div>",
-    "<div style='font-size:16px; font-weight:600; margin: 6px 0;'>Character Sheet</div>",
-    `<div>${hpStr}  •  Attack ${atk.toFixed(1)}  Defense ${def.toFixed(1)}</div>`,
-    `<div>${levelStr}</div>`,
-    `<div>Status: ${statuses.length ? statuses.join(", ") : "None"}</div>`,
-    "<div style='margin-top:6px;'>Injuries:</div>",
-    `<ul style='margin:4px 0 0 14px;'>${injHTML}</ul>`,
-    skillsHTML
+    "<div>Help: F1</div><div>Character Sheet: C</div>",
+    "<div>Brace (dungeon): B</div><div>Local Region Map: G (overworld/RUINS; M disabled)</div>",
+    "</div>"
   ].join("");
 
   return html;

@@ -25,6 +25,7 @@ export const TILES = {
   SNOW: 10,
   TREE: 11, // region-only decorative tree tile; walkable but blocks FOV in region
   RUINS: 12, // overworld ruins POI; opens a themed Region Map
+  BERRY_BUSH: 14, // region-only forage bush; walkable, does not block FOV
 };
 
 function clamp(v, lo, hi) {

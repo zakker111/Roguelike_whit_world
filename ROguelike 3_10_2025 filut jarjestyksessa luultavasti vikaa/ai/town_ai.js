@@ -336,7 +336,16 @@
             return isInnKeeper && nextIsDoor && insideNow;
           } catch (_) { return false; }
         })();
-        const blocked = (occ.has(keyNext) && !(isReserved && isOwnDoor)) || avoidDoorInside;
+        // Bound-building restriction: if NPC is bound to a building and currently inside it, do not step outside
+        let avoidExit = false;
+        try {
+          const BBound = n._boundToBuilding || null;
+          const insideBoundNow = !!(BBound && insideBuilding(BBound, n.x, n.y));
+          if (BBound && insideBoundNow && !insideBuilding(BBound, next.x, next.y)) {
+            avoidExit = true;
+          }
+        } catch (_) {}
+        const blocked = (occ.has(keyNext) && !(isReserved && isOwnDoor)) || avoidDoorInside || avoidExit;
         if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
           if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
             n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
@@ -427,14 +436,13 @@
       }
       if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
 
-      // Innkeeper: avoid stepping onto the inn door tile while already inside the building
+      // Bound-building: avoid stepping onto a door tile while inside; never step outside the bound building
       try {
-        if (n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
-          const B = n._shopRef.building || null;
-          const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
-          const nextIsDoor = (ctx.map[ny] && ctx.map[ny][nx] === ctx.TILES.DOOR);
-          if (insideNow && nextIsDoor) continue;
-        }
+        const BBound = n._boundToBuilding || null;
+        const insideBoundNow = BBound ? insideBuilding(BBound, n.x, n.y) : false;
+        const nextIsDoor = (ctx.map[ny] && ctx.map[ny][nx] === ctx.TILES.DOOR);
+        if (BBound && insideBoundNow && nextIsDoor) continue;
+        if (BBound && insideBoundNow && !insideBuilding(BBound, nx, ny)) continue;
       } catch (_) {}
 
       const isBack = prevKey && keyN === prevKey;
@@ -671,6 +679,8 @@
           _shopRef: s,
           _home: home,
           _livesAtShop: !!livesInShop,
+          // Hard-binding: Inn keeper is bound to the inn building and must stay inside at all times
+          _boundToBuilding: isInn ? s.building : null
         });
       }
     })();
@@ -870,6 +880,35 @@
     // Expose fast occupancy to helpers for this tick
     ctx._occ = occ;
 
+    // Bound-building hard clamp: ensure NPCs marked with _boundToBuilding stay inside their building.
+    // If found outside for any reason (spawn collision, pathing jitter), snap them to a free interior tile.
+    try {
+      for (let i = 0; i < npcs.length; i++) {
+        const n = npcs[i];
+        if (!n || !n._boundToBuilding) continue;
+        const B = n._boundToBuilding;
+        const insideNow = insideBuilding(B, n.x, n.y);
+        if (insideNow) continue;
+        // Temporarily release this NPC's current tile from occupancy while searching a free interior
+        const prevKey = `${n.x},${n.y}`;
+        if (occ.has(prevKey)) occ.delete(prevKey);
+        // Preferred interior target: shop.inside when available, then adjacent to door, then first free interior, then center
+        let target = null;
+        const prefer = (n._workInside ? { x: n._workInside.x, y: n._workInside.y } : null);
+        if (prefer && insideBuilding(B, prefer.x, prefer.y) && isFreeTile(ctx, prefer.x, prefer.y)) {
+          target = prefer;
+        } else {
+          const door = (B && B.door) ? { x: B.door.x, y: B.door.y } : null;
+          const nearDoor = door ? nearestFreeAdjacent(ctx, door.x, door.y, B) : null;
+          target = nearDoor || firstFreeInteriorTile(ctx, B) || { x: Math.max(B.x + 1, Math.min(B.x + B.w - 2, (B.x + ((B.w / 2) | 0)))), y: Math.max(B.y + 1, Math.min(B.y + B.h - 2, (B.y + ((B.h / 2) | 0)))) };
+        }
+        // Snap inside and mark downstairs
+        const newKey = `${target.x},${target.y}`;
+        n.x = target.x; n.y = target.y; n._floor = "ground";
+        occ.add(newKey);
+      }
+    } catch (_) {}
+
     // Initialize per-tick pathfinding budget to avoid heavy recomputation (lowered)
     initPathBudget(ctx, npcs.length);
 
@@ -938,19 +977,7 @@
       );
       return beds;
     }
-    // Legacy ground-only inn target finder (kept for reference; not used)
-    function chooseInnTargetGroundLegacy(ctx) {
-      const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-      if (!innB) return null;
-      const beds = innBedSpots(ctx);
-      if (beds.length) {
-        const b = beds[randInt(ctx, 0, beds.length - 1)];
-        return { x: b.x, y: b.y };
-      }
-      const door = ctx.tavern.door || { x: innB.x + ((innB.w / 2) | 0), y: innB.y + ((innB.h / 2) | 0) };
-      const inSpot = nearestFreeAdjacent(ctx, door.x, door.y, innB);
-      return inSpot || { x: door.x, y: door.y };
-    }
+    
 
     // Inn seating: pick floor tiles adjacent to chairs/tables inside the Inn (ground)
     function innSeatSpots(ctx) {
@@ -1398,7 +1425,9 @@
             routeIntoBuilding(ctx, occ, n, innB, targetInside);
             continue;
           }
-          // Inside: patrol between interior spots (chairs/tables or free interior)
+          // Inside: patrol between interior spots (chairs/tables or free interior) on the ground floor only
+          // Force ground floor for innkeeper
+          n._floor = "ground";
           // Arrived at patrol goal?
           if (n._patrolGoal && n.x === n._patrolGoal.x && n.y === n._patrolGoal.y) {
             n._patrolStayTurns = randInt(ctx, 8, 14);
@@ -1406,33 +1435,20 @@
           }
           if (n._patrolStayTurns && n._patrolStayTurns > 0) {
             n._patrolStayTurns--;
-            // slight fidget to look alive
+            // slight fidget to look alive (stay inside)
             if (ctx.rng() < 0.08) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
             continue;
           }
           if (!n._patrolGoal) {
-            // Occasionally pick an upstairs seat to patrol to
-            const upSeatChance = 0.30;
-            let next = null;
-            if (ctx.innUpstairs && ctx.rng() < upSeatChance) {
-              const seatUp = chooseInnUpstairsSeat(ctx);
-              if (seatUp) {
-                n._patrolGoalUp = { x: seatUp.x, y: seatUp.y };
-              }
+            // Ground-only patrol target: choose a seat or free interior tile
+            const seat = chooseInnSeat(ctx);
+            const next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
+              try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
+            })() || null;
+            if (next && !(next.x === n.x && next.y === n.y)) {
+              n._patrolGoal = { x: next.x, y: next.y };
             }
-            if (!n._patrolGoalUp) {
-              const seat = chooseInnSeat(ctx);
-              next = seat || firstFreeInteriorTile(ctx, innB) || (function () {
-                try { return randomInteriorSpot(ctx, innB); } catch (_) { return null; }
-              })() || null;
-              if (next && !(next.x === n.x && next.y === n.y)) {
-                n._patrolGoal = { x: next.x, y: next.y };
-              }
-            }
-          }
-          if (n._patrolGoalUp) {
-            if (routeIntoInnUpstairs(ctx, occ, n, n._patrolGoalUp)) continue;
-            // If route failed, clear and fallback to ground patrol next tick
+            // Clear any stale upstairs goal
             n._patrolGoalUp = null;
           }
           if (n._patrolGoal) {

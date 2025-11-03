@@ -31,7 +31,7 @@ function ensurePanel() {
     el.style.border = "1px solid #334155";
     el.style.borderRadius = "8px";
     el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
-    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="shop-title">Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="shop-list"></div><hr style="border-color:#1f2937;"><div id="sell-list"></div>';
+    el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="shop-title">Shop</strong><button id="shop-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="shop-gold" style="margin-bottom:8px;color:#93c5fd;"></div><div id="quest-rewards" style="margin-bottom:8px;"></div><div id="shop-list"></div><hr style="border-color:#1f2937;"><div id="sell-list"></div>';
     document.body.appendChild(el);
     try {
       const btn = el.querySelector("#shop-close-btn");
@@ -99,6 +99,7 @@ function render(ctx) {
   if (!el) return;
   el.hidden = false;
   const goldDiv = el.querySelector("#shop-gold");
+  const questDiv = el.querySelector("#quest-rewards");
   const listDiv = el.querySelector("#shop-list");
   const sellDiv = el.querySelector("#sell-list");
 
@@ -106,6 +107,11 @@ function render(ctx) {
     const g = playerGold(ctx);
     if (goldDiv) goldDiv.textContent = "Gold: " + g.cur;
   } catch (_) {}
+
+  // Quest rewards are now handled exclusively via the Quest Board panel.
+  if (questDiv) {
+    questDiv.innerHTML = "";
+  }
 
   if (listDiv) {
     if (!_stock || !_stock.length) {

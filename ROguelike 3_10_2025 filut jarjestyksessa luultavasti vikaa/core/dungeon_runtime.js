@@ -358,29 +358,30 @@ export function lootHere(ctx) {
       return true;
     }
 
-    // Flavor: show death notes if present on any corpse underfoot
-    try {
-      for (const c of list) {
-        const meta = c && c.meta;
-        if (meta && (meta.killedBy || meta.wound)) {
-          const FS = (typeof window !== "undefined" ? window.FlavorService : null);
-          const line = (FS && typeof FS.describeCorpse === "function")
-            ? FS.describeCorpse(meta)
-            : (() => {
-                const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
-                const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
-                const viaStr = meta.via ? `(${meta.via})` : "";
-                const parts = [woundStr, killerStr].filter(Boolean).join(" ");
-                return `${parts} ${viaStr}`.trim();
-              })();
-          if (line) ctx.log && ctx.log(line, "info");
-        }
-      }
-    } catch (_) {}
-
+    // Determine if there is any loot underfoot first
     const container = list.find(c => Array.isArray(c.loot) && c.loot.length > 0);
     if (!container) {
-      // No loot left underfoot; show flavor per fresh examination and avoid repeated spam
+      // No loot left underfoot; show death description each time (re-checkable)
+      try {
+        for (const c of list) {
+          const meta = c && c.meta;
+          if (meta && (meta.killedBy || meta.wound)) {
+            const FS = (typeof window !== "undefined" ? window.FlavorService : null);
+            const line = (FS && typeof FS.describeCorpse === "function")
+              ? FS.describeCorpse(meta)
+              : (() => {
+                  const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
+                  const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
+                  const viaStr = meta.via ? `(${meta.via})` : "";
+                  const parts = [woundStr, killerStr].filter(Boolean).join(" ");
+                  return `${parts} ${viaStr}`.trim();
+                })();
+            if (line) ctx.log && ctx.log(line, "info");
+          }
+        }
+      } catch (_) {}
+
+      // Mark examined to control the "search...nothing" feedback and counts
       let newlyExamined = 0;
       let examinedChestCount = 0;
       let examinedCorpseCount = 0;
@@ -388,17 +389,6 @@ export function lootHere(ctx) {
         c.looted = true;
         if (!c._examined) {
           c._examined = true;
-          // Flavor line for this corpse if available
-          try {
-            const meta = c && c.meta;
-            if (meta && (meta.killedBy || meta.wound)) {
-              const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
-              const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
-              const viaStr = meta.via ? `(${meta.via})` : "";
-              const parts = [woundStr, killerStr].filter(Boolean).join(" ");
-              if (parts) ctx.log && ctx.log(`${parts} ${viaStr}`.trim(), "info");
-            }
-          } catch (_) {}
           newlyExamined++;
           if (String(c.kind || "").toLowerCase() === "chest") examinedChestCount++;
           else examinedCorpseCount++;
@@ -423,6 +413,26 @@ export function lootHere(ctx) {
       ctx.turn && ctx.turn();
       return true;
     }
+
+    // Show corpse description (re-checkable on each examine)
+    try {
+      for (const c of list) {
+        const meta = c && c.meta;
+        if (meta && (meta.killedBy || meta.wound)) {
+          const FS = (typeof window !== "undefined" ? window.FlavorService : null);
+          const line = (FS && typeof FS.describeCorpse === "function")
+            ? FS.describeCorpse(meta)
+            : (() => {
+                const killerStr = meta.killedBy ? `Killed by ${meta.killedBy}.` : "";
+                const woundStr = meta.wound ? `Wound: ${meta.wound}.` : "";
+                const viaStr = meta.via ? `(${meta.via})` : "";
+                const parts = [woundStr, killerStr].filter(Boolean).join(" ");
+                return `${parts} ${viaStr}`.trim();
+              })();
+          if (line) ctx.log && ctx.log(line, "info");
+        }
+      }
+    } catch (_) {}
 
     // Delegate to Loot.lootHere for actual loot transfer if available
     try {

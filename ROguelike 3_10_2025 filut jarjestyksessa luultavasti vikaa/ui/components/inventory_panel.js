@@ -35,7 +35,7 @@ export function init(UI) {
     }
   });
 
-  // Inventory list: equip/equip-hand/drink
+  // Inventory list: equip/equip-hand/drink/eat
   const panel = invPanel();
   panel?.addEventListener("click", (ev) => {
     const li = ev.target.closest("li");
@@ -79,6 +79,9 @@ export function init(UI) {
     } else if (kind === "potion" || kind === "drink") {
       ev.preventDefault();
       if (_UI && typeof _UI.handlers.onDrink === "function") _UI.handlers.onDrink(idx);
+    } else if (kind === "food") {
+      ev.preventDefault();
+      if (_UI && typeof _UI.handlers.onEat === "function") _UI.handlers.onEat(idx);
     }
   });
 }
@@ -148,7 +151,14 @@ export function render(player, describeItem) {
       (player.inventory || []).forEach((it, idx) => {
         const li = document.createElement("li");
         li.dataset.index = String(idx);
-        li.dataset.kind = it.kind || "misc";
+
+        // Determine if this material is edible (berries, cooked meat)
+        const nm = String(it && (it.type || it.name) || "").toLowerCase();
+        const isBerries = (it && it.kind === "material") && (nm === "berries");
+        const isCookedMeat = (it && it.kind === "material") && (nm === "meat_cooked" || nm === "meat (cooked)");
+        const isFood = isBerries || isCookedMeat;
+
+        li.dataset.kind = isFood ? "food" : (it.kind || "misc");
 
         // Base label
         const baseLabel = (typeof describeItem === "function")
@@ -169,6 +179,10 @@ export function render(player, describeItem) {
           if (typeof it.atk === "number") stats.push(`+${Number(it.atk).toFixed(1)} atk`);
           if (typeof it.def === "number") stats.push(`+${Number(it.def).toFixed(1)} def`);
           if (stats.length) label = `${baseLabel} (${stats.join(", ")})`;
+        } else if (isFood) {
+          const count = (typeof it.amount === "number" ? it.amount : (typeof it.count === "number" ? it.count : 1));
+          const suffix = count > 1 ? ` x${count}` : "";
+          label = `${baseLabel}${suffix}`;
         }
 
         if (it.kind === "equip" && it.slot === "hand") {
@@ -194,6 +208,9 @@ export function render(player, describeItem) {
         } else if (it.kind === "potion" || it.kind === "drink") {
           li.style.cursor = "pointer";
           li.title = "Click to drink";
+        } else if (isFood) {
+          li.style.cursor = "pointer";
+          li.title = isCookedMeat ? "Click to eat (+2 HP)" : "Click to eat (+1 HP)";
         } else {
           li.style.opacity = "0.7";
           li.style.cursor = "default";

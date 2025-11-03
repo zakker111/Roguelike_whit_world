@@ -16,7 +16,8 @@
  */
 
 import * as HelpModal from "/ui/components/help_modal.js";
-import * as RegionModal from "/ui/components/region_modal.js";
+import * as CharacterModal from "/ui/components/character_modal.js";
+
 import * as SmokeModal from "/ui/components/smoke_modal.js";
 import * as ConfirmModal from "/ui/components/confirm_modal.js";
 import * as HandChooser from "/ui/components/hand_chooser.js";
@@ -227,8 +228,8 @@ export const UI = {
         } else if (this.isHelpOpen && this.isHelpOpen()) {
           this.hideHelp();
           e.preventDefault();
-        } else if (this.isRegionMapOpen && this.isRegionMapOpen()) {
-          this.hideRegionMap();
+        } else if (this.isCharacterOpen && this.isCharacterOpen()) {
+          this.hideCharacter();
           e.preventDefault();
         }
       }
@@ -279,11 +280,12 @@ export const UI = {
     try { TownExit.hide(); } catch (_) {}
   },
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
     if (typeof onDrink === "function") this.handlers.onDrink = onDrink;
+    if (typeof onEat === "function") this.handlers.onEat = onEat;
     if (typeof onRestart === "function") this.handlers.onRestart = onRestart;
     if (typeof onWait === "function") this.handlers.onWait = onWait;
     if (typeof onGodHeal === "function") this.handlers.onGodHeal = onGodHeal;
@@ -410,23 +412,7 @@ export const UI = {
     } catch (_) {}
   },
 
-  // ---- Region Map modal ----
-  showRegionMap(ctx = null) {
-    // Close other modals for clarity
-    if (this.isLootOpen()) this.hideLoot();
-    if (this.isInventoryOpen()) this.hideInventory();
-    if (this.isGodOpen()) this.hideGod();
-    if (this.isSmokeOpen()) this.hideSmoke();
-    try { RegionModal.show(ctx); } catch (_) {}
-  },
-
-  hideRegionMap() {
-    try { RegionModal.hide(); } catch (_) {}
-  },
-
-  isRegionMapOpen() {
-    try { return !!RegionModal.isOpen(); } catch (_) { return false; }
-  },
+  
 
   // ---- Help / Controls + Character Sheet (F1) ----
   showHelp(ctx = null) {
@@ -435,7 +421,6 @@ export const UI = {
     if (this.isInventoryOpen()) this.hideInventory();
     if (this.isGodOpen()) this.hideGod();
     if (this.isSmokeOpen()) this.hideSmoke();
-    if (this.isRegionMapOpen()) this.hideRegionMap();
     try { HelpModal.show(ctx); } catch (_) {}
   },
 
@@ -445,6 +430,24 @@ export const UI = {
 
   isHelpOpen() {
     try { return !!HelpModal.isOpen(); } catch (_) { return false; }
+  },
+
+  // ---- Character Sheet (C) ----
+  showCharacter(ctx = null) {
+    // Close other modals for clarity
+    if (this.isLootOpen()) this.hideLoot();
+    if (this.isInventoryOpen()) this.hideInventory();
+    if (this.isGodOpen()) this.hideGod();
+    if (this.isSmokeOpen()) this.hideSmoke();
+    try { CharacterModal.show(ctx); } catch (_) {}
+  },
+
+  hideCharacter() {
+    try { CharacterModal.hide(); } catch (_) {}
+  },
+
+  isCharacterOpen() {
+    try { return !!CharacterModal.isOpen(); } catch (_) { return false; }
   },
 
   // --- Encounter rate controls (0..100) ---

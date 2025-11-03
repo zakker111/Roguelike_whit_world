@@ -43,6 +43,7 @@ import '/services/props_service.js';
 import '/services/encounter_service.js';
 import '/services/messages.js';
 import '/services/flavor_service.js';
+import '/services/quest_service.js';
 
 // Combat modules
 import '/combat/combat_utils.js';

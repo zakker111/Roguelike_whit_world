@@ -1249,14 +1249,20 @@ function generate(ctx) {
           inside = { x: cx, y: cy };
         }
 
+        // Force Inn to be always open regardless of prefab schedule
+        const isInn = String(ps.type || "").toLowerCase() === "inn";
+        const openMinFinal = isInn ? 0 : sched.openMin;
+        const closeMinFinal = isInn ? 0 : sched.closeMin;
+        const alwaysOpenFinal = isInn ? true : !!sched.alwaysOpen;
+
         ctx.shops.push({
           x: ps.door.x,
           y: ps.door.y,
           type: ps.type || "shop",
           name,
-          openMin: sched.openMin,
-          closeMin: sched.closeMin,
-          alwaysOpen: !!sched.alwaysOpen,
+          openMin: openMinFinal,
+          closeMin: closeMinFinal,
+          alwaysOpen: alwaysOpenFinal,
           signWanted: (ps && Object.prototype.hasOwnProperty.call(ps, "signWanted")) ? !!ps.signWanted : true,
           building: { x: ps.building.x, y: ps.building.y, w: ps.building.w, h: ps.building.h, door: { x: ps.door.x, y: ps.door.y } },
           inside

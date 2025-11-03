@@ -4,8 +4,9 @@
  *
  * Exports (ESM + window.Input):
  * - init(handlers): installs keydown listener. `handlers` can include:
- *   { isDead, isInventoryOpen, isLootOpen, isGodOpen, isShopOpen, isSmokeOpen, onRestart, onShowInventory, onHideInventory,
- *     onHideLoot, onHideGod, onHideShop, onHideSmoke, onShowGod, onMove(dx,dy), onWait, onLoot, adjustFov(delta) }
+ *   { isDead, isInventoryOpen, isLootOpen, isGodOpen, isShopOpen, isSmokeOpen, isHelpOpen, isCharacterOpen,
+ *     onRestart, onShowInventory, onHideInventory, onHideLoot, onHideGod, onHideShop, onHideSmoke,
+ *     onShowGod, onShowHelp, onHideHelp, onShowCharacter, onHideCharacter, onMove(dx,dy), onWait, onLoot, adjustFov(delta) }
  * - destroy(): removes listener.
  *
  * Rules and priorities
@@ -109,6 +110,18 @@ export function init(handlers) {
       return;
     }
 
+    // Character Sheet gating: block movement and other keys while open; Esc closes it
+    if (_handlers.isCharacterOpen && _handlers.isCharacterOpen()) {
+      const isEsc = e.key === "Escape" || e.key === "Esc";
+      if (isEsc) {
+        e.preventDefault();
+        _handlers.onHideCharacter && _handlers.onHideCharacter();
+      } else {
+        e.preventDefault();
+      }
+      return;
+    }
+
     // Help / Controls gating: block movement and other keys while open; Esc closes it
     if (_handlers.isHelpOpen && _handlers.isHelpOpen()) {
       const isEsc = e.key === "Escape" || e.key === "Esc";
@@ -161,6 +174,17 @@ export function init(handlers) {
         _handlers.onHideHelp && _handlers.onHideHelp();
       } else {
         _handlers.onShowHelp && _handlers.onShowHelp();
+      }
+      return;
+    }
+
+    // Character Sheet panel (C)
+    if ((e.key && e.key.toLowerCase() === "c") || e.code === "KeyC") {
+      e.preventDefault();
+      if (_handlers.isCharacterOpen && _handlers.isCharacterOpen()) {
+        _handlers.onHideCharacter && _handlers.onHideCharacter();
+      } else {
+        _handlers.onShowCharacter && _handlers.onShowCharacter();
       }
       return;
     }
