@@ -1945,21 +1945,7 @@
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
         },
-        // Region Map
-        isRegionMapOpen: () => {
-          const UIO = modHandle("UIOrchestration");
-          return !!(UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(getCtx()));
-        },
-        onShowRegionMap: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showRegionMap", ctxLocal);
-        },
-        onHideRegionMap: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideRegionMap", ctxLocal);
-        },
+        
         // Help / Controls + Character Sheet (F1)
         isHelpOpen: () => {
           const UIO = modHandle("UIOrchestration");
@@ -3068,13 +3054,6 @@
               const ok = !!(res && res.ok && res.result);
               if (ok) {
                 applyCtxSyncAndRefresh(ctx);
-                // If the Region Map overlay modal is open, repaint it to show spawned enemies immediately
-                try {
-                  const UIO = modHandle("UIOrchestration");
-                  if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
-                    UIO.showRegionMap(ctx);
-                  }
-                } catch (_) {}
               }
               return ok;
             }
@@ -3083,12 +3062,7 @@
               const ok = !!ER.enterRegion(ctx, { template, biome });
               if (ok) {
                 applyCtxSyncAndRefresh(ctx);
-                try {
-                  const UIO = modHandle("UIOrchestration");
-                  if (UIO && typeof UIO.isRegionMapOpen === "function" && UIO.isRegionMapOpen(ctx) && typeof UIO.showRegionMap === "function") {
-                    UIO.showRegionMap(ctx);
-                  }
-                } catch (_) {}
+                
               }
               return ok;
             }

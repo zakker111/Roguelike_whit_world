@@ -241,31 +241,7 @@ export function isCharacterOpen(ctx) {
   return false;
 }
 
-export function showRegionMap(ctx) {
-  const u = U(ctx);
-  let wasOpen = false;
-  try { if (u && typeof u.isRegionMapOpen === "function") wasOpen = !!u.isRegionMapOpen(); } catch (_) {}
-  if (u && typeof u.showRegionMap === "function") {
-    u.showRegionMap(ctx);
-    if (!wasOpen) requestDraw(ctx);
-  }
-}
 
-export function hideRegionMap(ctx) {
-  const u = U(ctx);
-  let wasOpen = false;
-  try { if (u && typeof u.isRegionMapOpen === "function") wasOpen = !!u.isRegionMapOpen(); } catch (_) {}
-  if (u && typeof u.hideRegionMap === "function") {
-    u.hideRegionMap(ctx);
-    if (wasOpen) requestDraw(ctx);
-  }
-}
-
-export function isRegionMapOpen(ctx) {
-  const u = U(ctx);
-  try { if (u && typeof u.isRegionMapOpen === "function") return !!u.isRegionMapOpen(); } catch (_) {}
-  return false;
-}
 
 export function showShop(ctx, npc) {
   const u = U(ctx);
@@ -414,9 +390,6 @@ attachGlobal("UIOrchestration", {
   showCharacter,
   hideCharacter,
   isCharacterOpen,
-  showRegionMap,
-  hideRegionMap,
-  isRegionMapOpen,
   showShop,
   hideShop,
   isShopOpen,

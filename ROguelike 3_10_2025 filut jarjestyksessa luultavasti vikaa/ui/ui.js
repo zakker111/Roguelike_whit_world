@@ -17,7 +17,7 @@
 
 import * as HelpModal from "/ui/components/help_modal.js";
 import * as CharacterModal from "/ui/components/character_modal.js";
-import * as RegionModal from "/ui/components/region_modal.js";
+
 import * as SmokeModal from "/ui/components/smoke_modal.js";
 import * as ConfirmModal from "/ui/components/confirm_modal.js";
 import * as HandChooser from "/ui/components/hand_chooser.js";
@@ -231,9 +231,6 @@ export const UI = {
         } else if (this.isCharacterOpen && this.isCharacterOpen()) {
           this.hideCharacter();
           e.preventDefault();
-        } else if (this.isRegionMapOpen && this.isRegionMapOpen()) {
-          this.hideRegionMap();
-          e.preventDefault();
         }
       }
     });
@@ -415,23 +412,7 @@ export const UI = {
     } catch (_) {}
   },
 
-  // ---- Region Map modal ----
-  showRegionMap(ctx = null) {
-    // Close other modals for clarity
-    if (this.isLootOpen()) this.hideLoot();
-    if (this.isInventoryOpen()) this.hideInventory();
-    if (this.isGodOpen()) this.hideGod();
-    if (this.isSmokeOpen()) this.hideSmoke();
-    try { RegionModal.show(ctx); } catch (_) {}
-  },
-
-  hideRegionMap() {
-    try { RegionModal.hide(); } catch (_) {}
-  },
-
-  isRegionMapOpen() {
-    try { return !!RegionModal.isOpen(); } catch (_) { return false; }
-  },
+  
 
   // ---- Help / Controls + Character Sheet (F1) ----
   showHelp(ctx = null) {
@@ -440,7 +421,6 @@ export const UI = {
     if (this.isInventoryOpen()) this.hideInventory();
     if (this.isGodOpen()) this.hideGod();
     if (this.isSmokeOpen()) this.hideSmoke();
-    if (this.isRegionMapOpen()) this.hideRegionMap();
     try { HelpModal.show(ctx); } catch (_) {}
   },
 
@@ -459,7 +439,6 @@ export const UI = {
     if (this.isInventoryOpen()) this.hideInventory();
     if (this.isGodOpen()) this.hideGod();
     if (this.isSmokeOpen()) this.hideSmoke();
-    if (this.isRegionMapOpen()) this.hideRegionMap();
     try { CharacterModal.show(ctx); } catch (_) {}
   },
 

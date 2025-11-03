@@ -169,17 +169,7 @@ export function hideSmoke(ctx) {
   try { window.UI.hideSmoke && window.UI.hideSmoke(); } catch (_) {}
 }
 
-export function showRegionMap(ctx) {
-  if (!hasUI()) return;
-  try { window.UI.showRegionMap && window.UI.showRegionMap(ctx); } catch (_) {}
-}
-export function hideRegionMap(ctx) {
-  if (!hasUI()) return;
-  try { window.UI.hideRegionMap && window.UI.hideRegionMap(); } catch (_) {}
-}
-export function isRegionMapOpen() {
-  try { return !!(hasUI() && window.UI.isRegionMapOpen && window.UI.isRegionMapOpen()); } catch (_) { return false; }
-}
+
 
 export function showHelp(ctx) {
   if (!hasUI()) return;
@@ -476,7 +466,6 @@ export function isAnyModalOpen() {
       isGodOpen() ||
       isShopOpen() ||
       isSmokeOpen() ||
-      isRegionMapOpen() ||
       isHelpOpen() ||
       isCharacterOpen() ||
       isSleepOpen() ||
@@ -557,9 +546,6 @@ if (typeof window !== "undefined") {
     isSmokeOpen,
     showSmoke,
     hideSmoke,
-    isRegionMapOpen,
-    showRegionMap,
-    hideRegionMap,
     // Help/Controls and Character Sheet
     isHelpOpen,
     showHelp,
