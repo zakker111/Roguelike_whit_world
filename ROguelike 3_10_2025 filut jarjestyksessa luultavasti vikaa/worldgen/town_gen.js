@@ -374,7 +374,7 @@ function generate(ctx) {
       const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
       const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
 
-      // Determine if a persisted biome exists; do not early-return when tracing so we can log a fresh sample.
+      // Determine if a persisted biome exists
       let persistedBiome = null;
       let townRec = null;
       try {
@@ -384,7 +384,7 @@ function generate(ctx) {
         }
       } catch (_) {}
 
-      // Verbose trace toggle (URL param or localStorage), default ON for diagnostic deploy
+      // Verbose trace toggle (URL param or localStorage), default ON for diagnostics
       function readTraceFlag() {
         try {
           const params = new URLSearchParams(location.search);
@@ -397,7 +397,12 @@ function generate(ctx) {
         } catch (_) {}
         try {
           const ls = localStorage.getItem("TOWN_BIOME_TRACE");
-);
+          if (ls === "1") return true;
+          if (ls === "0") return false;
+        } catch (_) {}
+        return true;
+      }
+      const TRACE = readTraceFlag();
 
       // Logger helper
       function L(msg, level = "info") {
@@ -412,7 +417,6 @@ function generate(ctx) {
       }
 
       // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
-      // Accumulate across rings instead of stopping at the first ring with any samples.
       let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
       function bump(tile) {
         if (!WT) return;
@@ -426,22 +430,23 @@ function generate(ctx) {
       function toName(tile) {
         try {
           if (!WT) return String(tile);
-          for (const k in WT) { if (Object.prototype.hasOwnProperty.call(WT, k) && WT[k] === tile) return k; }
+          for (const k in WT) {
+            if (Object.prototype.hasOwnProperty.call(WT, k) && WT[k] === tile) return k;
+          }
         } catch (_) {}
         return String(tile);
       }
 
       const MAX_R = 6;
       for (let r = 1; r <= MAX_R; r++) {
-        const before = { ...counts };
+        const before = { DESERT:counts.DESERT|0, SNOW:counts.SNOW|0, BEACH:counts.BEACH|0, SWAMP:counts.SWAMP|0, FOREST:counts.FOREST|0, GRASS:counts.GRASS|0 };
         const ringSamples = [];
         for (let dy = -r; dy <= r; dy++) {
           for (let dx = -r; dx <= r; dx++) {
-            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // only outer ring
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
             const atX = wx + dx, atY = wy + dy;
             const t = worldTileAtAbs(atX, atY);
             if (t == null) continue;
-            // Skip POI markers
             if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
             bump(t);
             if (ringSamples.length < 12) ringSamples.push(`${atX},${atY}:${toName(t)}`);
@@ -461,8 +466,10 @@ function generate(ctx) {
 
       // Pick the biome with the highest count; tie-break by a fixed priority
       const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
-      let best = "GRASS", bestV = -1;
-      for (const k of order) {
+      let best = "GRASS";
+      let bestV = -1;
+      for (let i = 0; i < order.length; i++) {
+        const k = order[i];
         const v = counts[k] | 0;
         if (v > bestV) { bestV = v; best = k; }
       }
@@ -514,23 +521,35 @@ function generate(ctx) {
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.townBiome) ? window.GameData.palette.townBiome : null;
         fillHex = pal ? pal[String(chosen)] || null : null;
-      } catch (_) { fillHex = null; }
+      } catch (_) {
+        fillHex = null;
+      }
 
       if (debugBiome || TRACE) {
-        try {
-          const msg1 = `Biome totals @${wx},${wy}: GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}`;
-          const msg2 = `Biome chosen='${chosen}'  bestSample='${best}'  persisted='${persistedBiome || ""}'  fill=${fillHex || "(n/a)"}`;
-          L(msg1, "info");
-          L(msg2, "info");
-        } catch (_) {}
+        const msg1 = `Biome totals @${wx},${wy}: GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}`;
+        const msg2 = `Biome chosen='${chosen}'  bestSample='${best}'  persisted='${persistedBiome || ""}'  fill=${fillHex || "(n/a)"}`;
+        L(msg1, "info");
+        L(msg2, "info");
       }
 
       if (debugBiome) {
-        try {
-          const msg = `Town biome sample @${wx},${wy} -> ${chosen} (counts GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0})`;
-          if (ctx.log) ctx.log(msg, "info"); else if (typeof console !== "undefined") console.log("[TownGen] " + msg);
-        } catch (_) {}
+        const msg = `Town biome sample @${wx},${wy} -> ${chosen} (counts GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0})`;
+        L(msg, "info");
       }
+
+      // Publish debug data for renderer
+      try {
+        ctx.townBiomeCounts = {
+          GRASS: counts.GRASS | 0,
+          FOREST: counts.FOREST | 0,
+          DESERT: counts.DESERT | 0,
+          BEACH: counts.BEACH | 0,
+          SNOW: counts.SNOW | 0,
+          SWAMP: counts.SWAMP | 0
+        };
+        ctx.townBiomeSampleAt = { x: wx, y: wy };
+        ctx.townBiomeMaxR = MAX_R | 0;
+      } catch (_) {}
 
       // Persist on world.towns entry if available
       try {
