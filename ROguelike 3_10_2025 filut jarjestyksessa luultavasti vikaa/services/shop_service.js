@@ -233,6 +233,16 @@ export function canSellToShop(shopType, itemKind) {
 }
 
 export function calculatePrice(shopType, item, phase, demandState) {
+  // Special-case: Seppo sells fishing poles at a fixed good price (50g), ignoring phase multipliers
+  try {
+    const isTool = String(item && item.kind || "").toLowerCase() === "tool";
+    const nm = String(item && (item.name || item.type) || "").toLowerCase();
+    const isFishingPole = isTool && (nm.includes("fishing pole") || nm.includes("fishing_pole"));
+    if (String(shopType || "").toLowerCase() === "seppo" && isFishingPole) {
+      return 50;
+    }
+  } catch (_) {}
+
   var base = _priceFor(item);
   var r = _getRules(shopType);
   var mult = 1.0;

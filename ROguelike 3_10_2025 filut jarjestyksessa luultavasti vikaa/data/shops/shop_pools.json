@@ -188,6 +188,10 @@
             "phaseWeights": { "afternoon": 3, "dusk": 2 },
             "maxPerRestock": 1
           },
+          { "id": "fishing_pole", "kind": "tool",
+            "phaseWeights": { "morning": 2, "midday": 3, "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1
+          },
           { "id": "curio_odd_stone", "kind": "curio",
             "phaseWeights": { "dusk": 2 },
             "maxPerRestock": 1
