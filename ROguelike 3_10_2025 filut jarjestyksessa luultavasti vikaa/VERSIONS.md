@@ -24,6 +24,10 @@ v1.45.0 — Fishing mini‑game, tool durability, shop economy, and performance 
   - Seppo: now also sells fishing poles (premium pool) at a special fixed “good price” of 50 gold (overrides phase multipliers).
   - ShopService tool materialization now includes type + display name for tools (e.g., “fishing_pole” → “fishing pole”).
   - Pricing override implemented in ShopService.calculatePrice for Seppo’s fishing poles.
+- Campfire cooking
+  - Standing on a campfire now lets you cook either raw fish or raw meat when available.
+  - If both are present, you’re asked to choose (fish first; Cancel switches to meat prompt).
+  - Cooked fish is edible and heals +2 HP (same as cooked meat).
 - Loot
   - Bandits now have a very small (~1%) chance to drop a fishing pole (tool) on death.
 - Performance/UX polish

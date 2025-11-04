@@ -156,7 +156,8 @@ export function render(player, describeItem) {
         const nm = String(it && (it.type || it.name) || "").toLowerCase();
         const isBerries = (it && it.kind === "material") && (nm === "berries");
         const isCookedMeat = (it && it.kind === "material") && (nm === "meat_cooked" || nm === "meat (cooked)");
-        const isFood = isBerries || isCookedMeat;
+        const isCookedFish = (it && it.kind === "material") && (nm === "fish_cooked" || nm === "fish (cooked)");
+        const isFood = isBerries || isCookedMeat || isCookedFish;
 
         li.dataset.kind = isFood ? "food" : (it.kind || "misc");
 
@@ -222,10 +223,9 @@ export function render(player, describeItem) {
           li.title = "Click to drink";
         } else if (isFood) {
           li.style.cursor = "pointer";
-          li.title = isCookedMeat ? "Click to eat (+2 HP)" : "Click to eat (+1 HP)";
+          li.title = (isCookedMeat || isCookedFish) ? "Click to eat (+2 HP)" : "Click to eat (+1 HP)";
         } else {
-          li.style.opacity = "0.7";
-          li.style.cursor = "default";
+          li.style.opacity =li.style.cursor = "default";
         }
 
         li.textContent = label;
