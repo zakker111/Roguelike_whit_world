@@ -785,16 +785,103 @@ function open(ctx, size) {
   spawnX = clamp(spawnX, 0, width - 1);
   spawnY = clamp(spawnY, 0, height - 1);
 
-  // On enter: spawn the cursor at the nearest exit tile (edge), not at the mapped interior point.
-  const exits = [exitNorth, exitSouth, exitWest, exitEast];
-  let bestExit = exits[0];
-  let bestDist = Infinity;
-  for (const e of exits) {
-    const d = Math.abs((e.x | 0) - spawnX) + Math.abs((e.y | 0) - spawnY);
-    if (d < bestDist) { bestDist = d; bestExit = e; }
+  // On enter: choose a walkable edge tile near the mapped point (avoid WATER/RIVER/MOUNTAIN)
+  function regionWalkableAt(x, y) {
+    const h2 = sample.length, w2 = sample[0] ? sample[0].length : 0;
+    if (x < 0 || y < 0 || x >= w2 || y >= h2) return false;
+    try {
+      const t = sample[y][x];
+      // Prefer tiles.json walkability if present
+      const def = getTileDef("region", t);
+      if (def && def.properties && typeof def.properties.walkable === "boolean") return !!def.properties.walkable;
+      // Fallback to overworld semantics
+      try { return !!World.isWalkable(t); } catch (_) {}
+      const WT = World.TILES;
+      return (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+    } catch (_) { return true; }
   }
-  spawnX = bestExit.x | 0;
-  spawnY = bestExit.y | 0;
+  function nearestWalkableOnEdge(edge) {
+    if (edge === "N") {
+      const y = 0;
+      let x0 = clamp(spawnX, 0, width - 1);
+      if (regionWalkableAt(x0, y)) return { x: x0, y };
+      for (let r = 1; r < width; r++) {
+        const xl = x0 - r, xr = x0 + r;
+        if (xl >= 0 && regionWalkableAt(xl, y)) return { x: xl, y };
+        if (xr < width && regionWalkableAt(xr, y)) return { x: xr, y };
+      }
+      return null;
+    } else if (edge === "S") {
+      const y = height - 1;
+      let x0 = clamp(spawnX, 0, width - 1);
+      if (regionWalkableAt(x0, y)) return { x: x0, y };
+      for (let r = 1; r < width; r++) {
+        const xl = x0 - r, xr = x0 + r;
+        if (xl >= 0 && regionWalkableAt(xl, y)) return { x: xl, y };
+        if (xr < width && regionWalkableAt(xr, y)) return { x: xr, y };
+      }
+      return null;
+    } else if (edge === "W") {
+      const x = 0;
+      let y0 = clamp(spawnY, 0, height - 1);
+      if (regionWalkableAt(x, y0)) return { x, y: y0 };
+      for (let r = 1; r < height; r++) {
+        const yu = y0 - r, yd = y0 + r;
+        if (yu >= 0 && regionWalkableAt(x, yu)) return { x, y: yu };
+        if (yd < height && regionWalkableAt(x, yd)) return { x, y: yd };
+      }
+      return null;
+    } else { // "E"
+      const x = width - 1;
+      let y0 = clamp(spawnY, 0, height - 1);
+      if (regionWalkableAt(x, y0)) return { x, y: y0 };
+      for (let r = 1; r < height; r++) {
+        const yu = y0 - r, yd = y0 + r;
+        if (yu >= 0 && regionWalkableAt(x, yu)) return { x, y: yu };
+        if (yd < height && regionWalkableAt(x, yd)) return { x, y: yd };
+      }
+      return null;
+    }
+  }
+
+  const candidates = [];
+  const Np = nearestWalkableOnEdge("N"); if (Np) candidates.push(Np);
+  const Sp = nearestWalkableOnEdge("S"); if (Sp) candidates.push(Sp);
+  const Wp = nearestWalkableOnEdge("W"); if (Wp) candidates.push(Wp);
+  const Ep = nearestWalkableOnEdge("E"); if (Ep) candidates.push(Ep);
+
+  if (!candidates.length) {
+    // Fallback: scan entire border for any walkable tile
+    for (let x = 0; x < width; x++) {
+      if (regionWalkableAt(x, 0)) candidates.push({ x, y: 0 });
+      if (regionWalkableAt(x, height - 1)) candidates.push({ x, y: height - 1 });
+    }
+    for (let y = 0; y < height; y++) {
+      if (regionWalkableAt(0, y)) candidates.push({ x: 0, y });
+      if (regionWalkableAt(width - 1, y)) candidates.push({ x: width - 1, y });
+    }
+  }
+
+  if (candidates.length) {
+    let best = candidates[0], bestD = Infinity;
+    for (const c of candidates) {
+      const d = Math.abs(c.x - spawnX) + Math.abs(c.y - spawnY);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    spawnX = best.x | 0;
+    spawnY = best.y | 0;
+  } else {
+    // Final fallback: keep nearest of four standard exits
+    const exits = [exitNorth, exitSouth, exitWest, exitEast];
+    let bestExit = exits[0];
+    let bestDist = Infinity;
+    for (const e of exits) {
+      const d = Math.abs((e.x | 0) - spawnX) + Math.abs((e.y | 0) - spawnY);
+      if (d < bestDist) { bestDist = d; bestExit = e; }
+    }
+    spawnX = bestExit.x | 0;
+    spawnY = bestExit.y | 0;
+  }
 
   ctx.region = {
     ...(ctx.region || {}),
@@ -802,8 +889,8 @@ function open(ctx, size) {
     height,
     map: sample,
     cursor: { x: spawnX | 0, y: spawnY | 0 },
-    // Include all four exits to avoid edge selection issues on west edge
-    exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
+    // Include all four exits and the chosen spawn edge tile to allow immediate exit
+    exitTiles: [exitNorth, exitSouth, exitWest, exitEast, { x: spawnX | 0, y: spawnY | 0 }],
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
     _hasKnownAnimals: animalsSeenHere(worldX, worldY)
