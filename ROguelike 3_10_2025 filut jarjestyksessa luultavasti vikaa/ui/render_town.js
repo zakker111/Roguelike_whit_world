@@ -246,11 +246,9 @@ export function draw(ctx, view) {
             const sx = xx * TILE, sy = yy * TILE;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
             let fill = fillTownFor(TILES, type, COLORS);
-            // Roads: draw a distinct muted road fill; otherwise apply outdoor biome tint for non-road floor
+            // Apply outdoor biome tint only to non-road FLOOR tiles; rely on tile type for roads
             try {
-              if (type === TILES.FLOOR && ctx.townRoads && ctx.townRoads[yy] && ctx.townRoads[yy][xx]) {
-                fill = "#b0a58a"; // muted road color (town)
-              } else if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
+              if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
                 // Outdoor ground tint by biome for non-road FLOOR tiles
                 fill = biomeFill;
               }
@@ -288,11 +286,9 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Roads vs outdoor tint
+        // Apply outdoor tint only to FLOOR; rely on tile type for roads
         try {
-          if (type === TILES.FLOOR && ctx.townRoads && ctx.townRoads[y] && ctx.townRoads[y][x]) {
-            fill = "#b0a58a"; // muted road color (town)
-          } else if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
+          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
             fill = biomeFill;
           }
         } catch (_) {}
@@ -302,17 +298,15 @@ export function draw(ctx, view) {
     }
   }
 
-  // Road overlay pass: ensure roads are visible even if base cache predates the roads mask
+  // Road overlay pass: draw over base only for explicit ROAD tiles (safety against oversized masks)
   (function drawRoadOverlay() {
     try {
-      if (!ctx.townRoads) return;
       for (let y = startY; y <= endY; y++) {
         const yIn = y >= 0 && y < mapRows;
         if (!yIn) continue;
         for (let x = startX; x <= endX; x++) {
           if (x < 0 || x >= mapCols) continue;
-          if (map[y][x] !== TILES.FLOOR) continue;
-          if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
+          if (map[y][x] !== TILES.ROAD) continue;
           const screenX = (x - startX) * TILE - tileOffsetX;
           const screenY = (y - startY) * TILE - tileOffsetY;
           ctx2d.fillStyle = "#b0a58a"; // road color
