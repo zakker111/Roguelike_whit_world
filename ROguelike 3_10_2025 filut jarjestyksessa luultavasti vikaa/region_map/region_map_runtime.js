@@ -883,14 +883,27 @@ function open(ctx, size) {
     spawnY = bestExit.y | 0;
   }
 
+  // Build final exit tiles: replace the relevant edge midpoint with the chosen spawn tile to avoid duplicate/extra markers
+  let eN = exitNorth, eS = exitSouth, eW = exitWest, eE = exitEast;
+  if (spawnY === 0) {
+    eN = { x: spawnX | 0, y: 0 };
+  } else if (spawnY === height - 1) {
+    eS = { x: spawnX | 0, y: (height - 1) | 0 };
+  } else if (spawnX === 0) {
+    eW = { x: 0, y: spawnY | 0 };
+  } else if (spawnX === width - 1) {
+    eE = { x: (width - 1) | 0, y: spawnY | 0 };
+  }
+  const exitTilesFinal = [eN, eS, eW, eE];
+
   ctx.region = {
     ...(ctx.region || {}),
     width,
     height,
     map: sample,
     cursor: { x: spawnX | 0, y: spawnY | 0 },
-    // Include all four exits and the chosen spawn edge tile to allow immediate exit
-    exitTiles: [exitNorth, exitSouth, exitWest, exitEast, { x: spawnX | 0, y: spawnY | 0 }],
+    // Exits: four edges; the spawn edge uses the exact chosen tile to avoid duplicates
+    exitTiles: exitTilesFinal,
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
     _hasKnownAnimals: animalsSeenHere(worldX, worldY)
