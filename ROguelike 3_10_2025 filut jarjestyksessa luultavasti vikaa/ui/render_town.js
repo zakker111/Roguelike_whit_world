@@ -74,7 +74,7 @@ function tilesRef() {
 }
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
+let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null };
 
 
 export function draw(ctx, view) {
@@ -92,13 +92,23 @@ export function draw(ctx, view) {
   // Helpers for biome-based outdoor ground tint
   function ensureTownBiome(ctx) {
     try {
+      // If TownState or Town generation already set a biome, trust it
+      if (ctx.townBiome) return;
+
+      const world = ctx.world || {};
       const WMOD = (typeof window !== "undefined" ? window.World : null);
       const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
-      const world = ctx.world || {};
 
-      // If a biome is already recorded for this town in world.towns, use it
-      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
-      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
+      // We require absolute world coordinates for this town; do not guess from player (town-local) coords.
+      const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
+      if (!hasWRP) {
+        // As a last resort, do nothing; rendering will fallback to default floor colors without biome tint.
+        return;
+      }
+      const wx = ctx.worldReturnPos.x | 0;
+      const wy = ctx.worldReturnPos.y | 0;
+
+      // Use persisted biome if available
       try {
         const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
         if (rec && rec.biome) { ctx.townBiome = rec.biome; return; }
@@ -147,7 +157,13 @@ export function draw(ctx, view) {
       let best = "GRASS", bestV = -1;
       for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
       ctx.townBiome = best || "GRASS";
-    } catch (_) { ctx.townBiome = ctx.townBiome || "GRASS"; }
+
+      // Persist for future visits
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
+      } catch (_) {}
+    } catch (_) { /* leave ctx.townBiome as-is */ }
   }
   function townBiomeFill(ctx) {
     try {
@@ -183,18 +199,35 @@ export function draw(ctx, view) {
     } catch (_) {}
   }
 
-  // Build base offscreen once per map/TILE change
+  // Build base offscreen once per map/TILE/biome change
   try {
     if (mapRows && mapCols) {
+      // Ensure biome is determined first
+      ensureTownBiome(ctx);
+      const biomeKey = String(ctx.townBiome || "");
+      const townKey = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number")
+        ? `${ctx.worldReturnPos.x|0},${ctx.worldReturnPos.y|0}` : null;
+
       const wpx = mapCols * TILE;
       const hpx = mapRows * TILE;
-      const needsRebuild = (!TOWN.canvas) || TOWN.mapRef !== map || TOWN.wpx !== wpx || TOWN.hpx !== hpx || TOWN.TILE !== TILE || TOWN._tilesRef !== tilesRef();
+      const needsRebuild = (!TOWN.canvas)
+        || TOWN.mapRef !== map
+        || TOWN.wpx !== wpx
+        || TOWN.hpx !== hpx
+        || TOWN.TILE !== TILE
+        || TOWN._tilesRef !== tilesRef()
+        || TOWN._biomeKey !== biomeKey
+        || TOWN._townKey !== townKey;
+
       if (needsRebuild) {
         TOWN.mapRef = map;
         TOWN.wpx = wpx;
         TOWN.hpx = hpx;
         TOWN.TILE = TILE;
         TOWN._tilesRef = tilesRef();
+        TOWN._biomeKey = biomeKey;
+        TOWN._townKey = townKey;
+
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         try {
@@ -203,7 +236,6 @@ export function draw(ctx, view) {
           oc.textBaseline = "middle";
         } catch (_) {}
         // Prepare biome fill and outdoor mask
-        ensureTownBiome(ctx);
         ensureOutdoorMask(ctx);
         const biomeFill = townBiomeFill(ctx);
 

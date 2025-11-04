@@ -20,10 +20,14 @@ v1.45.1 — Tool registry + data-driven consumables/potions
 - Campfire cooking cleanup
   - Campfire cooking now routes through data/crafting/recipes.json (“cook_meat”, “cook_fish”) for inputs/outputs and names.
   - Cooking skill gain unchanged (+1 XP per item cooked).
+- Fixed: Town biomes sticking to the first town
+  - ui/render_town.js: removed incorrect fallback that guessed absolute coords from town-local player position; now requires ctx.worldReturnPos or persisted per-town biome.
+  - ui/render_town.js: offscreen base cache now rebuilds when town biome or town key changes (tracks _biomeKey and _townKey), ensuring per-town tint updates.
+  - core/town_state.js: clears stale ctx.townOutdoorMask on load so outdoor tint masks are rebuilt for each town.
 - Minor
   - Removed unused Enemies.potionWeightsFor API and references.
   - Fishing modal decay logic prefers tool type id (fishing_pole) when locating the pole in inventory.
-- Deployment: https://lfa2z782s7zw.cosine.page, https://ctfxh2v9ac1b.cosine.page, https://605gkewh8631.cosine.page, https://xa2sk0ajq6zx.cosine.page.1 — Tool registry + data-driven consumables/potions
+- Deployment: https://lfa2z782s7zw.cosine.page, https://ctfxh2v9ac1b.cosine.page, https://605gkewh8631.cosine.page, https://xa2sk0ajq6zx.cosine.page, https://d1q1qz8l82py.cosine.page.1 — Tool registry + data-driven consumables/potions
 - Tools registry (tool-first)
   - Added data/entities/tools.json and exposed it via GameData.tools in data/loader.js.
   - ShopService now materializes tools from the registry (type/id) and prices them by id (with per-shop overrides).
