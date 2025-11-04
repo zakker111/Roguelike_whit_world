@@ -242,22 +242,74 @@ export function draw(ctx, view) {
     try {
       const rows = mapRows, cols = mapCols;
       const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
-      const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
-      function insideAnyBuilding(x, y) {
-        for (let i = 0; i < tbs.length; i++) {
-          const B = tbs[i];
-          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
-        }
-        return false;
-      }
-      for (let yy = 0; yy < rows; yy++) {
-        for (let xx = 0; xx < cols; xx++) {
-          const t = map[yy][xx];
-          if (t === TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
-            mask[yy][xx] = true;
+
+      // Robust method: flood from the gate interior across FLOOR/ROAD tiles, but DO NOT traverse through DOOR.
+      // This marks the exterior plaza/streets as "outdoor" even if building metadata is missing or oversized.
+      const q = [];
+      const seenQ = Array.from({ length: rows }, () => Array(cols).fill(false));
+      // Seed: gate interior if available, else any FLOOR near perimeter
+      let sx = -1, sy = -1;
+      if (ctx.townExitAt && typeof ctx.townExitAt.x === "number" && typeof ctx.townExitAt.y === "number") {
+        sx = ctx.townExitAt.x | 0; sy = ctx.townExitAt.y | 0;
+      } else {
+        // Find a perimeter-adjacent FLOOR as seed
+        outer:
+        for (let y = 1; y < rows - 1; y += Math.max(1, Math.floor(rows / 10))) {
+          for (let x = 1; x < cols - 1; x += Math.max(1, Math.floor(cols / 10))) {
+            const t = map[y][x];
+            if (t === TILES.FLOOR || t === TILES.ROAD) { sx = x; sy = y; break outer; }
           }
         }
       }
+      if (sx >= 0 && sy >= 0) {
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+        q.push({ x: sx, y: sy });
+        seenQ[sy][sx] = true;
+        while (q.length) {
+          const cur = q.shift();
+          const t = map[cur.y][cur.x];
+          if (t === TILES.FLOOR || t === TILES.ROAD) {
+            mask[cur.y][cur.x] = true;
+            for (let i = 0; i < 4; i++) {
+              const nx = cur.x + dirs[i].dx, ny = cur.y + dirs[i].dy;
+              if (ny < 0 || nx < 0 || ny >= rows || nx >= cols) continue;
+              if (seenQ[ny][nx]) continue;
+              const nt = map[ny][nx];
+              // Do not step onto or through DOOR tiles, so interiors remain unmarked
+              if (nt === TILES.DOOR || nt === TILES.WINDOW || nt === TILES.WALL) continue;
+              // Only traverse through FLOOR/ROAD
+              if (!(nt === TILES.FLOOR || nt === TILES.ROAD)) continue;
+              seenQ[ny][nx] = true;
+              q.push({ x: nx, y: ny });
+            }
+          }
+        }
+      }
+
+      // If flood failed (e.g., no seed), fall back to building-rect heuristic
+      let anyMarked = false;
+      for (let yy = 0; yy < rows && !anyMarked; yy++) {
+        for (let xx = 0; xx < cols; xx++) { if (mask[yy][xx]) { anyMarked = true; break; } }
+      }
+      if (!anyMarked) {
+        const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+        function insideAnyBuilding(x, y) {
+          for (let i = 0; i < tbs.length; i++) {
+            const B = tbs[i];
+            if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+          }
+          return false;
+        }
+        for (let yy = 0; yy < rows; yy++) {
+          for (let xx = 0; xx < cols; xx++) {
+            const t = map[yy][xx];
+            if (t === TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
+              mask[yy][xx] = true;
+            }
+          }
+        }
+      }
+
       ctx.townOutdoorMask = mask;
     } catch (_) {}
   }
