@@ -105,6 +105,20 @@ function roadColorForBiome(biomeHex) {
   // Slightly lighter than ground to read as a path; clamp via toHex
   return shade(biomeHex, 1.15);
 }
+// Slightly brighten outdoor ground per biome so it reads even under dim overlays.
+function adjustTownGround(hex, biomeKey) {
+  if (!hex) return hex;
+  const k = String(biomeKey || "").toUpperCase();
+  let f = 1.0;
+  if (k === "FOREST") f = 1.35;
+  else if (k === "GRASS") f = 1.25;
+  else if (k === "SWAMP") f = 1.25;
+  else if (k === "BEACH") f = 1.06;
+  else if (k === "DESERT") f = 1.06;
+  else if (k === "SNOW") f = 1.0;
+  else f = 1.15;
+  return shade(hex, f);
+}
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
 let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _paletteRef: null, _biomeKey: null, _townKey: null, _maskRef: null };
@@ -310,7 +324,7 @@ export function draw(ctx, view) {
               if (type === TILES.FLOOR) {
                 const isOutdoor = maskReady ? !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) : true;
                 if (isOutdoor && biomeFill) {
-                  fill = biomeFill;
+                  fill = adjustTownGround(biomeFill, ctx.townBiome);
                 } else {
                   fill = neutralIndoorFloor(COLORS);
                 }
@@ -358,7 +372,7 @@ export function draw(ctx, view) {
           if (type === TILES.FLOOR) {
             const isOutdoor = maskReady ? !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) : true;
             if (isOutdoor && biomeFill) {
-              fill = biomeFill;
+              fill = adjustTownGround(biomeFill, ctx.townBiome);
             } else {
               fill = neutralIndoorFloor(COLORS);
             }
