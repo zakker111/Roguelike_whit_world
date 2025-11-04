@@ -214,7 +214,7 @@ export function render(player, describeItem) {
             dec = Math.max(0, Math.min(100, 100 - (it.durability | 0)));
           }
           dec = Math.max(0, Math.min(100, Number(dec || 0)));
-          const isPole = nmTool.includes("fishing pole") || nmTool.includes("fishing_pole");
+          const isPole = (it && String(it.type || "").toLowerCase() === "fishing_pole") || nmTool.includes("fishing pole") || nmTool.includes("fishing_pole");
           const kindLabel = isPole ? "Fishing pole" : "Tool";
           li.title = `${kindLabel} • Decay: ${dec.toFixed(0)}%`;
           li.style.cursor = "default";

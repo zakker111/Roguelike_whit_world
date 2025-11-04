@@ -31,9 +31,12 @@ v1.45.0 — Fishing mini‑game, tool durability, shop economy, and performance 
 - Data-driven fish
   - Added fish and fish (cooked) to data/entities/materials.json (same file as meat).
   - Added cook_fish recipe to data/crafting/recipes.json (station: campfire).
-- Fishing pole item
-  - Added fishing_pole as an equipment item in data/entities/items.json (slot: hand, non-combat stats).
-  - Current shops still sell it as a tool for compatibility; item entry exists for registry/loot integration if desired later.
+- Tools registry (tool-first)
+  - Added data/entities/tools.json with fishing_pole definition (decay defaults and pricing).
+  - Loader now exposes GameData.tools; ShopService materializes tools from this registry.
+  - Pricing uses tool id (with per-shop overrides, e.g., seppo=50) instead of string matching.
+  - Starter inventory fishing pole now uses decay: 0 (durability removed).
+  - Removed fishing_pole from data/entities/items.json to avoid mixing equip/tool models.
 - Loot
   - Bandits now have a very small (~1%) chance to drop a fishing pole (tool) on death.
 - Performance/UX polish

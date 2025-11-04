@@ -406,8 +406,9 @@ export function show(ctx, opts = {}) {
           const it = inv[i];
           if (!it) continue;
           const k = String(it.kind || '').toLowerCase();
-          const nm = String(it.name || it.type || '').toLowerCase();
-          if (k === 'tool' && (nm.includes('fishing pole') || nm.includes('fishing_pole'))) { poleIdx = i; break; }
+          const tp = String(it.type || '').toLowerCase();
+          const nm = String(it.name || '').toLowerCase();
+          if (k === 'tool' && (tp === 'fishing_pole' || nm.includes('fishing pole') || nm.includes('fishing_pole'))) { poleIdx = i; break; }
         }
         if (poleIdx !== -1) {
           const pole = inv[poleIdx];

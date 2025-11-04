@@ -111,11 +111,20 @@ function _rng(ctx) {
 function _priceFor(item) {
   try {
     if (!item) return 10;
-    // Explicit tool pricing
+    // Tools: prefer data-driven pricing by id
     if (String(item.kind || "").toLowerCase() === "tool") {
-      const nm = String(item.name || item.type || "").toLowerCase();
-      if (nm.includes("fishing pole") || nm.includes("fishing_pole")) return 200;
-      // Default tool price
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const list = GD && GD.tools && Array.isArray(GD.tools.tools) ? GD.tools.tools : null;
+        const id = String(item.type || item.id || "").toLowerCase();
+        if (list && id) {
+          const def = list.find(t => t && String(t.id || "").toLowerCase() === id);
+          if (def && def.price && typeof def.price.base === "number") {
+            return (def.price.base | 0);
+          }
+        }
+      } catch (_) {}
+      // Default tool price fallback
       return 10;
     }
     if (item.kind === "potion") {
@@ -178,9 +187,21 @@ function _materializeItem(ctx, entry) {
     }
   }
   if (kind === "tool") {
-    const id = String(entry.id || "tool");
-    const display = id.replace(/_/g, " ");
-    return { kind: "tool", type: id, name: display };
+    const id = String(entry.id || entry.type || "tool");
+    let name = id.replace(/_/g, " ");
+    let startDecay = 0;
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const list = GD && GD.tools && Array.isArray(GD.tools.tools) ? GD.tools.tools : null;
+      if (list) {
+        const def = list.find(t => t && String(t.id || "").toLowerCase() === String(id).toLowerCase());
+        if (def) {
+          if (def.name) name = String(def.name);
+          if (def.decay && typeof def.decay.start === "number") startDecay = Math.max(0, Math.min(100, def.decay.start | 0));
+        }
+      }
+    } catch (_) {}
+    return { kind: "tool", type: id, name, decay: startDecay };
   }
   if (kind === "material") {
     return { kind: "material", material: entry.material || "wood", name: entry.id || "material", amount: 1 };
@@ -233,13 +254,20 @@ export function canSellToShop(shopType, itemKind) {
 }
 
 export function calculatePrice(shopType, item, phase, demandState) {
-  // Special-case: Seppo sells fishing poles at a fixed good price (50g), ignoring phase multipliers
+  // Tools: prefer data-driven overrides by shop id
   try {
     const isTool = String(item && item.kind || "").toLowerCase() === "tool";
-    const nm = String(item && (item.name || item.type) || "").toLowerCase();
-    const isFishingPole = isTool && (nm.includes("fishing pole") || nm.includes("fishing_pole"));
-    if (String(shopType || "").toLowerCase() === "seppo" && isFishingPole) {
-      return 50;
+    if (isTool) {
+      const id = String(item && (item.type || item.id) || "").toLowerCase();
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const list = GD && GD.tools && Array.isArray(GD.tools.tools) ? GD.tools.tools : null;
+      const def = list && id ? list.find(t => t && String(t.id || "").toLowerCase() === id) : null;
+      if (def && def.price) {
+        const st = String(shopType || "").toLowerCase();
+        if (def.price.shops && def.price.shops[st] != null) {
+          return Number(def.price.shops[st]) | 0;
+        }
+      }
     }
   } catch (_) {}
 

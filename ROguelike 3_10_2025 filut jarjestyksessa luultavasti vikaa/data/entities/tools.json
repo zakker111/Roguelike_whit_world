@@ -1,0 +1,12 @@
+{
+  "tools": [
+    {
+      "id": "fishing_pole",
+      "name": "fishing pole",
+      "stackLimit": 1,
+      "tags": ["tool", "fishing"],
+      "decay": { "start": 0, "perUse": 10 },
+      "price": { "base": 200, "shops": { "seppo": 50 } }
+    }
+  ]
+}
