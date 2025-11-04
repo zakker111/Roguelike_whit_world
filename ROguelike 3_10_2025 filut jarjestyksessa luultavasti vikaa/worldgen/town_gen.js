@@ -396,7 +396,8 @@ function generate(ctx) {
       }
 
       // Search radius growing rings until we find any biome tiles
-      const MAX_R = 6;
+      // Increase radius to provide robust context so towns near edges pick the correct surrounding biome.
+      const MAX_R = 12;
       for (let r = 1; r <= MAX_R; r++) {
         let any = false;
         for (let dy = -r; dy <= r; dy++) {
@@ -415,11 +416,12 @@ function generate(ctx) {
         if (any && total > 0) break;
       }
 
-      // Pick the biome with the highest count; tie-break by a fixed priority
-      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      // Weight non-GRASS slightly so forests/desert/snow dominate when present near town
+      const w = { DESERT: 1.2, SNOW: 1.2, BEACH: 1.1, SWAMP: 1.1, FOREST: 1.25, GRASS: 1.0 };
+      const order = ["FOREST","DESERT","BEACH","SNOW","SWAMP","GRASS"];
       let best = "GRASS", bestV = -1;
       for (const k of order) {
-        const v = counts[k] | 0;
+        const v = (counts[k] | 0) * (w[k] || 1);
         if (v > bestV) { bestV = v; best = k; }
       }
       ctx.townBiome = best || "GRASS";

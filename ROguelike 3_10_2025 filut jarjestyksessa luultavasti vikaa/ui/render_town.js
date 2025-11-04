@@ -607,6 +607,53 @@ export function draw(ctx, view) {
     }
   }
 
+  // Optional debug: show derived town biome and the chosen ground hex.
+  (function drawBiomeDebug() {
+    try {
+      // Enable with ?townbiomedebug=1 or localStorage.townbiome=1
+      let enabled = false;
+      try {
+        const href = (typeof window !== "undefined" && window.location) ? window.location.href : "";
+        if (href) {
+          const u = new URL(href);
+          const p = u.searchParams;
+          enabled = (p.get("townbiomedebug") === "1");
+        }
+      } catch (_) {}
+      try {
+        if (!enabled && typeof localStorage !== "undefined") {
+          const v = localStorage.getItem("townbiome");
+          if (typeof v === "string") {
+            const s = v.toLowerCase();
+            enabled = (s === "1" || s === "true" || s === "yes" || s === "on");
+          }
+        }
+      } catch (_) {}
+      if (!enabled) return;
+      const biomeKey = String(ctx.townBiome || "").toUpperCase();
+      const hex = townBiomeFill(ctx);
+      const dbg = `Biome: ${biomeKey || "(none)"}  color: ${hex || "(none)"}`;
+      ctx2d.save();
+      ctx2d.globalAlpha = 0.95;
+      ctx2d.fillStyle = "rgba(10,12,18,0.8)";
+      const pad = 8, boxW = 320, boxH = 44;
+      ctx2d.fillRect(8, 8, boxW, boxH);
+      ctx2d.strokeStyle = "#88ff88";
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(8.5, 8.5, boxW - 1, boxH - 1);
+      ctx2d.fillStyle = "#a7f3d0";
+      ctx2d.fillText(dbg, 18, 34);
+      // swatch
+      if (hex) {
+        ctx2d.fillStyle = hex;
+        ctx2d.fillRect(8 + boxW - 44, 12, 32, 32);
+        ctx2d.strokeStyle = "#0b0f16";
+        ctx2d.strokeRect(8 + boxW - 44 + 0.5, 12.5, 31, 31);
+      }
+      ctx2d.restore();
+    } catch (_) {}
+  })();
+
   // Stairs glyph overlay above visibility tint so it's always readable once seen
   (function drawStairsGlyphTop() {
     try {

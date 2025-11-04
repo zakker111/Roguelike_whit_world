@@ -372,7 +372,7 @@ function applyState(ctx, st, x, y) {
         else if (tile === WT.FOREST) counts.FOREST++;
         else if (tile === WT.GRASS) counts.GRASS++;
       }
-      const MAX_R = 6;
+      const MAX_R = 12;
       for (let r = 1; r <= MAX_R; r++) {
         let any = false;
         for (let dy = -r; dy <= r; dy++) {
@@ -388,9 +388,10 @@ function applyState(ctx, st, x, y) {
         const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
         if (any && total > 0) break;
       }
-      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      const w = { DESERT: 1.2, SNOW: 1.2, BEACH: 1.1, SWAMP: 1.1, FOREST: 1.25, GRASS: 1.0 };
+      const order = ["FOREST","DESERT","BEACH","SNOW","SWAMP","GRASS"];
       let best = "GRASS", bestV = -1;
-      for (const k2 of order) { const v = counts[k2] | 0; if (v > bestV) { bestV = v; best = k2; } }
+      for (const k2 of order) { const v = (counts[k2] | 0) * (w[k2] || 1); if (v > bestV) { bestV = v; best = k2; } }
       ctx.townBiome = best || "GRASS";
       // Persist for next load
       try { if (rec && typeof rec === "object") rec.biome = ctx.townBiome; } catch (_) {}
