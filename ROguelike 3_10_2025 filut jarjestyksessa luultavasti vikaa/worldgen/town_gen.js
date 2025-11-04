@@ -374,14 +374,38 @@ function generate(ctx) {
       const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
       const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
 
-      // If world.towns entry already has a biome, trust it
+      // Determine if a persisted biome exists; do not early-return when tracing so we can log a fresh sample.
+      let persistedBiome = null;
+      let townRec = null;
       try {
-        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-        if (rec && rec.biome) {
-          ctx.townBiome = rec.biome;
-          return;
+        townRec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (townRec && townRec.biome) {
+          persistedBiome = String(townRec.biome);
         }
       } catch (_) {}
+
+      // Verbose trace toggle (URL param or localStorage)
+      function readTraceFlag() {
+        try {
+          const params = new URLSearchParams(location.search);
+          const v = params.get("town_biome_trace");
+          if (v != null) return (v === "1" || v.toLowerCase() === "true");
+        } catch (_) {}
+        try { return localStorage.getItem("TOWN_BIOME_TRACE") === "1"; } catch (_) { return false; }
+      }
+      const TRACE = readTraceFlag();
+
+      // Logger helper
+      function L(msg, level = "info") {
+        try {
+          if (ctx && typeof ctx.log === "function") ctx.log(String(msg), level);
+          else if (typeof console !== "undefined") console.log("[TownGen] " + String(msg));
+        } catch (_) {}
+      }
+
+      if (TRACE) {
+        L(`Biome trace: start @${wx},${wy}.${persistedBiome ? " persisted=" + persistedBiome : ""}`);
+      }
 
       // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
       // Accumulate across rings instead of stopping at the first ring with any samples.
@@ -395,18 +419,39 @@ function generate(ctx) {
         else if (tile === WT.FOREST) counts.FOREST++;
         else if (tile === WT.GRASS) counts.GRASS++;
       }
+      function toName(tile) {
+        try {
+          if (!WT) return String(tile);
+          for (const k in WT) { if (Object.prototype.hasOwnProperty.call(WT, k) && WT[k] === tile) return k; }
+        } catch (_) {}
+        return String(tile);
+      }
 
       const MAX_R = 6;
       for (let r = 1; r <= MAX_R; r++) {
+        const before = { ...counts };
+        const ringSamples = [];
         for (let dy = -r; dy <= r; dy++) {
           for (let dx = -r; dx <= r; dx++) {
             if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // only outer ring
-            const t = worldTileAtAbs(wx + dx, wy + dy);
+            const atX = wx + dx, atY = wy + dy;
+            const t = worldTileAtAbs(atX, atY);
             if (t == null) continue;
             // Skip POI markers
             if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
             bump(t);
+            if (ringSamples.length < 12) ringSamples.push(`${atX},${atY}:${toName(t)}`);
           }
+        }
+        if (TRACE) {
+          const dG = (counts.GRASS - before.GRASS) | 0;
+          const dF = (counts.FOREST - before.FOREST) | 0;
+          const dD = (counts.DESERT - before.DESERT) | 0;
+          const dB = (counts.BEACH - before.BEACH) | 0;
+          const dS = (counts.SNOW - before.SNOW) | 0;
+          const dW = (counts.SWAMP - before.SWAMP) | 0;
+          const deltas = [`G+${dG}`, `F+${dF}`, `D+${dD}`, `B+${dB}`, `S+${dS}`, `W+${dW}`].join(" ");
+          L(`Biome trace: ring ${r}: ${deltas}  samples: ${ringSamples.join(" | ")}`, "info");
         }
       }
 
@@ -419,26 +464,51 @@ function generate(ctx) {
       }
 
       // Optional overrides + debug
+      function readUrlBool(key) {
+        try {
+          const params = new URLSearchParams(location.search);
+          const v = params.get(key);
+          if (v != null) return (v === "1" || v.toLowerCase() === "true");
+        } catch (_) {}
+        return null;
+      }
       let chosen = best || "GRASS";
       let forceGrass = false;
       let debugBiome = false;
-      try { forceGrass = (localStorage.getItem("TOWN_FORCE_GRASS") === "1"); } catch (_) {}
-      try { debugBiome = (localStorage.getItem("TOWN_BIOME_DEBUG") === "1"); } catch (_) {}
-      if (forceGrass) chosen = "GRASS";
+      try {
+        const u = readUrlBool("town_force_grass");
+        forceGrass = (u === true) ? true : (localStorage.getItem("TOWN_FORCE_GRASS") === "1");
+      } catch (_) {}
+      try {
+        const u = readUrlBool("town_biome_debug");
+        debugBiome = (u === true) ? true : (localStorage.getItem("TOWN_BIOME_DEBUG") === "1");
+      } catch (_) {}
+      if (forceGrass) {
+        if (TRACE || debugBiome) L("Biome override: force GRASS via toggle.", "notice");
+        chosen = "GRASS";
+      } else if (persistedBiome) {
+        if (TRACE || debugBiome) L(`Biome persisted: using '${persistedBiome}' instead of sampled '${best}'.`, "notice");
+        chosen = persistedBiome;
+      } else {
+        if (TRACE || debugBiome) L(`Biome pick from sample: '${best}'.`, "notice");
+      }
 
       ctx.townBiome = chosen;
-      // Publish sampling details for on-screen debug overlays
+
+      // Compute palette fill color picked for this biome (if available)
+      let fillHex = null;
       try {
-        ctx.townBiomeCounts = {
-          GRASS: counts.GRASS | 0,
-          FOREST: counts.FOREST | 0,
-          DESERT: counts.DESERT | 0,
-          BEACH: counts.BEACH | 0,
-          SNOW: counts.SNOW | 0,
-          SWAMP: counts.SWAMP | 0
-        };
-        ctx.townBiomeSampleAt = { x: wx, y: wy };
-        ctx.townBiomeMaxR = MAX_R | 0;
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.townBiome) ? window.GameData.palette.townBiome : null;
+        fillHex = pal ? pal[String(chosen)] || null : null;
+      } catch (_) { fillHex = null; }
+
+      if (debugBiome || TRACE) {
+        try {
+          const msg1 = `Biome totals @${wx},${wy}: GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}`;
+          const msg2 = `Biome chosen='${chosen}'  bestSample='${best}'  persisted='${persistedBiome || ""}'  fill=${fillHex || "(n/a)"}`;
+          L(msg1, "info");
+          L(msg2, "info");
+        } catch (_) {}
       } catch (_) {}
 
       if (debugBiome) {

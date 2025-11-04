@@ -967,6 +967,10 @@ export function draw(ctx, view) {
       const at = ctx.townBiomeSampleAt || {};
       const lines = [];
       lines.push(`Town Biome: ${String(ctx.townBiome || "(unknown)")}`);
+      try {
+        const fill = townBiomeFill(ctx);
+        if (fill) lines.push(`Fill color: ${fill}`);
+      } catch (_) {}
       lines.push(`Counts: GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}`);
       lines.push(`        DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}`);
       lines.push(`        SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}`);
