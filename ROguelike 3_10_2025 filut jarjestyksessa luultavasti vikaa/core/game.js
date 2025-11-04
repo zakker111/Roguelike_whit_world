@@ -781,7 +781,7 @@
       heal = 2;
       if (!it.name) label = "meat (cooked)";
     } else if (nm === "fish_cooked" || nm === "fish (cooked)") {
-      heal = 2;
+      heal = 5;
       if (!it.name) label = "fish (cooked)";
     } else if (nm === "berries") {
       heal = 1;

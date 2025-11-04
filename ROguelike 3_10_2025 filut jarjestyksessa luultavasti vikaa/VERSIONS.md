@@ -27,7 +27,7 @@ v1.45.0 — Fishing mini‑game, tool durability, shop economy, and performance 
 - Campfire cooking
   - Standing on a campfire now lets you cook either raw fish or raw meat when available.
   - If both are present, you’re asked to choose (fish first; Cancel switches to meat prompt).
-  - Cooked fish is edible and heals +2 HP (same as cooked meat).
+  - Cooked fish is edible and heals +5 HP; cooked meat heals +2 HP.
 - Loot
   - Bandits now have a very small (~1%) chance to drop a fishing pole (tool) on death.
 - Performance/UX polish
