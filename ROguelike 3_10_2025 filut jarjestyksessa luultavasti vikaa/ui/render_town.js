@@ -85,17 +85,27 @@ export function draw(ctx, view) {
 
   
   // Developer toggles via URL params or localStorage (safe fallbacks)
-  function readToggle(name, lsKey) {
+  function readToggle(name, lsKey, defaultVal = false) {
     try {
       const params = new URLSearchParams(location.search);
-      const v = params.get(name);
-      if (v != null) return (v === "1" || v.toLowerCase() === "true");
+      let v = params.get(name);
+      if (v != null) {
+        v = String(v).toLowerCase();
+        if (v === "1" || v === "true") return true;
+        if (v === "0" || v === "false") return false;
+      }
     } catch (_) {}
-    try { return localStorage.getItem(lsKey) === "1"; } catch (_) { return false; }
+    try {
+      const ls = localStorage.getItem(lsKey);
+      if (ls === "1") return true;
+      if (ls === "0") return false;
+    } catch (_) {}
+    return !!defaultVal;
   }
-  const __forceGrass = readToggle("town_force_grass", "TOWN_FORCE_GRASS");
-  const __roadsAsFloor = readToggle("town_roads_as_floor", "TOWN_ROADS_AS_FLOOR");
-  const __biomeDebug = readToggle("town_biome_debug", "TOWN_BIOME_DEBUG");
+  const __forceGrass = readToggle("town_force_grass", "TOWN_FORCE_GRASS", false);
+  const __roadsAsFloor = readToggle("town_roads_as_floor", "TOWN_ROADS_AS_FLOOR", false);
+  // Default ON for diagnostic deploy; disable with ?town_biome_debug=0
+  const __biomeDebug = readToggle("town_biome_debug", "TOWN_BIOME_DEBUG", true);
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;

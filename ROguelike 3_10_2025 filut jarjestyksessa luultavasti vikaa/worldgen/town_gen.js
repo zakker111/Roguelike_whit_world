@@ -384,16 +384,20 @@ function generate(ctx) {
         }
       } catch (_) {}
 
-      // Verbose trace toggle (URL param or localStorage)
+      // Verbose trace toggle (URL param or localStorage), default ON for diagnostic deploy
       function readTraceFlag() {
         try {
           const params = new URLSearchParams(location.search);
-          const v = params.get("town_biome_trace");
-          if (v != null) return (v === "1" || v.toLowerCase() === "true");
+          let v = params.get("town_biome_trace");
+          if (v != null) {
+            v = String(v).toLowerCase();
+            if (v === "1" || v === "true") return true;
+            if (v === "0" || v === "false") return false;
+          }
         } catch (_) {}
-        try { return localStorage.getItem("TOWN_BIOME_TRACE") === "1"; } catch (_) { return false; }
-      }
-      const TRACE = readTraceFlag();
+        try {
+          const ls = localStorage.getItem("TOWN_BIOME_TRACE");
+);
 
       // Logger helper
       function L(msg, level = "info") {
@@ -464,24 +468,34 @@ function generate(ctx) {
       }
 
       // Optional overrides + debug
-      function readUrlBool(key) {
+      function readUrlSwitch(key) {
         try {
           const params = new URLSearchParams(location.search);
-          const v = params.get(key);
-          if (v != null) return (v === "1" || v.toLowerCase() === "true");
+          let v = params.get(key);
+          if (v != null) {
+            v = String(v).toLowerCase();
+            if (v === "1" || v === "true") return true;
+            if (v === "0" || v === "false") return false;
+          }
         } catch (_) {}
         return null;
       }
       let chosen = best || "GRASS";
       let forceGrass = false;
-      let debugBiome = false;
+      // Default ON for diagnostic deploy; can be disabled with ?town_biome_debug=0
+      let debugBiome = true;
       try {
-        const u = readUrlBool("town_force_grass");
-        forceGrass = (u === true) ? true : (localStorage.getItem("TOWN_FORCE_GRASS") === "1");
+        const u = readUrlSwitch("town_force_grass");
+        if (u !== null) forceGrass = u; else forceGrass = (localStorage.getItem("TOWN_FORCE_GRASS") === "1");
       } catch (_) {}
       try {
-        const u = readUrlBool("town_biome_debug");
-        debugBiome = (u === true) ? true : (localStorage.getItem("TOWN_BIOME_DEBUG") === "1");
+        const u = readUrlSwitch("town_biome_debug");
+        if (u !== null) debugBiome = u;
+        else {
+          const ls = localStorage.getItem("TOWN_BIOME_DEBUG");
+          if (ls === "1") debugBiome = true;
+          if (ls === "0") debugBiome = false;
+        }
       } catch (_) {}
       if (forceGrass) {
         if (TRACE || debugBiome) L("Biome override: force GRASS via toggle.", "notice");
