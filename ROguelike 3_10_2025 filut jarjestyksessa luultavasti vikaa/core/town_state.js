@@ -14,6 +14,27 @@
 
 const LS_KEY = "TOWN_STATES_V1";
 
+// Feature gate: allow disabling town persistence globally (always-fresh towns)
+// - URL params: ?townfresh=1 or ?notownpersist=1 -> disable
+// - window.NO_TOWN_PERSISTENCE = true -> disable
+// - GameData.config.town.persistence === false -> disable
+function townPersistenceEnabled() {
+  try { if (typeof window !== "undefined" && window.NO_TOWN_PERSISTENCE) return false; } catch (_) {}
+  try {
+    const href = (typeof window !== "undefined" && window.location) ? window.location.href : "";
+    if (href) {
+      const u = new URL(href);
+      const p = u.searchParams;
+      if (p.get("townfresh") === "1" || p.get("notownpersist") === "1" || p.get("notownpersistence") === "1") return false;
+    }
+  } catch (_) {}
+  try {
+    const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config) ? window.GameData.config : null;
+    if (cfg && cfg.town && typeof cfg.town.persistence === "boolean") return !!cfg.town.persistence;
+  } catch (_) {}
+  return true;
+}
+
 // Global in-memory fallback that persists across ctx instances within the same page/session
 if (typeof window !== "undefined" && !window._TOWN_STATES_MEM) {
   try { window._TOWN_STATES_MEM = Object.create(null); } catch (_) {}
@@ -23,9 +44,9 @@ export function key(x, y) { return `${x},${y}`; }
 
 function readLS() {
   try {
-    // Allow disabling localStorage via flag (set by URL param fresh=1/reset=1/nolocalstorage=1)
-    if (typeof window !== "undefined" && window.NO_LOCALSTORAGE) return Object.create(null);
-    const raw = (typeof localStorage !== "undefined") ? localStorage.getItem(LS_KEY) : null;
+    // Allow disabling persistence entirely (always-fresh towns)
+    if (!townPersistenceEnabled()) return Object.create(null);
+    // Allow disabling localStorage via flag (set by URL param fresh=st raw = (typeof localStorage !== "undefined") ? localStorage.getItem(LS_KEY) : null;
     if (!raw) return Object.create(null);
     const obj = JSON.parse(raw);
     return (obj && typeof obj === "object") ? obj : Object.create(null);
@@ -36,6 +57,8 @@ function readLS() {
 
 function writeLS(obj) {
   try {
+    // Allow disabling persistence entirely (always-fresh towns)
+    if (!townPersistenceEnabled()) return;
     // Allow disabling localStorage writes via flag (set by URL param fresh=1/reset=1/nolocalstorage=1)
     if (typeof window !== "undefined" && window.NO_LOCALSTORAGE) return;
     if (typeof localStorage !== "undefined") {
@@ -99,6 +122,7 @@ function cloneForStorage(st) {
 
 export function save(ctx) {
   if (!ctx || ctx.mode !== "town") return;
+  if (!townPersistenceEnabled()) return;
   // Use the world entry tile as the key (where we will return in overworld)
   const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : null;
   const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : null;
@@ -447,6 +471,8 @@ function applyState(ctx, st, x, y) {
 
 export function load(ctx, x, y) {
   if (!ctx) return false;
+  // If persistence is disabled, never load — always force fresh generation
+  if (!townPersistenceEnabled()) return false;
   const k = key(x, y);
 
   // Prefer in-memory state

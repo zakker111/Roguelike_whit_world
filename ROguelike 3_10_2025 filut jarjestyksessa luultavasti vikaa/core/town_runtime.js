@@ -10,6 +10,24 @@
  * - returnToWorldIfAtGate(ctx): leaves town if the player stands on the gate tile; returns true if handled
  */
 
+// Feature gate: allow disabling town persistence globally (always-fresh towns)
+function townPersistenceEnabled() {
+  try { if (typeof window !== "undefined" && window.NO_TOWN_PERSISTENCE) return false; } catch (_) {}
+  try {
+    const href = (typeof window !== "undefined" && window.location) ? window.location.href : "";
+    if (href) {
+      const u = new URL(href);
+      const p = u.searchParams;
+      if (p.get("townfresh") === "1" || p.get("notownpersist") === "1" || p.get("notownpersistence") === "1") return false;
+    }
+  } catch (_) {}
+  try {
+    const cfg = (typeof window !== "undefined" && window.GameData && window.GameData.config) ? window.GameData.config : null;
+    if (cfg && cfg.town && typeof cfg.town.persistence === "boolean") return !!cfg.town.persistence;
+  } catch (_) {}
+  return true;
+}
+
 export function generate(ctx) {
   const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
   if (Tn && typeof Tn.generate === "function") {
@@ -340,10 +358,12 @@ export function returnToWorldIfAtGate(ctx) {
 export function applyLeaveSync(ctx) {
   if (!ctx || !ctx.world) return false;
 
-  // Persist current town state (map + visibility + entities) before leaving
+  // Persist current town state (map + visibility + entities) before leaving (unless disabled)
   try {
-    const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
-    if (TS && typeof TS.save === "function") TS.save(ctx);
+    if (townPersistenceEnabled()) {
+      const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
+      if (TS && typeof TS.save === "function") TS.save(ctx);
+    }
   } catch (_) {}
 
   // Switch mode and restore overworld map
