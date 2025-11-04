@@ -97,7 +97,8 @@ function shade(hex, factor) {
   return toHex({ r: rgb.r * factor, g: rgb.g * factor, b: rgb.b * factor });
 }
 function neutralIndoorFloor(COLORS) {
-  return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
+  // Use a neutral dark slate indoors (avoid blue cast from default floorLit/floor)
+  return "#1a1c1f";
 }
 function roadColorForBiome(biomeHex) {
   if (!biomeHex) return "#4b5563"; // neutral gray when palette missing
@@ -283,6 +284,11 @@ export function draw(ctx, view) {
         // Prepare biome fill and outdoor mask
         ensureOutdoorMask(ctx);
         const biomeFill = townBiomeFill(ctx);
+        // Is the mask dimensionally valid? If not, default floors to outdoor until it is.
+        const maskReady = Array.isArray(ctx.townOutdoorMask)
+          && ctx.townOutdoorMask.length === mapRows
+          && Array.isArray(ctx.townOutdoorMask[0])
+          && ctx.townOutdoorMask[0].length === mapCols;
         // Track mask reference to trigger rebuild when it changes externally
         TOWN._maskRef = ctx.townOutdoorMask;
 
@@ -296,7 +302,7 @@ export function draw(ctx, view) {
             // Apply outdoor biome tint only to non-road FLOOR tiles; use neutral indoors
             try {
               if (type === TILES.FLOOR) {
-                const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
+                const isOutdoor = maskReady ? !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) : true;
                 if (isOutdoor && biomeFill) {
                   fill = biomeFill;
                 } else {
@@ -323,6 +329,10 @@ export function draw(ctx, view) {
     ensureTownBiome(ctx);
     ensureOutdoorMask(ctx);
     const biomeFill = townBiomeFill(ctx);
+    const maskReady = Array.isArray(ctx.townOutdoorMask)
+      && ctx.townOutdoorMask.length === mapRows
+      && Array.isArray(ctx.townOutdoorMask[0])
+      && ctx.townOutdoorMask[0].length === mapCols;
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -340,7 +350,7 @@ export function draw(ctx, view) {
         // Apply outdoor tint to FLOOR; use neutral indoors
         try {
           if (type === TILES.FLOOR) {
-            const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
+            const isOutdoor = maskReady ? !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) : true;
             if (isOutdoor && biomeFill) {
               fill = biomeFill;
             } else {
