@@ -427,6 +427,19 @@ function generate(ctx) {
       if (forceGrass) chosen = "GRASS";
 
       ctx.townBiome = chosen;
+      // Publish sampling details for on-screen debug overlays
+      try {
+        ctx.townBiomeCounts = {
+          GRASS: counts.GRASS | 0,
+          FOREST: counts.FOREST | 0,
+          DESERT: counts.DESERT | 0,
+          BEACH: counts.BEACH | 0,
+          SNOW: counts.SNOW | 0,
+          SWAMP: counts.SWAMP | 0
+        };
+        ctx.townBiomeSampleAt = { x: wx, y: wy };
+        ctx.townBiomeMaxR = MAX_R | 0;
+      } catch (_) {}
 
       if (debugBiome) {
         try {

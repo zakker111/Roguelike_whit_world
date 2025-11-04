@@ -84,10 +84,18 @@ export function draw(ctx, view) {
   } = Object.assign({}, view, ctx);
 
   
-  // Developer toggles via localStorage (safe fallbacks)
-  const __forceGrass = (function(){ try { return localStorage.getItem("TOWN_FORCE_GRASS") === "1"; } catch (_) { return false; } })();
-  const __roadsAsFloor = (function(){ try { return localStorage.getItem("TOWN_ROADS_AS_FLOOR") === "1"; } catch (_) { return false; } })();
-  const __biomeDebug = (function(){ try { return localStorage.getItem("TOWN_BIOME_DEBUG") === "1"; } catch (_) { return false; } })();
+  // Developer toggles via URL params or localStorage (safe fallbacks)
+  function readToggle(name, lsKey) {
+    try {
+      const params = new URLSearchParams(location.search);
+      const v = params.get(name);
+      if (v != null) return (v === "1" || v.toLowerCase() === "true");
+    } catch (_) {}
+    try { return localStorage.getItem(lsKey) === "1"; } catch (_) { return false; }
+  }
+  const __forceGrass = readToggle("town_force_grass", "TOWN_FORCE_GRASS");
+  const __roadsAsFloor = readToggle("town_roads_as_floor", "TOWN_ROADS_AS_FLOOR");
+  const __biomeDebug = readToggle("town_biome_debug", "TOWN_BIOME_DEBUG");
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
@@ -950,6 +958,54 @@ export function draw(ctx, view) {
 
   // Grid overlay (if enabled)
   RenderCore.drawGridOverlay(view);
+
+  // Biome debug panel (top-left) when enabled
+  (function drawBiomeDebugPanel() {
+    if (!__biomeDebug) return;
+    try {
+      const counts = ctx.townBiomeCounts || {};
+      const at = ctx.townBiomeSampleAt || {};
+      const lines = [];
+      lines.push(`Town Biome: ${String(ctx.townBiome || "(unknown)")}`);
+      lines.push(`Counts: GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}`);
+      lines.push(`        DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}`);
+      lines.push(`        SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}`);
+      if (typeof at.x === "number" && typeof at.y === "number") {
+        lines.push(`Sample@ ${at.x},${at.y}  R=${(ctx.townBiomeMaxR|0)}`);
+      }
+      if (__roadsAsFloor || __forceGrass) {
+        lines.push(`Flags: roadsAsFloor=${__roadsAsFloor ? "1" : "0"} forceGrass=${__forceGrass ? "1" : "0"}`);
+      }
+
+      const padX = 10, padY = 8, lineH = Math.max(14, Math.floor(TILE * 0.65));
+      const width = Math.min(360, Math.max(180, Math.floor(TILE * 8)));
+      const height = padY * 2 + lineH * lines.length;
+      const x0 = 8, y0 = 8;
+
+      ctx2d.save();
+      // Panel background
+      ctx2d.fillStyle = "rgba(10, 12, 18, 0.80)";
+      ctx2d.fillRect(x0, y0, width, height);
+      // Border
+      ctx2d.strokeStyle = "#94a3b8";
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(x0 + 0.5, y0 + 0.5, width - 1, height - 1);
+      // Text
+      const prevFont = ctx2d.font;
+      ctx2d.font = "bold 13px JetBrains Mono, monospace";
+      ctx2d.textAlign = "left";
+      ctx2d.textBaseline = "middle";
+      let yy = y0 + padY + lineH / 2;
+      for (let i = 0; i < lines.length; i++) {
+        const text = lines[i];
+        ctx2d.fillStyle = i === 0 ? "#e2e8f0" : "#cbd5e1";
+        ctx2d.fillText(text, x0 + padX, yy);
+        yy += lineH;
+      }
+      ctx2d.font = prevFont;
+      ctx2d.restore();
+    } catch (_) {}
+  })();
 }
 
 // Back-compat: attach to window via helper
