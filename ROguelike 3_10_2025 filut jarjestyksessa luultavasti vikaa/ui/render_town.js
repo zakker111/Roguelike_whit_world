@@ -201,10 +201,16 @@ export function draw(ctx, view) {
   function townBiomeFill(ctx) {
     try {
       const GD = (typeof window !== "undefined" ? window.GameData : null);
-      const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
-      if (!pal) return null;
       const k = String(ctx.townBiome || "").toUpperCase();
-      return pal[k] || null;
+      if (!k) return null;
+      const pal = GD && GD.palette ? GD.palette : null;
+      if (!pal) return null;
+      // Prefer encounterBiome for clearer ground hues (SNOW is properly near-white there)
+      const enc = pal.encounterBiome ? pal.encounterBiome[k] : null;
+      if (enc) return enc;
+      const town = pal.townBiome ? pal.townBiome[k] : null;
+      if (town) return town;
+      return null;
     } catch (_) { return null; }
   }
   function ensureOutdoorMask(ctx) {
@@ -380,7 +386,6 @@ export function draw(ctx, view) {
       }
 
       if (anyRoad) {
-        const rCol = roadColorForBiome(townBiomeFill(ctx));
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
           if (!yIn) continue;
@@ -389,12 +394,11 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = rCol;
+            ctx2d.fillStyle = "#b0a58a"; // fixed neutral road
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
       } else if (ctx.townRoads) {
-        const rCol = roadColorForBiome(townBiomeFill(ctx));
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
           if (!yIn) continue;
@@ -405,7 +409,7 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = rCol;
+            ctx2d.fillStyle = "#b0a58a";
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
