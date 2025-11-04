@@ -1,8 +1,15 @@
 s 
 # Game Version History
-Last updated: 2025-11-04 12:00 UTC
+Last updated: 2025-11-04 13:00 UTC
 
-v1.45.0 — Fishing mini‑game, tool durability, shop economy, and performance polish
+v1.45.1 — Tool registry + data-driven consumables/potions
+- Tools registry (tool-first)
+  - Added data/entities/tools.json and exposed it via GameData.tools in data/loader.js.
+  - ShopService now materializes tools from the registry (type/id) and prices them by id (with per-shop overrides).
+  - Starter fishing pole now uses decay: 0 (legacy durability normalized on first use).
+  - Removed the equip “fishing_pole” entry from items.json to avoid mixing equip/tool models; fishing pole remains a tool.
+  - Inventory UI detects fishing pole by type id and displays decay consistently.
+sh
 - Added: Fishing mini‑game (Region Map)
   - Action on Region Map when adjacent to WATER/RIVER and carrying a fishing pole opens a modal mini‑game (hold‑the‑bar).
   - Deterministic per attempt (seeded from ctx.rng); the mini‑game swallows input while open and advances in‑game time per attempt.
