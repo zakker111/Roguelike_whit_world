@@ -3,6 +3,15 @@
 // Exports:
 //  - computePath(ctx, occ, sx, sy, tx, ty, opts)
 //  - computePathBudgeted(ctx, occ, sx, sy, tx, ty, opts)
+//
+// Enhancements:
+//  - Centralized per-tick pathfinding queue with prioritization (on-screen/near-player/urgent)
+//  - Strict per-tick budget consumption
+//  - Lightweight LRU caching by start->target
+//
+// Notes:
+//  - Queue drains using the current occupancy Set (occ) captured at request time; since it is shared/mutated
+//    during the tick, queued solves see the latest state when processed.
 
 function isWalkTown(ctx, x, y) {
   const { map, TILES } = ctx;
@@ -13,7 +22,40 @@ function isWalkTown(ctx, x, y) {
   return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.ROAD;
 }
 
-// Pre-planning A* used for path debug and stable routing
+// --- Viewport helpers for prioritization ---
+function getCamera(ctx) {
+  try {
+    if (typeof ctx.getCamera === 'function') return ctx.getCamera();
+    return ctx.camera || null;
+  } catch (_) {
+    return null;
+  }
+}
+function getViewportTiles(ctx) {
+  try {
+    const cam = getCamera(ctx);
+    const TILE = (typeof ctx.TILE === 'number') ? ctx.TILE : 32;
+    if (!cam || !TILE) return null;
+    const x0 = Math.floor((cam.x || 0) / TILE);
+    const y0 = Math.floor((cam.y || 0) / TILE);
+    const w = Math.ceil((cam.width || 0) / TILE) + 1;
+    const h = Math.ceil((cam.height || 0) / TILE) + 1;
+    return { x0, y0, x1: x0 + w, y1: y0 + h };
+  } catch (_) {
+    return null;
+  }
+}
+function isOnScreen(ctx, x, y, marginTiles = 2) {
+  try {
+    const vp = getViewportTiles(ctx);
+    if (!vp) return false;
+    return (x >= vp.x0 - marginTiles && x <= vp.x1 + marginTiles &&
+            y >= vp.y0 - marginTiles && y <= vp.y1 + marginTiles);
+  } catch (_) { return false; }
+}
+function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
+
+// --- Core A* (single solve) ---
 export function computePath(ctx, occ, sx, sy, tx, ty, opts = {}) {
   const { map } = ctx;
   const rows = map.length, cols = map[0] ? map[0].length : 0;
@@ -89,77 +131,139 @@ export function computePath(ctx, occ, sx, sy, tx, ty, opts = {}) {
   return path;
 }
 
-// Pathfinding budget/throttling + LRU caching
-export function computePathBudgeted(ctx, occ, sx, sy, tx, ty, opts = {}) {
-  // Initialize per-tick budget lazily if missing
-  if (typeof ctx._townPathBudgetRemaining !== "number") {
-    ctx._townPathBudgetRemaining = 1;
+// --- Central queue + LRU cache ---
+function ensureCache(ctx) {
+  if (!ctx._pathCache) {
+    ctx._pathCache = { map: new Map(), order: [], limit: 200 };
   }
-  if (ctx._townPathBudgetRemaining <= 0) return null;
-
-  // Lightweight global path cache keyed by start->target.
-  // Cache ignores dynamic NPC occupancy; callers still validate next step.
+  return ctx._pathCache;
+}
+function cacheGet(ctx, key) {
+  const c = ensureCache(ctx);
+  const m = c.map;
+  if (!m.has(key)) return null;
+  const v = m.get(key);
+  if (!Array.isArray(v) || v.length < 2) { m.delete(key); return null; }
+  // LRU touch
   try {
-    if (!ctx._pathCache) {
-      ctx._pathCache = { map: new Map(), order: [], limit: 200 };
-    }
-    const key = `${sx},${sy}->${tx},${ty}`;
-    const m = ctx._pathCache.map;
-    if (m.has(key)) {
-      const cached = m.get(key);
-      // Quick validation: shape and endpoints match; tiles walkable currently.
-      if (Array.isArray(cached) && cached.length >= 2) {
-        const first = cached[0], last = cached[cached.length - 1];
-        const okEndpoints = (first && first.x === sx && first.y === sy && last && last.x === tx && last.y === ty);
-        if (okEndpoints) {
-          let valid = true;
-          for (let i = 0; i < cached.length; i++) {
-            const p = cached[i];
-            if (!isWalkTown(ctx, p.x, p.y)) { valid = false; break; }
-          }
-          if (valid) {
-            // Touch LRU order
-            try {
-              const idx = ctx._pathCache.order.indexOf(key);
-              if (idx !== -1) { ctx._pathCache.order.splice(idx, 1); }
-              ctx._pathCache.order.push(key);
-            } catch (_) {}
-            // Consume budget and return cached plan
-            ctx._townPathBudgetRemaining--;
-            return cached.slice(0);
-          } else {
-            // Invalidate stale entry
-            m.delete(key);
-          }
-        } else {
-          m.delete(key);
-        }
-      } else {
-        m.delete(key);
-      }
+    const idx = c.order.indexOf(key);
+    if (idx !== -1) c.order.splice(idx, 1);
+    c.order.push(key);
+  } catch (_) {}
+  return v.slice(0);
+}
+function cacheSet(ctx, key, path) {
+  const c = ensureCache(ctx);
+  try {
+    c.map.set(key, path.slice(0));
+    c.order.push(key);
+    if (c.order.length > c.limit) {
+      const evictKey = c.order.shift();
+      try { c.map.delete(evictKey); } catch (_) {}
     }
   } catch (_) {}
-
-  // No cache hit: compute and store if successful
-  ctx._townPathBudgetRemaining--;
-  const path = computePath(ctx, occ, sx, sy, tx, ty, opts);
+}
+function maybeResetQueue(ctx) {
   try {
+    const turn = (ctx.time && typeof ctx.time.turnCounter === 'number') ? (ctx.time.turnCounter | 0) : 0;
+    const q = ctx._pathQueue;
+    if (!q || q.lastTurn !== turn) {
+      ctx._pathQueue = { q: [], seen: new Set(), results: new Map(), lastTurn: turn };
+    }
+  } catch (_) {
+    ctx._pathQueue = { q: [], seen: new Set(), results: new Map(), lastTurn: 0 };
+  }
+}
+function enqueue(ctx, req) {
+  const Q = ctx._pathQueue;
+  if (!Q) return;
+  if (Q.seen.has(req.key)) {
+    // Update priority of existing entry if higher
+    for (let i = 0; i < Q.q.length; i++) {
+      const r = Q.q[i];
+      if (r.key === req.key) {
+        if ((req.prio | 0) > (r.prio | 0)) r.prio = req.prio | 0;
+        return;
+      }
+    }
+    return;
+  }
+  Q.q.push(req);
+  Q.seen.add(req.key);
+}
+function drain(ctx) {
+  const Q = ctx._pathQueue;
+  if (!Q) return;
+  // Nothing to do or no budget
+  let budget = (typeof ctx._townPathBudgetRemaining === 'number') ? ctx._townPathBudgetRemaining : 0;
+  if (budget <= 0) return;
+
+  // Sort by priority descending; stable by FIFO within equal priority
+  if (Q.q.length > 1) {
+    Q.q.sort((a, b) => (b.prio | 0) - (a.prio | 0));
+  }
+
+  while (Q.q.length && budget > 0) {
+    const r = Q.q.shift();
+    Q.seen.delete(r.key);
+    // Skip if result already cached
+    if (cacheGet(ctx, r.key)) { continue; }
+    const path = computePath(ctx, r.occ, r.sx, r.sy, r.tx, r.ty, r.opts || {});
     if (Array.isArray(path) && path.length >= 2) {
-      const key = `${sx},${sy}->${tx},${ty}`;
-      const m = ctx._pathCache && ctx._pathCache.map;
-      if (m && typeof m.set === "function") {
-        m.set(key, path.slice(0));
-        // Maintain simple LRU eviction
-        const ord = ctx._pathCache.order;
-        ord.push(key);
-        if (ord.length > ctx._pathCache.limit) {
-          const evictKey = ord.shift();
-          try { ctx._pathCache.map.delete(evictKey); } catch (_) {}
-        }
-      }
+      cacheSet(ctx, r.key, path);
+      try { Q.results.set(r.key, path.slice(0)); } catch (_) {}
     }
+    budget--;
+  }
+  ctx._townPathBudgetRemaining = budget;
+}
+function prioScore(ctx, sx, sy, tx, ty, opts) {
+  let p = 0;
+  try {
+    if (opts && opts.urgent) p += 100; // urgent callers (usually shopkeepers/critical)
+    if (isOnScreen(ctx, sx, sy)) p += 40;
+    const player = ctx.player || null;
+    if (player) {
+      const d = manhattan(sx, sy, player.x | 0, player.y | 0);
+      if (d <= 6) p += 20;
+      else if (d <= 10) p += 8;
+    }
+    if (opts && typeof opts.prioBoost === 'number') p += opts.prioBoost;
   } catch (_) {}
-  return path;
+  return p | 0;
+}
+
+// Pathfinding budget/throttling + centralized queue + LRU caching
+export function computePathBudgeted(ctx, occ, sx, sy, tx, ty, opts = {}) {
+  // Ensure queue for this tick
+  maybeResetQueue(ctx);
+
+  // Fast cache hit (does not consume budget)
+  const key = `${sx},${sy}->${tx},${ty}`;
+  const cached = cacheGet(ctx, key);
+  if (cached) return cached;
+
+  // If no budget available, just enqueue and return null
+  if (typeof ctx._townPathBudgetRemaining !== 'number') ctx._townPathBudgetRemaining = 1;
+
+  // Enqueue current request with computed priority
+  try {
+    const req = {
+      key,
+      sx, sy, tx, ty,
+      occ, // shared Set reference; reflects latest occupancy when processed
+      opts: opts || {},
+      prio: prioScore(ctx, sx, sy, tx, ty, opts)
+    };
+    enqueue(ctx, req);
+  } catch (_) {}
+
+  // Drain queue according to remaining budget (process highest-priority first)
+  drain(ctx);
+
+  // Return if our request was solved during this drain
+  const out = cacheGet(ctx, key);
+  return out || null;
 }
 
 // Back-compat: attach for window consumers (optional)

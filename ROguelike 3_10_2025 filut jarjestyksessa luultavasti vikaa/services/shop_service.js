@@ -111,6 +111,22 @@ function _rng(ctx) {
 function _priceFor(item) {
   try {
     if (!item) return 10;
+    // Tools: prefer data-driven pricing by id
+    if (String(item.kind || "").toLowerCase() === "tool") {
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const list = GD && GD.tools && Array.isArray(GD.tools.tools) ? GD.tools.tools : null;
+        const id = String(item.type || item.id || "").toLowerCase();
+        if (list && id) {
+          const def = list.find(t => t && String(t.id || "").toLowerCase() === id);
+          if (def && def.price && typeof def.price.base === "number") {
+            return (def.price.base | 0);
+          }
+        }
+      } catch (_) {}
+      // Default tool price fallback
+      return 10;
+    }
     if (item.kind === "potion") {
       var h = item.heal != null ? item.heal : 5;
       return Math.max(5, Math.min(50, Math.round(h * 2)));
@@ -135,6 +151,21 @@ function _materializeItem(ctx, entry) {
   if (!entry || typeof entry !== "object") return null;
   var kind = String(entry.kind || "").toLowerCase();
   if (kind === "potion") {
+    // Prefer data-driven consumables by id when available
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const list = GD && GD.consumables && Array.isArray(GD.consumables.potions) ? GD.consumables.potions : null;
+      const id = String(entry.id || "").toLowerCase();
+      if (list && id) {
+        const def = list.find(p => p && String(p.id || "").toLowerCase() === id);
+        if (def) {
+          const heal = Number(def.heal || entry.heal || 5) || 5;
+          const name = def.name || ("potion (+" + heal + " HP)");
+          return { kind: "potion", heal: heal, count: 1, name };
+        }
+      }
+    } catch (_) {}
+    // Fallback to entry.heal
     return { kind: "potion", heal: entry.heal || 5, count: 1, name: "potion (+" + (entry.heal || 5) + " HP)" };
   }
   if (kind === "drink") {
@@ -171,7 +202,21 @@ function _materializeItem(ctx, entry) {
     }
   }
   if (kind === "tool") {
-    return { kind: "tool", name: entry.id || "tool" };
+    const id = String(entry.id || entry.type || "tool");
+    let name = id.replace(/_/g, " ");
+    let startDecay = 0;
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const list = GD && GD.tools && Array.isArray(GD.tools.tools) ? GD.tools.tools : null;
+      if (list) {
+        const def = list.find(t => t && String(t.id || "").toLowerCase() === String(id).toLowerCase());
+        if (def) {
+          if (def.name) name = String(def.name);
+          if (def.decay && typeof def.decay.start === "number") startDecay = Math.max(0, Math.min(100, def.decay.start | 0));
+        }
+      }
+    } catch (_) {}
+    return { kind: "tool", type: id, name, decay: startDecay };
   }
   if (kind === "material") {
     return { kind: "material", material: entry.material || "wood", name: entry.id || "material", amount: 1 };
@@ -224,6 +269,23 @@ export function canSellToShop(shopType, itemKind) {
 }
 
 export function calculatePrice(shopType, item, phase, demandState) {
+  // Tools: prefer data-driven overrides by shop id
+  try {
+    const isTool = String(item && item.kind || "").toLowerCase() === "tool";
+    if (isTool) {
+      const id = String(item && (item.type || item.id) || "").toLowerCase();
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const list = GD && GD.tools && Array.isArray(GD.tools.tools) ? GD.tools.tools : null;
+      const def = list && id ? list.find(t => t && String(t.id || "").toLowerCase() === id) : null;
+      if (def && def.price) {
+        const st = String(shopType || "").toLowerCase();
+        if (def.price.shops && def.price.shops[st] != null) {
+          return Number(def.price.shops[st]) | 0;
+        }
+      }
+    }
+  } catch (_) {}
+
   var base = _priceFor(item);
   var r = _getRules(shopType);
   var mult = 1.0;

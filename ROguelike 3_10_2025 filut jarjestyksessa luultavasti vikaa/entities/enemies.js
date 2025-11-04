@@ -4,7 +4,7 @@
  * Exports (ESM + window.Enemies):
  * - TYPES, pickType(depth, rng), createEnemyAt(x, y, depth, rng)
  * - colorFor(type), glyphFor(type)
- * - equipTierFor(type), equipChanceFor(type), potionWeightsFor(type)
+ * - equipTierFor(type), equipChanceFor(type)
  * - levelFor(type, depth, rng), damageMultiplier(level), enemyBlockChance(enemy, loc)
  *
  * Notes:
@@ -182,10 +182,7 @@ export function equipChanceFor(type) {
   return t ? (typeof t.equipChance === "number" ? t.equipChance : 0.35) : 0.35;
 }
 
-export function potionWeightsFor(type) {
-  const t = getTypeDef(type);
-  return t ? (t._potionWeights || { lesser: 0.6, average: 0.3, strong: 0.1 }) : { lesser: 0.6, average: 0.3, strong: 0.1 };
-}
+
 
 export function pickType(depth, rng) {
   const keys = listTypes();
@@ -285,7 +282,6 @@ if (typeof window !== "undefined") {
     glyphFor,
     equipTierFor,
     equipChanceFor,
-    potionWeightsFor,
     pickType,
     levelFor,
     damageMultiplier,

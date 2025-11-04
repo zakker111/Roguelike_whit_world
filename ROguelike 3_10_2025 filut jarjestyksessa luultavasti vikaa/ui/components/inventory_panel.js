@@ -11,6 +11,26 @@
 let _UI = null;
 let _equipState = { leftEmpty: true, rightEmpty: true };
 
+function edibleHealFromData(it) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const M = GD && GD.materials ? GD.materials : null;
+    const list = M ? (Array.isArray(M.materials) ? M.materials : (Array.isArray(M.list) ? M.list : null)) : null;
+    const id = String(it && (it.type || it.name) || "").toLowerCase();
+    if (list && id) {
+      const entry = list.find(e => e && (String(e.id || "").toLowerCase() === id || String(e.name || "").toLowerCase() === id));
+      if (entry && entry.edible && typeof entry.edible.heal === "number") {
+        return Math.max(0, Number(entry.edible.heal) || 0);
+      }
+    }
+  } catch (_) {}
+  const nm = String(it && (it.type || it.name) || "").toLowerCase();
+  if (nm === "meat_cooked" || nm === "meat (cooked)") return 2;
+  if (nm === "fish_cooked" || nm === "fish (cooked)") return 5;
+  if (nm === "berries") return 1;
+  return 0;
+}
+
 function byId(id) {
   try { return document.getElementById(id); } catch (_) { return null; }
 }
@@ -152,11 +172,10 @@ export function render(player, describeItem) {
         const li = document.createElement("li");
         li.dataset.index = String(idx);
 
-        // Determine if this material is edible (berries, cooked meat)
+        // Determine if this material is edible via data (materials.json edible.heal)
         const nm = String(it && (it.type || it.name) || "").toLowerCase();
-        const isBerries = (it && it.kind === "material") && (nm === "berries");
-        const isCookedMeat = (it && it.kind === "material") && (nm === "meat_cooked" || nm === "meat (cooked)");
-        const isFood = isBerries || isCookedMeat;
+        const foodHeal = (it && it.kind === "material") ? edibleHealFromData(it) : 0;
+        const isFood = foodHeal > 0;
 
         li.dataset.kind = isFood ? "food" : (it.kind || "misc");
 
@@ -205,12 +224,24 @@ export function render(player, describeItem) {
           const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
           li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
           li.style.cursor = "pointer";
+        } else if (it.kind === "tool") {
+          // Show decay for tools (e.g., fishing pole). Normalize from durability if present.
+          const nmTool = String((it && (it.type || it.name)) || "").toLowerCase();
+          let dec = (typeof it.decay === "number") ? it.decay : null;
+          if (dec == null && typeof it.durability === "number") {
+            dec = Math.max(0, Math.min(100, 100 - (it.durability | 0)));
+          }
+          dec = Math.max(0, Math.min(100, Number(dec || 0)));
+          const isPole = (it && String(it.type || "").toLowerCase() === "fishing_pole") || nmTool.includes("fishing pole") || nmTool.includes("fishing_pole");
+          const kindLabel = isPole ? "Fishing pole" : "Tool";
+          li.title = `${kindLabel} • Decay: ${dec.toFixed(0)}%`;
+          li.style.cursor = "default";
         } else if (it.kind === "potion" || it.kind === "drink") {
           li.style.cursor = "pointer";
           li.title = "Click to drink";
         } else if (isFood) {
           li.style.cursor = "pointer";
-          li.title = isCookedMeat ? "Click to eat (+2 HP)" : "Click to eat (+1 HP)";
+          li.title = `Click to eat (+${foodHeal} HP)`;
         } else {
           li.style.opacity = "0.7";
           li.style.cursor = "default";

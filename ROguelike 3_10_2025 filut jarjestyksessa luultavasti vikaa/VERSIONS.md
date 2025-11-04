@@ -1,6 +1,98 @@
 s 
 # Game Version History
-Last updated: 2025-10-29 14:00 UTC
+Last updated: 2025-11-04 13:00 UTC
+
+v1.45.1 — Tool registry + data-driven consumables/potions
+- Tools registry (tool-first)
+  - Added data/entities/tools.json and exposed it via GameData.tools in data/loader.js.
+  - ShopService now materializes tools from the registry (type/id) and prices them by id (with per-shop overrides).
+  - Starter fishing pole now uses decay: 0 (legacy durability normalized on first use).
+  - Removed the equip “fishing_pole” entry from items.json to avoid mixing equip/tool models; fishing pole remains a tool.
+  - Inventory UI detects fishing pole by type id and displays decay consistently.
+- Consumables (uniform, data-driven)
+  - Edible materials (berries, meat_cooked, fish_cooked) pull heal values from materials.json (edible.heal).
+  - Inventory tooltips show “Click to eat (+X HP)” using the same data.
+  - Potions come from consumables.json when present:
+    - Loot: enemy potion tiers (lesser/average/strong) map to potion_lesser/_average/_strong; fallback by heal values or legacy hardcoded names.
+    - Shops: kind: "potion" entries use consumables definitions by id; fallback to entry.heal otherwise.
+- Shops cleanup
+  - shop_pools.json now references potion ids (potion_lesser / potion_strong) instead of potion_hp_* placeholders.
+- Campfire cooking cleanup
+  - Campfire cooking now routes through data/crafting/recipes.json (“cook_meat”, “cook_fish”) for inputs/outputs and names.
+  - Cooking skill gain unchanged (+1 XP per item cooked).
+- Fixed: Town biomes sticking to the first town
+  - ui/render_town.js: removed incorrect fallback that guessed absolute coords from town-local player position; now requires ctx.worldReturnPos or persisted per-town biome.
+  - ui/render_town.js: offscreen base cache now rebuilds when town biome or town key changes (tracks _biomeKey and _townKey), ensuring per-town tint updates.
+  - core/town_state.js: clears stale ctx.townOutdoorMask on load so outdoor tint masks are rebuilt for each town.
+- Minor
+  - Removed unused Enemies.potionWeightsFor API and references.
+  - Fishing modal decay logic prefers tool type id (fishing_pole) when locating the pole in inventory.
+- Deployment: https://lfa2z782s7zw.cosine.page, https://ctfxh2v9ac1b.cosine.page, https://605gkewh8631.cosine.page, https://xa2sk0ajq6zx.cosine.page, https://d1q1qz8l82py.cosine.page.1 — Tool registry + data-driven consumables/potions
+- Tools registry (tool-first)
+  - Added data/entities/tools.json and exposed it via GameData.tools in data/loader.js.
+  - ShopService now materializes tools from the registry (type/id) and prices them by id (with per-shop overrides).
+  - Starter fishing pole now uses decay: 0 (legacy durability normalized on first use).
+  - Removed the equip “fishing_pole” entry from items.json to avoid mixing equip/tool models; fishing pole remains a tool.
+  - Inventory UI detects fishing pole by type id and displays decay consistently.
+sh
+- Added: Fishing mini‑game (Region Map)
+  - Action on Region Map when adjacent to WATER/RIVER and carrying a fishing pole opens a modal mini‑game (hold‑the‑bar).
+  - Deterministic per attempt (seeded from ctx.rng); the mini‑game swallows input while open and advances in‑game time per attempt.
+  - Default prompt shows “Fish here? (15 min)” and uses minutesPerAttempt: 15 unless overridden.
+- Changed: Difficulty tuning (harder + wilder)
+  - Smaller safe zone, faster drift, stronger jitter.
+  - Added size pulsing and dash bursts (zone periodically surges at ~3–4× speed with occasional direction locks).
+  - Slower progress gain and slower stress relaxation; mistakes add stress faster.
+- Added: Rare item catches from fishing
+  - On success, a small 1% chance to pull up a non‑fish item (prefers Items.createEquipment tier 1–2; fallback “old boot” material).
+  - Item chance tunable via itemChance; default remains 1%.
+- Added: Skill synergy (Foraging → Fishing)
+  - Player foraging skill now eases the fishing mini‑game slightly: reduces effective difficulty by up to ~0.12 at high skill, making the safe zone a bit larger and drift a bit slower.
+- Added: Fishing pole durability and breakage
+  - Each fishing attempt decays the fishing pole by 10% (configurable via decayPerAttempt). At 100% decay the pole breaks and is removed from inventory (log message).
+  - Legacy durability fields (durability:100) are normalized to decay on first use (decay = 100 − durability).
+- Shops/Economy
+  - Trader: sometimes sells a fishing pole (tool) via trader.mixed pool; standard price 200 gold.
+  - Seppo: now also sells fishing poles (premium pool) at a special fixed “good price” of 50 gold (overrides phase multipliers).
+  - ShopService tool materialization now includes type + display name for tools (e.g., “fishing_pole” → “fishing pole”).
+  - Pricing override implemented in ShopService.calculatePrice for Seppo’s fishing poles.
+- Campfire cooking
+  - Standing on a campfire now lets you cook either raw fish or raw meat when available.
+  - If both are present, you’re asked to choose (fish first; Cancel switches to meat prompt).
+  - Cooked fish is edible and heals +5 HP; cooked meat heals +2 HP.
+- Consumables (uniform, data-driven)
+  - Eating cooked fish/meat and berries now uses a single path that reads edible.heal from data/entities/materials.json.
+  - Inventory tooltips show “Click to eat (+X HP)” using the same data. Safe fallbacks retain previous values when data is missing.
+  - Potions now materialize from data/entities/consumables.json where available:
+    - Loot: enemy potion drops by tier (lesser/average/strong) map to potions with ids potion_lesser/average/strong; falls back to heal values if ids differ.
+    - Shops: when a shop pool entry has kind: \"potion\" and id matches a consumable id, it uses that definition (name/heal); otherwise falls back to entry.heal.
+- Data-driven fish
+  - Added fish and fish (cooked) to data/entities/materials.json (same file as meat).
+  - Added cook_fish recipe to data/crafting/recipes.json (station: campfire).
+- Tools registry (tool-first)
+  - Added data/entities/tools.json with fishing_pole definition (decay defaults and pricing).
+  - Loader now exposes GameData.tools; ShopService materializes tools from this registry.
+  - Pricing uses tool id (with per-shop overrides, e.g., seppo=50) instead of string matching.
+  - Starter inventory fishing pole now uses decay: 0 (durability removed).
+  - Removed fishing_pole from data/entities/items.json to avoid mixing equip/tool models.
+- Loot
+  - Bandits now have a very small (~1%) chance to drop a fishing pole (tool) on death.
+- Performance/UX polish
+  - Logger: batched DOM logging (~12 Hz flush) with DocumentFragments and optional mirror panel; smoother under heavy logs.
+  - Lamp glow overlay: offscreen cached glow layer keyed by map/tile/time; blits cropped viewport additively at night/dusk/dawn to eliminate per‑frame radial costs.
+  - Pathfinding: centralized global request queue with strict per‑tick budget, LRU route cache, and priority for urgent/on‑screen NPCs; computePathBudgeted adopted in town AI for smooth frame times.
+- Files (highlights)
+  - ui/components/fishing_modal.js (new feature + tuning + item chance + durability)
+  - region_map/region_map_runtime.js (fishing integration and prompt “(15 min)”)
+  - services/shop_service.js (tool pricing/materialization + Seppo price override)
+  - data/shops/shop_pools.json (trader and seppo entries for fishing_pole)
+  - entities/loot.js (bandit rare fishing pole drop)
+  - ui/logger.js, ui/render_overlays.js (performance work)
+- Deployment: https://y4c21jovd339.cosine.page (initial), https://j0heyp3z823q.cosine.page (logger/lamp),
+  https://l0ok3oiox0j7.cosine.page (path budget/queue), https://rp26szzoenwk.cosine.page (fishing MVP),
+  https://yo09o22mkh3s.cosine.page (harder/longer), https://muxe6znr265t.cosine.page (rare item from fishing),
+  https://w1u7zkpx19dg.cosine.page (faster zone drift), https://v3kyhnj9m6cr.cosine.page (wilder: pulse + dashes),
+  https://sbisfkawxgfg.cosine.page (durability + trader/bandit), https://meprigd0cvmc.cosine.page (Seppo 50g pricing)
 
 v1.44.1 — Prefab schedules only, shops.json retired, greeter copy, Prefab Editor schedule/sign, and single-plaza guard
 - Town generation

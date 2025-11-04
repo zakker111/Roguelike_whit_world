@@ -785,16 +785,116 @@ function open(ctx, size) {
   spawnX = clamp(spawnX, 0, width - 1);
   spawnY = clamp(spawnY, 0, height - 1);
 
-  // On enter: spawn the cursor at the nearest exit tile (edge), not at the mapped interior point.
-  const exits = [exitNorth, exitSouth, exitWest, exitEast];
-  let bestExit = exits[0];
-  let bestDist = Infinity;
-  for (const e of exits) {
-    const d = Math.abs((e.x | 0) - spawnX) + Math.abs((e.y | 0) - spawnY);
-    if (d < bestDist) { bestDist = d; bestExit = e; }
+  // On enter: choose a walkable edge tile near the mapped point (avoid WATER/RIVER/MOUNTAIN)
+  function regionWalkableAt(x, y) {
+    const h2 = sample.length, w2 = sample[0] ? sample[0].length : 0;
+    if (x < 0 || y < 0 || x >= w2 || y >= h2) return false;
+    try {
+      const t = sample[y][x];
+      // Prefer tiles.json walkability if present
+      const def = getTileDef("region", t);
+      if (def && def.properties && typeof def.properties.walkable === "boolean") return !!def.properties.walkable;
+      // Fallback to overworld semantics
+      try { return !!World.isWalkable(t); } catch (_) {}
+      const WT = World.TILES;
+      return (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+    } catch (_) { return true; }
   }
-  spawnX = bestExit.x | 0;
-  spawnY = bestExit.y | 0;
+  function nearestWalkableOnEdge(edge) {
+    if (edge === "N") {
+      const y = 0;
+      let x0 = clamp(spawnX, 0, width - 1);
+      if (regionWalkableAt(x0, y)) return { x: x0, y };
+      for (let r = 1; r < width; r++) {
+        const xl = x0 - r, xr = x0 + r;
+        if (xl >= 0 && regionWalkableAt(xl, y)) return { x: xl, y };
+        if (xr < width && regionWalkableAt(xr, y)) return { x: xr, y };
+      }
+      return null;
+    } else if (edge === "S") {
+      const y = height - 1;
+      let x0 = clamp(spawnX, 0, width - 1);
+      if (regionWalkableAt(x0, y)) return { x: x0, y };
+      for (let r = 1; r < width; r++) {
+        const xl = x0 - r, xr = x0 + r;
+        if (xl >= 0 && regionWalkableAt(xl, y)) return { x: xl, y };
+        if (xr < width && regionWalkableAt(xr, y)) return { x: xr, y };
+      }
+      return null;
+    } else if (edge === "W") {
+      const x = 0;
+      let y0 = clamp(spawnY, 0, height - 1);
+      if (regionWalkableAt(x, y0)) return { x, y: y0 };
+      for (let r = 1; r < height; r++) {
+        const yu = y0 - r, yd = y0 + r;
+        if (yu >= 0 && regionWalkableAt(x, yu)) return { x, y: yu };
+        if (yd < height && regionWalkableAt(x, yd)) return { x, y: yd };
+      }
+      return null;
+    } else { // "E"
+      const x = width - 1;
+      let y0 = clamp(spawnY, 0, height - 1);
+      if (regionWalkableAt(x, y0)) return { x, y: y0 };
+      for (let r = 1; r < height; r++) {
+        const yu = y0 - r, yd = y0 + r;
+        if (yu >= 0 && regionWalkableAt(x, yu)) return { x, y: yu };
+        if (yd < height && regionWalkableAt(x, yd)) return { x, y: yd };
+      }
+      return null;
+    }
+  }
+
+  const candidates = [];
+  const Np = nearestWalkableOnEdge("N"); if (Np) candidates.push(Np);
+  const Sp = nearestWalkableOnEdge("S"); if (Sp) candidates.push(Sp);
+  const Wp = nearestWalkableOnEdge("W"); if (Wp) candidates.push(Wp);
+  const Ep = nearestWalkableOnEdge("E"); if (Ep) candidates.push(Ep);
+
+  if (!candidates.length) {
+    // Fallback: scan entire border for any walkable tile
+    for (let x = 0; x < width; x++) {
+      if (regionWalkableAt(x, 0)) candidates.push({ x, y: 0 });
+      if (regionWalkableAt(x, height - 1)) candidates.push({ x, y: height - 1 });
+    }
+    for (let y = 0; y < height; y++) {
+      if (regionWalkableAt(0, y)) candidates.push({ x: 0, y });
+      if (regionWalkableAt(width - 1, y)) candidates.push({ x: width - 1, y });
+    }
+  }
+
+  if (candidates.length) {
+    let best = candidates[0], bestD = Infinity;
+    for (const c of candidates) {
+      const d = Math.abs(c.x - spawnX) + Math.abs(c.y - spawnY);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    spawnX = best.x | 0;
+    spawnY = best.y | 0;
+  } else {
+    // Final fallback: keep nearest of four standard exits
+    const exits = [exitNorth, exitSouth, exitWest, exitEast];
+    let bestExit = exits[0];
+    let bestDist = Infinity;
+    for (const e of exits) {
+      const d = Math.abs((e.x | 0) - spawnX) + Math.abs((e.y | 0) - spawnY);
+      if (d < bestDist) { bestDist = d; bestExit = e; }
+    }
+    spawnX = bestExit.x | 0;
+    spawnY = bestExit.y | 0;
+  }
+
+  // Build final exit tiles: replace the relevant edge midpoint with the chosen spawn tile to avoid duplicate/extra markers
+  let eN = exitNorth, eS = exitSouth, eW = exitWest, eE = exitEast;
+  if (spawnY === 0) {
+    eN = { x: spawnX | 0, y: 0 };
+  } else if (spawnY === height - 1) {
+    eS = { x: spawnX | 0, y: (height - 1) | 0 };
+  } else if (spawnX === 0) {
+    eW = { x: 0, y: spawnY | 0 };
+  } else if (spawnX === width - 1) {
+    eE = { x: (width - 1) | 0, y: spawnY | 0 };
+  }
+  const exitTilesFinal = [eN, eS, eW, eE];
 
   ctx.region = {
     ...(ctx.region || {}),
@@ -802,8 +902,8 @@ function open(ctx, size) {
     height,
     map: sample,
     cursor: { x: spawnX | 0, y: spawnY | 0 },
-    // Include all four exits to avoid edge selection issues on west edge
-    exitTiles: [exitNorth, exitSouth, exitWest, exitEast],
+    // Exits: four edges; the spawn edge uses the exact chosen tile to avoid duplicates
+    exitTiles: exitTilesFinal,
     enterWorldPos: { x: worldX, y: worldY },
     _prevLOS: ctx.los || null,
     _hasKnownAnimals: animalsSeenHere(worldX, worldY)
@@ -1462,6 +1562,71 @@ function onAction(ctx) {
         }
       } catch (_) {}
 
+      return true;
+    }
+  } catch (_) {}
+
+  // 3) Fishing: if adjacent to water/river and player has a fishing pole, prompt to start mini-game
+  try {
+    const WT = World.TILES;
+    const inBounds = (x, y) => {
+      const h = ctx.region.map.length;
+      const w = ctx.region.map[0] ? ctx.region.map[0].length : 0;
+      return x >= 0 && y >= 0 && x < w && y < h;
+    };
+    const isWater = (x, y) => {
+      if (!inBounds(x, y)) return false;
+      try {
+        const tt = ctx.region.map[y][x];
+        return (tt === WT.WATER || tt === WT.RIVER);
+      } catch (_) { return false; }
+    };
+    const nearWater = (
+      isWater(cursor.x + 1, cursor.y) ||
+      isWater(cursor.x - 1, cursor.y) ||
+      isWater(cursor.x, cursor.y + 1) ||
+      isWater(cursor.x, cursor.y - 1) ||
+      isWater(cursor.x + 1, cursor.y + 1) ||
+      isWater(cursor.x - 1, cursor.y + 1) ||
+      isWater(cursor.x + 1, cursor.y - 1) ||
+      isWater(cursor.x - 1, cursor.y - 1)
+    );
+
+    const hasPole = (function () {
+      try {
+        const inv = ctx.player.inventory || [];
+        return inv.some(it => {
+          if (!it) return false;
+          const nm = String(it.name || it.type || "").toLowerCase();
+          if (it.kind === "tool" && nm.includes("fishing pole")) return true;
+          if (it.kind !== "tool" && nm.includes("fishing pole")) return true;
+          return false;
+        });
+      } catch (_) { return false; }
+    })();
+
+    if (nearWater && hasPole) {
+      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
+      const onOk = () => {
+        if (UB && typeof UB.showFishing === "function") {
+          UB.showFishing(ctx, { minutesPerAttempt: 15, difficulty: 0.55 });
+        } else if (typeof window !== "undefined" && window.FishingModal && typeof window.FishingModal.show === "function") {
+          window.FishingModal.show(ctx, { minutesPerAttempt: 15, difficulty: 0.55 });
+        } else {
+          try { ctx.log && ctx.log("Fishing UI not available.", "warn"); } catch (_) {}
+        }
+      };
+      const onCancel = () => {};
+      if (UIO && typeof UIO.showConfirm === "function") {
+        UIO.showConfirm(ctx, "Fish here? (15 min)", null, onOk, onCancel);
+      } else {
+        // No confirm UI; start immediately
+        onOk();
+      }
+      return true;
+    } else if (nearWater && !hasPole) {
+      try { ctx.log && ctx.log("You need a fishing pole to fish here.", "info"); } catch (_) {}
       return true;
     }
   } catch (_) {}

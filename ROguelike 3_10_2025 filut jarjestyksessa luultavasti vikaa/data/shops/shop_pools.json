@@ -4,11 +4,11 @@
       "potions": {
         "capPerDay": 6,
         "entries": [
-          { "id": "potion_hp_5",  "kind": "potion", "heal": 5,
+          { "id": "potion_lesser",  "kind": "potion",
             "phaseWeights": { "morning": 5, "midday": 4, "afternoon": 3, "dusk": 2 },
             "maxPerRestock": 2, "stack": { "min": 1, "max": 2 }
           },
-          { "id": "potion_hp_10", "kind": "potion", "heal": 10, "minTier": 2,
+          { "id": "potion_strong", "kind": "potion", "minTier": 2,
             "phaseWeights": { "morning": 3, "midday": 4, "afternoon": 4, "dusk": 3 },
             "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
           }
@@ -80,7 +80,11 @@
             "phaseWeights": { "midday": 4, "afternoon": 4 },
             "maxPerRestock": 1
           },
-          { "id": "potion_hp_5", "kind": "potion", "heal": 5,
+          { "id": "fishing_pole", "kind": "tool",
+            "phaseWeights": { "morning": 1, "midday": 1, "afternoon": 1, "dusk": 1 },
+            "maxPerRestock": 1
+          },
+          { "id": "potion_lesser", "kind": "potion",
             "phaseWeights": { "morning": 3, "midday": 3 },
             "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }
           },
@@ -164,7 +168,7 @@
       "premium": {
         "capPerDay": 6,
         "entries": [
-          { "id": "potion_hp_10", "kind": "potion", "heal": 10,
+          { "id": "potion_strong", "kind": "potion",
             "phaseWeights": { "morning": 2, "midday": 3, "afternoon": 4, "dusk": 4 },
             "maxPerRestock": 2, "stack": { "min": 1, "max": 2 }
           },
@@ -182,6 +186,10 @@
           },
           { "id": "steel_shield", "kind": "shield", "slot": "hand", "tier": 2,
             "phaseWeights": { "afternoon": 3, "dusk": 2 },
+            "maxPerRestock": 1
+          },
+          { "id": "fishing_pole", "kind": "tool",
+            "phaseWeights": { "morning": 2, "midday": 3, "afternoon": 3, "dusk": 2 },
             "maxPerRestock": 1
           },
           { "id": "curio_odd_stone", "kind": "curio",

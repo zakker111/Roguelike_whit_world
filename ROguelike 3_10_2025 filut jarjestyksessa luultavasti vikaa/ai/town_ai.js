@@ -369,8 +369,8 @@
       }
     }
 
-    const pathFn = (opts && opts.urgent) ? computePath : computePathBudgeted;
-    const full = pathFn(ctx, occ, n.x, n.y, tx, ty);
+    // Always go through the budgeted solver; urgent requests get priority in the queue
+    const full = computePathBudgeted(ctx, occ, n.x, n.y, tx, ty, { urgent: !!(opts && opts.urgent) });
     if (full && full.length >= 2) {
       n._plan = full.slice(0);
       n._planGoal = { x: tx, y: ty };

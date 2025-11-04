@@ -8,6 +8,15 @@
       "skill": { "id": "cooking", "min": 0 },
       "inputs": [{ "id": "meat", "amount": 1 }],
       "outputs": [{ "id": "meat_cooked", "amount": 1 }]
+    },
+    {
+      "id": "cook_fish",
+      "name": "Cook Fish",
+      "station": "campfire",
+      "time": 1,
+      "skill": { "id": "cooking", "min": 0 },
+      "inputs": [{ "id": "fish", "amount": 1 }],
+      "outputs": [{ "id": "fish_cooked", "amount": 1 }]
     }
   ]
 }

@@ -74,7 +74,7 @@ function tilesRef() {
 }
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
+let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null };
 
 
 export function draw(ctx, view) {
@@ -92,13 +92,23 @@ export function draw(ctx, view) {
   // Helpers for biome-based outdoor ground tint
   function ensureTownBiome(ctx) {
     try {
+      // If TownState or Town generation already set a biome, trust it
+      if (ctx.townBiome) return;
+
+      const world = ctx.world || {};
       const WMOD = (typeof window !== "undefined" ? window.World : null);
       const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
-      const world = ctx.world || {};
 
-      // If a biome is already recorded for this town in world.towns, use it
-      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
-      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
+      // We require absolute world coordinates for this town; do not guess from player (town-local) coords.
+      const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
+      if (!hasWRP) {
+        // As a last resort, do nothing; rendering will fallback to default floor colors without biome tint.
+        return;
+      }
+      const wx = ctx.worldReturnPos.x | 0;
+      const wy = ctx.worldReturnPos.y | 0;
+
+      // Use persisted biome if available
       try {
         const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
         if (rec && rec.biome) { ctx.townBiome = rec.biome; return; }
@@ -147,7 +157,13 @@ export function draw(ctx, view) {
       let best = "GRASS", bestV = -1;
       for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
       ctx.townBiome = best || "GRASS";
-    } catch (_) { ctx.townBiome = ctx.townBiome || "GRASS"; }
+
+      // Persist for future visits
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
+      } catch (_) {}
+    } catch (_) { /* leave ctx.townBiome as-is */ }
   }
   function townBiomeFill(ctx) {
     try {
@@ -159,7 +175,17 @@ export function draw(ctx, view) {
     } catch (_) { return null; }
   }
   function ensureOutdoorMask(ctx) {
-    if (Array.isArray(ctx.townOutdoorMask)) return;
+    // Rebuild if missing or dimensions mismatch current map
+    if (Array.isArray(ctx.townOutdoorMask)) {
+      try {
+        const rows = mapRows, cols = mapCols;
+        const ok = (ctx.townOutdoorMask.length === rows)
+          && rows > 0
+          && Array.isArray(ctx.townOutdoorMask[0])
+          && ctx.townOutdoorMask[0].length === cols;
+        if (ok) return;
+      } catch (_) {}
+    }
     try {
       const rows = mapRows, cols = mapCols;
       const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
@@ -183,18 +209,36 @@ export function draw(ctx, view) {
     } catch (_) {}
   }
 
-  // Build base offscreen once per map/TILE change
+  // Build base offscreen once per map/TILE/biome change
   try {
     if (mapRows && mapCols) {
+      // Ensure biome is determined first
+      ensureTownBiome(ctx);
+      const biomeKey = String(ctx.townBiome || "");
+      const townKey = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number")
+        ? `${ctx.worldReturnPos.x|0},${ctx.worldReturnPos.y|0}` : null;
+
       const wpx = mapCols * TILE;
       const hpx = mapRows * TILE;
-      const needsRebuild = (!TOWN.canvas) || TOWN.mapRef !== map || TOWN.wpx !== wpx || TOWN.hpx !== hpx || TOWN.TILE !== TILE || TOWN._tilesRef !== tilesRef();
+      const needsRebuild = (!TOWN.canvas)
+        || TOWN.mapRef !== map
+        || TOWN.wpx !== wpx
+        || TOWN.hpx !== hpx
+        || TOWN.TILE !== TILE
+        || TOWN._tilesRef !== tilesRef()
+        || TOWN._biomeKey !== biomeKey
+        || TOWN._townKey !== townKey
+        || TOWN._maskRef !== ctx.townOutdoorMask;
+
       if (needsRebuild) {
         TOWN.mapRef = map;
         TOWN.wpx = wpx;
         TOWN.hpx = hpx;
         TOWN.TILE = TILE;
         TOWN._tilesRef = tilesRef();
+        TOWN._biomeKey = biomeKey;
+        TOWN._townKey = townKey;
+
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
         try {
@@ -203,9 +247,10 @@ export function draw(ctx, view) {
           oc.textBaseline = "middle";
         } catch (_) {}
         // Prepare biome fill and outdoor mask
-        ensureTownBiome(ctx);
         ensureOutdoorMask(ctx);
         const biomeFill = townBiomeFill(ctx);
+        // Track mask reference to trigger rebuild when it changes externally
+        TOWN._maskRef = ctx.townOutdoorMask;
 
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
@@ -214,11 +259,9 @@ export function draw(ctx, view) {
             const sx = xx * TILE, sy = yy * TILE;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
             let fill = fillTownFor(TILES, type, COLORS);
-            // Roads: draw a distinct muted road fill; otherwise apply outdoor biome tint for non-road floor
+            // Apply outdoor biome tint only to non-road FLOOR tiles; rely on tile type for roads
             try {
-              if (type === TILES.FLOOR && ctx.townRoads && ctx.townRoads[yy] && ctx.townRoads[yy][xx]) {
-                fill = "#b0a58a"; // muted road color (town)
-              } else if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
+              if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
                 // Outdoor ground tint by biome for non-road FLOOR tiles
                 fill = biomeFill;
               }
@@ -256,11 +299,9 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Roads vs outdoor tint
+        // Apply outdoor tint only to FLOOR; rely on tile type for roads
         try {
-          if (type === TILES.FLOOR && ctx.townRoads && ctx.townRoads[y] && ctx.townRoads[y][x]) {
-            fill = "#b0a58a"; // muted road color (town)
-          } else if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
+          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
             fill = biomeFill;
           }
         } catch (_) {}
@@ -270,21 +311,48 @@ export function draw(ctx, view) {
     }
   }
 
-  // Road overlay pass: ensure roads are visible even if base cache predates the roads mask
+  // Road overlay pass:
+  // 1) Prefer explicit ROAD tiles (authoritative).
+  // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
   (function drawRoadOverlay() {
     try {
-      if (!ctx.townRoads) return;
-      for (let y = startY; y <= endY; y++) {
+      let anyRoad = false;
+      for (let y = startY; y <= endY && !anyRoad; y++) {
         const yIn = y >= 0 && y < mapRows;
         if (!yIn) continue;
         for (let x = startX; x <= endX; x++) {
           if (x < 0 || x >= mapCols) continue;
-          if (map[y][x] !== TILES.FLOOR) continue;
-          if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
-          const screenX = (x - startX) * TILE - tileOffsetX;
-          const screenY = (y - startY) * TILE - tileOffsetY;
-          ctx2d.fillStyle = "#b0a58a"; // road color
-          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          if (map[y][x] === TILES.ROAD) { anyRoad = true; break; }
+        }
+      }
+
+      if (anyRoad) {
+        for (let y = startY; y <= endY; y++) {
+          const yIn = y >= 0 && y < mapRows;
+          if (!yIn) continue;
+          for (let x = startX; x <= endX; x++) {
+            if (x < 0 || x >= mapCols) continue;
+            if (map[y][x] !== TILES.ROAD) continue;
+            const screenX = (x - startX) * TILE - tileOffsetX;
+            const screenY = (y - startY) * TILE - tileOffsetY;
+            ctx2d.fillStyle = "#b0a58a"; // road color
+            ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          }
+        }
+      } else if (ctx.townRoads) {
+        for (let y = startY; y <= endY; y++) {
+          const yIn = y >= 0 && y < mapRows;
+          if (!yIn) continue;
+          for (let x = startX; x <= endX; x++) {
+            if (x < 0 || x >= mapCols) continue;
+            // Only paint where the saved mask indicates a road and the map tile is FLOOR
+            if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
+            if (map[y][x] !== TILES.FLOOR) continue;
+            const screenX = (x - startX) * TILE - tileOffsetX;
+            const screenY = (y - startY) * TILE - tileOffsetY;
+            ctx2d.fillStyle = "#b0a58a";
+            ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          }
         }
       }
     } catch (_) {}

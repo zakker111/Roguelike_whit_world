@@ -23,6 +23,7 @@ const DATA_FILES = {
   enemies: "data/entities/enemies.json",
   npcs: "data/entities/npcs.json",
   consumables: "data/entities/consumables.json",
+  tools: "data/entities/tools.json",
 
   // Materials/crafting registries
   materials: "data/entities/materials.json",
@@ -64,6 +65,7 @@ export const GameData = {
   enemies: null,
   npcs: null,
   consumables: null,
+  tools: null,
   shops: null,
   town: null,
   flavor: null,
@@ -110,7 +112,7 @@ GameData.ready = (async function loadAll() {
   try {
     const [
       assetsCombined,
-      items, enemies, npcs, consumables,
+      items, enemies, npcs, consumables, tools,
       materials, craftingRecipes, materialPools, foragingPools,
       town, flavor, encounters, quests, config, palette, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs
@@ -120,6 +122,7 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.enemies).catch(() => null),
       fetchJson(DATA_FILES.npcs).catch(() => null),
       fetchJson(DATA_FILES.consumables).catch(() => null),
+      fetchJson(DATA_FILES.tools).catch(() => null),
 
       fetchJson(DATA_FILES.materials).catch(() => null),
       fetchJson(DATA_FILES.craftingRecipes).catch(() => null),
@@ -147,6 +150,7 @@ GameData.ready = (async function loadAll() {
     GameData.enemies = Array.isArray(enemies) ? enemies : null;
     GameData.npcs = (npcs && typeof npcs === "object") ? npcs : null;
     GameData.consumables = (consumables && typeof consumables === "object") ? consumables : null;
+    GameData.tools = (tools && typeof tools === "object") ? tools : null;
     GameData.shops = null;
 
     // New data domains

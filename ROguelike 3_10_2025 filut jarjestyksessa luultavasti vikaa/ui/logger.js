@@ -1,5 +1,5 @@
 /**
- * Logger: in-DOM log with capped length and optional right-side mirror.
+ * Logger: in-DOM log with capped length, optional right-side mirror, and batched flushes.
  *
  * Exports (ESM + window.Logger):
  * - Logger.init(target = "#log", max = 60): boolean
@@ -10,12 +10,20 @@
  *
  * Notes:
  * - If an element with id="log-right" exists and LOG_MIRROR !== false, entries are mirrored there.
+ * - DOM writes are batched at ~12 Hz to reduce layout thrash during heavy turns (town mode).
  */
 
 export const Logger = {
   _el: null,
   _elRight: null,
   _max: 60,
+
+  // batching
+  _queue: [],
+  _timer: null,
+  _lastFlush: 0,
+  _flushEveryMs: 80, // ~12.5 Hz
+  _mirrorEnabledCached: true,
 
   init(target, max) {
     if (typeof max === "number" && max > 0) {
@@ -38,40 +46,79 @@ export const Logger = {
     } catch (_) {
       this._elRight = null;
     }
+    // cache mirror visibility to avoid per-log getComputedStyle calls
+    try {
+      if (this._elRight) {
+        const cs = window.getComputedStyle(this._elRight);
+        this._mirrorEnabledCached = !(cs && (cs.display === "none" || cs.visibility === "hidden"));
+      } else {
+        this._mirrorEnabledCached = false;
+      }
+    } catch (_) {
+      this._mirrorEnabledCached = !!this._elRight;
+    }
     return this._el != null;
   },
 
-  log(msg, type = "info") {
-    if (!this._el) this.init();
-    const el = this._el;
-    if (!el) return;
+  _scheduleFlush() {
+    if (this._timer) return;
+    const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    const dueIn = Math.max(0, this._flushEveryMs - (now - this._lastFlush));
+    this._timer = setTimeout(() => {
+      this._timer = null;
+      this._flush();
+    }, dueIn);
+  },
 
-    // main log
-    const div = document.createElement("div");
-    div.className = `entry ${type}`;
-    div.textContent = String(msg);
-    el.prepend(div);
+  _flush() {
+    const el = this._el || document.getElementById("log");
+    if (!el || this._queue.length === 0) {
+      this._lastFlush = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      return;
+    }
+
+    // Build fragments once
+    const fragMain = document.createDocumentFragment();
+    const fragRight = document.createDocumentFragment();
+    // Insert newest first at the top: iterate queue in reverse to preserve prepend order
+    for (let i = this._queue.length - 1; i >= 0; i--) {
+      const { msg, type } = this._queue[i];
+      const node = document.createElement("div");
+      node.className = `entry ${type}`;
+      node.textContent = String(msg);
+      fragMain.appendChild(node);
+
+      if (this._elRight && this._mirrorEnabledCached) {
+        const node2 = document.createElement("div");
+        node2.className = `entry ${type}`;
+        node2.textContent = String(msg);
+        fragRight.appendChild(node2);
+      }
+    }
+    // Clear queue before DOM ops so reentrant logs don't mix
+    this._queue.length = 0;
+
+    // Prepend in a single operation
+    el.prepend(fragMain);
     while (el.childNodes.length > this._max) {
       el.removeChild(el.lastChild);
     }
 
-    // optional right mirror (skip if hidden by CSS or toggle)
-    if (this._elRight) {
-      let visible = true;
-      try {
-        const cs = window.getComputedStyle(this._elRight);
-        if (cs && cs.display === "none" || cs && cs.visibility === "hidden") visible = false;
-      } catch (_) {}
-      if (visible) {
-        const div2 = document.createElement("div");
-        div2.className = `entry ${type}`;
-        div2.textContent = String(msg);
-        this._elRight.prepend(div2);
-        while (this._elRight.childNodes.length > this._max) {
-          this._elRight.removeChild(this._elRight.lastChild);
-        }
+    if (this._elRight && this._mirrorEnabledCached) {
+      this._elRight.prepend(fragRight);
+      while (this._elRight.childNodes.length > this._max) {
+        this._elRight.removeChild(this._elRight.lastChild);
       }
     }
+
+    this._lastFlush = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+  },
+
+  log(msg, type = "info") {
+    if (!this._el) this.init();
+    if (!this._el) return;
+    this._queue.push({ msg, type });
+    this._scheduleFlush();
   },
 
   // Best-effort stack frame (file:line:col) extraction

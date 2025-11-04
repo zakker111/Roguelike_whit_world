@@ -317,6 +317,9 @@ function applyState(ctx, st, x, y) {
 
   // Ensure town biome is set on load (use persisted world.towns biome or infer from surrounding world tiles)
   try {
+    // Clear any stale outdoor mask from a previous town; it will be rebuilt for this map
+    try { ctx.townOutdoorMask = undefined; } catch (_) {}
+
     // Prefer persisted record
     const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === x && t.y === y) : null;
     if (rec && rec.biome) {
