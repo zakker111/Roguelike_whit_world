@@ -203,22 +203,10 @@ export function interact(ctx, prop) {
 
   const ph = _phase(ctx);
   const insideInn = _isInsideInn(ctx, prop.x, prop.y);
-  // Helper: does player have a valid inn stay (current day or grace period after midnight)
+  // Helper: does player have current night rented?
   const hasInnStay = (function () {
-    try {
-      const t = ctx && ctx.time ? ctx.time : null;
-      const tc = t && typeof t.turnCounter === "number" ? (t.turnCounter | 0) : 0;
-      const ct = t && typeof t.cycleTurns === "number" ? (t.cycleTurns | 0) : 360;
-      const curDay = Math.floor(tc / Math.max(1, ct));
-      const purchasedDay = (ctx && ctx.player) ? ctx.player._innStayDay : null;
-      if (purchasedDay == null) return false;
-      if (purchasedDay === curDay) return true;
-      // Allow previous night's rental to remain valid until a morning checkout time (e.g., 06:00)
-      const curMin = t ? (t.hours * 60 + t.minutes) : 0;
-      const checkoutMin = 6 * 60; // 06:00
-      if (curMin < checkoutMin && purchasedDay === (curDay - 1)) return true;
-    } catch (_) {}
-    return false;
+    const dayIdx = _dayIndex(ctx);
+    return !!(ctx.player && ctx.player._innStayDay === dayIdx);
   })();
 
   // Pick first matching variant by conditions
