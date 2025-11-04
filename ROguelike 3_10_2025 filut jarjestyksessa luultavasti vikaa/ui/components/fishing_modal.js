@@ -162,7 +162,8 @@ function resetState(opts, ctx) {
   const baseDifficulty = (opts && typeof opts.difficulty === 'number') ? Math.max(0, Math.min(1, opts.difficulty)) : 0.5;
   // Smaller zone and faster drift for increased challenge
   _zoneSize = Math.max(0.12, 0.28 - baseDifficulty * 0.18);     // harder -> smaller zone
-  _zoneSpeed = 0.16 + baseDifficulty * 0.35;                     // harder -> faster drift
+  // Move the green zone more: higher base drift + stronger scaling with difficulty
+  _zoneSpeed = 0.24 + baseDifficulty * 0.60;                     // harder -> faster drift
 
   // Seed for local RNG from global ctx rng for determinism
   let s = 1 >>> 0;
@@ -247,7 +248,7 @@ function step(ts, hooks) {
   _marker = Math.max(0, Math.min(1, _marker + vel * dt));
 
   // Zone drift + jitter
-  const jitter = (_seedRng() - 0.5) * 0.28 * _zoneSpeed; // slightly stronger wobble for extra challenge
+  const jitter = (_seedRng() - 0.5) * 0.45 * _zoneSpeed; // much stronger wobble for extra challengeenge
   _zoneCenter += (_seedRng() < 0.5 ? -1 : 1) * _zoneSpeed * dt + jitter * dt;
   if (_zoneCenter < _zoneSize / 2) _zoneCenter = _zoneSize / 2;
   if (_zoneCenter > 1 - _zoneSize / 2) _zoneCenter = 1 - _zoneSize / 2;
