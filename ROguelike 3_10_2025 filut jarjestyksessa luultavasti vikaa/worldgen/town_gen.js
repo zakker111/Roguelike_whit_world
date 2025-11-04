@@ -509,7 +509,7 @@ function generate(ctx) {
           L(msg1, "info");
           L(msg2, "info");
         } catch (_) {}
-      } catch (_) {}
+      }
 
       if (debugBiome) {
         try {
