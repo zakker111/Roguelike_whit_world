@@ -23,12 +23,20 @@ let _onDone = null;
 // Mini-game state
 let _marker = 0.5;     // 0..1 bottom..top
 let _zoneCenter = 0.5; // 0..1
-let _zoneSize = 0.28;  // fraction of meter height
-let _zoneSpeed = 0.15; // center drift fraction per second
+let _zoneSize = 0.28;  // current effective size (may pulse)
+let _zoneSpeed = 0.15; // current base drift per second
 let _progress = 0.0;   // 0..1
 let _stress = 0.0;     // 0..1
 let _seedRng = null;   // local rng for jitter
 let _lastTs = 0;
+
+// Wilder dynamics
+let _zoneSizeBase = 0.28;  // baseline size before pulsing
+let _pulseT = 0;           // oscillator time for size pulsing
+let _zoneSpeedBase = 0.15; // baseline drift speed
+let _dashT = 0;            // seconds left in current dash
+let _nextDash = 0;         // seconds until next dash
+let _dashDir = 1;          // dash direction (-1 or +1)
 
 // Deterministic local PRNG
 function mulberry32(a) {
@@ -160,10 +168,12 @@ function resetState(opts, ctx) {
 
   // Slightly harder by default
   const baseDifficulty = (opts && typeof opts.difficulty === 'number') ? Math.max(0, Math.min(1, opts.difficulty)) : 0.5;
-  // Smaller zone and faster drift for increased challenge
-  _zoneSize = Math.max(0.12, 0.28 - baseDifficulty * 0.18);     // harder -> smaller zone
+  // Smaller zone and faster drift for increased challenge (store baselines for pulsing/dashes)
+  _zoneSizeBase = Math.max(0.12, 0.28 - baseDifficulty * 0.18);
+  _zoneSize = _zoneSizeBase;
   // Move the green zone more: higher base drift + stronger scaling with difficulty
-  _zoneSpeed = 0.24 + baseDifficulty * 0.60;                     // harder -> faster drift
+  _zoneSpeedBase = 0.24 + baseDifficulty * 0.60;
+  _zoneSpeed = _zoneSpeedBase;
 
   // Seed for local RNG from global ctx rng for determinism
   let s = 1 >>> 0;
@@ -174,6 +184,12 @@ function resetState(opts, ctx) {
   _seedRng = mulberry32(s);
   _zoneCenter = 0.5 * (0.8 + _seedRng() * 0.4); // 0.4..0.6 start
   _lastTs = 0;
+
+  // Wilder dynamics: initialize dash schedule and pulse phase
+  _dashT = 0;
+  _nextDash = 0.8 + _seedRng() * 1.6; // next dash in 0.8..2.4s
+  _dashDir = (_seedRng() < 0.5) ? -1 : 1;
+  _pulseT = _seedRng() * Math.PI * 2;
 }
 
 function draw() {
@@ -247,13 +263,34 @@ function step(ts, hooks) {
   const vel = _press ? upSpeed : -downSpeed;
   _marker = Math.max(0, Math.min(1, _marker + vel * dt));
 
-  // Zone drift + jitter
-  const jitter = (_seedRng() - 0.5) * 0.45 * _zoneSpeed; // much stronger wobble for extra challengeenge
-  _zoneCenter += (_seedRng() < 0.5 ? -1 : 1) * _zoneSpeed * dt + jitter * dt;
+  // Wilder: size pulsing (±15% around baseline)
+  _pulseT += dt * 1.4;
+  const pulseFactor = 0.85 + 0.15 * Math.sin(_pulseT);
+  _zoneSize = Math.max(0.10, Math.min(0.35, _zoneSizeBase * pulseFactor));
+
+  // Wilder: dash scheduling (bursts of fast movement)
+  if (_dashT > 0) {
+    _dashT -= dt;
+  } else {
+    _nextDash -= dt;
+    if (_nextDash <= 0) {
+      _dashT = 0.25 + _seedRng() * 0.35;          // dash 0.25..0.60s
+      _dashDir = (_seedRng() < 0.5) ? -1 : 1;     // choose dash direction
+      _nextDash = 0.8 + _seedRng() * 2.0;         // next dash 0.8..2.8s
+    }
+  }
+
+  // Zone drift + jitter + dash multiplier
+  const dashMul = _dashT > 0 ? (2.8 + _seedRng() * 1.6) : 1.0;
+  const jitter = (_seedRng() - 0.5) * 0.45 * _zoneSpeedBase * (1 + 0.3 * _seedRng());
+  const dir = (_dashT > 0) ? _dashDir : (_seedRng() < 0.5 ? -1 : 1);
+  const speedNow = _zoneSpeedBase * dashMul;
+  _zoneCenter += dir * speedNow * dt + jitter * dt;
+
   if (_zoneCenter < _zoneSize / 2) _zoneCenter = _zoneSize / 2;
   if (_zoneCenter > 1 - _zoneSize / 2) _zoneCenter = 1 - _zoneSize / 2;
 
-  // Inside/outside zone?
+  // Inside/outside zone? (use pulsing _zoneSize)
   const zoneLo = _zoneCenter - _zoneSize / 2;
   const zoneHi = _zoneCenter + _zoneSize / 2;
   const inside = (_marker >= zoneLo && _marker <= zoneHi);
