@@ -1510,16 +1510,16 @@ function onAction(ctx) {
       const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
       const onOk = () => {
         if (UB && typeof UB.showFishing === "function") {
-          UB.showFishing(ctx, { minutesPerAttempt: 10, difficulty: 0.4 });
+          UB.showFishing(ctx, { minutesPerAttempt: 15, difficulty: 0.55 });
         } else if (typeof window !== "undefined" && window.FishingModal && typeof window.FishingModal.show === "function") {
-          window.FishingModal.show(ctx, { minutesPerAttempt: 10, difficulty: 0.4 });
+          window.FishingModal.show(ctx, { minutesPerAttempt: 15, difficulty: 0.55 });
         } else {
           try { ctx.log && ctx.log("Fishing UI not available.", "warn"); } catch (_) {}
         }
       };
       const onCancel = () => {};
       if (UIO && typeof UIO.showConfirm === "function") {
-        UIO.showConfirm(ctx, "Fish here?", null, onOk, onCancel);
+        UIO.showConfirm(ctx, "Fish here? (15 min)", null, onOk, onCancel);
       } else {
         // No confirm UI; start immediately
         onOk();

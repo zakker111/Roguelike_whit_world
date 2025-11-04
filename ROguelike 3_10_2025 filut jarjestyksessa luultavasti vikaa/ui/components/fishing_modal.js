@@ -158,9 +158,11 @@ function resetState(opts, ctx) {
   _progress = 0.0;
   _stress = 0.0;
 
-  const baseDifficulty = (opts && typeof opts.difficulty === 'number') ? Math.max(0, Math.min(1, opts.difficulty)) : 0.4;
-  _zoneSize = Math.max(0.16, 0.34 - baseDifficulty * 0.16);     // harder -> smaller zone
-  _zoneSpeed = 0.10 + baseDifficulty * 0.25;                     // harder -> faster drift
+  // Slightly harder by default
+  const baseDifficulty = (opts && typeof opts.difficulty === 'number') ? Math.max(0, Math.min(1, opts.difficulty)) : 0.5;
+  // Smaller zone and faster drift for increased challenge
+  _zoneSize = Math.max(0.12, 0.28 - baseDifficulty * 0.18);     // harder -> smaller zone
+  _zoneSpeed = 0.16 + baseDifficulty * 0.35;                     // harder -> faster drift
 
   // Seed for local RNG from global ctx rng for determinism
   let s = 1 >>> 0;
@@ -245,7 +247,7 @@ function step(ts, hooks) {
   _marker = Math.max(0, Math.min(1, _marker + vel * dt));
 
   // Zone drift + jitter
-  const jitter = (_seedRng() - 0.5) * 0.20 * _zoneSpeed; // small random wobble
+  const jitter = (_seedRng() - 0.5) * 0.28 * _zoneSpeed; // slightly stronger wobble for extra challenge
   _zoneCenter += (_seedRng() < 0.5 ? -1 : 1) * _zoneSpeed * dt + jitter * dt;
   if (_zoneCenter < _zoneSize / 2) _zoneCenter = _zoneSize / 2;
   if (_zoneCenter > 1 - _zoneSize / 2) _zoneCenter = 1 - _zoneSize / 2;
@@ -255,10 +257,10 @@ function step(ts, hooks) {
   const zoneHi = _zoneCenter + _zoneSize / 2;
   const inside = (_marker >= zoneLo && _marker <= zoneHi);
 
-  // Progress and stress dynamics
-  const catchRate = 0.42;     // per second when inside
-  const stressRate = 0.55;    // per second when outside
-  const relaxRate = 0.35;     // per second when inside
+  // Progress and stress dynamics (harder + longer)
+  const catchRate = 0.28;     // per second when inside (slower progress -> longer)
+  const stressRate = 0.65;    // per second when outside (punishes mistakes more)
+  const relaxRate = 0.28;     // per second when inside (stress clears slower)
 
   if (inside) {
     _progress = Math.min(1.0, _progress + catchRate * dt);
@@ -288,7 +290,7 @@ export function show(ctx, opts = {}) {
   resetState(opts, ctx);
 
   // Hooks for completion
-  const minutes = (typeof opts.minutesPerAttempt === 'number') ? Math.max(1, Math.min(60, opts.minutesPerAttempt | 0)) : 10;
+  const minutes = (typeof opts.minutesPerAttempt === 'number') ? Math.max(1, Math.min(60, opts.minutesPerAttempt | 0)) : 15;
   const onFinish = (ok) => {
     _running = false;
     cancelAnimationFrame(_raf);
