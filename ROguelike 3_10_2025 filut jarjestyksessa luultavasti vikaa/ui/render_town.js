@@ -84,6 +84,11 @@ export function draw(ctx, view) {
   } = Object.assign({}, view, ctx);
 
   
+  // Developer toggles via localStorage (safe fallbacks)
+  const __forceGrass = (function(){ try { return localStorage.getItem("TOWN_FORCE_GRASS") === "1"; } catch (_) { return false; } })();
+  const __roadsAsFloor = (function(){ try { return localStorage.getItem("TOWN_ROADS_AS_FLOOR") === "1"; } catch (_) { return false; } })();
+  const __biomeDebug = (function(){ try { return localStorage.getItem("TOWN_BIOME_DEBUG") === "1"; } catch (_) { return false; } })();
+
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
@@ -214,6 +219,7 @@ export function draw(ctx, view) {
     if (mapRows && mapCols) {
       // Ensure biome is determined first
       ensureTownBiome(ctx);
+      if (__forceGrass) { try { ctx.townBiome = "GRASS"; } catch (_) {} }
       const biomeKey = String(ctx.townBiome || "");
       const townKey = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number")
         ? `${ctx.worldReturnPos.x|0},${ctx.worldReturnPos.y|0}` : null;
@@ -249,6 +255,12 @@ export function draw(ctx, view) {
         // Prepare biome fill and outdoor mask
         ensureOutdoorMask(ctx);
         const biomeFill = townBiomeFill(ctx);
+        if (__biomeDebug) {
+          try {
+            const m = `RenderTown: biome=${String(ctx.townBiome || "")} roadsAsFloor=${__roadsAsFloor ? 1 : 0}`;
+            if (ctx.log) ctx.log(m, "info"); else if (typeof console !== "undefined") console.log("[RenderTown] " + m);
+          } catch (_) {}
+        }
         // Track mask reference to trigger rebuild when it changes externally
         TOWN._maskRef = ctx.townOutdoorMask;
 
@@ -257,12 +269,15 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
+            // Treat roads as floor when toggle is active
+            let renderType = type;
+            if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
-            let fill = fillTownFor(TILES, type, COLORS);
-            // Apply outdoor biome tint only to non-road FLOOR tiles; rely on tile type for roads
+            let fill = fillTownFor(TILES, renderType, COLORS);
+            // Apply outdoor biome tint to outdoor FLOOR tiles; if rendering roads as floor, tint them too
             try {
-              if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
-                // Outdoor ground tint by biome for non-road FLOOR tiles
+              const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
+              if (renderType === TILES.FLOOR && biomeFill && (isOutdoor || (__roadsAsFloor && type === TILES.ROAD))) {
                 fill = biomeFill;
               }
             } catch (_) {}
@@ -283,6 +298,7 @@ export function draw(ctx, view) {
   } else {
     // Fallback: draw base tiles in viewport using JSON colors or robust fallback
     ensureTownBiome(ctx);
+    if (__forceGrass) { try { ctx.townBiome = "GRASS"; } catch (_) {} }
     ensureOutdoorMask(ctx);
     const biomeFill = townBiomeFill(ctx);
     for (let y = startY; y <= endY; y++) {
@@ -297,11 +313,14 @@ export function draw(ctx, view) {
           continue;
         }
         const type = rowMap[x];
-        const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-        let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Apply outdoor tint only to FLOOR; rely on tile type for roads
+        let renderType = type;
+        if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
+        const td = getTileDef("town", renderType) || getTileDef("dungeon", renderType) || null;
+        let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, renderType, COLORS);
+        // Apply outdoor tint to FLOOR tiles; when rendering roads as floor, tint those too
         try {
-          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
+          const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
+          if (renderType === TILES.FLOOR && biomeFill && (isOutdoor || (__roadsAsFloor && type === TILES.ROAD))) {
             fill = biomeFill;
           }
         } catch (_) {}
@@ -316,6 +335,9 @@ export function draw(ctx, view) {
   // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
   (function drawRoadOverlay() {
     try {
+      // Developer toggle: render roads as floor; skip explicit road overlay
+      if (__roadsAsFloor) return;
+
       let anyRoad = false;
       for (let y = startY; y <= endY && !anyRoad; y++) {
         const yIn = y >= 0 && y < mapRows;

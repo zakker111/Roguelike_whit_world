@@ -422,7 +422,23 @@ function generate(ctx) {
         const v = counts[k] | 0;
         if (v > bestV) { bestV = v; best = k; }
       }
-      ctx.townBiome = best || "GRASS";
+
+      // Optional overrides + debug
+      let chosen = best || "GRASS";
+      let forceGrass = false;
+      let debugBiome = false;
+      try { forceGrass = (localStorage.getItem("TOWN_FORCE_GRASS") === "1"); } catch (_) {}
+      try { debugBiome = (localStorage.getItem("TOWN_BIOME_DEBUG") === "1"); } catch (_) {}
+      if (forceGrass) chosen = "GRASS";
+
+      ctx.townBiome = chosen;
+
+      if (debugBiome) {
+        try {
+          const msg = `Town biome sample @${wx},${wy} -> ${chosen} (counts GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0})`;
+          if (ctx.log) ctx.log(msg, "info"); else if (typeof console !== "undefined") console.log("[TownGen] " + msg);
+        } catch (_) {}
+      }
 
       // Persist on world.towns entry if available
       try {
