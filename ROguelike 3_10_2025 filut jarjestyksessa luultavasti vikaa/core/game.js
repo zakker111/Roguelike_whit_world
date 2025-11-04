@@ -761,7 +761,7 @@
     rerenderInventoryIfOpen();
   }
 
-  // Eat edible materials: berries (+1 HP) and cooked meat (+2 HP).
+  // Eat edible materials using a uniform data-driven rule (materials.json: edible.heal)
   function eatFoodByIndex(idx) {
     // Prefer centralized InventoryFlow
     try {
@@ -774,28 +774,40 @@
     if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
     const it = player.inventory[idx];
     if (!it || it.kind !== "material") return;
-    const nm = String(it.type || it.name || "").toLowerCase();
-    let heal = 0;
-    let label = it.name || nm;
-    if (nm === "meat_cooked" || nm === "meat (cooked)") {
-      heal = 2;
-      if (!it.name) label = "meat (cooked)";
-    } else if (nm === "fish_cooked" || nm === "fish (cooked)") {
-      heal = 5;
-      if (!it.name) label = "fish (cooked)";
-    } else if (nm === "berries") {
-      heal = 1;
-      if (!it.name) label = "berries";
-    } else {
-      return;
+
+    function edibleFromData(item) {
+      try {
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const M = GD && GD.materials ? GD.materials : null;
+        const list = M
+          ? (Array.isArray(M.materials) ? M.materials : (Array.isArray(M.list) ? M.list : null))
+          : null;
+        const id = String(item.type || item.name || "").toLowerCase();
+        if (list && id) {
+          const entry = list.find(e => e && (String(e.id || "").toLowerCase() === id || String(e.name || "").toLowerCase() === id));
+          if (entry && entry.edible && typeof entry.edible.heal === "number") {
+            return { heal: Math.max(0, Number(entry.edible.heal) || 0), label: entry.name || item.name || id };
+          }
+        }
+      } catch (_) {}
+      // Fallback to previous hardcoded mapping
+      const nm = String(item.type || item.name || "").toLowerCase();
+      if (nm === "meat_cooked" || nm === "meat (cooked)") return { heal: 2, label: "meat (cooked)" };
+      if (nm === "fish_cooked" || nm === "fish (cooked)") return { heal: 5, label: "fish (cooked)" };
+      if (nm === "berries") return { heal: 1, label: "berries" };
+      return { heal: 0, label: item.name || nm };
     }
+
+    const info = edibleFromData(it);
+    if (!(info.heal > 0)) return;
+
     const prev = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + heal);
+    player.hp = Math.min(player.maxHp, player.hp + info.heal);
     const gained = player.hp - prev;
     if (gained > 0) {
-      log(`You eat ${label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
+      log(`You eat ${info.label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
     } else {
-      log(`You eat ${label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
+      log(`You eat ${info.label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
     }
     // decrement one from stack
     if (typeof it.amount === "number") {

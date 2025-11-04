@@ -28,6 +28,9 @@ v1.45.0 — Fishing mini‑game, tool durability, shop economy, and performance 
   - Standing on a campfire now lets you cook either raw fish or raw meat when available.
   - If both are present, you’re asked to choose (fish first; Cancel switches to meat prompt).
   - Cooked fish is edible and heals +5 HP; cooked meat heals +2 HP.
+- Consumables (uniform, data-driven)
+  - Eating cooked fish/meat and berries now uses a single path that reads edible.heal from data/entities/materials.json.
+  - Inventory tooltips show “Click to eat (+X HP)” using the same data. Safe fallbacks retain previous values when data is missing.
 - Data-driven fish
   - Added fish and fish (cooked) to data/entities/materials.json (same file as meat).
   - Added cook_fish recipe to data/crafting/recipes.json (station: campfire).

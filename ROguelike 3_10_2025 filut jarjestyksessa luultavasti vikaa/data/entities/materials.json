@@ -12,7 +12,8 @@
       "name": "meat (cooked)",
       "kind": "material",
       "stackLimit": 99,
-      "tags": ["food", "cooked"]
+      "tags": ["food", "cooked"],
+      "edible": { "heal": 2 }
     },
     {
       "id": "fish",
