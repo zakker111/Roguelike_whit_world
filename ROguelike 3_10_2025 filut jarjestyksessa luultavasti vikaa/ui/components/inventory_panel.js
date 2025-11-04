@@ -205,6 +205,18 @@ export function render(player, describeItem) {
           const dec = Math.max(0, Math.min(100, Number(it.decay || 0)));
           li.title = `Click to equip • Decay: ${dec.toFixed(0)}%`;
           li.style.cursor = "pointer";
+        } else if (it.kind === "tool") {
+          // Show decay for tools (e.g., fishing pole). Normalize from durability if present.
+          const nmTool = String((it && (it.type || it.name)) || "").toLowerCase();
+          let dec = (typeof it.decay === "number") ? it.decay : null;
+          if (dec == null && typeof it.durability === "number") {
+            dec = Math.max(0, Math.min(100, 100 - (it.durability | 0)));
+          }
+          dec = Math.max(0, Math.min(100, Number(dec || 0)));
+          const isPole = nmTool.includes("fishing pole") || nmTool.includes("fishing_pole");
+          const kindLabel = isPole ? "Fishing pole" : "Tool";
+          li.title = `${kindLabel} • Decay: ${dec.toFixed(0)}%`;
+          li.style.cursor = "default";
         } else if (it.kind === "potion" || it.kind === "drink") {
           li.style.cursor = "pointer";
           li.title = "Click to drink";
