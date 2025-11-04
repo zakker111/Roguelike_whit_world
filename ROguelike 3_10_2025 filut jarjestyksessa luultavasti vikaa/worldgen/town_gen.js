@@ -384,6 +384,7 @@ function generate(ctx) {
       } catch (_) {}
 
       // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
+      // Accumulate across rings instead of stopping at the first ring with any samples.
       let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
       function bump(tile) {
         if (!WT) return;
@@ -395,10 +396,8 @@ function generate(ctx) {
         else if (tile === WT.GRASS) counts.GRASS++;
       }
 
-      // Search radius growing rings until we find any biome tiles
       const MAX_R = 6;
       for (let r = 1; r <= MAX_R; r++) {
-        let any = false;
         for (let dy = -r; dy <= r; dy++) {
           for (let dx = -r; dx <= r; dx++) {
             if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // only outer ring
@@ -407,12 +406,8 @@ function generate(ctx) {
             // Skip POI markers
             if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
             bump(t);
-            any = true;
           }
         }
-        // If we have any biome counts after this ring, stop
-        const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
-        if (any && total > 0) break;
       }
 
       // Pick the biome with the highest count; tie-break by a fixed priority
