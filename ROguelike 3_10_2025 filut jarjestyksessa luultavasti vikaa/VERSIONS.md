@@ -1,6 +1,45 @@
 s 
 # Game Version History
-Last updated: 2025-10-29 14:00 UTC
+Last updated: 2025-11-04 12:00 UTC
+
+v1.45.0 — Fishing mini‑game, tool durability, shop economy, and performance polish
+- Added: Fishing mini‑game (Region Map)
+  - Action on Region Map when adjacent to WATER/RIVER and carrying a fishing pole opens a modal mini‑game (hold‑the‑bar).
+  - Deterministic per attempt (seeded from ctx.rng); the mini‑game swallows input while open and advances in‑game time per attempt.
+  - Default prompt shows “Fish here? (15 min)” and uses minutesPerAttempt: 15 unless overridden.
+- Changed: Difficulty tuning (harder + wilder)
+  - Smaller safe zone, faster drift, stronger jitter.
+  - Added size pulsing and dash bursts (zone periodically surges at ~3–4× speed with occasional direction locks).
+  - Slower progress gain and slower stress relaxation; mistakes add stress faster.
+- Added: Rare item catches from fishing
+  - On success, a small 1% chance to pull up a non‑fish item (prefers Items.createEquipment tier 1–2; fallback “old boot” material).
+  - Item chance tunable via itemChance; default remains 1%.
+- Added: Fishing pole durability and breakage
+  - Each fishing attempt decays the fishing pole by 10% (configurable via decayPerAttempt). At 100% decay the pole breaks and is removed from inventory (log message).
+  - Legacy durability fields (durability:100) are normalized to decay on first use (decay = 100 − durability).
+- Shops/Economy
+  - Trader: sometimes sells a fishing pole (tool) via trader.mixed pool; standard price 200 gold.
+  - Seppo: now also sells fishing poles (premium pool) at a special fixed “good price” of 50 gold (overrides phase multipliers).
+  - ShopService tool materialization now includes type + display name for tools (e.g., “fishing_pole” → “fishing pole”).
+  - Pricing override implemented in ShopService.calculatePrice for Seppo’s fishing poles.
+- Loot
+  - Bandits now have a very small (~1%) chance to drop a fishing pole (tool) on death.
+- Performance/UX polish
+  - Logger: batched DOM logging (~12 Hz flush) with DocumentFragments and optional mirror panel; smoother under heavy logs.
+  - Lamp glow overlay: offscreen cached glow layer keyed by map/tile/time; blits cropped viewport additively at night/dusk/dawn to eliminate per‑frame radial costs.
+  - Pathfinding: centralized global request queue with strict per‑tick budget, LRU route cache, and priority for urgent/on‑screen NPCs; computePathBudgeted adopted in town AI for smooth frame times.
+- Files (highlights)
+  - ui/components/fishing_modal.js (new feature + tuning + item chance + durability)
+  - region_map/region_map_runtime.js (fishing integration and prompt “(15 min)”)
+  - services/shop_service.js (tool pricing/materialization + Seppo price override)
+  - data/shops/shop_pools.json (trader and seppo entries for fishing_pole)
+  - entities/loot.js (bandit rare fishing pole drop)
+  - ui/logger.js, ui/render_overlays.js (performance work)
+- Deployment: https://y4c21jovd339.cosine.page (initial), https://j0heyp3z823q.cosine.page (logger/lamp),
+  https://l0ok3oiox0j7.cosine.page (path budget/queue), https://rp26szzoenwk.cosine.page (fishing MVP),
+  https://yo09o22mkh3s.cosine.page (harder/longer), https://muxe6znr265t.cosine.page (rare item from fishing),
+  https://w1u7zkpx19dg.cosine.page (faster zone drift), https://v3kyhnj9m6cr.cosine.page (wilder: pulse + dashes),
+  https://sbisfkawxgfg.cosine.page (durability + trader/bandit), https://meprigd0cvmc.cosine.page (Seppo 50g pricing)
 
 v1.44.1 — Prefab schedules only, shops.json retired, greeter copy, Prefab Editor schedule/sign, and single-plaza guard
 - Town generation
