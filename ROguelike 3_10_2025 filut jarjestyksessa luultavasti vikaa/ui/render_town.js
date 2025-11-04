@@ -74,7 +74,7 @@ function tilesRef() {
 }
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null };
+let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null };
 
 
 export function draw(ctx, view) {
@@ -175,7 +175,17 @@ export function draw(ctx, view) {
     } catch (_) { return null; }
   }
   function ensureOutdoorMask(ctx) {
-    if (Array.isArray(ctx.townOutdoorMask)) return;
+    // Rebuild if missing or dimensions mismatch current map
+    if (Array.isArray(ctx.townOutdoorMask)) {
+      try {
+        const rows = mapRows, cols = mapCols;
+        const ok = (ctx.townOutdoorMask.length === rows)
+          && rows > 0
+          && Array.isArray(ctx.townOutdoorMask[0])
+          && ctx.townOutdoorMask[0].length === cols;
+        if (ok) return;
+      } catch (_) {}
+    }
     try {
       const rows = mapRows, cols = mapCols;
       const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
@@ -217,7 +227,8 @@ export function draw(ctx, view) {
         || TOWN.TILE !== TILE
         || TOWN._tilesRef !== tilesRef()
         || TOWN._biomeKey !== biomeKey
-        || TOWN._townKey !== townKey;
+        || TOWN._townKey !== townKey
+        || TOWN._maskRef !== ctx.townOutdoorMask;
 
       if (needsRebuild) {
         TOWN.mapRef = map;
@@ -238,6 +249,8 @@ export function draw(ctx, view) {
         // Prepare biome fill and outdoor mask
         ensureOutdoorMask(ctx);
         const biomeFill = townBiomeFill(ctx);
+        // Track mask reference to trigger rebuild when it changes externally
+        TOWN._maskRef = ctx.townOutdoorMask;
 
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
