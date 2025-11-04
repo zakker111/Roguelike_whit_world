@@ -31,6 +31,9 @@ v1.45.0 — Fishing mini‑game, tool durability, shop economy, and performance 
 - Data-driven fish
   - Added fish and fish (cooked) to data/entities/materials.json (same file as meat).
   - Added cook_fish recipe to data/crafting/recipes.json (station: campfire).
+- Fishing pole item
+  - Added fishing_pole as an equipment item in data/entities/items.json (slot: hand, non-combat stats).
+  - Current shops still sell it as a tool for compatibility; item entry exists for registry/loot integration if desired later.
 - Loot
   - Bandits now have a very small (~1%) chance to drop a fishing pole (tool) on death.
 - Performance/UX polish

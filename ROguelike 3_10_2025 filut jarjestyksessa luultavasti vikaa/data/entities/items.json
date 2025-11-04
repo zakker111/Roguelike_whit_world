@@ -206,6 +206,24 @@
     "notes": "Simple blunt weapon; common in low tiers."
   },
   {
+    "id": "fishing_pole",
+    "slot": "hand",
+    "name": "fishing pole",
+    "twoHanded": false,
+    "tierMin": 1,
+    "weights": {
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0
+    },
+    "atk": {
+      "1": [0.0, 0.0],
+      "2": [0.0, 0.0],
+      "3": [0.0, 0.0]
+    },
+    "notes": "Non-combat utility; defined as an item for registry completeness (shops still sell it as a tool)."
+  },
+  {
     "id": "dagger",
     "slot": "hand",
     "name": "dagger",
