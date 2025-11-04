@@ -46,7 +46,8 @@ function readLS() {
   try {
     // Allow disabling persistence entirely (always-fresh towns)
     if (!townPersistenceEnabled()) return Object.create(null);
-    // Allow disabling localStorage via flag (set by URL param fresh=st raw = (typeof localStorage !== "undefined") ? localStorage.getItem(LS_KEY) : null;
+    // Read persisted states from localStorage
+    const raw = (typeof localStorage !== "undefined") ? localStorage.getItem(LS_KEY) : null;
     if (!raw) return Object.create(null);
     const obj = JSON.parse(raw);
     return (obj && typeof obj === "object") ? obj : Object.create(null);
@@ -483,7 +484,9 @@ function applyState(ctx, st, x, y) {
         ctx.townBiome = best || "GRASS";
       }
       // Persist for next load
-      try { if (rec && typeof rec === "object") rec.biome = ctx.townBiome; } catch (_) {}PC snapshots do not carry _shopRef, so attach by proximity to the shop door or interior.
+      try { if (rec && typeof rec === "object") rec.biome = ctx.townBiome; } catch (_) {}
+  // Re-link shop references to nearby shopkeepers when loading from persistence.
+  // NPC snapshots do not carry _shopRef, so attach by proximity to the shop door or interior.
   (function relinkShopsToKeepers() {
     try {
       const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
