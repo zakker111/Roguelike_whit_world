@@ -80,6 +80,10 @@
             "phaseWeights": { "midday": 4, "afternoon": 4 },
             "maxPerRestock": 1
           },
+          { "id": "fishing_pole", "kind": "tool",
+            "phaseWeights": { "morning": 1, "midday": 1, "afternoon": 1, "dusk": 1 },
+            "maxPerRestock": 1
+          },
           { "id": "potion_hp_5", "kind": "potion", "heal": 5,
             "phaseWeights": { "morning": 3, "midday": 3 },
             "maxPerRestock": 1, "stack": { "min": 1, "max": 1 }

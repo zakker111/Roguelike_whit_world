@@ -111,6 +111,13 @@ function _rng(ctx) {
 function _priceFor(item) {
   try {
     if (!item) return 10;
+    // Explicit tool pricing
+    if (String(item.kind || "").toLowerCase() === "tool") {
+      const nm = String(item.name || item.type || "").toLowerCase();
+      if (nm.includes("fishing pole") || nm.includes("fishing_pole")) return 200;
+      // Default tool price
+      return 10;
+    }
     if (item.kind === "potion") {
       var h = item.heal != null ? item.heal : 5;
       return Math.max(5, Math.min(50, Math.round(h * 2)));
@@ -171,7 +178,9 @@ function _materializeItem(ctx, entry) {
     }
   }
   if (kind === "tool") {
-    return { kind: "tool", name: entry.id || "tool" };
+    const id = String(entry.id || "tool");
+    const display = id.replace(/_/g, " ");
+    return { kind: "tool", type: id, name: display };
   }
   if (kind === "material") {
     return { kind: "material", material: entry.material || "wood", name: entry.id || "material", amount: 1 };

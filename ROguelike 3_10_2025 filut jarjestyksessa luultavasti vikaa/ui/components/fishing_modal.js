@@ -388,6 +388,47 @@ export function show(ctx, opts = {}) {
     } else {
       try { if (ctx.log) ctx.log('The fish got away.', 'warn'); } catch (_) {}
     }
+
+    // Decay the fishing pole on every attempt; break at 100% decay
+    try {
+      const inv = ctx.player && Array.isArray(ctx.player.inventory) ? ctx.player.inventory : null;
+      if (inv && inv.length) {
+        // Pick the first fishing pole tool (by type or name)
+        let poleIdx = -1;
+        for (let i = 0; i < inv.length; i++) {
+          const it = inv[i];
+          if (!it) continue;
+          const k = String(it.kind || '').toLowerCase();
+          const nm = String(it.name || it.type || '').toLowerCase();
+          if (k === 'tool' && (nm.includes('fishing pole') || nm.includes('fishing_pole'))) { poleIdx = i; break; }
+        }
+        if (poleIdx !== -1) {
+          const pole = inv[poleIdx];
+          // Normalize legacy durability -> decay scale if needed
+          if (typeof pole.decay !== 'number') {
+            if (typeof pole.durability === 'number') {
+              // durability 100 -> decay 0, durability 0 -> decay 100
+              const d = Math.max(0, Math.min(100, 100 - (pole.durability | 0)));
+              pole.decay = d;
+            } else {
+              pole.decay = 0;
+            }
+          }
+          // Apply attempt decay (default 10%; tunable via opts.decayPerAttempt)
+          const amt = (opts && typeof opts.decayPerAttempt === 'number') ? Math.max(0, Math.min(100, opts.decayPerAttempt)) : 10;
+          const before = pole.decay | 0;
+          pole.decay = Math.max(0, Math.min(100, (pole.decay || 0) + amt));
+          if (pole.decay >= 100) {
+            // Remove broken pole
+            inv.splice(poleIdx, 1);
+            try { if (ctx.log) ctx.log('Your fishing pole breaks.', 'bad'); } catch (_) {}
+          } else if (((pole.decay | 0) !== before) && typeof ctx.rerenderInventoryIfOpen === 'function') {
+            try { ctx.rerenderInventoryIfOpen(); } catch (_) {}
+          }
+        }
+      }
+    } catch (_) {}
+
     hide();
   };
 

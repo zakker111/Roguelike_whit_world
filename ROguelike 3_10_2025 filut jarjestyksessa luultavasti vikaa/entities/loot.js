@@ -327,6 +327,22 @@ export function generate(ctx, source) {
       drops.push(biased);
     }
   }
+
+  // Rare special-case drop: bandits can very rarely carry a fishing pole (tool)
+  if (type === "bandit") {
+    try {
+      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const rfn = (RU && typeof RU.getRng === "function")
+        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+        : ((typeof ctx.rng === "function") ? ctx.rng : null);
+      const roll = (typeof rfn === "function") ? rfn() : 1.0; // deterministic: no drop if no RNG
+      // ~1% chance
+      if (roll < 0.01) {
+        drops.push({ kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 });
+      }
+    } catch (_) {}
+  }
+
   return drops;
 }
 
