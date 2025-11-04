@@ -1466,6 +1466,71 @@ function onAction(ctx) {
     }
   } catch (_) {}
 
+  // 3) Fishing: if adjacent to water/river and player has a fishing pole, prompt to start mini-game
+  try {
+    const WT = World.TILES;
+    const inBounds = (x, y) => {
+      const h = ctx.region.map.length;
+      const w = ctx.region.map[0] ? ctx.region.map[0].length : 0;
+      return x >= 0 && y >= 0 && x < w && y < h;
+    };
+    const isWater = (x, y) => {
+      if (!inBounds(x, y)) return false;
+      try {
+        const tt = ctx.region.map[y][x];
+        return (tt === WT.WATER || tt === WT.RIVER);
+      } catch (_) { return false; }
+    };
+    const nearWater = (
+      isWater(cursor.x + 1, cursor.y) ||
+      isWater(cursor.x - 1, cursor.y) ||
+      isWater(cursor.x, cursor.y + 1) ||
+      isWater(cursor.x, cursor.y - 1) ||
+      isWater(cursor.x + 1, cursor.y + 1) ||
+      isWater(cursor.x - 1, cursor.y + 1) ||
+      isWater(cursor.x + 1, cursor.y - 1) ||
+      isWater(cursor.x - 1, cursor.y - 1)
+    );
+
+    const hasPole = (function () {
+      try {
+        const inv = ctx.player.inventory || [];
+        return inv.some(it => {
+          if (!it) return false;
+          const nm = String(it.name || it.type || "").toLowerCase();
+          if (it.kind === "tool" && nm.includes("fishing pole")) return true;
+          if (it.kind !== "tool" && nm.includes("fishing pole")) return true;
+          return false;
+        });
+      } catch (_) { return false; }
+    })();
+
+    if (nearWater && hasPole) {
+      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
+      const onOk = () => {
+        if (UB && typeof UB.showFishing === "function") {
+          UB.showFishing(ctx, { minutesPerAttempt: 10, difficulty: 0.4 });
+        } else if (typeof window !== "undefined" && window.FishingModal && typeof window.FishingModal.show === "function") {
+          window.FishingModal.show(ctx, { minutesPerAttempt: 10, difficulty: 0.4 });
+        } else {
+          try { ctx.log && ctx.log("Fishing UI not available.", "warn"); } catch (_) {}
+        }
+      };
+      const onCancel = () => {};
+      if (UIO && typeof UIO.showConfirm === "function") {
+        UIO.showConfirm(ctx, "Fish here?", null, onOk, onCancel);
+      } else {
+        // No confirm UI; start immediately
+        onOk();
+      }
+      return true;
+    } else if (nearWater && !hasPole) {
+      try { ctx.log && ctx.log("You need a fishing pole to fish here.", "info"); } catch (_) {}
+      return true;
+    }
+  } catch (_) {}
+
   if (ctx.log) ctx.log("Move to an orange edge tile and press G to close the Region map.", "info");
   return true;
 }
