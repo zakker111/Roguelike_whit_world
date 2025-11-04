@@ -79,6 +79,32 @@ function paletteRef() {
   } catch (_) { return null; }
 }
 
+// Small color helpers for biome-derived road shades
+function parseHex(c) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(c || ""));
+  if (!m) return null;
+  const v = parseInt(m[1], 16);
+  return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+}
+function toHex(rgb) {
+  const clamp = (x) => Math.max(0, Math.min(255, Math.round(x)));
+  const v = (clamp(rgb.r) << 16) | (clamp(rgb.g) << 8) | clamp(rgb.b);
+  return "#" + v.toString(16).padStart(6, "0");
+}
+function shade(hex, factor) {
+  const rgb = parseHex(hex);
+  if (!rgb) return hex;
+  return toHex({ r: rgb.r * factor, g: rgb.g * factor, b: rgb.b * factor });
+}
+function neutralIndoorFloor(COLORS) {
+  return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
+}
+function roadColorForBiome(biomeHex) {
+  if (!biomeHex) return "#4b5563"; // neutral gray when palette missing
+  // Slightly lighter than ground to read as a path; clamp via toHex
+  return shade(biomeHex, 1.15);
+}
+
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
 let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _paletteRef: null, _biomeKey: null, _townKey: null, _maskRef: null };
 
@@ -267,11 +293,15 @@ export function draw(ctx, view) {
             const sx = xx * TILE, sy = yy * TILE;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
             let fill = fillTownFor(TILES, type, COLORS);
-            // Apply outdoor biome tint only to non-road FLOOR tiles; rely on tile type for roads
+            // Apply outdoor biome tint only to non-road FLOOR tiles; use neutral indoors
             try {
-              if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
-                // Outdoor ground tint by biome for non-road FLOOR tiles
-                fill = biomeFill;
+              if (type === TILES.FLOOR) {
+                const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
+                if (isOutdoor && biomeFill) {
+                  fill = biomeFill;
+                } else {
+                  fill = neutralIndoorFloor(COLORS);
+                }
               }
             } catch (_) {}
             oc.fillStyle = fill;
@@ -307,10 +337,15 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Apply outdoor tint only to FLOOR; rely on tile type for roads
+        // Apply outdoor tint to FLOOR; use neutral indoors
         try {
-          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
-            fill = biomeFill;
+          if (type === TILES.FLOOR) {
+            const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
+            if (isOutdoor && biomeFill) {
+              fill = biomeFill;
+            } else {
+              fill = neutralIndoorFloor(COLORS);
+            }
           }
         } catch (_) {}
         ctx2d.fillStyle = fill;
@@ -335,6 +370,7 @@ export function draw(ctx, view) {
       }
 
       if (anyRoad) {
+        const rCol = roadColorForBiome(townBiomeFill(ctx));
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
           if (!yIn) continue;
@@ -343,11 +379,12 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a"; // road color
+            ctx2d.fillStyle = rCol;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
       } else if (ctx.townRoads) {
+        const rCol = roadColorForBiome(townBiomeFill(ctx));
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
           if (!yIn) continue;
@@ -358,7 +395,7 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a";
+            ctx2d.fillStyle = rCol;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
