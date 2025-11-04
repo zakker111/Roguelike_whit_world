@@ -14,6 +14,8 @@ v1.45.0 — Fishing mini‑game, tool durability, shop economy, and performance 
 - Added: Rare item catches from fishing
   - On success, a small 1% chance to pull up a non‑fish item (prefers Items.createEquipment tier 1–2; fallback “old boot” material).
   - Item chance tunable via itemChance; default remains 1%.
+- Added: Skill synergy (Foraging → Fishing)
+  - Player foraging skill now eases the fishing mini‑game slightly: reduces effective difficulty by up to ~0.12 at high skill, making the safe zone a bit larger and drift a bit slower.
 - Added: Fishing pole durability and breakage
   - Each fishing attempt decays the fishing pole by 10% (configurable via decayPerAttempt). At 100% decay the pole breaks and is removed from inventory (log message).
   - Legacy durability fields (durability:100) are normalized to decay on first use (decay = 100 − durability).

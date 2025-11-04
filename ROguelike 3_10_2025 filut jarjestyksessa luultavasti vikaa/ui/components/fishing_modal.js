@@ -168,11 +168,18 @@ function resetState(opts, ctx) {
 
   // Slightly harder by default
   const baseDifficulty = (opts && typeof opts.difficulty === 'number') ? Math.max(0, Math.min(1, opts.difficulty)) : 0.5;
-  // Smaller zone and faster drift for increased challenge (store baselines for pulsing/dashes)
-  _zoneSizeBase = Math.max(0.12, 0.28 - baseDifficulty * 0.18);
+
+  // Foraging skill eases fishing a bit: reduce effective difficulty up to ~0.12 at high skill
+  let foraging = 0;
+  try { foraging = ((ctx && ctx.player && ctx.player.skills && typeof ctx.player.skills.foraging === 'number') ? ctx.player.skills.foraging : 0) | 0; } catch (_) {}
+  const ease = Math.max(0, Math.min(0.12, foraging * 0.0012));
+  const effDifficulty = Math.max(0, Math.min(1, baseDifficulty - ease));
+
+  // Smaller zone and faster drift scale with effective difficulty (store baselines for pulsing/dashes)
+  _zoneSizeBase = Math.max(0.12, 0.28 - effDifficulty * 0.18);
   _zoneSize = _zoneSizeBase;
   // Move the green zone more: higher base drift + stronger scaling with difficulty
-  _zoneSpeedBase = 0.24 + baseDifficulty * 0.60;
+  _zoneSpeedBase = 0.24 + effDifficulty * 0.60;
   _zoneSpeed = _zoneSpeedBase;
 
   // Seed for local RNG from global ctx rng for determinism
