@@ -15,6 +15,20 @@
       "tags": ["food", "cooked"]
     },
     {
+      "id": "fish",
+      "name": "fish",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["animal", "food", "raw"]
+    },
+    {
+      "id": "fish_cooked",
+      "name": "fish (cooked)",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["food", "cooked"]
+    },
+    {
       "id": "leather",
       "name": "leather",
       "kind": "material",
