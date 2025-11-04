@@ -298,19 +298,48 @@ export function draw(ctx, view) {
     }
   }
 
-  // Road overlay pass: draw over base only for explicit ROAD tiles (safety against oversized masks)
+  // Road overlay pass:
+  // 1) Prefer explicit ROAD tiles (authoritative).
+  // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
   (function drawRoadOverlay() {
     try {
-      for (let y = startY; y <= endY; y++) {
+      let anyRoad = false;
+      for (let y = startY; y <= endY && !anyRoad; y++) {
         const yIn = y >= 0 && y < mapRows;
         if (!yIn) continue;
         for (let x = startX; x <= endX; x++) {
           if (x < 0 || x >= mapCols) continue;
-          if (map[y][x] !== TILES.ROAD) continue;
-          const screenX = (x - startX) * TILE - tileOffsetX;
-          const screenY = (y - startY) * TILE - tileOffsetY;
-          ctx2d.fillStyle = "#b0a58a"; // road color
-          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          if (map[y][x] === TILES.ROAD) { anyRoad = true; break; }
+        }
+      }
+
+      if (anyRoad) {
+        for (let y = startY; y <= endY; y++) {
+          const yIn = y >= 0 && y < mapRows;
+          if (!yIn) continue;
+          for (let x = startX; x <= endX; x++) {
+            if (x < 0 || x >= mapCols) continue;
+            if (map[y][x] !== TILES.ROAD) continue;
+            const screenX = (x - startX) * TILE - tileOffsetX;
+            const screenY = (y - startY) * TILE - tileOffsetY;
+            ctx2d.fillStyle = "#b0a58a"; // road color
+            ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          }
+        }
+      } else if (ctx.townRoads) {
+        for (let y = startY; y <= endY; y++) {
+          const yIn = y >= 0 && y < mapRows;
+          if (!yIn) continue;
+          for (let x = startX; x <= endX; x++) {
+            if (x < 0 || x >= mapCols) continue;
+            // Only paint where the saved mask indicates a road and the map tile is FLOOR
+            if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
+            if (map[y][x] !== TILES.FLOOR) continue;
+            const screenX = (x - startX) * TILE - tileOffsetX;
+            const screenY = (y - startY) * TILE - tileOffsetY;
+            ctx2d.fillStyle = "#b0a58a";
+            ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          }
         }
       }
     } catch (_) {}
