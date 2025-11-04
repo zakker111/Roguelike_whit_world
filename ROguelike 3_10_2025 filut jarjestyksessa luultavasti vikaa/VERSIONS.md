@@ -9,6 +9,27 @@ v1.45.1 — Tool registry + data-driven consumables/potions
   - Starter fishing pole now uses decay: 0 (legacy durability normalized on first use).
   - Removed the equip “fishing_pole” entry from items.json to avoid mixing equip/tool models; fishing pole remains a tool.
   - Inventory UI detects fishing pole by type id and displays decay consistently.
+- Consumables (uniform, data-driven)
+  - Edible materials (berries, meat_cooked, fish_cooked) pull heal values from materials.json (edible.heal).
+  - Inventory tooltips show “Click to eat (+X HP)” using the same data.
+  - Potions come from consumables.json when present:
+    - Loot: enemy potion tiers (lesser/average/strong) map to potion_lesser/_average/_strong; fallback by heal values or legacy hardcoded names.
+    - Shops: kind: "potion" entries use consumables definitions by id; fallback to entry.heal otherwise.
+- Shops cleanup
+  - shop_pools.json now references potion ids (potion_lesser / potion_strong) instead of potion_hp_* placeholders.
+- Campfire cooking cleanup
+  - Campfire cooking now routes through data/crafting/recipes.json (“cook_meat”, “cook_fish”) for inputs/outputs and names.
+  - Cooking skill gain unchanged (+1 XP per item cooked).
+- Minor
+  - Removed unused Enemies.potionWeightsFor API and references.
+  - Fishing modal decay logic prefers tool type id (fishing_pole) when locating the pole in inventory.
+- Deployment: https://lfa2z782s7zw.cosine.page, https://ctfxh2v9ac1b.cosine.page, https://605gkewh8631.cosine.page, https://xa2sk0ajq6zx.cosine.page.1 — Tool registry + data-driven consumables/potions
+- Tools registry (tool-first)
+  - Added data/entities/tools.json and exposed it via GameData.tools in data/loader.js.
+  - ShopService now materializes tools from the registry (type/id) and prices them by id (with per-shop overrides).
+  - Starter fishing pole now uses decay: 0 (legacy durability normalized on first use).
+  - Removed the equip “fishing_pole” entry from items.json to avoid mixing equip/tool models; fishing pole remains a tool.
+  - Inventory UI detects fishing pole by type id and displays decay consistently.
 sh
 - Added: Fishing mini‑game (Region Map)
   - Action on Region Map when adjacent to WATER/RIVER and carrying a fishing pole opens a modal mini‑game (hold‑the‑bar).

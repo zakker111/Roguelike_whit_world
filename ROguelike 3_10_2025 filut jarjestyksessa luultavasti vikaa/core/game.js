@@ -1760,20 +1760,32 @@
           else if (type === "crate") log("You stand next to a crate.", "info");
           else if (type === "bench") log("You stand next to a bench.", "info");
           else if (type === "campfire") {
-            // Prompt to cook raw fish or raw meat if available
+            // Campfire cooking via data-driven recipes (data/crafting/recipes.json)
             try {
               const UIO = modHandle("UIOrchestration");
               const inv = ctxMod.player.inventory || [];
-
-              // Collect raw counts and indices
-              const collect = (match) => {
+              const GD = (typeof window !== "undefined" ? window.GameData : null);
+              const recipes = GD && GD.crafting && Array.isArray(GD.crafting.recipes) ? GD.crafting.recipes : [];
+              const mats = GD && GD.materials && (Array.isArray(GD.materials.materials) ? GD.materials.materials : GD.materials.list);
+              const matName = (id) => {
+                try {
+                  const e = Array.isArray(mats) ? mats.find(m => m && String(m.id || "").toLowerCase() === String(id).toLowerCase()) : null;
+                  return e && e.name ? e.name : String(id).replace(/_/g, " ");
+                } catch (_) { return String(id); }
+              };
+              const findRecipe = (inputId) => {
+                const iid = String(inputId).toLowerCase();
+                return recipes.find(r => r && String(r.station || "").toLowerCase() === "campfire" && Array.isArray(r.inputs) && r.inputs.some(inp => String(inp.id || "").toLowerCase() === iid));
+              };
+              const collect = (inputId) => {
+                const iid = String(inputId).toLowerCase();
                 const idxs = [];
                 let total = 0;
                 for (let i = 0; i < inv.length; i++) {
                   const it = inv[i];
                   if (!it || it.kind !== "material") continue;
-                  const nm = String(it.name || it.type || "").toLowerCase();
-                  if (match(nm)) {
+                  const id = String(it.type || it.name || "").toLowerCase();
+                  if (id === iid) {
                     const amt = (it.amount | 0) || (it.count | 0) || 1;
                     total += amt;
                     idxs.push(i);
@@ -1781,21 +1793,24 @@
                 }
                 return { idxs, total };
               };
+              const cookUsing = (inputId, bundle) => {
+                const rec = findRecipe(inputId);
+                if (!rec || !Array.isArray(rec.outputs) || rec.outputs.length === 0) { log("You stand by a campfire.", "info"); return; }
+                const outId = String(rec.outputs[0].id || "");
+                const outName = matName(outId);
+                const inName = matName(inputId);
 
-              const rawMeat = collect(nm => nm === "meat");
-              const rawFish = collect(nm => nm === "fish");
-
-              const cookItems = (idxs, total, cookedName, cookedType) => {
                 // Remove raw entries (largest stacks first)
-                let remaining = total;
-                idxs.sort((a, b) => {
+                let remaining = bundle.total;
+                bundle.idxs.sort((a, b) => {
                   const aa = ((inv[a]?.amount | 0) || (inv[a]?.count | 0) || 1);
                   const bb = ((inv[b]?.amount | 0) || (inv[b]?.count | 0) || 1);
                   return bb - aa;
                 });
-                for (const idx of idxs) {
+                for (const idx of bundle.idxs) {
+                  if (remaining <= 0) break;
                   const it = inv[idx];
-                  if (!it || remaining <= 0) continue;
+                  if (!it) continue;
                   const amt = (it.amount | 0) || (it.count | 0) || 1;
                   const take = Math.min(amt, remaining);
                   const left = amt - take;
@@ -1807,48 +1822,53 @@
                   remaining -= take;
                 }
                 // Add cooked stack
-                const existing = inv.find(x => x && x.kind === "material" && String(x.name || x.type || "").toLowerCase() === cookedName);
+                const existing = inv.find(x => x && x.kind === "material" && String(x.type || x.name || "").toLowerCase() === outId.toLowerCase());
                 if (existing) {
-                  if (typeof existing.amount === "number") existing.amount += total;
-                  else if (typeof existing.count === "number") existing.count += total;
-                  else existing.amount = total;
+                  if (typeof existing.amount === "number") existing.amount += bundle.total;
+                  else if (typeof existing.count === "number") existing.count += bundle.total;
+                  else existing.amount = bundle.total;
                 } else {
-                  inv.push({ kind: "material", type: cookedType, name: cookedName, amount: total });
+                  inv.push({ kind: "material", type: outId, name: outName, amount: bundle.total });
                 }
                 // Cooking skill gain scales with items cooked
-                try { ctxMod.player.skills = ctxMod.player.skills || {}; ctxMod.player.skills.cooking = (ctxMod.player.skills.cooking || 0) + Math.max(1, total); } catch (_) {}
-                log(`You cook ${total} ${cookedName.includes("fish") ? "fish" : "meat"} into ${total} ${cookedName}.`, "good");
+                try { ctxMod.player.skills = ctxMod.player.skills || {}; ctxMod.player.skills.cooking = (ctxMod.player.skills.cooking || 0) + Math.max(1, bundle.total); } catch (_) {}
+                log(`You cook ${bundle.total} ${inName} into ${bundle.total} ${outName}.`, "good");
                 updateUI();
                 try { const UIO2 = modHandle("UIOrchestration"); if (UIO2 && typeof UIO2.renderInventory === "function") UIO2.renderInventory(getCtx()); } catch (_) {}
               };
 
-              if (rawFish.total <= 0 && rawMeat.total <= 0) {
+              const meat = collect("meat");
+              const fish = collect("fish");
+              const canMeat = meat.total > 0 && !!findRecipe("meat");
+              const canFish = fish.total > 0 && !!findRecipe("fish");
+
+              if (!canFish && !canMeat) {
                 log("You stand by a campfire.", "info");
-              } else if (rawFish.total > 0 && rawMeat.total <= 0) {
+              } else if (canFish && !canMeat) {
                 // Only fish available
-                const prompt = `You stand by a campfire. Cook ${rawFish.total} fish?`;
-                const onOk = () => cookItems(rawFish.idxs, rawFish.total, "fish (cooked)", "fish_cooked");
+                const prompt = `You stand by a campfire. Cook ${fish.total} ${matName("fish")}?`;
+                const onOk = () => cookUsing("fish", fish);
                 const onCancel = () => log("You warm your hands by the fire.", "info");
                 if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctxMod, prompt, null, onOk, onCancel);
                 else onOk();
-              } else if (rawMeat.total > 0 && rawFish.total <= 0) {
+              } else if (canMeat && !canFish) {
                 // Only meat available
-                const prompt = `You stand by a campfire. Cook ${rawMeat.total} meat?`;
-                const onOk = () => cookItems(rawMeat.idxs, rawMeat.total, "meat (cooked)", "meat_cooked");
+                const prompt = `You stand by a campfire. Cook ${meat.total} ${matName("meat")}?`;
+                const onOk = () => cookUsing("meat", meat);
                 const onCancel = () => log("You warm your hands by the fire.", "info");
                 if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctxMod, prompt, null, onOk, onCancel);
                 else onOk();
               } else {
                 // Both available — ask fish first; if cancelled, ask meat
                 const askMeat = () => {
-                  const promptM = `Cook ${rawMeat.total} meat?`;
-                  const onOkM = () => cookItems(rawMeat.idxs, rawMeat.total, "meat (cooked)", "meat_cooked");
+                  const promptM = `Cook ${meat.total} ${matName("meat")}?`;
+                  const onOkM = () => cookUsing("meat", meat);
                   const onCancelM = () => log("You warm your hands by the fire.", "info");
                   if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctxMod, promptM, null, onOkM, onCancelM);
                   else onOkM();
                 };
-                const promptF = `You stand by a campfire. Cook ${rawFish.total} fish? (Cancel for meat)`;
-                const onOkF = () => cookItems(rawFish.idxs, rawFish.total, "fish (cooked)", "fish_cooked");
+                const promptF = `You stand by a campfire. Cook ${fish.total} ${matName("fish")}? (Cancel for meat)`;
+                const onOkF = () => cookUsing("fish", fish);
                 const onCancelF = () => askMeat();
                 if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctxMod, promptF, null, onOkF, onCancelF);
                 else onOkF();
