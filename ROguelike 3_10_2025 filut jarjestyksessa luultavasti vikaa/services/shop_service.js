@@ -151,6 +151,21 @@ function _materializeItem(ctx, entry) {
   if (!entry || typeof entry !== "object") return null;
   var kind = String(entry.kind || "").toLowerCase();
   if (kind === "potion") {
+    // Prefer data-driven consumables by id when available
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const list = GD && GD.consumables && Array.isArray(GD.consumables.potions) ? GD.consumables.potions : null;
+      const id = String(entry.id || "").toLowerCase();
+      if (list && id) {
+        const def = list.find(p => p && String(p.id || "").toLowerCase() === id);
+        if (def) {
+          const heal = Number(def.heal || entry.heal || 5) || 5;
+          const name = def.name || ("potion (+" + heal + " HP)");
+          return { kind: "potion", heal: heal, count: 1, name };
+        }
+      }
+    } catch (_) {}
+    // Fallback to entry.heal
     return { kind: "potion", heal: entry.heal || 5, count: 1, name: "potion (+" + (entry.heal || 5) + " HP)" };
   }
   if (kind === "drink") {

@@ -21,11 +21,10 @@
 
 /**
  * Choose a potion tier based on enemy type.
- * Prefers Enemies.potionWeightsFor(type) when available; otherwise uses sane defaults.
- * Returns a plain item object: { kind: "potion", name, heal }
+ * Uses enemy.lootPools.potions weights and materializes a potion from GameData.consumables when available.
+ * Returns a plain item object: { kind: "potion", name, heal, count:1 }
  */
 function pickPotion(ctx, source) {
-  // Use embedded enemy lootPools 'potions' weights only
   const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
   const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(source?.type || "") : null;
   const potW = def && def.lootPools && def.lootPools.potions ? def.lootPools.potions : null;
@@ -41,12 +40,37 @@ function pickPotion(ctx, source) {
   const wA = Number(potW.average || 0);
   const wS = Number(potW.strong || 0);
   const total = wL + wA + wS;
-  if (total <= 0) return null;
+  if (!(total > 0)) return null;
 
-  const roll = rv * total;
-  if (roll < wL) return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3 };
-  if (roll < wL + wA) return { name: "average potion (+6 HP)", kind: "potion", heal: 6 };
-  return { name: "strong potion (+10 HP)", kind: "potion", heal: 10 };
+  let tier = "strong";
+  let roll = rv * total;
+  if (roll < wL) tier = "lesser";
+  else if (roll < wL + wA) tier = "average";
+  else tier = "strong";
+
+  // Try to fetch potion def from data/entities/consumables.json
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const list = GD && GD.consumables && Array.isArray(GD.consumables.potions) ? GD.consumables.potions : null;
+    if (list) {
+      const id = `potion_${tier}`;
+      const c = list.find(p => p && String(p.id || "").toLowerCase() === id);
+      if (c) {
+        return { kind: "potion", heal: Number(c.heal || 0) || 0, count: 1, name: c.name || ("potion (+" + (c.heal || 0) + " HP)") };
+      }
+      // Fallback: choose by typical heals when ids differ
+      const healWanted = tier === "lesser" ? 3 : (tier === "average" ? 6 : 10);
+      const c2 = list.find(p => (p && Number(p.heal || 0) === healWanted));
+      if (c2) {
+        return { kind: "potion", heal: healWanted, count: 1, name: c2.name || ("potion (+" + healWanted + " HP)") };
+      }
+    }
+  } catch (_) {}
+
+  // Final fallback to hardcoded names
+  if (tier === "lesser") return { name: "lesser potion (+3 HP)", kind: "potion", heal: 3, count: 1 };
+  if (tier === "average") return { name: "average potion (+6 HP)", kind: "potion", heal: 6, count: 1 };
+  return { name: "strong potion (+10 HP)", kind: "potion", heal: 10, count: 1 };
 }
 
 /**

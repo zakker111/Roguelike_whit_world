@@ -31,6 +31,9 @@ v1.45.0 — Fishing mini‑game, tool durability, shop economy, and performance 
 - Consumables (uniform, data-driven)
   - Eating cooked fish/meat and berries now uses a single path that reads edible.heal from data/entities/materials.json.
   - Inventory tooltips show “Click to eat (+X HP)” using the same data. Safe fallbacks retain previous values when data is missing.
+  - Potions now materialize from data/entities/consumables.json where available:
+    - Loot: enemy potion drops by tier (lesser/average/strong) map to potions with ids potion_lesser/average/strong; falls back to heal values if ids differ.
+    - Shops: when a shop pool entry has kind: \"potion\" and id matches a consumable id, it uses that definition (name/heal); otherwise falls back to entry.heal.
 - Data-driven fish
   - Added fish and fish (cooked) to data/entities/materials.json (same file as meat).
   - Added cook_fish recipe to data/crafting/recipes.json (station: campfire).
