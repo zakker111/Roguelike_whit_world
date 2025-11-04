@@ -383,48 +383,77 @@ function generate(ctx) {
         }
       } catch (_) {}
 
-      // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
-      let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
-      function bump(tile) {
-        if (!WT) return;
-        if (tile === WT.DESERT) counts.DESERT++;
-        else if (tile === WT.SNOW) counts.SNOW++;
-        else if (tile === WT.BEACH) counts.BEACH++;
-        else if (tile === WT.SWAMP) counts.SWAMP++;
-        else if (tile === WT.FOREST) counts.FOREST++;
-        else if (tile === WT.GRASS) counts.GRASS++;
+      // Fast path: pick the nearest non-POI overworld tile around the town and use its biome.
+      // Cardinal first, then diagonals, expand radius up to 3; ignore WATER/RIVER/MOUNTAIN.
+      const prefer = [
+        {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+        {dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}
+      ];
+      function tileToBiome(tile) {
+        if (!WT) return null;
+        if (tile === WT.FOREST) return "FOREST";
+        if (tile === WT.GRASS) return "GRASS";
+        if (tile === WT.DESERT) return "DESERT";
+        if (tile === WT.BEACH) return "BEACH";
+        if (tile === WT.SNOW) return "SNOW";
+        if (tile === WT.SWAMP) return "SWAMP";
+        return null;
       }
-
-      // Search radius growing rings until we find any biome tiles
-      // Increase radius to provide robust context so towns near edges pick the correct surrounding biome.
-      const MAX_R = 12;
-      for (let r = 1; r <= MAX_R; r++) {
-        let any = false;
-        for (let dy = -r; dy <= r; dy++) {
-          for (let dx = -r; dx <= r; dx++) {
-            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // only outer ring
-            const t = worldTileAtAbs(wx + dx, wy + dy);
-            if (t == null) continue;
-            // Skip POI markers
-            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
-            bump(t);
-            any = true;
-          }
+      let picked = null;
+      for (let r = 1; r <= 3 && !picked; r++) {
+        for (let i = 0; i < prefer.length && !picked; i++) {
+          const dx = prefer[i].dx * r, dy = prefer[i].dy * r;
+          const t = worldTileAtAbs(wx + dx, wy + dy);
+          if (t == null) continue;
+          if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS || t === WT.WATER || t === WT.RIVER || t === WT.MOUNTAIN)) continue;
+          const b = tileToBiome(t);
+          if (b) picked = b;
         }
-        // If we have any biome counts after this ring, stop
-        const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
-        if (any && total > 0) break;
       }
+      if (picked) {
+        ctx.townBiome = picked;
+      } else {
+        // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
+        let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
+        function bump(tile) {
+          if (!WT) return;
+          if (tile === WT.DESERT) counts.DESERT++;
+          else if (tile === WT.SNOW) counts.SNOW++;
+          else if (tile === WT.BEACH) counts.BEACH++;
+          else if (tile === WT.SWAMP) counts.SWAMP++;
+          else if (tile === WT.FOREST) counts.FOREST++;
+          else if (tile === WT.GRASS) counts.GRASS++;
+        }
 
-      // Weight non-GRASS slightly so forests/desert/snow dominate when present near town
-      const w = { DESERT: 1.2, SNOW: 1.2, BEACH: 1.1, SWAMP: 1.1, FOREST: 1.25, GRASS: 1.0 };
-      const order = ["FOREST","DESERT","BEACH","SNOW","SWAMP","GRASS"];
-      let best = "GRASS", bestV = -1;
-      for (const k of order) {
-        const v = (counts[k] | 0) * (w[k] || 1);
-        if (v > bestV) { bestV = v; best = k; }
+        // Search radius growing rings until we find any biome tiles (cap at 8 for safety)
+        const MAX_R = 8;
+        for (let r = 1; r <= MAX_R; r++) {
+          let any = false;
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+              if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; // only outer ring
+              const t = worldTileAtAbs(wx + dx, wy + dy);
+              if (t == null) continue;
+              // Skip POI markers
+              if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+              bump(t);
+              any = true;
+            }
+          }
+          const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
+          if (any && total > 0) break;
+        }
+
+        // Pick the best by simple max; tie-breaker favors non-GRASS slightly
+        const w = { DESERT: 1.1, SNOW: 1.1, BEACH: 1.05, SWAMP: 1.05, FOREST: 1.2, GRASS: 1.0 };
+        const order = ["FOREST","DESERT","BEACH","SNOW","SWAMP","GRASS"];
+        let best = "GRASS", bestV = -1;
+        for (const k of order) {
+          const v = (counts[k] | 0) * (w[k] || 1);
+          if (v > bestV) { bestV = v; best = k; }
+        }
+        ctx.townBiome = best || "GRASS";
       }
-      ctx.townBiome = best || "GRASS";
 
       // Persist on world.towns entry if available
       try {

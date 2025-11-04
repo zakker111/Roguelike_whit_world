@@ -149,7 +149,6 @@ export function draw(ctx, view) {
       // We require absolute world coordinates for this town; do not guess from player (town-local) coords.
       const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
       if (!hasWRP) {
-        // As a last resort, do nothing; rendering will fallback to default floor colors without biome tint.
         return;
       }
       const wx = ctx.worldReturnPos.x | 0;
@@ -173,7 +172,42 @@ export function draw(ctx, view) {
         return null;
       }
 
-      // Sample neighborhood around town (skip POIs) to infer biome
+      // Fast path: nearest non-POI tile around town (cardinals first) within radius 3.
+      const prefer = [
+        {dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},
+        {dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}
+      ];
+      function tileToBiome(tile) {
+        if (!WT) return null;
+        if (tile === WT.FOREST) return "FOREST";
+        if (tile === WT.GRASS) return "GRASS";
+        if (tile === WT.DESERT) return "DESERT";
+        if (tile === WT.BEACH) return "BEACH";
+        if (tile === WT.SNOW) return "SNOW";
+        if (tile === WT.SWAMP) return "SWAMP";
+        return null;
+      }
+      let picked = null;
+      for (let r = 1; r <= 3 && !picked; r++) {
+        for (let i = 0; i < prefer.length && !picked; i++) {
+          const dx = prefer[i].dx * r, dy = prefer[i].dy * r;
+          const t = worldTileAtAbs(wx + dx, wy + dy);
+          if (t == null) continue;
+          if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS || t === WT.WATER || t === WT.RIVER || t === WT.MOUNTAIN)) continue;
+          const b = tileToBiome(t);
+          if (b) picked = b;
+        }
+      }
+      if (picked) {
+        ctx.townBiome = picked;
+        try {
+          const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+          if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
+        } catch (_) {}
+        return;
+      }
+
+      // Fallback: small ring sample
       let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
       function bump(tile) {
         if (!WT) return;
