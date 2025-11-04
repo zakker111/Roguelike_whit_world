@@ -301,20 +301,51 @@ export function show(ctx, opts = {}) {
     try { if (typeof ctx.updateUI === 'function') ctx.updateUI(); } catch (_) {}
 
     if (ok) {
-      // Add a generic fish item to inventory
+      // Small chance to catch an item instead of a fish
+      let rngFn = null;
+      try {
+        if (typeof window !== 'undefined' && window.RNGUtils && typeof window.RNGUtils.getRng === 'function') {
+          rngFn = window.RNGUtils.getRng((typeof ctx.rng === 'function') ? ctx.rng : undefined);
+        }
+      } catch (_) {}
+      if (!rngFn) rngFn = (typeof ctx.rng === 'function') ? ctx.rng : Math.random;
+
+      const specialChance = (opts && typeof opts.itemChance === 'number') ? Math.max(0, Math.min(1, opts.itemChance)) : 0.01; // 1% default
+      const isSpecial = rngFn() < specialChance;
+
       try {
         const inv = ctx.player.inventory || (ctx.player.inventory = []);
-        const existing = inv.find(it => it && it.kind === 'material' && String(it.type || it.name || '').toLowerCase() === 'fish');
-        if (existing) {
-          if (typeof existing.amount === 'number') existing.amount += 1;
-          else if (typeof existing.count === 'number') existing.count += 1;
-          else existing.amount = 1;
+        if (isSpecial) {
+          // Prefer a real equipment item if Items registry is available; fallback to a trinket
+          let awarded = null;
+          try {
+            if (typeof window !== 'undefined' && window.Items && typeof window.Items.createEquipment === 'function') {
+              // Mostly tier 1; tiny chance to bump to tier 2
+              const tier = (rngFn() < 0.12) ? 2 : 1;
+              awarded = window.Items.createEquipment(tier, rngFn) || null;
+            }
+          } catch (_) {}
+          if (!awarded) {
+            awarded = { kind: 'material', type: 'old_boot', name: 'old boot', amount: 1 };
+          }
+          inv.push(awarded);
+          try { if (typeof ctx.updateUI === 'function') ctx.updateUI(); } catch (_) {}
+          try { if (ctx.rerenderInventoryIfOpen) ctx.rerenderInventoryIfOpen(); } catch (_) {}
+          try { if (ctx.log) ctx.log(`You fished up ${awarded.name || 'something curious'}!`, 'good'); } catch (_) {}
         } else {
-          inv.push({ kind: 'material', type: 'fish', name: 'fish', amount: 1 });
+          // Regular fish
+          const existing = inv.find(it => it && it.kind === 'material' && String(it.type || it.name || '').toLowerCase() === 'fish');
+          if (existing) {
+            if (typeof existing.amount === 'number') existing.amount += 1;
+            else if (typeof existing.count === 'number') existing.count += 1;
+            else existing.amount = 1;
+          } else {
+            inv.push({ kind: 'material', type: 'fish', name: 'fish', amount: 1 });
+          }
+          try { if (typeof ctx.updateUI === 'function') ctx.updateUI(); } catch (_) {}
+          try { if (ctx.rerenderInventoryIfOpen) ctx.rerenderInventoryIfOpen(); } catch (_) {}
+          try { if (ctx.log) ctx.log('You caught a fish!', 'good'); } catch (_) {}
         }
-        try { if (typeof ctx.updateUI === 'function') ctx.updateUI(); } catch (_) {}
-        try { if (ctx.rerenderInventoryIfOpen) ctx.rerenderInventoryIfOpen(); } catch (_) {}
-        try { if (ctx.log) ctx.log('You caught a fish!', 'good'); } catch (_) {}
       } catch (_) {}
     } else {
       try { if (ctx.log) ctx.log('The fish got away.', 'warn'); } catch (_) {}
