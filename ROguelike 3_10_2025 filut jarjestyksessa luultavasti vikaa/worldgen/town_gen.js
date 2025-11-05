@@ -1734,10 +1734,11 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Build roads after buildings: one main road from gate to plaza, then spurs from every building door to the main road.
-  (function buildRoadsAndPublish() {
+  // Town roads disabled: do not build or mark ROAD tiles in towns.
+  // Keep ctx.townRoads undefined so renderers skip any road overlay.
+  (function disableTownRoads() {
     try {
-      Roads.build(ctx);
+      ctx.townRoads = undefined;
     } catch (_) {}
   })();
   function addProp(x, y, type, name) {
