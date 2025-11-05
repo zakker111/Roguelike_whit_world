@@ -28,7 +28,10 @@ function fillTownFor(TILES, type, COLORS) {
   const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
   // STRICT: do not fallback; if JSON has no color, leave null so caller can decide (or skip draw)
   v = (td && td.colors && td.colors.fill) ? td.colors.fill : null;
-  TILE_CACHE.fill[kfunction glyphTownFor(type) {
+  TILE_CACHE.fill[k] = v;
+  return v;
+}
+function glyphTownFor(type) {
   cacheResetIfNeeded();
   const k = type | 0;
   let g = TILE_CACHE.glyph[k];
