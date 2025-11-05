@@ -532,14 +532,22 @@ function generate(ctx) {
       if (debugBiome || TRACE) {
         const msg1 = `Biome totals @${wx},${wy}: GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}`;
         const msg2 = `Biome chosen='${chosen}'  bestSample='${best}'  persisted='${persistedBiome || ""}'  fill=${fillHex || "(n/a)"}`;
-        L(msg1, "info");
-        L(msg2, "info");
+        L(msg1, "notice");
+        L(msg2, "notice");
       }
 
       if (debugBiome) {
         const msg = `Town biome sample @${wx},${wy} -> ${chosen} (counts GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0})`;
-        L(msg, "info");
+        L(msg, "notice");
       }
+
+      // Always log to player log on entry what ground color will be used for floors
+      try {
+        const fillShown = fillHex || "(n/a)";
+        if (ctx && typeof ctx.log === "function") {
+          ctx.log(`Town ground color: ${fillShown} (biome ${ctx.townBiome}).`, "notice");
+        }
+      } catch (_) {}
 
       // Publish debug data for renderer
       try {

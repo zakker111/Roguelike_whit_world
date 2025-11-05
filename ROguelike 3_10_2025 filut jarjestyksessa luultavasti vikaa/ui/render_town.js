@@ -113,11 +113,12 @@ export function draw(ctx, view) {
   const mapCols = map[0] ? map[0].length : 0;
 
   // Local logger helper (also buffers messages for on-screen overlay)
-  function L(msg, level = "info") {
+  function L(msg, level = "notice") {
     try {
       if (!__groundLog) return;
       const m = String(msg);
-      if (ctx && typeof ctx.log === "function") ctx.log(m, level);
+      const tone = level || "notice";
+      if (ctx && typeof ctx.log === "function") ctx.log(m, tone);
       if (typeof console !== "undefined") console.log("[RenderTown] " + m);
       try {
         ctx.__groundMsgs = Array.isArray(ctx.__groundMsgs) ? ctx.__groundMsgs : [];
