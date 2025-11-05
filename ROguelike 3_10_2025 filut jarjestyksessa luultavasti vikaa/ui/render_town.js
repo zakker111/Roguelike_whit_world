@@ -483,7 +483,7 @@ export function draw(ctx, view) {
                     fill = biomeFill;
                     tinted = true;
                     floorsTinted++;
-                    if (sampleTinted.length < 8) sampleTinted.push(`${xx},${yy}`);
+                    if (sampleTinted.lengt << 8) sampleTinted.push(`${xx},${yy}`);
                   }
                 } else if (type === TILES.ROAD) {
                   roadsTotal++;
@@ -492,8 +492,15 @@ export function draw(ctx, view) {
                     tinted = true;
                     roadsTinted++;
                   }
+                } else if (type === TILES.DOOR || type === TILES.STAIRS) {
+                  // Eliminate brown fallback on DOOR/STAIRS by tinting with biome as well
+                  if (biomeFill) {
+                    fill = biomeFill;
+                    tinted = true;
+                  }
                 }
-              } catch (_) {}
+              } catch (_) new{</}
+
               if (__tileTrace && (renderType === TILES.FLOOR || type === TILES.ROAD)) {
                 tileLines.push(`TILE x=${xx} y=${yy} kind=${toName(type)} render=${toName(renderType)} baseFill=${baseFill} biomeFill=${String(biomeFill||"(null)")} final=${fill} tinted=${tinted ? 1 : 0}`);
               }
@@ -599,6 +606,12 @@ export function draw(ctx, view) {
               fill = biomeFill;
               tinted = true;
               roadsTintedView++;
+            }
+          } else if (type === TILES.DOOR || type === TILES.STAIRS) {
+            // Eliminate brown fallback on DOOR/STAIRS by tinting with biome as well
+            if (biomeFill) {
+              fill = biomeFill;
+              tinted = true;
             }
           }
         } catch (_) {}
