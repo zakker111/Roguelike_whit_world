@@ -115,26 +115,27 @@ export function draw(ctx, view) {
   // Helpers for biome-based outdoor ground tint
   function ensureTownBiome(ctx) {
     try {
-      // If TownState or Town generation already set a biome, trust it
-      if (ctx.townBiome) return;
+      // If TownState or Town generation already set a biome, we still populate counts for the debug panel if missing.
+      const hadBiome = !!ctx.townBiome;
 
       const world = ctx.world || {};
       const WMOD = (typeof window !== "undefined" ? window.World : null);
       const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
+      const WT_GEN = (world && world.gen && world.gen.TILES) ? world.gen.TILES : null; // fallback when window.World is missing
 
       // We require absolute world coordinates for this town; do not guess from player (town-local) coords.
       const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
       if (!hasWRP) {
-        // As a last resort, do nothing; rendering will fallback to default floor colors without biome tint.
         return;
       }
       const wx = ctx.worldReturnPos.x | 0;
       const wy = ctx.worldReturnPos.y | 0;
 
       // Use persisted biome if available
+      let persisted = null;
       try {
         const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-        if (rec && rec.biome) { ctx.townBiome = rec.biome; return; }
+        if (rec && rec.biome) { persisted = String(rec.biome); if (!ctx.townBiome) ctx.townBiome = persisted; }
       } catch (_) {}
 
       // Helper: get tile at absolute world coords (prefer current window; fallback to generator)
@@ -152,13 +153,14 @@ export function draw(ctx, view) {
       // Sample neighborhood around town (skip POIs) to infer biome
       let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
       function bump(tile) {
-        if (!WT) return;
-        if (tile === WT.DESERT) counts.DESERT++;
-        else if (tile === WT.SNOW) counts.SNOW++;
-        else if (tile === WT.BEACH) counts.BEACH++;
-        else if (tile === WT.SWAMP) counts.SWAMP++;
-        else if (tile === WT.FOREST) counts.FOREST++;
-        else if (tile === WT.GRASS) counts.GRASS++;
+        const TT = WT || WT_GEN;
+        if (!TT) return;
+        if (tile === TT.DESERT) counts.DESERT++;
+        else if (tile === TT.SNOW) counts.SNOW++;
+        else if (tile === TT.BEACH) counts.BEACH++;
+        else if (tile === TT.SWAMP) counts.SWAMP++;
+        else if (tile === TT.FOREST) counts.FOREST++;
+        else if (tile === TT.GRASS) counts.GRASS++;
       }
       const MAX_R = 6;
       for (let r = 1; r <= MAX_R; r++) {
@@ -168,7 +170,7 @@ export function draw(ctx, view) {
             if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
             const t = worldTileAtAbs(wx + dx, wy + dy);
             if (t == null) continue;
-            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+            { const TT = WT || WT_GEN; if (TT && (t === TT.TOWN || t === TT.DUNGEON || t === TT.RUINS)) continue; }
             bump(t);
             any = true;
           }
@@ -179,12 +181,34 @@ export function draw(ctx, view) {
       const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
       let best = "GRASS", bestV = -1;
       for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
-      ctx.townBiome = best || "GRASS";
+
+      // Decide chosen biome: respect persisted if available, else sample
+      const chosen = persisted || best || "GRASS";
+      ctx.townBiome = ctx.townBiome || chosen;
+
+      // Publish counts and sampling metadata so the debug panel always has data
+      try {
+        ctx.townBiomeCounts = {
+          GRASS: counts.GRASS | 0,
+          FOREST: counts.FOREST | 0,
+          DESERT: counts.DESERT | 0,
+          BEACH: counts.BEACH | 0,
+          SNOW: counts.SNOW | 0,
+          SWAMP: counts.SWAMP | 0
+        };
+        ctx.townBiomeSampleAt = { x: wx, y: wy };
+        ctx.townBiomeMaxR = MAX_R | 0;
+      } catch (_) {}
 
       // Persist for future visits
       try {
         const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-        if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
+        if (rec && typeof rec === "object" && !rec.biome) rec.biome = ctx.townBiome;
+      } catch (_) {}
+
+      // If WT is missing (unlikely), log once to help diagnosis
+      try {
+        if (!WT && ctx.log) ctx.log("RenderTown.ensureTownBiome: World.TILES missing; biome sampling disabled.", "warn");
       } catch (_) {}
     } catch (_) { /* leave ctx.townBiome as-is */ }
   }

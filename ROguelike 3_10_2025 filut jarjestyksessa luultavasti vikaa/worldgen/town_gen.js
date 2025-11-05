@@ -357,6 +357,7 @@ function generate(ctx) {
       const WMOD = (typeof window !== "undefined" ? window.World : null);
       const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
       const world = ctx.world || {};
+      const WT_GEN = (world && world.gen && world.gen.TILES) ? world.gen.TILES : null; // fallback when window.World is unavailable
 
       // Helper: get world tile by absolute coords; prefer current window, fall back to generator
       function worldTileAtAbs(ax, ay) {
@@ -419,19 +420,22 @@ function generate(ctx) {
       // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
       let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
       function bump(tile) {
-        if (!WT) return;
-        if (tile === WT.DESERT) counts.DESERT++;
-        else if (tile === WT.SNOW) counts.SNOW++;
-        else if (tile === WT.BEACH) counts.BEACH++;
-        else if (tile === WT.SWAMP) counts.SWAMP++;
-        else if (tile === WT.FOREST) counts.FOREST++;
-        else if (tile === WT.GRASS) counts.GRASS++;
+        // Prefer window.World.TILES, fallback to generator's TILES
+        const TT = WT || WT_GEN;
+        if (!TT) return;
+        if (tile === TT.DESERT) counts.DESERT++;
+        else if (tile === TT.SNOW) counts.SNOW++;
+        else if (tile === TT.BEACH) counts.BEACH++;
+        else if (tile === TT.SWAMP) counts.SWAMP++;
+        else if (tile === TT.FOREST) counts.FOREST++;
+        else if (tile === TT.GRASS) counts.GRASS++;
       }
       function toName(tile) {
         try {
-          if (!WT) return String(tile);
-          for (const k in WT) {
-            if (Object.prototype.hasOwnProperty.call(WT, k) && WT[k] === tile) return k;
+          const TT = WT || WT_GEN;
+          if (!TT) return String(tile);
+          for (const k in TT) {
+            if (Object.prototype.hasOwnProperty.call(TT, k) && TT[k] === tile) return k;
           }
         } catch (_) {}
         return String(tile);
@@ -447,7 +451,7 @@ function generate(ctx) {
             const atX = wx + dx, atY = wy + dy;
             const t = worldTileAtAbs(atX, atY);
             if (t == null) continue;
-            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+            { const TT = WT || WT_GEN; if (TT && (t === TT.TOWN || t === TT.DUNGEON || t === TT.RUINS)) continue; }
             bump(t);
             if (ringSamples.length < 12) ringSamples.push(`${atX},${atY}:${toName(t)}`);
           }
