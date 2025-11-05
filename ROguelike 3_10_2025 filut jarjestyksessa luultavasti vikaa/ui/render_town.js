@@ -520,7 +520,7 @@ export function draw(ctx, view) {
                     tinted = true;
                   }
                 }
-              } catch (_) new{</}
+              } catch (_) {}
 
               if (__tileTrace && (renderType === TILES.FLOOR || type === TILES.ROAD)) {
                 tileLines.push(`TILE x=${xx} y=${yy} kind=${toName(type)} render=${toName(renderType)} baseFill=${baseFill} biomeFill=${String(biomeFill||"(null)")} final=${fill} tinted=${tinted ? 1 : 0}`);
