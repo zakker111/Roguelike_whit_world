@@ -149,14 +149,13 @@ export function draw(ctx, view) {
         wy = ctx.worldReturnPos.y | 0;
       }
 
-      // If no biome yet, try persisted world.towns record even if wx/wy unknown (skip sampling but set chosen)
+      // If no biome yet, try persisted world.towns record
       let persisted = null;
       try {
         if (wx != null && wy != null) {
           const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
           if (rec && rec.biome) persisted = String(rec.biome);
         } else if (ctx.world && Array.isArray(ctx.world.towns)) {
-          // Fallback: if only one town exists in memory (fresh session), assume it's this one
           if (ctx.world.towns.length === 1 && ctx.world.towns[0] && ctx.world.towns[0].biome) {
             persisted = String(ctx.world.towns[0].biome);
           }
@@ -165,7 +164,7 @@ export function draw(ctx, view) {
 
       if (!chosen && persisted) chosen = persisted;
 
-      // If still no biome and we can sample, do it now without early-return
+      // If still no biome and we can sample, do it now
       let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
       function worldTileAtAbs(ax, ay) {
         const wmap = world.map || null;
@@ -211,7 +210,7 @@ export function draw(ctx, view) {
       // Apply final choice to context
       if (chosen) ctx.townBiome = chosen;
 
-      // Always publish counts/sampling metadata so overlays have data
+      // Publish counts and sampling metadata
       try {
         ctx.townBiomeCounts = {
           GRASS: counts.GRASS | 0,
@@ -233,18 +232,13 @@ export function draw(ctx, view) {
         }
       } catch (_) {}
 
-      // If TT missing or we couldn't determine, prefer to keep previous ctx.townBiome rather than unknown
+      // Final fallback
       if (!TT && !ctx.townBiome) {
         ctx.townBiome = "GRASS";
       }
-    } catch (_) { /* leave ctx.townBiome as-is */ }
-  } catch (_) {}
-
-      // If WT is missing (unlikely), log once to help diagnosis
-      try {
-        if (!WT && ctx.log) ctx.log("RenderTown.ensureTownBiome: World.TILES missing; biome sampling disabled.", "warn");
-      } catch (_) {}
-    } catch (_) { /* leave ctx.townBiome as-is */ }
+    } catch (_) {
+      // leave ctx.townBiome as-is
+    }
   }
   function townBiomeFill(ctx) {
     try {
