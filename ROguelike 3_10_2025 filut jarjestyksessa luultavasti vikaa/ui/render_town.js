@@ -321,14 +321,10 @@ export function draw(ctx, view) {
             if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
             let fill = fillTownFor(TILES, renderType, COLORS);
-            // Apply outdoor biome tint to outdoor FLOOR tiles; if rendering roads as floor, tint them too
+            // Apply biome tint to all FLOOR tiles unconditionally so ground always matches the sampled biome.
+            // This avoids dependence on outdoor mask timing and guarantees consistency with the sampler.
             try {
-              const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
-              if (renderType === TILES.FLOOR && biomeFill && (isOutdoor || (__roadsAsFloor && type === TILES.ROAD))) {
-                fill = biomeFill;
-              }
-              // Also tint explicit ROAD tiles with biome color (when not using roads-as-floor).
-              if (!__roadsAsFloor && type === TILES.ROAD && biomeFill) {
+              if (renderType === TILES.FLOOR && biomeFill) {
                 fill = biomeFill;
               }
             } catch (_) {}
@@ -368,14 +364,9 @@ export function draw(ctx, view) {
         if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
         const td = getTileDef("town", renderType) || getTileDef("dungeon", renderType) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, renderType, COLORS);
-        // Apply outdoor tint to FLOOR tiles; when rendering roads as floor, tint those too
+        // Apply biome tint to all FLOOR tiles unconditionally so ground always matches the sampled biome.
         try {
-          const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
-          if (renderType === TILES.FLOOR && biomeFill && (isOutdoor || (__roadsAsFloor && type === TILES.ROAD))) {
-            fill = biomeFill;
-          }
-          // Also tint explicit ROAD tiles with biome color when not treating roads as floor.
-          if (!__roadsAsFloor && type === TILES.ROAD && biomeFill) {
+          if (renderType === TILES.FLOOR && biomeFill) {
             fill = biomeFill;
           }
         } catch (_) {}
