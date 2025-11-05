@@ -27,8 +27,8 @@ export function prefabsAvailable() {
 
 export function pickPrefab(list, rng) {
   if (!Array.isArray(list) || list.length === 0) return null;
-  const r = (typeof rng === "function") ? rng() : Math.random();
-  const idx = Math.floor(r * list.length) % list.length;
+  const r = (typeof rng === "function") ? rng() : null;
+  const idx = (typeof r === "number") ? (Math.floor(r * list.length) % list.length) : 0;
   return list[idx];
 }
 
