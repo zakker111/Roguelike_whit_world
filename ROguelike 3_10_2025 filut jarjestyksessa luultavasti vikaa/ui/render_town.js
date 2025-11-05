@@ -147,11 +147,17 @@ export function draw(ctx, view) {
   const __auditMaxPos = readNumber("town_color_audit_max_pos", "TOWN_COLOR_AUDIT_MAX_POS", 40);
   // Disable road overlay entirely (to isolate base colors)
   const __noRoadOverlay = readToggle("town_no_road_overlay", "TOWN_NO_ROAD_OVERLAY", false);
+  // Global kill-switch: do not render or treat any roads specially; flatten to floor in rendering.
+  const __noRoads = readToggle("town_no_roads", "TOWN_NO_ROADS", false);
   // Force override of biome ground hex (e.g., town_ground_override=ffffff)
   const __groundOverrideHex = readHex("town_ground_override", "TOWN_GROUND_OVERRIDE");
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
+
+  if (__noRoads && __groundLog) {
+    try { L("No-roads mode: rendering flattens ROAD->FLOOR and skips overlay."); } catch (_) {}
+  }
 
   // Local logger helper (also buffers messages for on-screen overlay)
   function L(msg, level = "notice") {
@@ -462,7 +468,8 @@ export function draw(ctx, view) {
               const sx = xx * TILE, sy = yy * TILE;
               // Treat roads as floor when toggle is active
               let renderType = type;
-              if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
+              if ((__roadsAsFloor || __noRoads) && type === TILES.ROAD) renderType = TILES.FLOOR;
+
               // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
               const baseFill = fillTownFor(TILES, renderType, COLORS);
               let fill = baseFill;
@@ -571,7 +578,7 @@ export function draw(ctx, view) {
         }
         const type = rowMap[x];
         let renderType = type;
-        if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
+        if ((__roadsAsFloor || __noRoads) && type === TILES.ROAD) renderType = TILES.FLOOR;
         const td = getTileDef("town", renderType) || getTileDef("dungeon", renderType) || null;
         const baseFill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, renderType, COLORS);
         let fill = baseFill;
@@ -642,8 +649,8 @@ export function draw(ctx, view) {
   (function drawRoadOverlay() {
     try {
       // Developer toggle: render roads as floor; or explicitly disable overlay to isolate base colors
-      if (__roadsAsFloor || __noRoadOverlay) {
-        if (__groundLog) L("Road overlay: disabled (roadsAsFloor or noRoadOverlay active)");
+      if (__roadsAsFloor || __noRoadOverlay || __noRoads) {
+        if (__groundLog) L("Road overlay: disabled (roadsAsFloor/noRoadOverlay/noRoads active)");
         return;
       }
 

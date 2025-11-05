@@ -21,14 +21,53 @@ function readTrace() {
   return true; // default on for diagnostics
 }
 
+function readNoRoads() {
+  try {
+    const params = new URLSearchParams(location.search);
+    let v = params.get("town_no_roads");
+    if (v != null) {
+      v = String(v).toLowerCase();
+      if (v === "1" || v === "true") return true;
+      if (v === "0" || v === "false") return false;
+    }
+  } catch (_) {}
+  try {
+    const ls = localStorage.getItem("TOWN_NO_ROADS");
+    if (ls === "1") return true;
+    if (ls === "0") return false;
+  } catch (_) {}
+  return false;
+}
+
 export function build(ctx) {
   try {
     const TRACE = readTrace();
+    const NO_ROADS = readNoRoads();
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
     const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
     if (!rows || !cols) return false;
 
     const inB = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows;
+
+    // If fully disabling roads: flatten any existing ROAD tiles (defensive) and publish an empty mask
+    if (NO_ROADS) {
+      let flattened = 0;
+      for (let yy = 0; yy < rows; yy++) {
+        for (let xx = 0; xx < cols; xx++) {
+          if (ctx.map[yy][xx] === ctx.TILES.ROAD) {
+            ctx.map[yy][xx] = ctx.TILES.FLOOR;
+            flattened++;
+          }
+        }
+      }
+      const roadsMask = Array.from({ length: rows }, () => Array(cols).fill(false));
+      ctx.townRoads = roadsMask;
+      try {
+        const msg = `Roads: disabled by toggle; flattened=${flattened} totalMask=0`;
+        if (ctx && typeof ctx.log === "function") ctx.log(msg, "notice");
+      } catch (_) {}
+      return true;
+    }
 
     function insideAnyBuilding(x, y) {
       const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
