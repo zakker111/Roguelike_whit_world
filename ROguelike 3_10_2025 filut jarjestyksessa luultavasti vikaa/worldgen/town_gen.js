@@ -1734,11 +1734,15 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Town roads disabled: do not build or mark ROAD tiles in towns.
-  // Keep ctx.townRoads undefined so renderers skip any road overlay.
-  (function disableTownRoads() {
+  // Roads: build unless kill switch is enabled (query/localStorage/ctx.flags).
+  (function buildRoadsAndPublish() {
     try {
-      ctx.townRoads = undefined;
+      if (typeof Roads.townNoRoadsEnabled === "function" && Roads.townNoRoadsEnabled(ctx)) {
+        // Ensure any pre-existing ROAD tiles are flattened; renderer will treat roads as floor.
+        ctx.townRoads = undefined;
+      } else {
+        Roads.build(ctx);
+      }
     } catch (_) {}
   })();
   function addProp(x, y, type, name) {

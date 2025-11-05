@@ -67,7 +67,8 @@ function fallbackFillOverworld(WT, id) {
     if (id === WT.GRASS) return "#10331a";
     if (id === WT.MOUNTAIN) return "#2f2f34";
     if (id === WT.DESERT) return "#c2a36b";
-    if (id === WT.SNOW) return "#b9c7d3";
+    // SNOW: force pure white for a clean winter appearance
+    if (id === WT.SNOW) return "#ffffff";
     if (id === WT.TOWN) return "#3a2f1b";
     if (id === WT.DUNGEON) return "#2a1b2a";
   } catch (_) {}
@@ -459,18 +460,21 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Roads overlay — always on
+  // Roads overlay — tint using underlying tile color for consistency
   try {
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
     if (roads.length) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.18; // subtle overlay
-      ctx2d.fillStyle = "#b0a58a"; // muted road color
       for (const p of roads) {
         const x = p.x, y = p.y;
         if (x < startX || x > endX || y < startY || y > endY) continue;
         const sx = (x - startX) * TILE - tileOffsetX;
         const sy = (y - startY) * TILE - tileOffsetY;
+        // Use the ground tile's fill at this location
+        const tGround = (y >= 0 && y < mapRows && x >= 0 && x < mapCols) ? map[y][x] : null;
+        const groundFill = (tGround != null) ? fillOverworldFor(WT, tGround) : "#b0a58a";
+        ctx2d.fillStyle = groundFill;
         const w = Math.max(3, Math.floor(TILE * 0.40));
         const h = Math.max(2, Math.floor(TILE * 0.16));
         ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);

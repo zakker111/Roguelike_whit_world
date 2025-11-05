@@ -2,12 +2,53 @@
 // Build town roads after buildings and outdoor mask are known.
 // Exports:
 //  - build(ctx): mutates ctx.map to mark ROAD tiles and publishes ctx.townRoads mask.
+//  - townNoRoadsEnabled(ctx): checks URL/localStorage/ctx.flags to decide if roads should be disabled.
+
+export function townNoRoadsEnabled(ctx) {
+  try {
+    // Explicit flag on ctx (e.g., set by modes or query parsing)
+    if (ctx && ctx.flags && typeof ctx.flags.town_no_roads !== "undefined") {
+      return !!ctx.flags.town_no_roads;
+    }
+  } catch (_) {}
+  try {
+    // URL query: ?town_no_roads=1
+    if (typeof window !== "undefined" && window.location && typeof window.location.search === "string") {
+      const sp = new URLSearchParams(window.location.search);
+      const v = sp.get("town_no_roads");
+      if (v != null) return v === "1" || v.toLowerCase() === "true";
+    }
+  } catch (_) {}
+  try {
+    // localStorage: TOWN_NO_ROADS=1
+    if (typeof localStorage !== "undefined") {
+      const v = localStorage.getItem("TOWN_NO_ROADS");
+      if (v != null) return v === "1" || v.toLowerCase() === "true";
+    }
+  } catch (_) {}
+  return false;
+}
 
 export function build(ctx) {
   try {
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
     const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
     if (!rows || !cols) return false;
+
+    // Kill switch: remove roads entirely if enabled
+    if (townNoRoadsEnabled(ctx)) {
+      try {
+        for (let yy = 0; yy < rows; yy++) {
+          for (let xx = 0; xx < cols; xx++) {
+            if (ctx.map[yy][xx] === ctx.TILES.ROAD) {
+              ctx.map[yy][xx] = ctx.TILES.FLOOR;
+            }
+          }
+        }
+      } catch (_) {}
+      try { ctx.townRoads = undefined; } catch (_) {}
+      return true;
+    }
 
     const inB = (x, y) => x >= 0 && y >= 0 && x < cols && y < rows;
 

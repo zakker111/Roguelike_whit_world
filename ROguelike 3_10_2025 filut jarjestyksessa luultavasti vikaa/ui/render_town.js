@@ -56,7 +56,8 @@ function fallbackFillTown(TILES, type, COLORS) {
   try {
     if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
     if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
-    if (type === TILES.ROAD) return "#b0a58a"; // muted brown road
+    // Treat ROAD like FLOOR by default; tint handled later by biome logic
+    if (type === TILES.ROAD) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
     if (type === TILES.DOOR) return "#3a2f1b";
     if (type === TILES.WINDOW) return "#26728c";
     if (type === TILES.STAIRS) return "#3a2f1b";
@@ -259,11 +260,13 @@ export function draw(ctx, view) {
             const sx = xx * TILE, sy = yy * TILE;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
             let fill = fillTownFor(TILES, type, COLORS);
-            // Apply outdoor biome tint only to non-road FLOOR tiles; rely on tile type for roads
+            // Apply outdoor biome tint to FLOOR and ROAD tiles; ROAD treats same as FLOOR
             try {
-              if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
-                // Outdoor ground tint by biome for non-road FLOOR tiles
-                fill = biomeFill;
+              // For SNOW, force pure white regardless of base colors
+              const biomeColor = biomeFill && String(ctx.townBiome || "").toUpperCase() === "SNOW" ? "#ffffff" : biomeFill;
+              const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
+              if ((type === TILES.FLOOR || type === TILES.ROAD) && biomeColor && isOutdoor) {
+                fill = biomeColor;
               }
             } catch (_) {}
             oc.fillStyle = fill;
@@ -284,7 +287,8 @@ export function draw(ctx, view) {
     // Fallback: draw base tiles in viewport using JSON colors or robust fallback
     ensureTownBiome(ctx);
     ensureOutdoorMask(ctx);
-    const biomeFill = townBiomeFill(ctx);
+    const biomeFill0 = townBiomeFill(ctx);
+    const biomeFill = biomeFill0 && String(ctx.townBiome || "").toUpperCase() === "SNOW" ? "#ffffff" : biomeFill0;
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -299,9 +303,10 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Apply outdoor tint only to FLOOR; rely on tile type for roads
+        // Apply outdoor tint to FLOOR and ROAD tiles
         try {
-          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
+          const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
+          if ((type === TILES.FLOOR || type === TILES.ROAD) && biomeFill && isOutdoor) {
             fill = biomeFill;
           }
         } catch (_) {}
@@ -311,11 +316,41 @@ export function draw(ctx, view) {
     }
   }
 
-  // Road overlay pass:
-  // 1) Prefer explicit ROAD tiles (authoritative).
-  // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
+  // Road overlay pass (biome-tinted):
+  // - If town_no_roads is enabled, skip entirely.
+  // - Prefer explicit ROAD tiles; else fall back to townRoads mask over FLOOR.
   (function drawRoadOverlay() {
     try {
+      // Kill switch via URL/localStorage/ctx.flags
+      let noRoads = false;
+      try {
+        if (typeof window !== "undefined") {
+          const sp = new URLSearchParams(window.location.search || "");
+          const v = sp.get("town_no_roads");
+          if (v != null) noRoads = v === "1" || v.toLowerCase() === "true";
+        }
+      } catch (_) {}
+      try {
+        if (!noRoads && typeof localStorage !== "undefined") {
+          const v = localStorage.getItem("TOWN_NO_ROADS");
+          if (v != null) noRoads = v === "1" || v.toLowerCase() === "true";
+        }
+      } catch (_) {}
+      try {
+        if (!noRoads && ctx && ctx.flags && typeof ctx.flags.town_no_roads !== "undefined") {
+          noRoads = !!ctx.flags.town_no_roads;
+        }
+      } catch (_) {}
+
+      if (noRoads) return;
+
+      // Biome color for overlay; if not ready, skip overlay to avoid legacy browns
+      ensureTownBiome(ctx);
+      ensureOutdoorMask(ctx);
+      const biomeFill0 = townBiomeFill(ctx);
+      const biomeFill = biomeFill0 && String(ctx.townBiome || "").toUpperCase() === "SNOW" ? "#ffffff" : biomeFill0;
+      if (!biomeFill) return;
+
       let anyRoad = false;
       for (let y = startY; y <= endY && !anyRoad; y++) {
         const yIn = y >= 0 && y < mapRows;
@@ -335,7 +370,7 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a"; // road color
+            ctx2d.fillStyle = biomeFill;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
@@ -345,12 +380,12 @@ export function draw(ctx, view) {
           if (!yIn) continue;
           for (let x = startX; x <= endX; x++) {
             if (x < 0 || x >= mapCols) continue;
-            // Only paint where the saved mask indicates a road and the map tile is FLOOR
+            // Only paint where the saved mask indicates a road and the map tile is FLOOR (treated as outdoor)
             if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a";
+            ctx2d.fillStyle = biomeFill;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
