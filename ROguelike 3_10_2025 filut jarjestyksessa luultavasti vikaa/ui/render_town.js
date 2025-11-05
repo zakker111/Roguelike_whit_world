@@ -108,6 +108,8 @@ export function draw(ctx, view) {
   const __biomeDebug = readToggle("town_biome_debug", "TOWN_BIOME_DEBUG", true);
   // Verbose ground logging so we can trace exactly which color floors use. Disable with ?town_ground_log=0
   const __groundLog = readToggle("town_ground_log", "TOWN_GROUND_LOG", true);
+  // Wait for palette-derived ground color before building the base cache. Disable with ?town_wait_pal=0
+  const __waitForPalette = readToggle("town_wait_pal", "TOWN_WAIT_PAL", true);
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
@@ -244,10 +246,15 @@ export function draw(ctx, view) {
     try {
       const GD = (typeof window !== "undefined" ? window.GameData : null);
       const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
-      if (!pal) return null;
-      const k = String(ctx.townBiome || "").toUpperCase();
-      return pal[k] || null;
-    } catch (_) { return null; }
+      const kRaw = String(ctx.townBiome || "");
+      const kUp = kRaw.toUpperCase();
+      const kTitle = kRaw ? (kRaw.charAt(0).toUpperCase() + kRaw.slice(1).toLowerCase()) : "";
+      // Prefer live palette; fallback to TownGen-provided fill if palette not ready
+      if (pal) {
+        return pal[kUp] || pal[kRaw] || pal[kTitle] || (ctx.townGroundFill || null);
+      }
+      return ctx.townGroundFill || null;
+    } catch (_) { return (ctx && ctx.townGroundFill) ? ctx.townGroundFill : null; }
   }
   function ensureOutdoorMask(ctx) {
     // Rebuild if missing or dimensions mismatch current map
@@ -315,67 +322,82 @@ export function draw(ctx, view) {
       }
 
       if (needsRebuild) {
-        TOWN.mapRef = map;
-        TOWN.wpx = wpx;
-        TOWN.hpx = hpx;
-        TOWN.TILE = TILE;
-        TOWN._tilesRef = tilesRef();
-        TOWN._biomeKey = biomeKey;
-        TOWN._townKey = townKey;
+        // Optional deferral: wait until we actually have a palette-derived fill before building the base cache.
+        if (__waitForPalette && biomeKey && !currentBiomeFill) {
+          // Keep references up to date so a subsequent pass can build immediately.
+          TOWN.mapRef = map;
+          TOWN.wpx = wpx;
+          TOWN.hpx = hpx;
+          TOWN.TILE = TILE;
+          TOWN._tilesRef = tilesRef();
+          TOWN._biomeKey = biomeKey;
+          TOWN._townKey = townKey;
+          TOWN._maskRef = ctx.townOutdoorMask;
+          TOWN._biomeFill = null;
+          if (__groundLog) L(`Deferring base build: waiting for palette fill; biome=${biomeKey}`);
+        } else {
+          TOWN.mapRef = map;
+          TOWN.wpx = wpx;
+          TOWN.hpx = hpx;
+          TOWN.TILE = TILE;
+          TOWN._tilesRef = tilesRef();
+          TOWN._biomeKey = biomeKey;
+          TOWN._townKey = townKey;
 
-        const off = RenderCore.createOffscreen(wpx, hpx);
-        const oc = off.getContext("2d");
-        try {
-          oc.font = "bold 20px JetBrains Mono, monospace";
-          oc.textAlign = "center";
-          oc.textBaseline = "middle";
-        } catch (_) {}
-        // Prepare biome fill and outdoor mask
-        ensureOutdoorMask(ctx);
-        const biomeFill = townBiomeFill(ctx);
-        if (__biomeDebug) {
+          const off = RenderCore.createOffscreen(wpx, hpx);
+          const oc = off.getContext("2d");
           try {
-            const m = `RenderTown: biome=${String(ctx.townBiome || "")} roadsAsFloor=${__roadsAsFloor ? 1 : 0}`;
-            if (ctx.log) ctx.log(m, "info"); else if (typeof console !== "undefined") console.log("[RenderTown] " + m);
+            oc.font = "bold 20px JetBrains Mono, monospace";
+            oc.textAlign = "center";
+            oc.textBaseline = "middle";
           } catch (_) {}
-        }
-        // Track mask reference to trigger rebuild when it changes externally
-        TOWN._maskRef = ctx.townOutdoorMask;
-        // Track the actual fill being used for floors; if this changes later (palette late-load), we will trigger another rebuild.
-        TOWN._biomeFill = biomeFill;
-
-        let floorsTotal = 0, floorsTinted = 0;
-        const sampleTinted = [];
-        for (let yy = 0; yy < mapRows; yy++) {
-          const rowMap = map[yy];
-          for (let xx = 0; xx < mapCols; xx++) {
-            const type = rowMap[xx];
-            const sx = xx * TILE, sy = yy * TILE;
-            // Treat roads as floor when toggle is active
-            let renderType = type;
-            if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
-            // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
-            let fill = fillTownFor(TILES, renderType, COLORS);
-            // Apply biome tint to all FLOOR tiles unconditionally so ground always matches the sampled biome.
-            // This avoids dependence on outdoor mask timing and guarantees consistency with the sampler.
+          // Prepare biome fill and outdoor mask
+          ensureOutdoorMask(ctx);
+          const biomeFill = townBiomeFill(ctx);
+          if (__biomeDebug) {
             try {
-              if (renderType === TILES.FLOOR) {
-                floorsTotal++;
-                if (biomeFill) {
-                  fill = biomeFill;
-                  floorsTinted++;
-                  if (sampleTinted.length < 8) sampleTinted.push(`${xx},${yy}`);
-                }
-              }
+              const m = `RenderTown: biome=${String(ctx.townBiome || "")} roadsAsFloor=${__roadsAsFloor ? 1 : 0}`;
+              if (ctx.log) ctx.log(m, "info"); else if (typeof console !== "undefined") console.log("[RenderTown] " + m);
             } catch (_) {}
-            oc.fillStyle = fill;
-            oc.fillRect(sx, sy, TILE, TILE);
           }
+          // Track mask reference to trigger rebuild when it changes externally
+          TOWN._maskRef = ctx.townOutdoorMask;
+          // Track the actual fill being used for floors; if this changes later (palette late-load), we will trigger another rebuild.
+          TOWN._biomeFill = biomeFill;
+
+          let floorsTotal = 0, floorsTinted = 0;
+          const sampleTinted = [];
+          for (let yy = 0; yy < mapRows; yy++) {
+            const rowMap = map[yy];
+            for (let xx = 0; xx < mapCols; xx++) {
+              const type = rowMap[xx];
+              const sx = xx * TILE, sy = yy * TILE;
+              // Treat roads as floor when toggle is active
+              let renderType = type;
+              if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
+              // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
+              let fill = fillTownFor(TILES, renderType, COLORS);
+              // Apply biome tint to all FLOOR tiles unconditionally so ground always matches the sampled biome.
+              // This avoids dependence on outdoor mask timing and guarantees consistency with the sampler.
+              try {
+                if (renderType === TILES.FLOOR) {
+                  floorsTotal++;
+                  if (biomeFill) {
+                    fill = biomeFill;
+                    floorsTinted++;
+                    if (sampleTinted.length < 8) sampleTinted.push(`${xx},${yy}`);
+                  }
+                }
+              } catch (_) {}
+              oc.fillStyle = fill;
+              oc.fillRect(sx, sy, TILE, TILE);
+            }
+          }
+          if (__groundLog) {
+            L(`Base build: floors=${floorsTotal} tinted=${floorsTinted} fill=${String(biomeFill || "(null)")} samples=[${sampleTinted.join(" ")}]`);
+          }
+          TOWN.canvas = off;
         }
-        if (__groundLog) {
-          L(`Base build: floors=${floorsTotal} tinted=${floorsTinted} fill=${String(biomeFill || "(null)")} samples=[${sampleTinted.join(" ")}]`);
-        }
-        TOWN.canvas = off;
       }
     }
   } catch (_) {}
@@ -439,10 +461,10 @@ export function draw(ctx, view) {
       if (__roadsAsFloor) return;
 
       // Use biome fill for roads so town ground color matches chosen biome.
-      // Fallback to legacy brown if palette is unavailable.
-      const roadOverlayColor = (function () {
-        try { return townBiomeFill(ctx) || "#b0a58a"; } catch (_) { return "#b0a58a"; }
-      })();
+      // If palette/fill not ready yet, skip road overlay entirely to avoid brown fallback dominating visuals.
+      const fillNow = (function () { try { return townBiomeFill(ctx); } catch (_) { return null; } })();
+      if (!fillNow) return;
+      const roadOverlayColor = fillNow;
 
       let anyRoad = false;
       for (let y = startY; y <= endY && !anyRoad; y++) {

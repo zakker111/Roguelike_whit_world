@@ -524,10 +524,12 @@ function generate(ctx) {
       let fillHex = null;
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.townBiome) ? window.GameData.palette.townBiome : null;
-        fillHex = pal ? pal[String(chosen)] || null : null;
+        fillHex = pal ? (pal[String(chosen)] || pal[String(chosen).toUpperCase()] || pal[(String(chosen).charAt(0).toUpperCase() + String(chosen).slice(1).toLowerCase())] || null) : null;
       } catch (_) {
         fillHex = null;
       }
+      // Publish ground fill for renderer fallback while palette might still be loading there
+      try { ctx.townGroundFill = fillHex || ctx.townGroundFill || null; } catch (_) {}
 
       if (debugBiome || TRACE) {
         const msg1 = `Biome totals @${wx},${wy}: GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}`;
