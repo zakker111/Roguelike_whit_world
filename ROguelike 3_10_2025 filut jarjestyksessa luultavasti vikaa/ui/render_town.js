@@ -106,9 +106,19 @@ export function draw(ctx, view) {
   const __roadsAsFloor = readToggle("town_roads_as_floor", "TOWN_ROADS_AS_FLOOR", false);
   // Default ON for diagnostic deploy; disable with ?town_biome_debug=0
   const __biomeDebug = readToggle("town_biome_debug", "TOWN_BIOME_DEBUG", true);
+  // Verbose ground logging so we can trace exactly which color floors use. Disable with ?town_ground_log=0
+  const __groundLog = readToggle("town_ground_log", "TOWN_GROUND_LOG", true);
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
+
+  // Local logger helper
+  function L(msg, level = "info") {
+    try {
+      if (__groundLog && ctx && typeof ctx.log === "function") ctx.log(String(msg), level);
+      if (__groundLog && typeof console !== "undefined") console.log("[RenderTown] " + String(msg));
+    } catch (_) {}
+  }
 
   
 
@@ -185,6 +195,11 @@ export function draw(ctx, view) {
       // Decide chosen biome: respect persisted if available, else sample
       const chosen = persisted || best || "GRASS";
       ctx.townBiome = ctx.townBiome || chosen;
+      // Log the final decision and fill color
+      try {
+        const fx = townBiomeFill(ctx);
+        if (__groundLog) L(`Biome ensure: chosen=${String(ctx.townBiome)} persisted=${String(persisted||"")} best=${best} fill=${String(fx || "(null)")}`, "notice");
+      } catch (_) {}
 
       // Publish counts and sampling metadata so the debug panel always has data
       try {
@@ -270,16 +285,21 @@ export function draw(ctx, view) {
       const hpx = mapRows * TILE;
       // If biome fill color changes (e.g., palette loads after first frame), rebuild the offscreen base.
       const currentBiomeFill = (function(){ try { return townBiomeFill(ctx); } catch (_) { return null; } })();
-      const needsRebuild = (!TOWN.canvas)
-        || TOWN.mapRef !== map
-        || TOWN.wpx !== wpx
-        || TOWN.hpx !== hpx
-        || TOWN.TILE !== TILE
-        || TOWN._tilesRef !== tilesRef()
-        || TOWN._biomeKey !== biomeKey
-        || TOWN._townKey !== townKey
-        || TOWN._maskRef !== ctx.townOutdoorMask
-        || TOWN._biomeFill !== currentBiomeFill;
+      const reasons = [];
+      if (!TOWN.canvas) reasons.push("no-canvas");
+      if (TOWN.mapRef !== map) reasons.push("mapRef");
+      if (TOWN.wpx !== wpx) reasons.push("wpx");
+      if (TOWN.hpx !== hpx) reasons.push("hpx");
+      if (TOWN.TILE !== TILE) reasons.push("TILE");
+      if (TOWN._tilesRef !== tilesRef()) reasons.push("tilesRef");
+      if (TOWN._biomeKey !== biomeKey) reasons.push("biomeKey");
+      if (TOWN._townKey !== townKey) reasons.push("townKey");
+      if (TOWN._maskRef !== ctx.townOutdoorMask) reasons.push("maskRef");
+      if (TOWN._biomeFill !== currentBiomeFill) reasons.push("biomeFill");
+      const needsRebuild = reasons.length > 0;
+      if (needsRebuild && __groundLog) {
+        L(`Rebuild base offscreen. Reasons=[${reasons.join(", ")}] biome=${String(ctx.townBiome || "")} fill=${String(currentBiomeFill || "(null)")}`);
+      }
 
       if (needsRebuild) {
         TOWN.mapRef = map;
@@ -311,6 +331,8 @@ export function draw(ctx, view) {
         // Track the actual fill being used for floors; if this changes later (palette late-load), we will trigger another rebuild.
         TOWN._biomeFill = biomeFill;
 
+        let floorsTotal = 0, floorsTinted = 0;
+        const sampleTinted = [];
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
           for (let xx = 0; xx < mapCols; xx++) {
@@ -324,13 +346,21 @@ export function draw(ctx, view) {
             // Apply biome tint to all FLOOR tiles unconditionally so ground always matches the sampled biome.
             // This avoids dependence on outdoor mask timing and guarantees consistency with the sampler.
             try {
-              if (renderType === TILES.FLOOR && biomeFill) {
-                fill = biomeFill;
+              if (renderType === TILES.FLOOR) {
+                floorsTotal++;
+                if (biomeFill) {
+                  fill = biomeFill;
+                  floorsTinted++;
+                  if (sampleTinted.length < 8) sampleTinted.push(`${xx},${yy}`);
+                }
               }
             } catch (_) {}
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
+        }
+        if (__groundLog) {
+          L(`Base build: floors=${floorsTotal} tinted=${floorsTinted} fill=${String(biomeFill || "(null)")} samples=[${sampleTinted.join(" ")}]`);
         }
         TOWN.canvas = off;
       }
@@ -341,6 +371,7 @@ export function draw(ctx, view) {
   if (TOWN.canvas) {
     try {
       RenderCore.blitViewport(ctx2d, TOWN.canvas, cam, TOWN.wpx, TOWN.hpx);
+      if (__groundLog && !TOWN._blitLogged) { L(`Blit base: cached offscreen used. biome=${String(ctx.townBiome||"")} fill=${String(TOWN._biomeFill||"(null)")}`); TOWN._blitLogged = true; }
     } catch (_) {}
   } else {
     // Fallback: draw base tiles in viewport using JSON colors or robust fallback
@@ -348,6 +379,8 @@ export function draw(ctx, view) {
     if (__forceGrass) { try { ctx.townBiome = "GRASS"; } catch (_) {} }
     ensureOutdoorMask(ctx);
     const biomeFill = townBiomeFill(ctx);
+    let floorsTotalView = 0, floorsTintedView = 0;
+    const sampleView = [];
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -366,13 +399,21 @@ export function draw(ctx, view) {
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, renderType, COLORS);
         // Apply biome tint to all FLOOR tiles unconditionally so ground always matches the sampled biome.
         try {
-          if (renderType === TILES.FLOOR && biomeFill) {
-            fill = biomeFill;
+          if (renderType === TILES.FLOOR) {
+            floorsTotalView++;
+            if (biomeFill) {
+              fill = biomeFill;
+              floorsTintedView++;
+              if (sampleView.length < 6) sampleView.push(`${x},${y}`);
+            }
           }
         } catch (_) {}
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
+    }
+    if (__groundLog) {
+      L(`Fallback draw: floors=${floorsTotalView} tinted=${floorsTintedView} fill=${String(biomeFill || "(null)")} samples=[${sampleView.join(" ")}]`);
     }
   }
 
