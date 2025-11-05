@@ -322,6 +322,10 @@ export function draw(ctx, view) {
               if (renderType === TILES.FLOOR && biomeFill && (isOutdoor || (__roadsAsFloor && type === TILES.ROAD))) {
                 fill = biomeFill;
               }
+              // Also tint explicit ROAD tiles with biome color (when not using roads-as-floor).
+              if (!__roadsAsFloor && type === TILES.ROAD && biomeFill) {
+                fill = biomeFill;
+              }
             } catch (_) {}
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
@@ -363,6 +367,10 @@ export function draw(ctx, view) {
         try {
           const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
           if (renderType === TILES.FLOOR && biomeFill && (isOutdoor || (__roadsAsFloor && type === TILES.ROAD))) {
+            fill = biomeFill;
+          }
+          // Also tint explicit ROAD tiles with biome color when not treating roads as floor.
+          if (!__roadsAsFloor && type === TILES.ROAD && biomeFill) {
             fill = biomeFill;
           }
         } catch (_) {}
