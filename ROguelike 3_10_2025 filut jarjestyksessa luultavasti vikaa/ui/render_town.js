@@ -366,6 +366,7 @@ export function draw(ctx, view) {
           TOWN._biomeFill = biomeFill;
 
           let floorsTotal = 0, floorsTinted = 0;
+          let roadsTotal = 0, roadsTinted = 0;
           const sampleTinted = [];
           for (let yy = 0; yy < mapRows; yy++) {
             const rowMap = map[yy];
@@ -377,8 +378,8 @@ export function draw(ctx, view) {
               if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
               // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
               let fill = fillTownFor(TILES, renderType, COLORS);
-              // Apply biome tint to all FLOOR tiles unconditionally so ground always matches the sampled biome.
-              // This avoids dependence on outdoor mask timing and guarantees consistency with the sampler.
+              // Apply biome tint to all FLOOR tiles unconditionally; also tint explicit ROAD tiles with biome color.
+              // This avoids any brown fallback dominating the appearance.
               try {
                 if (renderType === TILES.FLOOR) {
                   floorsTotal++;
@@ -387,6 +388,12 @@ export function draw(ctx, view) {
                     floorsTinted++;
                     if (sampleTinted.length < 8) sampleTinted.push(`${xx},${yy}`);
                   }
+                } else if (type === TILES.ROAD) {
+                  roadsTotal++;
+                  if (biomeFill) {
+                    fill = biomeFill;
+                    roadsTinted++;
+                  }
                 }
               } catch (_) {}
               oc.fillStyle = fill;
@@ -394,7 +401,7 @@ export function draw(ctx, view) {
             }
           }
           if (__groundLog) {
-            L(`Base build: floors=${floorsTotal} tinted=${floorsTinted} fill=${String(biomeFill || "(null)")} samples=[${sampleTinted.join(" ")}]`);
+            L(`Base build: floors=${floorsTotal} tinted=${floorsTinted} roads=${roadsTotal} roadsTinted=${roadsTinted} fill=${String(biomeFill || "(null)")} samples=[${sampleTinted.join(" ")}]`);
           }
           TOWN.canvas = off;
         }
@@ -415,6 +422,7 @@ export function draw(ctx, view) {
     ensureOutdoorMask(ctx);
     const biomeFill = townBiomeFill(ctx);
     let floorsTotalView = 0, floorsTintedView = 0;
+    let roadsTotalView = 0, roadsTintedView = 0;
     const sampleView = [];
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
@@ -432,7 +440,7 @@ export function draw(ctx, view) {
         if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
         const td = getTileDef("town", renderType) || getTileDef("dungeon", renderType) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, renderType, COLORS);
-        // Apply biome tint to all FLOOR tiles unconditionally so ground always matches the sampled biome.
+        // Apply biome tint to all FLOOR tiles; also tint explicit ROAD tiles.
         try {
           if (renderType === TILES.FLOOR) {
             floorsTotalView++;
@@ -441,6 +449,12 @@ export function draw(ctx, view) {
               floorsTintedView++;
               if (sampleView.length < 6) sampleView.push(`${x},${y}`);
             }
+          } else if (type === TILES.ROAD) {
+            roadsTotalView++;
+            if (biomeFill) {
+              fill = biomeFill;
+              roadsTintedView++;
+            }
           }
         } catch (_) {}
         ctx2d.fillStyle = fill;
@@ -448,7 +462,7 @@ export function draw(ctx, view) {
       }
     }
     if (__groundLog) {
-      L(`Fallback draw: floors=${floorsTotalView} tinted=${floorsTintedView} fill=${String(biomeFill || "(null)")} samples=[${sampleView.join(" ")}]`);
+      L(`Fallback draw: floors=${floorsTotalView} tinted=${floorsTintedView} roads=${roadsTotalView} roadsTinted=${roadsTintedView} fill=${String(biomeFill || "(null)")} samples=[${sampleView.join(" ")}]`);
     }
   }
 
