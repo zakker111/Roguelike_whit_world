@@ -112,11 +112,18 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
-  // Local logger helper
+  // Local logger helper (also buffers messages for on-screen overlay)
   function L(msg, level = "info") {
     try {
-      if (__groundLog && ctx && typeof ctx.log === "function") ctx.log(String(msg), level);
-      if (__groundLog && typeof console !== "undefined") console.log("[RenderTown] " + String(msg));
+      if (!__groundLog) return;
+      const m = String(msg);
+      if (ctx && typeof ctx.log === "function") ctx.log(m, level);
+      if (typeof console !== "undefined") console.log("[RenderTown] " + m);
+      try {
+        ctx.__groundMsgs = Array.isArray(ctx.__groundMsgs) ? ctx.__groundMsgs : [];
+        ctx.__groundMsgs.push(m);
+        if (ctx.__groundMsgs.length > 24) ctx.__groundMsgs.shift();
+      } catch (_) {}
     } catch (_) {}
   }
 
@@ -1089,6 +1096,48 @@ export function draw(ctx, view) {
         const text = lines[i];
         ctx2d.fillStyle = i === 0 ? "#e2e8f0" : "#cbd5e1";
         ctx2d.fillText(text, x0 + padX, yy);
+        yy += lineH;
+      }
+      ctx2d.font = prevFont;
+      ctx2d.restore();
+    } catch (_) {}
+  })();
+
+  // Ground diagnostics log overlay (top-right). Shows last N ground-color logs on screen.
+  (function drawGroundLogPanel() {
+    if (!__groundLog) return;
+    try {
+      const logs = Array.isArray(ctx.__groundMsgs) ? ctx.__groundMsgs : [];
+      if (!logs.length) return;
+      const maxLines = Math.min(12, logs.length);
+      const lines = logs.slice(logs.length - maxLines);
+
+      const padX = 10, padY = 8, lineH = Math.max(14, Math.floor(TILE * 0.60));
+      const width = Math.min(560, Math.max(260, Math.floor(TILE * 10)));
+      const height = padY * 2 + lineH * (lines.length + 1);
+      const x0 = Math.max(8, (cam.width - width - 8));
+      const y0 = 8;
+
+      ctx2d.save();
+      // Panel background
+      ctx2d.fillStyle = "rgba(10,12,18,0.80)";
+      ctx2d.fillRect(x0, y0, width, height);
+      // Border
+      ctx2d.strokeStyle = "#64748b";
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(x0 + 0.5, y0 + 0.5, width - 1, height - 1);
+      // Title + lines
+      const prevFont = ctx2d.font;
+      ctx2d.font = "bold 13px JetBrains Mono, monospace";
+      ctx2d.textAlign = "left";
+      ctx2d.textBaseline = "middle";
+      let yy = y0 + padY + lineH / 2;
+      ctx2d.fillStyle = "#e2e8f0";
+      ctx2d.fillText("Town Ground Diagnostics", x0 + padX, yy);
+      yy += lineH;
+      for (let i = 0; i < lines.length; i++) {
+        ctx2d.fillStyle = "#cbd5e1";
+        ctx2d.fillText(lines[i], x0 + padX, yy);
         yy += lineH;
       }
       ctx2d.font = prevFont;
