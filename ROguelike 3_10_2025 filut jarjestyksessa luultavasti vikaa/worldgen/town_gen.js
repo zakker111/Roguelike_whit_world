@@ -281,6 +281,26 @@ function generate(ctx) {
   const dims = cfgSize(townSize);
   const W = dims.W, H = dims.H;
   ctx.map = Array.from({ length: H }, () => Array(W).fill(ctx.TILES.FLOOR));
+  // Generation trace toggle (separate from biome trace)
+  function readGenTrace() {
+    try {
+      const params = new URLSearchParams(location.search);
+      let v = params.get("town_gen_trace");
+      if (v != null) {
+        v = String(v).toLowerCase();
+        if (v === "1" || v === "true") return true;
+        if (v === "0" || v === "false") return false;
+      }
+    } catch (_) {}
+    try {
+      const ls = localStorage.getItem("TOWN_GEN_TRACE");
+      if (ls === "1") return true;
+      if (ls === "0") return false;
+    } catch (_) {}
+    return true; // default on for diagnostics
+  }
+  const GEN_TRACE = readGenTrace();
+  try { if (GEN_TRACE && ctx.log) ctx.log(`Gen: begin town size=${townSize} dims=${W}x${H}`, "notice"); } catch (_) {}
 
   // Outer walls
   for (let x = 0; x < W; x++) { ctx.map[0][x] = ctx.TILES.WALL; ctx.map[H - 1][x] = ctx.TILES.WALL; }
@@ -325,6 +345,16 @@ function generate(ctx) {
   ctx.map[gate.y][gate.x] = ctx.TILES.FLOOR;
   ctx.player.x = gate.x; ctx.player.y = gate.y;
   ctx.townExitAt = { x: gate.x, y: gate.y };
+  try {
+    if (GEN_TRACE && ctx.log) {
+      let doorX = gate.x, doorY = gate.y;
+      if (gate.x === 1) { doorX = 0; doorY = gate.y; }
+      else if (gate.x === W - 2) { doorX = W - 1; doorY = gate.y; }
+      else if (gate.y === 1) { doorX = gate.x; doorY = 0; }
+      else if (gate.y === H - 2) { doorX = gate.x; doorY = H - 1; }
+      ctx.log(`Gen: gate placed door@${doorX},${doorY} interior@${gate.x},${gate.y}`, "notice");
+    }
+  } catch (_) {}
 
   // Name: persist on the world.towns entry so it remains stable across visits
   let townName = null;
@@ -600,6 +630,11 @@ function generate(ctx) {
       x1: ((plaza.x + (plazaW / 2)) | 0),
       y1: ((plaza.y + (plazaH / 2)) | 0),
     };
+    if (GEN_TRACE && ctx.log) {
+      const pr = ctx.townPlazaRect;
+      const pw = pr.x1 - pr.x0 + 1, ph = pr.y1 - pr.y0 + 1;
+      ctx.log(`Gen: plaza rect (${pr.x0},${pr.y0})-(${pr.x1},${pr.y1}) size=${pw}x${ph}`, "notice");
+    }
   } catch (_) {}
 
   // Roads (deferred): build after buildings and outdoor mask are known
@@ -1850,6 +1885,7 @@ function generate(ctx) {
 
   // Town buildings metadata
   ctx.townBuildings = buildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: getExistingDoor(b) }));
+  try { if (GEN_TRACE && ctx.log) ctx.log(`Gen: buildings=${ctx.townBuildings.length}`, "notice"); } catch (_) {}
 
   // Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors)
   (function buildOutdoorMask() {
@@ -1863,15 +1899,18 @@ function generate(ctx) {
         }
         return false;
       }
+      let outdoorCount = 0;
       for (let yy = 0; yy < rows; yy++) {
         for (let xx = 0; xx < cols; xx++) {
           const t = ctx.map[yy][xx];
           if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
             mask[yy][xx] = true;
+            outdoorCount++;
           }
         }
       }
       ctx.townOutdoorMask = mask;
+      try { if (GEN_TRACE && ctx.log) ctx.log(`Gen: outdoor floor tiles=${outdoorCount}`, "notice"); } catch (_) {}
     } catch (_) {}
   })();
 
@@ -2229,6 +2268,35 @@ function generate(ctx) {
 
   // Enforce a single NPC near the gate to avoid congestion
   try { enforceGateNPCLimit(ctx, 1, 2); } catch (_) {}
+
+  // Final generation summary
+  try {
+    if (GEN_TRACE && ctx.log) {
+      const countTiles = (() => {
+        let floors = 0, roads = 0, walls = 0, doors = 0, windows = 0, stairs = 0;
+        for (let yy = 0; yy < H; yy++) {
+          for (let xx = 0; xx < W; xx++) {
+            const t = ctx.map[yy][xx];
+            if (t === ctx.TILES.FLOOR) floors++;
+            else if (t === ctx.TILES.ROAD) roads++;
+            else if (t === ctx.TILES.WALL) walls++;
+            else if (t === ctx.TILES.DOOR) doors++;
+            else if (t === ctx.TILES.WINDOW) windows++;
+            else if (t === ctx.TILES.STAIRS) stairs++;
+          }
+        }
+        return { floors, roads, walls, doors, windows, stairs };
+      })();
+      const shopsN = Array.isArray(ctx.shops) ? ctx.shops.length : 0;
+      const propsN = Array.isArray(ctx.townProps) ? ctx.townProps.length : 0;
+      const npcsN = Array.isArray(ctx.npcs) ? ctx.npcs.length : 0;
+      const msg = `Gen: tiles floors=${countTiles.floors} roads=${countTiles.roads} walls=${countTiles.walls} doors=${countTiles.doors} windows=${countTiles.windows} stairs=${countTiles.stairs} shops=${shopsN} props=${propsN} npcs=${npcsN}`;
+      ctx.log(msg, "notice");
+      if (String(ctx.townBiome || "").toUpperCase() === "SNOW") {
+        ctx.log("Gen: SNOW biome detected; renderer will force pure white ground.", "notice");
+      }
+    }
+  } catch (_) {}
 
   // Finish
   try { ctx.inn = ctx.tavern; } catch (_) {}

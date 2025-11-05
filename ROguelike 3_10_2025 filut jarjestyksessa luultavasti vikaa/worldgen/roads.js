@@ -3,8 +3,27 @@
 // Exports:
 //  - build(ctx): mutates ctx.map to mark ROAD tiles and publishes ctx.townRoads mask.
 
+function readTrace() {
+  try {
+    const params = new URLSearchParams(location.search);
+    let v = params.get("town_road_trace");
+    if (v != null) {
+      v = String(v).toLowerCase();
+      if (v === "1" || v === "true") return true;
+      if (v === "0" || v === "false") return false;
+    }
+  } catch (_) {}
+  try {
+    const ls = localStorage.getItem("TOWN_ROAD_TRACE");
+    if (ls === "1") return true;
+    if (ls === "0") return false;
+  } catch (_) {}
+  return true; // default on for diagnostics
+}
+
 export function build(ctx) {
   try {
+    const TRACE = readTrace();
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
     const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
     if (!rows || !cols) return false;
@@ -71,6 +90,10 @@ export function build(ctx) {
       return x >= pr.x0 && x <= pr.x1 && y >= pr.y0 && y <= pr.y1;
     }
 
+    let convertedToRoad = 0;
+    let markedRoadMask = 0;
+    const roadTrace = TRACE ? [] : null;
+
     function markRoadPath(path, roadsMask) {
       if (!Array.isArray(path) || path.length === 0) return;
       for (let i = 0; i < path.length; i++) {
@@ -82,8 +105,14 @@ export function build(ctx) {
         if (t === ctx.TILES.FLOOR) {
           ctx.map[p.y][p.x] = ctx.TILES.ROAD;
           roadsMask[p.y][p.x] = true;
+          convertedToRoad++;
+          if (roadTrace) roadTrace.push(`road:convert x=${p.x} y=${p.y}`);
         } else if (t === ctx.TILES.ROAD) {
-          roadsMask[p.y][p.x] = true;
+          if (!roadsMask[p.y][p.x]) {
+            roadsMask[p.y][p.x] = true;
+            markedRoadMask++;
+            if (roadTrace) roadTrace.push(`road:mask x=${p.x} y=${p.y}`);
+          }
         }
       }
     }
@@ -160,7 +189,11 @@ export function build(ctx) {
       const startOut = nearestOutdoorToDoor(door);
       if (!startOut) continue;
       if (ctx.map[startOut.y][startOut.x] === ctx.TILES.ROAD) {
-        roadsMask[startOut.y][startOut.x] = true;
+        if (!roadsMask[startOut.y][startOut.x]) {
+          roadsMask[startOut.y][startOut.x] = true;
+          markedRoadMask++;
+          if (roadTrace) roadTrace.push(`road:mask x=${startOut.x} y=${startOut.y}`);
+        }
         continue;
       }
       let path = pathToNearestRoad(startOut.x, startOut.y);
@@ -179,6 +212,27 @@ export function build(ctx) {
 
     // Publish mask
     ctx.townRoads = roadsMask;
+
+    // Diagnostics
+    if (TRACE) {
+      try {
+        const roadCount = Array.prototype.concat.apply([], roadsMask).filter(Boolean).length;
+        const msg = `Roads: converted=${convertedToRoad} maskedExisting=${markedRoadMask} totalMask=${roadCount}`;
+        if (ctx && typeof ctx.log === "function") ctx.log(msg, "notice");
+        if (roadTrace && roadTrace.length) {
+          // Emit first 200 entries to player log; rest remain in console
+          const chunk = 200;
+          const cap = Math.min(roadTrace.length, 600);
+          for (let i = 0; i < cap; i += chunk) {
+            const part = roadTrace.slice(i, i + chunk);
+            ctx.log(part.join("\n"), "info");
+          }
+          if (roadTrace.length > cap) ctx.log(`... ${roadTrace.length - cap} more road trace entries not shown.`, "warn");
+          if (typeof console !== "undefined") console.log("[Roads] trace", roadTrace);
+        }
+      } catch (_) {}
+    }
+
     return true;
   } catch (_) { return false; }
 }

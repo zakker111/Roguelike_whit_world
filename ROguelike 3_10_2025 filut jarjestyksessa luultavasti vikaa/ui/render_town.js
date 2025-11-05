@@ -110,6 +110,23 @@ export function draw(ctx, view) {
   const __groundLog = readToggle("town_ground_log", "TOWN_GROUND_LOG", true);
   // Wait for palette-derived ground color before building the base cache. Disable with ?town_wait_pal=0
   const __waitForPalette = readToggle("town_wait_pal", "TOWN_WAIT_PAL", true);
+  // Extremely detailed per-tile trace for ground: FLOOR/ROAD lines including final colors.
+  const __tileTrace = readToggle("town_tile_trace", "TOWN_TILE_TRACE", true);
+  const __tileTracePlayer = readToggle("town_tile_trace_player", "TOWN_TILE_TRACE_PLAYER", true);
+  function readNumber(name, lsKey, defVal = 2000) {
+    let v = defVal;
+    try {
+      const params = new URLSearchParams(location.search);
+      const p = params.get(name);
+      if (p != null) { const n = parseInt(p, 10); if (!Number.isNaN(n)) v = n; }
+    } catch (_) {}
+    try {
+      const ls = localStorage.getItem(lsKey);
+      if (ls != null) { const n = parseInt(ls, 10); if (!Number.isNaN(n)) v = n; }
+    } catch (_) {}
+    return v;
+  }
+  const __tileTraceMax = readNumber("town_tile_trace_max", "TOWN_TILE_TRACE_MAX", 3000);
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
@@ -127,6 +144,40 @@ export function draw(ctx, view) {
         ctx.__groundMsgs.push(m);
         if (ctx.__groundMsgs.length > 24) ctx.__groundMsgs.shift();
       } catch (_) {}
+    } catch (_) {}
+  }
+
+  // Tile trace helpers
+  function toName(type) {
+    try {
+      const T = TILES;
+      if (type === T.WALL) return "WALL";
+      if (type === T.FLOOR) return "FLOOR";
+      if (type === T.ROAD) return "ROAD";
+      if (type === T.DOOR) return "DOOR";
+      if (type === T.WINDOW) return "WINDOW";
+      if (type === T.STAIRS) return "STAIRS";
+      return String(type);
+    } catch (_) { return String(type); }
+  }
+  function commitTileTrace(lines, label) {
+    try {
+      if (!__tileTrace) return;
+      ctx.__tileTrace = Array.isArray(lines) ? lines : [];
+      const total = ctx.__tileTrace.length;
+      L(`${label}: tileTrace=${total} lines.`, "notice");
+      if (!__tileTracePlayer) return;
+      // Emit at most __tileTraceMax lines into player log
+      const cap = Math.max(0, __tileTraceMax | 0);
+      const toEmit = cap > 0 ? ctx.__tileTrace.slice(0, cap) : ctx.__tileTrace;
+      const chunk = 150;
+      for (let i = 0; i < toEmit.length; i += chunk) {
+        const part = toEmit.slice(i, i + chunk);
+        if (ctx && typeof ctx.log === "function") ctx.log(part.join("\n"), "info");
+      }
+      if (total > toEmit.length && ctx && typeof ctx.log === "function") {
+        ctx.log(`... ${total - toEmit.length} more tile lines not shown (raise town_tile_trace_max).`, "warn");
+      }
     } catch (_) {}
   }
 
@@ -373,6 +424,7 @@ export function draw(ctx, view) {
           let floorsTotal = 0, floorsTinted = 0;
           let roadsTotal = 0, roadsTinted = 0;
           const sampleTinted = [];
+          const tileLines = __tileTrace ? [] : null;
           for (let yy = 0; yy < mapRows; yy++) {
             const rowMap = map[yy];
             for (let xx = 0; xx < mapCols; xx++) {
@@ -382,14 +434,17 @@ export function draw(ctx, view) {
               let renderType = type;
               if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
               // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
-              let fill = fillTownFor(TILES, renderType, COLORS);
+              const baseFill = fillTownFor(TILES, renderType, COLORS);
+              let fill = baseFill;
               // Apply biome tint to all FLOOR tiles unconditionally; also tint explicit ROAD tiles with biome color.
               // This avoids any brown fallback dominating the appearance.
+              let tinted = false;
               try {
                 if (renderType === TILES.FLOOR) {
                   floorsTotal++;
                   if (biomeFill) {
                     fill = biomeFill;
+                    tinted = true;
                     floorsTinted++;
                     if (sampleTinted.length < 8) sampleTinted.push(`${xx},${yy}`);
                   }
@@ -397,16 +452,23 @@ export function draw(ctx, view) {
                   roadsTotal++;
                   if (biomeFill) {
                     fill = biomeFill;
+                    tinted = true;
                     roadsTinted++;
                   }
                 }
               } catch (_) {}
+              if (__tileTrace && (renderType === TILES.FLOOR || type === TILES.ROAD)) {
+                tileLines.push(`TILE x=${xx} y=${yy} kind=${toName(type)} render=${toName(renderType)} baseFill=${baseFill} biomeFill=${String(biomeFill||"(null)")} final=${fill} tinted=${tinted ? 1 : 0}`);
+              }
               oc.fillStyle = fill;
               oc.fillRect(sx, sy, TILE, TILE);
             }
           }
           if (__groundLog) {
             L(`Base build: floors=${floorsTotal} tinted=${floorsTinted} roads=${roadsTotal} roadsTinted=${roadsTinted} fill=${String(biomeFill || "(null)")} samples=[${sampleTinted.join(" ")}]`);
+          }
+          if (__tileTrace) {
+            commitTileTrace(tileLines, "Base build tile trace");
           }
           TOWN.canvas = off;
         }
@@ -429,6 +491,7 @@ export function draw(ctx, view) {
     let floorsTotalView = 0, floorsTintedView = 0;
     let roadsTotalView = 0, roadsTintedView = 0;
     const sampleView = [];
+    const tileLines = __tileTrace ? [] : null;
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -444,13 +507,16 @@ export function draw(ctx, view) {
         let renderType = type;
         if (__roadsAsFloor && type === TILES.ROAD) renderType = TILES.FLOOR;
         const td = getTileDef("town", renderType) || getTileDef("dungeon", renderType) || null;
-        let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, renderType, COLORS);
+        const baseFill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, renderType, COLORS);
+        let fill = baseFill;
         // Apply biome tint to all FLOOR tiles; also tint explicit ROAD tiles.
+        let tinted = false;
         try {
           if (renderType === TILES.FLOOR) {
             floorsTotalView++;
             if (biomeFill) {
               fill = biomeFill;
+              tinted = true;
               floorsTintedView++;
               if (sampleView.length < 6) sampleView.push(`${x},${y}`);
             }
@@ -458,16 +524,23 @@ export function draw(ctx, view) {
             roadsTotalView++;
             if (biomeFill) {
               fill = biomeFill;
+              tinted = true;
               roadsTintedView++;
             }
           }
         } catch (_) {}
+        if (__tileTrace && (renderType === TILES.FLOOR || type === TILES.ROAD)) {
+          tileLines.push(`TILE x=${x} y=${y} kind=${toName(type)} render=${toName(renderType)} baseFill=${baseFill} biomeFill=${String(biomeFill||"(null)")} final=${fill} tinted=${tinted ? 1 : 0}`);
+        }
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
     }
     if (__groundLog) {
       L(`Fallback draw: floors=${floorsTotalView} tinted=${floorsTintedView} roads=${roadsTotalView} roadsTinted=${roadsTintedView} fill=${String(biomeFill || "(null)")} samples=[${sampleView.join(" ")}]`);
+    }
+    if (__tileTrace) {
+      commitTileTrace(tileLines, "Fallback draw tile trace");
     }
   }
 
