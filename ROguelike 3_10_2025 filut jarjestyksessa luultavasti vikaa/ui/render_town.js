@@ -268,6 +268,8 @@ export function draw(ctx, view) {
 
       const wpx = mapCols * TILE;
       const hpx = mapRows * TILE;
+      // If biome fill color changes (e.g., palette loads after first frame), rebuild the offscreen base.
+      const currentBiomeFill = (function(){ try { return townBiomeFill(ctx); } catch (_) { return null; } })();
       const needsRebuild = (!TOWN.canvas)
         || TOWN.mapRef !== map
         || TOWN.wpx !== wpx
@@ -276,7 +278,8 @@ export function draw(ctx, view) {
         || TOWN._tilesRef !== tilesRef()
         || TOWN._biomeKey !== biomeKey
         || TOWN._townKey !== townKey
-        || TOWN._maskRef !== ctx.townOutdoorMask;
+        || TOWN._maskRef !== ctx.townOutdoorMask
+        || TOWN._biomeFill !== currentBiomeFill;
 
       if (needsRebuild) {
         TOWN.mapRef = map;
@@ -305,6 +308,8 @@ export function draw(ctx, view) {
         }
         // Track mask reference to trigger rebuild when it changes externally
         TOWN._maskRef = ctx.townOutdoorMask;
+        // Track the actual fill being used for floors; if this changes later (palette late-load), we will trigger another rebuild.
+        TOWN._biomeFill = biomeFill;
 
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
