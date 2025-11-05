@@ -67,8 +67,10 @@ function fallbackFillOverworld(WT, id) {
     if (id === WT.GRASS) return "#10331a";
     if (id === WT.MOUNTAIN) return "#2f2f34";
     if (id === WT.DESERT) return "#c2a36b";
-    if (id === WT.SNOW) return "#b9c7d3";
-    if (id === WT.TOWN) return "#3a2f1b";
+    // Hard guarantee: SNOW is pure white for easy reading; no grey/brown cast.
+    if (id === WT.SNOW) return "#ffffff";
+    // Avoid brown patch for towns on overworld – keep them greenish to match grass.
+    if (id === WT.TOWN) return "#1b3a21";
     if (id === WT.DUNGEON) return "#2a1b2a";
   } catch (_) {}
   return "#0b0c10";
@@ -90,6 +92,45 @@ export function draw(ctx, view) {
   const WT = World.TILES;
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
+
+  // Dev toggles
+  function readToggle(name, lsKey, defaultVal = false) {
+    try {
+      const params = new URLSearchParams(location.search);
+      let v = params.get(name);
+      if (v != null) {
+        v = String(v).toLowerCase();
+        if (v === "1" || v === "true") return true;
+        if (v === "0" || v === "false") return false;
+      }
+    } catch (_) {}
+    try {
+      const ls = localStorage.getItem(lsKey);
+      if (ls === "1") return true;
+      if (ls === "0") return false;
+    } catch (_) {}
+    return !!defaultVal;
+  }
+  function readHex(name, lsKey) {
+    function okHex(v) { return /^#?[0-9a-f]{6}$/i.test(v || ""); }
+    let out = null;
+    try {
+      const params = new URLSearchParams(location.search);
+      const p = params.get(name);
+      if (p && okHex(p)) out = p.startsWith("#") ? p : ("#" + p);
+    } catch (_) {}
+    try {
+      const ls = localStorage.getItem(lsKey);
+      if (ls && okHex(ls)) out = ls.startsWith("#") ? ls : ("#" + ls);
+    } catch (_) {}
+    return out;
+  }
+
+  const __worldAudit = readToggle("world_color_audit", "WORLD_COLOR_AUDIT", true);
+  const __worldRoadsOff = readToggle("world_roads_off", "WORLD_ROADS_OFF", false);
+  const __worldRoadsAsGround = readToggle("world_roads_as_ground", "WORLD_ROADS_AS_GROUND", true);
+  const __worldRoadOverlayLog = readToggle("world_road_overlay_log", "WORLD_ROAD_OVERLAY_LOG", true);
+  const __worldRoadsColor = readHex("world_roads_color", "WORLD_ROADS_COLOR");
 
   // Build world base offscreen once per map/TILE change
   try {
@@ -115,6 +156,7 @@ export function draw(ctx, view) {
         } catch (_) {}
         let missingDefsCount = 0;
         const missingSet = new Set();
+        const colorCounts = __worldAudit ? Object.create(null) : null;
         for (let yy = 0; yy < mh; yy++) {
           const rowM = map[yy];
           for (let xx = 0; xx < mw; xx++) {
@@ -123,6 +165,7 @@ export function draw(ctx, view) {
             const td = getTileDef("overworld", t);
             if (!td) { missingDefsCount++; missingSet.add(t); }
             const c = fillOverworldFor(WT, t);
+            if (colorCounts) colorCounts[c] = (colorCounts[c] | 0) + 1;
             oc.fillStyle = c;
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
             // Note: glyph overlays are drawn per-frame below, not baked into base.
@@ -135,6 +178,14 @@ export function draw(ctx, view) {
             const msg = `[RenderOverworld] Missing ${missingDefsCount} tile def lookups; ids without defs: ${Array.from(missingSet).join(", ")}. Using fallback colors.`;
             if (LG && typeof LG.log === "function") LG.log(msg, "warn");
             else console.warn(msg);
+          }
+        } catch (_) {}
+        // Color audit for world base
+        try {
+          if (__worldAudit && colorCounts && ctx && typeof ctx.log === "function") {
+            const entries = Object.keys(colorCounts).map(k => ({ color: k, n: colorCounts[k] | 0 })).sort((a,b) => b.n - a.n);
+            const tops = entries.slice(0, 8).map(e => `${e.color}:${e.n}`).join(" | ");
+            ctx.log(`[Overworld] Color audit (base): unique=${entries.length} top=[${tops}]`, "notice");
           }
         } catch (_) {}
         WORLD.canvas = off;
@@ -459,23 +510,42 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Roads overlay — always on
+  // Roads overlay — configurable
   try {
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
-    if (roads.length) {
+    if (!roads.length) {
+      if (__worldRoadOverlayLog && ctx && typeof ctx.log === "function") ctx.log("[Overworld] Road overlay: no road points.", "info");
+    } else if (__worldRoadsOff) {
+      if (__worldRoadOverlayLog && ctx && typeof ctx.log === "function") ctx.log("[Overworld] Road overlay: disabled by toggle.", "notice");
+    } else {
       ctx2d.save();
       ctx2d.globalAlpha = 0.18; // subtle overlay
-      ctx2d.fillStyle = "#b0a58a"; // muted road color
+      let applied = 0;
       for (const p of roads) {
-        const x = p.x, y = p.y;
+        const x = p.x | 0, y = p.y | 0;
         if (x < startX || x > endX || y < startY || y > endY) continue;
         const sx = (x - startX) * TILE - tileOffsetX;
         const sy = (y - startY) * TILE - tileOffsetY;
         const w = Math.max(3, Math.floor(TILE * 0.40));
         const h = Math.max(2, Math.floor(TILE * 0.16));
+        // Per-tile color: optional explicit override, else use ground color of underlying tile, else legacy.
+        let color = __worldRoadsColor;
+        if (!color && __worldRoadsAsGround) {
+          if (y >= 0 && y < mapRows && x >= 0 && x < mapCols) {
+            const under = map[y][x];
+            color = fillOverworldFor(WT, under);
+          }
+        }
+        if (!color) color = "#b0a58a"; // legacy fallback
+        ctx2d.fillStyle = color;
         ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
+        applied++;
       }
       ctx2d.restore();
+      if (__worldRoadOverlayLog && ctx && typeof ctx.log === "function") {
+        const mode = __worldRoadsColor ? "fixed-color" : (__worldRoadsAsGround ? "ground" : "legacy");
+        ctx.log(`[Overworld] Road overlay: applied tiles=${applied} mode=${mode} ${__worldRoadsColor ? "color="+__worldRoadsColor : ""}`, "notice");
+      }
     }
   } catch (_) {}
 
