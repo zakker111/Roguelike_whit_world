@@ -133,30 +133,40 @@ export function draw(ctx, view) {
   // Helpers for biome-based outdoor ground tint
   function ensureTownBiome(ctx) {
     try {
-      // If TownState or Town generation already set a biome, we still populate counts for the debug panel if missing.
-      const hadBiome = !!ctx.townBiome;
-
       const world = ctx.world || {};
       const WMOD = (typeof window !== "undefined" ? window.World : null);
       const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
       const WT_GEN = (world && world.gen && world.gen.TILES) ? world.gen.TILES : null; // fallback when window.World is missing
+      const TT = WT || WT_GEN;
 
-      // We require absolute world coordinates for this town; do not guess from player (town-local) coords.
-      const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
-      if (!hasWRP) {
-        return;
+      // Prefer existing biome if generation or load already set it
+      let chosen = ctx.townBiome ? String(ctx.townBiome) : "";
+
+      // Determine absolute world coords if available
+      let wx = null, wy = null;
+      if (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
+        wx = ctx.worldReturnPos.x | 0;
+        wy = ctx.worldReturnPos.y | 0;
       }
-      const wx = ctx.worldReturnPos.x | 0;
-      const wy = ctx.worldReturnPos.y | 0;
 
-      // Use persisted biome if available
+      // If no biome yet, try persisted world.towns record even if wx/wy unknown (skip sampling but set chosen)
       let persisted = null;
       try {
-        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-        if (rec && rec.biome) { persisted = String(rec.biome); if (!ctx.townBiome) ctx.townBiome = persisted; }
+        if (wx != null && wy != null) {
+          const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+          if (rec && rec.biome) persisted = String(rec.biome);
+        } else if (ctx.world && Array.isArray(ctx.world.towns)) {
+          // Fallback: if only one town exists in memory (fresh session), assume it's this one
+          if (ctx.world.towns.length === 1 && ctx.world.towns[0] && ctx.world.towns[0].biome) {
+            persisted = String(ctx.world.towns[0].biome);
+          }
+        }
       } catch (_) {}
 
-      // Helper: get tile at absolute world coords (prefer current window; fallback to generator)
+      if (!chosen && persisted) chosen = persisted;
+
+      // If still no biome and we can sample, do it now without early-return
+      let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
       function worldTileAtAbs(ax, ay) {
         const wmap = world.map || null;
         const ox = world.originX | 0, oy = world.originY | 0;
@@ -167,11 +177,7 @@ export function draw(ctx, view) {
         if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
         return null;
       }
-
-      // Sample neighborhood around town (skip POIs) to infer biome
-      let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
       function bump(tile) {
-        const TT = WT || WT_GEN;
         if (!TT) return;
         if (tile === TT.DESERT) counts.DESERT++;
         else if (tile === TT.SNOW) counts.SNOW++;
@@ -180,36 +186,32 @@ export function draw(ctx, view) {
         else if (tile === TT.FOREST) counts.FOREST++;
         else if (tile === TT.GRASS) counts.GRASS++;
       }
+
+      let sampledAt = null;
       const MAX_R = 6;
-      for (let r = 1; r <= MAX_R; r++) {
-        let any = false;
-        for (let dy = -r; dy <= r; dy++) {
-          for (let dx = -r; dx <= r; dx++) {
-            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-            const t = worldTileAtAbs(wx + dx, wy + dy);
-            if (t == null) continue;
-            { const TT = WT || WT_GEN; if (TT && (t === TT.TOWN || t === TT.DUNGEON || t === TT.RUINS)) continue; }
-            bump(t);
-            any = true;
+      if (!chosen && wx != null && wy != null && TT) {
+        for (let r = 1; r <= MAX_R; r++) {
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+              if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+              const t = worldTileAtAbs(wx + dx, wy + dy);
+              if (t == null) continue;
+              if (t === TT.TOWN || t === TT.DUNGEON || t === TT.RUINS) continue;
+              bump(t);
+            }
           }
         }
-        const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
-        if (any && total > 0) break;
+        const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+        let best = "GRASS", bestV = -1;
+        for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
+        chosen = best || "GRASS";
+        sampledAt = { x: wx, y: wy };
       }
-      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
-      let best = "GRASS", bestV = -1;
-      for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
 
-      // Decide chosen biome: respect persisted if available, else sample
-      const chosen = persisted || best || "GRASS";
-      ctx.townBiome = ctx.townBiome || chosen;
-      // Log the final decision and fill color
-      try {
-        const fx = townBiomeFill(ctx);
-        if (__groundLog) L(`Biome ensure: chosen=${String(ctx.townBiome)} persisted=${String(persisted||"")} best=${best} fill=${String(fx || "(null)")}`, "notice");
-      } catch (_) {}
+      // Apply final choice to context
+      if (chosen) ctx.townBiome = chosen;
 
-      // Publish counts and sampling metadata so the debug panel always has data
+      // Always publish counts/sampling metadata so overlays have data
       try {
         ctx.townBiomeCounts = {
           GRASS: counts.GRASS | 0,
@@ -219,15 +221,24 @@ export function draw(ctx, view) {
           SNOW: counts.SNOW | 0,
           SWAMP: counts.SWAMP | 0
         };
-        ctx.townBiomeSampleAt = { x: wx, y: wy };
+        ctx.townBiomeSampleAt = sampledAt || (wx != null && wy != null ? { x: wx, y: wy } : { x: 0, y: 0 });
         ctx.townBiomeMaxR = MAX_R | 0;
       } catch (_) {}
 
-      // Persist for future visits
+      // Persist chosen biome on world.towns record if possible
       try {
-        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-        if (rec && typeof rec === "object" && !rec.biome) rec.biome = ctx.townBiome;
+        if (wx != null && wy != null) {
+          const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+          if (rec && typeof rec === "object" && !rec.biome && ctx.townBiome) rec.biome = ctx.townBiome;
+        }
       } catch (_) {}
+
+      // If TT missing or we couldn't determine, prefer to keep previous ctx.townBiome rather than unknown
+      if (!TT && !ctx.townBiome) {
+        ctx.townBiome = "GRASS";
+      }
+    } catch (_) { /* leave ctx.townBiome as-is */ }
+  } catch (_) {}
 
       // If WT is missing (unlikely), log once to help diagnosis
       try {
