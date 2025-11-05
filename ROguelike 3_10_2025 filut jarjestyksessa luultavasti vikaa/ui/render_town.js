@@ -56,7 +56,8 @@ function fallbackFillTown(TILES, type, COLORS) {
   try {
     if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
     if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
-    if (type === TILES.ROAD) return "#b0a58a"; // muted brown road
+    // Treat ROAD like FLOOR for fallback to avoid legacy brown leakage.
+    if (type === TILES.ROAD) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
     if (type === TILES.DOOR) return "#3a2f1b";
     if (type === TILES.WINDOW) return "#26728c";
     if (type === TILES.STAIRS) return "#3a2f1b";
@@ -327,18 +328,38 @@ export function draw(ctx, view) {
       const kUp = kRaw.toUpperCase();
       const kTitle = kRaw ? (kRaw.charAt(0).toUpperCase() + kRaw.slice(1).toLowerCase()) : "";
 
-      // Hard guarantee: SNOW is bright white. No brown, no grey. Period.
-      if (kUp === "SNOW") return "#ffffff";
-
       const GD = (typeof window !== "undefined" ? window.GameData : null);
       const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
 
-      // Prefer live palette; fallback to TownGen-provided fill if palette not ready
+      // Fallback defaults mirror data/world/palette.json townBiome block
+      const defaults = {
+        FOREST: "#1a2e1d",
+        GRASS:  "#1b3a21",
+        DESERT: "#c8b37a",
+        BEACH:  "#d7c08e",
+        SNOW:   "#93a7b6",
+        SWAMP:  "#1d3624"
+      };
+
+      // Prefer live palette; then town_gen-published fill; then hard defaults by biome key.
       if (pal) {
-        return pal[kUp] || pal[kRaw] || pal[kTitle] || (ctx.townGroundFill || null);
+        return pal[kUp] || pal[kRaw] || pal[kTitle] || ctx.townGroundFill || defaults[kUp] || null;
       }
-      return ctx.townGroundFill || null;
-    } catch (_) { return (ctx && ctx.townGroundFill) ? ctx.townGroundFill : null; }
+      return ctx.townGroundFill || defaults[kUp] || null;
+    } catch (_) {
+      try {
+        const k = String(ctx.townBiome || "").toUpperCase();
+        const defaults = {
+          FOREST: "#1a2e1d",
+          GRASS:  "#1b3a21",
+          DESERT: "#c8b37a",
+          BEACH:  "#d7c08e",
+          SNOW:   "#93a7b6",
+          SWAMP:  "#1d3624"
+        };
+        return ctx.townGroundFill || defaults[k] || null;
+      } catch (_2) { return null; }
+    }
   }
   function ensureOutdoorMask(ctx) {
     // Rebuild if missing or dimensions mismatch current map
