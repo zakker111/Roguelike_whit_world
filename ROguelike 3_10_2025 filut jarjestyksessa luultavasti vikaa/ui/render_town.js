@@ -26,11 +26,9 @@ function fillTownFor(TILES, type, COLORS) {
   let v = TILE_CACHE.fill[k];
   if (v) return v;
   const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-  TILE_CACHE.fill[k] = v;
-  return v;
-}
-function glyphTownFor(type) {
+  // STRICT: do not fallback; if JSON has no color, leave null so caller can decide (or skip draw)
+  v = (td && td.colors && td.colors.fill) ? td.colors.fill : null;
+  TILE_CACHE.fill[kfunction glyphTownFor(type) {
   cacheResetIfNeeded();
   const k = type | 0;
   let g = TILE_CACHE.glyph[k];
@@ -327,39 +325,14 @@ export function draw(ctx, view) {
       const kRaw = String(ctx.townBiome || "");
       const kUp = kRaw.toUpperCase();
       const kTitle = kRaw ? (kRaw.charAt(0).toUpperCase() + kRaw.slice(1).toLowerCase()) : "";
-
       const GD = (typeof window !== "undefined" ? window.GameData : null);
       const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
-
-      // Fallback defaults mirror data/world/palette.json townBiome block
-      const defaults = {
-        FOREST: "#1a2e1d",
-        GRASS:  "#1b3a21",
-        DESERT: "#c8b37a",
-        BEACH:  "#d7c08e",
-        SNOW:   "#93a7b6",
-        SWAMP:  "#1d3624"
-      };
-
-      // Prefer live palette; then town_gen-published fill; then hard defaults by biome key.
+      // STRICT: no built-in defaults. Only use live palette or TownGen-published fill.
       if (pal) {
-        return pal[kUp] || pal[kRaw] || pal[kTitle] || ctx.townGroundFill || defaults[kUp] || null;
+        return pal[kUp] || pal[kRaw] || pal[kTitle] || ctx.townGroundFill || null;
       }
-      return ctx.townGroundFill || defaults[kUp] || null;
-    } catch (_) {
-      try {
-        const k = String(ctx.townBiome || "").toUpperCase();
-        const defaults = {
-          FOREST: "#1a2e1d",
-          GRASS:  "#1b3a21",
-          DESERT: "#c8b37a",
-          BEACH:  "#d7c08e",
-          SNOW:   "#93a7b6",
-          SWAMP:  "#1d3624"
-        };
-        return ctx.townGroundFill || defaults[k] || null;
-      } catch (_2) { return null; }
-    }
+      return ctx.townGroundFill || null;
+    } catch (_) { return null; }
   }
   function ensureOutdoorMask(ctx) {
     // Rebuild if missing or dimensions mismatch current map
@@ -482,6 +455,8 @@ export function draw(ctx, view) {
           const floorsByColor = Object.create(null);
           const roadsByColor = Object.create(null);
           const posByColor = Object.create(null);
+          let missingDefsCount = 0;
+          const missingSet = new Set();
           for (let yy = 0; yy < mapRows; yy++) {
             const rowMap = map[yy];
             for (let xx = 0; xx < mapCols; xx++) {
@@ -491,7 +466,7 @@ export function draw(ctx, view) {
               let renderType = type;
               if ((__roadsAsFloor || __noRoads) && type === TILES.ROAD) renderType = TILES.FLOOR;
 
-              // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
+              // Cached fill color from JSON only (STRICT: no fallback)
               const baseFill = fillTownFor(TILES, renderType, COLORS);
               let fill = baseFill;
               // Apply biome tint to all FLOOR tiles unconditionally; also tint explicit ROAD tiles with biome color.
@@ -504,7 +479,7 @@ export function draw(ctx, view) {
                     fill = biomeFill;
                     tinted = true;
                     floorsTinted++;
-                    if (sampleTinted.lengt << 8) sampleTinted.push(`${xx},${yy}`);
+                    if (sampleTinted.length < 8) sampleTinted.push(`${xx},${yy}`);
                   }
                 } else if (type === TILES.ROAD) {
                   roadsTotal++;
@@ -514,13 +489,20 @@ export function draw(ctx, view) {
                     roadsTinted++;
                   }
                 } else if (type === TILES.DOOR || type === TILES.STAIRS) {
-                  // Eliminate brown fallback on DOOR/STAIRS by tinting with biome as well
+                  // Eliminate any non-biome color by tinting with biome as well
                   if (biomeFill) {
                     fill = biomeFill;
                     tinted = true;
                   }
                 }
               } catch (_) {}
+
+              // STRICT: if still no fill (unknown JSON color and not tinted), skip drawing and record missing def
+              if (!fill) {
+                missingDefsCount++;
+                missingSet.add(String(renderType));
+                continue;
+              }
 
               if (__tileTrace && (renderType === TILES.FLOOR || type === TILES.ROAD)) {
                 tileLines.push(`TILE x=${xx} y=${yy} kind=${toName(type)} render=${toName(renderType)} baseFill=${baseFill} biomeFill=${String(biomeFill||"(null)")} final=${fill} tinted=${tinted ? 1 : 0}`);
@@ -542,6 +524,9 @@ export function draw(ctx, view) {
           }
           if (__groundLog) {
             L(`Base build: floors=${floorsTotal} tinted=${floorsTinted} roads=${roadsTotal} roadsTinted=${roadsTinted} fill=${String(biomeFill || "(null)")} samples=[${sampleTinted.join(" ")}]`);
+            if (missingDefsCount > 0) {
+              L(`[TownStrict] Missing tile defs during base build: count=${missingDefsCount} ids=[${Array.from(missingSet).join(", ")}]`, "error");
+            }
           }
           if (__colorAudit) {
             try {
@@ -593,6 +578,8 @@ export function draw(ctx, view) {
     const floorsByColorV = Object.create(null);
     const roadsByColorV = Object.create(null);
     const posByColorV = Object.create(null);
+    let missingDefsView = 0;
+    const missingViewSet = new Set();
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -607,8 +594,9 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         let renderType = type;
         if ((__roadsAsFloor || __noRoads) && type === TILES.ROAD) renderType = TILES.FLOOR;
+        // STRICT: JSON-only base fill
         const td = getTileDef("town", renderType) || getTileDef("dungeon", renderType) || null;
-        const baseFill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, renderType, COLORS);
+        const baseFill = (td && td.colors && td.colors.fill) ? td.colors.fill : null;
         let fill = baseFill;
         // Apply biome tint to all FLOOR tiles; also tint explicit ROAD tiles.
         let tinted = false;
@@ -629,13 +617,19 @@ export function draw(ctx, view) {
               roadsTintedView++;
             }
           } else if (type === TILES.DOOR || type === TILES.STAIRS) {
-            // Eliminate brown fallback on DOOR/STAIRS by tinting with biome as well
+            // Eliminate any non-biome color by tinting with biome as well
             if (biomeFill) {
               fill = biomeFill;
               tinted = true;
             }
           }
         } catch (_) {}
+        // STRICT: if no fill after tint logic, skip draw and record missing
+        if (!fill) {
+          missingDefsView++;
+          missingViewSet.add(String(renderType));
+          continue;
+        }
         if (__tileTrace && (renderType === TILES.FLOOR || type === TILES.ROAD)) {
           tileLines.push(`TILE x=${x} y=${y} kind=${toName(type)} render=${toName(renderType)} baseFill=${baseFill} biomeFill=${String(biomeFill||"(null)")} final=${fill} tinted=${tinted ? 1 : 0}`);
         }
@@ -655,6 +649,9 @@ export function draw(ctx, view) {
     }
     if (__groundLog) {
       L(`Fallback draw: floors=${floorsTotalView} tinted=${floorsTintedView} roads=${roadsTotalView} roadsTinted=${roadsTintedView} fill=${String(biomeFill || "(null)")} samples=[${sampleView.join(" ")}]`);
+      if (missingDefsView > 0) {
+        L(`[TownStrict] Missing tile defs during viewport draw: count=${missingDefsView} ids=[${Array.from(missingViewSet).join(", ")}]`, "error");
+      }
     }
     if (__colorAudit) {
       try {
@@ -763,13 +760,16 @@ export function draw(ctx, view) {
       const yyEndFill = Math.min(endY, y1);
       const xxStartFill = Math.max(startX, x0);
       const xxEndFill = Math.min(endX, x1);
-      const floorFill = fillTownFor(TILES, TILES.FLOOR, COLORS);
-      for (let y = yyStartFill; y <= yyEndFill; y++) {
-        for (let x = xxStartFill; x <= xxEndFill; x++) {
-          const screenX = (x - startX) * TILE - tileOffsetX;
-          const screenY = (y - startY) * TILE - tileOffsetY;
-          ctx2d.fillStyle = floorFill;
-          ctx2d.fillRect(screenX, screenY, TILE, TILE);
+      let floorFill = fillTownFor(TILES, TILES.FLOOR, COLORS);
+      if (!floorFill) { try { floorFill = townBiomeFill(ctx) || null; } catch (_) {} }
+      if (floorFill) {
+        for (let y = yyStartFill; y <= yyEndFill; y++) {
+          for (let x = xxStartFill; x <= xxEndFill; x++) {
+            const screenX = (x - startX) * TILE - tileOffsetX;
+            const screenY = (y - startY) * TILE - tileOffsetY;
+            ctx2d.fillStyle = floorFill;
+            ctx2d.fillRect(screenX, screenY, TILE, TILE);
+          }
         }
       }
 
