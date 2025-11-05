@@ -536,7 +536,13 @@ export function draw(ctx, view) {
             color = fillOverworldFor(WT, under);
           }
         }
-        if (!color) color = "#b0a58a"; // legacy fallback
+        if (!color) {
+          // Strict: cannot determine a road overlay color for this tile; skip drawing it.
+          if (__worldRoadOverlayLog && ctx && typeof ctx.log === "function") {
+            ctx.log(`[OverworldStrict] Skipped road overlay at ${x},${y} (no color)`, "info");
+          }
+          continue;
+        }
         ctx2d.fillStyle = color;
         ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
         applied++;
