@@ -148,7 +148,7 @@ export function draw(ctx, view) {
   // Disable road overlay entirely (to isolate base colors)
   const __noRoadOverlay = readToggle("town_no_road_overlay", "TOWN_NO_ROAD_OVERLAY", false);
   // Global kill-switch: do not render or treat any roads specially; flatten to floor in rendering.
-  const __noRoads = readToggle("town_no_roads", "TOWN_NO_ROADS", false);
+  const __noRoads = readToggle("town_no_roads", "TOWN_NO_ROADS", true);
   // Force override of biome ground hex (e.g., town_ground_override=ffffff)
   const __groundOverrideHex = readHex("town_ground_override", "TOWN_GROUND_OVERRIDE");
 

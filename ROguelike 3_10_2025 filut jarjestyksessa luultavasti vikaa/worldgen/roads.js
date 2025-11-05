@@ -36,7 +36,8 @@ function readNoRoads() {
     if (ls === "1") return true;
     if (ls === "0") return false;
   } catch (_) {}
-  return false;
+  // Default: no roads
+  return true;
 }
 
 export function build(ctx) {
