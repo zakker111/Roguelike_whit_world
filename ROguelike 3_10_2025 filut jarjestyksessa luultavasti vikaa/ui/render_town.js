@@ -126,7 +126,29 @@ export function draw(ctx, view) {
     } catch (_) {}
     return v;
   }
+  // Hex reader for overrides
+  function readHex(name, lsKey) {
+    function okHex(v) { return /^#?[0-9a-f]{6}$/i.test(v || ""); }
+    let out = null;
+    try {
+      const params = new URLSearchParams(location.search);
+      const p = params.get(name);
+      if (p && okHex(p)) out = p.startsWith("#") ? p : ("#" + p);
+    } catch (_) {}
+    try {
+      const ls = localStorage.getItem(lsKey);
+      if (ls && okHex(ls)) out = ls.startsWith("#") ? ls : ("#" + ls);
+    } catch (_) {}
+    return out;
+  }
   const __tileTraceMax = readNumber("town_tile_trace_max", "TOWN_TILE_TRACE_MAX", 3000);
+  // Color audit for summary of final colors used on ground
+  const __colorAudit = readToggle("town_color_audit", "TOWN_COLOR_AUDIT", true);
+  const __auditMaxPos = readNumber("town_color_audit_max_pos", "TOWN_COLOR_AUDIT_MAX_POS", 40);
+  // Disable road overlay entirely (to isolate base colors)
+  const __noRoadOverlay = readToggle("town_no_road_overlay", "TOWN_NO_ROAD_OVERLAY", false);
+  // Force override of biome ground hex (e.g., town_ground_override=ffffff)
+  const __groundOverrideHex = readHex("town_ground_override", "TOWN_GROUND_OVERRIDE");
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
@@ -408,23 +430,31 @@ export function draw(ctx, view) {
             oc.textBaseline = "middle";
           } catch (_) {}
           // Prepare biome fill and outdoor mask
-          ensureOutdoorMask(ctx);
-          const biomeFill = townBiomeFill(ctx);
-          if (__biomeDebug) {
-            try {
-              const m = `RenderTown: biome=${String(ctx.townBiome || "")} roadsAsFloor=${__roadsAsFloor ? 1 : 0}`;
-              if (ctx.log) ctx.log(m, "info"); else if (typeof console !== "undefined") console.log("[RenderTown] " + m);
-            } catch (_) {}
-          }
-          // Track mask reference to trigger rebuild when it changes externally
-          TOWN._maskRef = ctx.townOutdoorMask;
-          // Track the actual fill being used for floors; if this changes later (palette late-load), we will trigger another rebuild.
-          TOWN._biomeFill = biomeFill;
+        ensureOutdoorMask(ctx);
+        let biomeFill = townBiomeFill(ctx);
+        if (__groundOverrideHex) {
+          biomeFill = __groundOverrideHex;
+          if (__groundLog) L(`Ground override active: ${biomeFill}`);
+        }
+        if (__biomeDebug) {
+          try {
+            const m = `RenderTown: biome=${String(ctx.townBiome || "")} roadsAsFloor=${__roadsAsFloor ? 1 : 0}`;
+            if (ctx.log) ctx.log(m, "info"); else if (typeof console !== "undefined") console.log("[RenderTown] " + m);
+          } catch (_) {}
+        }
+        // Track mask reference to trigger rebuild when it changes externally
+        TOWN._maskRef = ctx.townOutdoorMask;
+        // Track the actual fill being used for floors; if this changes later (palette late-load), we will trigger another rebuild.
+        TOWN._biomeFill = biomeFill;
 
           let floorsTotal = 0, floorsTinted = 0;
           let roadsTotal = 0, roadsTinted = 0;
           const sampleTinted = [];
           const tileLines = __tileTrace ? [] : null;
+          const colorCounts = Object.create(null);
+          const floorsByColor = Object.create(null);
+          const roadsByColor = Object.create(null);
+          const posByColor = Object.create(null);
           for (let yy = 0; yy < mapRows; yy++) {
             const rowMap = map[yy];
             for (let xx = 0; xx < mapCols; xx++) {
@@ -460,12 +490,40 @@ export function draw(ctx, view) {
               if (__tileTrace && (renderType === TILES.FLOOR || type === TILES.ROAD)) {
                 tileLines.push(`TILE x=${xx} y=${yy} kind=${toName(type)} render=${toName(renderType)} baseFill=${baseFill} biomeFill=${String(biomeFill||"(null)")} final=${fill} tinted=${tinted ? 1 : 0}`);
               }
+              // Color counts
+              try {
+                const key = String(fill);
+                colorCounts[key] = (colorCounts[key] | 0) + 1;
+                if (renderType === TILES.FLOOR) floorsByColor[key] = (floorsByColor[key] | 0) + 1;
+                if (type === TILES.ROAD) roadsByColor[key] = (roadsByColor[key] | 0) + 1;
+                if (key !== String(biomeFill)) {
+                  posByColor[key] = posByColor[key] || [];
+                  if (posByColor[key].length < __auditMaxPos) posByColor[key].push(`${xx},${yy}`);
+                }
+              } catch (_) {}
               oc.fillStyle = fill;
               oc.fillRect(sx, sy, TILE, TILE);
             }
           }
           if (__groundLog) {
             L(`Base build: floors=${floorsTotal} tinted=${floorsTinted} roads=${roadsTotal} roadsTinted=${roadsTinted} fill=${String(biomeFill || "(null)")} samples=[${sampleTinted.join(" ")}]`);
+          }
+          if (__colorAudit) {
+            try {
+              const entries = Object.keys(colorCounts).map(k => ({ color: k, n: colorCounts[k]|0, floors: floorsByColor[k]|0, roads: roadsByColor[k]|0 }));
+              entries.sort((a,b) => b.n - a.n);
+              const tops = entries.slice(0, 8).map(e => `${e.color}: total=${e.n} floors=${e.floors} roads=${e.roads}`).join(" | ");
+              L(`Color audit (base): unique=${entries.length} top=[${tops}]`);
+              // Show first few positions for any non-biome colors
+              let shown = 0;
+              for (let i = 0; i < entries.length && shown < 3; i++) {
+                const e = entries[i];
+                if (String(e.color) === String(biomeFill)) continue;
+                const pts = (posByColor[e.color] || []).slice(0, 20).join(" ");
+                if (pts) L(`Color '${e.color}' sample tiles: ${pts}`, "info");
+                shown++;
+              }
+            } catch (_) {}
           }
           if (__tileTrace) {
             commitTileTrace(tileLines, "Base build tile trace");
@@ -487,11 +545,19 @@ export function draw(ctx, view) {
     ensureTownBiome(ctx);
     if (__forceGrass) { try { ctx.townBiome = "GRASS"; } catch (_) {} }
     ensureOutdoorMask(ctx);
-    const biomeFill = townBiomeFill(ctx);
+    let biomeFill = townBiomeFill(ctx);
+    if (__groundOverrideHex) {
+      biomeFill = __groundOverrideHex;
+      if (__groundLog) L(`Ground override active: ${biomeFill}`);
+    }
     let floorsTotalView = 0, floorsTintedView = 0;
     let roadsTotalView = 0, roadsTintedView = 0;
     const sampleView = [];
     const tileLines = __tileTrace ? [] : null;
+    const colorCountsV = Object.create(null);
+    const floorsByColorV = Object.create(null);
+    const roadsByColorV = Object.create(null);
+    const posByColorV = Object.create(null);
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -532,12 +598,38 @@ export function draw(ctx, view) {
         if (__tileTrace && (renderType === TILES.FLOOR || type === TILES.ROAD)) {
           tileLines.push(`TILE x=${x} y=${y} kind=${toName(type)} render=${toName(renderType)} baseFill=${baseFill} biomeFill=${String(biomeFill||"(null)")} final=${fill} tinted=${tinted ? 1 : 0}`);
         }
+        try {
+          const key = String(fill);
+          colorCountsV[key] = (colorCountsV[key] | 0) + 1;
+          if (renderType === TILES.FLOOR) floorsByColorV[key] = (floorsByColorV[key] | 0) + 1;
+          if (type === TILES.ROAD) roadsByColorV[key] = (roadsByColorV[key] | 0) + 1;
+          if (key !== String(biomeFill)) {
+            posByColorV[key] = posByColorV[key] || [];
+            if (posByColorV[key].length < __auditMaxPos) posByColorV[key].push(`${x},${y}`);
+          }
+        } catch (_) {}
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
     }
     if (__groundLog) {
       L(`Fallback draw: floors=${floorsTotalView} tinted=${floorsTintedView} roads=${roadsTotalView} roadsTinted=${roadsTintedView} fill=${String(biomeFill || "(null)")} samples=[${sampleView.join(" ")}]`);
+    }
+    if (__colorAudit) {
+      try {
+        const entries = Object.keys(colorCountsV).map(k => ({ color: k, n: colorCountsV[k]|0, floors: floorsByColorV[k]|0, roads: roadsByColorV[k]|0 }));
+        entries.sort((a,b) => b.n - a.n);
+        const tops = entries.slice(0, 8).map(e => `${e.color}: total=${e.n} floors=${e.floors} roads=${e.roads}`).join(" | ");
+        L(`Color audit (fallback): unique=${entries.length} top=[${tops}]`);
+        let shown = 0;
+        for (let i = 0; i < entries.length && shown < 3; i++) {
+          const e = entries[i];
+          if (String(e.color) === String(biomeFill)) continue;
+          const pts = (posByColorV[e.color] || []).slice(0, 20).join(" ");
+          if (pts) L(`Color '${e.color}' sample tiles: ${pts}`, "info");
+          shown++;
+        }
+      } catch (_) {}
     }
     if (__tileTrace) {
       commitTileTrace(tileLines, "Fallback draw tile trace");
@@ -549,13 +641,19 @@ export function draw(ctx, view) {
   // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
   (function drawRoadOverlay() {
     try {
-      // Developer toggle: render roads as floor; skip explicit road overlay
-      if (__roadsAsFloor) return;
+      // Developer toggle: render roads as floor; or explicitly disable overlay to isolate base colors
+      if (__roadsAsFloor || __noRoadOverlay) {
+        if (__groundLog) L("Road overlay: disabled (roadsAsFloor or noRoadOverlay active)");
+        return;
+      }
 
       // Use biome fill for roads so town ground color matches chosen biome.
       // If palette/fill not ready yet, skip road overlay entirely to avoid brown fallback dominating visuals.
       const fillNow = (function () { try { return townBiomeFill(ctx); } catch (_) { return null; } })();
-      if (!fillNow) return;
+      if (!fillNow) {
+        if (__groundLog) L("Road overlay: skipped (no biome fill yet)");
+        return;
+      }
       const roadOverlayColor = fillNow;
 
       let anyRoad = false;
@@ -568,6 +666,7 @@ export function draw(ctx, view) {
         }
       }
 
+      let overlayCount = 0;
       if (anyRoad) {
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
@@ -579,6 +678,7 @@ export function draw(ctx, view) {
             const screenY = (y - startY) * TILE - tileOffsetY;
             ctx2d.fillStyle = roadOverlayColor;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
+            overlayCount++;
           }
         }
       } else if (ctx.townRoads) {
@@ -594,9 +694,11 @@ export function draw(ctx, view) {
             const screenY = (y - startY) * TILE - tileOffsetY;
             ctx2d.fillStyle = roadOverlayColor;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
+            overlayCount++;
           }
         }
       }
+      if (__groundLog) L(`Road overlay: applied tiles=${overlayCount} color=${roadOverlayColor}`);
     } catch (_) {}
   })();
 
