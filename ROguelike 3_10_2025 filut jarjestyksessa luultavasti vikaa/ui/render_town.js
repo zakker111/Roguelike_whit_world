@@ -380,6 +380,12 @@ export function draw(ctx, view) {
       // Developer toggle: render roads as floor; skip explicit road overlay
       if (__roadsAsFloor) return;
 
+      // Use biome fill for roads so town ground color matches chosen biome.
+      // Fallback to legacy brown if palette is unavailable.
+      const roadOverlayColor = (function () {
+        try { return townBiomeFill(ctx) || "#b0a58a"; } catch (_) { return "#b0a58a"; }
+      })();
+
       let anyRoad = false;
       for (let y = startY; y <= endY && !anyRoad; y++) {
         const yIn = y >= 0 && y < mapRows;
@@ -399,7 +405,7 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a"; // road color
+            ctx2d.fillStyle = roadOverlayColor;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
@@ -414,7 +420,7 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a";
+            ctx2d.fillStyle = roadOverlayColor;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
