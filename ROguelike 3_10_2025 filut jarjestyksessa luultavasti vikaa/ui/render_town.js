@@ -244,11 +244,16 @@ export function draw(ctx, view) {
   }
   function townBiomeFill(ctx) {
     try {
-      const GD = (typeof window !== "undefined" ? window.GameData : null);
-      const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
       const kRaw = String(ctx.townBiome || "");
       const kUp = kRaw.toUpperCase();
       const kTitle = kRaw ? (kRaw.charAt(0).toUpperCase() + kRaw.slice(1).toLowerCase()) : "";
+
+      // Hard guarantee: SNOW is bright white. No brown, no grey. Period.
+      if (kUp === "SNOW") return "#ffffff";
+
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
+
       // Prefer live palette; fallback to TownGen-provided fill if palette not ready
       if (pal) {
         return pal[kUp] || pal[kRaw] || pal[kTitle] || (ctx.townGroundFill || null);
