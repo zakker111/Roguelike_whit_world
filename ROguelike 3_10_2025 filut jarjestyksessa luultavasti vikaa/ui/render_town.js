@@ -303,8 +303,6 @@ export function draw(ctx, view) {
               // For SNOW, force pure white regardless of base colors
               const biomeColor = biomeFill && String(ctx.townBiome || "").toUpperCase() === "SNOW" ? "#ffffff" : biomeFill;
               if (biomeColor && isOutdoorGround(xx, yy, type)) {
-                fillctx.townOutdoorMask[yy][xx]);
-              if ((type === TILES.FLOOR || type === TILES.ROAD) && biomeColor && isOutdoor) {
                 fill = biomeColor;
               }
             } catch (_) {}
