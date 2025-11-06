@@ -8,6 +8,7 @@ import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
+import * as World from "../world/world.js";
 
 // Tile cache to avoid repeated JSON lookups inside hot loops
 const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
@@ -167,12 +168,34 @@ export function draw(ctx, view) {
     } catch (_) { /* leave ctx.townBiome as-is */ }
   }
   function townBiomeFill(ctx) {
+    // Use overworld tile colors for the current biome; force pure white for SNOW.
     try {
-      const GD = (typeof window !== "undefined" ? window.GameData : null);
-      const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
-      if (!pal) return null;
+      const WT = World.TILES;
       const k = String(ctx.townBiome || "").toUpperCase();
-      return pal[k] || null;
+      let id = null;
+      if (k === "SNOW") id = WT.SNOW;
+      else if (k === "FOREST") id = WT.FOREST;
+      else if (k === "GRASS") id = WT.GRASS;
+      else if (k === "DESERT") id = WT.DESERT;
+      else if (k === "BEACH") id = WT.BEACH;
+      else if (k === "SWAMP") id = WT.SWAMP;
+      if (id == null) return null;
+      // SNOW: pure white
+      if (id === WT.SNOW) return "#ffffff";
+      const td = getTileDef("overworld", id);
+      if (td && td.colors && td.colors.fill) return td.colors.fill;
+      // Fallbacks mirroring render_overworld (except SNOW handled above)
+      try {
+        if (id === WT.WATER) return "#0a1b2a";
+        if (id === WT.RIVER) return "#0e2f4a";
+        if (id === WT.BEACH) return "#b59b6a";
+        if (id === WT.SWAMP) return "#1b2a1e";
+        if (id === WT.FOREST) return "#0d2615";
+        if (id === WT.GRASS) return "#10331a";
+        if (id === WT.MOUNTAIN) return "#2f2f34";
+        if (id === WT.DESERT) return "#c2a36b";
+      } catch (_) {}
+      return null;
     } catch (_) { return null; }
   }
   function ensureOutdoorMask(ctx) {
@@ -208,6 +231,21 @@ export function draw(ctx, view) {
       }
       ctx.townOutdoorMask = mask;
     } catch (_) {}
+  }
+  function insideAnyBuildingLocal(x, y) {
+    try {
+      const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+      for (let i = 0; i < tbs.length; i++) {
+        const B = tbs[i];
+        if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+  function isOutdoorGround(x, y, type) {
+    // Outdoor ground is any FLOOR or ROAD tile that is not inside a building interior.
+    if (type !== TILES.FLOOR && type !== TILES.ROAD) return false;
+    return !insideAnyBuildingLocal(x, y);
   }
 
   // Build base offscreen once per map/TILE/biome change
@@ -264,7 +302,8 @@ export function draw(ctx, view) {
             try {
               // For SNOW, force pure white regardless of base colors
               const biomeColor = biomeFill && String(ctx.townBiome || "").toUpperCase() === "SNOW" ? "#ffffff" : biomeFill;
-              const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
+              if (biomeColor && isOutdoorGround(xx, yy, type)) {
+                fillctx.townOutdoorMask[yy][xx]);
               if ((type === TILES.FLOOR || type === TILES.ROAD) && biomeColor && isOutdoor) {
                 fill = biomeColor;
               }
@@ -303,10 +342,9 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Apply outdoor tint to FLOOR and ROAD tiles
+        // Apply outdoor tint to FLOOR and ROAD tiles, using overworld biome color
         try {
-          const isOutdoor = !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
-          if ((type === TILES.FLOOR || type === TILES.ROAD) && biomeFill && isOutdoor) {
+          if (biomeFill && isOutdoorGround(x, y, type)) {
             fill = biomeFill;
           }
         } catch (_) {}
