@@ -167,36 +167,24 @@ export function draw(ctx, view) {
       } catch (_) {}
     } catch (_) { /* leave ctx.townBiome as-is */ }
   }
-  function townBiomeFill(ctx) {
-    // Use overworld tile colors for the current biome; force pure white for SNOW.
+  function overworldFillForId(id) {
     try {
       const WT = World.TILES;
-      const k = String(ctx.townBiome || "").toUpperCase();
-      let id = null;
-      if (k === "SNOW") id = WT.SNOW;
-      else if (k === "FOREST") id = WT.FOREST;
-      else if (k === "GRASS") id = WT.GRASS;
-      else if (k === "DESERT") id = WT.DESERT;
-      else if (k === "BEACH") id = WT.BEACH;
-      else if (k === "SWAMP") id = WT.SWAMP;
       if (id == null) return null;
-      // SNOW: pure white
-      if (id === WT.SNOW) return "#ffffff";
+      if (id === WT.SNOW) return "#ffffff"; // force pure white
       const td = getTileDef("overworld", id);
       if (td && td.colors && td.colors.fill) return td.colors.fill;
-      // Fallbacks mirroring render_overworld (except SNOW handled above)
-      try {
-        if (id === WT.WATER) return "#0a1b2a";
-        if (id === WT.RIVER) return "#0e2f4a";
-        if (id === WT.BEACH) return "#b59b6a";
-        if (id === WT.SWAMP) return "#1b2a1e";
-        if (id === WT.FOREST) return "#0d2615";
-        if (id === WT.GRASS) return "#10331a";
-        if (id === WT.MOUNTAIN) return "#2f2f34";
-        if (id === WT.DESERT) return "#c2a36b";
-      } catch (_) {}
-      return null;
-    } catch (_) { return null; }
+      // Fallbacks mirroring render_overworld
+      if (id === WT.WATER) return "#0a1b2a";
+      if (id === WT.RIVER) return "#0e2f4a";
+      if (id === WT.BEACH) return "#b59b6a";
+      if (id === WT.SWAMP) return "#1b2a1e";
+      if (id === WT.FOREST) return "#0d2615";
+      if (id === WT.GRASS) return "#10331a";
+      if (id === WT.MOUNTAIN) return "#2f2f34";
+      if (id === WT.DESERT) return "#c2a36b";
+    } catch (_) {}
+    return null;
   }
   function ensureOutdoorMask(ctx) {
     // Rebuild if missing or dimensions mismatch current map
@@ -296,14 +284,14 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
+            // Base fill from tile defs
             let fill = fillTownFor(TILES, type, COLORS);
-            // Apply outdoor biome tint to FLOOR and ROAD tiles; ROAD treats same as FLOOR
+            // If we have a per-tile overworld ground id for this outdoor cell, use its fill color
             try {
-              // For SNOW, force pure white regardless of base colors
-              const biomeColor = biomeFill && String(ctx.townBiome || "").toUpperCase() === "SNOW" ? "#ffffff" : biomeFill;
-              if (biomeColor && isOutdoorGround(xx, yy, type)) {
-                fill = biomeColor;
+              const gid = ctx.townGround && ctx.townGround[yy] ? ctx.townGround[yy][xx] : null;
+              if (gid != null && isOutdoorGround(xx, yy, type)) {
+                const owFill = overworldFillForId(gid);
+                if (owFill) fill = owFill;
               }
             } catch (_) {}
             oc.fillStyle = fill;
@@ -324,8 +312,6 @@ export function draw(ctx, view) {
     // Fallback: draw base tiles in viewport using JSON colors or robust fallback
     ensureTownBiome(ctx);
     ensureOutdoorMask(ctx);
-    const biomeFill0 = townBiomeFill(ctx);
-    const biomeFill = biomeFill0 && String(ctx.townBiome || "").toUpperCase() === "SNOW" ? "#ffffff" : biomeFill0;
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -340,10 +326,12 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Apply outdoor tint to FLOOR and ROAD tiles, using overworld biome color
+        // Use per-tile overworld ground id when available
         try {
-          if (biomeFill && isOutdoorGround(x, y, type)) {
-            fill = biomeFill;
+          const gid = ctx.townGround && ctx.townGround[y] ? ctx.townGround[y][x] : null;
+          if (gid != null && isOutdoorGround(x, y, type)) {
+            const owFill = overworldFillForId(gid);
+            if (owFill) fill = owFill;
           }
         } catch (_) {}
         ctx2d.fillStyle = fill;
@@ -352,7 +340,7 @@ export function draw(ctx, view) {
     }
   }
 
-  // Road overlay pass (biome-tinted):
+  // Road overlay pass (ground-tinted):
   // - If town_no_roads is enabled, skip entirely.
   // - Prefer explicit ROAD tiles; else fall back to townRoads mask over FLOOR.
   (function drawRoadOverlay() {
@@ -380,12 +368,12 @@ export function draw(ctx, view) {
 
       if (noRoads) return;
 
-      // Biome color for overlay; if not ready, skip overlay to avoid legacy browns
-      ensureTownBiome(ctx);
-      ensureOutdoorMask(ctx);
-      const biomeFill0 = townBiomeFill(ctx);
-      const biomeFill = biomeFill0 && String(ctx.townBiome || "").toUpperCase() === "SNOW" ? "#ffffff" : biomeFill0;
-      if (!biomeFill) return;
+      function groundFillAt(x, y) {
+        try {
+          const gid = ctx.townGround && ctx.townGround[y] ? ctx.townGround[y][x] : null;
+          return overworldFillForId(gid);
+        } catch (_) { return null; }
+      }
 
       let anyRoad = false;
       for (let y = startY; y <= endY && !anyRoad; y++) {
@@ -406,7 +394,9 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = biomeFill;
+            const gf = groundFillAt(x, y);
+            if (!gf) continue;
+            ctx2d.fillStyle = gf;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
@@ -421,7 +411,9 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = biomeFill;
+            const gf = groundFillAt(x, y);
+            if (!gf) continue;
+            ctx2d.fillStyle = gf;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }

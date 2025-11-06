@@ -1725,12 +1725,89 @@ function generate(ctx) {
       for (let yy = 0; yy < rows; yy++) {
         for (let xx = 0; xx < cols; xx++) {
           const t = ctx.map[yy][xx];
-          if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
+          if ((t === ctx.TILES.FLOOR || t === ctx.TILES.ROAD) && !insideAnyBuilding(xx, yy)) {
             mask[yy][xx] = true;
           }
         }
       }
       ctx.townOutdoorMask = mask;
+    } catch (_) {}
+  })();
+
+  // Set per-tile town ground types based on overworld around the town (uniform by dominant biome tile).
+  (function setTownGroundFromOverworld() {
+    try {
+      const rows = H, cols = W;
+      const ground = Array.from({ length: rows }, () => Array(cols).fill(null));
+      const WMOD = (typeof window !== "undefined" ? window.World : null);
+      const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
+      if (!WT) { ctx.townGround = ground; return; }
+
+      // Map resolved townBiome to a representative overworld tile id
+      const k = String(ctx.townBiome || "").toUpperCase();
+      let id = null;
+      if (k === "SNOW") id = WT.SNOW;
+      else if (k === "FOREST") id = WT.FOREST;
+      else if (k === "GRASS") id = WT.GRASS;
+      else if (k === "DESERT") id = WT.DESERT;
+      else if (k === "BEACH") id = WT.BEACH;
+      else if (k === "SWAMP") id = WT.SWAMP;
+
+      // Fallback: derive dominant biome again if not set
+      if (id == null) {
+        const world = ctx.world || {};
+        function worldTileAtAbs(ax, ay) {
+          const wmap = world.map || null;
+          const ox = world.originX | 0, oy = world.originY | 0;
+          const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
+          if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+            return wmap[ly][lx];
+          }
+          if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
+          return null;
+        }
+        let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
+        const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
+        const wx = hasWRP ? (ctx.worldReturnPos.x | 0) : (ctx.player.x | 0);
+        const wy = hasWRP ? (ctx.worldReturnPos.y | 0) : (ctx.player.y | 0);
+        for (let r = 1; r <= 4; r++) {
+          for (let dy = -r; dy <= r; dy++) {
+            for (let dx = -r; dx <= r; dx++) {
+              if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+              const t = worldTileAtAbs(wx + dx, wy + dy);
+              if (t == null) continue;
+              if (t === WT.DESERT) counts.DESERT++;
+              else if (t === WT.SNOW) counts.SNOW++;
+              else if (t === WT.BEACH) counts.BEACH++;
+              else if (t === WT.SWAMP) counts.SWAMP++;
+              else if (t === WT.FOREST) counts.FOREST++;
+              else if (t === WT.GRASS) counts.GRASS++;
+            }
+          }
+        }
+        const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+        let best = "GRASS", bestV = -1;
+        for (const key of order) {
+          const v = counts[key] | 0;
+          if (v > bestV) { bestV = v; best = key; }
+        }
+        if (best === "SNOW") id = WT.SNOW;
+        else if (best === "FOREST") id = WT.FOREST;
+        else if (best === "GRASS") id = WT.GRASS;
+        else if (best === "DESERT") id = WT.DESERT;
+        else if (best === "BEACH") id = WT.BEACH;
+        else if (best === "SWAMP") id = WT.SWAMP;
+      }
+
+      // Populate outdoor cells with chosen overworld tile id
+      for (let yy = 0; yy < rows; yy++) {
+        for (let xx = 0; xx < cols; xx++) {
+          if (ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
+            ground[yy][xx] = id;
+          }
+        }
+      }
+      ctx.townGround = ground;
     } catch (_) {}
   })();
 
