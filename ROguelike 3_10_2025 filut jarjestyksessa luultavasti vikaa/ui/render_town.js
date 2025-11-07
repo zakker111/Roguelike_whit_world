@@ -161,6 +161,29 @@ export function draw(ctx, view) {
     try { L("No-roads mode: rendering flattens ROAD->FLOOR and skips overlay."); } catch (_) {}
   }
 
+  // EARLY GATE: wait for town biome palette before any drawing (strict)
+  ensureTownBiome(ctx);
+  if (__forceGrass) { try { ctx.townBiome = "GRASS"; } catch (_) {} }
+  let __fillNow = null;
+  try {
+    __fillNow = townBiomeFill(ctx);
+    if (__groundOverrideHex) __fillNow = __groundOverrideHex;
+  } catch (_) { __fillNow = null; }
+  if (__waitForPalette && !__fillNow) {
+    try {
+      const w = Math.min(360, Math.max(200, Math.floor(TILE * 8)));
+      const h = Math.max(28, Math.floor(TILE * 1.6));
+      const x0 = 8, y0 = 8;
+      ctx2d.save();
+      ctx2d.fillStyle = "rgba(10,12,18,0.85)";
+      ctx2d.fillRect(x0, y0, w, h);
+      ctx2d.strokeStyle = "#64748b";
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+      const prevFont = ctx2d.font;
+      ctx2d.font = "bold 13px JetBrains Mono, monospace";
+      ctx2d.textAlign = }
+
   // Local logger helper (also buffers messages for on-screen overlay)
   function L(msg, level = "notice") {
     try {
@@ -819,11 +842,11 @@ export function draw(ctx, view) {
           const screenX = (x - startX) * TILE - tileOffsetX;
           const screenY = (y - startY) * TILE - tileOffsetY;
           const fill = fillTownFor(TILES, type, COLORS);
+          if (!fill) continue;
           ctx2d.fillStyle = fill;
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
           // Upstairs stairs glyph
-          if (type === TILES.STAIRS) {
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          if (type === TILES.STArawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
           }
         }
       }
