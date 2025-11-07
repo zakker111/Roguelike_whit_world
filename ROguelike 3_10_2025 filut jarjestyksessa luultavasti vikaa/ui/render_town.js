@@ -564,7 +564,7 @@ export function draw(ctx, view) {
       if (__groundLog && !TOWN._blitLogged) { L(`Blit base: cached offscreen used. biome=${String(ctx.townBiome||"")} fill=${String(TOWN._biomeFill||"(null)")}`); TOWN._blitLogged = true; }
     } catch (_) {}
   } else {
-    // Fallback: draw base tiles in viewport using JSON colors or robust fallback
+    // Fallback: draw base tiles in viewport only when a biome fill is ready (strict \"wait for palette\")
     ensureTownBiome(ctx);
     if (__forceGrass) { try { ctx.townBiome = "GRASS"; } catch (_) {} }
     ensureOutdoorMask(ctx);
@@ -573,6 +573,32 @@ export function draw(ctx, view) {
       biomeFill = __groundOverrideHex;
       if (__groundLog) L(`Ground override active: ${biomeFill}`);
     }
+
+    // If waiting for palette and no biome fill yet, do not draw base; show a small overlay and return.
+    if (__waitForPalette && !biomeFill) {
+      try {
+        const w = Math.min(340, Math.max(180, Math.floor(TILE * 8)));
+        const h = Math.max(28, Math.floor(TILE * 1.6));
+        const x0 = 8, y0 = 8;
+        ctx2d.save();
+        ctx2d.fillStyle = "rgba(10,12,18,0.85)";
+        ctx2d.fillRect(x0, y0, w, h);
+        ctx2d.strokeStyle = "#64748b";
+        ctx2d.lineWidth = 1;
+        ctx2d.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+        const prevFont = ctx2d.font;
+        ctx2d.font = "bold 13px JetBrains Mono, monospace";
+        ctx2d.textAlign = "left";
+        ctx2d.textBaseline = "middle";
+        ctx2d.fillStyle = "#e2e8f0";
+        ctx2d.fillText("Waiting for town palette…", x0 + 10, y0 + h / 2);
+        ctx2d.font = prevFont;
+        ctx2d.restore();
+      } catch (_) {}
+      if (__groundLog) L("Fallback draw: deferred (waiting for palette fill)");
+      return;
+    }
+
     let floorsTotalView = 0, floorsTintedView = 0;
     let roadsTotalView = 0, roadsTintedView = 0;
     const sampleView = [];
