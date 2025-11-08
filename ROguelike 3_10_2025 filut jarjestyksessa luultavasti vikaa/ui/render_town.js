@@ -156,6 +156,8 @@ export function draw(ctx, view) {
   // Wait strategy: strict waits forever; non-strict degrades after a timeout
   const __waitStrict = readToggle("town_wait_strict", "TOWN_WAIT_STRICT", false);
   const __waitMs = readNumber("town_wait_ms", "TOWN_WAIT_MS", 1000);
+  // Visual adjustment: lighten biome color (percentage 0..100)
+  const __lighten = readNumber("town_lighten", "TOWN_LIGHTEN", 0);
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
@@ -405,6 +407,43 @@ export function draw(ctx, view) {
       return defaults[k] || "#0f1628";
     } catch (_) { return "#0f1628"; }
   }
+  // Visual adjust helpers
+  function __hexToRGB(hex) {
+    try {
+      const h = String(hex || "").trim();
+      const s = h.startsWith("#") ? h.slice(1) : h;
+      if (s.length !== 6) return null;
+      const r = parseInt(s.slice(0, 2), 16);
+      const g = parseInt(s.slice(2, 4), 16);
+      const b = parseInt(s.slice(4, 6), 16);
+      if ([r,g,b].some(v => Number.isNaN(v))) return null;
+      return { r, g, b };
+    } catch (_) { return null; }
+  }
+  function __rgbToHex(r, g, b) {
+    function c(v) { const x = Math.max(0, Math.min(255, v|0)); const s = x.toString(16).padStart(2, "0"); return s; }
+    return "#" + c(r) + c(g) + c(b);
+  }
+  function __lightenHex(hex, pct) {
+    try {
+      const p = Math.max(0, Math.min(100, (pct|0)));
+      if (!hex || p <= 0) return hex;
+      const rgb = __hexToRGB(hex);
+      if (!rgb) return hex;
+      const f = p / 100;
+      const r = Math.round(rgb.r + (255 - rgb.r) * f);
+      const g = Math.round(rgb.g + (255 - rgb.g) * f);
+      const b = Math.round(rgb.b + (255 - rgb.b) * f);
+      return __rgbToHex(r, g, b);
+    } catch (_) { return hex; }
+  }
+  function adjustBiomeFill(fill) {
+    try {
+      if (!fill) return fill;
+      if (__lighten > 0) return __lightenHex(fill, __lighten);
+      return fill;
+    } catch (_) { return fill; }
+  }
   function ensureOutdoorMask(ctx) {
     // Rebuild if missing or dimensions mismatch current map
     if (Array.isArray(ctx.townOutdoorMask)) {
@@ -507,6 +546,7 @@ export function draw(ctx, view) {
           biomeFill = __groundOverrideHex;
           if (__groundLog) L(`Ground override active: ${biomeFill}`);
         }
+        biomeFill = adjustBiomeFill(biomeFill);
         if (__biomeDebug) {
           try {
             const m = `RenderTown: biome=${String(ctx.townBiome || "")} roadsAsFloor=${__roadsAsFloor ? 1 : 0}`;
@@ -641,6 +681,7 @@ export function draw(ctx, view) {
       biomeFill = __groundOverrideHex;
       if (__groundLog) L(`Ground override active: ${biomeFill}`);
     }
+    biomeFill = adjustBiomeFill(biomeFill);
 
     // If waiting for palette and no biome fill yet, either wait (strict) or degrade after timeout
     if (__waitForPalette && !biomeFill) {
@@ -804,7 +845,7 @@ export function draw(ctx, view) {
         if (__groundLog) L("Road overlay: skipped (no biome fill yet)");
         return;
       }
-      const roadOverlayColor = fillNow;
+      const roadOverlayColor = adjustBiomeFillw;
 
       let anyRoad = false;
       for (let y = startY; y <= endY && !anyRoad; y++) {
@@ -1436,9 +1477,10 @@ export function draw(ctx, view) {
       const lines = [];
       lines.push(`Town Biome: ${String(ctx.townBiome || "(unknown)")}`);
       try {
-        const fill = townBiomeFill(ctx);
-        if (fill) lines.push(`Fill color: ${fill}`);
-      } catch (_) {}
+        const base = townBiomeFill(ctx);
+        const adj = adjustBiomeFill(base) || base;
+        if (adj) lines.push(`Fill color: ${adj}${(__lighten>0&&base)?` (base ${base} + lighten ${__lighten}%)`:``}`);
+
       lines.push(`Counts: GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}`);
       lines.push(`        DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}`);
       lines.push(`        SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}`);
