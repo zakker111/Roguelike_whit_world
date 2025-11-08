@@ -845,7 +845,7 @@ export function draw(ctx, view) {
         if (__groundLog) L("Road overlay: skipped (no biome fill yet)");
         return;
       }
-      const roadOverlayColor = adjustBiomeFillw;
+      const roadOverlayColor = adjustBiomeFill(fillNow);
 
       let anyRoad = false;
       for (let y = startY; y <= endY && !anyRoad; y++) {
@@ -1480,6 +1480,7 @@ export function draw(ctx, view) {
         const base = townBiomeFill(ctx);
         const adj = adjustBiomeFill(base) || base;
         if (adj) lines.push(`Fill color: ${adj}${(__lighten>0&&base)?` (base ${base} + lighten ${__lighten}%)`:``}`);
+      } catch (_) {}
 
       lines.push(`Counts: GRASS=${counts.GRASS|0}, FOREST=${counts.FOREST|0}`);
       lines.push(`        DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}`);
