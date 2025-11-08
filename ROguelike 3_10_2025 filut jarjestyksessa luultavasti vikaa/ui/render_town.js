@@ -153,11 +153,40 @@ export function draw(ctx, view) {
         const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
         if (any && total > 0) break;
       }
-      // Tie-break priority favors natural/colder biomes over desert/beach
-      const order = ["FOREST","SNOW","SWAMP","GRASS","DESERT","BEACH"];
-      let best = "GRASS", bestV = -1;
-      for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
-      ctx.townBiome = best || "GRASS";
+      // Prefer nearest non-POI biome tile within a small radius to match the local anchor, else fall back to counts with tie-break.
+      function nearestBiomeTile() {
+        const dirs = [
+          {dx: 1, dy: 0}, {dx: -1, dy: 0}, {dx: 0, dy: 1}, {dx: 0, dy: -1},
+          {dx: 1, dy: 1}, {dx: 1, dy: -1}, {dx: -1, dy: 1}, {dx: -1, dy: -1},
+        ];
+        const MAX_NEAR = 3;
+        for (let r = 1; r <= MAX_NEAR; r++) {
+          for (let i = 0; i < dirs.length; i++) {
+            const nx = wx + dirs[i].dx * r;
+            const ny = wy + dirs[i].dy * r;
+            const t = worldTileAtAbs(nx, ny);
+            if (t == null) continue;
+            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+            if (t === WT.FOREST) return "FOREST";
+            if (t === WT.SNOW)   return "SNOW";
+            if (t === WT.SWAMP)  return "SWAMP";
+            if (t === WT.GRASS)  return "GRASS";
+            if (t === WT.DESERT) return "DESERT";
+            if (t === WT.BEACH)  return "BEACH";
+          }
+        }
+        return null;
+      }
+      const nearPick = nearestBiomeTile();
+      if (nearPick) {
+        ctx.townBiome = nearPick;
+      } else {
+        // Tie-break priority favors natural/colder biomes over desert/beach
+        const order = ["FOREST","SNOW","SWAMP","GRASS","DESERT","BEACH"];
+        let best = "GRASS", bestV = -1;
+        for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
+        ctx.townBiome = best || "GRASS";
+      }
 
       // Persist for future visits
       try {
