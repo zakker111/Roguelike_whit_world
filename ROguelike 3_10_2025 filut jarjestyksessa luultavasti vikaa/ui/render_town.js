@@ -155,7 +155,7 @@ export function draw(ctx, view) {
   const __groundOverrideHex = readHex("town_ground_override", "TOWN_GROUND_OVERRIDE");
   // Wait strategy: strict waits forever; non-strict degrades after a timeout
   const __waitStrict = readToggle("town_wait_strict", "TOWN_WAIT_STRICT", false);
-  const __waitMs = readNumber("town_wait_ms", "TOWN_WAIT_MS", 1000);
+  const __waitMs = readNumber("town_wait_ms", "TOWN_WAIT_MS", 3000);
   // Visual adjustment: lighten biome color (percentage 0..100)
   const __lighten = readNumber("town_lighten", "TOWN_LIGHTEN", 0);
 
