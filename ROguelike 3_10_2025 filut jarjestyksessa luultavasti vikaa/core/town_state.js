@@ -14,6 +14,8 @@
 
 const LS_KEY = "TOWN_STATES_V1";
 
+import * as Roads from "../worldgen/roads.js";
+
 // Global in-memory fallback that persists across ctx instances within the same page/session
 if (typeof window !== "undefined" && !window._TOWN_STATES_MEM) {
   try { window._TOWN_STATES_MEM = Object.create(null); } catch (_) {}
@@ -258,56 +260,60 @@ function applyState(ctx, st, x, y) {
       const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
       const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
       if (!rows || !cols) return;
+
       // If a mask exists and matches current dimensions, keep it
       if (Array.isArray(ctx.townRoads) && ctx.townRoads.length === rows && Array.isArray(ctx.townRoads[0]) && ctx.townRoads[0].length === cols) return;
 
+      // Build outdoor mask (FLOOR outside buildings) so subsequent road logic can reference it
+      (function ensureOutdoorMask() {
+        try {
+          const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
+          function insideAnyBuilding(x, y) {
+            const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+            for (let i = 0; i < tbs.length; i++) {
+              const B = tbs[i];
+              if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+            }
+            return false;
+          }
+          for (let yy = 0; yy < rows; yy++) {
+            for (let xx = 0; xx < cols; xx++) {
+              const t = ctx.map[yy][xx];
+              if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
+                mask[yy][xx] = true;
+              }
+            }
+          }
+          ctx.townOutdoorMask = mask;
+        } catch (_) {}
+      })();
+
+      // Prefer deriving mask directly from ROAD tiles in the current map
+      let anyRoad = false;
       const roadsMask = Array.from({ length: rows }, () => Array(cols).fill(false));
-      function inB(x0, y0) { return y0 >= 0 && y0 < rows && x0 >= 0 && x0 < cols; }
-
-      // Carve L-shaped road from gate to plaza (if both exist)
-      try {
-        const gate = ctx.townExitAt || null;
-        const plaza = ctx.townPlaza || { x: (cols / 2) | 0, y: (rows / 2) | 0 };
-        if (gate && inB(gate.x, gate.y) && inB(plaza.x, plaza.y)) {
-          let x = gate.x | 0, y = gate.y | 0;
-          while (x !== plaza.x) { if (inB(x, y)) roadsMask[y][x] = true; x += Math.sign(plaza.x - x); }
-          while (y !== plaza.y) { if (inB(x, y)) roadsMask[y][x] = true; y += Math.sign(plaza.y - y); }
-          if (inB(x, y)) roadsMask[y][x] = true;
-        }
-      } catch (_) {}
-
-      // Grid roads by stride from GameData.town (defaults if missing)
-      let yStride = 8, xStride = 10;
-      try {
-        const TOWNCFG = (typeof window !== "undefined" && window.GameData && window.GameData.town) || null;
-        if (TOWNCFG && TOWNCFG.roads) {
-          if (TOWNCFG.roads.yStride != null) yStride = (TOWNCFG.roads.yStride | 0);
-          if (TOWNCFG.roads.xStride != null) xStride = (TOWNCFG.roads.xStride | 0);
-        }
-      } catch (_) {}
-      yStride = Math.max(2, yStride | 0);
-      xStride = Math.max(2, xStride | 0);
-
-      for (let y = 6; y < rows - 6; y += yStride) {
-        for (let x = 1; x < cols - 1; x++) { roadsMask[y][x] = true; }
-      }
-      for (let x = 6; x < cols - 6; x += xStride) {
-        for (let y = 1; y < rows - 1; y++) { roadsMask[y][x] = true; }
-      }
-
-      // Finalize: clear mask inside building interiors and on non-FLOOR tiles
-      function insideAnyBuilding(x, y) {
-        const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
-        for (let i = 0; i < tbs.length; i++) {
-          const B = tbs[i];
-          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
-        }
-        return false;
-      }
       for (let yy = 0; yy < rows; yy++) {
         for (let xx = 0; xx < cols; xx++) {
-          if (insideAnyBuilding(xx, yy)) { roadsMask[yy][xx] = false; continue; }
-          if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { roadsMask[yy][xx] = false; }
+          if (ctx.map[yy][xx] === ctx.TILES.ROAD) {
+            roadsMask[yy][xx] = true;
+            anyRoad = true;
+          }
+        }
+      }
+
+      if (!anyRoad) {
+        // Legacy save: rebuild roads using the generator helper, then derive mask from ROAD tiles
+        try {
+          // Import on demand to avoid hard dependency when not needed
+          const Roads = (typeof window !== "undefined" && window.Roads) ? window.Roads : null;
+          if (Roads && typeof Roads.build === "function") {
+            Roads.build(ctx);
+          }
+        } catch (_) {}
+        // Derive mask again after potential rebuild
+        for (let yy = 0; yy < rows; yy++) {
+          for (let xx = 0; xx < cols; xx++) {
+            roadsMask[yy][xx] = (ctx.map[yy][xx] === ctx.TILES.ROAD);
+          }
         }
       }
 

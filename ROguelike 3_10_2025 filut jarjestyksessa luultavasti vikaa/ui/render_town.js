@@ -312,21 +312,20 @@ export function draw(ctx, view) {
   }
 
   // Road overlay pass:
-  // 1) Prefer explicit ROAD tiles (authoritative).
-  // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
+  // Prefer explicit ROAD tiles. Use mask fallback only when the map has no ROAD tiles anywhere (legacy saves).
   (function drawRoadOverlay() {
     try {
-      let anyRoad = false;
-      for (let y = startY; y <= endY && !anyRoad; y++) {
-        const yIn = y >= 0 && y < mapRows;
-        if (!yIn) continue;
-        for (let x = startX; x <= endX; x++) {
-          if (x < 0 || x >= mapCols) continue;
-          if (map[y][x] === TILES.ROAD) { anyRoad = true; break; }
+      // Detect presence of any ROAD tile in the entire map, not just the viewport
+      let anyRoadAnywhere = false;
+      for (let yy = 0; yy < mapRows && !anyRoadAnywhere; yy++) {
+        const rowMap = map[yy];
+        for (let xx = 0; xx < mapCols; xx++) {
+          if (rowMap[xx] === TILES.ROAD) { anyRoadAnywhere = true; break; }
         }
       }
 
-      if (anyRoad) {
+      if (anyRoadAnywhere) {
+        // Paint only explicit ROAD tiles inside the viewport
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
           if (!yIn) continue;
@@ -335,17 +334,17 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a"; // road color
+            ctx2d.fillStyle = "#b0a58a";
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
       } else if (ctx.townRoads) {
+        // Legacy fallback: paint roads from persisted mask over FLOOR tiles
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
           if (!yIn) continue;
           for (let x = startX; x <= endX; x++) {
             if (x < 0 || x >= mapCols) continue;
-            // Only paint where the saved mask indicates a road and the map tile is FLOOR
             if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
