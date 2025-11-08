@@ -269,6 +269,77 @@ function generate(ctx) {
     }
   } catch (_) { info = null; }
 
+  // Derive and persist the town biome from the overworld FIRST so subsequent steps can use it.
+  (function deriveTownBiomeEarly() {
+    try {
+      const WMOD = (typeof window !== "undefined" ? window.World : null);
+      const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
+      const world = ctx.world || {};
+
+      function worldTileAtAbs(ax, ay) {
+        const wmap = world.map || null;
+        const ox = world.originX | 0, oy = world.originY | 0;
+        const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
+        if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+          return wmap[ly][lx];
+        }
+        if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
+        return null;
+      }
+
+      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
+      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
+
+      // If persisted on world.towns already, use it and stop
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && rec.biome) { ctx.townBiome = rec.biome; return; }
+      } catch (_) {}
+
+      // Sample surrounding tiles by rings, skipping POIs
+      let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
+      function bump(tile) {
+        if (!WT) return;
+        if (tile === WT.DESERT) counts.DESERT++;
+        else if (tile === WT.SNOW) counts.SNOW++;
+        else if (tile === WT.BEACH) counts.BEACH++;
+        else if (tile === WT.SWAMP) counts.SWAMP++;
+        else if (tile === WT.FOREST) counts.FOREST++;
+        else if (tile === WT.GRASS) counts.GRASS++;
+      }
+      const MAX_R = 6;
+      for (let r = 1; r <= MAX_R; r++) {
+        let any = false;
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+            const t = worldTileAtAbs(wx + dx, wy + dy);
+            if (t == null) continue;
+            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+            bump(t);
+            any = true;
+          }
+        }
+        const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
+        if (any && total > 0) break;
+      }
+      const order = ["FOREST","SNOW","SWAMP","GRASS","DESERT","BEACH"];
+      let best = "GRASS", bestV = -1;
+      for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
+      ctx.townBiome = best || "GRASS";
+      // Persist selected biome for this town
+      try {
+        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+        if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
+        else if (info && typeof info === "object") info.biome = ctx.townBiome;
+      } catch (_) {}
+      // Report inference
+      try {
+        if (ctx.log) ctx.log(`TownGen (early): biome at ${wx},${wy}: FOREST=${counts.FOREST|0}, GRASS=${counts.GRASS|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}; chosen=${ctx.townBiome}`, "notice");
+      } catch (_) {}
+    } catch (_) {}
+  })();
+
   // Size the town map from data/town.json (fallback to previous values)
   const TOWNCFG = (typeof window !== "undefined" && window.GameData && window.GameData.town) || null;
   function cfgSize(sizeKey) {
