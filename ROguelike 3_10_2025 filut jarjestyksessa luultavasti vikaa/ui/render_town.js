@@ -153,6 +153,9 @@ export function draw(ctx, view) {
   const __noRoads = readToggle("town_no_roads", "TOWN_NO_ROADS", true);
   // Force override of biome ground hex (e.g., town_ground_override=ffffff)
   const __groundOverrideHex = readHex("town_ground_override", "TOWN_GROUND_OVERRIDE");
+  // Wait strategy: strict waits forever; non-strict degrades after a timeout
+  const __waitStrict = readToggle("town_wait_strict", "TOWN_WAIT_STRICT", false);
+  const __waitMs = readNumber("town_wait_ms", "TOWN_WAIT_MS", 1000);
 
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
@@ -170,27 +173,42 @@ export function draw(ctx, view) {
     if (__groundOverrideHex) __fillNow = __groundOverrideHex;
   } catch (_) { __fillNow = null; }
   if (__waitForPalette && !__fillNow) {
-    try {
-      const w = Math.min(360, Math.max(200, Math.floor(TILE * 8)));
-      const h = Math.max(28, Math.floor(TILE * 1.6));
-      const x0 = 8, y0 = 8;
-      ctx2d.save();
-      ctx2d.fillStyle = "rgba(10,12,18,0.85)";
-      ctx2d.fillRect(x0, y0, w, h);
-      ctx2d.strokeStyle = "#64748b";
-      ctx2d.lineWidth = 1;
-      ctx2d.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
-      const prevFont = ctx2d.font;
-      ctx2d.font = "bold 13px JetBrains Mono, monospace";
-      ctx2d.textAlign = "left";
-      ctx2d.textBaseline = "middle";
-      ctx2d.fillStyle = "#e2e8f0";
-      ctx2d.fillText("Waiting for town palette…", x0 + 10, y0 + h / 2);
-      ctx2d.font = prevFont;
-      ctx2d.restore();
-    } catch (_) {}
-    if (__groundLog) L("Early gate: draw deferred (waiting for palette fill)");
-    return;
+    // Start or continue waiting for palette fill; degrade after timeout if not strict
+    if (!TOWN._waitStart) TOWN._waitStart = Date.now();
+    const elapsed = Date.now() - TOWN._waitStart;
+    if (__waitStrict || elapsed < __waitMs) {
+      try {
+        const w = Math.min(360, Math.max(200, Math.floor(TILE * 8)));
+        const h = Math.max(28, Math.floor(TILE * 1.6));
+        const x0 = 8, y0 = 8;
+        ctx2d.save();
+        ctx2d.fillStyle = "rgba(10,12,18,0.85)";
+        ctx2d.fillRect(x0, y0, w, h);
+        ctx2d.strokeStyle = "#64748b";
+        ctx2d.lineWidth = 1;
+        ctx2d.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+        const prevFont = ctx2d.font;
+        ctx2d.font = "bold 13px JetBrains Mono, monospace";
+        ctx2d.textAlign = "left";
+        ctx2d.textBaseline = "middle";
+        ctx2d.fillStyle = "#e2e8f0";
+        ctx2d.fillText("Waiting for town palette…", x0 + 10, y0 + h / 2);
+        ctx2d.font = prevFont;
+        ctx2d.restore();
+      } catch (_) {}
+      if (__groundLog) L(`Early gate: waiting for palette (${elapsed}ms elapsed)`);
+      return;
+    }
+    // Degrade: palette still missing after wait; use generator-published or built-in biome defaults
+    let degradeFill = (function(){ try { return townBiomeFillDegrade(ctx); } catch (_) { return null; } })();
+    if (__groundOverrideHex) degradeFill = __groundOverrideHex;
+    if (degradeFill) {
+      ctx.townGroundFill = degradeFill;
+      if (__groundLog) L(`Early gate: palette missing; degraded after ${elapsed}ms to ${degradeFill}`);
+    } else {
+      if (__groundLog) L(`Early gate: palette missing; degrade failed after ${elapsed}ms`);
+    }
+    TOWN._waitStart = null;
   }
 
   // Local logger helper (also buffers messages for on-screen overlay)
@@ -362,12 +380,30 @@ export function draw(ctx, view) {
       const kTitle = kRaw ? (kRaw.charAt(0).toUpperCase() + kRaw.slice(1).toLowerCase()) : "";
       const GD = (typeof window !== "undefined" ? window.GameData : null);
       const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
-      // STRICT: no built-in defaults. Only use live palette or TownGen-published fill.
+      // STRICT: only use live palette or TownGen-published fill.
       if (pal) {
         return pal[kUp] || pal[kRaw] || pal[kTitle] || ctx.townGroundFill || null;
       }
       return ctx.townGroundFill || null;
     } catch (_) { return null; }
+  }
+  // Degrade fill helper: used only after timeout when waiting for palette.
+  function townBiomeFillDegrade(ctx) {
+    try {
+      const k = String(ctx.townBiome || "").toUpperCase();
+      // Prefer generator-published fill if present
+      if (ctx.townGroundFill) return ctx.townGroundFill;
+      // Built-in defaults mirroring data/world/palette.json townBiome block
+      const defaults = {
+        FOREST: "#1a2e1d",
+        GRASS:  "#1b3a21",
+        DESERT: "#c8b37a",
+        BEACH:  "#d7c08e",
+        SNOW:   "#93a7b6",
+        SWAMP:  "#1d3624"
+      };
+      return defaults[k] || "#0f1628";
+    } catch (_) { return "#0f1628"; }
   }
   function ensureOutdoorMask(ctx) {
     // Rebuild if missing or dimensions mismatch current map
@@ -606,29 +642,44 @@ export function draw(ctx, view) {
       if (__groundLog) L(`Ground override active: ${biomeFill}`);
     }
 
-    // If waiting for palette and no biome fill yet, do not draw base; show a small overlay and return.
+    // If waiting for palette and no biome fill yet, either wait (strict) or degrade after timeout
     if (__waitForPalette && !biomeFill) {
-      try {
-        const w = Math.min(340, Math.max(180, Math.floor(TILE * 8)));
-        const h = Math.max(28, Math.floor(TILE * 1.6));
-        const x0 = 8, y0 = 8;
-        ctx2d.save();
-        ctx2d.fillStyle = "rgba(10,12,18,0.85)";
-        ctx2d.fillRect(x0, y0, w, h);
-        ctx2d.strokeStyle = "#64748b";
-        ctx2d.lineWidth = 1;
-        ctx2d.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
-        const prevFont = ctx2d.font;
-        ctx2d.font = "bold 13px JetBrains Mono, monospace";
-        ctx2d.textAlign = "left";
-        ctx2d.textBaseline = "middle";
-        ctx2d.fillStyle = "#e2e8f0";
-        ctx2d.fillText("Waiting for town palette…", x0 + 10, y0 + h / 2);
-        ctx2d.font = prevFont;
-        ctx2d.restore();
-      } catch (_) {}
-      if (__groundLog) L("Fallback draw: deferred (waiting for palette fill)");
-      return;
+      if (!TOWN._waitStart) TOWN._waitStart = Date.now();
+      const elapsed = Date.now() - TOWN._waitStart;
+      if (__waitStrict || elapsed < __waitMs) {
+        try {
+          const w = Math.min(340, Math.max(180, Math.floor(TILE * 8)));
+          const h = Math.max(28, Math.floor(TILE * 1.6));
+          const x0 = 8, y0 = 8;
+          ctx2d.save();
+          ctx2d.fillStyle = "rgba(10,12,18,0.85)";
+          ctx2d.fillRect(x0, y0, w, h);
+          ctx2d.strokeStyle = "#64748b";
+          ctx2d.lineWidth = 1;
+          ctx2d.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+          const prevFont = ctx2d.font;
+          ctx2d.font = "bold 13px JetBrains Mono, monospace";
+          ctx2d.textAlign = "left";
+          ctx2d.textBaseline = "middle";
+          ctx2d.fillStyle = "#e2e8f0";
+          ctx2d.fillText("Waiting for town palette…", x0 + 10, y0 + h / 2);
+          ctx2d.font = prevFont;
+          ctx2d.restore();
+        } catch (_) {}
+        if (__groundLog) L(`Fallback draw: waiting for palette (${elapsed}ms elapsed)`);
+        return;
+      }
+      // Degrade now
+      let degradeFill = (function(){ try { return townBiomeFillDegrade(ctx); } catch (_) { return null; } })();
+      if (__groundOverrideHex) degradeFill = __groundOverrideHex;
+      if (degradeFill) {
+        ctx.townGroundFill = degradeFill;
+        biomeFill = degradeFill;
+        if (__groundLog) L(`Fallback draw: palette missing; degraded after ${elapsed}ms to ${degradeFill}`);
+      } else {
+        if (__groundLog) L(`Fallback draw: palette missing; degrade failed after ${elapsed}ms`);
+      }
+      TOWN._waitStart = null;
     }
 
     let floorsTotalView = 0, floorsTintedView = 0;
