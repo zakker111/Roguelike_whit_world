@@ -182,7 +182,16 @@ export function draw(ctx, view) {
       ctx2d.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
       const prevFont = ctx2d.font;
       ctx2d.font = "bold 13px JetBrains Mono, monospace";
-      ctx2d.textAlign = }
+      ctx2d.textAlign = "left";
+      ctx2d.textBaseline = "middle";
+      ctx2d.fillStyle = "#e2e8f0";
+      ctx2d.fillText("Waiting for town palette…", x0 + 10, y0 + h / 2);
+      ctx2d.font = prevFont;
+      ctx2d.restore();
+    } catch (_) {}
+    if (__groundLog) L("Early gate: draw deferred (waiting for palette fill)");
+    return;
+  }
 
   // Local logger helper (also buffers messages for on-screen overlay)
   function L(msg, level = "notice") {
@@ -848,7 +857,6 @@ export function draw(ctx, view) {
           // Upstairs stairs glyph
           if (type === TILES.STAIRS) {
             RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
-          }
           }
         }
       }
