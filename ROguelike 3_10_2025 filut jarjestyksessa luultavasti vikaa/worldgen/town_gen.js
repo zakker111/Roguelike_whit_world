@@ -415,8 +415,8 @@ function generate(ctx) {
         if (any && total > 0) break;
       }
 
-      // Pick the biome with the highest count; tie-break by a fixed priority
-      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      // Pick the biome with the highest count; tie-break favors FOREST/SNOW/SWAMP over GRASS/DESERT/BEACH
+      const order = ["FOREST","SNOW","SWAMP","GRASS","DESERT","BEACH"];
       let best = "GRASS", bestV = -1;
       for (const k of order) {
         const v = counts[k] | 0;
@@ -429,6 +429,16 @@ function generate(ctx) {
         const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
         if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
         else if (info && typeof info === "object") info.biome = ctx.townBiome;
+      } catch (_) {}
+
+      // Report inference: sampled counts and chosen biome
+      try {
+        if (ctx.log) {
+          ctx.log(
+            `TownGen: biome inference at ${wx},${wy}: FOREST=${counts.FOREST|0}, GRASS=${counts.GRASS|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}; chosen=${ctx.townBiome}`,
+            "notice"
+          );
+        }
       } catch (_) {}
     } catch (_) {}
   })();

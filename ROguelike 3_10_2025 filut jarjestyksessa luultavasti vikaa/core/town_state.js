@@ -330,6 +330,7 @@ function applyState(ctx, st, x, y) {
     const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === x && t.y === y) : null;
     if (rec && rec.biome) {
       ctx.townBiome = rec.biome;
+      try { if (ctx.log) ctx.log(`TownState: using persisted biome '${ctx.townBiome}' at ${x},${y}.`, "notice"); } catch (_) {}
     } else {
       const WMOD = (typeof window !== "undefined" ? window.World : null);
       const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
@@ -370,12 +371,19 @@ function applyState(ctx, st, x, y) {
         const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
         if (any && total > 0) break;
       }
-      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      // Tie-break priority favors FOREST/SNOW/SWAMP over GRASS/DESERT/BEACH
+      const order = ["FOREST","SNOW","SWAMP","GRASS","DESERT","BEACH"];
       let best = "GRASS", bestV = -1;
       for (const k2 of order) { const v = counts[k2] | 0; if (v > bestV) { bestV = v; best = k2; } }
       ctx.townBiome = best || "GRASS";
       // Persist for next load
       try { if (rec && typeof rec === "object") rec.biome = ctx.townBiome; } catch (_) {}
+      // Report inference details
+      try {
+        if (ctx.log) {
+          ctx.log(`TownState: inferred biome at ${x},${y}: FOREST=${counts.FOREST|0}, GRASS=${counts.GRASS|0}, DESERT=${counts.DESERT|0}, BEACH=${counts.BEACH|0}, SNOW=${counts.SNOW|0}, SWAMP=${counts.SWAMP|0}; chosen=${ctx.townBiome}`, "notice");
+        }
+      } catch (_) {}
     }
   } catch (_) {}
 

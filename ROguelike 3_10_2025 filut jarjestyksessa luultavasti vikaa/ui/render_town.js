@@ -153,7 +153,8 @@ export function draw(ctx, view) {
         const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
         if (any && total > 0) break;
       }
-      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      // Tie-break priority favors natural/colder biomes over desert/beach
+      const order = ["FOREST","SNOW","SWAMP","GRASS","DESERT","BEACH"];
       let best = "GRASS", bestV = -1;
       for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
       ctx.townBiome = best || "GRASS";
