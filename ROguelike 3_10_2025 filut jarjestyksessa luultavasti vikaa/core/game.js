@@ -2488,29 +2488,62 @@
     }
   }
 
-  // Clear persisted game state (towns, dungeons, region map) from both localStorage and in-memory mirrors
+  // Clear persisted game state and user prefs from localStorage and in-memory mirrors.
+  // Includes dungeon/town/region caches, RNG seed, and UI/dev toggles to ensure a true "new game".
   function clearPersistentGameStorage() {
+    let lsOk = true;
     try {
       if (typeof localStorage !== "undefined") {
+        // Core game states
         localStorage.removeItem("DUNGEON_STATES_V1");
         localStorage.removeItem("TOWN_STATES_V1");
         localStorage.removeItem("REGION_CUTS_V1");
         localStorage.removeItem("REGION_ANIMALS_V1");
         localStorage.removeItem("REGION_ANIMALS_V2");
         localStorage.removeItem("REGION_STATE_V1");
+
+        // RNG and dev/prefs toggles
+        localStorage.removeItem("SEED");
+        localStorage.removeItem("DEV");
+        localStorage.removeItem("ENCOUNTER_RATE");
+        localStorage.removeItem("LOG_MIRROR");
+        localStorage.removeItem("DRAW_GRID");
+        localStorage.removeItem("SHOW_PERF");
+        localStorage.removeItem("SHOW_MINIMAP");
+        localStorage.removeItem("DEBUG_TOWN_OVERLAY");
+        localStorage.removeItem("DEBUG_TOWN_PATHS");
+        localStorage.removeItem("DEBUG_TOWN_HOME_PATHS");
+        localStorage.removeItem("DEBUG_TOWN_ROUTE_PATHS");
+        localStorage.removeItem("ALWAYS_CRIT");
+        localStorage.removeItem("ALWAYS_CRIT_PART");
+        localStorage.removeItem("POI_DENSITY");
+        // Smoke test CI tokens (safe to clear for a clean start)
+        localStorage.removeItem("smoke-pass-token");
+        localStorage.removeItem("smoke-json-token");
       }
-    } catch (_) {}
+    } catch (_) { lsOk = false; }
+
+    // In-memory mirrors: always reset
     try {
       if (typeof window !== "undefined") {
         window._DUNGEON_STATES_MEM = Object.create(null);
         window._TOWN_STATES_MEM = Object.create(null);
       }
     } catch (_) {}
+
+    // Reset ctx mirrors
     try {
       const ctx = getCtx();
       if (ctx) {
         if (ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
         if (ctx._townStates) ctx._townStates = Object.create(null);
+      }
+    } catch (_) {}
+
+    // If localStorage operations failed (blocked), mark storage disabled for this session
+    try {
+      if (!lsOk && typeof window !== "undefined") {
+        window.NO_LOCALSTORAGE = true;
       }
     } catch (_) {}
   }
