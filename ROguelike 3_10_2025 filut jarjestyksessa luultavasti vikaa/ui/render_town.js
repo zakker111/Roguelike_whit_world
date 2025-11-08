@@ -846,7 +846,9 @@ export function draw(ctx, view) {
           ctx2d.fillStyle = fill;
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
           // Upstairs stairs glyph
-          if (type === TILES.STArawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          if (type === TILES.STAIRS) {
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          }
           }
         }
       }
