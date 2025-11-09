@@ -20,17 +20,34 @@ function cacheResetIfNeeded() {
     TILE_CACHE.fg = Object.create(null);
   }
 }
-function fillTownFor(TILES, type, COLORS) {
+function fillTownFor(ctx, TILES, type, COLORS) {
   cacheResetIfNeeded();
   const k = type | 0;
   let v = TILE_CACHE.fill[k];
   if (v) return v;
   const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+  if (td && td.colors && td.colors.fill) {
+    v = td.colors.fill;
+  } else {
+    // Strict mode: no silent fallback. Log an error and use a conspicuous debug color.
+    try {
+      // Deduplicate logs per tile id
+      if (!TOWN._strictSeen) TOWN._strictSeen = new Set();
+      const key = `fill:${k}`;
+      if (!TOWN._strictSeen.has(key)) {
+        TOWN._strictSeen.add(key);
+        const msg = td
+          ? `[RenderTown] Missing colors.fill in tiles.json for town tile id ${type}.`
+          : `[RenderTown] Missing tile def in tiles.json for town/dungeon mode, id ${type}.`;
+        if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+      }
+    } catch (_) {}
+    v = "#ff00ff"; // debug color to highlight missing definitions
+  }
   TILE_CACHE.fill[k] = v;
   return v;
 }
-function glyphTownFor(type) {
+function glyphTownFor(ctx, type) {
   cacheResetIfNeeded();
   const k = type | 0;
   let g = TILE_CACHE.glyph[k];
@@ -40,9 +57,29 @@ function glyphTownFor(type) {
   if (td) {
     g = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
     c = td.colors && td.colors.fg ? td.colors.fg : null;
+    if (!g || !c || String(g).trim().length === 0) {
+      try {
+        if (!TOWN._strictSeen) TOWN._strictSeen = new Set();
+        const key = `glyph:${k}`;
+        if (!TOWN._strictSeen.has(key)) {
+          TOWN._strictSeen.add(key);
+          const msg = `[RenderTown] Missing glyph or fg color in tiles.json for tile id ${type}.`;
+          if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+        }
+      } catch (_) {}
+    }
   } else {
     g = "";
     c = null;
+    try {
+      if (!TOWN._strictSeen) TOWN._strictSeen = new Set();
+      const key = `glyphdef:${k}`;
+      if (!TOWN._strictSeen.has(key)) {
+        TOWN._strictSeen.add(key);
+        const msg = `[RenderTown] Missing tile def in tiles.json (town/dungeon) for id ${type}; no glyph can be drawn.`;
+        if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+      }
+    } catch (_) {}
   }
   TILE_CACHE.glyph[k] = g;
   TILE_CACHE.fg[k] = c;
@@ -50,19 +87,6 @@ function glyphTownFor(type) {
 }
 
 // getTileDef moved to centralized helper in ../data/tile_lookup.js
-
-// Robust fallback fill for town tiles when tiles.json is missing/incomplete
-function fallbackFillTown(TILES, type, COLORS) {
-  try {
-    if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
-    if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
-    if (type === TILES.ROAD) return "#b0a58a"; // muted brown road
-    if (type === TILES.DOOR) return "#3a2f1b";
-    if (type === TILES.WINDOW) return "#26728c";
-    if (type === TILES.STAIRS) return "#3a2f1b";
-  } catch (_) {}
-  return "#0b0c10";
-}
 
 // getTileDefByKey moved to centralized helper in ../data/tile_lookup.js
 
@@ -74,7 +98,7 @@ function tilesRef() {
 }
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null };
+let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null, _strictSeen: null };
 
 
 export function draw(ctx, view) {
@@ -200,9 +224,32 @@ export function draw(ctx, view) {
     try {
       const GD = (typeof window !== "undefined" ? window.GameData : null);
       const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
-      if (!pal) return null;
+      if (!pal) {
+        try {
+          if (!TOWN._strictSeen) TOWN._strictSeen = new Set();
+          const key = "palette:townBiome";
+          if (!TOWN._strictSeen.has(key)) {
+            TOWN._strictSeen.add(key);
+            const msg = "[RenderTown] Missing GameData.palette.townBiome; outdoor tint cannot be applied.";
+            if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+          }
+        } catch (_) {}
+        return null;
+      }
       const k = String(ctx.townBiome || "").toUpperCase();
-      return pal[k] || null;
+      const val = pal[k] || null;
+      if (!val) {
+        try {
+          if (!TOWN._strictSeen) TOWN._strictSeen = new Set();
+          const key = `palette:townBiome:${k}`;
+          if (!TOWN._strictSeen.has(key)) {
+            TOWN._strictSeen.add(key);
+            const msg = `[RenderTown] No palette entry for townBiome '${k}'; outdoor tint cannot be applied.`;
+            if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+          }
+        } catch (_) {}
+      }
+      return val;
     } catch (_) { return null; }
   }
   function ensureOutdoorMask(ctx) {
@@ -288,8 +335,8 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
-            let fill = fillTownFor(TILES, type, COLORS);
+            // Strict: cached fill color from tiles.json (town/dungeon). If missing, log error and use debug color.
+            let fill = fillTownFor(ctx, TILES, type, COLORS);
             // Apply outdoor biome tint only to non-road FLOOR tiles; rely on tile type for roads
             try {
               if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
@@ -329,7 +376,7 @@ export function draw(ctx, view) {
         }
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-        let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+        let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fillTownFor(ctx, TILES, type, COLORS);
         // Apply outdoor tint only to FLOOR; rely on tile type for roads
         try {
           if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
@@ -408,7 +455,7 @@ export function draw(ctx, view) {
       const yyEndFill = Math.min(endY, y1);
       const xxStartFill = Math.max(startX, x0);
       const xxEndFill = Math.min(endX, x1);
-      const floorFill = fillTownFor(TILES, TILES.FLOOR, COLORS);
+      const floorFill = fillTownFor(ctx, TILES, TILES.FLOOR, COLORS);
       for (let y = yyStartFill; y <= yyEndFill; y++) {
         for (let x = xxStartFill; x <= xxEndFill; x++) {
           const screenX = (x - startX) * TILE - tileOffsetX;
@@ -434,12 +481,27 @@ export function draw(ctx, view) {
           const type = rowUp[lx];
           const screenX = (x - startX) * TILE - tileOffsetX;
           const screenY = (y - startY) * TILE - tileOffsetY;
-          const fill = fillTownFor(TILES, type, COLORS);
+          const fill = fillTownFor(ctx, TILES, type, COLORS);
           ctx2d.fillStyle = fill;
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
-          // Upstairs stairs glyph
+          // Upstairs stairs glyph (strict): only draw if glyph/color defined in tiles.json
           if (type === TILES.STAIRS) {
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+            try {
+              const td = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS) || null;
+              const g = td && Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+              const c = td && td.colors && td.colors.fg ? td.colors.fg : null;
+              if (!g || !c || String(g).trim().length === 0) {
+                if (!TOWN._strictSeen) TOWN._strictSeen = new Set();
+                const key = "stairs:glyph:upstairs";
+                if (!TOWN._strictSeen.has(key)) {
+                  TOWN._strictSeen.add(key);
+                  const msg = "[RenderTown] Missing stairs glyph/color in tiles.json for upstairs overlay.";
+                  if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+                }
+              } else {
+                RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
+              }
+            } catch (_) {}
           }
         }
       }
@@ -458,24 +520,23 @@ export function draw(ctx, view) {
       // Suppress DOOR glyphs
       if (type === TILES.DOOR) continue;
 
-      const tg = glyphTownFor(type);
+      const tg = glyphTownFor(ctx, type);
       let glyph = tg ? tg.glyph : "";
       let fg = tg ? tg.fg : null;
 
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
 
-      // Stairs: explicit fallback glyph/color to ensure visibility
-      if (type === TILES.STAIRS) {
-        const g = ">";
-        const c = "#d7ba7d";
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
-        continue;
-      }
+      
 
       if (type === TILES.WINDOW) {
-        if (!glyph || String(glyph).trim().length === 0) glyph = "□";
-        if (!fg) fg = "#8ecae6";
+        if (!glyph || !fg || String(glyph).trim().length === 0) {
+          try {
+            const msg = `[RenderTown] Missing window glyph/color for tile id ${type}; tiles.json lacks glyph or fg.`;
+            if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+          } catch (_) {}
+          continue;
+        }
         ctx2d.save();
         ctx2d.globalAlpha = 0.50;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
@@ -526,7 +587,23 @@ export function draw(ctx, view) {
           if (!everSeen) continue;
           const screenX = (x - startX) * TILE - tileOffsetX;
           const screenY = (y - startY) * TILE - tileOffsetY;
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          // Strict: draw stairs glyph only if defined in tiles.json
+          try {
+            const td = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS) || null;
+            const g = td && Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
+            const c = td && td.colors && td.colors.fg ? td.colors.fg : null;
+            if (!g || !c || String(g).trim().length === 0) {
+              if (!TOWN._strictSeen) TOWN._strictSeen = new Set();
+              const key = "stairs:glyph";
+              if (!TOWN._strictSeen.has(key)) {
+                TOWN._strictSeen.add(key);
+                const msg = "[RenderTown] Missing stairs glyph/color in tiles.json; cannot draw stairs glyph above overlays.";
+                if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+              }
+              continue;
+            }
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
+          } catch (_) {}
         }
       }
     } catch (_) {}
@@ -583,41 +660,18 @@ export function draw(ctx, view) {
         }
       } catch (_) {}
 
-      // Fallback glyphs/colors for common props
-      if (!glyph || !color) {
-        const t = String(p.type || "").toLowerCase();
-        if (!glyph) {
-          if (t === "well") glyph = "◍";
-          else if (t === "lamp") glyph = "†";
-          else if (t === "bench") glyph = "=";
-          else if (t === "stall") glyph = "▣";
-          else if (t === "crate") glyph = "▢";
-          else if (t === "barrel") glyph = "◍";
-          else if (t === "chest") glyph = "□";
-          else if (t === "shelf") glyph = "≡";
-          else if (t === "plant") glyph = "*";
-          else if (t === "rug") glyph = "░";
-          else if (t === "fireplace") glyph = "♨";
-          else if (t === "counter") glyph = "▭";
-          else if (t === "sign") glyph = "⚑";
-          else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
-        }
-        if (!color) {
-          if (t === "well") color = "#9dd8ff";
-          else if (t === "lamp") color = "#ffd166";
-          else if (t === "bench") color = "#cbd5e1";
-          else if (t === "stall") color = "#eab308";
-          else if (t === "crate") color = "#cbd5e1";
-          else if (t === "barrel") color = "#b5651d";
-          else if (t === "chest") color = "#d7ba7d";
-          else if (t === "shelf") color = "#cbd5e1";
-          else if (t === "plant") color = "#65a30d";
-          else if (t === "rug") color = "#b45309";
-          else if (t === "fireplace") color = "#ff6d00";
-          else if (t === "counter") color = "#d7ba7d";
-          else if (t === "sign") color = "#d7ba7d";
-          else color = "#cbd5e1";
-        }
+      // Strict: no fallback glyph/color for props; log error and skip drawing when undefined
+      if (!glyph || !color || String(glyph).trim().length === 0) {
+        try {
+          if (!TOWN._strictSeen) TOWN._strictSeen = new Set();
+          const key = `prop:${String(p.type || "").toLowerCase()}`;
+          if (!TOWN._strictSeen.has(key)) {
+            TOWN._strictSeen.add(key);
+            const msg = `[RenderTown] Missing prop glyph/color for '${String(p.type || "")}' at ${p.x},${p.y}. Define in props registry or tiles.json.`;
+            if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+          }
+        } catch (_) {}
+        continue;
       }
 
       // Decide opacity: full if visible and LOS; dim if not visible or visible-without-LOS
@@ -682,35 +736,18 @@ export function draw(ctx, view) {
             if (!color && tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
           }
         } catch (_) {}
-        if (!glyph || !color) {
-          const t = String(p.type || "").toLowerCase();
-          if (!glyph) {
-            if (t === "crate") glyph = "▢";
-            else if (t === "barrel") glyph = "◍";
-            else if (t === "chest") glyph = "□";
-            else if (t === "shelf") glyph = "≡";
-            else if (t === "plant") glyph = "*";
-            else if (t === "rug") glyph = "░";
-            else if (t === "bed") glyph = "u";
-            else if (t === "table") glyph = "⊏";
-            else if (t === "chair") glyph = "n";
-            else if (t === "counter") glyph = "▭";
-            else if (t === "sign") glyph = "⚑";
-            else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
-          }
-          if (!color) {
-            if (t === "crate") color = "#cbd5e1";
-            else if (t === "barrel") color = "#b5651d";
-            else if (t === "chest") color = "#d7ba7d";
-            else if (t === "shelf") color = "#cbd5e1";
-            else if (t === "plant") color = "#65a30d";
-            else if (t === "rug") color = "#b45309";
-            else if (t === "bed") color = "#cbd5e1";
-            else if (t === "table") color = "#cbd5e1";
-            else if (t === "chair") color = "#cbd5e1";
-            else if (t === "counter") color = "#d7ba7d";
-            else color = "#cbd5e1";
-          }
+        // Strict: no fallback glyph/color for upstairs props; log error and skip drawing when undefined
+        if (!glyph || !color || String(glyph).trim().length === 0) {
+          try {
+            if (!TOWN._strictSeen) TOWN._strictSeen = new Set();
+            const key = `prop:upstairs:${String(p.type || "").toLowerCase()}`;
+            if (!TOWN._strictSeen.has(key)) {
+              TOWN._strictSeen.add(key);
+              const msg = `[RenderTown] Missing upstairs prop glyph/color for '${String(p.type || "")}' at ${p.x},${p.y}. Define in props registry or tiles.json.`;
+              if (ctx.log) ctx.log(msg, "error"); else console.error(msg);
+            }
+          } catch (_) {}
+          continue;
         }
 
         let drawDim = !visNow;
