@@ -459,45 +459,14 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Roads overlay — always on
+  // Roads overlay disabled (user request): do not draw world roads
   try {
-    const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
-    if (roads.length) {
-      ctx2d.save();
-      ctx2d.globalAlpha = 0.18; // subtle overlay
-      ctx2d.fillStyle = "#b0a58a"; // muted road color
-      for (const p of roads) {
-        const x = p.x, y = p.y;
-        if (x < startX || x > endX || y < startY || y > endY) continue;
-        const sx = (x - startX) * TILE - tileOffsetX;
-        const sy = (y - startY) * TILE - tileOffsetY;
-        const w = Math.max(3, Math.floor(TILE * 0.40));
-        const h = Math.max(2, Math.floor(TILE * 0.16));
-        ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
-      }
-      ctx2d.restore();
-    }
+    /* no-op */
   } catch (_) {}
 
-  // Bridges overlay — always on
+  // Bridges overlay disabled (user request): do not draw world bridges
   try {
-    const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
-    if (bridges.length) {
-      ctx2d.save();
-      ctx2d.globalAlpha = 0.6;
-      ctx2d.fillStyle = "#c3a37a"; // wood-like color
-      for (const p of bridges) {
-        const x = p.x, y = p.y;
-        if (x < startX || x > endX || y < startY || y > endY) continue;
-        const sx = (x - startX) * TILE - tileOffsetX;
-        const sy = (y - startY) * TILE - tileOffsetY;
-        // small plank-like rectangle
-        const w = Math.max(4, Math.floor(TILE * 0.55));
-        const h = Math.max(3, Math.floor(TILE * 0.20));
-        ctx2d.fillRect(sx + (TILE - w) / 2, sy + (TILE - h) / 2, w, h);
-      }
-      ctx2d.restore();
-    }
+    /* no-op */
   } catch (_) {}
 
   // Main-map POI icons: towns and dungeons — moved to draw AFTER fog-of-war so markers are visible even on undiscovered tiles

@@ -495,7 +495,8 @@ if (towns.length) {
     if (d) carveRoad(t.x, t.y, d.x, d.y);
   }
 
-  return { map, width, height, towns, dungeons, ruins, roads, bridges };
+  // Return with roads/bridges disabled for overworld rendering (user request)
+  return { map, width, height, towns, dungeons, ruins, roads: [], bridges: [] };
 }
 
 export function pickTownStart(world, rng) {

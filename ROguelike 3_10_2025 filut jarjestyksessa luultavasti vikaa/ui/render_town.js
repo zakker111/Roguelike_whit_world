@@ -183,9 +183,13 @@ export function draw(ctx, view) {
       } else {
         // Tie-break priority favors natural/colder biomes over desert/beach
         const order = ["FOREST","SNOW","SWAMP","GRASS","DESERT","BEACH"];
-        let best = "GRASS", bestV = -1;
-        for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
-        ctx.townBiome = best || "GRASS";
+      let best = "GRASS", bestV = -1;
+      for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
+      ctx.townBiome = best || "GRASS";
+
+      // Prevent brownish outdoor tints in towns: map DESERT/BEACH to GRASS
+      if (ctx.townBiome === "DESERT" || ctx.townBiome === "BEACH") {
+        ctx.townBiome = "GRASS";
       }
 
       // Persist for future visits

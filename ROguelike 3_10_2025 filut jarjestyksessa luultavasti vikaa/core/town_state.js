@@ -405,6 +405,12 @@ function applyState(ctx, st, x, y) {
         for (const k2 of order) { const v = counts[k2] | 0; if (v > bestV) { bestV = v; best = k2; } }
         ctx.townBiome = best || "GRASS";
       }
+
+      // Prevent brownish outdoor tints in towns: map DESERT/BEACH to GRASS
+      if (ctx.townBiome === "DESERT" || ctx.townBiome === "BEACH") {
+        ctx.townBiome = "GRASS";
+      }
+
       // Persist for next load
       try { if (rec && typeof rec === "object") rec.biome = ctx.townBiome; } catch (_) {}
       // Report inference details
