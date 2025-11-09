@@ -187,10 +187,7 @@ export function draw(ctx, view) {
       for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
       ctx.townBiome = best || "GRASS";
 
-      // Prevent brownish outdoor tints in towns: map DESERT/BEACH to GRASS
-      if (ctx.townBiome === "DESERT" || ctx.townBiome === "BEACH") {
-        ctx.townBiome = "GRASS";
-      }
+      
 
       // Persist for future visits
       try {

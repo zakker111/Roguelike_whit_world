@@ -357,10 +357,7 @@ function generate(ctx) {
         ctx.townBiome = best || "GRASS";
       }
 
-      // Prevent brownish outdoor tints in towns: map DESERT/BEACH to GRASS
-      if (ctx.townBiome === "DESERT" || ctx.townBiome === "BEACH") {
-        ctx.townBiome = "GRASS";
-      }
+      
 
       // Persist selected biome for this town
       try {

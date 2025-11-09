@@ -406,10 +406,7 @@ function applyState(ctx, st, x, y) {
         ctx.townBiome = best || "GRASS";
       }
 
-      // Prevent brownish outdoor tints in towns: map DESERT/BEACH to GRASS
-      if (ctx.townBiome === "DESERT" || ctx.townBiome === "BEACH") {
-        ctx.townBiome = "GRASS";
-      }
+      
 
       // Persist for next load
       try { if (rec && typeof rec === "object") rec.biome = ctx.townBiome; } catch (_) {}
