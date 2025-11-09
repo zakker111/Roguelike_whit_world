@@ -210,8 +210,7 @@ export function draw(ctx, view) {
       let best = "GRASS", bestV = -1;
       for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
       ctx.townBiome = best || "GRASS";
-
-      
+      }
 
       // Persist for future visits
       try {
