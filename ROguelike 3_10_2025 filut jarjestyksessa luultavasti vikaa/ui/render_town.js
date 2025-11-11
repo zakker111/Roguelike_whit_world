@@ -254,6 +254,27 @@ function tintReady(ctx) {
       // Guard: skip offscreen rebuild until tint prerequisites are ready.
       const readyForTint = tintReady(ctx);
       if (!readyForTint) {
+        // Emit readiness diagnostics once while tint is pending
+        try {
+          if (!TOWN._loggedPending) {
+            const palObj = paletteRef();
+            const palBiome = palObj && palObj.townBiome ? palObj.townBiome : null;
+            const palReady = !!palBiome;
+            const palKeys = palReady ? Object.keys(palBiome) : [];
+            const wrpReady = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
+            const bKey = String(ctx.townBiome || "").toUpperCase();
+            const palHasKey = palReady ? !!palBiome[bKey] : false;
+            const hex = "(pending)";
+            const readyMsg = `[TownDiag] tint readiness: wrpReady=${wrpReady} paletteReady=${palReady} biome=${bKey} fill=${hex} palHasKey=${palHasKey} palKeys=[${palKeys.join(",")}]`;
+            if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+              window.Logger.log(readyMsg, "info");
+            } else {
+              console.log(readyMsg);
+            }
+            TOWN._loggedPending = true;
+          }
+        } catch (_) {}
+
         // Invalidate offscreen so viewport fallback draws this frame.
         TOWN.canvas = null;
         TOWN.mapRef = map;
@@ -282,6 +303,7 @@ function tintReady(ctx) {
         // Reset one-time logging for diagnostics on rebuild/biome/palette change
         TOWN._loggedFloorColor = false;
         TOWN._loggedMaskDiag = false;
+        TOWN._loggedPending = false;
 
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
