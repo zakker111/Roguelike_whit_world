@@ -257,15 +257,22 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
-            let fill = fillTownFor(TILES, type, COLORS);
-            // Apply outdoor biome tint only to non-road FLOOR tiles; rely on tile type for roads
+            // Choose outdoor floor visuals from biome tile rather than tinting generic FLOOR
+            let fill;
             try {
-              if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
-                // Outdoor ground tint by biome for non-road FLOOR tiles
-                fill = biomeFill;
+              const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
+              if (isOutdoorFloor) {
+                const biomeKey = String(ctx.townBiome || "").toUpperCase();
+                const tdOut = biomeKey
+                  ? (getTileDefByKey("overworld", biomeKey) || getTileDefByKey("region", biomeKey))
+                  : null;
+                fill = (tdOut && tdOut.colors && tdOut.colors.fill) ? tdOut.colors.fill : null;
               }
             } catch (_) {}
+            if (!fill) {
+              // Fallback: town/dungeon tile fill
+              fill = fillTownFor(TILES, type, COLORS);
+            }
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -284,7 +291,6 @@ export function draw(ctx, view) {
     // Fallback: draw base tiles in viewport using JSON colors or robust fallback
     ensureTownBiome(ctx);
     ensureOutdoorMask(ctx);
-    const biomeFill = townBiomeFill(ctx);
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -297,14 +303,22 @@ export function draw(ctx, view) {
           continue;
         }
         const type = rowMap[x];
-        const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-        let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Apply outdoor tint only to FLOOR; rely on tile type for roads
+        // Choose outdoor floor visuals from biome tile rather than tinting generic FLOOR
+        let fill = null;
         try {
-          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
-            fill = biomeFill;
+          const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
+          if (isOutdoorFloor) {
+            const biomeKey = String(ctx.townBiome || "").toUpperCase();
+            const tdOut = biomeKey
+              ? (getTileDefByKey("overworld", biomeKey) || getTileDefByKey("region", biomeKey))
+              : null;
+            fill = (tdOut && tdOut.colors && tdOut.colors.fill) ? tdOut.colors.fill : null;
           }
         } catch (_) {}
+        if (!fill) {
+          const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
+          fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+        }
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
@@ -428,10 +442,6 @@ export function draw(ctx, view) {
       // Suppress DOOR glyphs
       if (type === TILES.DOOR) continue;
 
-      const tg = glyphTownFor(type);
-      let glyph = tg ? tg.glyph : "";
-      let fg = tg ? tg.fg : null;
-
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
 
@@ -442,6 +452,27 @@ export function draw(ctx, view) {
         RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
         continue;
       }
+
+      // Outdoor FLOOR: choose glyph/color from biome tile (overworld/region) rather than generic town FLOOR
+      try {
+        const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
+        if (isOutdoorFloor) {
+          const biomeKey = String(ctx.townBiome || "").toUpperCase();
+          const tdOut = biomeKey
+            ? (getTileDefByKey("overworld", biomeKey) || getTileDefByKey("region", biomeKey))
+            : null;
+          let gOut = tdOut && Object.prototype.hasOwnProperty.call(tdOut, "glyph") ? tdOut.glyph : "";
+          let cOut = tdOut && tdOut.colors && tdOut.colors.fg ? tdOut.colors.fg : null;
+          if (!gOut || !String(gOut).trim().length) gOut = "f"; // fallback
+          if (!cOut) cOut = "#e5e7eb";
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, gOut, cOut, TILE);
+          continue;
+        }
+      } catch (_) {}
+
+      const tg = glyphTownFor(type);
+      let glyph = tg ? tg.glyph : "";
+      let fg = tg ? tg.fg : null;
 
       if (type === TILES.WINDOW) {
         if (!glyph || String(glyph).trim().length === 0) glyph = "□";
