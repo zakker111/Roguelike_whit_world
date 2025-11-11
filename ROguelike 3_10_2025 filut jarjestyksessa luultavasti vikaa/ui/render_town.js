@@ -316,7 +316,7 @@ export function draw(ctx, view) {
             }
 
             const bKey = String(ctx.townBiome || "").toUpperCase();
-            const hex = townBiomeFill(ctx) || "(none)";
+            const hex = biomeFill || "(none)"; // use the resolved value from above
             // Attach color per sample for clarity
             const sf = samplesFloor.map(s => `${s}=${hex}`).join(" ");
             const sr = samplesRoad.map(s => `${s}=${hex}`).join(" ");
