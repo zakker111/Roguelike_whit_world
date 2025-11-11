@@ -15,8 +15,10 @@
     script-src 'self' 'unsafe-inline';
     connect-src 'self';
   ">
+  <!-- App version for storage invalidation on deploy -->
+  <meta name="app-version" content="1.34.18">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/ui/style.css">
   <link rel="icon" href="https://fav.farm/%F0%9F%8E%B2">
 </head>
@@ -29,6 +31,39 @@
           var url = new URL(location.href);
           url.pathname = '/index.html';
           location.replace(url.toString());
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <!-- Clear persisted game state automatically when the deployed version changes.
+       This guarantees a clean state after deploys without affecting same-version reloads. -->
+  <script>
+    (function() {
+      try {
+        var meta = document.querySelector('meta[name="app-version"]');
+        var ver = meta ? String(meta.getAttribute('content') || '') : '';
+        var KEY = 'APP_VERSION';
+        var prev = null;
+        try { prev = localStorage.getItem(KEY); } catch(_) {}
+        if (!prev || prev !== ver) {
+          // Mark a flag that disables LS writes during this first load if desired
+          // and clear any persisted run state from previous versions.
+          try {
+            // Use same keys Town/Dungeon/Region use; matches data/god.js clearGameStorage
+            localStorage.removeItem('DUNGEON_STATES_V1');
+            localStorage.removeItem('TOWN_STATES_V1');
+            localStorage.removeItem('REGION_CUTS_V1');
+            localStorage.removeItem('REGION_ANIMALS_V1');
+            localStorage.removeItem('REGION_ANIMALS_V2');
+            localStorage.removeItem('REGION_STATE_V1');
+          } catch (_) {}
+          // Also reset in-memory mirrors if a previous tab/session left them behind
+          try {
+            window._DUNGEON_STATES_MEM = Object.create(null);
+            window._TOWN_STATES_MEM = Object.create(null);
+          } catch (_) {}
+          try { localStorage.setItem(KEY, ver || 'dev'); } catch(_) {}
+          try { console.log('[BOOT] Cleared persisted game state due to version change ->', ver); } catch(_) {}
         }
       } catch (_) {}
     })();
@@ -74,7 +109,7 @@
   </div>
 
   <div id="inv-panel" class="inv-panel" hidden>
-    <div class="inv-title">Inventory & Equipment</div>
+    <div class="inv-title">Inventory &amp; Equipment</div>
     <div id="inv-stats" class="inv-stats"></div>
     <div id="equip-slots" class="equip-grid"></div>
     <div class="inv-subtitle">Inventory</div>
@@ -155,7 +190,7 @@
 
     <div class="inv-subtitle">Analysis</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-      <button id="god-run-analysis-btn" class="btn" title="Generate size & duplication report (client-side)">Run Analysis</button>
+      <button id="god-run-analysis-btn" class="btn" title="Generate size &amp; duplication report (client-side)">Run Analysis</button>
       <button id="god-download-analysis-btn" class="btn" title="Download last analysis report (Markdown)">Download Report</button>
     </div>
     <div id="god-analysis-output" class="help" style="font-size:12px; color:#cbd5e1; margin:6px 0 12px 0;"></div>
