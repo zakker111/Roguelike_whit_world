@@ -197,6 +197,22 @@
     (function () {
       try {
         const params = new URLSearchParams(location.search);
+
+        // Optional wipe: clear key flags first if ?wipe=1
+        if (params.get("wipe") === "1") {
+          try {
+            localStorage.removeItem("DEV");
+            localStorage.removeItem("TOWN_GLYPHS");
+            localStorage.removeItem("LOG_MIRROR");
+          } catch (_) {}
+          // Also reset window flags in case they were set by a prior session script
+          try {
+            window.DEV = false;
+            window.TOWN_GLYPHS = false;
+            window.LOG_MIRROR = undefined;
+          } catch (_) {}
+        }
+
         // DEV flag
         if (params.get("dev") === "1") { window.DEV = true; localStorage.setItem("DEV", "1"); }
         if (params.get("dev") === "0") { window.DEV = false; localStorage.removeItem("DEV"); }
