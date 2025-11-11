@@ -92,7 +92,6 @@ export function draw(ctx, view) {
 
   // Helpers for biome-based outdoor ground tint
 function ensureTownBiome(ctx) {
-  try {
     // If TownState or Town generation already set a biome, trust it
     if (ctx.townBiome) return;
 
@@ -110,10 +109,8 @@ function ensureTownBiome(ctx) {
     const wy = ctx.worldReturnPos.y | 0;
 
     // Use persisted biome if available
-    try {
-      const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-      if (rec && rec.biome) { ctx.townBiome = rec.biome; return; }
-    } catch (_) {}
+    const recPersist = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+    if (recPersist && recPersist.biome) { ctx.townBiome = recPersist.biome; return; }
 
     // Helper: get tile at absolute world coords (prefer current window; fallback to generator)
     function worldTileAtAbs(ax, ay) {
@@ -160,12 +157,9 @@ function ensureTownBiome(ctx) {
     ctx.townBiome = best || "GRASS";
 
     // Persist for future visits
-    try {
-      const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-      if (rec && typeof rec === "object") rec.biome = ctx.townBiome;
-    } catch (_) {}
-  } catch (_) { /* leave ctx.townBiome as-is */ }
-}
+    const rec2 = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
+    if (rec2 && typeof rec2 === "object") rec2.biome = ctx.townBiome;
+  }
 function townBiomeFill(ctx) {
   try {
     const GD = (typeof window !== "undefined" ? window.GameData : null);
@@ -388,7 +382,7 @@ function resolvedTownBiomeFill(ctx) {
         TOWN.canvas = off;
       }
     }
-  } catch (_) {}
+  }
 
   // Blit base layer if available
   if (TOWN.canvas) {
