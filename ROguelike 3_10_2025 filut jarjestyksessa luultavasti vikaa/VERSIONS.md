@@ -1,6 +1,23 @@
 s 
 # Game Version History
-Last updated: 2025-11-11 14:00 UTC
+Last updated: 2025-11-11 15:00 UTC
+
+v1.45.3 — Comment consistency sweep + tile_lookup/logger notes
+- Docs/Comments
+  - ui/input_mouse.js: clarified per-mode click semantics and routing order; modal gating behavior.
+  - core/actions.js: doAction overview across world/town/dungeon/encounter; context interaction precedence.
+  - core/movement.js: brace semantics (dungeon-only, defensive hand requirement).
+  - services/props_service.js: variant conditions (phase, insideInn, requiresInnStay, nearShop) and supported effects.
+  - ui/shop_panel.js: encounter vendor support note; DOM-only redraw clarification.
+  - ui/quest_board.js: Accept/Complete flows, turn-in behavior, and overworld 'E' marker hint.
+  - core/world_runtime.js: feature toggles (WORLD_INFINITE/ROADS/BRIDGES) and expand-shift camera notes.
+  - ui/render_overworld.js / ui/render_town.js / ui/render_dungeon.js: caching and draw-order summaries.
+- Data path references corrected in comments
+  - “enemies.json” references aligned to data/entities/enemies.json (Region Map and EncounterRuntime notes, VERSIONS entries).
+- New small documentation comments
+  - data/tile_lookup.js: example usages for getTileDef/getTileDefByKey; appearsIn and properties notes.
+  - ui/logger.js: batching cadence (~12.5 Hz) and typical log types.
+- No functional changes in this step (comments/documentation only).
 
 v1.45.2 — Town renderer: tint readiness, early biome inference, semi‑transparent roads, storage invalidation on deploy
 - Rendering (town)
