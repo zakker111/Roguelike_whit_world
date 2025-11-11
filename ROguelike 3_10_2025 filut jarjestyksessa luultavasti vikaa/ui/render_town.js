@@ -262,6 +262,26 @@ export function draw(ctx, view) {
             }
           }
         } catch (_) {}
+        // Diagnostics: count outdoor tiles detected by mask to verify tint application
+        try {
+          if (!TOWN._loggedMaskDiag) {
+            let outdoorCount = 0;
+            const mask = ctx.townOutdoorMask || [];
+            for (let yy = 0; yy < mask.length; yy++) {
+              const row = mask[yy] || [];
+              for (let xx = 0; xx < row.length; xx++) {
+                if (row[xx]) outdoorCount++;
+              }
+            }
+            const msg2 = `[Town] Outdoor tiles detected: ${outdoorCount}`;
+            if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+              window.Logger.log(msg2, "info");
+            } else {
+              console.log(msg2);
+            }
+            TOWN._loggedMaskDiag = true;
+          }
+        } catch (_) {}
         // Track mask reference to trigger rebuild when it changes externally
         TOWN._maskRef = ctx.townOutdoorMask;
 
