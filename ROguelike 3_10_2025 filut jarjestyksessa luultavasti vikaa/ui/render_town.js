@@ -329,6 +329,24 @@ export function draw(ctx, view) {
         // Track mask reference to trigger rebuild when it changes externally
         TOWN._maskRef = ctx.townOutdoorMask;
 
+        // Diagnostics: estimate outdoor coverage and whether tint will be applied
+        try {
+          let floorCount = 0, outdoorCount = 0;
+          for (let yy = 0; yy < mapRows; yy++) {
+            const rowMap = map[yy];
+            for (let xx = 0; xx < mapCols; xx++) {
+              if (rowMap[xx] === TILES.FLOOR) floorCount++;
+              if (rowMap[xx] === TILES.FLOOR && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
+                outdoorCount++;
+              }
+            }
+          }
+          if (floorCount > 0 && outdoorCount === 0) {
+            const msg = "[RenderTown] townOutdoorMask has 0 outdoor FLOOR tiles; biome tint will not apply. Check townBuildings footprints.";
+            if (ctx.log) ctx.log(msg, "warn"); else console.warn(msg);
+          }
+        } catch (_) {}
+
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
           for (let xx = 0; xx < mapCols; xx++) {
@@ -401,6 +419,9 @@ export function draw(ctx, view) {
         }
       }
 
+      // Resolve road fill color strictly from tiles.json
+      const roadFill = fillTownFor(ctx, TILES, TILES.ROAD, COLORS);
+
       if (anyRoadAnywhere) {
         // Paint only explicit ROAD tiles inside the viewport
         for (let y = startY; y <= endY; y++) {
@@ -411,7 +432,7 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a";
+            ctx2d.fillStyle = roadFill;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
@@ -426,7 +447,7 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a";
+            ctx2d.fillStyle = roadFill;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
