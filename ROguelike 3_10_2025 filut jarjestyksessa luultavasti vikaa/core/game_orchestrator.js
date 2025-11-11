@@ -8,11 +8,30 @@ import { initWorld, setupInput, initMouseSupport, startLoop, scheduleAssetsReady
 
 export function start() {
   try { buildGameAPI(); } catch (_) {}
-  try { initWorld(); } catch (_) {}
-  try { setupInput(); } catch (_) {}
-  try { initMouseSupport(); } catch (_) {}
-  try { startLoop(); } catch (_) {}
-  try { scheduleAssetsReadyDraw(); } catch (_) {}
+  // Defer world init and first draw until assets (tiles/palette) are ready to avoid strict renderer errors
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const readyP = (GD && GD.ready && typeof GD.ready.then === "function") ? GD.ready : Promise.resolve();
+    readyP.then(() => {
+      try { initWorld(); } catch (_) {}
+      try { setupInput(); } catch (_) {}
+      try { initMouseSupport(); } catch (_) {}
+      try { startLoop(); } catch (_) {}
+      // Assets are loaded; offscreen caches will be built on the first draw
+    }).catch(() => {
+      // Fallback: proceed even if ready failed; modules will surface errors
+      try { initWorld(); } catch (_) {}
+      try { setupInput(); } catch (_) {}
+      try { initMouseSupport(); } catch (_) {}
+      try { startLoop(); } catch (_) {}
+    });
+  } catch (_) {
+    // Ultimate fallback: start immediately
+    try { initWorld(); } catch (_) {}
+    try { setupInput(); } catch (_) {}
+    try { initMouseSupport(); } catch (_) {}
+    try { startLoop(); } catch (_) {}
+  }
   return true;
 }
 
