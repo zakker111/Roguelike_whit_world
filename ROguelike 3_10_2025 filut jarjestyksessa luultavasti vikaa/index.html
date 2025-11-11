@@ -211,6 +211,17 @@
           else if (m === "0") window.LOG_MIRROR = false;
           // default: enabled unless user turned it off
         }
+
+        // Stepwise town generation deployment (?town_gen_deploy=1)
+        // Optional delay override (?town_gen_delay=ms)
+        if (params.get("town_gen_deploy") === "1") {
+          window.TOWN_GEN_DEPLOY = true;
+          const d = params.get("town_gen_delay");
+          if (d != null) {
+            const ms = Math.max(0, parseInt(d, 10) || 0);
+            if (ms) window.TOWN_GEN_DELAY = ms;
+          }
+        }
       } catch (_) {}
     })();
   </script>

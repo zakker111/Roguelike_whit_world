@@ -11,6 +11,15 @@
  */
 
 export function generate(ctx) {
+  // Stepwise deploy mode: run visualized, logged generation when flag is present
+  try {
+    const deploy = (typeof window !== "undefined" && window.TOWN_GEN_DEPLOY) || !!ctx.TOWN_GEN_DEPLOY;
+    if (deploy && typeof window !== "undefined" && window.TownGenDeploy && typeof window.TownGenDeploy.run === "function") {
+      window.TownGenDeploy.run(ctx);
+      return true;
+    }
+  } catch (_) {}
+
   const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
   if (Tn && typeof Tn.generate === "function") {
     const handled = Tn.generate(ctx);
