@@ -451,7 +451,9 @@ export function draw(ctx, view) {
             throw new Error("[RenderTown] Missing FLOOR color in tiles.json");
           }
           const gOut = "f";
-          const cOut = tdFloor  continue;
+          const cOut = tdFloor.colors.fg;
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, gOut, cOut, TILE);
+          continue;
         }
       } catch (_) {}
 
