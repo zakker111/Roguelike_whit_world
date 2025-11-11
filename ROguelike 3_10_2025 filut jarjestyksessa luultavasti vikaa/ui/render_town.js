@@ -97,7 +97,9 @@ export function draw(ctx, view) {
       // We require absolute world coordinates for this town; do not guess from player (town-local) coords.
       const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
       if (!hasWRP) {
-        // As a last resort, do nothing; rendering will fallback to default floor colors without biome tint.
+        // Default to GRASS when we cannot determine an absolute world position (e.g., early boot)
+        // so outdoor floors always have a valid biome color.
+        if (!ctx.townBiome) ctx.townBiome = "GRASS";
         return;
       }
       const wx = ctx.worldReturnPos.x | 0;
@@ -250,14 +252,16 @@ export function draw(ctx, view) {
         try {
           if (!TOWN._loggedFloorColor) {
             const bKey = String(ctx.townBiome || "").toUpperCase();
-            const hex = biomeFill || "(none)";
-            const msg = `[Town] Outdoor floor color: ${hex} (biome=${bKey})`;
-            if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-              window.Logger.log(msg, "notice");
-            } else {
-              console.log(msg);
+            const hex = biomeFill;
+            if (bKey && hex) {
+              const msg = `[Town] Outdoor floor color: ${hex} (biome=${bKey})`;
+              if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+                window.Logger.log(msg, "notice");
+              } else {
+                console.log(msg);
+              }
+              TOWN._loggedFloorColor = true;
             }
-            TOWN._loggedFloorColor = true;
           }
         } catch (_) {}
         // Track mask reference to trigger rebuild when it changes externally
