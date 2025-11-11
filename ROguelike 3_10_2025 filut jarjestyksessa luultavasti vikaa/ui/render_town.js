@@ -307,10 +307,13 @@ export function draw(ctx, view) {
             }
 
             const bKey = String(ctx.townBiome || "").toUpperCase();
-            const hex = biomeFill || "(none)";
+            const hex = townBiomeFill(ctx) || "(none)";
+            // Attach color per sample for clarity
+            const sf = samplesFloor.map(s => `${s}=${hex}`).join(" ");
+            const sr = samplesRoad.map(s => `${s}=${hex}`).join(" ");
             const msg2 = `[Town] Outdoor tiles detected: ${outdoorCount}`;
-            const msg3 = `[Town] Outdoor FLOOR tinted: ${floorCount}  color=${hex}  samples: ${samplesFloor.join(" ")}`;
-            const msg4 = `[Town] Outdoor ROAD tinted:  ${roadCount}  color=${hex}  samples: ${samplesRoad.join(" ")}`;
+            const msg3 = `[Town] Outdoor FLOOR tinted: ${floorCount}  color=${hex}  samples: ${sf}`;
+            const msg4 = `[Town] Outdoor ROAD tinted:  ${roadCount}  color=${hex}  samples: ${sr}`;
 
             if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
               window.Logger.log(msg2, "info");
