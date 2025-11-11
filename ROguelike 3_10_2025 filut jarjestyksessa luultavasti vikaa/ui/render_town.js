@@ -101,8 +101,12 @@ function ensureTownBiome(ctx) {
 
     // Prefer absolute world coordinates when available; otherwise fall back to current window origin + player position.
     const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
-    const wx = hasWRP ? (ctx.worldReturnPos.x | 0) : (((world.originX | 0) + (ctx.player    const wx = ctx.worldReturnPos.x | 0;
-    const wy = ctx.worldReturnPos.y | 0;
+    const wx = hasWRP
+      ? (ctx.worldReturnPos.x | 0)
+      : (((world.originX | 0) + ((ctx.player && typeof ctx.player.x === "number") ? (ctx.player.x | 0) : 0)) | 0);
+    const wy = hasWRP
+      ? (ctx.worldReturnPos.y | 0)
+      : (((world.originY | 0) + ((ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0)) | 0);
 
     // Use persisted biome if available
     const recPersist = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
