@@ -199,7 +199,18 @@ export function interactHere(ctx) {
   if (!ctx || ctx.mode !== "encounter") return false;
   try {
     const props = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : [];
-    const p = props.find(pr => pr && pr.x === ctx.player.x && pr.y === ctx.player.y);
+    // Underfoot first
+    let p = props.find(pr => pr && pr.x === ctx.player.x && pr.y === ctx.player.y);
+    // If none underfoot, allow adjacent (4-neighborhood)
+    if (!p) {
+      const near = [
+        { x: ctx.player.x + 1, y: ctx.player.y },
+        { x: ctx.player.x - 1, y: ctx.player.y },
+        { x: ctx.player.x, y: ctx.player.y + 1 },
+        { x: ctx.player.x, y: ctx.player.y - 1 }
+      ];
+      p = props.find(pr => pr && near.some(n => n.x === pr.x && n.y === pr.y));
+    }
     if (!p) return false;
     const handled = !!interactProp(ctx, p);
     if (handled) {
