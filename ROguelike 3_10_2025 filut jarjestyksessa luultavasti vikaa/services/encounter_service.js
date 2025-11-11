@@ -1,16 +1,18 @@
 /**
- * EncounterService: rolls for random encounters while moving in the overworld,
- * selects a data-driven template, and prompts the player to enter.
+ * EncounterService
+ * - Purpose: rolls for random encounters while moving in the overworld, selects a template, and prompts the player to enter.
+ * - Data-driven: prefers templates from GameData.encounters.templates; falls back to internal templates only when no JSON is available.
+ * - Config notes: Encounter rate defaults and scaling are computed here; future data-driven coefficients can be loaded from data/encounters/config.json.
  *
  * Exports (ESM + window.EncounterService):
- * - maybeTryEncounter(ctx): call after a successful world step; may open a confirm UI.
+ * - maybeTryEncounter(ctx) — call after a successful world step; may open a confirm UI.
  */
 const STATE = {
   lastWorldX: null,
   lastWorldY: null,
   cooldownMoves: 0,
   movesSinceLast: 0,
-  // Night raid gating
+  // Night raid gating (cooldown managed by turn count checks)
   nightRaidCooldownUntilTurn: 0,
 };
 

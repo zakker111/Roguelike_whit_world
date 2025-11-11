@@ -1,14 +1,17 @@
 /**
- * QuestService: lightweight per-town quest board with simple gather and encounter quests.
+ * QuestService
+ * - Purpose: provides a per-town quest board with gather and encounter quests. Manages offers, acceptance, ownership uniqueness, and completions.
+ * - Data-driven: quest templates are loaded from GameData.quests.templates. Starter seeding currently references specific IDs; this can be externalized to data/quests/config.json.
+ * - Interaction: encounter quests place an 'E' marker near town; press G on the marker to enter. Gather quests check inventory at the board and allow immediate turn-in when requirements are met.
  *
  * Exports (ESM + window.QuestService):
  * - listForCurrentTown(ctx) -> { townKey, available: [...], active: [...], completed: [...] }
  * - accept(ctx, templateId) -> boolean
  * - getTurnIns(ctx) -> [{ instanceId, title, gold }]
  * - claim(ctx, instanceId) -> boolean
- * - maybeTriggerOnWorldStep(ctx) -> void   // legacy: previously auto-triggered on step (no longer used)
- * - triggerAtMarkerIfHere(ctx) -> boolean  // start encounter only when pressing G on 'E' tile
- * - onEncounterComplete(ctx, payload) -> void  // called from EncounterRuntime.complete
+ * - maybeTriggerOnWorldStep(ctx) -> void   // legacy; previously auto-triggered on step (not used)
+ * - triggerAtMarkerIfHere(ctx) -> boolean  // starts encounter when pressing G on an 'E' tile
+ * - onEncounterComplete(ctx, payload) -> void  // marks encounter status and enables turn-in
  */
 (function initQuestService() {
   function _gd() {

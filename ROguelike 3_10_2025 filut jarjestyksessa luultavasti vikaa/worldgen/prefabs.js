@@ -1,11 +1,24 @@
 // worldgen/prefabs.js
 // Prefab helpers extracted from town_gen.js, adapted to work with ctx.map directly.
+// Data-driven: prefers prefabs from GameData.prefabs (houses/inns/shops/plazas) loaded via data/worldgen registries.
 // Exports:
 //  - prefabsAvailable()
 //  - pickPrefab(list, rng)
 //  - trySlipStamp(ctx, prefab, bx, by, maxSlip, buildings)
 //  - stampPrefab(ctx, prefab, bx, by, buildings)
 //  - stampPlazaPrefab(ctx, prefab, bx, by)
+//
+// Prefab schema (brief):
+// {
+//   id: "bakery_small",
+//   category: "shop" | "house" | "inn" | "plaza",
+//   size: { w: 7, h: 5 },
+//   tiles: [ [ "WALL", "DOOR", "WINDOW", "FLOOR", "STAIRS", "BED", ... ], ... ],
+//   doors?: [ { x: 3, y: 0, role?: "main" } ],
+//   props?: [ { x, y, type, name?, vendor? } ],
+//   shop?: { type: "Bakery", sign?: true, signText?: "Bakery", schedule?: { open?: "06:00", close?: "15:00", alwaysOpen?: false } },
+//   upstairsOverlay?: { w, h, offset: { x, y } | { ox, oy }, tiles: [...], props?: [...] }
+// }
 
 function inBounds(ctx, x, y) {
   const H = Array.isArray(ctx.map) ? ctx.map.length : 0;
