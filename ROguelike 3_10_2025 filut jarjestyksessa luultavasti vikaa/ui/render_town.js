@@ -259,6 +259,11 @@ export function draw(ctx, view) {
             const sx = xx * TILE, sy = yy * TILE;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
             let fill = fillTownFor(TILES, type, COLORS);
+            // Override first-draw base FLOOR with biome color whenever a town biome is chosen,
+            // so the initial ground is exactly SNOW/GRASS/DESERT/BEACH/etc before any overlays.
+            if (type === TILES.FLOOR && biomeFill) {
+              fill = biomeFill;
+            }
             // Apply outdoor biome tint only to non-road FLOOR tiles; rely on tile type for roads
             try {
               if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]) {
@@ -299,6 +304,10 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
         let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+        // Override first-draw base FLOOR with biome color whenever a town biome is chosen.
+        if (type === TILES.FLOOR && biomeFill) {
+          fill = biomeFill;
+        }
         // Apply outdoor tint only to FLOOR; rely on tile type for roads
         try {
           if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
