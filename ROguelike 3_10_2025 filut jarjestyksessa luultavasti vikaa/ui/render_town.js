@@ -382,7 +382,7 @@ function resolvedTownBiomeFill(ctx) {
         TOWN.canvas = off;
       }
     }
-  }
+  } catch (_) {}
 
   // Blit base layer if available
   if (TOWN.canvas) {
