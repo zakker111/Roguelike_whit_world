@@ -716,111 +716,28 @@
   }
 
   function drinkPotionByIndex(idx) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.drinkPotionByIndex === "function") {
-        IF.drinkPotionByIndex(getCtx(), idx);
-        return;
-      }
-    } catch (_) {}
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.drinkByIndex === "function") {
-      return IC.drinkByIndex(getCtx(), idx);
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.drinkPotionByIndex === "function") {
-      P.drinkPotionByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => rerenderInventoryIfOpen(),
-      });
+    // Delegate to centralized inventory modules only
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.drinkPotionByIndex === "function") {
+      IF.drinkPotionByIndex(getCtx(), idx);
       return;
     }
-    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
-    const it = player.inventory[idx];
-    if (!it || (it.kind !== "potion" && it.kind !== "drink")) return;
-
-    const heal = it.heal ?? (it.kind === "drink" ? 2 : 3);
-    const prev = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + heal);
-    const gained = player.hp - prev;
-    const label = it.name ? it.name : (it.kind === "drink" ? "drink" : "potion");
-    if (gained > 0) {
-      log(`You drink ${label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
-    } else {
-      log(`You drink ${label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.drinkByIndex === "function") {
+      IC.drinkByIndex(getCtx(), idx);
+      return;
     }
-
-    if (it.count && it.count > 1) {
-      it.count -= 1;
-    } else {
-      player.inventory.splice(idx, 1);
-    }
-    updateUI();
-    rerenderInventoryIfOpen();
+    log("Inventory system not available.", "warn");
   }
 
-  // Eat edible materials using a uniform data-driven rule (materials.json: edible.heal)
+  // Eat edible materials using centralized inventory flow
   function eatFoodByIndex(idx) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.eatByIndex === "function") {
-        IF.eatByIndex(getCtx(), idx);
-        return;
-      }
-    } catch (_) {}
-    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
-    const it = player.inventory[idx];
-    if (!it || it.kind !== "material") return;
-
-    function edibleFromData(item) {
-      try {
-        const GD = (typeof window !== "undefined" ? window.GameData : null);
-        const M = GD && GD.materials ? GD.materials : null;
-        const list = M
-          ? (Array.isArray(M.materials) ? M.materials : (Array.isArray(M.list) ? M.list : null))
-          : null;
-        const id = String(item.type || item.name || "").toLowerCase();
-        if (list && id) {
-          const entry = list.find(e => e && (String(e.id || "").toLowerCase() === id || String(e.name || "").toLowerCase() === id));
-          if (entry && entry.edible && typeof entry.edible.heal === "number") {
-            return { heal: Math.max(0, Number(entry.edible.heal) || 0), label: entry.name || item.name || id };
-          }
-        }
-      } catch (_) {}
-      // Fallback to previous hardcoded mapping
-      const nm = String(item.type || item.name || "").toLowerCase();
-      if (nm === "meat_cooked" || nm === "meat (cooked)") return { heal: 2, label: "meat (cooked)" };
-      if (nm === "fish_cooked" || nm === "fish (cooked)") return { heal: 5, label: "fish (cooked)" };
-      if (nm === "berries") return { heal: 1, label: "berries" };
-      return { heal: 0, label: item.name || nm };
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.eatByIndex === "function") {
+      IF.eatByIndex(getCtx(), idx);
+      return;
     }
-
-    const info = edibleFromData(it);
-    if (!(info.heal > 0)) return;
-
-    const prev = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + info.heal);
-    const gained = player.hp - prev;
-    if (gained > 0) {
-      log(`You eat ${info.label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
-    } else {
-      log(`You eat ${info.label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
-    }
-    // decrement one from stack
-    if (typeof it.amount === "number") {
-      it.amount = Math.max(0, (it.amount | 0) - 1);
-      if (it.amount <= 0) player.inventory.splice(idx, 1);
-    } else if (typeof it.count === "number") {
-      it.count = Math.max(0, (it.count | 0) - 1);
-      if (it.count <= 0) player.inventory.splice(idx, 1);
-    } else {
-      player.inventory.splice(idx, 1);
-    }
-    updateUI();
-    rerenderInventoryIfOpen();
+    log("Inventory system not available.", "warn");
   }
 
   
@@ -1954,45 +1871,22 @@
 
   function lootCorpse() {
     if (isDead) return;
-    // Prefer centralized LootFlow
-    try {
-      const LF = modHandle("LootFlow");
-      if (LF && typeof LF.loot === "function") {
-        const ok = !!LF.loot(getCtx());
-        if (ok) return;
-      }
-    } catch (_) {}
-    // Prefer ctx-first Actions module for all interaction/loot flows across modes
-    {
-      const A = modHandle("Actions");
-      if (A && typeof A.loot === "function") {
-        const ctxMod = getCtx();
-        const handled = A.loot(ctxMod);
-        if (handled) {
-          applyCtxSyncAndRefresh(ctxMod);
-          return;
-        }
-      }
-    }
-
-    if (mode === "dungeon") {
-      const DR = modHandle("DungeonRuntime");
-      if (DR && typeof DR.lootHere === "function") {
-        DR.lootHere(getCtx());
-        return;
-      }
-      {
-        const L = modHandle("Loot");
-        if (L && typeof L.lootHere === "function") {
-          L.lootHere(getCtx());
-          return;
-        }
-      }
-      log("Return to the entrance (the hole '>') and press G to leave.", "info");
+    const LF = modHandle("LootFlow");
+    if (LF && typeof LF.loot === "function") {
+      LF.loot(getCtx());
       return;
     }
-
-    log("Nothing to do here.");
+    const DR = modHandle("DungeonRuntime");
+    if (DR && typeof DR.lootHere === "function") {
+      DR.lootHere(getCtx());
+      return;
+    }
+    const L = modHandle("Loot");
+    if (L && typeof L.lootHere === "function") {
+      L.lootHere(getCtx());
+      return;
+    }
+    log("Nothing to loot here.", "info");
   }
 
   function showLootPanel(list) {
@@ -2166,83 +2060,42 @@
   }
 
   function equipItemByIndex(idx) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.equipItemByIndex === "function") {
-        IF.equipItemByIndex(getCtx(), idx);
-        return;
-      }
-    } catch (_) {}
-    // Delegate to InventoryController (which uses Player/PlayerEquip internally)
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.equipItemByIndex === "function") {
+      IF.equipItemByIndex(getCtx(), idx);
+      return;
+    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.equipByIndex === "function") {
       IC.equipByIndex(getCtx(), idx);
-      return;
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.equipItemByIndex === "function") {
-      P.equipItemByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => rerenderInventoryIfOpen(),
-        describeItem: (it) => describeItem(it),
-      });
       return;
     }
     log("Equip system not available.", "warn");
   }
 
   function equipItemByIndexHand(idx, hand) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.equipItemByIndexHand === "function") {
-        IF.equipItemByIndexHand(getCtx(), idx, hand);
-        return;
-      }
-    } catch (_) {}
-    // Delegate to InventoryController
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.equipItemByIndexHand === "function") {
+      IF.equipItemByIndexHand(getCtx(), idx, hand);
+      return;
+    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.equipByIndexHand === "function") {
       IC.equipByIndexHand(getCtx(), idx, hand);
-      return;
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.equipItemByIndex === "function") {
-      P.equipItemByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => rerenderInventoryIfOpen(),
-        describeItem: (it) => describeItem(it),
-        preferredHand: hand,
-      });
       return;
     }
     log("Equip system not available.", "warn");
   }
 
   function unequipSlot(slot) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.unequipSlot === "function") {
-        IF.unequipSlot(getCtx(), slot);
-        return;
-      }
-    } catch (_) {}
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.unequipSlot === "function") {
+      IF.unequipSlot(getCtx(), slot);
+      return;
+    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.unequipSlot === "function") {
       IC.unequipSlot(getCtx(), slot);
-      return;
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.unequipSlot === "function") {
-      P.unequipSlot(player, slot, {
-        log,
-        updateUI,
-        renderInventory: () => rerenderInventoryIfOpen(),
-      });
       return;
     }
     log("Equip system not available.", "warn");
