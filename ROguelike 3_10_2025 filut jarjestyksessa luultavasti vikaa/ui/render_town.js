@@ -254,6 +254,7 @@ export function draw(ctx, view) {
 
         // Count diagnostics for base draw
         let floorCount = 0;
+        const colorCounts = Object.create(null);
 
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
@@ -277,6 +278,7 @@ export function draw(ctx, view) {
             } catch (_) {}
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
+            colorCounts[fill] = (colorCounts[fill] | 0) + 1;
           }
         }
         TOWN.canvas = off;
@@ -284,6 +286,11 @@ export function draw(ctx, view) {
         TOWN._overlayLogged = false;
         try {
           ctx.log && ctx.log(`[RenderTown.base] biome=${biomeKey || "(none)"} floorTiles=${floorCount} offscreenBuilt.`, "notice");
+        } catch (_) {}
+        try {
+          const pairs = Object.entries(colorCounts).sort((a, b) => (b[1] | 0) - (a[1] | 0));
+          const top = pairs.slice(0, 6).map(([c, n]) => `${c}=${n}`).join(", ");
+          ctx.log && ctx.log(`[RenderTown.baseColors] biomeFill=${biomeFill || "(none)"} top=${top}`, "notice");
         } catch (_) {}
       }
     }
@@ -363,7 +370,7 @@ export function draw(ctx, view) {
       if (!TOWN._overlayLogged) {
         try {
           ctx.log && ctx.log(
-            `[RenderTown.overlay] typedRoads=${typedRoadCount} useTyped=${hasTyped ? "yes" : "no"} fallbackPresent=${ctx.townRoads ? "yes" : "no"} dimsOk=${dimsOk ? "yes" : "no"} maskTrue=${maskTrueCount}`,
+            `[RenderTown.overlay] typedRoads=${typedRoadCount} useTyped=${hasTyped ? "yes" : "no"} fallbackPresent=${ctx.townRoads ? "yes" : "no"} dimsOk=${dimsOk ? "yes" : "no"} maskTrue=${maskTrueCount} roadColor=#b0a58a`,
             "notice"
           );
         } catch (_) {}
