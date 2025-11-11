@@ -183,8 +183,8 @@ function resolvedTownBiomeFill(ctx) {
     SWAMP:  "#1d3624",
   };
   return FALLBACK[k] || null;
-} catch (_) { return null; }
-  }
+}
+
   function ensureOutdoorMask(ctx) {
     // Rebuild if missing or dimensions mismatch current map
     if (Array.isArray(ctx.townOutdoorMask)) {
