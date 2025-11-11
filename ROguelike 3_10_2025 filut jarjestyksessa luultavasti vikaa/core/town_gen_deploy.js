@@ -101,7 +101,7 @@ function addShopSignInside(ctx, b, door, text) {
 }
 
 export async function run(ctx) {
-  const delay = (typeof window !== "undefined" && typeof window.TOWN_GEN_DELAY === "number") ? (window.TOWN_GEN_DELAY | 0) : 1000;
+  const delay = (typeof window !== "undefined" && typeof window.TOWN_GEN_DELAY === "number") ? (window.TOWN_GEN_DELAY | 0) : 3000;
   // Containers
   ctx.townProps = [];
   ctx.shops = [];
