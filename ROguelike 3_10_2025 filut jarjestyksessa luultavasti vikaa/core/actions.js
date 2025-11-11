@@ -9,6 +9,12 @@
  * Notes:
  * - Uses only ctx and other modules (UI, Loot, DungeonState, Town, World).
  * - Mutates ctx where appropriate (mode transitions, logging, UI).
+ *
+ * doAction(ctx) overview:
+ * - world: attempts to enter town/dungeon/ruins on the current tile if applicable.
+ * - town: interacts with props (including inn upstairs overlay), talks to NPCs, and shows shop schedules.
+ * - dungeon: guidance and loot underfoot; exiting requires standing on '>' and pressing G.
+ * - encounter: exit via STAIRS or loot underfoot, consistent with dungeon behavior.
  */
 
 // Helpers

@@ -1,6 +1,15 @@
 /**
  * RenderOverworld: draws overworld tiles, glyphs from tiles.json, minimap, NPCs, player, and time tint.
  *
+ * Caching:
+ * - World base offscreen cache keyed by map reference, dimensions, TILE, and tiles.json ref; glyph overlays drawn per-frame.
+ * - Minimap uses its own offscreen cache keyed by map reference, tiles.json ref, scale, and player position.
+ *
+ * Draw order (summary):
+ * - Base layer → shoreline banding → coast borders → fog-of-war → POI markers (towns/dungeons/quest) →
+ *   biome embellishments → roads/bridges → per-tile glyph overlays → HUD biome/time label → minimap →
+ *   player marker → day/night tint → vignette → grid overlay → topmost player outline.
+ *
  * Exports (ESM + window.RenderOverworld):
  * - draw(ctx, view)
  */

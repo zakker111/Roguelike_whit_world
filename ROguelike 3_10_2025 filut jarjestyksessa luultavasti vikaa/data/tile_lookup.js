@@ -1,6 +1,12 @@
 // Centralized tile lookup helper sourced from GameData.tiles
 // Returns a tile definition object for a given mode ("overworld","town","dungeon",...) and numeric id,
 // or null if not found. Safe against missing GameData/tiles.
+// Examples:
+//   const td = getTileDef("region", World.TILES.MOUNTAIN);
+//   const door = getTileDefByKey("town", "DOOR");
+// Notes:
+// - Mode should match appearsIn in world_assets.json tiles (e.g., "overworld", "town", "dungeon", "region").
+// - Properties may include walkable, blocksFOV, emitsLight, etc., used by renderers/FOV.
 export function getTileDef(mode, id) {
   try {
     const GD = (typeof window !== "undefined" ? window.GameData : null);

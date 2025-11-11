@@ -1,6 +1,15 @@
 /**
  * InputMouse: canvas click handling (Step 6).
  * Delegates click-to-move and click-to-loot behavior out of core/game.js.
+ *
+ * Click semantics by mode:
+ * - world: adjacent click moves one step via core tryMovePlayer; non-walkable suppressed; encounter rolls after move.
+ * - dungeon: adjacent click-to-move; clicking a chest/corpse on your tile loots; adjacent click on a container steps onto it then auto-loots.
+ * - town: click on player's tile triggers context action (talk/exit/loot underfoot); adjacent clicks move one step.
+ *
+ * Event routing order:
+ * - If any modal is open (UIOrchestration.isAnyModalOpen), the click is ignored here.
+ * - Otherwise map pixel to tile using camera, then dispatch by mode.
  */
 
 export function init(opts) {

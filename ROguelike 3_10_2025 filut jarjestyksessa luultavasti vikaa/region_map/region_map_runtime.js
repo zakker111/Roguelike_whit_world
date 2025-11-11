@@ -2,6 +2,12 @@
  * RegionMapRuntime
  * Lightweight, fixed-size overlay map shown from overworld when pressing G on a walkable tile.
  *
+ * Quick usage:
+ * - Press G on a walkable overworld tile (not town/dungeon) to open.
+ * - Move with arrows; orange edge tiles are exits; press G on an edge to close.
+ * - Context actions: loot underfoot, pick berries, cut trees, fish near water (requires a fishing pole).
+ * - Neutral animals may spawn and wander; presence is persisted per overworld tile.
+ *
  * Exports (ESM + window.RegionMapRuntime):
  * - open(ctx, size?): builds a local downscaled view of the world and enters "region" mode.
  * - close(ctx): returns to overworld at the same coordinates where G was pressed.
@@ -1058,7 +1064,7 @@ function open(ctx, size) {
         return { x, y, type: type || "fallback_enemy", glyph: "?", hp: 3, atk: 1.0, xp: 5, level: 1, faction: "monster", announced: false };
       }
 
-      // Enemy lineup: a mix of skeleton/bandit/mime_ghost (matches enemies.json)
+      // Enemy lineup: a mix of skeleton/bandit/mime_ghost (matches data/entities/enemies.json)
       const choices = ["skeleton", "bandit", "mime_ghost"];
       const n = 2 + ((rng() * 3) | 0); // 2–4
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];

@@ -75,7 +75,8 @@ Data-driven configuration
     - appearsIn, tags
     - light: castRadius, glowTiles, color (optional)
 - Other JSON registries under data/:
-  - items.json, enemies.json, npcs.json, consumables.json, shops.json, town.json
+  - data/entities/{items.json, enemies.json, npcs.json, consumables.json}
+  - data/shops/shops.json, data/world/town.json
 - Loader: data/loader.js loads and exposes GameData.*; logs a warning if world_assets.json is missing/invalid; tiles/props are not loaded in strict mode without it.
 - file://: you can still open index.html directly; minimal defaults keep the game playable, but tiles/props require the combined assets file for full visuals.
 
@@ -133,16 +134,22 @@ Useful flags and persistence
 - Seed persists in localStorage SEED and is shown in the GOD panel.
 - Version-based storage clearing: on each deploy, the app compares meta[name="app-version"] with the stored version. If changed, it clears saved town/dungeon/region state and resets in‑memory mirrors to guarantee a clean start (preferences like seed/toggles remain).
 
-Project layout (brief)
-- core/: engine, loop, ctx, input, modes
-- world/: overworld generation and walkability
-- dungeon/: generation, items, state persistence
-- entities/: items and enemies adapters over JSON
-- ui/: logger, renderer, tileset
-- smoketest/: modular test runner (helpers, capabilities, reporting, runner, scenarios) + legacy thin shim
-- services/: RNG, time, shop helpers
-- data/: JSON registries and loader
-- worldgen/: town generation utilities
+Project layout and docs
+- core/ — engine, loop, ctx, input, modes — see core/README.md
+- world/ — overworld generation and walkability — see world/README.md
+- dungeon/ — generation, items, state persistence — see dungeon/README.md
+- entities/ — items and enemies adapters over JSON — see entities/README.md
+- ui/ — logger, renderer, tileset — see ui/README.md
+- combat/ — combat loop, status effects, decay — see combat/README.md
+- services/ — RNG, time, shops, encounters — see services/README.md
+- utils/ — shared helpers (bounds/grid/rng/etc.) — see utils/README.md
+- ai/ — NPC behavior, town scheduling, pathfinding — see ai/README.md
+- worldgen/ — town/roads/prefabs — see worldgen/README.md
+- region_map/ — local tactical overlay runtime — see region_map/README.md
+- smoketest/ — modular test runner (helpers, capabilities, reporting, runner, scenarios) + legacy thin shim — see smoketest/README.md
+- data/ — JSON registries and loader — see data/docs/README.md
+- scripts/ — Node helper scripts — see scripts/README.md
+- tools/ — developer tools (prefab editor) — see tools/README.md
 
 Development
 - Lint: npx eslint .

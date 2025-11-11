@@ -9,7 +9,7 @@ Highlights (measured snapshots)
 - Largest file: core/game.js — 2574 lines
 - ui/render_dungeon.js — 183 lines
 - data/items.json — 186 lines
-- data/enemies.json — 57 lines
+- data/entities/enemies.json — 57 lines
 
 Immediate duplication observations
 - Repeated “sync and refresh” blocks after ctx mutations (now centralized with applyCtxSyncAndRefresh).

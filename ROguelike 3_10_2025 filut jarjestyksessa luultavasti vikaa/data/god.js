@@ -172,7 +172,7 @@ export function spawnEnemyNearby(ctx, count = 1) {
   const spawned = [];
   // Abort if no registered enemy types
   if (!Array.isArray(window.GOD_SPAWN_CYCLE.list) || window.GOD_SPAWN_CYCLE.list.length === 0) {
-    ctx.log("GOD: No enemy types registered (enemies.json not loaded).", "warn");
+    ctx.log("GOD: No enemy types registered (data/entities/enemies.json not loaded).", "warn");
     return;
   }
   for (let i = 0; i < count; i++) {

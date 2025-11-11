@@ -105,7 +105,7 @@ export function enemiesAct(ctx) {
   const factionOf = (en) => {
     if (!en) return "monster";
     if (en.faction) return String(en.faction);
-    // Default to "monster" when missing; ensure data/enemies.json provides faction for all entries.
+    // Default to "monster" when missing; ensure data/entities/enemies.json provides faction for all entries.
     return "monster";
   };
   const isHostileTo = (fa, fb) => {

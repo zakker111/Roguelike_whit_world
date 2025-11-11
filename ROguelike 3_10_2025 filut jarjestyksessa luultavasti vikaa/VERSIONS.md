@@ -1,6 +1,23 @@
 s 
 # Game Version History
-Last updated: 2025-11-11 14:00 UTC
+Last updated: 2025-11-11 15:00 UTC
+
+v1.45.3 — Comment consistency sweep + tile_lookup/logger notes
+- Docs/Comments
+  - ui/input_mouse.js: clarified per-mode click semantics and routing order; modal gating behavior.
+  - core/actions.js: doAction overview across world/town/dungeon/encounter; context interaction precedence.
+  - core/movement.js: brace semantics (dungeon-only, defensive hand requirement).
+  - services/props_service.js: variant conditions (phase, insideInn, requiresInnStay, nearShop) and supported effects.
+  - ui/shop_panel.js: encounter vendor support note; DOM-only redraw clarification.
+  - ui/quest_board.js: Accept/Complete flows, turn-in behavior, and overworld 'E' marker hint.
+  - core/world_runtime.js: feature toggles (WORLD_INFINITE/ROADS/BRIDGES) and expand-shift camera notes.
+  - ui/render_overworld.js / ui/render_town.js / ui/render_dungeon.js: caching and draw-order summaries.
+- Data path references corrected in comments
+  - “enemies.json” references aligned to data/entities/enemies.json (Region Map and EncounterRuntime notes, VERSIONS entries).
+- New small documentation comments
+  - data/tile_lookup.js: example usages for getTileDef/getTileDefByKey; appearsIn and properties notes.
+  - ui/logger.js: batching cadence (~12.5 Hz) and typical log types.
+- No functional changes in this step (comments/documentation only).
 
 v1.45.2 — Town renderer: tint readiness, early biome inference, semi‑transparent roads, storage invalidation on deploy
 - Rendering (town)
@@ -619,7 +636,7 @@ v1.38.0 — Ruins AI fix, non-bleeding undead, '?' fallback enemy, and input sim
 - Region Map (Ruins)
   - Enemy AI now respects overworld walkability (World.isWalkable) so enemies move and attack properly inside Ruins.
   - Blood decals now render in Region Map.
-  - Ruins spawns use mime_ghost (defined in enemies.json) instead of an undefined ghost id.
+  - Ruins spawns use mime_ghost (defined in data/entities/enemies.json) instead of an undefined ghost id.
 - Loot/Items
   - Enemy-specific equipment loot pools added (data/enemy_loot_pools.json). On a successful equip drop roll, items are now chosen exclusively from the enemy’s pool; no generic fallback.
   - New item: club (hand, blunt). Added to goblin’s pool; daggers remain disabled in general item weights but can drop via enemy pools.
@@ -1562,11 +1579,11 @@ v1.20 — Helper deduplication: ShopService + Utils.inBounds
 
 v1.19 — Data-driven content, plaza decor, ESC close, and expanded smoke tests
 - Added: JSON data loader and integrations
-  - data/loader.js now loads items.json, enemies.json, npcs.json, and consumables.json into window.GameData.
+  - data/loader.js now loads data/entities/items.json, data/entities/enemies.json, data/entities/npcs.json, and data/entities/consumables.json into window.GameData.
   - entities/items.js and entities/enemies.js extend registries from JSON with safe fallbacks.
   - ai/town_ai.js pulls NPC names/dialog from data/npcs.json when available.
   - data/consumables.json defines potion entries (name, heal, weight); Loot prefers JSON-driven potions.
-- Added: Missing enemy definitions to data/enemies.json
+- Added: Missing enemy definitions to data/entities/enemies.json
   - mime_ghost, hell_houndin (with weights, scaling, and potion weights).
 - Added: Town plaza decor
   - Benches along plaza perimeter; market stalls with nearby crates/barrels; scattered plants.

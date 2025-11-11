@@ -1,21 +1,14 @@
 /**
- * Minimal static HTTP server for local development.
- * Usage:
- *   1) npm init -y (optional)
- *   2) node server.js
- *   3) Open http://localhost:8080/
- *
- * Serves the current directory. No compression, no directory traversal.
- */
-/**
  * Simple ESM static file server for local testing.
  * Run: node server.js
+ *
+ * Serves the current working directory. No compression, no directory traversal.
  */
 import { createServer } from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-const ROOT = path.resolve(path.join(process.cwd(), 'ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa'));
+const ROOT = path.resolve(process.cwd());
 
 function serveFile(res, filePath, contentType = 'text/plain; charset=utf-8') {
   try {

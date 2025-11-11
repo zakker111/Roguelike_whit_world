@@ -1,6 +1,11 @@
 /**
  * RenderDungeon: draws dungeon tiles, decals, corpses/chests, enemies, player.
  *
+ * Notes:
+ * - Base layer is cached offscreen; encounter maps use palette/theme-derived colors when tileset entries are missing.
+ * - In encounter mode, exits render as tinted squares (no '>' glyph); consistent with Region Map exits.
+ * - Draw order: base → glyph overlay → visibility tints → encounter exit overlay → decals → corpses/chests → props → enemies → player → glow → grid overlay.
+ *
  * Exports (ESM + window.RenderDungeon):
  * - draw(ctx, view)
  */

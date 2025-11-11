@@ -2,6 +2,10 @@
  * PropsService: data-driven interactions for town props using GameData.props.
  * Exports (ESM + window.PropsService):
  * - interact(ctx, prop) -> handled:boolean
+ *
+ * Notes:
+ * - Variant selection uses `when` conditions: phaseIs/phaseNot, insideInn, requiresInnStay, nearShop.
+ * - Supported effects: restUntil, restTurn, grantMaterial, signSchedule, sleepModal, questBoard.
  */
 function _propsMap() {
   try {

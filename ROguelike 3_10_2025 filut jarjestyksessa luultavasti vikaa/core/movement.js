@@ -6,6 +6,9 @@
  * - descendIfPossible(ctx)
  * - brace(ctx)
  * - fastForwardMinutes(ctx, minutes)
+ *
+ * Notes:
+ * - brace(ctx) applies only in dungeon mode and is effective when the player has a defensive hand item; it increases block chance for this turn.
  */
 
 function mod(name) {

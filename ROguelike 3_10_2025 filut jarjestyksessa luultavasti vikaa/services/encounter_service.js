@@ -1,16 +1,24 @@
 /**
- * EncounterService: rolls for random encounters while moving in the overworld,
- * selects a data-driven template, and prompts the player to enter.
+ * EncounterService
+ * - Purpose: rolls for random encounters while moving in the overworld, selects a template, and prompts the player to enter.
+ * - Data-driven: prefers templates from GameData.encounters.templates; falls back to internal templates only when no JSON is available.
+ * - Config notes: Encounter rate defaults and scaling are computed here; future data-driven coefficients can be loaded from data/encounters/config.json.
+ *
+ * Mechanics:
+ * - Cooldown: STATE.cooldownMoves suppresses back-to-back prompts; STATE.movesSinceLast drives a "pity" boost that increases chance during dry streaks.
+ * - Encounter Rate (0..100): scales baseline chance and the cap; 0 disables; 50 is baseline; 100 roughly doubles baseline with a higher cap.
+ * - Determinism: when RNGUtils is available, rolls use the shared RNG stream; otherwise a ctx.rng fallback is used.
+ * - Night raid: optional special template “night_raid_goblins” gated by time_service phase and a one-week cooldown via turnCounter.
  *
  * Exports (ESM + window.EncounterService):
- * - maybeTryEncounter(ctx): call after a successful world step; may open a confirm UI.
+ * - maybeTryEncounter(ctx) — call after a successful world step; may open a confirm UI.
  */
 const STATE = {
   lastWorldX: null,
   lastWorldY: null,
   cooldownMoves: 0,
   movesSinceLast: 0,
-  // Night raid gating
+  // Night raid gating (cooldown managed by turn count checks)
   nightRaidCooldownUntilTurn: 0,
 };
 

@@ -35,7 +35,11 @@ function _lsBool(key) {
   return null;
 }
 function featureEnabled(name, defaultVal) {
-  // LocalStorage override takes precedence, else config value, else default
+  // Feature toggles:
+  // - WORLD_INFINITE: config.world.infinite
+  // - WORLD_ROADS: config.world.roadsEnabled
+  // - WORLD_BRIDGES: config.world.bridgesEnabled
+  // Resolution order: localStorage override → config value → default
   const ls = _lsBool(name);
   if (ls != null) return !!ls;
   const cfg = _getConfig();
@@ -382,7 +386,8 @@ function expandMap(ctx, side, K) {
     world.originX -= K;
     // Newly added strip is columns [0..K-1]
     scanPOIs(ctx, 0, 0, K, rows);
-    // Shift player and entities right by K to preserve world position mapping (unless suspended)
+    // Shift player and entities right by K to preserve world position mapping, unless ctx._suspendExpandShift is true.
+    // When suspended (e.g., during mode transitions), expansion avoids shifting to prevent camera snap; caller handles camera/position.
     if (!ctx._suspendExpandShift) {
       try { ctx.player.x += K; } catch (_) {}
       try {
@@ -439,7 +444,8 @@ function expandMap(ctx, side, K) {
     world.originY -= K;
     // Newly added strip is rows [0..K-1]
     scanPOIs(ctx, 0, 0, cols, K);
-    // Shift player and entities down by K to preserve world position mapping (unless suspended)
+    // Shift player and entities down by K to preserve world position mapping, unless ctx._suspendExpandShift is true.
+    // When suspended (e.g., during mode transitions), expansion avoids shifting to prevent camera snap; caller handles cameraded)
     if (!ctx._suspendExpandShift) {
       try { ctx.player.y += K; } catch (_) {}
       try {

@@ -1,5 +1,5 @@
 /**
- * Enemies: thin adapter around data/enemies.json
+ * Enemies: thin adapter around data/entities/enemies.json
  *
  * Exports (ESM + window.Enemies):
  * - TYPES, pickType(depth, rng), createEnemyAt(x, y, depth, rng)
