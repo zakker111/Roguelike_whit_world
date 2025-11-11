@@ -265,6 +265,16 @@ export function draw(ctx, view) {
         // Track mask reference to trigger rebuild when it changes externally
         TOWN._maskRef = ctx.townOutdoorMask;
 
+        // Helper: inside any building footprint
+        const tbsLocal = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+        function insideAnyBuildingTile(x, y) {
+          for (let i = 0; i < tbsLocal.length; i++) {
+            const B = tbsLocal[i];
+            if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+          }
+          return false;
+        }
+
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
           for (let xx = 0; xx < mapCols; xx++) {
@@ -272,10 +282,11 @@ export function draw(ctx, view) {
             const sx = xx * TILE, sy = yy * TILE;
             // Base fill from town/dungeon
             let fill = fillTownFor(TILES, type, COLORS);
-            // Outdoor FLOOR: use palette.townBiome color directly (no tinting, no overworld tile fallback)
+            // Outdoor ground tint: apply palette.townBiome to outdoor FLOOR and ROAD
             try {
               const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
-              if (isOutdoorFloor) {
+              const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingTile(xx, yy);
+              if (isOutdoorFloor || isOutdoorRoad) {
                 const bFill = townBiomeFill(ctx);
                 if (bFill) fill = bFill;
               }
@@ -316,10 +327,20 @@ export function draw(ctx, view) {
           throw new Error(`[RenderTown] Missing tile fill for type=${type}`);
         }
         fill = td.colors.fill;
-        // Outdoor FLOOR: use palette.townBiome color directly
+        // Outdoor ground tint: apply palette.townBiome to outdoor FLOOR and ROAD
         try {
+          // Compute outdoor road via building footprint check
+          const tbsLocal = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+          const insideAny = (xx, yy) => {
+            for (let i = 0; i < tbsLocal.length; i++) {
+              const B = tbsLocal[i];
+              if (xx > B.x && xx < B.x + B.w - 1 && yy > B.y && yy < B.y + B.h - 1) return true;
+            }
+            return false;
+          };
           const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
-          if (isOutdoorFloor) {
+          const isOutdoorRoad = (type === TILES.ROAD) && !insideAny(x, y);
+          if (isOutdoorFloor || isOutdoorRoad) {
             const bFill = townBiomeFill(ctx);
             if (bFill) fill = bFill;
           }
@@ -354,8 +375,11 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
+            ctx2d.save();
+            ctx2d.globalAlpha = 0.65;
             ctx2d.fillStyle = "#6b7280"; // road color
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
+            ctx2d.restore();
           }
         }
       } else if (ctx.townRoads) {
@@ -369,8 +393,11 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
+            ctx2d.save();
+            ctx2d.globalAlpha = 0.65;
             ctx2d.fillStyle = "#6b7280";
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
+            ctx2d.restore();
           }
         }
       }
