@@ -12,6 +12,7 @@
 import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
+import { drawBiomeDecor, drawEncounterExitOverlay } from "./decor_overlays.js";
 import { attachGlobal } from "../utils/global.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
@@ -275,79 +276,7 @@ export function draw(ctx, view) {
   }
 
   // Biome-driven visual overlays (icons/textures) drawn before visibility overlays
-  if (ctx.encounterBiome) {
-    const biome = String(ctx.encounterBiome).toUpperCase();
-    const fgFor = (key, fallback) => {
-      try {
-        const td = getTileDefByKey("overworld", key) || getTileDefByKey("region", key);
-        if (td && td.colors && td.colors.fg) return td.colors.fg;
-      } catch (_) {}
-      return fallback;
-    };
-    const fgForest = fgFor("FOREST", "#3fa650");
-    const fgGrass  = fgFor("GRASS",  "#84cc16");
-    const fgDesert = fgFor("DESERT", "#d7ba7d");
-    const fgBeach  = fgFor("BEACH",  "#d7ba7d");
-    const fgSnow   = fgFor("SNOW",   "#e5e7eb");
-    const fgSwamp  = fgFor("SWAMP",  "#6fbf73");
-
-    for (let y = startY; y <= endY; y++) {
-      const yIn = y >= 0 && y < mapRows;
-      const rowMap = yIn ? map[y] : null;
-      for (let x = startX; x <= endX; x++) {
-        if (!yIn || x < 0 || x >= mapCols) continue;
-        const type = rowMap[x];
-        const sx = (x - startX) * TILE - tileOffsetX;
-        const sy = (y - startY) * TILE - tileOffsetY;
-
-        // Deterministic scatter using hashed tile coordinate
-        const hash = ((x * 73856093) ^ (y * 19349663)) >>> 0;
-
-        // Forest: decorate walls as tree-tops; floors get sparse leaf speckles
-        if (biome === "FOREST") {
-          if (type === TILES.WALL) {
-            let treeGlyph = "♣";
-            let treeColor = fgForest;
-            try {
-              const t = getTileDefByKey("region", "TREE") || getTileDefByKey("town", "TREE");
-              if (t) {
-                if (Object.prototype.hasOwnProperty.call(t, "glyph")) treeGlyph = t.glyph || treeGlyph;
-                if (t.colors && t.colors.fg) treeColor = t.colors.fg || treeColor;
-              }
-            } catch (_) {}
-            RenderCore.drawGlyph(ctx2d, sx, sy, treeGlyph, treeColor, TILE);
-          } else if (type === TILES.FLOOR && (hash & 7) === 0) {
-            RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgForest, TILE);
-          }
-        }
-
-        // Grass plains: light green speckles on floors
-        if (biome === "GRASS" && type === TILES.FLOOR && (hash % 9) === 0) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgGrass, TILE);
-        }
-
-        // Desert: sand dots
-        if (biome === "DESERT" && type === TILES.FLOOR && (hash % 11) === 0) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgDesert, TILE);
-        }
-
-        // Beach: lighter sand dots, a bit denser
-        if (biome === "BEACH" && type === TILES.FLOOR && (hash % 8) === 0) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgBeach, TILE);
-        }
-
-        // Snow: sparse snow speckles (existing behavior), slightly denser to be visible
-        if (biome === "SNOW" && type === TILES.FLOOR && (hash & 7) <= 1) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgSnow, TILE);
-        }
-
-        // Swamp: occasional ripples
-        if (biome === "SWAMP" && type === TILES.FLOOR && (hash % 13) === 0) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "≈", fgSwamp, TILE);
-        }
-      }
-    }
-  }
+  try { drawBiomeDecor(ctx, { ctx2d, TILE, TILES, map, startX, startY, endX, endY, tileOffsetX, tileOffsetY }); } catch (_) {}
 
   // Visibility overlays within viewport (void for unseen, dim for seen-but-not-visible)
   for (let y = startY; y <= endY; y++) {
@@ -375,28 +304,7 @@ export function draw(ctx, view) {
   }
 
   // Encounter exit overlay: tinted squares on STAIRS tiles (like Region Map edges)
-  if (ctx.mode === "encounter") {
-    try {
-      ctx2d.save();
-      ctx2d.fillStyle = "rgba(241,153,40,0.28)";
-      ctx2d.strokeStyle = "rgba(241,153,40,0.80)";
-      ctx2d.lineWidth = 2;
-      for (let y = startY; y <= endY; y++) {
-        const yIn = y >= 0 && y < mapRows;
-        const rowMap = yIn ? map[y] : null;
-        if (!yIn) continue;
-        for (let x = startX; x <= endX; x++) {
-          if (x < 0 || x >= mapCols) continue;
-          if (!rowMap || rowMap[x] !== TILES.STAIRS) continue;
-          const sx = (x - startX) * TILE - tileOffsetX;
-          const sy = (y - startY) * TILE - tileOffsetY;
-          ctx2d.fillRect(sx, sy, TILE, TILE);
-          ctx2d.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
-        }
-      }
-      ctx2d.restore();
-    } catch (_) {}
-  }
+  try { drawEncounterExitOverlay(ctx, { ctx2d, TILE, TILES, map, startX, startY, endX, endY, tileOffsetX, tileOffsetY }); } catch (_) {}
 
   // decals (e.g., blood stains)
   if (ctx.decals && ctx.decals.length) {
