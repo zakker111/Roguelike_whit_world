@@ -34,12 +34,17 @@ How to add a new town prefab (by hand)
      }
    - Follow existing prefab patterns for layout encoding.
 
-2) Place the prefab via town_gen.js:
+2) Preview/edit with the Prefab Editor (recommended):
+   - Open tools/prefab_editor.html in your browser (or via node server.js).
+   - Load/edit your prefab layout interactively and export the JSON block to paste into worldgen/prefabs.js.
+   - Use consistent IDs and verify door/window alignment visually.
+
+3) Place the prefab via town_gen.js:
    - Use stampPrefab(ctx, prefab, bx, by, buildings) or trySlipStamp(ctx, prefab, bx, by, maxSlip, buildings) to attempt placement.
    - Add logic to include your prefab under appropriate town sizes/biomes if needed.
 
-3) Add signage/schedule overrides if applicable:
+4) Add signage/schedule overrides if applicable:
    - Set shop.scheduleOverride or signWanted in the prefab shop block; town_gen and services/shop_service.js will honor these.
 
-4) Test in-game:
+5) Test in-game:
    - Run node server.js and visit a town; use the GOD panel “Check Prefabs” to confirm your new prefab is loaded and used.
