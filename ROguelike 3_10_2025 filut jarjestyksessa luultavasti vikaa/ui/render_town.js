@@ -111,7 +111,11 @@ export function draw(ctx, view) {
       // Use persisted biome if available
       try {
         const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-        if (rec && rec.biome) { ctx.townBiome = rec.biome; return; }
+        if (rec && rec.biome) {
+          ctx.townBiome = rec.biome;
+          try { ctx._townBiomeSource = "persisted"; ctx._townBiomeWorldPos = { x: wx, y: wy }; ctx._townBiomeCounts = null; } catch (_) {}
+          return;
+        }
       } catch (_) {}
 
       // Helper: get tile at absolute world coords (prefer current window; fallback to generator)
@@ -157,7 +161,12 @@ export function draw(ctx, view) {
       let best = "GRASS", bestV = -1;
       for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
       ctx.townBiome = best || "GRASS";
-
+      try {
+        ctx._townBiomeSource = "derived";
+        ctx._townBiomeCounts = { ...counts };
+        ctx._townBiomeWorldPos = { x: wx, y: wy };
+      } catch (_) {}
+      
       // Persist for future visits
       try {
         const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
@@ -303,6 +312,58 @@ export function draw(ctx, view) {
             `[RenderTown.baseSource] floorBiomeUsed=${floorBiomeUsed ? "yes" : "no"} biomeFillColor=${biomeFill || "(none)"} tileJSONFloorColor=${tileJsonFloorColor || "(none)"} fallbackFloorColor=${fallbackFloorColor || "(none)"}${firstDelayMs != null ? " firstDelayMs=" + firstDelayMs : ""}`,
             "notice"
           );
+          // Biome pick diagnostics (source + counts)
+          try {
+            const src = String(ctx._townBiomeSource || "");
+            const counts = ctx._townBiomeCounts || null;
+            if (src || counts) {
+              const cstr = counts ? ` DESERT=${counts.DESERT|0} SNOW=${counts.SNOW|0} BEACH=${counts.BEACH|0} SWAMP=${counts.SWAMP|0} FOREST=${counts.FOREST|0} GRASS=${counts.GRASS|0}` : "";
+              ctx.log && ctx.log(`[RenderTown.biomePick] source=${src || "(unknown)"} chosen=${biomeKey || "(none)"}${cstr}`, "notice");
+            }
+          } catch (_) {}
+          // Palette of base tile colors and their sources (tileJSON vs fallback; FLOOR uses biome)
+          try {
+            const palette = {
+              WALL: fillTownFor(TILES, TILES.WALL, COLORS),
+              FLOOR: biomeFill || fillTownFor(TILES, TILES.FLOOR, COLORS),
+              ROAD: fillTownFor(TILES, TILES.ROAD, COLORS),
+              DOOR: fillTownFor(TILES, TILES.DOOR, COLORS),
+              WINDOW: fillTownFor(TILES, TILES.WINDOW, COLORS),
+              STAIRS: fillTownFor(TILES, TILES.STAIRS, COLORS),
+            };
+            const srcFor = (id, name) => {
+              if (name === "FLOOR" && biomeFill) return "biome";
+              const td = getTileDef("town", id) || getTileDef("dungeon", id) || null;
+              return td ? "tileJSON" : "fallback";
+            };
+            const sources = {
+              WALL: srcFor(TILES.WALL, "WALL"),
+              FLOOR: srcFor(TILES.FLOOR, "FLOOR"),
+              ROAD: srcFor(TILES.ROAD, "ROAD"),
+              DOOR: srcFor(TILES.DOOR, "DOOR"),
+              WINDOW: srcFor(TILES.WINDOW, "WINDOW"),
+              STAIRS: srcFor(TILES.STAIRS, "STAIRS"),
+            };
+            ctx.log && ctx.log(`[RenderTown.baseTilePalette] ${Object.entries(palette).map(([k,v]) => `${k}=${v}`).join(" ")}`, "notice");
+            ctx.log && ctx.log(`[RenderTown.baseTileSources] ${Object.entries(sources).map(([k,v]) => `${k}=${v}`).join(" ")}`, "notice");
+          } catch (_) {}
+          // First-pass samples: gate interior and plaza center
+          try {
+            const sampleColorAt = (x, y) => {
+              if (y < 0 || y >= mapRows || x < 0 || x >= mapCols) return { type: null, color: null };
+              const type = map[y][x];
+              let fill = fillTownFor(TILES, type, COLORS);
+              if (type === TILES.FLOOR && biomeFill) fill = biomeFill;
+              return { type, color: fill };
+            };
+            const gx = (ctx.townExitAt && typeof ctx.townExitAt.x === "number") ? ctx.townExitAt.x : null;
+            const gy = (ctx.townExitAt && typeof ctx.townExitAt.y === "number") ? ctx.townExitAt.y : null;
+            const gateS = (gx != null && gy != null) ? sampleColorAt(gx, gy) : null;
+            const px = (ctx.townPlaza && typeof ctx.townPlaza.x === "number") ? (ctx.townPlaza.x | 0) : ((mapCols/2)|0);
+            const py = (ctx.townPlaza && typeof ctx.townPlaza.y === "number") ? (ctx.townPlaza.y | 0) : ((mapRows/2)|0);
+            const plazaS = sampleColorAt(px, py);
+            ctx.log && ctx.log(`[RenderTown.firstSamples] gate=${gx != null ? `${gx},${gy}` : "(n/a)"} gateTile=${gateS ? gateS.type : "(n/a)"} gateColor=${gateS ? gateS.color : "(n/a)"} plaza=${px},${py} plazaTile=${plazaS.type} plazaColor=${plazaS.color}`, "notice");
+          } catch (_) {}
         } catch (_) {}
       }
     }
