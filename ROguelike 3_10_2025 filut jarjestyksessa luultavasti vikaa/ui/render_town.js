@@ -563,6 +563,73 @@ export function draw(ctx, view) {
     } catch (_) {}
   })();
 
+  // DEV overlay: draw glyphs on top of visibility for every tile in viewport (ensures always visible)
+  (function drawDevGlyphTop() {
+    try {
+      const isDEV = (typeof window !== "undefined" && !!window.DEV) || (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1");
+      if (!isDEV) return;
+
+      function ensureFgForDEVAt(x, y, type) {
+        try {
+          let fill = fillTownFor(TILES, type, COLORS);
+          const biomeFill = townBiomeFill(ctx);
+          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
+            fill = biomeFill;
+          }
+          const m = /^#?([0-9a-fA-F]{6})$/.exec(String(fill || "").trim());
+          if (m) {
+            const hex = m[1];
+            const r = parseInt(hex.slice(0, 2), 16) / 255;
+            const g = parseInt(hex.slice(2, 4), 16) / 255;
+            const b = parseInt(hex.slice(4, 6), 16) / 255;
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+            return luma > 0.5 ? "#0b0f16" : "#e5e7eb";
+          }
+        } catch (_) {}
+        return "#e5e7eb";
+      }
+      function defaultGlyphFor(type) {
+        try {
+          if (type === TILES.WALL) return "#";
+          if (type === TILES.FLOOR) return ".";
+          if (type === TILES.ROAD) return "=";
+          if (type === TILES.DOOR) return "+";
+          if (type === TILES.WINDOW) return "□";
+          if (type === TILES.STAIRS) return ">";
+        } catch (_) {}
+        return "?";
+      }
+
+      for (let y = startY; y <= endY; y++) {
+        const yIn = y >= 0 && y < mapRows;
+        if (!yIn) continue;
+        for (let x = startX; x <= endX; x++) {
+          if (x < 0 || x >= mapCols) continue;
+          const type = map[y][x];
+          const tg = glyphTownFor(type);
+          let glyph = tg ? tg.glyph : "";
+          let fg = tg ? tg.fg : null;
+          if (!glyph || String(glyph).trim().length === 0) glyph = defaultGlyphFor(type);
+          if (!fg) {
+            fg = (type === TILES.WINDOW) ? "#8ecae6" : ensureFgForDEVAt(x, y, type);
+          }
+          const screenX = (x - startX) * TILE - tileOffsetX;
+          const screenY = (y - startY) * TILE - tileOffsetY;
+          if (type === TILES.WINDOW) {
+            ctx2d.save();
+            ctx2d.globalAlpha = 0.60;
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+            ctx2d.restore();
+          } else if (type === TILES.STAIRS) {
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          } else {
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+          }
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Props: draw remembered (seen) props dimmed; draw fully only when currently visible with direct LOS.
   // When upstairs overlay is active, suppress ground props inside the inn footprint and draw upstairs props instead.
   if (Array.isArray(ctx.townProps)) {
