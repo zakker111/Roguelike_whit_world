@@ -22,3 +22,24 @@ Notes:
 - rect is the placed building rectangle for bookkeeping (e.g., dedup, windows, props).
 - shop is present only when the prefab declares a shop; it includes door position and optional schedule/sign metadata.
 - Older code paths used boolean returns; if you migrate any callers, do not assume boolean — inspect res.ok and properties instead.
+
+How to add a new town prefab (by hand)
+1) Define the prefab in worldgen/prefabs.js:
+   - Include dimensions, interior layout (walls/doors/windows), and optional shop metadata:
+     {
+       id: "bakery_small",
+       w: 7, h: 5,
+       layout: [...], // tile/glyph plan
+       shop: { type: "Bakery", name: "Bakery", signWanted: true }
+     }
+   - Follow existing prefab patterns for layout encoding.
+
+2) Place the prefab via town_gen.js:
+   - Use stampPrefab(ctx, prefab, bx, by, buildings) or trySlipStamp(ctx, prefab, bx, by, maxSlip, buildings) to attempt placement.
+   - Add logic to include your prefab under appropriate town sizes/biomes if needed.
+
+3) Add signage/schedule overrides if applicable:
+   - Set shop.scheduleOverride or signWanted in the prefab shop block; town_gen and services/shop_service.js will honor these.
+
+4) Test in-game:
+   - Run node server.js and visit a town; use the GOD panel “Check Prefabs” to confirm your new prefab is loaded and used.
