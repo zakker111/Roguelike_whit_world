@@ -56,6 +56,7 @@ Towns and Wild Seppo
 - Residents who like the Inn will sometimes stop by the Inn in the early evening before going home (~33% of days), with short sits and seating cap to avoid crowding.
 - Wild Seppo (wandering merchant) may arrive at the plaza rarely during day/dusk.
   - Only one Seppo can be in town at a time; no duplicates will spawn.
+- Outdoor ground tint: towns tint outdoor floors and roads by biome; road overlays are semi‑transparent so the biome tint remains visible.
 
 Region Map (local tactical overlay)
 - Open with G on a walkable overworld tile (or on RUINS tiles); M key is disabled.
@@ -107,6 +108,7 @@ Bundling (optional, Vite)
   - npm run preview     # serves the built dist/ on http://localhost:8080
 - Deploy:
   - You can deploy either the raw repo (native ESM) or the dist/ folder produced by Vite.
+  - Tip: bump meta[name="app-version"] in index.html (often aligned with package.json version) to force clearing saved states on deploy.
 
 Key features at a glance
 - Infinite, deterministic overworld with chunk streaming and fog-of-war.
@@ -129,6 +131,7 @@ Useful flags and persistence
 - dev=1: enable DEV mode (extra logs); dev=0 disables.
 - mirror=1|0: side log mirror on/off (persists in localStorage).
 - Seed persists in localStorage SEED and is shown in the GOD panel.
+- Version-based storage clearing: on each deploy, the app compares meta[name="app-version"] with the stored version. If changed, it clears saved town/dungeon/region state and resets in‑memory mirrors to guarantee a clean start (preferences like seed/toggles remain).
 
 Project layout (brief)
 - core/: engine, loop, ctx, input, modes
