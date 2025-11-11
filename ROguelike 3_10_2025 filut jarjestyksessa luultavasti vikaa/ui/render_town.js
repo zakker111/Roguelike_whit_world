@@ -252,11 +252,15 @@ export function draw(ctx, view) {
         // Track mask reference to trigger rebuild when it changes externally
         TOWN._maskRef = ctx.townOutdoorMask;
 
+        // Count diagnostics for base draw
+        let floorCount = 0;
+
         for (let yy = 0; yy < mapRows; yy++) {
           const rowMap = map[yy];
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
+            if (type === TILES.FLOOR) floorCount++;
             // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
             let fill = fillTownFor(TILES, type, COLORS);
             // Override first-draw base FLOOR with biome color whenever a town biome is chosen,
@@ -276,6 +280,11 @@ export function draw(ctx, view) {
           }
         }
         TOWN.canvas = off;
+        // Reset overlay log for new base
+        TOWN._overlayLogged = false;
+        try {
+          ctx.log && ctx.log(`[RenderTown.base] biome=${biomeKey || "(none)"} floorTiles=${floorCount} offscreenBuilt.`, "notice");
+        } catch (_) {}
       }
     }
   } catch (_) {}
@@ -322,19 +331,46 @@ export function draw(ctx, view) {
 
   // Road overlay pass:
   // 1) Prefer explicit ROAD tiles (authoritative).
-  // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
+  // 2) If no typed ROAD tiles exist anywhere, fall back to townRoads mask (only when dims match and mask has any 'true').
   (function drawRoadOverlay() {
     try {
-      // Detect presence of any typed ROAD tiles across the entire map,
-      // not just the current viewport, to avoid mixing fallback mask with typed roads.
-      let anyRoad = false;
-      for (let y = 0; y < mapRows && !anyRoad; y++) {
+      // Count typed roads across the entire map
+      let typedRoadCount = 0;
+      for (let y = 0; y < mapRows; y++) {
         for (let x = 0; x < mapCols; x++) {
-          if (map[y][x] === TILES.ROAD) { anyRoad = true; break; }
+          if (map[y][x] === TILES.ROAD) typedRoadCount++;
+        }
+      }
+      const hasTyped = typedRoadCount > 0;
+
+      // Validate fallback mask dimensions and count 'true' cells
+      let dimsOk = false;
+      let maskTrueCount = 0;
+      if (ctx.townRoads && Array.isArray(ctx.townRoads) && ctx.townRoads.length === mapRows) {
+        const row0 = ctx.townRoads[0];
+        if (Array.isArray(row0) && row0.length === mapCols) {
+          dimsOk = true;
+          for (let y = 0; y < mapRows; y++) {
+            const rowMask = ctx.townRoads[y];
+            for (let x = 0; x < mapCols; x++) {
+              if (rowMask && rowMask[x]) maskTrueCount++;
+            }
+          }
         }
       }
 
-      if (anyRoad) {
+      // Log once per base rebuild
+      if (!TOWN._overlayLogged) {
+        try {
+          ctx.log && ctx.log(
+            `[RenderTown.overlay] typedRoads=${typedRoadCount} useTyped=${hasTyped ? "yes" : "no"} fallbackPresent=${ctx.townRoads ? "yes" : "no"} dimsOk=${dimsOk ? "yes" : "no"} maskTrue=${maskTrueCount}`,
+            "notice"
+          );
+        } catch (_) {}
+        TOWN._overlayLogged = true;
+      }
+
+      if (hasTyped) {
         // Draw typed roads within the current viewport only.
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
@@ -348,8 +384,8 @@ export function draw(ctx, view) {
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
-      } else if (ctx.townRoads) {
-        // Fallback: draw roads from persisted mask only when the map contains no typed roads at all.
+      } else if (ctx.townRoads && dimsOk && maskTrueCount > 0) {
+        // Fallback: draw roads from persisted mask only when the map contains no typed roads at all, mask dims match, and mask has any roads.
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
           if (!yIn) continue;
@@ -364,6 +400,8 @@ export function draw(ctx, view) {
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
+      } else {
+        // No typed roads and no valid fallback mask; skip overlay entirely.
       }
     } catch (_) {}
   })();

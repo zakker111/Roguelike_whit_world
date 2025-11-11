@@ -107,6 +107,16 @@ export async function run(ctx) {
   ctx.shops = [];
   ctx.townBuildings = [];
   ctx.townPrefabUsage = { houses: [], shops: [], inns: [], plazas: [] };
+  // Clear any previous outdoor/road masks from a prior town to avoid overlay fallbacks painting brown early
+  try {
+    const hadRoads = !!ctx.townRoads;
+    const hadMask = !!ctx.townOutdoorMask;
+    ctx.townRoads = null;
+    ctx.townOutdoorMask = null;
+    if (ctx.log && (hadRoads || hadMask)) {
+      ctx.log(`Deploy: cleared previous townRoads (${hadRoads ? "yes" : "no"}) and outdoor mask (${hadMask ? "yes" : "no"}) before generation.`, "notice");
+    }
+  } catch (_) {}
 
   // Town size from world registry
   let townSize = "big";
@@ -412,25 +422,41 @@ export async function run(ctx) {
   // Phase F: Outdoor mask and roads
   await sleep(delay);
   (function buildOutdoorMaskAndRoads() {
-    const rows = H, cols = W;
-    const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
-    function insideAnyBuilding(x, y) {
-      for (let i = 0; i < ctx.townBuildings.length; i++) {
-        const B = ctx.townBuildings[i];
-        if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+      const rows = H, cols = W;
+      const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
+      function insideAnyBuilding(x, y) {
+        for (let i = 0; i < ctx.townBuildings.length; i++) {
+          const B = ctx.townBuildings[i];
+          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+        }
+        return false;
       }
-      return false;
-    }
-    for (let yy = 0; yy < rows; yy++) {
-      for (let xx = 0; xx < cols; xx++) {
-        const t = ctx.map[yy][xx];
-        if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) mask[yy][xx] = true;
+      for (let yy = 0; yy < rows; yy++) {
+        for (let xx = 0; xx < cols; xx++) {
+          const t = ctx.map[yy][xx];
+          if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) mask[yy][xx] = true;
+        }
       }
+      ctx.townOutdoorMask = mask;
+      try { Roads.build(ctx); } catch (_) {}
+      // Diagnostics: count typed ROAD tiles and roads mask coverage
+      try {
+        let typed = 0, masked = 0;
+        for (let yy = 0; yy < rows; yy++) {
+          for (let xx = 0; xx < cols; xx++) {
+            if (ctx.map[yy][xx] === ctx.TILES.ROAD) typed++;
+            if (ctx.townRoads && ctx.townRoads[yy] && ctx.townRoads[yy][xx]) masked++;
+          }
+        }
+        ctx._roadsDiag = { typed, masked, rows, cols };
+      } catch (_) {}
+    })();
+    try {
+      const d = ctx._roadsDiag || {};
+      ctx.log && ctx.log(`Phase F: outdoor mask computed and roads carved. typedRoads=${d.typed|0}, maskTrue=${d.masked|0}, size=${(d.cols||W)}x${(d.rows||H)}.`, "notice");
+    } catch (_) {
+      ctx.log && ctx.log("Phase F: outdoor mask computed and roads carved.", "notice");
     }
-    ctx.townOutdoorMask = mask;
-    try { Roads.build(ctx); } catch (_) {}
-  })();
-  ctx.log && ctx.log("Phase F: outdoor mask computed and roads carved.", "notice");
   refresh(ctx);
 
   // Phase G: Interior props and windows
