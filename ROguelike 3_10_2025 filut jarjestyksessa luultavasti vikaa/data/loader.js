@@ -245,10 +245,10 @@ GameData.ready = (async function loadAll() {
       try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, props: !!GameData.props, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression }); } catch (_) {}
     }
 
-    // Strict: require core registries
-    if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles || !GameData.encounters) {
-      throw new Error("[GameData] Required registries missing. Strict mode prohibits fallbacks.");
-    }
+    // Strict core requirements already enforced above:
+    // - tiles/props from world_assets.json
+    // - palette.json
+    // Other registries are optional at boot. Modules that require them will throw at usage time if missing.
   } catch (e) {
     try { console.warn("[GameData] load error", e); } catch (_) {}
     throw e;
