@@ -184,6 +184,15 @@ function resolvedTownBiomeFill(ctx) {
   };
   return FALLBACK[k] || null;
 }
+// Tint readiness: require palette.townBiome and a non-empty ctx.townBiome key
+function tintReady(ctx) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const pal = GD && GD.palette && GD.palette.townBiome ? GD.palette.townBiome : null;
+    const k = String(ctx.townBiome || "").toUpperCase();
+    return !!(pal && k && pal[k]);
+  } catch (_) { return false; }
+}
 
   function ensureOutdoorMask(ctx) {
     // Rebuild if missing or dimensions mismatch current map
@@ -242,7 +251,26 @@ function resolvedTownBiomeFill(ctx) {
         || TOWN._townKey !== townKey
         || TOWN._maskRef !== ctx.townOutdoorMask;
 
-      if (needsRebuild) {
+      // Guard: skip offscreen rebuild until tint prerequisites are ready.
+      const readyForTint = tintReady(ctx);
+      if (!readyForTint) {
+        // Invalidate offscreen so viewport fallback draws this frame.
+        TOWN.canvas = null;
+        TOWN.mapRef = map;
+        TOWN.wpx = wpx;
+        TOWN.hpx = hpx;
+        TOWN.TILE = TILE;
+        TOWN._tilesRef = tilesRef();
+        TOWN._palRef = paletteRef();
+        TOWN._biomeKey = biomeKey;
+        TOWN._townKey = townKey;
+        TOWN._maskRef = ctx.townOutdoorMask;
+        // Reset logs so diagnostics will run once tint becomes ready
+        TOWN._loggedFloorColor = false;
+        TOWN._loggedMaskDiag = false;
+      }
+
+      if (needsRebuild && readyForTint) {
         TOWN.mapRef = map;
         TOWN.wpx = wpx;
         TOWN.hpx = hpx;
@@ -299,7 +327,13 @@ function resolvedTownBiomeFill(ctx) {
             const palKeys = palReady ? Object.keys(palBiome) : [];
             const wrpReady = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
             const bKey = String(ctx.townBiome || "").toUpperCase();
-            const hex = biomeFill || "(none)"; // resolved earlier via resolvedTownBiomeFill(ctx)
+            const hex = readyForTint ? (biomeFill || "(none)") : "(pending)"; // resolved earlier via resolvedTownBiomeFill(ctx)
+            // Attach color per sample for clarity
+            const sf = samplesFloor.map(s => `${s}=${hex}`).join(" ");
+            const sr = samplesRoad.map(s => `${s}=${hex}`).join(" ");
+            const msg2 = `[Town] Outdoor tiles detected: ${outdoorCount}`;
+            const msg3 = `[Town] Outdoor FLOOR tinted: ${floorCount}  color=${hex}  samples: ${sf}`;
+            const msg4 = `[Town] Outdoor ROAD tinted:  ${roadCount}  color=${hex}  samples: ${sr}`;|| "(none)"; // resolved earlier via resolvedTownBiomeFill(ctx)
             const palHasKey = palReady ? !!palBiome[bKey] : false;
 
             const readyMsg = `[TownDiag] tint readiness: wrpReady=${wrpReady} paletteReady=${palReady} biome=${bKey} fill=${hex} palHasKey=${palHasKey} palKeys=[${palKeys.join(",")}]`;
