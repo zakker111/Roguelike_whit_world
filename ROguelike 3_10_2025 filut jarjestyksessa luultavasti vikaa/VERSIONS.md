@@ -13,7 +13,8 @@ v1.45.2 — Town renderer: tint readiness, early biome inference, semi‑transpa
   - Syntax cleanup in ui/render_town.js: removed stray/duplicated fragments and rewrote wx/wy selection for clarity.
 - Deploys start clean
   - index.html now carries meta name="app-version". On load, if the stored version differs, the boot script clears DUNGEON_STATES_V1, TOWN_STATES_V1, REGION_* keys in localStorage and resets in‑memory mirrors, then stores the new version. This guarantees a clean state after each deploy while preserving preferences like seed and UI toggles.
-- Deployment: https://st5anr6n6xd4.cosine.page (renderer + tint), https://g1tplwng5svw.cosine.page (version‑based storage clearing)
+- Docs: README updated (outdoor tint details; version-based storage clearing tip).
+- Deployment: https://st5anr6n6xd4.cosine.page (renderer + tint), https://g1tplwng5svw.cosine.page (version‑based storage clearing), https://i5kpteoundgh.cosine.page (v1.45.2)
 
 v1.45.1 — Tool registry + data-driven consumables/potions
 - Tools registry (tool-first)
