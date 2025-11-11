@@ -12,6 +12,7 @@
  * - Storage is kept both in-memory (page session) and localStorage so revisits are stable and memory persists.
  */
 
+import * as Roads from "../worldgen/roads.js";
 const LS_KEY = "TOWN_STATES_V1";
 
 // Global in-memory fallback that persists across ctx instances within the same page/session
@@ -252,50 +253,33 @@ function applyState(ctx, st, x, y) {
   // Ensure we can return to the same overworld tile on exit
   ctx.worldReturnPos = { x, y };
 
-  // Build roads mask if missing (for loaded towns saved before roads were persisted)
+  // Build roads if missing using worldgen logic; avoid broad grid fallback that overpaints outdoor ground.
   (function rebuildTownRoadsMaskOnLoad() {
     try {
       const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
       const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
       if (!rows || !cols) return;
-      // If a mask exists and matches current dimensions, keep it
-      if (Array.isArray(ctx.townRoads) && ctx.townRoads.length === rows && Array.isArray(ctx.townRoads[0]) && ctx.townRoads[0].length === cols) return;
 
-      const roadsMask = Array.from({ length: rows }, () => Array(cols).fill(false));
-      function inB(x0, y0) { return y0 >= 0 && y0 < rows && x0 >= 0 && x0 < cols; }
-
-      // Carve L-shaped road from gate to plaza (if both exist)
-      try {
-        const gate = ctx.townExitAt || null;
-        const plaza = ctx.townPlaza || { x: (cols / 2) | 0, y: (rows / 2) | 0 };
-        if (gate && inB(gate.x, gate.y) && inB(plaza.x, plaza.y)) {
-          let x = gate.x | 0, y = gate.y | 0;
-          while (x !== plaza.x) { if (inB(x, y)) roadsMask[y][x] = true; x += Math.sign(plaza.x - x); }
-          while (y !== plaza.y) { if (inB(x, y)) roadsMask[y][x] = true; y += Math.sign(plaza.y - y); }
-          if (inB(x, y)) roadsMask[y][x] = true;
+      // If there are any typed ROAD tiles already, derive the mask from the map and return.
+      let anyTypedRoad = false;
+      for (let yy = 0; yy < rows && !anyTypedRoad; yy++) {
+        for (let xx = 0; xx < cols; xx++) {
+          if (ctx.map[yy][xx] === ctx.TILES.ROAD) { anyTypedRoad = true; break; }
         }
-      } catch (_) {}
-
-      // Grid roads by stride from GameData.town (defaults if missing)
-      let yStride = 8, xStride = 10;
-      try {
-        const TOWNCFG = (typeof window !== "undefined" && window.GameData && window.GameData.town) || null;
-        if (TOWNCFG && TOWNCFG.roads) {
-          if (TOWNCFG.roads.yStride != null) yStride = (TOWNCFG.roads.yStride | 0);
-          if (TOWNCFG.roads.xStride != null) xStride = (TOWNCFG.roads.xStride | 0);
-        }
-      } catch (_) {}
-      yStride = Math.max(2, yStride | 0);
-      xStride = Math.max(2, xStride | 0);
-
-      for (let y = 6; y < rows - 6; y += yStride) {
-        for (let x = 1; x < cols - 1; x++) { roadsMask[y][x] = true; }
       }
-      for (let x = 6; x < cols - 6; x += xStride) {
-        for (let y = 1; y < rows - 1; y++) { roadsMask[y][x] = true; }
+      if (anyTypedRoad) {
+        const roadsMask = Array.from({ length: rows }, () => Array(cols).fill(false));
+        for (let yy = 0; yy < rows; yy++) {
+          for (let xx = 0; xx < cols; xx++) {
+            if (ctx.map[yy][xx] === ctx.TILES.ROAD) roadsMask[yy][xx] = true;
+          }
+        }
+        ctx.townRoads = roadsMask;
+        return;
       }
 
-      // Finalize: clear mask inside building interiors and on non-FLOOR tiles
+      // No typed roads: rebuild outdoor mask and run worldgen Roads.build(ctx) to carve gate→plaza + spurs.
+      const outdoorMask = Array.from({ length: rows }, () => Array(cols).fill(false));
       function insideAnyBuilding(x, y) {
         const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
         for (let i = 0; i < tbs.length; i++) {
@@ -306,12 +290,29 @@ function applyState(ctx, st, x, y) {
       }
       for (let yy = 0; yy < rows; yy++) {
         for (let xx = 0; xx < cols; xx++) {
-          if (insideAnyBuilding(xx, yy)) { roadsMask[yy][xx] = false; continue; }
-          if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) { roadsMask[yy][xx] = false; }
+          const t = ctx.map[yy][xx];
+          if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
+            outdoorMask[yy][xx] = true;
+          }
         }
       }
+      ctx.townOutdoorMask = outdoorMask;
 
-      ctx.townRoads = roadsMask;
+      // Carve roads using worldgen logic (BFS) now that outdoor mask exists.
+      try {
+        if (Roads && typeof Roads.build === "function") {
+          Roads.build(ctx);
+        }
+      } catch (_) {}
+
+      // Publish roads mask from typed ROAD tiles after build
+      const roadsMask2 = Array.from({ length: rows }, () => Array(cols).fill(false));
+      for (let yy = 0; yy < rows; yy++) {
+        for (let xx = 0; xx < cols; xx++) {
+          roadsMask2[yy][xx] = (ctx.map[yy][xx] === ctx.TILES.ROAD);
+        }
+      }
+      ctx.townRoads = roadsMask2;
     } catch (_) {}
   })();
 

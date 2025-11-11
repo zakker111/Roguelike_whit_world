@@ -316,17 +316,17 @@ export function draw(ctx, view) {
   // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
   (function drawRoadOverlay() {
     try {
+      // Detect presence of any typed ROAD tiles across the entire map,
+      // not just the current viewport, to avoid mixing fallback mask with typed roads.
       let anyRoad = false;
-      for (let y = startY; y <= endY && !anyRoad; y++) {
-        const yIn = y >= 0 && y < mapRows;
-        if (!yIn) continue;
-        for (let x = startX; x <= endX; x++) {
-          if (x < 0 || x >= mapCols) continue;
+      for (let y = 0; y < mapRows && !anyRoad; y++) {
+        for (let x = 0; x < mapCols; x++) {
           if (map[y][x] === TILES.ROAD) { anyRoad = true; break; }
         }
       }
 
       if (anyRoad) {
+        // Draw typed roads within the current viewport only.
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
           if (!yIn) continue;
@@ -340,6 +340,7 @@ export function draw(ctx, view) {
           }
         }
       } else if (ctx.townRoads) {
+        // Fallback: draw roads from persisted mask only when the map contains no typed roads at all.
         for (let y = startY; y <= endY; y++) {
           const yIn = y >= 0 && y < mapRows;
           if (!yIn) continue;
