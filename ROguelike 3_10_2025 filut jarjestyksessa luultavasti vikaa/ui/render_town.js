@@ -292,6 +292,18 @@ export function draw(ctx, view) {
           const top = pairs.slice(0, 6).map(([c, n]) => `${c}=${n}`).join(", ");
           ctx.log && ctx.log(`[RenderTown.baseColors] biomeFill=${biomeFill || "(none)"} top=${top}`, "notice");
         } catch (_) {}
+        // Log base fill source details for FLOOR tiles (biome vs tile JSON vs fallback)
+        try {
+          const tdTownFloor = getTileDef("town", TILES.FLOOR) || getTileDef("dungeon", TILES.FLOOR) || null;
+          const tileJsonFloorColor = (tdTownFloor && tdTownFloor.colors && tdTownFloor.colors.fill) ? tdTownFloor.colors.fill : null;
+          const fallbackFloorColor = fallbackFillTown(TILES, TILES.FLOOR, COLORS);
+          const floorBiomeUsed = !!biomeFill;
+          const firstDelayMs = (typeof window !== "undefined" && typeof window.TOWN_GEN_DELAY === "number") ? (window.TOWN_GEN_DELAY | 0) : null;
+          ctx.log && ctx.log(
+            `[RenderTown.baseSource] floorBiomeUsed=${floorBiomeUsed ? "yes" : "no"} biomeFillColor=${biomeFill || "(none)"} tileJSONFloorColor=${tileJsonFloorColor || "(none)"} fallbackFloorColor=${fallbackFloorColor || "(none)"}${firstDelayMs != null ? " firstDelayMs=" + firstDelayMs : ""}`,
+            "notice"
+          );
+        } catch (_) {}
       }
     }
   } catch (_) {}

@@ -233,8 +233,11 @@ export function enterTownIfOnTile(ctx) {
                 }
               } catch (_) {}
               if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+              // Only sync/draw immediately when not in deploy mode; TownGenDeploy handles refresh when active
+              syncAfterMutation(ctx);
+            } else {
+              try { if (ctx.log) ctx.log("Stepwise deploy active: initial delay before base draw, then phases with 3s pauses.", "notice"); } catch (_) {}
             }
-            syncAfterMutation(ctx);
             return true;
           }
         }

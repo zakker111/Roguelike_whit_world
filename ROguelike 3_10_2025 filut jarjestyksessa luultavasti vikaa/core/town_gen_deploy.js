@@ -132,6 +132,10 @@ export async function run(ctx) {
   const dims = cfgTownSize(ctx, townSize);
   const W = dims.W, H = dims.H;
 
+  // Initial pre-generation delay to visualize first base draw timing
+  try { ctx.log && ctx.log(`Deploy: initial delay ${delay}ms before base ground draw.`, "notice"); } catch (_) {}
+  await sleep(delay);
+
   // Phase A: Map sizing, tiles, and gate/plaza anchors
   ctx.map = Array.from({ length: H }, () => Array(W).fill(ctx.TILES.FLOOR));
   for (let x = 0; x < W; x++) { ctx.map[0][x] = ctx.TILES.WALL; ctx.map[H - 1][x] = ctx.TILES.WALL; }
