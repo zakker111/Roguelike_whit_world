@@ -567,7 +567,8 @@ export function draw(ctx, view) {
   (function drawDevGlyphTop() {
     try {
       const isDEV = (typeof window !== "undefined" && !!window.DEV) || (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1");
-      if (!isDEV) return;
+      const forceGlyphs = (typeof window !== "undefined" && !!window.TOWN_GLYPHS) || (typeof localStorage !== "undefined" && localStorage.getItem("TOWN_GLYPHS") === "1");
+      if (!isDEV && !forceGlyphs) return;
 
       function ensureFgForDEVAt(x, y, type) {
         try {

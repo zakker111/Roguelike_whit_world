@@ -202,6 +202,15 @@
         if (params.get("dev") === "0") { window.DEV = false; localStorage.removeItem("DEV"); }
         if (localStorage.getItem("DEV") === "1") window.DEV = true;
 
+        // Optional: force town glyph overlay regardless of DEV via ?glyphs=1
+        if (params.get("glyphs") === "1") { window.TOWN_GLYPHS = true; localStorage.setItem("TOWN_GLYPHS", "1"); }
+        if (params.get("glyphs") === "0") { window.TOWN_GLYPHS = false; localStorage.setItem("TOWN_GLYPHS", "0"); }
+        if (typeof window.TOWN_GLYPHS === "undefined") {
+          const g = localStorage.getItem("TOWN_GLYPHS");
+          if (g === "1") window.TOWN_GLYPHS = true;
+          else if (g === "0") window.TOWN_GLYPHS = false;
+        }
+
         // Log mirror toggle (?mirror=1 or ?mirror=0), persisted
         if (params.get("mirror") === "1") { window.LOG_MIRROR = true; localStorage.setItem("LOG_MIRROR", "1"); }
         if (params.get("mirror") === "0") { window.LOG_MIRROR = false; localStorage.setItem("LOG_MIRROR", "0"); }
