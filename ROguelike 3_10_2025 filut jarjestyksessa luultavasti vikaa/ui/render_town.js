@@ -97,9 +97,7 @@ export function draw(ctx, view) {
       // We require absolute world coordinates for this town; do not guess from player (town-local) coords.
       const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
       if (!hasWRP) {
-        // Default to GRASS when we cannot determine an absolute world position (e.g., early boot)
-        // so outdoor floors always have a valid biome color.
-        if (!ctx.townBiome) ctx.townBiome = "GRASS";
+        // No absolute world position yet; defer biome inference.
         return;
       }
       const wx = ctx.worldReturnPos.x | 0;
@@ -150,7 +148,7 @@ export function draw(ctx, view) {
         const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
         if (any && total > 0) break;
       }
-      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      const order = ["DESERT","SNOW","BEACH","SWAMP","FOREST","GRASS"];
       let best = "GRASS", bestV = -1;
       for (const k of order) { const v = counts[k] | 0; if (v > bestV) { bestV = v; best = k; } }
       ctx.townBiome = best || "GRASS";

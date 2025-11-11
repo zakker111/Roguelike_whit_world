@@ -416,7 +416,7 @@ function generate(ctx) {
       }
 
       // Pick the biome with the highest count; tie-break by a fixed priority
-      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+      const order = ["DESERT","SNOW","BEACH","SWAMP","FOREST","GRASS"];
       let best = "GRASS", bestV = -1;
       for (const k of order) {
         const v = counts[k] | 0;

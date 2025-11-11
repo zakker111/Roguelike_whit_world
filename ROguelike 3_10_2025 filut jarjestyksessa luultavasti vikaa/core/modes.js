@@ -199,6 +199,13 @@ export function enterTownIfOnTile(ctx) {
             } catch (_) {}
             // Ensure player spawns on gate interior tile on entry
             movePlayerToTownGateInterior(ctx);
+            // Log selected outdoor floor color (town biome) once upon re-entry
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.townBiome) ? window.GameData.palette.townBiome : null;
+              const bKey = String(ctx.townBiome || "").toUpperCase();
+              const hex = pal && bKey ? pal[bKey] : null;
+              if (hex && ctx.log) ctx.log(`[Town] Outdoor floor color: ${hex} (biome=${bKey})`, "notice");
+            } catch (_) {}
             if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
             syncAfterMutation(ctx);
             return true;
@@ -224,6 +231,13 @@ export function enterTownIfOnTile(ctx) {
                 const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
                 if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
               }
+            } catch (_) {}
+            // Log selected outdoor floor color (town biome) once upon entry
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.townBiome) ? window.GameData.palette.townBiome : null;
+              const bKey = String(ctx.townBiome || "").toUpperCase();
+              const hex = pal && bKey ? pal[bKey] : null;
+              if (hex && ctx.log) ctx.log(`[Town] Outdoor floor color: ${hex} (biome=${bKey})`, "notice");
             } catch (_) {}
             if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
             syncAfterMutation(ctx);
@@ -251,6 +265,13 @@ export function enterTownIfOnTile(ctx) {
           const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
           if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
         }
+      } catch (_) {}
+      // Log selected outdoor floor color (town biome) once upon entry (fallback Town.generate path)
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.townBiome) ? window.GameData.palette.townBiome : null;
+        const bKey = String(ctx.townBiome || "").toUpperCase();
+        const hex = pal && bKey ? pal[bKey] : null;
+        if (hex && ctx.log) ctx.log(`[Town] Outdoor floor color: ${hex} (biome=${bKey})`, "notice");
       } catch (_) {}
       if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
       syncAfterMutation(ctx);
