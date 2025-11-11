@@ -43,7 +43,10 @@ function fillDungeonFor(TILES, type, COLORS, themeFn) {
     v = theme;
   } else {
     if (!td || !td.colors || !td.colors.fill) {
-      throw new Error(`[RenderDungeon];
+      throw new Error(`[RenderDungeon] Missing tile fill for type=${type}`);
+    }
+    v = td.colors.fill;
+  }
   TILE_CACHE.fill[k] = v;
   return v;
 }
