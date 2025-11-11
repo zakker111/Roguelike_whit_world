@@ -417,7 +417,8 @@ export function draw(ctx, view) {
   })();
 
   // Per-frame glyph overlay (drawn before visibility overlays)
-  // Keep town clean: suppress door glyphs; show stairs ('>') clearly; windows get a subtle pane glyph for readability
+  // DEV mode: force a glyph and color for every tile to aid debugging (doors included).
+  // Non-DEV: keep town clean — suppress door glyphs; show stairs clearly; subtle window pane.
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowMap = yIn ? map[y] : null;
@@ -425,8 +426,7 @@ export function draw(ctx, view) {
       if (!yIn || x < 0 || x >= mapCols) continue;
       const type = rowMap[x];
 
-      // Suppress DOOR glyphs
-      if (type === TILES.DOOR) continue;
+      const isDEV = (typeof window !== "undefined" && !!window.DEV);
 
       const tg = glyphTownFor(type);
       let glyph = tg ? tg.glyph : "";
@@ -435,7 +435,44 @@ export function draw(ctx, view) {
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
 
-      // Stairs: explicit fallback glyph/color to ensure visibility
+      // Helper: ensure a contrasting fallback foreground color when missing (DEV only)
+      function ensureFgForDEV() {
+        try {
+          // Determine the tile's fill as drawn on the base layer (match outdoors tint for FLOOR)
+          let fill = fillTownFor(TILES, type, COLORS);
+          const biomeFill = townBiomeFill(ctx);
+          if (type === TILES.FLOOR && biomeFill && ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]) {
+            fill = biomeFill;
+          }
+          // Parse hex color -> luminance and choose high-contrast white/black
+          const m = /^#?([0-9a-fA-F]{6})$/.exec(String(fill || "").trim());
+          if (m) {
+            const hex = m[1];
+            const r = parseInt(hex.slice(0, 2), 16) / 255;
+            const g = parseInt(hex.slice(2, 4), 16) / 255;
+            const b = parseInt(hex.slice(4, 6), 16) / 255;
+            // Rec. 601 luma approximation
+            const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+            return luma > 0.5 ? "#0b0f16" : "#e5e7eb";
+          }
+        } catch (_) {}
+        return "#e5e7eb";
+      }
+
+      // Helper: default glyphs when JSON has none (primarily for DEV)
+      function defaultGlyphFor(type) {
+        try {
+          if (type === TILES.WALL) return "#";
+          if (type === TILES.FLOOR) return ".";
+          if (type === TILES.ROAD) return "=";
+          if (type === TILES.DOOR) return "+";
+          if (type === TILES.WINDOW) return "□";
+          if (type === TILES.STAIRS) return ">";
+        } catch (_) {}
+        return "?";
+      }
+
+      // Stairs: explicit fallback glyph/color to ensure visibility (both DEV and non-DEV)
       if (type === TILES.STAIRS) {
         const g = ">";
         const c = "#d7ba7d";
@@ -443,16 +480,40 @@ export function draw(ctx, view) {
         continue;
       }
 
-      if (type === TILES.WINDOW) {
-        if (!glyph || String(glyph).trim().length === 0) glyph = "□";
-        if (!fg) fg = "#8ecae6";
-        ctx2d.save();
-        ctx2d.globalAlpha = 0.50;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-        ctx2d.restore();
+      if (!isDEV) {
+        // Non-DEV behavior (original)
+        // Suppress DOOR glyphs
+        if (type === TILES.DOOR) continue;
+
+        if (type === TILES.WINDOW) {
+          if (!glyph || String(glyph).trim().length === 0) glyph = "□";
+          if (!fg) fg = "#8ecae6";
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.50;
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+          ctx2d.restore();
+        } else {
+          if (!glyph || !fg || String(glyph).trim().length === 0) continue;
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+        }
       } else {
-        if (!glyph || !fg || String(glyph).trim().length === 0) continue;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+        // DEV behavior: draw a glyph for every tile, always ensuring a foreground color
+        if (!glyph || String(glyph).trim().length === 0) {
+          glyph = defaultGlyphFor(type);
+        }
+        if (!fg) {
+          fg = (type === TILES.WINDOW) ? "#8ecae6" : ensureFgForDEV();
+        }
+
+        // Slight transparency for windows to hint glass
+        if (type === TILES.WINDOW) {
+          ctx2d.save();
+          ctx2d.globalAlpha = 0.60;
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+          ctx2d.restore();
+        } else {
+          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
+        }
       }
     }
   }
