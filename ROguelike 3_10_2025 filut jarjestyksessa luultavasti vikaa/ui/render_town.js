@@ -262,22 +262,64 @@ export function draw(ctx, view) {
             }
           }
         } catch (_) {}
-        // Diagnostics: count outdoor tiles detected by mask to verify tint application
+        // Diagnostics: count and summarize outdoor tiles and their tint color
         try {
           if (!TOWN._loggedMaskDiag) {
-            let outdoorCount = 0;
             const mask = ctx.townOutdoorMask || [];
+            let outdoorCount = 0;
+            let floorCount = 0;
+            let roadCount = 0;
+            const samplesFloor = [];
+            const samplesRoad = [];
+            const SAMPLE_LIMIT = 12;
+
+            // Helper to check building interior
+            const tbsLocal = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+            function insideAnyBuildingTile(x, y) {
+              for (let i = 0; i < tbsLocal.length; i++) {
+                const B = tbsLocal[i];
+                if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+              }
+              return false;
+            }
+
             for (let yy = 0; yy < mask.length; yy++) {
               const row = mask[yy] || [];
               for (let xx = 0; xx < row.length; xx++) {
-                if (row[xx]) outdoorCount++;
+                if (!row[xx]) continue;
+                outdoorCount++;
+                const t = map[yy][xx];
+                if (t === TILES.FLOOR) {
+                  floorCount++;
+                  if (samplesFloor.length < SAMPLE_LIMIT) samplesFloor.push(`(${xx},${yy})`);
+                }
               }
             }
+            // Roads outside buildings are also tinted with biome color
+            for (let yy = 0; yy < mapRows; yy++) {
+              const row = map[yy];
+              for (let xx = 0; xx < mapCols; xx++) {
+                if (row[xx] !== TILES.ROAD) continue;
+                if (insideAnyBuildingTile(xx, yy)) continue;
+                roadCount++;
+                if (samplesRoad.length < SAMPLE_LIMIT) samplesRoad.push(`(${xx},${yy})`);
+              }
+            }
+
+            const bKey = String(ctx.townBiome || "").toUpperCase();
+            const hex = biomeFill || "(none)";
             const msg2 = `[Town] Outdoor tiles detected: ${outdoorCount}`;
+            const msg3 = `[Town] Outdoor FLOOR tinted: ${floorCount}  color=${hex}  samples: ${samplesFloor.join(" ")}`;
+            const msg4 = `[Town] Outdoor ROAD tinted:  ${roadCount}  color=${hex}  samples: ${samplesRoad.join(" ")}`;
+
             if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
               window.Logger.log(msg2, "info");
+              window.Logger.log(msg3, "info");
+              window.Logger.log(msg4, "info");
             } else {
               console.log(msg2);
+              console.log(msg3);
+              console.log(msg4);
             }
             TOWN._loggedMaskDiag = true;
           }
