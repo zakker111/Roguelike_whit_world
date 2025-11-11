@@ -99,13 +99,9 @@ function ensureTownBiome(ctx) {
     const WMOD = (typeof window !== "undefined" ? window.World : null);
     const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
 
-    // We require absolute world coordinates for this town; do not guess from player (town-local) coords.
+    // Prefer absolute world coordinates when available; otherwise fall back to current window origin + player position.
     const hasWRP = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
-    if (!hasWRP) {
-      // No absolute world position yet; defer biome inference.
-      return;
-    }
-    const wx = ctx.worldReturnPos.x | 0;
+    const wx = hasWRP ? (ctx.worldReturnPos.x | 0) : (((world.originX | 0) + (ctx.player    const wx = ctx.worldReturnPos.x | 0;
     const wy = ctx.worldReturnPos.y | 0;
 
     // Use persisted biome if available
