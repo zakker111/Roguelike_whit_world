@@ -1,6 +1,11 @@
 /**
  * RenderTown: draws town map tiles, shops, props, NPCs, player, and overlays.
  *
+ * Notes:
+ * - Outdoor ground tint is biome-driven; applied to FLOOR outdoors and ROAD tiles outside buildings.
+ * - Inn upstairs overlay hides ground-level props inside the inn footprint and draws upstairs tiles/props over the hall.
+ * - Shop markers: flag glyph at shop doors once seen; suppressed when an interior sign prop exists.
+ *
  * Exports (ESM + window.RenderTown):
  * - draw(ctx, view)
  */

@@ -1,7 +1,13 @@
 /**
- * QuestBoardUI: simple quest board panel with Accept actions.
- * Lists available and active quests for the current town (via QuestService).
- * DOM-only; canvas redraw is managed by callers (PropsService/UIBridge).
+ * QuestBoardUI: quest board panel with Accept and Complete actions.
+ * Lists available, active, and eligible turn-ins for the current town (via QuestService).
+ * DOM-only; canvas redraw is managed by callers (PropsService/UIOrchestration).
+ *
+ * Flows:
+ * - Accept: adds an active quest instance from a template.
+ * - Active Complete: available for completed encounters; marks turn-in ready.
+ * - Turn-ins: claim rewards by instance or template; “Complete all” bulk turn-in when eligible.
+ * - Encounter-kind quests may place an 'E' marker on the overworld; press G at the marker to start.
  */
 
 let _panel = null;

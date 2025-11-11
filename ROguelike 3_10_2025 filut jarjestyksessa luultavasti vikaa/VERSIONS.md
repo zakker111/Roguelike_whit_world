@@ -619,7 +619,7 @@ v1.38.0 — Ruins AI fix, non-bleeding undead, '?' fallback enemy, and input sim
 - Region Map (Ruins)
   - Enemy AI now respects overworld walkability (World.isWalkable) so enemies move and attack properly inside Ruins.
   - Blood decals now render in Region Map.
-  - Ruins spawns use mime_ghost (defined in enemies.json) instead of an undefined ghost id.
+  - Ruins spawns use mime_ghost (defined in data/entities/enemies.json) instead of an undefined ghost id.
 - Loot/Items
   - Enemy-specific equipment loot pools added (data/enemy_loot_pools.json). On a successful equip drop roll, items are now chosen exclusively from the enemy’s pool; no generic fallback.
   - New item: club (hand, blunt). Added to goblin’s pool; daggers remain disabled in general item weights but can drop via enemy pools.
@@ -1562,7 +1562,7 @@ v1.20 — Helper deduplication: ShopService + Utils.inBounds
 
 v1.19 — Data-driven content, plaza decor, ESC close, and expanded smoke tests
 - Added: JSON data loader and integrations
-  - data/loader.js now loads items.json, enemies.json, npcs.json, and consumables.json into window.GameData.
+  - data/loader.js now loads data/entities/items.json, data/entities/enemies.json, data/entities/npcs.json, and data/entities/consumables.json into window.GameData.
   - entities/items.js and entities/enemies.js extend registries from JSON with safe fallbacks.
   - ai/town_ai.js pulls NPC names/dialog from data/npcs.json when available.
   - data/consumables.json defines potion entries (name, heal, weight); Loot prefers JSON-driven potions.

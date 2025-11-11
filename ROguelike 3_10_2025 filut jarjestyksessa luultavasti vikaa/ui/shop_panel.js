@@ -1,10 +1,14 @@
 /**
  * ShopUI: shop panel controls.
- * Centralizes shop rendering and buying/selling logic, used by core/game.js.
+ * Centralizes shop rendering and buying/selling logic; used by core/game.js and encounters.
  *
  * Exports (ESM + window.ShopUI):
  * - ensurePanel(), hide(), isOpen()
  * - openForNPC(ctx, npc), buyIndex(ctx, idx), sellIndex(ctx, idx)
+ *
+ * Notes:
+ * - Encounter merchants: openForNPC supports temporary vendor refs that act as always-open shops.
+ * - DOM-only; does not force canvas redraw. Orchestrator refreshes HUD separately.
  */
 let _stock = null;
 let _shopRef = null;

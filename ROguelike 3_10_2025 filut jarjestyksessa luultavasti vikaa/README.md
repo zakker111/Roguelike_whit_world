@@ -75,7 +75,8 @@ Data-driven configuration
     - appearsIn, tags
     - light: castRadius, glowTiles, color (optional)
 - Other JSON registries under data/:
-  - items.json, enemies.json, npcs.json, consumables.json, shops.json, town.json
+  - data/entities/{items.json, enemies.json, npcs.json, consumables.json}
+  - data/shops/shops.json, data/world/town.json
 - Loader: data/loader.js loads and exposes GameData.*; logs a warning if world_assets.json is missing/invalid; tiles/props are not loaded in strict mode without it.
 - file://: you can still open index.html directly; minimal defaults keep the game playable, but tiles/props require the combined assets file for full visuals.
 
