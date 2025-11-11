@@ -67,9 +67,15 @@ function tilesRef() {
     return (typeof window !== "undefined" && window.GameData && window.GameData.tiles) ? window.GameData.tiles : null;
   } catch (_) { return null; }
 }
+// Helper: current palette reference (for cache invalidation when palette loads late)
+function paletteRef() {
+  try {
+    return (typeof window !== "undefined" && window.GameData && window.GameData.palette) ? window.GameData.palette : null;
+  } catch (_) { return null; }
+}
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null };
+let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null, _palRef: null };
 
 
 export function draw(ctx, view) {
@@ -221,6 +227,7 @@ export function draw(ctx, view) {
         || TOWN.hpx !== hpx
         || TOWN.TILE !== TILE
         || TOWN._tilesRef !== tilesRef()
+        || TOWN._palRef !== paletteRef()
         || TOWN._biomeKey !== biomeKey
         || TOWN._townKey !== townKey
         || TOWN._maskRef !== ctx.townOutdoorMask;
@@ -231,10 +238,12 @@ export function draw(ctx, view) {
         TOWN.hpx = hpx;
         TOWN.TILE = TILE;
         TOWN._tilesRef = tilesRef();
+        TOWN._palRef = paletteRef();
         TOWN._biomeKey = biomeKey;
         TOWN._townKey = townKey;
-        // Reset one-time logging for outdoor floor color on rebuild/biome change
+        // Reset one-time logging for diagnostics on rebuild/biome/palette change
         TOWN._loggedFloorColor = false;
+        TOWN._loggedMaskDiag = false;
 
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
