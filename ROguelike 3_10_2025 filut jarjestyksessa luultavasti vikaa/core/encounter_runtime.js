@@ -46,7 +46,7 @@ function createDungeonEnemyAt(ctx, x, y, depth) {
   return { x, y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, faction: "monster", announced: false };
 }
 
-// Create a specific enemy type defined in data/enemies.json; JSON-only (no fallbacks).
+// Create a specific enemy type defined in data/entities/enemies.json; JSON-only (no fallbacks).
 function createEnemyOfType(ctx, x, y, depth, type) {
   try {
     const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);

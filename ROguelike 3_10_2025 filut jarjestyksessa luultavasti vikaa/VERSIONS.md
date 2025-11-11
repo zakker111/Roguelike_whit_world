@@ -1566,7 +1566,7 @@ v1.19 — Data-driven content, plaza decor, ESC close, and expanded smoke tests
   - entities/items.js and entities/enemies.js extend registries from JSON with safe fallbacks.
   - ai/town_ai.js pulls NPC names/dialog from data/npcs.json when available.
   - data/consumables.json defines potion entries (name, heal, weight); Loot prefers JSON-driven potions.
-- Added: Missing enemy definitions to data/enemies.json
+- Added: Missing enemy definitions to data/entities/enemies.json
   - mime_ghost, hell_houndin (with weights, scaling, and potion weights).
 - Added: Town plaza decor
   - Benches along plaza perimeter; market stalls with nearby crates/barrels; scattered plants.
