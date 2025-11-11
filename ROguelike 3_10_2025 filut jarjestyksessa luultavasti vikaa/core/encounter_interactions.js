@@ -25,16 +25,27 @@ function matNameFromData(ctx, id) {
 }
 
 function findCampfireRecipe(ctx, inputId) {
+  // Try JSON recipes first; otherwise provide a safe default for meat/fish
   try {
     const GD = (typeof window !== "undefined" ? window.GameData : null);
     const recipes = GD && GD.crafting && Array.isArray(GD.crafting.recipes) ? GD.crafting.recipes : [];
     const iid = String(inputId || "").toLowerCase();
-    return recipes.find(r =>
+    const fromJson = recipes.find(r =>
       r && String(r.station || "").toLowerCase() === "campfire" &&
       Array.isArray(r.inputs) &&
       r.inputs.some(inp => String(inp.id || "").toLowerCase() === iid)
-    ) || null;
-  } catch (_) { return null; }
+    );
+    if (fromJson) return fromJson;
+    // Fallback defaults when crafting JSON is missing
+    if (iid === "meat") return { id: "cook_meat_default", station: "campfire", inputs: [{ id: "meat", amount: 1 }], outputs: [{ id: "meat_cooked", amount: 1 }] };
+    if (iid === "fish") return { id: "cook_fish_default", station: "campfire", inputs: [{ id: "fish", amount: 1 }], outputs: [{ id: "fish_cooked", amount: 1 }] };
+    return null;
+  } catch (_) { 
+    const iid = String(inputId || "").toLowerCase();
+    if (iid === "meat") return { id: "cook_meat_default", station: "campfire", inputs: [{ id: "meat", amount: 1 }], outputs: [{ id: "meat_cooked", amount: 1 }] };
+    if (iid === "fish") return { id: "cook_fish_default", station: "campfire", inputs: [{ id: "fish", amount: 1 }], outputs: [{ id: "fish_cooked", amount: 1 }] };
+    return null; 
+  }
 }
 
 function collectMaterial(ctx, inputId) {
