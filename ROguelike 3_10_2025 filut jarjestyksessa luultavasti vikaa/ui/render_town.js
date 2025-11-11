@@ -328,12 +328,6 @@ function tintReady(ctx) {
             const wrpReady = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
             const bKey = String(ctx.townBiome || "").toUpperCase();
             const hex = readyForTint ? (biomeFill || "(none)") : "(pending)"; // resolved earlier via resolvedTownBiomeFill(ctx)
-            // Attach color per sample for clarity
-            const sf = samplesFloor.map(s => `${s}=${hex}`).join(" ");
-            const sr = samplesRoad.map(s => `${s}=${hex}`).join(" ");
-            const msg2 = `[Town] Outdoor tiles detected: ${outdoorCount}`;
-            const msg3 = `[Town] Outdoor FLOOR tinted: ${floorCount}  color=${hex}  samples: ${sf}`;
-            const msg4 = `[Town] Outdoor ROAD tinted:  ${roadCount}  color=${hex}  samples: ${sr}`;|| "(none)"; // resolved earlier via resolvedTownBiomeFill(ctx)
             const palHasKey = palReady ? !!palBiome[bKey] : false;
 
             const readyMsg = `[TownDiag] tint readiness: wrpReady=${wrpReady} paletteReady=${palReady} biome=${bKey} fill=${hex} palHasKey=${palHasKey} palKeys=[${palKeys.join(",")}]`;
