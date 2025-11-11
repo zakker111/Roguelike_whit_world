@@ -3,7 +3,7 @@
  * Triggered when window.TOWN_GEN_DEPLOY is truthy or ctx.TOWN_GEN_DEPLOY === true.
  *
  * API (ESM + window.TownGenDeploy):
- *   run(ctx) -> boolean (returns immediately; phases run asynchronously)
+ *   run(ctx) -> Promise<boolean> (phases run sequentially with delays)
  */
 import * as Prefabs from "../worldgen/prefabs.js";
 import * as Roads from "../worldgen/roads.js";
@@ -100,7 +100,7 @@ function addShopSignInside(ctx, b, door, text) {
   return false;
 }
 
-export function run(ctx) {
+export async function run(ctx) {
   const delay = (typeof window !== "undefined" && typeof window.TOWN_GEN_DELAY === "number") ? (window.TOWN_GEN_DELAY | 0) : 1000;
   // Containers
   ctx.townProps = [];
@@ -170,11 +170,9 @@ export function run(ctx) {
   };
   ctx.log && ctx.log("Phase A: map sized, gate and plaza anchors set.", "notice");
   refresh(ctx);
-  (delay ? void 0 : 0); // no-op for static analysis
-  // eslint-disable-next-line no-unused-expressions
-  (async () => { await sleep(delay); })();
 
   // Phase B: Prefabs and the Inn (tavern)
+  await sleep(delay);
   (function placeInnNearPlaza() {
     const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
     let usedPrefabInn = false;
@@ -182,7 +180,6 @@ export function run(ctx) {
       const innsSorted = PFB.inns.slice().sort((a, b) => (b.size.w * b.size.h) - (a.size.w * a.size.h));
       for (let k = 0; k < innsSorted.length && !usedPrefabInn; k++) {
         const pref = innsSorted[k];
-        // try west/east/north/south of plaza with a small offset buffer
         const candidates = [
           { x: Math.max(2, ((plaza.x + (plazaW / 2)) | 0) + 2), y: Math.max(2, (plaza.y - ((pref.size.h / 2) | 0)) | 0) },
           { x: Math.max(2, ((plaza.x - (plazaW / 2)) | 0) - 2 - pref.size.w), y: Math.max(2, (plaza.y - ((pref.size.h / 2) | 0)) | 0) },
@@ -193,11 +190,8 @@ export function run(ctx) {
           const ok = Prefabs.stampPrefab(ctx, pref, c.x, c.y, ctx.townBuildings);
           if (ok && ok.ok && ok.rect) {
             usedPrefabInn = true;
-            // Record tavern building and door: prefer prefab shop meta if present
             let door = null;
-            try {
-              if (ok.shop && ok.shop.door) { door = ok.shop.door; }
-            } catch (_) {}
+            try { if (ok.shop && ok.shop.door) { door = ok.shop.door; } } catch (_) {}
             if (!door) {
               const cds = candidateDoorsFor(ok.rect);
               let best = null, bd = Infinity;
@@ -217,7 +211,6 @@ export function run(ctx) {
       }
     }
     if (!usedPrefabInn) {
-      // Fallback simple rectangle near plaza
       const bw = Math.max(14, Math.floor(plazaW * 1.1));
       const bh = Math.max(10, Math.floor(plazaH * 1.0));
       const bx = Math.max(2, (plaza.x - ((bw / 2) | 0)) | 0);
@@ -231,9 +224,9 @@ export function run(ctx) {
   })();
   ctx.log && ctx.log("Phase B: Inn placed and recorded (with upstairs overlay when available).", "notice");
   refresh(ctx);
-  (async () => { await sleep(delay); })();
 
   // Phase C: Initial housing blocks
+  await sleep(delay);
   (function placeInitialHouses() {
     const TOWNCFG = (typeof window !== "undefined" && window.GameData && window.GameData.town) || null;
     const blockW = Math.max(8, (TOWNCFG && TOWNCFG.buildings && TOWNCFG.buildings.blockW) ? (TOWNCFG.buildings.blockW | 0) : 8);
@@ -291,9 +284,9 @@ export function run(ctx) {
   })();
   ctx.log && ctx.log("Phase C: initial housing blocks placed.", "notice");
   refresh(ctx);
-  (async () => { await sleep(delay); })();
 
-  // Residential fill pass
+  // Residential fill
+  await sleep(delay);
   (function residentialFill() {
     const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
     if (!PFB || !Array.isArray(PFB.houses) || !PFB.houses.length) return;
@@ -308,7 +301,6 @@ export function run(ctx) {
       const pr = ctx.townPlazaRect;
       const overlapsPlaza = !(bx + bw - 1 < pr.x0 - 1 || pr.x1 + 1 < bx || by + bh - 1 < pr.y0 - 1 || pr.y1 + 1 < by);
       if (overlapsPlaza) continue;
-      // area clear
       let clear = true;
       for (let yy = by - 1; yy <= by + bh; yy++) {
         for (let xx = bx - 1; xx <= bx + bw; xx++) {
@@ -329,9 +321,9 @@ export function run(ctx) {
     try { ctx.log && ctx.log(`Residential fill: added ${successes} houses (target ${targetBySize}).`, "notice"); } catch (_) {}
   })();
   refresh(ctx);
-  (async () => { await sleep(delay); })();
 
   // Phase E: Shops near plaza
+  await sleep(delay);
   (function placeShops() {
     const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
     if (!PFB || !Array.isArray(PFB.shops) || !PFB.shops.length) return;
@@ -348,7 +340,6 @@ export function run(ctx) {
       const sched = scheduleFromPrefab(res.shop);
       const name = (res.shop && res.shop.name) || (pref.name || "Shop");
       const door = (res.shop && res.shop.door) ? res.shop.door : ensureDoor(ctx, res.rect);
-      // inside near door
       const inward = [{ dx: 0, dy: 1 }, { dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: -1, dy: 0 }];
       let inside = null;
       for (const dxy of inward) {
@@ -361,7 +352,6 @@ export function run(ctx) {
         const cy = Math.max(res.rect.y + 1, Math.min(res.rect.y + res.rect.h - 2, Math.floor(res.rect.y + res.rect.h / 2)));
         inside = { x: cx, y: cy };
       }
-      // Inn is always-open regardless of prefab schedule
       const isInn = String((res.shop && res.shop.type) || "").toLowerCase() === "inn";
       const openMinFinal = isInn ? 0 : sched.openMin;
       const closeMinFinal = isInn ? 0 : sched.closeMin;
@@ -418,9 +408,9 @@ export function run(ctx) {
   })();
   ctx.log && ctx.log("Phase E: shops placed near plaza with schedules and signage.", "notice");
   refresh(ctx);
-  (async () => { await sleep(delay); })();
 
   // Phase F: Outdoor mask and roads
+  await sleep(delay);
   (function buildOutdoorMaskAndRoads() {
     const rows = H, cols = W;
     const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
@@ -442,9 +432,9 @@ export function run(ctx) {
   })();
   ctx.log && ctx.log("Phase F: outdoor mask computed and roads carved.", "notice");
   refresh(ctx);
-  (async () => { await sleep(delay); })();
 
   // Phase G: Interior props and windows
+  await sleep(delay);
   (function placeWindowsFallback() {
     function inB(x, y) { return y >= 0 && y < H && x >= 0 && x < W; }
     function nearDoor(x, y) {
@@ -458,7 +448,6 @@ export function run(ctx) {
     }
     for (let i = 0; i < ctx.townBuildings.length; i++) {
       const b = ctx.townBuildings[i];
-      // Skip prefab buildings (already have WINDOW tiles)
       if (b && b.prefabId) continue;
       const edges = [
         Array.from({ length: Math.max(0, b.w - 2) }, (_, j) => ({ x: b.x + 1 + j, y: b.y })),
@@ -484,9 +473,9 @@ export function run(ctx) {
   })();
   ctx.log && ctx.log("Phase G: interior props respected from prefabs; windows placed for fallback rectangles.", "notice");
   refresh(ctx);
-  (async () => { await sleep(delay); })();
 
   // Phase H: Plaza details (prefab)
+  await sleep(delay);
   (function stampPlazaDetails() {
     const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
     const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
@@ -503,9 +492,9 @@ export function run(ctx) {
   })();
   ctx.log && ctx.log("Phase H: plaza fixtures placed.", "notice");
   refresh(ctx);
-  (async () => { await sleep(delay); })();
 
   // Phase I: Cleanup and perimeter repairs
+  await sleep(delay);
   (function repairPerimeters() {
     for (const b of ctx.townBuildings) {
       const x0 = b.x, y0 = b.y, x1 = b.x + b.w - 1, y1 = b.y + b.h - 1;
@@ -521,9 +510,9 @@ export function run(ctx) {
   })();
   ctx.log && ctx.log("Phase I: perimeters repaired.", "notice");
   refresh(ctx);
-  (async () => { await sleep(delay); })();
 
   // Phase J: NPC population
+  await sleep(delay);
   (function populateNPCs() {
     ctx.npcs = [];
     try {
@@ -532,7 +521,6 @@ export function run(ctx) {
         TAI.populateTown(ctx);
       }
     } catch (_) {}
-    // Gate greeter
     try {
       if (ctx.Town && typeof ctx.Town.spawnGateGreeters === "function") {
         ctx.Town.spawnGateGreeters(ctx, 1);
@@ -541,9 +529,9 @@ export function run(ctx) {
   })();
   ctx.log && ctx.log("Phase J: NPCs populated (residents, shopkeepers, pets, greeter).", "notice");
   refresh(ctx);
-  (async () => { await sleep(delay); })();
 
   // Phase K: Visibility and post-gen wiring
+  await sleep(delay);
   ctx.seen = Array.from({ length: H }, () => Array(W).fill(false));
   ctx.visible = Array.from({ length: H }, () => Array(W).fill(false));
   try {
@@ -557,7 +545,6 @@ export function run(ctx) {
   ctx.log && ctx.log("Phase K: visibility reset, occupancy rebuilt, exit button shown.", "notice");
   refresh(ctx);
 
-  // Final notice
   try { ctx.log && ctx.log(`You enter the town. Shops are marked with 'S'.`, "notice"); } catch (_) {}
   return true;
 }
