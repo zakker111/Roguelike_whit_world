@@ -11,6 +11,7 @@
  * Notes:
  * - If an element with id="log-right" exists and LOG_MIRROR !== false, entries are mirrored there.
  * - DOM writes are batched at ~12 Hz to reduce layout thrash during heavy turns (town mode).
+ * - Cadence: flushEvery ≈ 80 ms (~12.5 Hz). Common types used across the codebase: info, notice, good, warn, bad, crit, block, death, flavor.
  */
 
 export const Logger = {
