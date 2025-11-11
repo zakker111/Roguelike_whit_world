@@ -181,27 +181,31 @@ export function enterTownIfOnTile(ctx) {
       ctx.mode = "town";
 
       // First, try to load a persisted town state for this overworld tile
+      // Skip load when stepwise deploy is active to visualize generation from scratch.
       try {
-        const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
-        if (TS && typeof TS.load === "function") {
-          const loaded = !!TS.load(ctx, enterWX, enterWY);
-          if (loaded) {
-            // Ensure occupancy and UI
-            try {
-              if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
-            } catch (_) {}
-            try {
-              if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
-              else {
-                const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-                if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
-              }
-            } catch (_) {}
-            // Ensure player spawns on gate interior tile on entry
-            movePlayerToTownGateInterior(ctx);
-            if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
-            syncAfterMutation(ctx);
-            return true;
+        const deploy = (typeof window !== "undefined" && window.TOWN_GEN_DEPLOY) || !!ctx.TOWN_GEN_DEPLOY;
+        if (!deploy) {
+          const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
+          if (TS && typeof TS.load === "function") {
+            const loaded = !!TS.load(ctx, enterWX, enterWY);
+            if (loaded) {
+              // Ensure occupancy and UI
+              try {
+                if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
+              } catch (_) {}
+              try {
+                if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
+                else {
+                  const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
+                  if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
+                }
+              } catch (_) {}
+              // Ensure player spawns on gate interior tile on entry
+              movePlayerToTownGateInterior(ctx);
+              if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+              syncAfterMutation(ctx);
+              return true;
+            }
           }
         }
       } catch (_) {}
