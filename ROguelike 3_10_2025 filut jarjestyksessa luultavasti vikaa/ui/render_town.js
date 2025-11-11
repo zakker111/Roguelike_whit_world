@@ -526,10 +526,7 @@ export function draw(ctx, view) {
           const fill = fillTownFor(TILES, type, COLORS);
           ctx2d.fillStyle = fill;
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
-          // Upstairs stairs glyph
-          if (type === TILES.STAIRS) {
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
-          }
+          // Upstairs stairs glyph disabled in overlay to avoid accidental mass draw.
         }
       }
     } catch (_) {}
@@ -554,13 +551,8 @@ export function draw(ctx, view) {
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
 
-      // Stairs: explicit fallback glyph/color to ensure visibility
-      if (type === TILES.STAIRS) {
-        const g = ">";
-        const c = "#d7ba7d";
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
-        continue;
-      }
+      // Stairs glyphs disabled in per-frame overlay to avoid overdraw glitches.
+      // Base tiles or upstairs overlay visuals should make stairs discoverable.
 
       if (type === TILES.WINDOW) {
         if (!glyph || String(glyph).trim().length === 0) glyph = "□";
@@ -602,24 +594,8 @@ export function draw(ctx, view) {
   }
 
   // Stairs glyph overlay above visibility tint so it's always readable once seen
-  (function drawStairsGlyphTop() {
-    try {
-      for (let y = startY; y <= endY; y++) {
-        const yIn = y >= 0 && y < mapRows;
-        if (!yIn) continue;
-        for (let x = startX; x <= endX; x++) {
-          if (x < 0 || x >= mapCols) continue;
-          const type = map[y][x];
-          if (type !== TILES.STAIRS) continue;
-          const everSeen = !!(seen[y] && seen[y][x]);
-          if (!everSeen) continue;
-          const screenX = (x - startX) * TILE - tileOffsetX;
-          const screenY = (y - startY) * TILE - tileOffsetY;
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
-        }
-      }
-    } catch (_) {}
-  })();
+  // Stairs glyph top overlay disabled to prevent mass '>' rendering issues.
+  (function drawStairsGlyphTop() { /* no-op */ })();
 
   // Props: draw remembered (seen) props dimmed; draw fully only when currently visible with direct LOS.
   // When upstairs overlay is active, suppress ground props inside the inn footprint and draw upstairs props instead.
