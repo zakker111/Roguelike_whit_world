@@ -1,5 +1,4 @@
-{
-  "tiles": {
+    "tiles": {
     "wall": "#1b1f2a",
     "wallDark": "#131722",
     "floor": "#0f1320",
@@ -27,11 +26,11 @@
     "SWAMP":  "#1e3c27"
   },
   "townBiome": {
-    "FOREST": "#1a2e1d",
-    "GRASS":  "#1b3a21",
-    "DESERT": "#c8b37a",
-    "BEACH":  "#d7c08e",
-    "SNOW":   "#93a7b6",
-    "SWAMP":  "#1d3624"
+    "FOREST": "#163a22",
+    "GRASS":  "#1c522b",
+    "DESERT": "#cdaa70",
+    "BEACH":  "#dbc398",
+    "SNOW":   "#dfe5eb",
+    "SWAMP":  "#1e3c27"
   }
 }
