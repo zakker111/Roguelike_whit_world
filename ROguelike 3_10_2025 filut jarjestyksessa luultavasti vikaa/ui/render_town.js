@@ -292,6 +292,23 @@ function resolvedTownBiomeFill(ctx) {
             const samplesRoad = [];
             const SAMPLE_LIMIT = 12;
 
+            // Readiness diagnostics
+            const palObj = paletteRef();
+            const palBiome = palObj && palObj.townBiome ? palObj.townBiome : null;
+            const palReady = !!palBiome;
+            const palKeys = palReady ? Object.keys(palBiome) : [];
+            const wrpReady = !!(ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number");
+            const bKey = String(ctx.townBiome || "").toUpperCase();
+            const hex = biomeFill || "(none)"; // resolved earlier via resolvedTownBiomeFill(ctx)
+            const palHasKey = palReady ? !!palBiome[bKey] : false;
+
+            const readyMsg = `[TownDiag] tint readiness: wrpReady=${wrpReady} paletteReady=${palReady} biome=${bKey} fill=${hex} palHasKey=${palHasKey} palKeys=[${palKeys.join(",")}]`;
+            if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+              window.Logger.log(readyMsg, "info");
+            } else {
+              console.log(readyMsg);
+            }
+
             // Helper to check building interior
             const tbsLocal = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
             function insideAnyBuildingTile(x, y) {
@@ -302,6 +319,7 @@ function resolvedTownBiomeFill(ctx) {
               return false;
             }
 
+            // Collect samples from outdoor mask (FLOOR outdoors)
             for (let yy = 0; yy < mask.length; yy++) {
               const row = mask[yy] || [];
               for (let xx = 0; xx < row.length; xx++) {
@@ -310,29 +328,43 @@ function resolvedTownBiomeFill(ctx) {
                 const t = map[yy][xx];
                 if (t === TILES.FLOOR) {
                   floorCount++;
-                  if (samplesFloor.length < SAMPLE_LIMIT) samplesFloor.push(`(${xx},${yy})`);
+                  if (samplesFloor.length < SAMPLE_LIMIT) samplesFloor.push({ x: xx, y: yy });
                 }
               }
             }
-            // Roads outside buildings are also tinted with biome color
+            // Collect ROAD samples outdoors (outside buildings)
             for (let yy = 0; yy < mapRows; yy++) {
               const row = map[yy];
               for (let xx = 0; xx < mapCols; xx++) {
                 if (row[xx] !== TILES.ROAD) continue;
                 if (insideAnyBuildingTile(xx, yy)) continue;
                 roadCount++;
-                if (samplesRoad.length < SAMPLE_LIMIT) samplesRoad.push(`(${xx},${yy})`);
+                if (samplesRoad.length < SAMPLE_LIMIT) samplesRoad.push({ x: xx, y: yy });
               }
             }
 
-            const bKey = String(ctx.townBiome || "").toUpperCase();
-            const hex = biomeFill || "(none)"; // use the resolved value from above
-            // Attach color per sample for clarity
-            const sf = samplesFloor.map(s => `${s}=${hex}`).join(" ");
-            const sr = samplesRoad.map(s => `${s}=${hex}`).join(" ");
+            // Per-sample tint diagnostics: base vs tinted fill
+            function sampleTint(xx, yy) {
+              const type = map[yy][xx];
+              const base = fillTownFor(TILES, type, COLORS);
+              const of = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
+              const or = (type === TILES.ROAD) && !insideAnyBuildingTile(xx, yy);
+              const tinted = (of || or) ? (biomeFill || base) : base;
+              return { type, base, tinted, of, or };
+            }
+
+            const sfDetails = samplesFloor.map(({ x, y }) => {
+              const d = sampleTint(x, y);
+              return `(${x},${y}) type=${d.type} base=${d.base} tint=${d.tinted}`;
+            }).join(" ");
+            const srDetails = samplesRoad.map(({ x, y }) => {
+              const d = sampleTint(x, y);
+              return `(${x},${y}) type=${d.type} base=${d.base} tint=${d.tinted}`;
+            }).join(" ");
+
             const msg2 = `[Town] Outdoor tiles detected: ${outdoorCount}`;
-            const msg3 = `[Town] Outdoor FLOOR tinted: ${floorCount}  color=${hex}  samples: ${sf}`;
-            const msg4 = `[Town] Outdoor ROAD tinted:  ${roadCount}  color=${hex}  samples: ${sr}`;
+            const msg3 = `[Town] Outdoor FLOOR tinted: ${floorCount}  color=${hex}  samples: ${sfDetails}`;
+            const msg4 = `[Town] Outdoor ROAD tinted:  ${roadCount}  color=${hex}  samples: ${srDetails}`;
 
             if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
               window.Logger.log(msg2, "info");
