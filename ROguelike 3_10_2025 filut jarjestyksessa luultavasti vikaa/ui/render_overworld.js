@@ -61,14 +61,14 @@ function fallbackFillOverworld(WT, id) {
   try {
     if (id === WT.WATER) return "#0a1b2a";
     if (id === WT.RIVER) return "#0e2f4a";
-    if (id === WT.BEACH) return "#b59b6a";
+    if (id === WT.BEACH) return "#d7c08e";
     if (id === WT.SWAMP) return "#1b2a1e";
     if (id === WT.FOREST) return "#0d2615";
     if (id === WT.GRASS) return "#10331a";
     if (id === WT.MOUNTAIN) return "#2f2f34";
     if (id === WT.DESERT) return "#c2a36b";
     if (id === WT.SNOW) return "#b9c7d3";
-    if (id === WT.TOWN) return "#3a2f1b";
+    if (id === WT.TOWN) return "#334155";
     if (id === WT.DUNGEON) return "#2a1b2a";
   } catch (_) {}
   return "#0b0c10";
@@ -188,7 +188,7 @@ export function draw(ctx, view) {
       const waterDef = getTileDef("overworld", WT.WATER);
       const beachDef = getTileDef("overworld", WT.BEACH);
       const waterFill = (waterDef && waterDef.colors && waterDef.colors.fill) ? waterDef.colors.fill : fallbackFillOverworld(WT, WT.WATER);
-      const beachFill = (beachDef && beachDef.colors && beachDef.colors.fill) ? beachDef.colors.fill : "#b59b6a";
+      const beachFill = (beachDef && beachDef.colors && beachDef.colors.fill) ? beachDef.colors.fill : "#d7c08e";
 
       // Per-column variable band height + subtle wave stripes and foam at the lip
       const minBand = 2, maxBand = 6;
@@ -465,7 +465,7 @@ export function draw(ctx, view) {
     if (roads.length) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.18; // subtle overlay
-      ctx2d.fillStyle = "#b0a58a"; // muted road color
+      ctx2d.fillStyle = "#6b7280"; // neutral slate road color
       for (const p of roads) {
         const x = p.x, y = p.y;
         if (x < startX || x > endX || y < startY || y > endY) continue;
@@ -485,7 +485,7 @@ export function draw(ctx, view) {
     if (bridges.length) {
       ctx2d.save();
       ctx2d.globalAlpha = 0.6;
-      ctx2d.fillStyle = "#c3a37a"; // wood-like color
+      ctx2d.fillStyle = "#9ca3af"; // neutral bridge color
       for (const p of bridges) {
         const x = p.x, y = p.y;
         if (x < startX || x > endX || y < startY || y > endY) continue;

@@ -215,7 +215,7 @@ async function loadAssets() {
     state.assets.tiles = {
       WALL: { glyph: "", colors: { fill: "#334155", fg: "#cbd5e1" } },
       FLOOR: { glyph: "", colors: { fill: "#0f172a", fg: "#cbd5e1" } },
-      DOOR: { glyph: "+", colors: { fill: "#3a2f1b", fg: "#d7ba7d" } },
+      DOOR: { glyph: "+", colors: { fill: "#334155", fg: "#d7ba7d" } },
       WINDOW: { glyph: "\"", colors: { fill: "#295b6e", fg: "#89ddff" } },
       STAIRS: { glyph: ">", colors: { fill: "#1b1f2a", fg: "#d7ba7d" } },
     };
@@ -227,10 +227,10 @@ async function loadAssets() {
       COUNTER: { glyph: "▭", colors: { fg: "#d7ba7d" } },
       FIREPLACE: { glyph: "♨", colors: { fg: "#ff6d00" } },
       CHEST: { glyph: "□", colors: { fg: "#d7ba7d" } },
-      CRATE: { glyph: "▢", colors: { fg: "#b59b6a" } },
-      BARREL: { glyph: "◍", colors: { fg: "#a07c4b" } },
+      CRATE: { glyph: "▢", colors: { fg: "#cbd5e1" } },
+      BARREL: { glyph: "◍", colors: { fg: "#cbd5e1" } },
       PLANT: { glyph: "*", colors: { fg: "#84cc16" } },
-      RUG: { glyph: "░", colors: { fg: "#b59b6a" } },
+      RUG: { glyph: "░", colors: { fg: "#cbd5e1" } },
       QUEST_BOARD: { glyph: "▤", colors: { fg: "#cbd5e1" } },
       STALL: { glyph: "▣", colors: { fg: "#d7ba7d" } },
       LAMP: { glyph: "†", colors: { fg: "#ffd166" } },
@@ -512,7 +512,7 @@ function drawCell(ctx, x, y, code) {
     else if (c === "FLOOR") fill = "#0f172a";
     else if (c === "WINDOW") fill = "#1d4ed8";
     else if (c === "STAIRS") fill = "#0f2f1f";
-    else if (c === "DOOR") fill = "#3a2f1b";
+    else if (c === "DOOR") fill = "#334155";
     else fill = "#1a1d24";
   }
   ctx.fillStyle = fill;

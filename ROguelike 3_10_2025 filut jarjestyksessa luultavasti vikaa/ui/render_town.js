@@ -56,10 +56,10 @@ function fallbackFillTown(TILES, type, COLORS) {
   try {
     if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
     if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
-    if (type === TILES.ROAD) return "#b0a58a"; // muted brown road
-    if (type === TILES.DOOR) return "#3a2f1b";
+    if (type === TILES.ROAD) return "#6b7280"; // neutral slate road
+    if (type === TILES.DOOR) return "#334155"; // slate
     if (type === TILES.WINDOW) return "#26728c";
-    if (type === TILES.STAIRS) return "#3a2f1b";
+    if (type === TILES.STAIRS) return "#334155"; // slate
   } catch (_) {}
   return "#0b0c10";
 }
@@ -338,7 +338,7 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a"; // road color
+            ctx2d.fillStyle = "#6b7280"; // road color
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
@@ -353,7 +353,7 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#b0a58a";
+            ctx2d.fillStyle = "#6b7280";
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }

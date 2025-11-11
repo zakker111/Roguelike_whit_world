@@ -16,14 +16,14 @@ function fallbackFillRegion(WT, id) {
   try {
     if (id === WT.WATER) return "#0a1b2a";
     if (id === WT.RIVER) return "#0e2f4a";
-    if (id === WT.BEACH) return "#b59b6a";
+    if (id === WT.BEACH) return "#d7c08e";
     if (id === WT.SWAMP) return "#1b2a1e";
     if (id === WT.FOREST) return "#0d2615";
     if (id === WT.GRASS) return "#10331a";
     if (id === WT.MOUNTAIN) return "#2f2f34";
     if (id === WT.DESERT) return "#c2a36b";
     if (id === WT.SNOW) return "#b9c7d3";
-    if (id === WT.TOWN) return "#3a2f1b";
+    if (id === WT.TOWN) return "#334155";
     if (id === WT.DUNGEON) return "#2a1b2a";
     if (id === WT.TREE) return "#0f3b1e";
   } catch (_) {}

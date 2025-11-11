@@ -165,7 +165,7 @@
     DOOR: 2,
     STAIRS: 3,
     WINDOW: 4, // town-only: blocks movement, lets light through
-    ROAD: 5,   // town-only: outdoor road; walkable; always brown
+    ROAD: 5,   // town-only: outdoor road; walkable; neutral slate
   };
 
   // Palette override from JSON when available
