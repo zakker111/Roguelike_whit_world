@@ -356,7 +356,7 @@ export function drawDungeonGlow(ctx, view) {
     }
     function rgba(hex, a) {
       const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
-      if (!m) return `rgba(255, 200, 100, ${a})`;
+      if (!m) throw new Error("[RenderOverlays] Invalid hex color for glow");
       const v = parseInt(m[1], 16);
       const r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
       return `rgba(${r}, ${g}, ${b}, ${a})`;
@@ -367,13 +367,8 @@ export function drawDungeonGlow(ctx, view) {
     ctx2d.globalCompositeOperation = "lighter";
     for (const p of props) {
       let def = propDefFor(p.type);
-      // Fallback for common dungeon light props when registry isn't available
-      if (!def && String(p.type || "").toLowerCase() === "wall_torch") {
-        def = {
-          properties: { emitsLight: true },
-          colors: { fg: "#ffb84d" },
-          light: { glowTiles: 2.2, color: "#ffb84d" }
-        };
+      if (!def) {
+        throw new Error(`[RenderOverlays] Missing prop definition for type=${p.type}`);
       }
       const emits = !!(def && def.properties && def.properties.emitsLight);
       if (!emits) continue;
@@ -389,12 +384,18 @@ export function drawDungeonGlow(ctx, view) {
       const cy = (py - view.startY) * TILE - view.tileOffsetY + TILE / 2;
 
       // Prefer prop.light.glowTiles; align default with town lamps for parity
-      const glowTiles = (def && def.light && typeof def.light.glowTiles === "number") ? def.light.glowTiles : 2.2;
+      const glowTiles = (def && def.light && typeof def.light.glowTiles === "number") ? def.light.glowTiles : null;
+      if (glowTiles == null) {
+        throw new Error(`[RenderOverlays] Missing glowTiles for prop type=${p.type}`);
+      }
       const r = TILE * glowTiles;
 
       const base = (def && def.light && typeof def.light.color === "string")
         ? def.light.color
-        : (def && def.colors && def.colors.fg) ? def.colors.fg : "#ffb84d";
+        : (def && def.colors && def.colors.fg) ? def.colors.fg : null;
+      if (!base) {
+        throw new Error(`[RenderOverlays] Missing light color for prop type=${p.type}`);
+      }
 
       const grad = ctx2d.createRadialGradient(cx, cy, 3, cx, cy, r);
       grad.addColorStop(0, rgba(base, 0.60));

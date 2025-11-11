@@ -26,7 +26,10 @@ function fillTownFor(TILES, type, COLORS) {
   let v = TILE_CACHE.fill[k];
   if (v) return v;
   const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+  if (!td || !td.colors || !td.colors.fill) {
+    throw new Error(`[RenderTown] Missing tile fill for type=${type}`);
+  }
+  v = td.colors.fill;
   TILE_CACHE.fill[k] = v;
   return v;
 }
@@ -53,15 +56,7 @@ function glyphTownFor(type) {
 
 // Robust fallback fill for town tiles when tiles.json is missing/incomplete
 function fallbackFillTown(TILES, type, COLORS) {
-  try {
-    if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
-    if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
-    if (type === TILES.ROAD) return "#6b7280"; // neutral slate road
-    if (type === TILES.DOOR) return "#334155"; // slate
-    if (type === TILES.WINDOW) return "#26728c";
-    if (type === TILES.STAIRS) return "#334155"; // slate
-  } catch (_) {}
-  return "#0b0c10";
+  throw new Error(`[RenderTown] Fallback fill requested for type=${type}. Strict mode prohibits fallbacks.`);
 }
 
 // getTileDefByKey moved to centralized helper in ../data/tile_lookup.js
@@ -299,7 +294,10 @@ export function draw(ctx, view) {
         const type = rowMap[x];
         let fill = null;
         const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-        fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+        if (!td || !td.colors || !td.colors.fill) {
+          throw new Error(`[RenderTown] Missing tile fill for type=${type}`);
+        }
+        fill = td.colors.fill;
         // Outdoor FLOOR: use palette.townBiome color directly
         try {
           const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
@@ -434,11 +432,13 @@ export function draw(ctx, view) {
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
 
-      // Stairs: explicit fallback glyph/color to ensure visibility
+      // Stairs: strict glyph/color from tiles.json
       if (type === TILES.STAIRS) {
-        const g = ">";
-        const c = "#d7ba7d";
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
+        const tdStairs = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
+        if (!tdStairs || !Object.prototype.hasOwnProperty.call(tdStairs, "glyph") || !tdStairs.colors || !tdStairs.colors.fg) {
+          throw new Error("[RenderTown] Missing STAIRS glyph or color in tiles.json");
+        }
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, tdStairs.glyph, tdStairs.colors.fg, TILE);
         continue;
       }
 
@@ -447,10 +447,11 @@ export function draw(ctx, view) {
         const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
         if (isOutdoorFloor) {
           const tdFloor = getTileDef("town", TILES.FLOOR) || getTileDef("dungeon", TILES.FLOOR) || null;
+          if (!tdFloor || !tdFloor.colors || !tdFloor.colors.fg) {
+            throw new Error("[RenderTown] Missing FLOOR color in tiles.json");
+          }
           const gOut = "f";
-          const cOut = (tdFloor && tdFloor.colors && tdFloor.colors.fg) ? tdFloor.colors.fg : "#e5e7eb";
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, gOut, cOut, TILE);
-          continue;
+          const cOut = tdFloor  continue;
         }
       } catch (_) {}
 
@@ -459,8 +460,9 @@ export function draw(ctx, view) {
       let fg = tg ? tg.fg : null;
 
       if (type === TILES.WINDOW) {
-        if (!glyph || String(glyph).trim().length === 0) glyph = "□";
-        if (!fg) fg = "#8ecae6";
+        if (!glyph || String(glyph).trim().length === 0 || !fg) {
+          throw new Error("[RenderTown] Missing WINDOW glyph or color in tiles.json");
+        }
         ctx2d.save();
         ctx2d.globalAlpha = 0.50;
         RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);

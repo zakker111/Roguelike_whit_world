@@ -12,16 +12,8 @@
 import { attachGlobal } from "./global.js";
 
 export function log(tag, message, data) {
-  try {
-    const text = "[Fallback:" + String(tag) + "] " + String(message || "");
-    if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-      // tone "warn" to make it visible during dev; include optional data payload
-      window.Logger.log(text, "warn", data);
-    } else if (typeof console !== "undefined" && typeof console.warn === "function") {
-      if (data !== undefined) console.warn(text, data);
-      else console.warn(text);
-    }
-  } catch (_) {}
+  const text = "[Fallback:" + String(tag) + "] " + String(message || "");
+  throw new Error(text);
 }
 
 // Back-compat: attach to window via helper

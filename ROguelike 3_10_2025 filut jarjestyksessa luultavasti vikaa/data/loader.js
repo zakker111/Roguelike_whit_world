@@ -189,13 +189,12 @@ GameData.ready = (async function loadAll() {
     } catch (_) {}
 
     if (!GameData.tiles || !GameData.props) {
-      logNotice("Combined assets missing or invalid (data/world/world_assets.json). tiles/props not loaded (strict mode).");
-      try { console.warn("[GameData] Combined assets missing; tiles/props unavailable in strict mode."); } catch (_) {}
+      throw new Error("[GameData] Combined assets missing or invalid (data/world/world_assets.json). Strict mode requires tiles/props.");
     }
 
-    // If running under file://, note that JSON may not load due to fetch/CORS
-    if (runningFromFile()) {
-      logNotice("Detected file:// context; JSON registries may be unavailable. Modules will use internal fallbacks.");
+    // Strict: require palette.json
+    if (!GameData.palette) {
+      throw new Error("[GameData] Palette missing or invalid (data/world/palette.json). Strict mode requires palette.");
     }
 
     // DEV-only: inject malformed entries to exercise validators when ?validatebad=1 is present
@@ -246,14 +245,13 @@ GameData.ready = (async function loadAll() {
       try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, props: !!GameData.props, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression }); } catch (_) {}
     }
 
-    // If any registry failed to load, modules will use internal fallbacks.
+    // Strict: require core registries
     if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles || !GameData.encounters) {
-      logNotice("Some registries failed to load; modules will use internal fallbacks.");
+      throw new Error("[GameData] Required registries missing. Strict mode prohibits fallbacks.");
     }
   } catch (e) {
     try { console.warn("[GameData] load error", e); } catch (_) {}
-    // Keep whatever loaded; modules across the codebase provide sensible fallbacks.
-    logNotice("Registry load error; using built-in defaults.");
+    throw e;
   }
 })();
 

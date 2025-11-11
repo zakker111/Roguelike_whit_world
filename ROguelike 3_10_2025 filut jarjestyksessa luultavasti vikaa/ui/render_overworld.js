@@ -26,7 +26,10 @@ function fillOverworldFor(WT, id) {
   let v = TILE_CACHE.fill[k];
   if (v) return v;
   const td = getTileDef("overworld", id);
-  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, id);
+  if (!td || !td.colors || !td.colors.fill) {
+    throw new Error(`[RenderOverworld] Missing tile fill for id=${id}`);
+  }
+  v = td.colors.fill;
   TILE_CACHE.fill[k] = v;
   return v;
 }
@@ -58,20 +61,7 @@ let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: nu
 
 // Robust fallback fill color mapping when tiles.json is missing/incomplete
 function fallbackFillOverworld(WT, id) {
-  try {
-    if (id === WT.WATER) return "#0a1b2a";
-    if (id === WT.RIVER) return "#0e2f4a";
-    if (id === WT.BEACH) return "#d7c08e";
-    if (id === WT.SWAMP) return "#1b2a1e";
-    if (id === WT.FOREST) return "#0d2615";
-    if (id === WT.GRASS) return "#10331a";
-    if (id === WT.MOUNTAIN) return "#2f2f34";
-    if (id === WT.DESERT) return "#c2a36b";
-    if (id === WT.SNOW) return "#b9c7d3";
-    if (id === WT.TOWN) return "#334155";
-    if (id === WT.DUNGEON) return "#2a1b2a";
-  } catch (_) {}
-  return "#0b0c10";
+  throw new Error(`[RenderOverworld] Fallback fill requested for id=${id}. Strict mode prohibits fallbacks.`);
 }
 
 // Helper: current tiles.json reference (for cache invalidation)
@@ -187,8 +177,14 @@ export function draw(ctx, view) {
       // Colors
       const waterDef = getTileDef("overworld", WT.WATER);
       const beachDef = getTileDef("overworld", WT.BEACH);
-      const waterFill = (waterDef && waterDef.colors && waterDef.colors.fill) ? waterDef.colors.fill : fallbackFillOverworld(WT, WT.WATER);
-      const beachFill = (beachDef && beachDef.colors && beachDef.colors.fill) ? beachDef.colors.fill : "#d7c08e";
+      if (!waterDef || !waterDef.colors || !waterDef.colors.fill) {
+        throw new Error("[RenderOverworld] Missing WATER fill color in tiles.json");
+      }
+      const waterFill = waterDef.colors.fill;
+      if (!beachDef || !beachDef.colors || !beachDef.colors.fill) {
+        throw new Error("[RenderOverworld] Missing BEACH fill color in tiles.json");
+      }
+      const beachFill = beachDef.colors.fill;
 
       // Per-column variable band height + subtle wave stripes and foam at the lip
       const minBand = 2, maxBand = 6;

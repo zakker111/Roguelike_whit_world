@@ -16,14 +16,7 @@ let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null
 
 // Helper: robust fallback fill for dungeon tiles when tiles.json is missing/incomplete
 function fallbackFillDungeon(TILES, type, COLORS) {
-  try {
-    if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
-    if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
-    if (type === TILES.DOOR) return "#334155";
-    if (type === TILES.STAIRS) return "#334155";
-    if (type === TILES.WINDOW) return "#295b6e";
-  } catch (_) {}
-  return "#0b0c10";
+  throw new Error(`[RenderDungeon] Fallback fill requested for type=${type}. Strict mode prohibits fallbacks.`);
 }
 
 // Tile cache to avoid repeated JSON lookups inside hot loops (depends on tiles.json ref and encounter biome)
@@ -46,7 +39,11 @@ function fillDungeonFor(TILES, type, COLORS, themeFn) {
   if (v) return v;
   const td = getTileDef("dungeon", type);
   const theme = typeof themeFn === "function" ? themeFn(type) : null;
-  v = theme || (td && td.colors && td.colors.fill) || fallbackFillDungeon(TILES, type, COLORS);
+  if (theme) {
+    v = theme;
+  } else {
+    if (!td || !td.colors || !td.colors.fill) {
+      throw new Error(`[RenderDungeon];
   TILE_CACHE.fill[k] = v;
   return v;
 }
@@ -103,7 +100,9 @@ export function draw(ctx, view) {
   }
   function biomeBaseFill() {
     const b = String(ctx.encounterBiome || "").toUpperCase();
-    if (!b) return null;
+    if (!b) {
+      throw new Error("[RenderDungeon] Missing encounterBiome");
+    }
     const key = (b === "FOREST") ? "FOREST"
               : (b === "GRASS") ? "GRASS"
               : (b === "DESERT") ? "DESERT"
@@ -124,16 +123,8 @@ export function draw(ctx, view) {
       const hex = (td && td.colors && td.colors.fill) ? td.colors.fill : null;
       if (hex) return hex;
     } catch (_) {}
-    // Fallback palette for encounters when data is missing
-    const fallback = {
-      FOREST: "#163a22",
-      GRASS:  "#1c522b",
-      DESERT: "#cdaa70",
-      BEACH:  "#dbc398",
-      SNOW:   "#dfe5eb",
-      SWAMP:  "#1e3c27"
-    };
-    return fallback[b] || "#1f2937"; // neutral dark slate fallback
+    // Strict mode: no fallback palette allowed
+    throw new Error(`[RenderDungeon] Missing biome base fill for encounterBiome=${b}`);
   }
   function encounterFillFor(type) {
     if (!ctx.encounterBiome) return null;
@@ -272,19 +263,19 @@ export function draw(ctx, view) {
   // Biome-driven visual overlays (icons/textures) drawn before visibility overlays
   if (ctx.encounterBiome) {
     const biome = String(ctx.encounterBiome).toUpperCase();
-    const fgFor = (key, fallback) => {
+    const fgFor = (key) => {
       try {
         const td = getTileDefByKey("overworld", key) || getTileDefByKey("region", key);
         if (td && td.colors && td.colors.fg) return td.colors.fg;
       } catch (_) {}
-      return fallback;
+      throw new Error(`[RenderDungeon] Missing fg color for key=${key}`);
     };
-    const fgForest = fgFor("FOREST", "#3fa650");
-    const fgGrass  = fgFor("GRASS",  "#84cc16");
-    const fgDesert = fgFor("DESERT", "#d7ba7d");
-    const fgBeach  = fgFor("BEACH",  "#d7ba7d");
-    const fgSnow   = fgFor("SNOW",   "#e5e7eb");
-    const fgSwamp  = fgFor("SWAMP",  "#6fbf73");
+    const fgForest = fgFor("FOREST");
+    const fgGrass  = fgFor("GRASS");
+    const fgDesert = fgFor("DESERT");
+    const fgBeach  = fgFor("BEACH");
+    const fgSnow   = fgFor("SNOW");
+    const fgSwamp  = fgFor("SWAMP");
 
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
@@ -457,22 +448,16 @@ export function draw(ctx, view) {
           return;
         }
       }
-      // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld); robust fallback glyph/color
+      // Strict: look up by key in tiles.json (prefer dungeon, then town/overworld); no fallbacks
       let glyph = "";
-      let color = c.looted ? (COLORS.corpseEmpty || "#808080") : (COLORS.corpse || "#b22222");
-      try {
-        const key = String(c.kind || (c.kind === "chest" ? "chest" : "corpse")).toUpperCase();
-        const td = getTileDefByKey("dungeon", key) || getTileDefByKey("town", key) || getTileDefByKey("overworld", key);
-        if (td) {
-          if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
-          if (td.colors && td.colors.fg) color = td.colors.fg || color;
-        }
-      } catch (_) {}
-      // Fallback glyphs if JSON missed
-      if (!glyph) {
-        if ((c.kind || "").toLowerCase() === "chest") glyph = "□";
-        else glyph = "%";
+      let color = null;
+      const key = String(c.kind || (c.kind === "chest" ? "chest" : "corpse")).toUpperCase();
+      const td = getTileDefByKey("dungeon", key) || getTileDefByKey("town", key) || getTileDefByKey("overworld", key);
+      if (!td || !Object.prototype.hasOwnProperty.call(td, "glyph") || !td.colors || !td.colors.fg) {
+        throw new Error(`[RenderDungeon] Missing glyph/color for corpse/chest key=${key}`);
       }
+      glyph = td.glyph;
+      color = td.colors.fg;
       // Shade glyph if looted
       if (c.looted) {
         ctx2d.save();
@@ -551,7 +536,7 @@ export function draw(ctx, view) {
             }
           }
         } else if (p.type === "crate" || p.type === "barrel" || p.type === "bench") {
-          // Draw simple decor props: prefer props registry (unified schema), then tileset, then tile JSON, then robust fallback
+          // Draw simple decor props: require props registry or tile JSON; no fallbacks
           let key = p.type;
           let drawn = false;
           if (tilesetReady && TS && typeof TS.draw === "function") {
@@ -559,48 +544,38 @@ export function draw(ctx, view) {
           }
           if (!drawn) {
             let glyph = "";
-            let color = COLORS.corpse || "#cbd5e1";
+            let color = null;
             // Prefer GameData.props for glyph/color
-            try {
-              const GD = (typeof window !== "undefined" ? window.GameData : null);
-              const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
-              if (arr) {
-                const tId = String(p.type || "").toLowerCase();
-                const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
-                if (entry) {
-                  if (typeof entry.glyph === "string") glyph = entry.glyph;
-                  if (entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg || color;
-                  if (!color && typeof entry.color === "string") color = entry.color;
-                }
+            const GD = (typeof window !== "undefined" ? window.GameData : null);
+            const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+            if (arr) {
+              const tId = String(p.type || "").toLowerCase();
+              const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
+              if (entry) {
+                if (typeof entry.glyph === "string") glyph = entry.glyph;
+                if (entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg;
+                if (!color && typeof entry.color === "string") color = entry.color;
               }
-            } catch (_) {}
-            // Next, consult tile JSON by key as backup
+            }
+            // Next, consult tile JSON by key
             if (!glyph || !color) {
-              try {
-                const jsonKey = (p.type === "crate") ? "CRATE" : (p.type === "barrel") ? "BARREL" : "BENCH";
-                const td = getTileDefByKey("dungeon", jsonKey) || getTileDefByKey("town", jsonKey);
-                if (td) {
-                  if (!glyph && Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
-                  if (!color && td.colors && td.colors.fg) color = td.colors.fg || color;
-                }
-              } catch (_) {}
+              const jsonKey = (p.type === "crate") ? "CRATE" : (p.type === "barrel") ? "BARREL" : "BENCH";
+              const td = getTileDefByKey("dungeon", jsonKey) || getTileDefByKey("town", jsonKey);
+              if (td) {
+                if (!glyph && Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph;
+                if (!color && td.colors && td.colors.fg) color = td.colors.fg;
+              }
             }
-            // Robust fallback glyphs/colors
-            if (!glyph) {
-              if (p.type === "crate") glyph = "□";
-              else if (p.type === "barrel") glyph = "◍";
-              else glyph = "≡";
-            }
-            if (p.type === "barrel" && (!color || color === (COLORS.corpse || "#cbd5e1"))) {
-              color = "#b5651d";
+            if (!glyph || !color) {
+              throw new Error(`[RenderDungeon] Missing glyph/color for prop type=${p.type}`);
             }
             if (!visNow) {
               ctx2d.save();
               ctx2d.globalAlpha = 0.65;
-              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+              RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
               ctx2d.restore();
             } else {
-              RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+              RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
             }
           }
         } else if (p.type === "merchant") {

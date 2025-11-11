@@ -191,52 +191,29 @@ function renderPalettes() {
 
 // Load glyph/color assets from world assets JSON for both tiles and props
 async function loadAssets() {
-  try {
-    const res = await fetch("/data/world/world_assets.json");
-    const json = await res.json();
-    // Tiles
-    const tilesArr = (json && json.tiles && Array.isArray(json.tiles.tiles)) ? json.tiles.tiles : [];
-    const tmap = Object.create(null);
-    tilesArr.forEach(t => {
-      const key = String(t.key || "").toUpperCase();
-      if (key) tmap[key] = t;
-    });
-    // Props
-    const propsArr = (json && json.props && Array.isArray(json.props.props)) ? json.props.props : [];
-    const pmap = Object.create(null);
-    propsArr.forEach(p => {
-      const key = String(p.key || "").toUpperCase();
-      if (key) pmap[key] = p;
-    });
-    state.assets.tiles = tmap;
-    state.assets.props = pmap;
-  } catch (e) {
-    // Fallback: minimal hardcoded glyphs to avoid empty display
-    state.assets.tiles = {
-      WALL: { glyph: "", colors: { fill: "#334155", fg: "#cbd5e1" } },
-      FLOOR: { glyph: "", colors: { fill: "#0f172a", fg: "#cbd5e1" } },
-      DOOR: { glyph: "+", colors: { fill: "#334155", fg: "#d7ba7d" } },
-      WINDOW: { glyph: "\"", colors: { fill: "#295b6e", fg: "#89ddff" } },
-      STAIRS: { glyph: ">", colors: { fill: "#1b1f2a", fg: "#d7ba7d" } },
-    };
-    state.assets.props = {
-      BED: { glyph: "‗", colors: { fg: "#cbd5e1" } },
-      TABLE: { glyph: "⊔", colors: { fg: "#cbd5e1" } },
-      CHAIR: { glyph: "⟂", colors: { fg: "#cbd5e1" } },
-      SHELF: { glyph: "≡", colors: { fg: "#cbd5e1" } },
-      COUNTER: { glyph: "▭", colors: { fg: "#d7ba7d" } },
-      FIREPLACE: { glyph: "♨", colors: { fg: "#ff6d00" } },
-      CHEST: { glyph: "□", colors: { fg: "#d7ba7d" } },
-      CRATE: { glyph: "▢", colors: { fg: "#cbd5e1" } },
-      BARREL: { glyph: "◍", colors: { fg: "#cbd5e1" } },
-      PLANT: { glyph: "*", colors: { fg: "#84cc16" } },
-      RUG: { glyph: "░", colors: { fg: "#cbd5e1" } },
-      QUEST_BOARD: { glyph: "▤", colors: { fg: "#cbd5e1" } },
-      STALL: { glyph: "▣", colors: { fg: "#d7ba7d" } },
-      LAMP: { glyph: "†", colors: { fg: "#ffd166" } },
-      WELL: { glyph: "◍", colors: { fg: "#7aa2f7" } },
-    };
+  const res = await fetch("/data/world/world_assets.json");
+  if (!res.ok) {
+    throw new Error("PrefabEditor: Failed to load /data/world/world_assets.json");
   }
+  const json = await res.json();
+  // Tiles
+  const tilesArr = (json && json.tiles && Array.isArray(json.tiles.tiles)) ? json.tiles.tiles : null;
+  if (!tilesArr) throw new Error("PrefabEditor: Invalid tiles assets in world_assets.json");
+  const tmap = Object.create(null);
+  tilesArr.forEach(t => {
+    const key = String(t.key || "").toUpperCase();
+    if (key) tmap[key] = t;
+  });
+  // Props
+  const propsArr = (json && json.props && Array.isArray(json.props.props)) ? json.props.props : null;
+  if (!propsArr) throw new Error("PrefabEditor: Invalid props assets in world_assets.json");
+  const pmap = Object.create(null);
+  propsArr.forEach(p => {
+    const key = String(p.key || "").toUpperCase();
+    if (key) pmap[key] = p;
+  });
+  state.assets.tiles = tmap;
+  state.assets.props = pmap;
 }
 
 function bindUI() {
@@ -504,17 +481,11 @@ function drawCell(ctx, x, y, code) {
   const propDef = state.assets.props[c];
   const def = tileDef || propDef || null;
 
-  // Background color
-  let fill = "#111827";
-  if (def && def.colors && def.colors.fill) fill = def.colors.fill;
-  else {
-    if (c === "WALL") fill = "#334155";
-    else if (c === "FLOOR") fill = "#0f172a";
-    else if (c === "WINDOW") fill = "#1d4ed8";
-    else if (c === "STAIRS") fill = "#0f2f1f";
-    else if (c === "DOOR") fill = "#334155";
-    else fill = "#1a1d24";
+  // Background color (strict: require asset definition)
+  if (!def || !def.colors || !def.colors.fill) {
+    throw new Error(`PrefabEditor: Missing fill color for '${c}'`);
   }
+  const fill = def.colors.fill;
   ctx.fillStyle = fill;
   ctx.fillRect(left, top, CELL-1, CELL-1);
 

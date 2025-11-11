@@ -13,21 +13,7 @@ import { attachGlobal } from "../utils/global.js";
 
 // Robust fallback fill color mapping when tiles.json is missing/incomplete
 function fallbackFillRegion(WT, id) {
-  try {
-    if (id === WT.WATER) return "#0a1b2a";
-    if (id === WT.RIVER) return "#0e2f4a";
-    if (id === WT.BEACH) return "#d7c08e";
-    if (id === WT.SWAMP) return "#1b2a1e";
-    if (id === WT.FOREST) return "#0d2615";
-    if (id === WT.GRASS) return "#10331a";
-    if (id === WT.MOUNTAIN) return "#2f2f34";
-    if (id === WT.DESERT) return "#c2a36b";
-    if (id === WT.SNOW) return "#b9c7d3";
-    if (id === WT.TOWN) return "#334155";
-    if (id === WT.DUNGEON) return "#2a1b2a";
-    if (id === WT.TREE) return "#0f3b1e";
-  } catch (_) {}
-  return "#0b0c10";
+  throw new Error(`[RenderRegion] Fallback fill requested for id=${id}. Strict mode prohibits fallbacks.`);
 }
 
 export function draw(ctx, view) {
@@ -60,9 +46,12 @@ export function draw(ctx, view) {
       }
 
       const t = row[x];
-      // JSON fill color for region mode with robust fallback
+      // JSON fill color for region mode — strict: require tiles.json
       const td = getTileDef("region", t);
-      const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillRegion(WT, t);
+      if (!td || !td.colors || !td.colors.fill) {
+        throw new Error(`[RenderRegion] Missing tile fill for id=${t}`);
+      }
+      const fill = td.colors.fill;
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(screenX, screenY, TILE, TILE);
     }
@@ -79,10 +68,9 @@ export function draw(ctx, view) {
       let glyph = td && Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
       let fg = td && td.colors && td.colors.fg ? td.colors.fg : null;
 
-      // Fallback glyph/color for trees when region tiles.json lacks glyphs
-      if ((!glyph || !fg) && t === WT.TREE) {
-        if (!glyph || !String(glyph).trim().length) glyph = "♣";
-        if (!fg) fg = "#3fa650";
+      // Strict: require glyph/color for TREE in tiles.json
+      if (t === WT.TREE && (!glyph || !fg)) {
+        throw new Error("[RenderRegion] Missing TREE glyph or color in tiles.json");
       }
 
       if (glyph && String(glyph).trim().length > 0 && fg) {
