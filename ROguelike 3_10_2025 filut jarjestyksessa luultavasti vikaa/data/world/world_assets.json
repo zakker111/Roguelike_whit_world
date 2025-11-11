@@ -58,7 +58,7 @@
         "id": 1,
         "key": "GRASS",
         "name": "Plains",
-        "glyph": "·",
+        "glyph": "g",
         "colors": { "fill": "#10331a", "fg": "#cbd5e1" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
         "appearsIn": ["overworld", "region"],
@@ -78,7 +78,7 @@
         "id": 9,
         "key": "DESERT",
         "name": "Desert",
-        "glyph": "·",
+        "glyph": "d",
         "colors": { "fill": "#c2a36b", "fg": "#e5e7eb" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
         "appearsIn": ["overworld", "region"],
@@ -169,7 +169,7 @@
         "id": 1,
         "key": "FLOOR",
         "name": "Floor",
-        "glyph": ".",
+        "glyph": "f",
         "colors": { "fill": "#2a2418", "fg": "#e5e7eb" },
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
         "appearsIn": ["dungeon", "town"],
@@ -204,6 +204,16 @@
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": true },
         "appearsIn": ["dungeon", "town"],
         "tags": ["window"]
+      },
+      {
+        "id": 5,
+        "key": "ROAD",
+        "name": "Road",
+        "glyph": "r",
+        "colors": { "fill": "#b0a58a", "fg": "#d7ba7d" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["road"]
       }
     ],
     "overrides": {
