@@ -233,6 +233,8 @@ export function draw(ctx, view) {
         TOWN._tilesRef = tilesRef();
         TOWN._biomeKey = biomeKey;
         TOWN._townKey = townKey;
+        // Reset one-time logging for outdoor floor color on rebuild/biome change
+        TOWN._loggedFloorColor = false;
 
         const off = RenderCore.createOffscreen(wpx, hpx);
         const oc = off.getContext("2d");
@@ -244,6 +246,20 @@ export function draw(ctx, view) {
         // Prepare biome fill and outdoor mask
         ensureOutdoorMask(ctx);
         const biomeFill = townBiomeFill(ctx);
+        // Log once per town/offscreen rebuild which outdoor floor color was selected from palette.townBiome
+        try {
+          if (!TOWN._loggedFloorColor) {
+            const bKey = String(ctx.townBiome || "").toUpperCase();
+            const hex = biomeFill || "(none)";
+            const msg = `[Town] Outdoor floor color: ${hex} (biome=${bKey})`;
+            if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+              window.Logger.log(msg, "notice");
+            } else {
+              console.log(msg);
+            }
+            TOWN._loggedFloorColor = true;
+          }
+        } catch (_) {}
         // Track mask reference to trigger rebuild when it changes externally
         TOWN._maskRef = ctx.townOutdoorMask;
 
