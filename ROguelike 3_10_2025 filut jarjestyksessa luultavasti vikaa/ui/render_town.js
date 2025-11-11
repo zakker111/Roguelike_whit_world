@@ -257,22 +257,16 @@ export function draw(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // Choose outdoor floor visuals from biome tile rather than tinting generic FLOOR
-            let fill;
+            // Base fill from town/dungeon
+            let fill = fillTownFor(TILES, type, COLORS);
+            // Outdoor FLOOR: use palette.townBiome color directly (no tinting, no overworld tile fallback)
             try {
               const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
               if (isOutdoorFloor) {
-                const biomeKey = String(ctx.townBiome || "").toUpperCase();
-                const tdOut = biomeKey
-                  ? (getTileDefByKey("overworld", biomeKey) || getTileDefByKey("region", biomeKey))
-                  : null;
-                fill = (tdOut && tdOut.colors && tdOut.colors.fill) ? tdOut.colors.fill : null;
+                const bFill = townBiomeFill(ctx);
+                if (bFill) fill = bFill;
               }
             } catch (_) {}
-            if (!fill) {
-              // Fallback: town/dungeon tile fill
-              fill = fillTownFor(TILES, type, COLORS);
-            }
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -303,22 +297,17 @@ export function draw(ctx, view) {
           continue;
         }
         const type = rowMap[x];
-        // Choose outdoor floor visuals from biome tile rather than tinting generic FLOOR
         let fill = null;
+        const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
+        fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+        // Outdoor FLOOR: use palette.townBiome color directly
         try {
           const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
           if (isOutdoorFloor) {
-            const biomeKey = String(ctx.townBiome || "").toUpperCase();
-            const tdOut = biomeKey
-              ? (getTileDefByKey("overworld", biomeKey) || getTileDefByKey("region", biomeKey))
-              : null;
-            fill = (tdOut && tdOut.colors && tdOut.colors.fill) ? tdOut.colors.fill : null;
+            const bFill = townBiomeFill(ctx);
+            if (bFill) fill = bFill;
           }
         } catch (_) {}
-        if (!fill) {
-          const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-          fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        }
         ctx2d.fillStyle = fill;
         ctx2d.fillRect(screenX, screenY, TILE, TILE);
       }
@@ -453,18 +442,13 @@ export function draw(ctx, view) {
         continue;
       }
 
-      // Outdoor FLOOR: choose glyph/color from biome tile (overworld/region) rather than generic town FLOOR
+      // Outdoor FLOOR: draw town floor glyph 'f' colored by town/dungeon floor fg
       try {
         const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
         if (isOutdoorFloor) {
-          const biomeKey = String(ctx.townBiome || "").toUpperCase();
-          const tdOut = biomeKey
-            ? (getTileDefByKey("overworld", biomeKey) || getTileDefByKey("region", biomeKey))
-            : null;
-          let gOut = tdOut && Object.prototype.hasOwnProperty.call(tdOut, "glyph") ? tdOut.glyph : "";
-          let cOut = tdOut && tdOut.colors && tdOut.colors.fg ? tdOut.colors.fg : null;
-          if (!gOut || !String(gOut).trim().length) gOut = "f"; // fallback
-          if (!cOut) cOut = "#e5e7eb";
+          const tdFloor = getTileDef("town", TILES.FLOOR) || getTileDef("dungeon", TILES.FLOOR) || null;
+          const gOut = "f";
+          const cOut = (tdFloor && tdFloor.colors && tdFloor.colors.fg) ? tdFloor.colors.fg : "#e5e7eb";
           RenderCore.drawGlyph(ctx2d, screenX, screenY, gOut, cOut, TILE);
           continue;
         }
