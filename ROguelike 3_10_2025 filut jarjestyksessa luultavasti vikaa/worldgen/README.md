@@ -1,6 +1,12 @@
-World and town generation scripts to move here:
+World generation
 
-- town_gen.js
+Purpose
+- Utilities for generating towns, roads, and prefab buildings on the overworld. Ensures deterministic placement and connectivity consistent with infinite world streaming.
+
+Key modules
+- town_gen.js — town layout generation (plaza, inn, shops) with schedule-aware shops and dedup rules (one of each type).
+- roads.js — road connectivity between nearby towns within current streamed window; bridges tie into world rivers.
+- prefabs.js — prefab stamping (buildings/shops) with slip attempts to fit terrain.
 
 Prefabs module API (stamp/trySlip)
 - The prefabs module provides helpers to place buildings and shops as prefabs.
