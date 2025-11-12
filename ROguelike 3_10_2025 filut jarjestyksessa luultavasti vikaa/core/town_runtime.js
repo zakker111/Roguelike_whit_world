@@ -11,6 +11,8 @@
  */
 
 export function generate(ctx) {
+  // Ensure townBiome is not carrying over from previous towns; allow derive/persist per town
+  try { ctx.townBiome = undefined; } catch (_) {}
   const Tn = (ctx && ctx.Town) || (typeof window !== "undefined" ? window.Town : null);
   if (Tn && typeof Tn.generate === "function") {
     const handled = Tn.generate(ctx);

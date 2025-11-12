@@ -179,6 +179,8 @@ export function enterTownIfOnTile(ctx) {
         }
       } catch (_) {}
       ctx.mode = "town";
+      // Reset town biome on entry so each town derives or loads its own biome correctly
+      try { ctx.townBiome = undefined; } catch (_) {}
 
       // First, try to load a persisted town state for this overworld tile
       try {
