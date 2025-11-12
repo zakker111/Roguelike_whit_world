@@ -37,6 +37,24 @@
         Dungeon: !!(window.Dungeon),
         Enemies: !!(window.Enemies),
       });
+      // DEV: report missing critical modules once at boot
+      (function _devReportMissingModules() {
+        const missing = [];
+        function has(name) { try { return !!window[name]; } catch (_) { return false; } }
+        if (!has("Combat")) missing.push("Combat");
+        if (!has("EquipmentDecay")) missing.push("EquipmentDecay");
+        if (!has("FOVCamera")) missing.push("FOVCamera");
+        if (!has("GameFOV") && !has("FOV")) missing.push("GameFOV/FOV");
+        if (!has("InventoryFlow") && !has("InventoryController")) missing.push("InventoryFlow/InventoryController");
+        if (!has("LootFlow") && !has("Loot")) missing.push("LootFlow/Loot");
+        if (!has("ModeController") && !has("ModesTransitions") && !has("Modes")) missing.push("ModeController/Modes");
+        if (!has("TownRuntime")) missing.push("TownRuntime");
+        if (!has("WorldRuntime")) missing.push("WorldRuntime");
+        if (!has("RenderOrchestration")) missing.push("RenderOrchestration");
+        if (missing.length) {
+          console.warn("[DEV] Missing modules:", missing.join(", "));
+        }
+      })();
     }
   } catch (_) {}
   // Runtime configuration (loaded via GameData.config when available)
