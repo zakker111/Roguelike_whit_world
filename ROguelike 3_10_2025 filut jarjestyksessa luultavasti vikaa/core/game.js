@@ -216,35 +216,25 @@
   let floor = 1;
   // RNG: centralized via RNG service; allow persisted seed for reproducibility
   let currentSeed = null;
-  if (typeof window !== "undefined" && window.RNG && typeof window.RNG.autoInit === "function") {
-    try {
+  try {
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.autoInit === "function") {
       currentSeed = window.RNG.autoInit();
-      // RNG.autoInit returns the seed value
-    } catch (_) {
-      try {
-        const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
-        const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
-        currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
-      } catch (_) { currentSeed = null; }
-    }
-  } else {
-    try {
+    } else {
+      // If RNG service is unavailable, try to read persisted seed for diagnostics only
       const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
       const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
       currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
-    } catch (_) { currentSeed = null; }
-  }
-  let rng = ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-    ? window.RNG.rng
-    : (function () {
-        try {
-          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-            return window.RNGUtils.getRng();
-          }
-        } catch (_) {}
-        // Deterministic fallback without RNG service
-        return () => 0.5;
-      })());
+    }
+  } catch (_) { currentSeed = null; }
+  // Single RNG function from RNGUtils; deterministic (0.5) if RNG is unavailable
+  let rng = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng();
+      }
+    } catch (_) {}
+    return () => 0.5;
+  })();
   let isDead = false;
   let startRoomRect = null;
   // GOD toggles (config-driven defaults with localStorage/window override)
@@ -396,28 +386,15 @@
     return null;
   }
 
-  // Use RNG service if available for helpers
+  // Use RNGUtils exclusively for helpers; deterministic midpoints when RNG unavailable
   const randInt = (min, max) => {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") {
-        return window.RNGUtils.int(min, max, rng);
-      }
-    } catch (_) {}
-    try {
-      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.int === "function") return window.RNG.int(min, max);
-    } catch (_) {}
-    return Math.floor(rng() * (max - min + 1)) + min;
+    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") return window.RNGUtils.int(min, max, rng); } catch (_) {}
+    // midpoint fallback
+    return Math.floor((min + max) / 2);
   };
   const chance = (p) => {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-        return window.RNGUtils.chance(p, rng);
-      }
-    } catch (_) {}
-    try {
-      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.chance === "function") return window.RNG.chance(p);
-    } catch (_) {}
-    return rng() < p;
+    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") return window.RNGUtils.chance(p, rng); } catch (_) {}
+    return false;
   };
   const capitalize = ((typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.capitalize === "function")
     ? window.PlayerUtils.capitalize
@@ -430,15 +407,9 @@
     return COLORS.enemy;
   };
   const randFloat = (min, max, decimals = 1) => {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
-        return window.RNGUtils.float(min, max, decimals, rng);
-      }
-    } catch (_) {}
-    try {
-      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.float === "function") return window.RNG.float(min, max, decimals);
-    } catch (_) {}
-    const v = min + rng() * (max - min);
+    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") return window.RNGUtils.float(min, max, decimals, rng); } catch (_) {}
+    // midpoint fallback
+    const v = (min + max) / 2;
     const p = Math.pow(10, decimals);
     return Math.round(v * p) / p;
   };
