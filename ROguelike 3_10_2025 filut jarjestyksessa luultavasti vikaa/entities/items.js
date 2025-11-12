@@ -110,46 +110,15 @@ function applyJsonItems(json) {
   }
 }
 
-// Minimal built-in defaults injected only if JSON fails to load (keeps game playable)
-function ensureMinimalDefaults() {
-  if (Object.keys(TYPES).length > 0) return;
-  addType("hand", {
-    key: "sword_simple",
-    twoHanded: false,
-    minTier: 1,
-    weight: (tier) => {
-      const map = { "1": 0.35, "2": 0.28, "3": 0.18 };
-      const k = String(Math.max(1, Math.min(3, tier || 1)));
-      return map[k] ?? 0.2;
-    },
-    atkRange: { 1: [0.6, 2.2], 2: [1.2, 3.2], 3: [2.0, 3.8] },
-    name: (mat) => `${mat} simple sword`,
-  });
-  addType("hand", {
-    key: "axe",
-    twoHanded: false,
-    minTier: 1,
-    weight: (tier) => {
-      const map = { "1": 0.25, "2": 0.22, "3": 0.16 };
-      const k = String(Math.max(1, Math.min(3, tier || 1)));
-      return map[k] ?? 0.2;
-    },
-    atkRange: { 1: [0.6, 2.2], 2: [1.2, 3.2], 3: [2.0, 4.0] },
-    atkBonus: { 1: [0.0, 0.3], 2: [0.1, 0.5], 3: [0.2, 0.6] },
-    name: (mat) => `${mat} axe`,
-  });
-  addType("hand", {
-    key: "shield",
-    twoHanded: false,
-    minTier: 1,
-    weight: (tier) => {
-      const map = { "1": 0.15, "2": 0.16, "3": 0.14 };
-      const k = String(Math.max(1, Math.min(3, tier || 1)));
-      return map[k] ?? 0.15;
-    },
-    defRange: { 1: [0.4, 2.0], 2: [1.2, 3.2], 3: [2.0, 4.0] },
-    name: (mat) => `${mat} shield`,
-  });
+// Log when no items are available from JSON (no silent defaults)
+function logNoItemsLoaded() {
+  try {
+    if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+      window.Logger.log("[Items] No items loaded from JSON; item generation may fail.", "bad");
+      return;
+    }
+  } catch (_) {}
+  try { console.error("[Items] No items loaded from JSON; item generation may fail."); } catch (_) {}
 }
 
 // SLOT_WEIGHTS: relative chance to pick each equipment slot when generating a random item.
@@ -412,14 +381,14 @@ try {
   if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
     window.GameData.ready.then(() => {
       try { applyJsonItems(window.GameData.items); } catch (_) {}
-      try { ensureMinimalDefaults(); } catch (_) {}
+      try { if (Object.keys(TYPES).length === 0) logNoItemsLoaded(); } catch (_) {}
     });
   } else if (typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.items)) {
     applyJsonItems(window.GameData.items);
-    try { ensureMinimalDefaults(); } catch (_) {}
+    try { if (Object.keys(TYPES).length === 0) logNoItemsLoaded(); } catch (_) {}
   } else {
-    // No GameData available: inject minimal defaults
-    try { ensureMinimalDefaults(); } catch (_) {}
+    // No GameData available: report error so item generation issues are visible
+    try { if (Object.keys(TYPES).length === 0) logNoItemsLoaded(); } catch (_) {}
   }
 } catch (_) {}
 
