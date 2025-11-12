@@ -661,29 +661,18 @@
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.addPotionToInventory === "function") {
-        IF.addPotionToInventory(getCtx(), heal, name);
-        return;
-      }
-    } catch (_) {}
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.addPotion === "function") {
-      return IC.addPotion(getCtx(), heal, name);
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.addPotion === "function") {
-      P.addPotion(player, heal, name);
+    // Delegate to centralized inventory modules only
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.addPotionToInventory === "function") {
+      IF.addPotionToInventory(getCtx(), heal, name);
       return;
     }
-    const existing = player.inventory.find(i => i.kind === "potion" && (i.heal ?? 3) === heal);
-    if (existing) {
-      existing.count = (existing.count || 1) + 1;
-    } else {
-      player.inventory.push({ kind: "potion", heal, count: 1, name });
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.addPotion === "function") {
+      IC.addPotion(getCtx(), heal, name);
+      return;
     }
+    log("Inventory system not available.", "warn");
   }
 
   function drinkPotionByIndex(idx) {
