@@ -83,6 +83,16 @@ function movePlayerToTownGateInterior(ctx) {
   } catch (_) {}
 }
 
+// DEV diagnostics: town biome on entry
+function _devTownBiomeLog(ctx) {
+  try {
+    if (typeof window !== "undefined" && window.DEV) {
+      const wrp = ctx.worldReturnPos ? `${ctx.worldReturnPos.x|0},${ctx.worldReturnPos.y|0}` : "n/a";
+      console.debug(`[DEV] Town enter biome=${String(ctx.townBiome || "")} at ${wrp}`);
+    }
+  } catch (_) {}
+}
+
 // Public API
 export function leaveTownNow(ctx) {
   if (!ctx || !ctx.world) return;
@@ -202,6 +212,7 @@ export function enterTownIfOnTile(ctx) {
             // Ensure player spawns on gate interior tile on entry
             movePlayerToTownGateInterior(ctx);
             if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            _devTownBiomeLog(ctx);
             syncAfterMutation(ctx);
             return true;
           }
@@ -228,6 +239,7 @@ export function enterTownIfOnTile(ctx) {
               }
             } catch (_) {}
             if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            _devTownBiomeLog(ctx);
             syncAfterMutation(ctx);
             return true;
           }
