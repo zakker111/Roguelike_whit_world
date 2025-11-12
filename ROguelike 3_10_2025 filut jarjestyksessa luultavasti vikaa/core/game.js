@@ -2240,18 +2240,7 @@
       P.gainXP(player, amount, { log, updateUI });
       return;
     }
-    player.xp += amount;
-    log(`You gain ${amount} XP.`);
-    while (player.xp >= player.xpNext) {
-      player.xp -= player.xpNext;
-      player.level += 1;
-      player.maxHp += 2;
-      player.hp = player.maxHp;
-      if (player.level % 2 === 0) player.atk += 1;
-      player.xpNext = Math.floor(player.xpNext * 1.3 + 10);
-      log(`You are now level ${player.level}. Max HP increased.`, "good");
-    }
-    updateUI();
+    log("XP system not available.", "warn");
   }
 
   function killEnemy(enemy) {
