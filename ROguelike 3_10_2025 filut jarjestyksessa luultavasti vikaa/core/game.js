@@ -894,11 +894,10 @@
   let _lastPlayerX = -1, _lastPlayerY = -1, _lastFovRadius = -1, _lastMode = "", _lastMapCols = -1, _lastMapRows = -1;
 
   function recomputeFOV() {
-    // Prefer centralized GameFOV guard-based recompute
+    // Delegate to centralized FOV modules only
     try {
       const GF = modHandle("GameFOV");
       if (GF && typeof GF.recomputeWithGuard === "function") {
-        // Ensure ctx carries current seen/visible references
         const ctx = getCtx();
         ctx.seen = seen;
         ctx.visible = visible;
@@ -906,34 +905,16 @@
         if (did) {
           visible = ctx.visible;
           seen = ctx.seen;
+          const rows = map.length;
+          const cols = map[0] ? map[0].length : 0;
+          _lastPlayerX = player.x; _lastPlayerY = player.y;
+          _lastFovRadius = fovRadius; _lastMode = mode;
+          _lastMapCols = cols; _lastMapRows = rows;
         }
         return;
       }
     } catch (_) {}
-
-    // Legacy inline path
-    const rows = map.length;
-    const cols = map[0] ? map[0].length : 0;
-
-    const moved = (player.x !== _lastPlayerX) || (player.y !== _lastPlayerY);
-    const fovChanged = (fovRadius !== _lastFovRadius);
-    const modeChanged = (mode !== _lastMode);
-    const mapChanged = (rows !== _lastMapRows) || (cols !== _lastMapCols);
-
-    if (!modeChanged && !mapChanged && !fovChanged && !moved) {
-      return;
-    }
-
-    // Prefer centralized GameState ensuring grid shape
     try {
-      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.ensureVisibilityShape === "function") {
-        window.GameState.ensureVisibilityShape(getCtx());
-      } else {
-        ensureVisibilityShape();
-      }
-    } catch (_) { ensureVisibilityShape(); }
-
-    {
       const F = modHandle("FOV");
       if (F && typeof F.recomputeFOV === "function") {
         const ctx = getCtx();
@@ -942,16 +923,29 @@
         F.recomputeFOV(ctx);
         visible = ctx.visible;
         seen = ctx.seen;
+        const rows = map.length;
+        const cols = map[0] ? map[0].length : 0;
         _lastPlayerX = player.x; _lastPlayerY = player.y;
         _lastFovRadius = fovRadius; _lastMode = mode;
         _lastMapCols = cols; _lastMapRows = rows;
         return;
       }
-    }
+    } catch (_) {}
+    // Fallback: minimal visibility of current tile only
+    log("FOV system not available.", "warn");
+    try {
+      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.ensureVisibilityShape === "function") {
+        window.GameState.ensureVisibilityShape(getCtx());
+      } else {
+        ensureVisibilityShape();
+      }
+    } catch (_) { ensureVisibilityShape(); }
     if (inBounds(player.x, player.y)) {
       visible[player.y][player.x] = true;
       seen[player.y][player.x] = true;
     }
+    const rows = map.length;
+    const cols = map[0] ? map[0].length : 0;
     _lastPlayerX = player.x; _lastPlayerY = player.y;
     _lastFovRadius = fovRadius; _lastMode = mode;
     _lastMapCols = cols; _lastMapRows = rows;
