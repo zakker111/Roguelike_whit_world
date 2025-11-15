@@ -346,8 +346,16 @@ export function draw(ctx, view) {
     ctx2d.fillStyle = "#a1a1aa";
     ctx2d.fillText(hintText, bx + 10, by + 26);
     if (animalsText) {
-      if (animalsText.toLowerCase().includes("cleared")) ctx2d.fillStyle = "#86efac";
-      else ctx2d.fillStyle = "#f0abfc";
+      let clearedClr = "#86efac";
+      let knownClr = "#f0abfc";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          clearedClr = pal.regionAnimalsCleared || clearedClr;
+          knownClr = pal.regionAnimalsKnown || knownClr;
+        }
+      } catch (_) {}
+      ctx2d.fillStyle = animalsText.toLowerCase().includes("cleared") ? clearedClr : knownClr;
       ctx2d.fillText(animalsText, bx + 10, by + 44);
     }
     ctx2d.restore();

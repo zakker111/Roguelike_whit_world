@@ -100,7 +100,8 @@
             "poiTown", "poiDungeonEasy", "poiDungeonMed", "poiDungeonHard",
             "questMarker",
             "sleepingZ", "playerBackdropFill", "playerBackdropStroke",
-            "regionAnimal", "shopkeeper"
+            "regionAnimal", "shopkeeper",
+            "regionAnimalsCleared", "regionAnimalsKnown"
           ]);
           for (const k of expectUIExt) {
             const v = ov[k];
