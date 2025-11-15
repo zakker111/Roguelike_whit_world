@@ -171,30 +171,11 @@ export function enterTownIfOnTile(ctx) {
   if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
   const t = mapRef[py][px];
 
-  // Determine town tile underfoot or adjacent (cardinal adjacency allowed as a convenience)
+  // Strict: require standing exactly on the town tile (no adjacency entry)
   let townPx = px, townPy = py;
-  let approachedDir = ""; // "N","S","E","W" indicating approach vector toward town tile
+  let approachedDir = "";
   let onTownTile = !!(WT && t === ctx.World.TILES.TOWN);
-
-  if (!onTownTile && WT) {
-    const dirs = [
-      { dx: 1, dy: 0, dir: "E" },
-      { dx: -1, dy: 0, dir: "W" },
-      { dx: 0, dy: 1, dir: "S" },
-      { dx: 0, dy: -1, dir: "N" },
-    ];
-    for (const d of dirs) {
-      const nx = px + d.dx, ny = py + d.dy;
-      if (ny < 0 || nx < 0 || ny >= mapRef.length || nx >= (mapRef[0] ? mapRef[0].length : 0)) continue;
-      const nt = mapRef[ny][nx];
-      if (nt === ctx.World.TILES.TOWN) {
-        townPx = nx; townPy = ny;
-        approachedDir = d.dir;
-        onTownTile = true;
-        break;
-      }
-    }
-  }
+  // No adjacency search: player must be exactly on the TOWN tile.
 
   // Clear stale approach direction when already on the town tile
   if (onTownTile && approachedDir === "") {
