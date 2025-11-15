@@ -183,11 +183,17 @@ export function draw(ctx, view) {
         if (!visible[ey] || !visible[ey][ex]) continue;
         const sx = (ex - startX) * TILE - tileOffsetX;
         const sy = (ey - startY) * TILE - tileOffsetY;
-        // Color scheme: neutral animals are amber; hostile use enemyColor fallback to red
+        // Color scheme: neutral animals use palette; hostile use enemyColor fallback
         const faction = String(e.faction || "");
         let color = "#f7768e"; // hostile default
-        if (faction === "animal") color = "#e9d5a1";            // neutral animal (deer/fox/boar)
-        else if (typeof ctx.enemyColor === "function") {
+        if (faction === "animal") {
+          try {
+            const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+            color = (pal && pal.regionAnimal) ? pal.regionAnimal : "#e9d5a1"; // neutral animal (deer/fox/boar)
+          } catch (_) {
+            color = "#e9d5a1";
+          }
+        } else if (typeof ctx.enemyColor === "function") {
           try { color = ctx.enemyColor(e.type || "enemy"); } catch (_) {}
         }
         ctx2d.save();
@@ -239,9 +245,19 @@ export function draw(ctx, view) {
     const screenY = (py - startY) * TILE - tileOffsetY;
 
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(255,255,255,0.16)";
+    // Palette-driven player backdrop
+    let pbFill = "rgba(255,255,255,0.16)";
+    let pbStroke = "rgba(255,255,255,0.35)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        pbFill = pal.playerBackdropFill || pbFill;
+        pbStroke = pal.playerBackdropStroke || pbStroke;
+      }
+    } catch (_) {}
+    ctx2d.fillStyle = pbFill;
     ctx2d.fillRect(screenX + 4, screenY + 4, TILE - 8, TILE - 8);
-    ctx2d.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx2d.strokeStyle = pbStroke;
     ctx2d.lineWidth = 1;
     ctx2d.strokeRect(screenX + 4.5, screenY + 4.5, TILE - 9, TILE - 9);
 

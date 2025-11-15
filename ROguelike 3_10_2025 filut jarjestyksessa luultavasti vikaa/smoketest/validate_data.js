@@ -94,11 +94,13 @@
           }
           // UI overlay keys (warn only; gameplay unaffected)
           const missingUI = [];
-          // Extended UI overlays (grid, route, alerts, exit highlights, vignette, minimap, panel, POIs)
+          // Extended UI overlays (grid, route, alerts, exit highlights, vignette, minimap, panel, POIs, misc)
           const expectUIExt = expectUI.concat([
             "panelBg", "panelBorder",
             "poiTown", "poiDungeonEasy", "poiDungeonMed", "poiDungeonHard",
-            "questMarker"
+            "questMarker",
+            "sleepingZ", "playerBackdropFill", "playerBackdropStroke",
+            "regionAnimal", "shopkeeper"
           ]);
           for (const k of expectUIExt) {
             const v = ov[k];

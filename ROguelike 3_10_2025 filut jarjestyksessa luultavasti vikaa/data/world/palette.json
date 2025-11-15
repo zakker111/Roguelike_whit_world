@@ -37,7 +37,12 @@
     "poiDungeonEasy": "#9ece6a",
     "poiDungeonMed": "#f4bf75",
     "poiDungeonHard": "#f7768e",
-    "questMarker": "#fbbf24"
+    "questMarker": "#fbbf24",
+    "sleepingZ": "#a3be8c",
+    "playerBackdropFill": "rgba(255,255,255,0.16)",
+    "playerBackdropStroke": "rgba(255,255,255,0.35)",
+    "regionAnimal": "#e9d5a1",
+    "shopkeeper": "#ffd166"
   },
   "encounterBiome": {
     "FOREST": "#163a22",

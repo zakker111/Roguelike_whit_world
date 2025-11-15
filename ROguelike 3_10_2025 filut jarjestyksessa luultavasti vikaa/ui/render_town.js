@@ -894,8 +894,13 @@ export function draw(ctx, view) {
         glyph = "S";
         color = "#f6c177";
       } else if (n.isShopkeeper || n._shopRef) {
-        // Highlight shopkeepers so the player can spot them easily
-        color = "#ffd166"; // warm gold
+        // Highlight shopkeepers so the player can spot them easily (palette-driven)
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          color = pal && pal.shopkeeper ? pal.shopkeeper : "#ffd166";
+        } catch (_) {
+          color = "#ffd166";
+        }
       }
 
       // Dim draw when not visible or visible-without-LOS; full draw when visible with LOS
@@ -919,7 +924,12 @@ export function draw(ctx, view) {
         const zy = screenY + TILE / 2 - TILE * 0.6 + bob; // above head
         ctx2d.save();
         ctx2d.globalAlpha = drawDim ? 0.55 : 0.9;
-        ctx2d.fillStyle = "#a3be8c";
+        let zColor = "#a3be8c";
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          if (pal && pal.sleepingZ) zColor = pal.sleepingZ || zColor;
+        } catch (_) {}
+        ctx2d.fillStyle = zColor;
         ctx2d.fillText(zChar, zx, zy);
         ctx2d.restore();
       }
@@ -992,9 +1002,19 @@ export function draw(ctx, view) {
     const screenY = (player.y - startY) * TILE - tileOffsetY;
 
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(255,255,255,0.16)";
+    // Palette-driven player backdrop
+    let pbFill = "rgba(255,255,255,0.16)";
+    let pbStroke = "rgba(255,255,255,0.35)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        pbFill = pal.playerBackdropFill || pbFill;
+        pbStroke = pal.playerBackdropStroke || pbStroke;
+      }
+    } catch (_) {}
+    ctx2d.fillStyle = pbFill;
     ctx2d.fillRect(screenX + 4, screenY + 4, TILE - 8, TILE - 8);
-    ctx2d.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx2d.strokeStyle = pbStroke;
     ctx2d.lineWidth = 1;
     ctx2d.strokeRect(screenX + 4.5, screenY + 4.5, TILE - 9, TILE - 9);
 
