@@ -750,67 +750,8 @@
       startRoomRect = ctx.startRoomRect || startRoomRect;
       return;
     }
-    // Fallback: keep previous inline behavior
-    const D = modHandle("Dungeon");
-    if (D && typeof D.generateLevel === "function") {
-      const ctx = getCtx();
-      ctx.startRoomRect = startRoomRect;
-      D.generateLevel(ctx, depth);
-      map = ctx.map;
-      seen = ctx.seen;
-      visible = ctx.visible;
-      enemies = ctx.enemies;
-      corpses = ctx.corpses;
-      startRoomRect = ctx.startRoomRect;
-      decals = [];
-      _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
-      if (inBounds(player.x, player.y) && !visible[player.y][player.x]) {
-        try { log("FOV sanity check: player tile not visible after gen; recomputing.", "warn"); } catch (_) {}
-        recomputeFOV();
-        if (inBounds(player.x, player.y)) {
-          visible[player.y][player.x] = true;
-          seen[player.y][player.x] = true;
-        }
-      }
-      // Rebuild occupancy using unified facade
-      {
-        try {
-          const ctx2 = getCtx();
-          const OF = modHandle("OccupancyFacade");
-          if (OF && typeof OF.rebuild === "function") {
-            OF.rebuild(ctx2);
-            occupancy = ctx2.occupancy || occupancy;
-          }
-        } catch (_) {}
-      }
-      if (window.DEV) {
-        try {
-          const visCount = enemies.filter(e => inBounds(e.x, e.y) && visible[e.y][e.x]).length;
-          log(`[DEV] Enemies spawned: ${enemies.length}, visible now: ${visCount}.`, "notice");
-        } catch (_) {}
-      }
-      applyCtxSyncAndRefresh(getCtx());
-      {
-        const MZ = modHandle("Messages");
-        if (MZ && typeof MZ.log === "function") {
-          MZ.log(getCtx(), "dungeon.explore");
-        } else {
-          log("You explore the dungeon.");
-        }
-      }
-      try {
-        const DR2 = modHandle("DungeonRuntime");
-        if (DR2 && typeof DR2.save === "function") {
-          DR2.save(ctx, true);
-        } else {
-          const DS = modHandle("DungeonState");
-          if (DS && typeof DS.save === "function") {
-            DS.save(ctx);
-          }
-        }
-      } catch (_) {}
-      return;
-    }
+    // Fallback deprecated: skip inline Dungeon.generateLevel path; use minimal fallback below
+    try { log("Dungeon module path deprecated; using minimal fallback.", "warn"); } catch (_) {}
     // Fallback: flat-floor map
     map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
     const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
@@ -2254,59 +2195,13 @@
       syncFromCtx(ctx);
       return;
     }
-    // Minimal fallback: announce death, add corpse with flavor, clear enemy, award XP
+    // Fallback: module-only; minimal corpse + removal
     const name = capitalize(enemy.type || "enemy");
     log(`${name} dies.`, "bad");
-    const last = enemy._lastHit || null;
-    function flavorFromLastHit(lh) {
-      if (!lh) return null;
-      const part = lh.part || "torso";
-      const killer = lh.by || "unknown";
-      const via = lh.weapon ? lh.weapon : (lh.via || "attack");
-      let wound = "";
-      if (part === "head") wound = lh.crit ? "head crushed into pieces" : "wound to the head";
-      else if (part === "torso") wound = lh.crit ? "deep gash across the torso" : "stab wound in the torso";
-      else if (part === "legs") wound = lh.crit ? "leg shattered beyond use" : "wound to the leg";
-      else if (part === "hands") wound = lh.crit ? "hands mangled" : "cut on the hand";
-      else wound = "fatal wound";
-      const killedBy = (killer === "player") ? "you" : killer;
-      return { killedBy, wound, via };
-    }
-    const meta = flavorFromLastHit(last);
-    // Basic loot: animals drop meat/hide; others drop generic coin scrap
-    let loot = [];
-    try {
-      const isAnimal = String(enemy.faction || "").startsWith("animal");
-      if (isAnimal) {
-        // Simple animal loot (stackable material)
-        const meatAmt = 1 + Math.floor(rng() * 2); // 1–2
-        loot.push({ kind: "material", type: "meat", name: "meat", amount: meatAmt });
-        if (rng() < 0.35) loot.push({ kind: "material", type: "hide", name: "hide", amount: 1 });
-      } else {
-        // Fallback: small gold scrap
-        loot.push({ kind: "gold", amount: 1, name: "gold" });
-      }
-    } catch (_) {}
-    corpses.push({ x: enemy.x, y: enemy.y, loot: loot, looted: loot.length === 0, meta: meta || undefined });
+    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
     enemies = enemies.filter(e => e !== enemy);
-    try {
-      if (occupancy && typeof occupancy.clearEnemy === "function") {
-        occupancy.clearEnemy(enemy.x, enemy.y);
-      }
-    } catch (_) {}
+    try { if (occupancy && typeof occupancy.clearEnemy === "function") occupancy.clearEnemy(enemy.x, enemy.y); } catch (_) {}
     gainXP(enemy.xp || 5);
-    // If in Region Map and this was an animal, mark region cleared to prevent future spawns
-    try {
-      const wasAnimal = String(enemy.faction || "").startsWith("animal");
-      if (mode === "region" && wasAnimal && region && region.enterWorldPos) {
-        const pos = region.enterWorldPos;
-        if (typeof window !== "undefined" && window.RegionMapRuntime && typeof window.RegionMapRuntime.markAnimalsCleared === "function") {
-          window.RegionMapRuntime.markAnimalsCleared(pos.x | 0, pos.y | 0);
-        }
-        // Update flag immediately in current session
-        try { region._hasKnownAnimals = true; } catch (_) {}
-      }
-    } catch (_) {}
   }
 
   
