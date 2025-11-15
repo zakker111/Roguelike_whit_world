@@ -51,11 +51,15 @@ Player/NPC and region extras:
 - regionAnimalsCleared: label color for “Animals cleared here”
 - regionAnimalsKnown: label color for “Animals known in this area”
 
-Optional alpha controls for exit overlays:
+Optional alpha controls for overlays:
 - exitOverlayFillA: shared fill alpha (0..1) used as fallback
 - exitOverlayStrokeA: shared stroke alpha (0..1) used as fallback
 - exitEncounterFillA / exitEncounterStrokeA: overrides for encounter exit overlay
 - exitDungeonFillA / exitDungeonStrokeA: overrides for dungeon exit overlay
+- glowStartA / glowMidA / glowEndA: lamp/torch glow alpha stops (town+dungeon); per-phase multiplier applies (night/dusk/dawn)
+
+Misc:
+- blood: color for blood decals (region + dungeon fallback)
 
 Notes:
 - All alpha keys are numbers in the range [0, 1].

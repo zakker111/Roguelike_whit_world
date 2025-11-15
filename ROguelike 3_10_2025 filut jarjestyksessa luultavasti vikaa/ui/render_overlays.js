@@ -9,6 +9,7 @@
  * - drawLampGlow(ctx, view)
  */
 import { attachGlobal } from "../utils/global.js";
+import { rgba as _rgba } from "./color_utils.js";
 
 export function drawTownDebugOverlay(ctx, view) {
   const { ctx2d, TILE, cam, shops, townBuildings } = Object.assign({}, view, ctx);
@@ -261,14 +262,7 @@ export function drawLampGlow(ctx, view) {
       return null;
     }
 
-    // Helper: convert hex "#rrggbb" to rgba string with given alpha
-    function rgba(hex, a) {
-      const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
-      if (!m) return `rgba(255, 220, 120, ${a})`;
-      const v = parseInt(m[1], 16);
-      const r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
-      return `rgba(${r}, ${g}, ${b}, ${a})`;
-    }
+    // Color conversion moved to color_utils (imported as _rgba)
 
     const { ctx2d, TILE } = Object.assign({}, view);
 
@@ -314,15 +308,33 @@ export function drawLampGlow(ctx, view) {
       const oc = off.getContext("2d");
       oc.globalCompositeOperation = "lighter";
 
+      // Alpha configuration (palette-driven) and phase multiplier
+      let a0 = 0.60, a1 = 0.25, a2 = 0.0;
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          const v0 = Number(pal.glowStartA), v1 = Number(pal.glowMidA), v2 = Number(pal.glowEndA);
+          if (Number.isFinite(v0)) a0 = Math.max(0, Math.min(1, v0));
+          if (Number.isFinite(v1)) a1 = Math.max(0, Math.min(1, v1));
+          if (Number.isFinite(v2)) a2 = Math.max(0, Math.min(1, v2));
+        }
+      } catch (_) {}
+      const phaseMult = (function () {
+        const ph = (ctx.time && ctx.time.phase) || "";
+        if (ph === "night") return 1.0;
+        if (ph === "dusk" || ph === "dawn") return 0.8;
+        return 0.6;
+      })();
+
       for (let i = 0; i < lights.length; i++) {
         const L = lights[i];
         const cx = L.x * TILE + TILE / 2;
         const cy = L.y * TILE + TILE / 2;
         const r = TILE * L.rTiles;
         const grad = oc.createRadialGradient(cx, cy, 4, cx, cy, r);
-        grad.addColorStop(0, rgba(L.color, 0.60));
-        grad.addColorStop(0.4, rgba(L.color, 0.25));
-        grad.addColorStop(1, rgba(L.color, 0.0));
+        grad.addColorStop(0, _rgba(L.color, a0 * phaseMult));
+        grad.addColorStop(0.4, _rgba(L.color, a1 * phaseMult));
+        grad.addColorStop(1, _rgba(L.color, a2 * phaseMult));
         oc.fillStyle = grad;
         oc.beginPath();
         oc.arc(cx, cy, r, 0, Math.PI * 2);
@@ -371,13 +383,7 @@ export function drawDungeonGlow(ctx, view) {
       } catch (_) {}
       return null;
     }
-    function rgba(hex, a) {
-      const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
-      if (!m) return `rgba(255, 200, 100, ${a})`;
-      const v = parseInt(m[1], 16);
-      const r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
-      return `rgba(${r}, ${g}, ${b}, ${a})`;
-    }
+    // Color conversion moved to color_utils (imported as _rgba)
 
     const { ctx2d, TILE } = Object.assign({}, view);
     ctx2d.save();
@@ -413,10 +419,27 @@ export function drawDungeonGlow(ctx, view) {
         ? def.light.color
         : (def && def.colors && def.colors.fg) ? def.colors.fg : "#ffb84d";
 
+      // Alpha configuration (palette-driven) and phase multiplier (use same as town lamps)
+      let a0 = 0.60, a1 = 0.25, a2 = 0.0;
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          const v0 = Number(pal.glowStartA), v1 = Number(pal.glowMidA), v2 = Number(pal.glowEndA);
+          if (Number.isFinite(v0)) a0 = Math.max(0, Math.min(1, v0));
+          if (Number.isFinite(v1)) a1 = Math.max(0, Math.min(1, v1));
+          if (Number.isFinite(v2)) a2 = Math.max(0, Math.min(1, v2));
+        }
+      } catch (_) {}
+      const phaseMult = (function () {
+        const ph = (ctx.time && ctx.time.phase) || "";
+        if (ph === "night") return 1.0;
+        if (ph === "dusk" || ph === "dawn") return 0.8;
+        return 0.6;
+      })();
       const grad = ctx2d.createRadialGradient(cx, cy, 3, cx, cy, r);
-      grad.addColorStop(0, rgba(base, 0.60));
-      grad.addColorStop(0.5, rgba(base, 0.25));
-      grad.addColorStop(1, rgba(base, 0.0));
+      grad.addColorStop(0, _rgba(base, a0 * phaseMult));
+      grad.addColorStop(0.5, _rgba(base, a1 * phaseMult));
+      grad.addColorStop(1, _rgba(base, a2 * phaseMult));
       ctx2d.fillStyle = grad;
       ctx2d.beginPath();
       ctx2d.arc(cx, cy, r, 0, Math.PI * 2);

@@ -168,7 +168,15 @@ export function draw(ctx, view) {
 
       const prev = ctx2d.globalAlpha;
       ctx2d.globalAlpha = alpha;
-      ctx2d.fillStyle = "#7a1717";
+      // Palette-driven blood color
+      (function () {
+        let blood = "#7a1717";
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          if (pal && typeof pal.blood === "string" && pal.blood.trim().length) blood = pal.blood;
+        } catch (_) {}
+        ctx2d.fillStyle = blood;
+      })();
       const r = Math.max(4, Math.min(TILE - 2, d.r || Math.floor(TILE * 0.4)));
       const cx = sx + TILE / 2;
       const cy = sy + TILE / 2;

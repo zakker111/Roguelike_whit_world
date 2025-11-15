@@ -143,7 +143,8 @@
               "questMarker",
               "sleepingZ", "playerBackdropFill", "playerBackdropStroke",
               "regionAnimal", "shopkeeper",
-              "regionAnimalsCleared", "regionAnimalsKnown"
+              "regionAnimalsCleared", "regionAnimalsKnown",
+              "blood"
             ]);
             for (const k of expectUIExt) {
               const v = ov[k];
@@ -155,6 +156,24 @@
             } else {
               V.notices.push("Palette overlays UI keys present.");
               Log("Palette overlays UI keys present.", "notice");
+            }
+            // Optional numeric alpha keys: warn only if present but invalid
+            const expectAlpha = [
+              "exitOverlayFillA","exitOverlayStrokeA",
+              "exitEncounterFillA","exitEncounterStrokeA",
+              "exitDungeonFillA","exitDungeonStrokeA",
+              "glowStartA","glowMidA","glowEndA"
+            ];
+            for (const k of expectAlpha) {
+              if (Object.prototype.hasOwnProperty.call(ov, k)) {
+                const v = ov[k];
+                if (typeof v !== "number" || !Number.isFinite(v)) {
+                  V.warnings.push(`Palette overlays: alpha key '${k}' should be a number in [0,1].`);
+                  Log(`Palette overlays: alpha key '${k}' should be a number in [0,1].`);
+                } else {
+                  V.notices.push(`Palette overlays: alpha key '${k}' present.`);
+                }
+              }
             }
           }
         } catch (_) {}

@@ -14,7 +14,7 @@ import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay } from "./decor_overlays.js";
 import { attachGlobal } from "../utils/global.js";
-import { shade as _shade } from "./color_utils.js";
+import { shade as _shade, rgba as _rgba } from "./color_utils.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
 let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
@@ -323,7 +323,15 @@ export function draw(ctx, view) {
       if (!usedTile) {
         const prev = ctx2d.globalAlpha;
         ctx2d.globalAlpha = alpha;
-        ctx2d.fillStyle = "#7a1717";
+        // Palette-driven blood color
+        (function () {
+          let blood = "#7a1717";
+          try {
+            const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+            if (pal && typeof pal.blood === "string" && pal.blood.trim().length) blood = pal.blood;
+          } catch (_) {}
+          ctx2d.fillStyle = blood;
+        })();
         const r = Math.max(4, Math.min(TILE - 2, d.r || Math.floor(TILE * 0.4)));
         const cx = sx + TILE / 2;
         const cy = sy + TILE / 2;
@@ -427,10 +435,23 @@ export function draw(ctx, view) {
             const cx = sx + TILE / 2;
             const cy = sy + TILE / 2;
             const r = TILE * (2.0 * phaseMult + 1.2); // ~2.2T at night, ~1.6T at day
+
+            // Palette-driven alpha stops (fallback to defaults)
+            let a0 = 0.55, a1 = 0.30, a2 = 0.0;
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+              if (pal) {
+                const v0 = Number(pal.glowStartA), v1 = Number(pal.glowMidA), v2 = Number(pal.glowEndA);
+                if (Number.isFinite(v0)) a0 = Math.max(0, Math.min(1, v0));
+                if (Number.isFinite(v1)) a1 = Math.max(0, Math.min(1, v1));
+                if (Number.isFinite(v2)) a2 = Math.max(0, Math.min(1, v2));
+              }
+            } catch (_) {}
+
             const grad = ctx2d.createRadialGradient(cx, cy, Math.max(2, TILE * 0.10), cx, cy, r);
-            grad.addColorStop(0, "rgba(255, 200, 120, " + (0.55 * phaseMult).toFixed(3) + ")");
-            grad.addColorStop(0.4, "rgba(255, 170, 80, " + (0.30 * phaseMult).toFixed(3) + ")");
-            grad.addColorStop(1, "rgba(255, 140, 40, 0.0)");
+            grad.addColorStop(0, _rgba(color, a0 * phaseMult));
+            grad.addColorStop(0.4, _rgba(color, a1 * phaseMult));
+            grad.addColorStop(1, _rgba(color, a2));
             ctx2d.save();
             ctx2d.globalCompositeOperation = "lighter";
             ctx2d.fillStyle = grad;
