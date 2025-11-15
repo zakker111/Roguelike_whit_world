@@ -30,7 +30,14 @@
     "vignetteStart": "rgba(0,0,0,0.00)",
     "vignetteEnd": "rgba(0,0,0,0.12)",
     "minimapBg": "rgba(13,16,24,0.70)",
-    "minimapBorder": "rgba(122,162,247,0.35)"
+    "minimapBorder": "rgba(122,162,247,0.35)",
+    "panelBg": "rgba(13,16,24,0.80)",
+    "panelBorder": "rgba(122,162,247,0.35)",
+    "poiTown": "#ffd166",
+    "poiDungeonEasy": "#9ece6a",
+    "poiDungeonMed": "#f4bf75",
+    "poiDungeonHard": "#f7768e",
+    "questMarker": "#fbbf24"
   },
   "encounterBiome": {
     "FOREST": "#163a22",

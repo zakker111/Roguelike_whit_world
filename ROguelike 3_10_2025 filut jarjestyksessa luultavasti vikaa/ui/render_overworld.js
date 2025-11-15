@@ -374,7 +374,7 @@ export function draw(ctx, view) {
     const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
     const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
 
-    // Draw on top of fog: towns (gold glyph)
+    // Draw on top of fog: towns (glyph color from palette if available)
     for (const t of towns) {
       const lx = (t.x | 0) - ox;
       const ly = (t.y | 0) - oy;
@@ -382,10 +382,15 @@ export function draw(ctx, view) {
       const sx = (lx - startX) * TILE - tileOffsetX;
       const sy = (ly - startY) * TILE - tileOffsetY;
       const glyph = (t.size === "city") ? "T" : "t";
-      RenderCore.drawGlyph(ctx2d, sx, sy, glyph, "#ffd166", TILE);
+      let townColor = "#ffd166";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal && pal.poiTown) townColor = pal.poiTown || townColor;
+      } catch (_) {}
+      RenderCore.drawGlyph(ctx2d, sx, sy, glyph, townColor, TILE);
     }
 
-    // Dungeons: color-coded squares by level (green=1-2, amber=3, red=4-5)
+    // Dungeons: color-coded squares by level (palette-driven if available)
     ctx2d.save();
     for (const d of dungeons) {
       const lx = (d.x | 0) - ox;
@@ -399,6 +404,21 @@ export function draw(ctx, view) {
       let stroke = "rgba(239, 68, 68, 0.7)";
       if (lvl <= 2) { fill = "#9ece6a"; stroke = "rgba(158, 206, 106, 0.7)"; }
       else if (lvl === 3) { fill = "#f4bf75"; stroke = "rgba(244, 191, 117, 0.7)"; }
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          if (lvl <= 2 && pal.poiDungeonEasy) {
+            fill = pal.poiDungeonEasy || fill;
+            stroke = (_parseHex(fill) ? _rgba(fill, 0.7) : stroke);
+          } else if (lvl === 3 && pal.poiDungeonMed) {
+            fill = pal.poiDungeonMed || fill;
+            stroke = (_parseHex(fill) ? _rgba(fill, 0.7) : stroke);
+          } else if (lvl >= 4 && pal.poiDungeonHard) {
+            fill = pal.poiDungeonHard || fill;
+            stroke = (_parseHex(fill) ? _rgba(fill, 0.7) : stroke);
+          }
+        }
+      } catch (_) {}
       ctx2d.globalAlpha = 0.85;
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(sx + (TILE - s) / 2, sy + (TILE - s) / 2, s, s);
@@ -409,9 +429,14 @@ export function draw(ctx, view) {
     }
     ctx2d.restore();
 
-    // Active quest markers: bright amber 'E' glyph at absolute positions in ctx.world.questMarkers
+    // Active quest markers: glyph color from palette if available
     const qms = (ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
     if (qms.length) {
+      let questColor = "#fbbf24";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal && pal.questMarker) questColor = pal.questMarker || questColor;
+      } catch (_) {}
       for (const m of qms) {
         if (!m) continue;
         const lx = (m.x | 0) - ox;
@@ -419,7 +444,7 @@ export function draw(ctx, view) {
         if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
         const sx = (lx - startX) * TILE - tileOffsetX;
         const sy = (ly - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, sx, sy, "E", "#fbbf24", TILE);
+        RenderCore.drawGlyph(ctx2d, sx, sy, "E", questColor, TILE);
       }
     }
   } catch (_) {}
@@ -633,7 +658,16 @@ export function draw(ctx, view) {
     labelWidth = Math.max(260, 16 * (text.length / 2));
     const bx = 8, by = 8, bh = 26, bw = labelWidth;
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(13,16,24,0.80)";
+    let panelBg = "rgba(13,16,24,0.80)";
+    let panelBorder = "rgba(122,162,247,0.35)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        panelBg = pal.panelBg || panelBg;
+        panelBorder = pal.panelBorder || panelBorder;
+      }
+    } catch (_) {}
+    ctx2d.fillStyle = panelBg;
     // Rounded rect
     try {
       const r = 6;
@@ -649,12 +683,12 @@ export function draw(ctx, view) {
       ctx2d.quadraticCurveTo(bx, by, bx + r, by);
       ctx2d.closePath();
       ctx2d.fill();
-      ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+      ctx2d.strokeStyle = panelBorder;
       ctx2d.lineWidth = 1;
       ctx2d.stroke();
     } catch (_) {
       ctx2d.fillRect(bx, by, bw, bh);
-      ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+      ctx2d.strokeStyle = panelBorder;
       ctx2d.lineWidth = 1;
       ctx2d.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
     }
@@ -758,7 +792,12 @@ export function draw(ctx, view) {
             const lx = (t.x | 0) - ox;
             const ly = (t.y | 0) - oy;
             if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
-            ctx2d.fillStyle = "#f6c177";
+            let townColor = "#f6c177";
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+              if (pal && pal.poiTown) townColor = pal.poiTown || townColor;
+            } catch (_) {}
+            ctx2d.fillStyle = townColor;
             ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           for (const d of dungeons) {
@@ -770,12 +809,25 @@ export function draw(ctx, view) {
             if (lvl <= 2) fill = "#9ece6a"; // green (easy)
             else if (lvl === 3) fill = "#f4bf75"; // amber (medium)
             else fill = "#f7768e"; // red (hard)
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+              if (pal) {
+                if (lvl <= 2 && pal.poiDungeonEasy) fill = pal.poiDungeonEasy || fill;
+                else if (lvl === 3 && pal.poiDungeonMed) fill = pal.poiDungeonMed || fill;
+                else if (lvl >= 4 && pal.poiDungeonHard) fill = pal.poiDungeonHard || fill;
+              }
+            } catch (_) {}
             ctx2d.fillStyle = fill;
             ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           // Quest markers: amber
           if (qms && qms.length) {
-            ctx2d.fillStyle = "#fbbf24";
+            let questColor = "#fbbf24";
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+              if (pal && pal.questMarker) questColor = pal.questMarker || questColor;
+            } catch (_) {}
+            ctx2d.fillStyle = questColor;
             for (const m of qms) {
               const lx = (m.x | 0) - ox;
               const ly = (m.y | 0) - oy;
