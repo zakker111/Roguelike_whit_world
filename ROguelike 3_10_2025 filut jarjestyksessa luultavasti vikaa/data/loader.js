@@ -53,9 +53,20 @@ const DATA_FILES = {
 };
 
 function fetchJson(url) {
-  return fetch(url, { cache: "no-cache" })
+  // Append version query param to avoid CDN caching stale JSON across deploys
+  function withVer(u) {
+    try {
+      const meta = typeof document !== "undefined" ? document.querySelector('meta[name="app-version"]') : null;
+      const ver = meta ? String(meta.getAttribute("content") || "") : "";
+      if (!ver) return u;
+      const hasQuery = u.indexOf("?") !== -1;
+      return u + (hasQuery ? "&" : "?") + "v=" + encodeURIComponent(ver);
+    } catch (_) { return u; }
+  }
+  const url2 = withVer(url);
+  return fetch(url2, { cache: "no-cache" })
     .then(r => {
-      if (!r.ok) throw new Error("HTTP " + r.status + " for " + url);
+      if (!r.ok) throw new Error("HTTP " + r.status + " for " + url2);
       return r.json();
     });
 }
