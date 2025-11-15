@@ -162,7 +162,8 @@ export function draw(ctx, view) {
             const t = rowM[xx];
             // Cached JSON fill color for overworld with robust fallback
             const td = getTileDef("overworld", t);
-            if (!td) { missingDefsCount++; missingSet.add(t); }
+            // Only count as missing when tiles.json is actually loaded; avoid noisy warnings during early boot.
+            if (!td && tilesRef()) { missingDefsCount++; missingSet.add(t); }
             const c = fillOverworldFor(WT, t);
             oc.fillStyle = c;
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
@@ -171,7 +172,8 @@ export function draw(ctx, view) {
         }
         // DEV-only: log a single summary if tile defs were missing
         try {
-          if (missingDefsCount > 0 && typeof window !== "undefined" && (window.DEV || (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1"))) {
+          // Log missing defs only once tiles.json is present to avoid transient startup warnings
+          if (missingDefsCount > 0 && tilesRef() && typeof window !== "undefined" && (window.DEV || (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1"))) {
             const LG = (typeof window !== "undefined" ? window.Logger : null);
             const msg = `[RenderOverworld] Missing ${missingDefsCount} tile def lookups; ids without defs: ${Array.from(missingSet).join(", ")}. Using fallback colors.`;
             if (LG && typeof LG.log === "function") LG.log(msg, "warn");
