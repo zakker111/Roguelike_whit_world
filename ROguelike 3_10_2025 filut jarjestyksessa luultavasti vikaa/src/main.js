@@ -143,6 +143,28 @@ document.addEventListener('DOMContentLoaded', function () {
       window.Logger.init(undefined, 80);
     }
   } catch (e) {}
+  // Log active palette after Logger is ready (covers URL-param load that happened before Logger)
+  try {
+    const GD = (typeof window !== 'undefined' ? window.GameData : null);
+    const sel = (typeof localStorage !== 'undefined' ? (localStorage.getItem('PALETTE') || 'default') : 'default');
+    if (GD && GD.palette) {
+      // Resolve path from manifest if available
+      let path = null;
+      try {
+        const list = Array.isArray(GD.palettes) ? GD.palettes : null;
+        if (list) {
+          const hit = list.find(p => String(p.id || '') === String(sel));
+          if (hit && hit.path) path = hit.path;
+        }
+      } catch (_) {}
+      if (!path) {
+        path = sel === 'default' ? 'data/world/palette.json' : (sel === 'alt' ? 'data/world/palette_alt.json' : String(sel));
+      }
+      if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') {
+        window.Logger.log(`[Palette] Active ${sel} (${path})`, 'notice');
+      }
+    }
+  } catch (_) {}
 });
 
 // Optional smoke test loader: load when ?smoketest=1 via dynamic imports,
