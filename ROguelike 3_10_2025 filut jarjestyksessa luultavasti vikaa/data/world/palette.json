@@ -16,7 +16,10 @@
     "corpseEmpty": "#6b7280"
   },
   "overlays": {
-    "dim": "rgba(0, 0, 0, 0.70)"
+    "dim": "rgba(0,0,0,0.70)",
+    "night": "rgba(0,0,0,0.35)",
+    "dusk": "rgba(255,120,40,0.12)",
+    "dawn": "rgba(120,180,255,0.10)"
   },
   "encounterBiome": {
     "FOREST": "#163a22",
