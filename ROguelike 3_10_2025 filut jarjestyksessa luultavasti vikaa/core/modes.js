@@ -171,21 +171,61 @@ export function enterTownIfOnTile(ctx) {
   if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
   const t = mapRef[py][px];
 
-  // Strict: require standing exactly on the town tile (no adjacency entry)
+  // Entry: allow adjacent entry. First prefer cardinal adjacency; if none, allow diagonals.
   let townPx = px, townPy = py;
   let approachedDir = "";
   let onTownTile = !!(WT && t === ctx.World.TILES.TOWN);
-  // No adjacency search: player must be exactly on the TOWN tile.
+  if (!onTownTile && WT) {
+    // Cardinal neighbors (prefer these)
+    const dirs = [
+      { dx:  1, dy:  0, dir: "W" },
+      { dx: -1, dy:  0, dir: "E" },
+      { dx:  0, dy:  1, dir: "N" },
+      { dx:  0, dy: -1, dir: "S" },
+    ];
+    for (const d of dirs) {
+      const nx = px + d.dx, ny = py + d.dy;
+      if (!inBounds(ctx, nx, ny)) continue;
+      if (mapRef[ny][nx] === WT.TOWN) {
+        townPx = nx; townPy = ny;
+        approachedDir = d.dir;
+        onTownTile = true;
+        break;
+      }
+    }
+    // Diagonals as fallback (helps when towns are corner-accessible)
+    if (!onTownTile) {
+      const diags = [
+        { dx:  1, dy:  1, dir: "NW" },
+        { dx: -1, dy:  1, dir: "NE" },
+        { dx:  1, dy: -1, dir: "SW" },
+        { dx: -1, dy: -1, dir: "SE" },
+      ];
+      for (const d of diags) {
+        const nx = px + d.dx, ny = py + d.dy;
+        if (!inBounds(ctx, nx, ny)) continue;
+        if (mapRef[ny][nx] === WT.TOWN) {
+          townPx = nx; townPy = ny;
+          approachedDir = d.dir;
+          onTownTile = true;
+          break;
+        }
+      }
+    }
+  }
 
-  // Clear stale approach direction when already on the town tile
-  if (onTownTile && approachedDir === "") {
-    ctx.enterFromDir = "";
-  } else if (onTownTile && approachedDir) {
-    // Record approach direction so Town generation can choose the matching gate side
-    ctx.enterFromDir = approachedDir;
+  // Record approach direction (used by Town generation to pick gate side). Empty string when stepping directly on tile.
+  if (onTownTile) {
+    ctx.enterFromDir = approachedDir || "";
   }
 
   if (WT && onTownTile) {
+      // Proactively close any confirm dialog to avoid UI overlap
+      try {
+        const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(ctx);
+      } catch (_) {}
+
       // Store absolute world coords for return (use town tile if adjacent entry)
       const enterWX = (ctx.world ? ctx.world.originX : 0) + townPx;
       const enterWY = (ctx.world ? ctx.world.originY : 0) + townPy;
