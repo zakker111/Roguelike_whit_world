@@ -118,19 +118,38 @@ export const GameData = {
       }
     } catch (_) {}
     try {
-      function pathFor(name) {
-        if (!name || name === "default") return DATA_FILES.palette;
-        // From manifest (by id)
+      // Resolve path with diagnostics for missing manifest or unknown id
+      const hasManifest = Array.isArray(GameData.palettes) && GameData.palettes.length > 0;
+      const looksLikePath = /[/.]/.test(id) || /^https?:/i.test(id);
+      let path = null;
+
+      if (!id || id === "default") {
+        path = DATA_FILES.palette;
+      } else if (id === "alt") {
+        path = "data/world/palette_alt.json";
+      } else if (looksLikePath) {
+        // Direct path override
+        path = String(id);
+      } else {
+        // Treat as manifest id
+        let hit = null;
         try {
-          const list = Array.isArray(GameData.palettes) ? GameData.palettes : [];
-          const hit = list.find(p => String(p.id || "") === String(name));
-          if (hit && hit.path) return hit.path;
+          if (hasManifest) {
+            hit = GameData.palettes.find(p => String(p.id || "") === id);
+          }
         } catch (_) {}
-        if (name === "alt") return "data/world/palette_alt.json";
-        // Treat as direct path
-        return String(name);
+        if (hit && hit.path) {
+          path = hit.path;
+        } else {
+          if (hasManifest) {
+            logWarn(`[Palette] Manifest has no entry for id '${id}'. Add it to data/world/palettes.json or pass a direct path via ?palette=/data/world/palette_${id}.json`);
+          } else {
+            logNotice(`[Palette] No palettes.json manifest loaded; id '${id}' not found. Treating value as a direct path override.`);
+          }
+          path = String(id);
+        }
       }
-      const path = pathFor(id);
+
       // Log resolved path
       try {
         if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
@@ -191,6 +210,15 @@ function logNotice(msg) {
       window.Logger.log(msg, "notice");
     } else if (typeof window !== "undefined" && window.DEV && typeof console !== "undefined") {
       console.debug("[GameData] " + msg);
+    }
+  } catch (_) {}
+}
+function logWarn(msg) {
+  try {
+    if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+      window.Logger.log(msg, "warn");
+    } else if (typeof console !== "undefined") {
+      console.warn("[GameData] " + msg);
     }
   } catch (_) {}
 }
@@ -258,6 +286,14 @@ GameData.ready = (async function loadAll() {
     GameData.config = (config && typeof config === "object") ? config : null;
     GameData.palette = (palette && typeof palette === "object") ? palette : null;
     GameData.palettes = (palettesManifest && Array.isArray(palettesManifest.palettes)) ? palettesManifest.palettes : null;
+    // Manifest presence diagnostics
+    try {
+      if (!GameData.palettes || GameData.palettes.length === 0) {
+        logNotice("[Palette] palettes.json manifest missing or empty; GOD dropdown will fallback to default/alt.");
+      } else {
+        logNotice("[Palette] palettes.json manifest loaded (" + GameData.palettes.length + " entries).");
+      }
+    } catch (_) {}
     GameData.messages = (messages && typeof messages === "object") ? messages : null;
 
     GameData.shopPhases = (shopPhases && typeof shopPhases === "object") ? shopPhases : null;
