@@ -40,6 +40,7 @@ const DATA_FILES = {
   quests: "data/quests/quests.json",
   config: "data/config/config.json",
   palette: "data/world/palette.json",
+  palettesManifest: "data/world/palettes.json",
   messages: "data/i18n/messages.json",
   shopPhases: "data/shops/shop_phases.json",
   shopPools: "data/shops/shop_pools.json",
@@ -86,6 +87,7 @@ export const GameData = {
   quests: null,
   config: null,
   palette: null,
+  palettes: null,
   messages: null,
   props: null,
   shopPhases: null,
@@ -109,7 +111,14 @@ export const GameData = {
     try {
       function pathFor(name) {
         if (!name || name === "default") return DATA_FILES.palette;
+        // From manifest (by id)
+        try {
+          const list = Array.isArray(GameData.palettes) ? GameData.palettes : [];
+          const hit = list.find(p => String(p.id || "") === String(name));
+          if (hit && hit.path) return hit.path;
+        } catch (_) {}
         if (name === "alt") return "data/world/palette_alt.json";
+        // Treat as direct path
         return String(name);
       }
       const path = pathFor(nameOrPath);
@@ -162,7 +171,7 @@ GameData.ready = (async function loadAll() {
       assetsCombined,
       items, enemies, npcs, consumables, tools,
       materials, craftingRecipes, materialPools, foragingPools,
-      town, flavor, encounters, quests, config, palette, messages,
+      town, flavor, encounters, quests, config, palette, palettesManifest, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
@@ -183,6 +192,7 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.quests).catch(() => null),
       fetchJson(DATA_FILES.config).catch(() => null),
       fetchJson(DATA_FILES.palette).catch(() => null),
+      fetchJson(DATA_FILES.palettesManifest).catch(() => null),
       fetchJson(DATA_FILES.messages).catch(() => null),
       fetchJson(DATA_FILES.shopPhases).catch(() => null),
       fetchJson(DATA_FILES.shopPools).catch(() => null),
@@ -213,6 +223,7 @@ GameData.ready = (async function loadAll() {
     GameData.quests = (quests && typeof quests === "object") ? quests : null;
     GameData.config = (config && typeof config === "object") ? config : null;
     GameData.palette = (palette && typeof palette === "object") ? palette : null;
+    GameData.palettes = (palettesManifest && Array.isArray(palettesManifest.palettes)) ? palettesManifest.palettes : null;
     GameData.messages = (messages && typeof messages === "object") ? messages : null;
 
     GameData.shopPhases = (shopPhases && typeof shopPhases === "object") ? shopPhases : null;

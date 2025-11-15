@@ -33,6 +33,39 @@ function populateEncounterSelect() {
   } catch (_) {}
 }
 
+function populatePaletteSelect() {
+  try {
+    const sel = byId("god-palette-select");
+    if (!sel) return;
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const list = (GD && Array.isArray(GD.palettes)) ? GD.palettes : null;
+
+    // Build options from manifest if present; else fallback to default/alt
+    let html = "";
+    if (list && list.length) {
+      html = list.map(p => {
+        const id = String(p.id || "");
+        const name = String(p.name || id || "palette");
+        return `<option value="${id}">${name}</option>`;
+      }).join("");
+      // Ensure 'default' exists
+      if (!list.some(p => String(p.id || "") === "default")) {
+        html = `<option value="default">(default)</option>` + html;
+      }
+    } else {
+      html = `<option value="default">(default)</option><option value="alt">alt</option>`;
+    }
+    sel.innerHTML = html;
+
+    // Set to saved or URL selection if present
+    try {
+      const params = new URLSearchParams(location.search);
+      let value = params.get("palette") || localStorage.getItem("PALETTE") || "default";
+      sel.value = value;
+    } catch (_) {}
+  } catch (_) {}
+}
+
 export function init(UI) {
   // Basic buttons
   const healBtn = byId("god-heal-btn");
@@ -321,17 +354,14 @@ export function init(UI) {
   // Palette switcher
   const palSel = byId("god-palette-select");
   const palApply = byId("god-apply-palette-btn");
-  if (palSel) {
-    try {
-      const params = new URLSearchParams(location.search);
-      let sel = params.get("palette") || localStorage.getItem("PALETTE") || "default";
-      // normalize
-      if (sel !== "default" && sel !== "alt") {
-        sel = "default";
-      }
-      palSel.value = sel;
-    } catch (_) {}
-  }
+  // Populate list once GameData is ready
+  try {
+    if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
+      window.GameData.ready.then(() => populatePaletteSelect());
+    } else {
+      populatePaletteSelect();
+    }
+  } catch (_) {}
   if (palApply) {
     palApply.addEventListener("click", async () => {
       const val = palSel ? (palSel.value || "default") : "default";

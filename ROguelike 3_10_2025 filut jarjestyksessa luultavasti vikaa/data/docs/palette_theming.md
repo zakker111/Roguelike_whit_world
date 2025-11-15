@@ -6,7 +6,8 @@ This project supports palette-driven theming across overworld, town, region, and
 
 - GOD panel
   - Open GOD (top bar or press P).
-  - Theme section: choose “default” or “alt” from the palette dropdown and click Apply.
+  - Theme section: choose a palette from the dropdown and click Apply.
+  - The dropdown is auto-populated from `data/world/palettes.json`. If the file is missing, it falls back to “default” and “alt”.
 - URL param
   - Append `?palette=alt` to the URL to force the alternate theme.
   - You can also provide a custom JSON path, e.g. `?palette=/data/world/palette_custom.json`.
@@ -24,13 +25,23 @@ The current selection persists in `localStorage.PALETTE`. On boot, the loader ap
 
 See `data/docs/palette_schema.md` for the full list of overlay keys and examples.
 
-## Adding new palettes
+## Adding palettes to the GOD dropdown
 
-- Create `data/world/palette_mytheme.json` with the same schema.
-- To load via URL: `?palette=/data/world/palette_mytheme.json`.
-- To add to the GOD dropdown:
-  - Update the `<select id="god-palette-select">` in `index.html` to include an `<option value="mytheme">`.
-  - Update `GameData.loadPalette` mapping if you want `mytheme` to resolve to a custom path; otherwise, pass the explicit path via `?palette=`.
+- Create a palette JSON file with the same schema, for example: `data/world/palette_mytheme.json`.
+- Add it to the manifest `data/world/palettes.json`:
+
+```json
+{
+  "palettes": [
+    { "id": "default", "name": "Default", "path": "data/world/palette.json" },
+    { "id": "alt", "name": "Alt", "path": "data/world/palette_alt.json" },
+    { "id": "mytheme", "name": "My Theme", "path": "data/world/palette_mytheme.json" }
+  ]
+}
+```
+
+- Reload; the GOD panel dropdown will include “My Theme”.
+- You can still pass a direct path via `?palette=/data/world/palette_mytheme.json` even without adding to the manifest.
 
 ## Notes on caching
 
@@ -43,8 +54,9 @@ All JSON fetches are versioned via `?v=<app-version>` from the `<meta name="app-
 - Town and dungeon prop fallback colors (crate/barrel/bench/sign/lamp/fireplace/plant, etc.).
 - Glow alphas for lamps/torches using numeric keys `glowStartA`, `glowMidA`, `glowEndA`.
 - Blood decal color (`overlays.blood`) for region and dungeon.
+- Town debug overlays (building highlight/labels) when enabled.
 
-If you see hardcoded colors in the UI, we can expose them behind palette keys (e.g., debug overlays) — many have already been wired.
+If you see hardcoded colors in the UI, we can expose them behind palette keys — most major overlays already are.
 
 ## Troubleshooting
 
