@@ -215,6 +215,12 @@ export function draw(ctx, view) {
     }
   }
 
+  // Record map for tiles coverage smoketest (optional)
+  try {
+    if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+      window.TilesValidation.recordMap({ mode: "overworld", map });
+    }
+  } catch (_) {}
   // Top-edge boundary: render an organic shoreline + water to disguise the hard boundary.
   // Visual only; world data isn't changed. Movement into y < 0 is blocked in world_runtime.
   try {

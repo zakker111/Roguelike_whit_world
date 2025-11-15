@@ -12,6 +12,7 @@ import '/utils/utils.js';
 import '/utils/bounds.js';
 import '/utils/item_describe.js';
 import '/utils/rng.js';
+import '/utils/tiles_validation.js';
 
 // World and LOS/FOV primitives
 import '/world/infinite_gen.js';

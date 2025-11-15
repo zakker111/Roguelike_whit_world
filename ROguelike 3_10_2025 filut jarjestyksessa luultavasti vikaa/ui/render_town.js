@@ -367,6 +367,12 @@ export function draw(ctx, view) {
     }
   }
 
+  // Record map for tiles coverage smoketest (optional)
+  try {
+    if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+      window.TilesValidation.recordMap({ mode: "town", map });
+    }
+  } catch (_) {}
   // Road overlay pass (palette/tiles-driven):
   // - If tiles.json defines a ROAD fill, we skip overlay because the base layer already draws it correctly.
   // - Otherwise, draw a muted fallback overlay color.

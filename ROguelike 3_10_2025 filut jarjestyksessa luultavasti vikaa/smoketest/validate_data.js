@@ -66,6 +66,52 @@
     if (!GD.tiles || !GD.tiles.tiles || !Array.isArray(GD.tiles.tiles)) {
       V.warnings.push("Combined assets tiles missing or invalid (data/world/world_assets.json).");
       Log("Combined assets tiles missing or invalid.");
+    } else {
+      // Mode coverage check: ensure each mode references only tiles that appearIn that mode
+      try {
+        const arr = GD.tiles.tiles;
+        const byId = new Map();
+        const byModeKey = new Map();
+        for (const t of arr) {
+          byId.set(t.id | 0, t);
+          const key = String(t.key || "").toUpperCase();
+          const modes = Array.isArray(t.appearsIn) ? t.appearsIn.map(s => String(s).toLowerCase()) : [];
+          byModeKey.set(`${key}:${modes.join(",")}`, t);
+        }
+        // Analyze maps recorded by renderers (optional diagnostic)
+        const TV = (typeof window !== "undefined" ? window.TilesValidation : null);
+        const recorded = TV && typeof TV.getRecorded === "function" ? TV.getRecorded() : null;
+        const missingByMode = { overworld: new Set(), region: new Set(), town: new Set(), dungeon: new Set() };
+        function appearsInMode(t, mode) {
+          const modes = Array.isArray(t.appearsIn) ? t.appearsIn.map(s => String(s).toLowerCase()) : [];
+          return modes.includes(String(mode).toLowerCase());
+        }
+        if (recorded && Array.isArray(recorded)) {
+          for (const rec of recorded) {
+            const mode = String(rec.mode || "");
+            const map = Array.isArray(rec.map) ? rec.map : [];
+            for (let y = 0; y < map.length; y++) {
+              const row = map[y] || [];
+              for (let x = 0; x < row.length; x++) {
+                const id = row[x] | 0;
+                const t = byId.get(id);
+                if (!t || !appearsInMode(t, mode)) {
+                  missingByMode[mode] && missingByMode[mode].add(String(id));
+                }
+              }
+            }
+          }
+        }
+        // If any missing coverage detected, warn with a summary per mode
+        for (const m of Object.keys(missingByMode)) {
+          const set = missingByMode[m];
+          if (set && set.size > 0) {
+            const list = Array.from(set.values()).join(", ");
+            V.warnings.push(`Tiles.json coverage: mode=${m} references ${set.size} unknown or non-${m} ids: ${list}`);
+            Log(`Tiles.json coverage: mode=${m} references unknown or non-${m} ids: ${list}`);
+          }
+        }
+      } catch (_) {}
     }
     if (!GD.palette || typeof GD.palette !== "object") {
       V.notices.push("Palette JSON missing; using hardcoded color fallbacks.");
