@@ -68,23 +68,19 @@
       Log("Combined assets tiles missing or invalid.");
     } else {
       // Mode coverage check: ensure each mode references only tiles that appearIn that mode
+      // Use TileLookup.getTileDef(mode, id) to avoid id collisions across modes (e.g., id=0 used by WATER and WALL).
       try {
-        const arr = GD.tiles.tiles;
-        const byId = new Map();
-        const byModeKey = new Map();
-        for (const t of arr) {
-          byId.set(t.id | 0, t);
-          const key = String(t.key || "").toUpperCase();
-          const modes = Array.isArray(t.appearsIn) ? t.appearsIn.map(s => String(s).toLowerCase()) : [];
-          byModeKey.set(`${key}:${modes.join(",")}`, t);
-        }
-        // Analyze maps recorded by renderers (optional diagnostic)
+        const TileLookup = (typeof window !== "undefined" ? window.TileLookup : null);
         const TV = (typeof window !== "undefined" ? window.TilesValidation : null);
         const recorded = TV && typeof TV.getRecorded === "function" ? TV.getRecorded() : null;
         const missingByMode = { overworld: new Set(), region: new Set(), town: new Set(), dungeon: new Set() };
-        function appearsInMode(t, mode) {
-          const modes = Array.isArray(t.appearsIn) ? t.appearsIn.map(s => String(s).toLowerCase()) : [];
-          return modes.includes(String(mode).toLowerCase());
+        function hasDef(mode, id) {
+          try {
+            if (TileLookup && typeof TileLookup.getTileDef === "function") {
+              return !!TileLookup.getTileDef(mode, id);
+            }
+          } catch (_) {}
+          return false;
         }
         if (recorded && Array.isArray(recorded)) {
           for (const rec of recorded) {
@@ -94,9 +90,8 @@
               const row = map[y] || [];
               for (let x = 0; x < row.length; x++) {
                 const id = row[x] | 0;
-                const t = byId.get(id);
-                if (!t || !appearsInMode(t, mode)) {
-                  missingByMode[mode] && missingByMode[mode].add(String(id));
+                if (!hasDef(mode, id)) {
+                  if (missingByMode[mode]) missingByMode[mode].add(String(id));
                 }
               }
             }
