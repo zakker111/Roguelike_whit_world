@@ -5,7 +5,7 @@
  * - drawEncounterExitOverlay(ctx, view)
  */
 import * as RenderCore from "./render_core.js";
-import { getTileDefByKey } from "../data/tile_lookup.js";
+import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 
 function fgForBiome(ctx, key, fallback) {
   try {
@@ -104,9 +104,12 @@ export function drawEncounterExitOverlay(ctx, view) {
 
   try {
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(241,153,40,0.28)";
-    ctx2d.strokeStyle = "rgba(241,153,40,0.80)";
-    ctx2d.lineWidth = 2;
+    // Derive exit overlay color from dungeon STAIRS tile definition if available
+    let color = "#d7ba7d";
+    try {
+      const td = getTileDefByKey("dungeon", "STAIRS") || getTileDef("dungeon", (TILES && TILES.STAIRS));
+      if (td && td.colors && td.colors.fg) color = td.colors.fg || color;
+    } catch (_) {}
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       const rowMap = yIn ? map[y] : null;
@@ -116,8 +119,16 @@ export function drawEncounterExitOverlay(ctx, view) {
         if (!rowMap || rowMap[x] !== TILES.STAIRS) continue;
         const sx = (x - startX) * TILE - tileOffsetX;
         const sy = (y - startY) * TILE - tileOffsetY;
+        // Fill with lower alpha, then stroke with higher alpha using the same base color
+        const prevAlpha = ctx2d.globalAlpha;
+        ctx2d.globalAlpha = 0.28;
+        ctx2d.fillStyle = color;
         ctx2d.fillRect(sx, sy, TILE, TILE);
+        ctx2d.globalAlpha = 0.80;
+        ctx2d.strokeStyle = color;
+        ctx2d.lineWidth = 2;
         ctx2d.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
+        ctx2d.globalAlpha = prevAlpha;
       }
     }
     ctx2d.restore();

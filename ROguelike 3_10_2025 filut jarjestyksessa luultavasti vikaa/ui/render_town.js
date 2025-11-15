@@ -367,11 +367,15 @@ export function draw(ctx, view) {
     }
   }
 
-  // Road overlay pass:
-  // 1) Prefer explicit ROAD tiles (authoritative).
-  // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
+  // Road overlay pass (palette/tiles-driven):
+  // - If tiles.json defines a ROAD fill, we skip overlay because the base layer already draws it correctly.
+  // - Otherwise, draw a muted fallback overlay color.
   (function drawRoadOverlay() {
     try {
+      const tdRoad = getTileDef("town", TILES.ROAD) || getTileDef("dungeon", TILES.ROAD);
+      const hasRoadFill = !!(tdRoad && tdRoad.colors && tdRoad.colors.fill);
+
+      // quick scan to see if there are explicit ROAD tiles
       let anyRoad = false;
       for (let y = startY; y <= endY && !anyRoad; y++) {
         const yIn = y >= 0 && y < mapRows;
@@ -382,7 +386,13 @@ export function draw(ctx, view) {
         }
       }
 
-      if (anyRoad) {
+      // If JSON defines ROAD fill, do not overlay explicit ROAD tiles
+      if (anyRoad && hasRoadFill) return;
+
+      // Fallback overlay color when road fill is not provided in JSON
+      const overlayColor = hasRoadFill ? null : "#6b7280";
+
+      if (anyRoad && overlayColor) {
         ctx2d.save();
         ctx2d.globalAlpha = 0.65;
         for (let y = startY; y <= endY; y++) {
@@ -393,12 +403,16 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#6b7280"; // semi-transparent slate over biome tint
+            ctx2d.fillStyle = overlayColor;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
         ctx2d.restore();
-      } else if (ctx.townRoads) {
+        return;
+      }
+
+      // Legacy towns saved without explicit ROAD tiles: use townRoads mask over FLOOR
+      if (!anyRoad && ctx.townRoads && overlayColor) {
         ctx2d.save();
         ctx2d.globalAlpha = 0.65;
         for (let y = startY; y <= endY; y++) {
@@ -406,12 +420,11 @@ export function draw(ctx, view) {
           if (!yIn) continue;
           for (let x = startX; x <= endX; x++) {
             if (x < 0 || x >= mapCols) continue;
-            // Only paint where the saved mask indicates a road and the map tile is FLOOR
             if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#6b7280";
+            ctx2d.fillStyle = overlayColor;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
@@ -471,7 +484,16 @@ export function draw(ctx, view) {
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
           // Upstairs stairs glyph
           if (type === TILES.STAIRS) {
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+            let g = ">";
+            let c = "#d7ba7d";
+            try {
+              const tdSt = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
+              if (tdSt) {
+                if (Object.prototype.hasOwnProperty.call(tdSt, "glyph")) g = tdSt.glyph || g;
+                if (tdSt.colors && tdSt.colors.fg) c = tdSt.colors.fg || c;
+              }
+            } catch (_) {}
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
           }
         }
       }
@@ -497,10 +519,17 @@ export function draw(ctx, view) {
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
 
-      // Stairs: explicit fallback glyph/color to ensure visibility
+      // Stairs: prefer JSON glyph/color; fallback to '>' with amber if missing
       if (type === TILES.STAIRS) {
-        const g = ">";
-        const c = "#d7ba7d";
+        let g = ">";
+        let c = "#d7ba7d";
+        try {
+          const tdSt = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
+          if (tdSt) {
+            if (Object.prototype.hasOwnProperty.call(tdSt, "glyph")) g = tdSt.glyph || g;
+            if (tdSt.colors && tdSt.colors.fg) c = tdSt.colors.fg || c;
+          }
+        } catch (_) {}
         RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
         continue;
       }
@@ -558,7 +587,19 @@ export function draw(ctx, view) {
           if (!everSeen) continue;
           const screenX = (x - startX) * TILE - tileOffsetX;
           const screenY = (y - startY) * TILE - tileOffsetY;
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          // Stairs glyph: prefer JSON color/glyph
+          (function () {
+            let g = ">";
+            let c = "#d7ba7d";
+            try {
+              const tdSt = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
+              if (tdSt) {
+                if (Object.prototype.hasOwnProperty.call(tdSt, "glyph")) g = tdSt.glyph || g;
+                if (tdSt.colors && tdSt.colors.fg) c = tdSt.colors.fg || c;
+              }
+            } catch (_) {}
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
+          })();
         }
       }
     } catch (_) {}
@@ -798,8 +839,13 @@ export function draw(ctx, view) {
 
         const screenX = (dx - startX) * TILE - tileOffsetX;
         const screenY = (dy - startY) * TILE - tileOffsetY;
-        // match sign color; draw above tiles/props
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "⚑", "#d7ba7d", TILE);
+        // match sign color from tiles.json if present; draw above tiles/props
+        let signColor = "#d7ba7d";
+        try {
+          const tdSign = getTileDefByKey("town", "SIGN") || getTileDefByKey("dungeon", "SIGN");
+          if (tdSign && tdSign.colors && tdSign.colors.fg) signColor = tdSign.colors.fg || signColor;
+        } catch (_) {}
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, "⚑", signColor, TILE);
       }
     } catch (_) {}
   })();
