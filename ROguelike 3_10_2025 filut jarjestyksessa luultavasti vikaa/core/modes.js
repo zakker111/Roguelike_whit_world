@@ -171,15 +171,43 @@ export function enterTownIfOnTile(ctx) {
   if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
   const t = mapRef[py][px];
 
-  // If already on the town tile, there's no clear approach; clear any stale dir
-  if (WT && t === ctx.World.TILES.TOWN) {
-    ctx.enterFromDir = "";
+  // Determine town tile underfoot or adjacent (cardinal adjacency allowed as a convenience)
+  let townPx = px, townPy = py;
+  let approachedDir = ""; // "N","S","E","W" indicating approach vector toward town tile
+  let onTownTile = !!(WT && t === ctx.World.TILES.TOWN);
+
+  if (!onTownTile && WT) {
+    const dirs = [
+      { dx: 1, dy: 0, dir: "E" },
+      { dx: -1, dy: 0, dir: "W" },
+      { dx: 0, dy: 1, dir: "S" },
+      { dx: 0, dy: -1, dir: "N" },
+    ];
+    for (const d of dirs) {
+      const nx = px + d.dx, ny = py + d.dy;
+      if (ny < 0 || nx < 0 || ny >= mapRef.length || nx >= (mapRef[0] ? mapRef[0].length : 0)) continue;
+      const nt = mapRef[ny][nx];
+      if (nt === ctx.World.TILES.TOWN) {
+        townPx = nx; townPy = ny;
+        approachedDir = d.dir;
+        onTownTile = true;
+        break;
+      }
+    }
   }
 
-  if (WT && t === ctx.World.TILES.TOWN) {
-      // Store absolute world coords for return
-      const enterWX = (ctx.world ? ctx.world.originX : 0) + ctx.player.x;
-      const enterWY = (ctx.world ? ctx.world.originY : 0) + ctx.player.y;
+  // Clear stale approach direction when already on the town tile
+  if (onTownTile && approachedDir === "") {
+    ctx.enterFromDir = "";
+  } else if (onTownTile && approachedDir) {
+    // Record approach direction so Town generation can choose the matching gate side
+    ctx.enterFromDir = approachedDir;
+  }
+
+  if (WT && onTownTile) {
+      // Store absolute world coords for return (use town tile if adjacent entry)
+      const enterWX = (ctx.world ? ctx.world.originX : 0) + townPx;
+      const enterWY = (ctx.world ? ctx.world.originY : 0) + townPy;
       ctx.worldReturnPos = { x: enterWX, y: enterWY };
       // Preserve world fog-of-war before switching maps
       try {
