@@ -51,7 +51,19 @@
     "debugOverlayStroke": "rgba(255, 215, 0, 0.9)",
     "debugLabelBg": "rgba(13,16,24,0.65)",
     "debugLabelStroke": "rgba(255, 215, 0, 0.85)",
-    "debugLabelText": "#ffd166"
+    "debugLabelText": "#ffd166",
+
+    "propWood": "#c9a368",
+    "propMetal": "#a1a1aa",
+    "propFabric": "#b45309",
+    "propLight": "#ffb84d",
+    "propSign": "#d7ba7d",
+    "propPlant": "#65a30d",
+    "propStone": "#9ca3af",
+
+    "propGreen": "#65a30d",
+    "propLamp": "#ffd166",
+    "propFire": "#ff6d00"
   },
   "encounterBiome": {
     "FOREST": "#163a22",
