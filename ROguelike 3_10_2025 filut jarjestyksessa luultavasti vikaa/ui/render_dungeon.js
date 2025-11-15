@@ -12,7 +12,7 @@
 import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
-import { drawBiomeDecor, drawEncounterExitOverlay } from "./decor_overlays.js";
+import { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay } from "./decor_overlays.js";
 import { attachGlobal } from "../utils/global.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
@@ -305,6 +305,8 @@ export function draw(ctx, view) {
 
   // Encounter exit overlay: tinted squares on STAIRS tiles (like Region Map edges)
   try { drawEncounterExitOverlay(ctx, { ctx2d, TILE, TILES, map, startX, startY, endX, endY, tileOffsetX, tileOffsetY }); } catch (_) {}
+  // Dungeon exit overlay: subtle highlight under STAIRS glyph using tiles.json color
+  try { drawDungeonExitOverlay(ctx, { ctx2d, TILE, TILES, map, startX, startY, endX, endY, tileOffsetX, tileOffsetY }); } catch (_) {}
 
   // decals (e.g., blood stains)
   if (ctx.decals && ctx.decals.length) {
@@ -372,7 +374,8 @@ export function draw(ctx, view) {
       }
       // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld); robust fallback glyph/color
       let glyph = "";
-      let color = c.looted ? (COLORS.corpseEmpty || "#808080") : (COLORS.corpse || "#b22222");
+      // Palette-driven corpse colors (fallback to palette defaults if COLORS missing)
+      let color = c.looted ? (COLORS.corpseEmpty || "#6b7280") : (COLORS.corpse || "#c3cad9");
       try {
         const key = String(c.kind || (c.kind === "chest" ? "chest" : "corpse")).toUpperCase();
         const td = getTileDefByKey("dungeon", key) || getTileDefByKey("town", key) || getTileDefByKey("overworld", key);
@@ -472,7 +475,7 @@ export function draw(ctx, view) {
           }
           if (!drawn) {
             let glyph = "";
-            let color = COLORS.corpse || "#cbd5e1";
+            let color = COLORS.corpse || "#c3cad9";
             // Prefer GameData.props for glyph/color
             try {
               const GD = (typeof window !== "undefined" ? window.GameData : null);
@@ -504,7 +507,7 @@ export function draw(ctx, view) {
               else if (p.type === "barrel") glyph = "◍";
               else glyph = "≡";
             }
-            if (p.type === "barrel" && (!color || color === (COLORS.corpse || "#cbd5e1"))) {
+            if (p.type === "barrel" && (!color || color === (COLORS.corpse || "#c3cad9"))) {
               color = "#b5651d";
             }
             if (!visNow) {

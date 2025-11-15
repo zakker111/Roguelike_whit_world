@@ -135,6 +135,45 @@ export function drawEncounterExitOverlay(ctx, view) {
   } catch (_) {}
 }
 
+// Draw tinted overlays for dungeon exits (STAIRS tiles) as a subtle highlight (glyph remains visible)
+export function drawDungeonExitOverlay(ctx, view) {
+  if (ctx.mode !== "dungeon") return;
+  const { ctx2d, TILE, TILES, map, startX, startY, endX, endY, tileOffsetX, tileOffsetY } = Object.assign({}, view, ctx);
+
+  const mapRows = map.length;
+  const mapCols = map[0] ? map[0].length : 0;
+
+  try {
+    ctx2d.save();
+    let color = "#d7ba7d";
+    try {
+      const td = getTileDefByKey("dungeon", "STAIRS") || getTileDef("dungeon", (TILES && TILES.STAIRS));
+      if (td && td.colors && td.colors.fg) color = td.colors.fg || color;
+    } catch (_) {}
+    for (let y = startY; y <= endY; y++) {
+      const yIn = y >= 0 && y < mapRows;
+      const rowMap = yIn ? map[y] : null;
+      if (!yIn) continue;
+      for (let x = startX; x <= endX; x++) {
+        if (x < 0 || x >= mapCols) continue;
+        if (!rowMap || rowMap[x] !== TILES.STAIRS) continue;
+        const sx = (x - startX) * TILE - tileOffsetX;
+        const sy = (y - startY) * TILE - tileOffsetY;
+        const prevAlpha = ctx2d.globalAlpha;
+        ctx2d.globalAlpha = 0.22;
+        ctx2d.fillStyle = color;
+        ctx2d.fillRect(sx, sy, TILE, TILE);
+        ctx2d.globalAlpha = 0.70;
+        ctx2d.strokeStyle = color;
+        ctx2d.lineWidth = 2;
+        ctx2d.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
+        ctx2d.globalAlpha = prevAlpha;
+      }
+    }
+    ctx2d.restore();
+  } catch (_) {}
+}
+
 // Back-compat
 import { attachGlobal } from "../utils/global.js";
-attachGlobal("DecorOverlays", { drawBiomeDecor, drawEncounterExitOverlay });
+attachGlobal("DecorOverlays", { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay });
