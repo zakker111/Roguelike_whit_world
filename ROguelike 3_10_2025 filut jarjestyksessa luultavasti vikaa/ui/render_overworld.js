@@ -90,6 +90,24 @@ function tilesRef() {
   } catch (_) { return null; }
 }
 
+// Color helpers for deriving overlay hues from tile fills
+function _parseHex(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  if (!m) return null;
+  const v = parseInt(m[1], 16);
+  return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+}
+function _toHex(rgb) {
+  const clamp = (x) => Math.max(0, Math.min(255, Math.round(x)));
+  const v = (clamp(rgb.r) << 16) | (clamp(rgb.g) << 8) | clamp(rgb.b);
+  return "#" + v.toString(16).padStart(6, "0");
+}
+function _shade(hex, factor) {
+  const rgb = _parseHex(hex);
+  if (!rgb) return hex;
+  return _toHex({ r: rgb.r * factor, g: rgb.g * factor, b: rgb.b * factor });
+}
+
 export function draw(ctx, view) {
   const {
     ctx2d, TILE, COLORS, map, player, camera: camMaybe, TS, tilesetReady,
@@ -218,7 +236,8 @@ export function draw(ctx, view) {
           if (wave) {
             ctx2d.save();
             ctx2d.globalAlpha = 0.10;
-            ctx2d.fillStyle = "#103a57";
+            const waveColor = _shade(waterFill, 0.82);
+            ctx2d.fillStyle = waveColor || "#103a57";
             ctx2d.fillRect(sx, sy + (Math.max(2, TILE * 0.4) | 0), TILE, 2);
             ctx2d.restore();
           }
@@ -233,7 +252,8 @@ export function draw(ctx, view) {
           const fo = 2 + ((fr * (TILE - 6)) | 0);
           ctx2d.save();
           ctx2d.globalAlpha = 0.22;
-          ctx2d.fillStyle = "rgba(255,255,255,0.85)";
+          const foamColor = _shade(waterFill, 1.6);
+          ctx2d.fillStyle = foamColor || "rgba(255,255,255,0.85)";
           ctx2d.fillRect(sx + 2, sy + (TILE - 3), TILE - 4, 2);
           ctx2d.globalAlpha = 0.15;
           ctx2d.fillRect(sx + fo, sy + (TILE - 5), Math.max(2, (TILE * 0.25) | 0), 2);
@@ -271,6 +291,13 @@ export function draw(ctx, view) {
 
   // Coastline/shoreline outlines for water/river adjacency (visual polish)
   try {
+    // derive shoreline outline color from WATER tile
+    let coastColor = "#a8dadc";
+    try {
+      const wDef2 = getTileDef("overworld", WT.WATER);
+      const wFill2 = (wDef2 && wDef2.colors && wDef2.colors.fill) ? wDef2.colors.fill : fallbackFillOverworld(WT, WT.WATER);
+      coastColor = _shade(wFill2, 1.4) || coastColor;
+    } catch (_) {}
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       if (!yIn) continue;
@@ -289,7 +316,7 @@ export function draw(ctx, view) {
           const sy = (ny - startY) * TILE - tileOffsetY;
           ctx2d.save();
           ctx2d.globalAlpha = 0.16;
-          ctx2d.fillStyle = "#a8dadc";
+          ctx2d.fillStyle = coastColor;
           ctx2d.fillRect(sx, sy, TILE, TILE);
           ctx2d.restore();
         }
@@ -387,6 +414,13 @@ export function draw(ctx, view) {
       const n = ((x * 73856093) ^ (y * 19349663)) >>> 0;
       return (n % 1000) / 1000;
     }
+    // derive river shimmer color from RIVER tile
+    let riverShimmerColor = "#cfe9ff";
+    try {
+      const rDef = getTileDef("overworld", WT.RIVER);
+      const rFill = (rDef && rDef.colors && rDef.colors.fill) ? rDef.colors.fill : fallbackFillOverworld(WT, WT.RIVER);
+      riverShimmerColor = _shade(rFill, 1.35) || riverShimmerColor;
+    } catch (_) {}
     for (let y = startY; y <= endY; y++) {
       if (y < 0 || y >= mapRows) continue;
       const row = map[y];
@@ -456,7 +490,7 @@ export function draw(ctx, view) {
           const r = ((x + y) & 1) === 0;
           ctx2d.save();
           ctx2d.globalAlpha = 0.12;
-          ctx2d.fillStyle = "#cfe9ff";
+          ctx2d.fillStyle = riverShimmerColor;
           if (r) {
             ctx2d.fillRect(sx + 4, sy + (TILE / 2) | 0, TILE - 8, 2);
           } else {
