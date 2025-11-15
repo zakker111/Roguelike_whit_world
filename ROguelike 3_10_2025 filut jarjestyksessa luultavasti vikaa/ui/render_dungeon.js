@@ -417,6 +417,8 @@ export function draw(ctx, view) {
         const sx = (px - startX) * TILE - tileOffsetX;
         const sy = (py - startY) * TILE - tileOffsetY;
 
+        try { if (typeof window !== "undefined" && window.PropsValidation && typeof window.PropsValidation.recordProp === "function") { window.PropsValidation.recordProp({ mode: (ctx.mode || "dungeon"), type: p.type, x: p.x, y: p.y }); } } catch (_) {}
+
         if (p.type === "campfire") {
           // Prefer tileset mapping if available (custom key), else JSON glyph from town FIREPLACE
           let glyph = "♨";
@@ -598,9 +600,12 @@ export function draw(ctx, view) {
             if (entry) {
               if (typeof entry.glyph === "string") glyph = entry.glyph;
               if (entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg || color;
+              if (!color && typeof entry.color === "string") color = entry.color;
             }
           }
         } catch (_) {}
+        // Palette-driven fallback color for torch/lamp props if still missing
+        try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
         if (!glyph) glyph = "†";
 
         if (!visNow) {

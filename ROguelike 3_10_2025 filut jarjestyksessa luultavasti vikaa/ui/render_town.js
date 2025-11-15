@@ -717,6 +717,8 @@ export function draw(ctx, view) {
         if (!hasLine) drawDim = true;
       }
 
+      try { if (typeof window !== "undefined" && window.PropsValidation && typeof window.PropsValidation.recordProp === "function") { window.PropsValidation.recordProp({ mode: "town", type: p.type, x: p.x, y: p.y }); } } catch (_) {}
+
       if (drawDim) {
         ctx2d.save();
         ctx2d.globalAlpha = 0.65;

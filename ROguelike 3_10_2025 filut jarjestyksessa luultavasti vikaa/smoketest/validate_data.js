@@ -191,16 +191,83 @@
     }
   }
 
+  function analyzeProps() {
+    try {
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const PV = (typeof window !== "undefined" ? window.PropsValidation : null);
+      const TL = (typeof window !== "undefined" ? window.TileLookup : null);
+      const PP = (typeof window !== "undefined" ? window.PropPalette : null);
+      const Log = (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function")
+        ? (msg, type = "warn") => window.Logger.log(msg, type)
+        : (msg, _type = "warn") => { try { console.warn("[Smoketest] " + msg); } catch (_) {} };
+      window.ValidationLog = window.ValidationLog || { warnings: [], notices: [] };
+      const V = window.ValidationLog;
+
+      if (!PV || typeof PV.getRecorded !== "function") return;
+      const rec = PV.getRecorded();
+      if (!rec || rec.length === 0) {
+        // Nothing recorded yet; this is fine (no props seen). Try once more after a bit.
+        setTimeout(() => { try { analyzeProps(); } catch (_) {} }, 800);
+        return;
+      }
+      const byType = new Map();
+      for (const r of rec) {
+        const t = String(r.type || "").toLowerCase();
+        if (!t) continue;
+        if (!byType.has(t)) byType.set(t, []);
+        if (byType.get(t).length < 3) byType.get(t).push({ mode: r.mode, x: r.x, y: r.y });
+      }
+
+      function hasJsonColor(type) {
+        try {
+          const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
+          if (!arr) return false;
+          const tId = String(type || "").toLowerCase();
+          const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
+          if (!entry) return false;
+          return !!(entry.colors && typeof entry.colors.fg === "string" && entry.colors.fg.trim().length)
+              || !!(typeof entry.color === "string" && entry.color.trim().length);
+        } catch (_) { return false; }
+      }
+      function hasTileColor(type) {
+        const key = String(type || "").toUpperCase();
+        try {
+          const td = (TL && typeof TL.getTileDefByKey === "function")
+            ? (TL.getTileDefByKey("town", key) || TL.getTileDefByKey("dungeon", key) || TL.getTileDefByKey("overworld", key))
+            : null;
+          return !!(td && td.colors && typeof td.colors.fg === "string" && td.colors.fg.trim().length);
+        } catch (_) { return false; }
+      }
+      function hasPaletteFallback(type) {
+        try {
+          if (!PP || typeof PP.propColor !== "function") return false;
+          const v = PP.propColor(type, null);
+          return typeof v === "string" && v.trim().length > 0;
+        } catch (_) { return false; }
+      }
+
+      for (const [t, samples] of byType.entries()) {
+        const ok = hasJsonColor(t) || hasTileColor(t) || hasPaletteFallback(t);
+        if (!ok) {
+          const ex = samples[0] || { mode: "?", x: "?", y: "?" };
+          const msg = `Props color coverage: type='${t}' has no JSON or tiles.json color and no palette fallback (e.g., ${ex.mode} at ${ex.x},${ex.y}).`;
+          V.warnings.push(msg);
+          Log(msg);
+        }
+      }
+    } catch (_) {}
+  }
+
   // Defer running until GameData.ready resolves to avoid false warnings during early boot
   try {
     const GD = (typeof window !== "undefined" ? window.GameData : null);
     if (GD && GD.ready && typeof GD.ready.then === "function") {
-      GD.ready.then(() => { try { run(); } catch (_) {} });
+      GD.ready.then(() => { try { run(); } catch (_) {} setTimeout(() => { try { analyzeProps(); } catch (_) {} }, 600); });
     } else {
       // Fallback: small delay then run
-      setTimeout(() => { try { run(); } catch (_) {} }, 80);
+      setTimeout(() => { try { run(); } catch (_) {} setTimeout(() => { try { analyzeProps(); } catch (_) {} }, 600); }, 80);
     }
   } catch (_) {
-    setTimeout(() => { try { run(); } catch (_) {} }, 120);
+    setTimeout(() => { try { run(); } catch (_) {} setTimeout(() => { try { analyzeProps(); } catch (_) {} }, 600); }, 120);
   }
 })();
