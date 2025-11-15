@@ -23,9 +23,19 @@ export function drawTownDebugOverlay(ctx, view) {
         if (n._home && n._home.building) occ.add(n._home.building);
       }
       ctx2d.save();
-      ctx2d.globalAlpha = 0.22;
-      ctx2d.fillStyle = "rgba(255, 215, 0, 0.22)";
-      ctx2d.strokeStyle = "rgba(255, 215, 0, 0.9)";
+      // Palette-driven debug overlay colors
+      let overlayFill = "rgba(255, 215, 0, 0.22)";
+      let overlayStroke = "rgba(255, 215, 0, 0.9)";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          overlayFill = pal.debugOverlayFill || overlayFill;
+          overlayStroke = pal.debugOverlayStroke || overlayStroke;
+        }
+      } catch (_) {}
+      ctx2d.globalAlpha = 1.0;
+      ctx2d.fillStyle = overlayFill;
+      ctx2d.strokeStyle = overlayStroke;
       ctx2d.lineWidth = 2;
 
       function labelForBuilding(b) {
@@ -58,17 +68,29 @@ export function drawTownDebugOverlay(ctx, view) {
           const label = labelForBuilding(b);
           ctx2d.save();
           ctx2d.globalAlpha = 0.95;
-          ctx2d.fillStyle = "rgba(13,16,24,0.65)";
+          // Palette-driven label box + text colors
+          let labelBg = "rgba(13,16,24,0.65)";
+          let labelStroke = "rgba(255, 215, 0, 0.85)";
+          let labelText = "#ffd166";
+          try {
+            const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+            if (pal) {
+              labelBg = pal.debugLabelBg || labelBg;
+              labelStroke = pal.debugLabelStroke || labelStroke;
+              labelText = pal.debugLabelText || labelText;
+            }
+          } catch (_) {}
+          ctx2d.fillStyle = labelBg;
           const padX = Math.max(6, Math.floor(TILE * 0.25));
           const padY = Math.max(4, Math.floor(TILE * 0.20));
           const textW = Math.max(32, label.length * (TILE * 0.35));
           const boxW = Math.min(bw - 8, textW + padX * 2);
           const boxH = Math.min(bh - 8, TILE * 0.8 + padY * 2);
           ctx2d.fillRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH);
-          ctx2d.strokeStyle = "rgba(255, 215, 0, 0.85)";
+          ctx2d.strokeStyle = labelStroke;
           ctx2d.lineWidth = 1;
           ctx2d.strokeRect(cx - boxW / 2 + 0.5, cy - boxH / 2 + 0.5, boxW - 1, boxH - 1);
-          ctx2d.fillStyle = "#ffd166";
+          ctx2d.fillStyle = labelText;
           const prevFont = ctx2d.font;
           ctx2d.font = "bold 16px JetBrains Mono, monospace";
           ctx2d.textAlign = "center";

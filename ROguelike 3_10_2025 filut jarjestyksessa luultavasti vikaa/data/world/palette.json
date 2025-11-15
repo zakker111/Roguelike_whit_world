@@ -45,7 +45,13 @@
     "playerBackdropStroke": "rgba(255,255,255,0.35)",
     "regionAnimal": "#e9d5a1",
     "shopkeeper": "#ffd166",
-    "blood": "#7a1717"
+    "blood": "#7a1717",
+
+    "debugOverlayFill": "rgba(255, 215, 0, 0.22)",
+    "debugOverlayStroke": "rgba(255, 215, 0, 0.9)",
+    "debugLabelBg": "rgba(13,16,24,0.65)",
+    "debugLabelStroke": "rgba(255, 215, 0, 0.85)",
+    "debugLabelText": "#ffd166"
   },
   "encounterBiome": {
     "FOREST": "#163a22",

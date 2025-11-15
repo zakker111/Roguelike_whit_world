@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Docs: Palette Schema</title>
+  <title>Docs</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     :root {
@@ -24,13 +24,16 @@
     }
     main {
       padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      align-items: start;
     }
     .card {
       border: 1px solid #253047;
       border-radius: 8px;
       background: #0f1117;
       padding: 12px;
-      margin-bottom: 16px;
     }
     pre {
       white-space: pre-wrap;
@@ -66,34 +69,42 @@
 <body>
   <header>
     <h1 style="margin:0; font-size:16px;">ROguelike Docs</h1>
-    <span class="status" id="status">Loading palette_schema.md…</span>
+    <span class="status" id="status">Loading…</span>
     <a class="btn" href="/">Back to game</a>
   </header>
   <main>
     <div class="card">
       <h2 style="margin-top:0;">Palette Schema</h2>
       <p class="status">Source: <code>/data/docs/palette_schema.md</code></p>
-      <pre id="md"><code>Loading…</code></pre>
+      <pre id="md-schema"><code>Loading…</code></pre>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0;">Palette Theming</h2>
+      <p class="status">Source: <code>/data/docs/palette_theming.md</code></p>
+      <pre id="md-theme"><code>Loading…</code></pre>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0;">Tiles Coverage</h2>
+      <p class="status">Source: <code>/data/docs/tiles_coverage.md</code></p>
+      <pre id="md-tiles"><code>Loading…</code></pre>
     </div>
   </main>
   <script>
     (function(){
-      const el = document.getElementById('md');
       const st = document.getElementById('status');
-      const url = '/data/docs/palette_schema.md';
-      fetch(url, { cache: 'no-cache' })
-        .then(r => {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.text();
-        })
-        .then(txt => {
-          el.textContent = txt;
-          st.textContent = 'Loaded';
-        })
-        .catch(err => {
-          el.textContent = 'Unable to load palette_schema.md (' + err.message + ').\n\nThe file should exist at ' + url + ' in this deployment.\nIf this persists, try a hard refresh (Ctrl+Shift+R) or check the deployment URL.';
-          st.textContent = 'Error';
-        });
+      function loadInto(id, url) {
+        const el = document.getElementById(id);
+        return fetch(url, { cache: 'no-cache' })
+          .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+          .then(txt => { el.textContent = txt; })
+          .catch(err => { el.textContent = 'Unable to load ' + url + ' (' + err.message + ').'; });
+      }
+      Promise.all([
+        loadInto('md-schema', '/data/docs/palette_schema.md'),
+        loadInto('md-theme', '/data/docs/palette_theming.md'),
+        loadInto('md-tiles', '/data/docs/tiles_coverage.md')
+      ]).then(() => { st.textContent = 'Loaded'; })
+      .catch(() => { st.textContent = 'Loaded with warnings'; });
     })();
   </script>
 </body>

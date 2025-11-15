@@ -66,7 +66,13 @@
     "propLight": "#ffb84d",
     "propSign": "#d7ba7d",
     "propPlant": "#65a30d",
-    "propStone": "#9ca3af"
+    "propStone": "#9ca3af",
+
+    "debugOverlayFill": "rgba(139,92,246,0.22)",
+    "debugOverlayStroke": "rgba(139,92,246,0.90)",
+    "debugLabelBg": "rgba(13,16,24,0.65)",
+    "debugLabelStroke": "rgba(139,92,246,0.85)",
+    "debugLabelText": "#ffd166"
   },
   "encounterBiome": {
     "FOREST": "#143520",
