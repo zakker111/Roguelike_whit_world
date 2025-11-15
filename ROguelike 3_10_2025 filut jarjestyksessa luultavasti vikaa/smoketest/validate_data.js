@@ -70,6 +70,29 @@
     if (!GD.palette || typeof GD.palette !== "object") {
       V.notices.push("Palette JSON missing; using hardcoded color fallbacks.");
       Log("Palette JSON missing; using hardcoded color fallbacks.", "notice");
+    } else {
+      // DEV overlay palette keys check (dim, night, dusk, dawn)
+      try {
+        const ov = GD.palette.overlays || null;
+        const expect = ["dim", "night", "dusk", "dawn"];
+        if (!ov || typeof ov !== "object") {
+          V.warnings.push("Palette overlays missing; expected keys: dim, night, dusk, dawn.");
+          Log("Palette overlays missing; expected keys: dim, night, dusk, dawn.");
+        } else {
+          const missing = [];
+          for (const k of expect) {
+            const v = ov[k];
+            if (typeof v !== "string" || v.trim().length === 0) missing.push(k);
+          }
+          if (missing.length) {
+            V.warnings.push("Palette overlays missing keys: " + missing.join(", ") + ".");
+            Log("Palette overlays missing keys: " + missing.join(", ") + ".");
+          } else {
+            V.notices.push("Palette overlays present: dim, night, dusk, dawn.");
+            Log("Palette overlays present: dim, night, dusk, dawn.", "notice");
+          }
+        }
+      } catch (_) {}
     }
 
     // Props

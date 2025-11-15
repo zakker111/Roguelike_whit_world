@@ -165,6 +165,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Reporting
         '/smoketest/reporting/render.js',
         '/smoketest/reporting/export.js',
+        // DEV data validation (includes palette overlays checks)
+        '/smoketest/validate_data.js',
         // Runner helpers
         '/smoketest/runner/init.js',
         '/smoketest/runner/banner.js',
@@ -201,4 +203,15 @@ document.addEventListener('DOMContentLoaded', function () {
   } catch (e) {
     console.error('[SMOKE] loader: error', e);
   }
+})();
+
+// DEV-only: run validation checks (including palette overlays) even without smoketest runner
+(async function () {
+  try {
+    const params = new URLSearchParams(location.search);
+    const isDev = (params.get('dev') === '1') || (typeof localStorage !== 'undefined' && localStorage.getItem('DEV') === '1') || (typeof window !== 'undefined' && window.DEV);
+    if (isDev) {
+      try { await import('/smoketest/validate_data.js'); } catch (_) {}
+    }
+  } catch (_) {}
 })();
