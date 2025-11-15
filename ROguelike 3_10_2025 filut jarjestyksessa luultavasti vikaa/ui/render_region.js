@@ -68,6 +68,13 @@ export function draw(ctx, view) {
     }
   }
 
+  // Record map for tiles coverage smoketest (optional)
+  try {
+    if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+      window.TilesValidation.recordMap({ mode: "region", map });
+    }
+  } catch (_) {}
+
   // Per-frame glyph overlay for any tile with a non-blank JSON glyph (drawn before visibility overlays)
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
@@ -314,24 +321,32 @@ export function draw(ctx, view) {
       }
     } catch (_) {}
 
-    // Draw region base: blit viewport; fall back to per-tile loop if offscreen missing
-  let blitted = false;
-  if (REG.canvas) {
+    // Panel background (rounded) + border
+    ctx2d.fillStyle = panelBg;
     try {
-      blitted = !!RenderCore.blitViewport(ctx2d, REG.canvas, cam, REG.wpx, REG.hpx);
-    } catch (_) { blitted = false; }
-  }
-  // Record map for tiles coverage smoketest (optional)
-  try {
-    if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
-      window.TilesValidation.recordMap({ mode: "region", map });
-    }
-  } catch (_) {} catch (_) {
+      const r = 6;
+      ctx2d.beginPath();
+      ctx2d.moveTo(bx + r, by);
+      ctx2d.lineTo(bx + bw - r, by);
+      ctx2d.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+      ctx2d.lineTo(bx + bw, by + bh - r);
+      ctx2d.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
+      ctx2d.lineTo(bx + r, by + bh);
+      ctx2d.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
+      ctx2d.lineTo(bx, by + r);
+      ctx2d.quadraticCurveTo(bx, by, bx + r, by);
+      ctx2d.closePath();
+      ctx2d.fill();
+      ctx2d.strokeStyle = panelBorder;
+      ctx2d.lineWidth = 1;
+      ctx2d.stroke();
+    } catch (_) {
       ctx2d.fillRect(bx, by, bw, bh);
       ctx2d.strokeStyle = panelBorder;
       ctx2d.lineWidth = 1;
       ctx2d.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
     }
+
     // Draw texts
     ctx2d.fillStyle = "#cbd5e1";
     ctx2d.fillText(titleText, bx + 10, by + 8);
