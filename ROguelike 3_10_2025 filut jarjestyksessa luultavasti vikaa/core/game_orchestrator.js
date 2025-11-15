@@ -4,7 +4,7 @@
  * Keeps behavior identical but moves side-effects out of game.js.
  */
 
-import { initWorld, setupInput, initMouseSupport, startLoop, scheduleAssetsReadyDraw, buildGameAPI } from "./game.js";
+import { initWorld, setupInput, initMouseSupport, startLoop, scheduleAssetsReadyDraw, buildGameAPI } from "/core/game.js?v=1.45.2";
 
 export function start() {
   try { buildGameAPI(); } catch (_) {}
