@@ -107,6 +107,13 @@ function _shade(hex, factor) {
   if (!rgb) return hex;
   return _toHex({ r: rgb.r * factor, g: rgb.g * factor, b: rgb.b * factor });
 }
+// Linear interpolation between two hex colors: t in [0,1]
+function _mix(hexA, hexB, t = 0.5) {
+  const a = _parseHex(hexA), b = _parseHex(hexB);
+  if (!a || !b) return hexA;
+  const lerp = (x, y) => x + (y - x) * Math.max(0, Math.min(1, t));
+  return _toHex({ r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b) });
+}
 
 export function draw(ctx, view) {
   const {
@@ -421,6 +428,31 @@ export function draw(ctx, view) {
       const rFill = (rDef && rDef.colors && rDef.colors.fill) ? rDef.colors.fill : fallbackFillOverworld(WT, WT.RIVER);
       riverShimmerColor = _shade(rFill, 1.35) || riverShimmerColor;
     } catch (_) {}
+
+    // derive biome embellishment colors from tiles.json (with robust fallbacks)
+    let forestDotColor = "#173d2b";
+    let mountainHighlightColor = "#2a3342";
+    let desertSpeckColor = "#b69d78";
+    let snowShadeColor = "#94b7ff";
+    try {
+      const forestFill = fillOverworldFor(WT, WT.FOREST);
+      forestDotColor = _shade(forestFill, 0.85) || forestDotColor;
+    } catch (_) {}
+    try {
+      const mountainFill = fillOverworldFor(WT, WT.MOUNTAIN);
+      mountainHighlightColor = _shade(mountainFill, 1.06) || mountainHighlightColor;
+    } catch (_) {}
+    try {
+      const desertFill = fillOverworldFor(WT, WT.DESERT);
+      desertSpeckColor = _shade(desertFill, 0.92) || desertSpeckColor;
+    } catch (_) {}
+    try {
+      const snowFill = fillOverworldFor(WT, WT.SNOW);
+      const waterFillForMix = fillOverworldFor(WT, WT.WATER);
+      // blend a bit of water hue into snow to get a subtle cool tint
+      snowShadeColor = _mix(snowFill, waterFillForMix, 0.35) || snowShadeColor;
+    } catch (_) {}
+
     for (let y = startY; y <= endY; y++) {
       if (y < 0 || y >= mapRows) continue;
       const row = map[y];
@@ -437,7 +469,7 @@ export function draw(ctx, view) {
             const dots = 1 + ((r * 3) | 0);
             ctx2d.save();
             ctx2d.globalAlpha = 0.15;
-            ctx2d.fillStyle = "#173d2b";
+            ctx2d.fillStyle = forestDotColor;
             for (let i = 0; i < dots; i++) {
               const ox = ((h2(x + i, y + i) * (TILE - 6)) | 0) + 3;
               const oy = ((h2(x - i, y - i) * (TILE - 6)) | 0) + 3;
@@ -451,7 +483,7 @@ export function draw(ctx, view) {
         if (t === WT.MOUNTAIN) {
           ctx2d.save();
           ctx2d.globalAlpha = 0.20;
-          ctx2d.fillStyle = "#2a3342";
+          ctx2d.fillStyle = mountainHighlightColor;
           ctx2d.fillRect(sx + 1, sy + 1, TILE - 2, 3);
           ctx2d.fillRect(sx + 1, sy + 1, 3, TILE - 2);
           ctx2d.restore();
@@ -463,7 +495,7 @@ export function draw(ctx, view) {
           if (r > 0.25) {
             ctx2d.save();
             ctx2d.globalAlpha = 0.18;
-            ctx2d.fillStyle = "#b69d78";
+            ctx2d.fillStyle = desertSpeckColor;
             const ox = ((h2(x + 7, y + 3) * (TILE - 6)) | 0) + 3;
             const oy = ((h2(x + 11, y + 5) * (TILE - 6)) | 0) + 3;
             ctx2d.fillRect(sx + ox, sy + oy, 2, 2);
@@ -478,7 +510,7 @@ export function draw(ctx, view) {
         if (t === WT.SNOW) {
           ctx2d.save();
           ctx2d.globalAlpha = 0.08;
-          ctx2d.fillStyle = "#94b7ff";
+          ctx2d.fillStyle = snowShadeColor;
           const ox = ((h2(x + 19, y + 23) * (TILE - 6)) | 0) + 3;
           const oy = ((h2(x + 29, y + 31) * (TILE - 6)) | 0) + 3;
           ctx2d.fillRect(sx + ox, sy + oy, 3, 3);
