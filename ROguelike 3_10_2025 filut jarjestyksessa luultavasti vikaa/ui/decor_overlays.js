@@ -121,10 +121,22 @@ export function drawEncounterExitOverlay(ctx, view) {
         const sy = (y - startY) * TILE - tileOffsetY;
         // Fill with lower alpha, then stroke with higher alpha using the same base color
         const prevAlpha = ctx2d.globalAlpha;
-        ctx2d.globalAlpha = 0.28;
+        // Palette-driven alpha overrides (optional)
+        let fillA = 0.28, strokeA = 0.80;
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          if (pal) {
+            const aFill = (pal.exitEncounterFillA != null ? pal.exitEncounterFillA : pal.exitOverlayFillA);
+            const aStroke = (pal.exitEncounterStrokeA != null ? pal.exitEncounterStrokeA : pal.exitOverlayStrokeA);
+            const f = Number(aFill), s = Number(aStroke);
+            if (Number.isFinite(f)) fillA = Math.max(0, Math.min(1, f));
+            if (Number.isFinite(s)) strokeA = Math.max(0, Math.min(1, s));
+          }
+        } catch (_) {}
+        ctx2d.globalAlpha = fillA;
         ctx2d.fillStyle = color;
         ctx2d.fillRect(sx, sy, TILE, TILE);
-        ctx2d.globalAlpha = 0.80;
+        ctx2d.globalAlpha = strokeA;
         ctx2d.strokeStyle = color;
         ctx2d.lineWidth = 2;
         ctx2d.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
@@ -160,10 +172,22 @@ export function drawDungeonExitOverlay(ctx, view) {
         const sx = (x - startX) * TILE - tileOffsetX;
         const sy = (y - startY) * TILE - tileOffsetY;
         const prevAlpha = ctx2d.globalAlpha;
-        ctx2d.globalAlpha = 0.22;
+        // Palette-driven alpha overrides (optional)
+        let fillA = 0.22, strokeA = 0.70;
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          if (pal) {
+            const aFill = (pal.exitDungeonFillA != null ? pal.exitDungeonFillA : pal.exitOverlayFillA);
+            const aStroke = (pal.exitDungeonStrokeA != null ? pal.exitDungeonStrokeA : pal.exitOverlayStrokeA);
+            const f = Number(aFill), s = Number(aStroke);
+            if (Number.isFinite(f)) fillA = Math.max(0, Math.min(1, f));
+            if (Number.isFinite(s)) strokeA = Math.max(0, Math.min(1, s));
+          }
+        } catch (_) {}
+        ctx2d.globalAlpha = fillA;
         ctx2d.fillStyle = color;
         ctx2d.fillRect(sx, sy, TILE, TILE);
-        ctx2d.globalAlpha = 0.70;
+        ctx2d.globalAlpha = strokeA;
         ctx2d.strokeStyle = color;
         ctx2d.lineWidth = 2;
         ctx2d.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
