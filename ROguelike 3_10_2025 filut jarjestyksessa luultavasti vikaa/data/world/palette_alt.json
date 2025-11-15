@@ -25,9 +25,9 @@
     "dawnA": 1.0,
 
     "grid": "rgba(122,162,247,0.10)",
-    "route": "rgba(139, 92, 246, 0.90)",        // purple
-    "routeAlt": "rgba(34, 197, 94, 0.85)",     // green
-    "alert": "rgba(250, 204, 21, 0.95)",       // yellow
+    "route": "rgba(139, 92, 246, 0.90)",
+    "routeAlt": "rgba(34, 197, 94, 0.85)",
+    "alert": "rgba(250, 204, 21, 0.95)",
 
     "exitTown": "#f7768e",
     "exitRegionFill": "rgba(247,118,142,0.28)",
