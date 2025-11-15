@@ -34,6 +34,7 @@ Minimap and panels:
 - minimapBorder: border around minimap
 - panelBg: HUD/panel background fill
 - panelBorder: HUD/panel border stroke
+- panelShadow: HUD/panel box-shadow (string; e.g., "0 10px 24px rgba(0,0,0,0.6)")
 
 POIs:
 - poiTown: town marker color (overworld + minimap)
@@ -52,6 +53,8 @@ Player/NPC and region extras:
 - regionAnimalsKnown: label color for “Animals known in this area”
 
 Optional alpha controls for overlays:
+- nightA / duskA / dawnA: numeric alpha (0..1) multipliers for day/night phase tints (applied via globalAlpha)
+- vignetteA: numeric alpha (0..1) multiplier for vignette overlay
 - exitOverlayFillA: shared fill alpha (0..1) used as fallback
 - exitOverlayStrokeA: shared stroke alpha (0..1) used as fallback
 - exitEncounterFillA / exitEncounterStrokeA: overrides for encounter exit overlay

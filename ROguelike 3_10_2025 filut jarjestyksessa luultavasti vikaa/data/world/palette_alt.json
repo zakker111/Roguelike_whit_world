@@ -20,6 +20,9 @@
     "night": "rgba(5,10,20,0.45)",
     "dusk": "rgba(255,140,60,0.14)",
     "dawn": "rgba(120,180,255,0.12)",
+    "nightA": 1.0,
+    "duskA": 1.0,
+    "dawnA": 1.0,
 
     "grid": "rgba(122,162,247,0.10)",
     "route": "rgba(139, 92, 246, 0.90)",        // purple
@@ -31,11 +34,13 @@
     "exitRegionStroke": "rgba(247,118,142,0.80)",
     "vignetteStart": "rgba(0,0,0,0.00)",
     "vignetteEnd": "rgba(0,0,0,0.16)",
+    "vignetteA": 1.0,
 
     "minimapBg": "rgba(13,16,24,0.75)",
     "minimapBorder": "rgba(139,92,246,0.50)",
     "panelBg": "rgba(13,16,24,0.85)",
     "panelBorder": "rgba(139,92,246,0.45)",
+    "panelShadow": "0 10px 24px rgba(0,0,0,0.6)",
 
     "poiTown": "#22c55e",
     "poiDungeonEasy": "#86efac",

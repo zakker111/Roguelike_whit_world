@@ -138,7 +138,7 @@
             const missingUI = [];
             // Extended UI overlays (grid, route, alerts, exit highlights, vignette, minimap, panel, POIs, misc)
             const expectUIExt = expectUI.concat([
-              "panelBg", "panelBorder",
+              "panelBg", "panelBorder", "panelShadow",
               "poiTown", "poiDungeonEasy", "poiDungeonMed", "poiDungeonHard",
               "questMarker",
               "sleepingZ", "playerBackdropFill", "playerBackdropStroke",
@@ -159,6 +159,7 @@
             }
             // Optional numeric alpha keys: warn only if present but invalid
             const expectAlpha = [
+              "nightA","duskA","dawnA","vignetteA",
               "exitOverlayFillA","exitOverlayStrokeA",
               "exitEncounterFillA","exitEncounterStrokeA",
               "exitDungeonFillA","exitDungeonStrokeA",
