@@ -970,12 +970,18 @@ export function draw(ctx, view) {
     const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t / 520));
     ctx2d.globalAlpha = pulse;
     ctx2d.lineWidth = 3;
-    ctx2d.strokeStyle = "#9ece6a";
+    // Palette-driven exit color for town gate
+    let exitColor = "#9ece6a";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal && pal.exitTown) exitColor = pal.exitTown || exitColor;
+    } catch (_) {}
+    ctx2d.strokeStyle = exitColor;
     ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
     // Large 'G' glyph centered on the gate tile
     try {
       ctx2d.globalAlpha = 0.95;
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", exitColor, TILE);
     } catch (_) {}
     ctx2d.restore();
   })();
@@ -1010,7 +1016,12 @@ export function draw(ctx, view) {
       ctx2d.save();
       // Solid glyph above any previous draw calls
       ctx2d.globalAlpha = 1.0;
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+      let exitColor = "#9ece6a";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal && pal.exitTown) exitColor = pal.exitTown || exitColor;
+      } catch (_) {}
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", exitColor, TILE);
       ctx2d.restore();
     }
   }

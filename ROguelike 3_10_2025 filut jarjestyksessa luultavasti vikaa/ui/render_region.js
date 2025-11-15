@@ -118,11 +118,20 @@ export function draw(ctx, view) {
     }
   }
 
-  // Orange edge tiles (center tiles on each side)
+  // Region edge tiles highlight (palette-driven)
   try {
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(241,153,40,0.28)";
-    ctx2d.strokeStyle = "rgba(241,153,40,0.80)";
+    let fillCol = "rgba(241,153,40,0.28)";
+    let strokeCol = "rgba(241,153,40,0.80)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        fillCol = pal.exitRegionFill || fillCol;
+        strokeCol = pal.exitRegionStroke || strokeCol;
+      }
+    } catch (_) {}
+    ctx2d.fillStyle = fillCol;
+    ctx2d.strokeStyle = strokeCol;
     ctx2d.lineWidth = 2;
     for (const e of (ctx.region.exitTiles || [])) {
       const ex = (e.x | 0), ey = (e.y | 0);

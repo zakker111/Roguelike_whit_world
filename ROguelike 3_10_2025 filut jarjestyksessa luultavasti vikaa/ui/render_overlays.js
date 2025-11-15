@@ -88,7 +88,12 @@ export function drawTownPaths(ctx, view) {
 
   try {
     ctx2d.save();
-    ctx2d.strokeStyle = "rgba(0, 200, 255, 0.85)";
+    let routeAlt = "rgba(0, 200, 255, 0.85)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal && pal.routeAlt) routeAlt = pal.routeAlt || routeAlt;
+    } catch (_) {}
+    ctx2d.strokeStyle = routeAlt;
     ctx2d.lineWidth = 2;
     for (const n of ctx.npcs) {
       const path = n._debugPath || n._fullPlan;
@@ -101,7 +106,7 @@ export function drawTownPaths(ctx, view) {
         if (i === 0) ctx2d.moveTo(px, py); else ctx2d.lineTo(px, py);
       }
       ctx2d.stroke();
-      ctx2d.fillStyle = "rgba(0, 200, 255, 0.85)";
+      ctx2d.fillStyle = routeAlt;
       for (const p of path) {
         const px = (p.x - view.startX) * TILE - view.tileOffsetX + TILE / 2;
         const py = (p.y - view.startY) * TILE - view.tileOffsetY + TILE / 2;
@@ -121,17 +126,24 @@ export function drawTownHomePaths(ctx, view) {
   try {
     ctx2d.save();
     ctx2d.lineWidth = 2;
+    let routeClr = "rgba(60, 120, 255, 0.95)";
+    let alertClr = "rgba(255, 80, 80, 0.95)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal && pal.route) routeClr = pal.route || routeClr;
+      if (pal && pal.alert) alertClr = pal.alert || alertClr;
+    } catch (_) {}
     for (let i = 0; i < ctx.npcs.length; i++) {
       const n = ctx.npcs[i];
       // Consider a 1-node plan/debug path as "already at home"
       const pathPlan = (n._homePlan && n._homePlan.length >= 1) ? n._homePlan : null;
       const path = pathPlan || n._homeDebugPath;
-      ctx2d.strokeStyle = "rgba(60, 120, 255, 0.95)";
+      ctx2d.strokeStyle = routeClr;
       if (path && path.length >= 2) {
         const start = path[0];
         const sx = (start.x - view.startX) * TILE - view.tileOffsetX + TILE / 2;
         const sy = (start.y - view.startY) * TILE - view.tileOffsetY + TILE / 2;
-        ctx2d.fillStyle = "rgba(60, 120, 255, 0.95)";
+        ctx2d.fillStyle = routeClr;
         if (typeof n.name === "string" && n.name) {
           ctx2d.fillText(n.name, sx + 12, sy + 4);
         }
@@ -143,7 +155,7 @@ export function drawTownHomePaths(ctx, view) {
           if (j === 0) ctx2d.moveTo(px, py); else ctx2d.lineTo(px, py);
         }
         ctx2d.stroke();
-        ctx2d.fillStyle = "rgba(60, 120, 255, 0.95)";
+        ctx2d.fillStyle = routeClr;
         for (const p of path) {
           const px = (p.x - view.startX) * TILE - view.tileOffsetX + TILE / 2;
           const py = (p.y - view.startY) * TILE - view.tileOffsetY + TILE / 2;
@@ -165,14 +177,14 @@ export function drawTownHomePaths(ctx, view) {
         ctx2d.moveTo(ex, ey);
         ctx2d.lineTo(ex - Math.cos(angle + Math.PI / 6) * ah, ey - Math.sin(angle + Math.PI / 6) * ah);
         ctx2d.stroke();
-        ctx2d.fillStyle = "rgba(60, 120, 255, 0.95)";
+        ctx2d.fillStyle = routeClr;
         ctx2d.fillText("H", ex + 10, ey - 10);
       } else if (path && path.length === 1) {
         // Already at home: draw H marker at the single node
         const p0 = path[0];
         const sx2 = (p0.x - view.startX) * TILE - view.tileOffsetX + TILE / 2;
         const sy2 = (p0.y - view.startY) * TILE - view.tileOffsetY + TILE / 2;
-        ctx2d.fillStyle = "rgba(60, 120, 255, 0.95)";
+        ctx2d.fillStyle = routeClr;
         ctx2d.fillText("H", sx2 + 10, sy2 - 10);
         if (typeof n.name === "string" && n.name) {
           ctx2d.fillText(n.name, sx2 + 12, sy2 + 4);
@@ -180,7 +192,7 @@ export function drawTownHomePaths(ctx, view) {
       } else {
         const sx2 = (n.x - view.startX) * TILE - view.tileOffsetX + TILE / 2;
         const sy2 = (n.y - view.startY) * TILE - view.tileOffsetY + TILE / 2;
-        ctx2d.fillStyle = "rgba(255, 80, 80, 0.95)";
+        ctx2d.fillStyle = alertClr;
         ctx2d.fillText("!", sx2 + 10, sy2 - 10);
         if (typeof n.name === "string" && n.name) {
           ctx2d.fillText(n.name, sx2 + 12, sy2 + 4);
@@ -198,7 +210,12 @@ export function drawTownRoutePaths(ctx, view) {
   try {
     ctx2d.save();
     ctx2d.lineWidth = 2;
-    ctx2d.strokeStyle = "rgba(80, 140, 255, 0.9)";
+    let routeClr = "rgba(80, 140, 255, 0.9)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal && pal.route) routeClr = pal.route || routeClr;
+    } catch (_) {}
+    ctx2d.strokeStyle = routeClr;
     for (const n of ctx.npcs) {
       const path = n._routeDebugPath;
       if (!path || path.length < 2) continue;
@@ -210,7 +227,7 @@ export function drawTownRoutePaths(ctx, view) {
         if (j === 0) ctx2d.moveTo(px, py); else ctx2d.lineTo(px, py);
       }
       ctx2d.stroke();
-      ctx2d.fillStyle = "rgba(80, 140, 255, 0.9)";
+      ctx2d.fillStyle = routeClr;
       for (const p of path) {
         const px = (p.x - view.startX) * TILE - view.tileOffsetX + TILE / 2;
         const py = (p.y - view.startY) * TILE - view.tileOffsetY + TILE / 2;

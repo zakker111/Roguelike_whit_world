@@ -718,9 +718,16 @@ export function draw(ctx, view) {
 
         // background + border + label
         ctx2d.save();
-        ctx2d.fillStyle = "rgba(13,16,24,0.70)";
-        ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
-        ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          ctx2d.fillStyle = pal && pal.minimapBg ? pal.minimapBg : "rgba(13,16,24,0.70)";
+          ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
+          ctx2d.strokeStyle = pal && pal.minimapBorder ? pal.minimapBorder : "rgba(122,162,247,0.35)";
+        } catch (_) {
+          ctx2d.fillStyle = "rgba(13,16,24,0.70)";
+          ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
+          ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+        }
         ctx2d.lineWidth = 1;
         ctx2d.strokeRect(bx - 6.5, by - 6.5, wpx + 13, hpx + 13);
         try {
@@ -841,15 +848,24 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Subtle vignette around viewport edges
+  // Subtle vignette around viewport edges (palette-driven when available)
   try {
     ctx2d.save();
     const grad = ctx2d.createRadialGradient(
       cam.width / 2, cam.height / 2, Math.min(cam.width, cam.height) * 0.60,
       cam.width / 2, cam.height / 2, Math.max(cam.width, cam.height) * 0.70
     );
-    grad.addColorStop(0, "rgba(0,0,0,0.00)");
-    grad.addColorStop(1, "rgba(0,0,0,0.12)");
+    let vgStart = "rgba(0,0,0,0.00)";
+    let vgEnd = "rgba(0,0,0,0.12)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        vgStart = pal.vignetteStart || vgStart;
+        vgEnd = pal.vignetteEnd || vgEnd;
+      }
+    } catch (_) {}
+    grad.addColorStop(0, vgStart);
+    grad.addColorStop(1, vgEnd);
     ctx2d.fillStyle = grad;
     ctx2d.fillRect(0, 0, cam.width, cam.height);
     ctx2d.restore();

@@ -96,7 +96,12 @@ export function drawGridOverlay(view) {
     if (!enabled) return;
 
     ctx2d.save();
-    ctx2d.strokeStyle = "rgba(122,162,247,0.08)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      ctx2d.strokeStyle = (pal && pal.grid) ? pal.grid : "rgba(122,162,247,0.08)";
+    } catch (_) {
+      ctx2d.strokeStyle = "rgba(122,162,247,0.08)";
+    }
     ctx2d.lineWidth = 1;
 
     // Vertical lines

@@ -71,25 +71,39 @@
       V.notices.push("Palette JSON missing; using hardcoded color fallbacks.");
       Log("Palette JSON missing; using hardcoded color fallbacks.", "notice");
     } else {
-      // DEV overlay palette keys check (dim, night, dusk, dawn)
+      // DEV overlay palette keys check (dim, night, dusk, dawn + UI overlays)
       try {
         const ov = GD.palette.overlays || null;
-        const expect = ["dim", "night", "dusk", "dawn"];
+        const expectBasic = ["dim", "night", "dusk", "dawn"];
+        const expectUI = ["grid", "route", "routeAlt", "alert", "exitTown", "exitRegionFill", "exitRegionStroke", "vignetteStart", "vignetteEnd", "minimapBg", "minimapBorder"];
         if (!ov || typeof ov !== "object") {
           V.warnings.push("Palette overlays missing; expected keys: dim, night, dusk, dawn.");
           Log("Palette overlays missing; expected keys: dim, night, dusk, dawn.");
         } else {
-          const missing = [];
-          for (const k of expect) {
+          const missingBasic = [];
+          for (const k of expectBasic) {
             const v = ov[k];
-            if (typeof v !== "string" || v.trim().length === 0) missing.push(k);
+            if (typeof v !== "string" || v.trim().length === 0) missingBasic.push(k);
           }
-          if (missing.length) {
-            V.warnings.push("Palette overlays missing keys: " + missing.join(", ") + ".");
-            Log("Palette overlays missing keys: " + missing.join(", ") + ".");
+          if (missingBasic.length) {
+            V.warnings.push("Palette overlays missing keys: " + missingBasic.join(", ") + ".");
+            Log("Palette overlays missing keys: " + missingBasic.join(", ") + ".");
           } else {
             V.notices.push("Palette overlays present: dim, night, dusk, dawn.");
             Log("Palette overlays present: dim, night, dusk, dawn.", "notice");
+          }
+          // UI overlay keys (warn only; gameplay unaffected)
+          const missingUI = [];
+          for (const k of expectUI) {
+            const v = ov[k];
+            if (typeof v !== "string" || v.trim().length === 0) missingUI.push(k);
+          }
+          if (missingUI.length) {
+            V.warnings.push("Palette overlays: missing UI keys: " + missingUI.join(", ") + ".");
+            Log("Palette overlays: missing UI keys: " + missingUI.join(", ") + ".");
+          } else {
+            V.notices.push("Palette overlays UI keys present.");
+            Log("Palette overlays UI keys present.", "notice");
           }
         }
       } catch (_) {}
