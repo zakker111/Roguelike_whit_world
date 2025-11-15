@@ -103,6 +103,43 @@ export const GameData = {
   // New: prefab registry grouped by category
   prefabs: null,
   ready: null,
+
+  // Runtime palette swapper (GOD panel)
+  async loadPalette(nameOrPath) {
+    try {
+      function pathFor(name) {
+        if (!name || name === "default") return DATA_FILES.palette;
+        if (name === "alt") return "data/world/palette_alt.json";
+        return String(name);
+      }
+      const path = pathFor(nameOrPath);
+      const pal = await fetchJson(path).catch(() => null);
+      if (pal && typeof pal === "object") {
+        GameData.palette = pal;
+        try {
+          localStorage.setItem("PALETTE", String(nameOrPath || "default"));
+        } catch (_) {}
+        try {
+          if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+            window.Logger.log(`[Palette] Loaded ${path}`, "notice");
+          } else if (typeof console !== "undefined") {
+            console.debug("[Palette] Loaded", path);
+          }
+        } catch (_) {}
+        // Request a redraw
+        try {
+          const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.requestDraw === "function") {
+            UIO.requestDraw(null);
+          } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+            window.GameLoop.requestDraw();
+          }
+        } catch (_) {}
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
 };
 
 function logNotice(msg) {
@@ -256,6 +293,15 @@ GameData.ready = (async function loadAll() {
     if (window.DEV) {
       try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, props: !!GameData.props, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression }); } catch (_) {}
     }
+
+    // Palette override at boot via URL or localStorage
+    try {
+      const params = new URLSearchParams(location.search);
+      const sel = params.get("palette") || (localStorage.getItem("PALETTE") || "");
+      if (sel && sel !== "default") {
+        await GameData.loadPalette(sel);
+      }
+    } catch (_) {}
 
     // If any registry failed to load, modules will use internal fallbacks.
     if (!GameData.items || !GameData.enemies || !GameData.npcs || !GameData.consumables || !GameData.town || !GameData.flavor || !GameData.tiles || !GameData.encounters) {

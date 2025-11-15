@@ -15,6 +15,7 @@ import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay } from "./decor_overlays.js";
 import { attachGlobal } from "../utils/global.js";
 import { shade as _shade, rgba as _rgba } from "./color_utils.js";
+import { propColor as _propColor } from "./prop_palette.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
 let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
@@ -419,7 +420,7 @@ export function draw(ctx, view) {
         if (p.type === "campfire") {
           // Prefer tileset mapping if available (custom key), else JSON glyph from town FIREPLACE
           let glyph = "♨";
-          let color = "#ff6d00";
+          let color = null;
           try {
             const td = getTileDefByKey("town", "FIREPLACE");
             if (td) {
@@ -427,6 +428,9 @@ export function draw(ctx, view) {
               if (td.colors && td.colors.fg) color = td.colors.fg || color;
             }
           } catch (_) {}
+          // Palette-driven fallback for fireplace if JSON/tiles missing a color
+          try { if (!color) color = _propColor("fireplace", null); } catch (_) {}
+          if (!color) color = "#ff6d00";
 
           // Subtle glow: draw a radial gradient under the glyph; stronger at night/dusk/dawn.
           try {
@@ -507,6 +511,8 @@ export function draw(ctx, view) {
                 }
               } catch (_) {}
             }
+            // Palette-driven fallback color for props if still missing
+            try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
             // Robust fallback glyphs/colors
             if (!glyph) {
               if (p.type === "crate") glyph = "□";

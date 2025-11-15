@@ -13,6 +13,7 @@ import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
+import { propColor as _propColor } from "./prop_palette.js";
 
 // Tile cache to avoid repeated JSON lookups inside hot loops
 const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
@@ -662,6 +663,9 @@ export function draw(ctx, view) {
         }
       } catch (_) {}
 
+      // Palette-driven fallback color (if still missing)
+      try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
+
       // Fallback glyphs/colors for common props
       if (!glyph || !color) {
         const t = String(p.type || "").toLowerCase();
@@ -761,6 +765,8 @@ export function draw(ctx, view) {
             if (!color && tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
           }
         } catch (_) {}
+        // Palette-driven fallback color (if still missing)
+        try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
         if (!glyph || !color) {
           const t = String(p.type || "").toLowerCase();
           if (!glyph) {
@@ -851,6 +857,8 @@ export function draw(ctx, view) {
           const tdSign = getTileDefByKey("town", "SIGN") || getTileDefByKey("dungeon", "SIGN");
           if (tdSign && tdSign.colors && tdSign.colors.fg) signColor = tdSign.colors.fg || signColor;
         } catch (_) {}
+        // Palette-driven fallback for sign if JSON missing
+        try { signColor = _propColor("sign", signColor) || signColor; } catch (_) {}
         RenderCore.drawGlyph(ctx2d, screenX, screenY, "⚑", signColor, TILE);
       }
     } catch (_) {}

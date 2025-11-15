@@ -318,6 +318,31 @@ export function init(UI) {
     try { UI.updateMinimapButton(); } catch (_) {}
   }
 
+  // Palette switcher
+  const palSel = byId("god-palette-select");
+  const palApply = byId("god-apply-palette-btn");
+  if (palSel) {
+    try {
+      const params = new URLSearchParams(location.search);
+      let sel = params.get("palette") || localStorage.getItem("PALETTE") || "default";
+      // normalize
+      if (sel !== "default" && sel !== "alt") {
+        sel = "default";
+      }
+      palSel.value = sel;
+    } catch (_) {}
+  }
+  if (palApply) {
+    palApply.addEventListener("click", async () => {
+      const val = palSel ? (palSel.value || "default") : "default";
+      try {
+        if (typeof window !== "undefined" && window.GameData && typeof window.GameData.loadPalette === "function") {
+          await window.GameData.loadPalette(val);
+        }
+      } catch (_) {}
+    });
+  }
+
   // RNG controls
   const seedApply = byId("god-apply-seed-btn");
   const seedInput = byId("god-seed-input");
