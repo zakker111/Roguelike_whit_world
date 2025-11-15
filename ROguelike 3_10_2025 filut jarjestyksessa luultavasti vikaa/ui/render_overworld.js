@@ -15,7 +15,7 @@
  */
 import * as RenderCore from "./render_core.js";
 import * as World from "../world/world.js";
-import { getTileDef } from "../data/tile_lookup.js";
+import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 
 // Tile cache to avoid repeated JSON lookups inside hot loops
@@ -468,13 +468,19 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Roads overlay — always on
+  // Roads overlay — always on (prefer tiles.json color)
   try {
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
     if (roads.length) {
+      // Derive overlay color from tiles.json ROAD entry if present
+      let roadColor = "#b0a58a";
+      try {
+        const tdRoad = getTileDefByKey("overworld", "ROAD");
+        if (tdRoad && tdRoad.colors && tdRoad.colors.fill) roadColor = tdRoad.colors.fill || roadColor;
+      } catch (_) {}
       ctx2d.save();
       ctx2d.globalAlpha = 0.18; // subtle overlay
-      ctx2d.fillStyle = "#b0a58a"; // muted road color
+      ctx2d.fillStyle = roadColor;
       for (const p of roads) {
         const x = p.x, y = p.y;
         if (x < startX || x > endX || y < startY || y > endY) continue;
@@ -488,13 +494,19 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Bridges overlay — always on
+  // Bridges overlay — always on (prefer tiles.json color)
   try {
     const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
     if (bridges.length) {
+      // Derive overlay color from tiles.json BRIDGE entry if present
+      let bridgeColor = "#c3a37a";
+      try {
+        const tdBridge = getTileDefByKey("overworld", "BRIDGE");
+        if (tdBridge && tdBridge.colors && tdBridge.colors.fill) bridgeColor = tdBridge.colors.fill || bridgeColor;
+      } catch (_) {}
       ctx2d.save();
       ctx2d.globalAlpha = 0.6;
-      ctx2d.fillStyle = "#c3a37a"; // wood-like color
+      ctx2d.fillStyle = bridgeColor;
       for (const p of bridges) {
         const x = p.x, y = p.y;
         if (x < startX || x > endX || y < startY || y > endY) continue;
