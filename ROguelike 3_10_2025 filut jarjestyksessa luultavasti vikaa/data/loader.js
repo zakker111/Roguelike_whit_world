@@ -108,6 +108,15 @@ export const GameData = {
 
   // Runtime palette swapper (GOD panel)
   async loadPalette(nameOrPath) {
+    const id = String(nameOrPath || "default");
+    // Log request up-front
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log(`[Palette] Apply requested: ${id}`, "notice");
+      } else if (typeof console !== "undefined") {
+        console.debug("[Palette] Apply requested:", id);
+      }
+    } catch (_) {}
     try {
       function pathFor(name) {
         if (!name || name === "default") return DATA_FILES.palette;
@@ -121,18 +130,26 @@ export const GameData = {
         // Treat as direct path
         return String(name);
       }
-      const path = pathFor(nameOrPath);
+      const path = pathFor(id);
+      // Log resolved path
+      try {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+          window.Logger.log(`[Palette] Path resolved: ${path}`, "notice");
+        } else if (typeof console !== "undefined") {
+          console.debug("[Palette] Path resolved:", path);
+        }
+      } catch (_) {}
       const pal = await fetchJson(path).catch(() => null);
       if (pal && typeof pal === "object") {
         GameData.palette = pal;
         try {
-          localStorage.setItem("PALETTE", String(nameOrPath || "default"));
+          localStorage.setItem("PALETTE", id);
         } catch (_) {}
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-            window.Logger.log(`[Palette] Loaded ${path}`, "notice");
+            window.Logger.log(`[Palette] Loaded ${id} from ${path}`, "notice");
           } else if (typeof console !== "undefined") {
-            console.debug("[Palette] Loaded", path);
+            console.debug("[Palette] Loaded", id, "from", path);
           }
         } catch (_) {}
         // Request a redraw
@@ -145,8 +162,25 @@ export const GameData = {
           }
         } catch (_) {}
         return true;
+      } else {
+        // Log failure
+        try {
+          if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+            window.Logger.log(`[Palette] Failed to load ${id} from ${path}`, "bad");
+          } else if (typeof console !== "undefined") {
+            console.warn("[Palette] Failed to load", id, "from", path);
+          }
+        } catch (_) {}
       }
-    } catch (_) {}
+    } catch (e) {
+      try {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+          window.Logger.log(`[Palette] Error applying ${id}: ${e && e.message ? e.message : String(e)}`, "bad");
+        } else if (typeof console !== "undefined") {
+          console.warn("[Palette] Error applying", id, e);
+        }
+      } catch (_) {}
+    }
     return false;
   }
 };
