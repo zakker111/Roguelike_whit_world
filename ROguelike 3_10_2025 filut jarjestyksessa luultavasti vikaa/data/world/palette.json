@@ -44,7 +44,8 @@
     "playerBackdropFill": "rgba(255,255,255,0.16)",
     "playerBackdropStroke": "rgba(255,255,255,0.35)",
     "regionAnimal": "#e9d5a1",
-    "shopkeeper": "#ffd166"
+    "shopkeeper": "#ffd166",
+    "blood": "#7a1717"
   },
   "encounterBiome": {
     "FOREST": "#163a22",
