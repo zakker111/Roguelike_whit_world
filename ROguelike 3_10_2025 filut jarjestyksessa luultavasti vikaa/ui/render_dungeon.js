@@ -14,6 +14,7 @@ import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay } from "./decor_overlays.js";
 import { attachGlobal } from "../utils/global.js";
+import { shade as _shade } from "./color_utils.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
 let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
@@ -90,23 +91,7 @@ export function draw(ctx, view) {
   // Hoist tileset capability check outside hot loops
   const canTileset = !!(tilesetReady && TS && typeof TS.draw === "function" && ctx.mode !== "encounter");
 
-  // Helpers: biome-aware fill colors for encounter maps (fallback when no tileset)
-  function parseHex(c) {
-    const m = /^#?([0-9a-f]{6})$/i.exec(String(c || ""));
-    if (!m) return null;
-    const v = parseInt(m[1], 16);
-    return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
-  }
-  function toHex(rgb) {
-    const clamp = (x) => Math.max(0, Math.min(255, Math.round(x)));
-    const v = (clamp(rgb.r) << 16) | (clamp(rgb.g) << 8) | clamp(rgb.b);
-    return "#" + v.toString(16).padStart(6, "0");
-  }
-  function shade(hex, factor) {
-    const rgb = parseHex(hex);
-    if (!rgb) return hex;
-    return toHex({ r: rgb.r * factor, g: rgb.g * factor, b: rgb.b * factor });
-  }
+  // Color helpers moved to ./color_utils.js
   function biomeBaseFill() {
     const b = String(ctx.encounterBiome || "").toUpperCase();
     if (!b) return null;
@@ -146,8 +131,8 @@ export function draw(ctx, view) {
     const base = biomeBaseFill();
     if (!base) return null;
     // Use lighter, biome-driven colors to avoid overly dark maps
-    if (type === TILES.WALL) return shade(base, 0.88);            // slightly darker than floor, not murky
-    if (type === TILES.DOOR) return shade(base, 1.06);            // slight highlight
+    if (type === TILES.WALL) return _shade(base, 0.88);            // slightly darker than floor, not murky
+    if (type === TILES.DOOR) return _shade(base, 1.06);            // slight highlight
     if (type === TILES.FLOOR || type === TILES.STAIRS) return base;
     return null;
   }
