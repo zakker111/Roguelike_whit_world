@@ -114,6 +114,13 @@ function _mix(hexA, hexB, t = 0.5) {
   const lerp = (x, y) => x + (y - x) * Math.max(0, Math.min(1, t));
   return _toHex({ r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b) });
 }
+// Convert hex color to rgba() string with alpha
+function _rgba(hex, a) {
+  const rgb = _parseHex(hex);
+  if (!rgb) return `rgba(0,0,0,${Math.max(0, Math.min(1, a))})`;
+  const aa = Math.max(0, Math.min(1, a));
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${aa})`;
+}
 
 export function draw(ctx, view) {
   const {
@@ -288,7 +295,9 @@ export function draw(ctx, view) {
         for (let xx = startX; xx <= endX; xx++) {
           const sx = (xx - startX) * TILE - tileOffsetX;
           const sy = (yy - startY) * TILE - tileOffsetY;
-          ctx2d.fillStyle = `rgba(10, 27, 42, ${alpha.toFixed(3)})`;
+          // Use water fill color as base for shoreline haze
+          const waterShade = _shade(waterFill, 0.85);
+          ctx2d.fillStyle = _rgba(waterShade, alpha);
           ctx2d.fillRect(sx, sy, TILE, TILE);
         }
       }
