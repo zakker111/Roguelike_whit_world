@@ -25,8 +25,16 @@ export function tileTransparent(ctx, x, y) {
     if (mode === "encounter") mode = "dungeon";
     const t = ctx.map[y][x];
     const td = getTileDef(mode, t);
-    if (td && td.properties && typeof td.properties.blocksFOV === "boolean") {
-      return !td.properties.blocksFOV;
+    if (td && td.properties) {
+      if (typeof td.properties.blocksFOV === "boolean") {
+        return !td.properties.blocksFOV;
+      }
+      // Secondary fallback: if a tile is explicitly non-walkable and blocksFOV is not defined,
+      // treat it as opaque in non-overworld modes (covers unknown solids in dungeon/town).
+      const modeSolid = (mode === "dungeon" || mode === "town");
+      if (modeSolid && typeof td.properties.walkable === "boolean" && td.properties.walkable === false) {
+        return false;
+      }
     }
   } catch (_) {}
   // Fallback:
