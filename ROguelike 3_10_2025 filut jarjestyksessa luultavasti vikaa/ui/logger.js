@@ -100,9 +100,10 @@ export const Logger = {
     // Insert newest first at the top: iterate queue in reverse to preserve prepend order
     for (let i = this._queue.length - 1; i >= 0; i--) {
       const entry = this._queue[i];
-      const { msg, type, details } = entry;
+      const { msg, type, details, category } = entry;
       const node = document.createElement("div");
       node.className = `entry ${type}`;
+      if (category) { try { node.dataset.cat = String(category).toLowerCase(); } catch (_) {} }
       let text = String(msg);
       try {
         const cnt = (entry && typeof entry.count === "number") ? entry.count : 0;
@@ -136,7 +137,8 @@ export const Logger = {
       if (this._elRight && this._mirrorEnabledCached) {
         const node2 = document.createElement("div");
         node2.className = `entry ${type}`;
-        node2.textContent = String(msg);
+        if (category) { try { node2.dataset.cat = String(category).toLowerCase(); } catch (_) {} }
+        node2.textContent = text;
         fragRight.appendChild(node2);
       }
     }
@@ -175,8 +177,9 @@ export const Logger = {
         ? LogConfig.extractCategory(msg, details)
         : "General";
     } catch (_) {}
+    const catLower = String(cat || "General").toLowerCase();
 
-    let sig = `${String(type).toLowerCase()}:${String(cat).toLowerCase()}:${String(msg)}`;
+    let sig = `${String(type).toLowerCase()}:${catLower}:${String(msg)}`;
     try {
       if (details != null) sig += ":" + JSON.stringify(details);
     } catch (_) {
@@ -197,12 +200,12 @@ export const Logger = {
         }
       } catch (_) {}
     } else {
-      const payload = { msg, type, details, sig, time: now, count: 1 };
+      const payload = { msg, type, details, sig, time: now, count: 1, category: catLower };
       this._queue.push(payload);
 
       // Add to history for export
       try {
-        const entry = { time: now, type, category: String(cat || "General").toLowerCase(), msg: String(msg), count: 1, _sig: sig };
+        const entry = { time: now, type, category: catLower, msg: String(msg), count: 1, _sig: sig };
         if (details != null) entry.details = details;
         this._history.push(entry);
         if (this._history.length > this._historyMax) this._history.splice(0, this._history.length - this._historyMax);
