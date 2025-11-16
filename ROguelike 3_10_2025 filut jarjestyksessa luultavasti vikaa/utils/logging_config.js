@@ -28,7 +28,7 @@ export const LogConfig = {
   },
   _cats: Object.create(null),
   _defaultCats: [
-    "AI","Boot","Combat","Data","Dungeon","Enemies","Entities","Items",
+    "General","AI","Boot","Combat","Data","Dungeon","Enemies","Entities","Items",
     "Overlays","Palette","Quest","Region","Render","RNG","Services",
     "Shop","Smoketest","Town","UI","Validation","World"
   ],
