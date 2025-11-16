@@ -140,7 +140,7 @@ export function save(ctx) {
     const shopCount = Array.isArray(snapshot.shops) ? snapshot.shops.length : 0;
     const msg = `TownState.save: key ${k}, npcs=${npcCount}, shops=${shopCount}`;
     if (typeof window !== "undefined" && window.DEV && ctx.log) ctx.log(msg, "notice");
-    console.log(msg);
+    try { if (typeof window !== "undefined" && window.DEV) console.log(msg); } catch (_) {}
   } catch (_) {}
 }
 

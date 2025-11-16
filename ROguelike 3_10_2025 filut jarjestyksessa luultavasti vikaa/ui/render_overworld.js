@@ -15,8 +15,9 @@
  */
 import * as RenderCore from "./render_core.js";
 import * as World from "../world/world.js";
-import { getTileDef } from "../data/tile_lookup.js";
+import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
+import { shade as _shade, mix as _mix, rgba as _rgba, parseHex as _parseHex, toHex as _toHex } from "./color_utils.js";
 
 // Tile cache to avoid repeated JSON lookups inside hot loops
 const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
@@ -90,6 +91,8 @@ function tilesRef() {
   } catch (_) { return null; }
 }
 
+// Color helpers moved to ./color_utils.js (imported above)
+
 export function draw(ctx, view) {
   const {
     ctx2d, TILE, COLORS, map, player, camera: camMaybe, TS, tilesetReady,
@@ -130,7 +133,8 @@ export function draw(ctx, view) {
             const t = rowM[xx];
             // Cached JSON fill color for overworld with robust fallback
             const td = getTileDef("overworld", t);
-            if (!td) { missingDefsCount++; missingSet.add(t); }
+            // Only count as missing when tiles.json is actually loaded; avoid noisy warnings during early boot.
+            if (!td && tilesRef()) { missingDefsCount++; missingSet.add(t); }
             const c = fillOverworldFor(WT, t);
             oc.fillStyle = c;
             oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
@@ -139,7 +143,8 @@ export function draw(ctx, view) {
         }
         // DEV-only: log a single summary if tile defs were missing
         try {
-          if (missingDefsCount > 0 && typeof window !== "undefined" && (window.DEV || (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1"))) {
+          // Log missing defs only once tiles.json is present to avoid transient startup warnings
+          if (missingDefsCount > 0 && tilesRef() && typeof window !== "undefined" && (window.DEV || (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1"))) {
             const LG = (typeof window !== "undefined" ? window.Logger : null);
             const msg = `[RenderOverworld] Missing ${missingDefsCount} tile def lookups; ids without defs: ${Array.from(missingSet).join(", ")}. Using fallback colors.`;
             if (LG && typeof LG.log === "function") LG.log(msg, "warn");
@@ -181,6 +186,12 @@ export function draw(ctx, view) {
     }
   }
 
+  // Record map for tiles coverage smoketest (optional)
+  try {
+    if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+      window.TilesValidation.recordMap({ mode: "overworld", map });
+    }
+  } catch (_) {}
   // Top-edge boundary: render an organic shoreline + water to disguise the hard boundary.
   // Visual only; world data isn't changed. Movement into y < 0 is blocked in world_runtime.
   try {
@@ -218,7 +229,8 @@ export function draw(ctx, view) {
           if (wave) {
             ctx2d.save();
             ctx2d.globalAlpha = 0.10;
-            ctx2d.fillStyle = "#103a57";
+            const waveColor = _shade(waterFill, 0.82);
+            ctx2d.fillStyle = waveColor || "#103a57";
             ctx2d.fillRect(sx, sy + (Math.max(2, TILE * 0.4) | 0), TILE, 2);
             ctx2d.restore();
           }
@@ -233,7 +245,8 @@ export function draw(ctx, view) {
           const fo = 2 + ((fr * (TILE - 6)) | 0);
           ctx2d.save();
           ctx2d.globalAlpha = 0.22;
-          ctx2d.fillStyle = "rgba(255,255,255,0.85)";
+          const foamColor = _shade(waterFill, 1.6);
+          ctx2d.fillStyle = foamColor || "rgba(255,255,255,0.85)";
           ctx2d.fillRect(sx + 2, sy + (TILE - 3), TILE - 4, 2);
           ctx2d.globalAlpha = 0.15;
           ctx2d.fillRect(sx + fo, sy + (TILE - 5), Math.max(2, (TILE * 0.25) | 0), 2);
@@ -261,7 +274,9 @@ export function draw(ctx, view) {
         for (let xx = startX; xx <= endX; xx++) {
           const sx = (xx - startX) * TILE - tileOffsetX;
           const sy = (yy - startY) * TILE - tileOffsetY;
-          ctx2d.fillStyle = `rgba(10, 27, 42, ${alpha.toFixed(3)})`;
+          // Use water fill color as base for shoreline haze
+          const waterShade = _shade(waterFill, 0.85);
+          ctx2d.fillStyle = _rgba(waterShade, alpha);
           ctx2d.fillRect(sx, sy, TILE, TILE);
         }
       }
@@ -271,6 +286,13 @@ export function draw(ctx, view) {
 
   // Coastline/shoreline outlines for water/river adjacency (visual polish)
   try {
+    // derive shoreline outline color from WATER tile
+    let coastColor = "#a8dadc";
+    try {
+      const wDef2 = getTileDef("overworld", WT.WATER);
+      const wFill2 = (wDef2 && wDef2.colors && wDef2.colors.fill) ? wDef2.colors.fill : fallbackFillOverworld(WT, WT.WATER);
+      coastColor = _shade(wFill2, 1.4) || coastColor;
+    } catch (_) {}
     for (let y = startY; y <= endY; y++) {
       const yIn = y >= 0 && y < mapRows;
       if (!yIn) continue;
@@ -289,7 +311,7 @@ export function draw(ctx, view) {
           const sy = (ny - startY) * TILE - tileOffsetY;
           ctx2d.save();
           ctx2d.globalAlpha = 0.16;
-          ctx2d.fillStyle = "#a8dadc";
+          ctx2d.fillStyle = coastColor;
           ctx2d.fillRect(sx, sy, TILE, TILE);
           ctx2d.restore();
         }
@@ -314,8 +336,8 @@ export function draw(ctx, view) {
           ctx2d.fillStyle = "#0b0c10";
           ctx2d.fillRect(sx, sy, TILE, TILE);
         } else if (!visHere) {
-          // Dim explored but not currently visible
-          ctx2d.fillStyle = "rgba(0,0,0,0.35)";
+          // Dim explored but not currently visible (palette-driven if available)
+          ctx2d.fillStyle = COLORS.dim || "rgba(0,0,0,0.35)";
           ctx2d.fillRect(sx, sy, TILE, TILE);
         }
       }
@@ -329,7 +351,7 @@ export function draw(ctx, view) {
     const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
     const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
 
-    // Draw on top of fog: towns (gold glyph)
+    // Draw on top of fog: towns (glyph color from palette if available)
     for (const t of towns) {
       const lx = (t.x | 0) - ox;
       const ly = (t.y | 0) - oy;
@@ -337,10 +359,15 @@ export function draw(ctx, view) {
       const sx = (lx - startX) * TILE - tileOffsetX;
       const sy = (ly - startY) * TILE - tileOffsetY;
       const glyph = (t.size === "city") ? "T" : "t";
-      RenderCore.drawGlyph(ctx2d, sx, sy, glyph, "#ffd166", TILE);
+      let townColor = "#ffd166";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal && pal.poiTown) townColor = pal.poiTown || townColor;
+      } catch (_) {}
+      RenderCore.drawGlyph(ctx2d, sx, sy, glyph, townColor, TILE);
     }
 
-    // Dungeons: color-coded squares by level (green=1-2, amber=3, red=4-5)
+    // Dungeons: color-coded squares by level (palette-driven if available)
     ctx2d.save();
     for (const d of dungeons) {
       const lx = (d.x | 0) - ox;
@@ -354,6 +381,21 @@ export function draw(ctx, view) {
       let stroke = "rgba(239, 68, 68, 0.7)";
       if (lvl <= 2) { fill = "#9ece6a"; stroke = "rgba(158, 206, 106, 0.7)"; }
       else if (lvl === 3) { fill = "#f4bf75"; stroke = "rgba(244, 191, 117, 0.7)"; }
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          if (lvl <= 2 && pal.poiDungeonEasy) {
+            fill = pal.poiDungeonEasy || fill;
+            stroke = (_parseHex(fill) ? _rgba(fill, 0.7) : stroke);
+          } else if (lvl === 3 && pal.poiDungeonMed) {
+            fill = pal.poiDungeonMed || fill;
+            stroke = (_parseHex(fill) ? _rgba(fill, 0.7) : stroke);
+          } else if (lvl >= 4 && pal.poiDungeonHard) {
+            fill = pal.poiDungeonHard || fill;
+            stroke = (_parseHex(fill) ? _rgba(fill, 0.7) : stroke);
+          }
+        }
+      } catch (_) {}
       ctx2d.globalAlpha = 0.85;
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(sx + (TILE - s) / 2, sy + (TILE - s) / 2, s, s);
@@ -364,9 +406,14 @@ export function draw(ctx, view) {
     }
     ctx2d.restore();
 
-    // Active quest markers: bright amber 'E' glyph at absolute positions in ctx.world.questMarkers
+    // Active quest markers: glyph color from palette if available
     const qms = (ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
     if (qms.length) {
+      let questColor = "#fbbf24";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal && pal.questMarker) questColor = pal.questMarker || questColor;
+      } catch (_) {}
       for (const m of qms) {
         if (!m) continue;
         const lx = (m.x | 0) - ox;
@@ -374,7 +421,7 @@ export function draw(ctx, view) {
         if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
         const sx = (lx - startX) * TILE - tileOffsetX;
         const sy = (ly - startY) * TILE - tileOffsetY;
-        RenderCore.drawGlyph(ctx2d, sx, sy, "E", "#fbbf24", TILE);
+        RenderCore.drawGlyph(ctx2d, sx, sy, "E", questColor, TILE);
       }
     }
   } catch (_) {}
@@ -387,6 +434,38 @@ export function draw(ctx, view) {
       const n = ((x * 73856093) ^ (y * 19349663)) >>> 0;
       return (n % 1000) / 1000;
     }
+    // derive river shimmer color from RIVER tile
+    let riverShimmerColor = "#cfe9ff";
+    try {
+      const rDef = getTileDef("overworld", WT.RIVER);
+      const rFill = (rDef && rDef.colors && rDef.colors.fill) ? rDef.colors.fill : fallbackFillOverworld(WT, WT.RIVER);
+      riverShimmerColor = _shade(rFill, 1.35) || riverShimmerColor;
+    } catch (_) {}
+
+    // derive biome embellishment colors from tiles.json (with robust fallbacks)
+    let forestDotColor = "#173d2b";
+    let mountainHighlightColor = "#2a3342";
+    let desertSpeckColor = "#b69d78";
+    let snowShadeColor = "#94b7ff";
+    try {
+      const forestFill = fillOverworldFor(WT, WT.FOREST);
+      forestDotColor = _shade(forestFill, 0.85) || forestDotColor;
+    } catch (_) {}
+    try {
+      const mountainFill = fillOverworldFor(WT, WT.MOUNTAIN);
+      mountainHighlightColor = _shade(mountainFill, 1.06) || mountainHighlightColor;
+    } catch (_) {}
+    try {
+      const desertFill = fillOverworldFor(WT, WT.DESERT);
+      desertSpeckColor = _shade(desertFill, 0.92) || desertSpeckColor;
+    } catch (_) {}
+    try {
+      const snowFill = fillOverworldFor(WT, WT.SNOW);
+      const waterFillForMix = fillOverworldFor(WT, WT.WATER);
+      // blend a bit of water hue into snow to get a subtle cool tint
+      snowShadeColor = _mix(snowFill, waterFillForMix, 0.35) || snowShadeColor;
+    } catch (_) {}
+
     for (let y = startY; y <= endY; y++) {
       if (y < 0 || y >= mapRows) continue;
       const row = map[y];
@@ -403,7 +482,7 @@ export function draw(ctx, view) {
             const dots = 1 + ((r * 3) | 0);
             ctx2d.save();
             ctx2d.globalAlpha = 0.15;
-            ctx2d.fillStyle = "#173d2b";
+            ctx2d.fillStyle = forestDotColor;
             for (let i = 0; i < dots; i++) {
               const ox = ((h2(x + i, y + i) * (TILE - 6)) | 0) + 3;
               const oy = ((h2(x - i, y - i) * (TILE - 6)) | 0) + 3;
@@ -417,7 +496,7 @@ export function draw(ctx, view) {
         if (t === WT.MOUNTAIN) {
           ctx2d.save();
           ctx2d.globalAlpha = 0.20;
-          ctx2d.fillStyle = "#2a3342";
+          ctx2d.fillStyle = mountainHighlightColor;
           ctx2d.fillRect(sx + 1, sy + 1, TILE - 2, 3);
           ctx2d.fillRect(sx + 1, sy + 1, 3, TILE - 2);
           ctx2d.restore();
@@ -429,7 +508,7 @@ export function draw(ctx, view) {
           if (r > 0.25) {
             ctx2d.save();
             ctx2d.globalAlpha = 0.18;
-            ctx2d.fillStyle = "#b69d78";
+            ctx2d.fillStyle = desertSpeckColor;
             const ox = ((h2(x + 7, y + 3) * (TILE - 6)) | 0) + 3;
             const oy = ((h2(x + 11, y + 5) * (TILE - 6)) | 0) + 3;
             ctx2d.fillRect(sx + ox, sy + oy, 2, 2);
@@ -444,7 +523,7 @@ export function draw(ctx, view) {
         if (t === WT.SNOW) {
           ctx2d.save();
           ctx2d.globalAlpha = 0.08;
-          ctx2d.fillStyle = "#94b7ff";
+          ctx2d.fillStyle = snowShadeColor;
           const ox = ((h2(x + 19, y + 23) * (TILE - 6)) | 0) + 3;
           const oy = ((h2(x + 29, y + 31) * (TILE - 6)) | 0) + 3;
           ctx2d.fillRect(sx + ox, sy + oy, 3, 3);
@@ -456,7 +535,7 @@ export function draw(ctx, view) {
           const r = ((x + y) & 1) === 0;
           ctx2d.save();
           ctx2d.globalAlpha = 0.12;
-          ctx2d.fillStyle = "#cfe9ff";
+          ctx2d.fillStyle = riverShimmerColor;
           if (r) {
             ctx2d.fillRect(sx + 4, sy + (TILE / 2) | 0, TILE - 8, 2);
           } else {
@@ -468,13 +547,19 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Roads overlay — always on
+  // Roads overlay — always on (prefer tiles.json color)
   try {
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
     if (roads.length) {
+      // Derive overlay color from tiles.json ROAD entry if present
+      let roadColor = "#b0a58a";
+      try {
+        const tdRoad = getTileDefByKey("overworld", "ROAD");
+        if (tdRoad && tdRoad.colors && tdRoad.colors.fill) roadColor = tdRoad.colors.fill || roadColor;
+      } catch (_) {}
       ctx2d.save();
       ctx2d.globalAlpha = 0.18; // subtle overlay
-      ctx2d.fillStyle = "#b0a58a"; // muted road color
+      ctx2d.fillStyle = roadColor;
       for (const p of roads) {
         const x = p.x, y = p.y;
         if (x < startX || x > endX || y < startY || y > endY) continue;
@@ -488,13 +573,19 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Bridges overlay — always on
+  // Bridges overlay — always on (prefer tiles.json color)
   try {
     const bridges = (ctx.world && Array.isArray(ctx.world.bridges)) ? ctx.world.bridges : [];
     if (bridges.length) {
+      // Derive overlay color from tiles.json BRIDGE entry if present
+      let bridgeColor = "#c3a37a";
+      try {
+        const tdBridge = getTileDefByKey("overworld", "BRIDGE");
+        if (tdBridge && tdBridge.colors && tdBridge.colors.fill) bridgeColor = tdBridge.colors.fill || bridgeColor;
+      } catch (_) {}
       ctx2d.save();
       ctx2d.globalAlpha = 0.6;
-      ctx2d.fillStyle = "#c3a37a"; // wood-like color
+      ctx2d.fillStyle = bridgeColor;
       for (const p of bridges) {
         const x = p.x, y = p.y;
         if (x < startX || x > endX || y < startY || y > endY) continue;
@@ -544,7 +635,16 @@ export function draw(ctx, view) {
     labelWidth = Math.max(260, 16 * (text.length / 2));
     const bx = 8, by = 8, bh = 26, bw = labelWidth;
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(13,16,24,0.80)";
+    let panelBg = "rgba(13,16,24,0.80)";
+    let panelBorder = "rgba(122,162,247,0.35)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        panelBg = pal.panelBg || panelBg;
+        panelBorder = pal.panelBorder || panelBorder;
+      }
+    } catch (_) {}
+    ctx2d.fillStyle = panelBg;
     // Rounded rect
     try {
       const r = 6;
@@ -560,12 +660,12 @@ export function draw(ctx, view) {
       ctx2d.quadraticCurveTo(bx, by, bx + r, by);
       ctx2d.closePath();
       ctx2d.fill();
-      ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+      ctx2d.strokeStyle = panelBorder;
       ctx2d.lineWidth = 1;
       ctx2d.stroke();
     } catch (_) {
       ctx2d.fillRect(bx, by, bw, bh);
-      ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+      ctx2d.strokeStyle = panelBorder;
       ctx2d.lineWidth = 1;
       ctx2d.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
     }
@@ -629,9 +729,16 @@ export function draw(ctx, view) {
 
         // background + border + label
         ctx2d.save();
-        ctx2d.fillStyle = "rgba(13,16,24,0.70)";
-        ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
-        ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          ctx2d.fillStyle = pal && pal.minimapBg ? pal.minimapBg : "rgba(13,16,24,0.70)";
+          ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
+          ctx2d.strokeStyle = pal && pal.minimapBorder ? pal.minimapBorder : "rgba(122,162,247,0.35)";
+        } catch (_) {
+          ctx2d.fillStyle = "rgba(13,16,24,0.70)";
+          ctx2d.fillRect(bx - 6, by - 6, wpx + 12, hpx + 12);
+          ctx2d.strokeStyle = "rgba(122,162,247,0.35)";
+        }
         ctx2d.lineWidth = 1;
         ctx2d.strokeRect(bx - 6.5, by - 6.5, wpx + 13, hpx + 13);
         try {
@@ -662,7 +769,12 @@ export function draw(ctx, view) {
             const lx = (t.x | 0) - ox;
             const ly = (t.y | 0) - oy;
             if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
-            ctx2d.fillStyle = "#f6c177";
+            let townColor = "#f6c177";
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+              if (pal && pal.poiTown) townColor = pal.poiTown || townColor;
+            } catch (_) {}
+            ctx2d.fillStyle = townColor;
             ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           for (const d of dungeons) {
@@ -674,12 +786,25 @@ export function draw(ctx, view) {
             if (lvl <= 2) fill = "#9ece6a"; // green (easy)
             else if (lvl === 3) fill = "#f4bf75"; // amber (medium)
             else fill = "#f7768e"; // red (hard)
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+              if (pal) {
+                if (lvl <= 2 && pal.poiDungeonEasy) fill = pal.poiDungeonEasy || fill;
+                else if (lvl === 3 && pal.poiDungeonMed) fill = pal.poiDungeonMed || fill;
+                else if (lvl >= 4 && pal.poiDungeonHard) fill = pal.poiDungeonHard || fill;
+              }
+            } catch (_) {}
             ctx2d.fillStyle = fill;
             ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));
           }
           // Quest markers: amber
           if (qms && qms.length) {
-            ctx2d.fillStyle = "#fbbf24";
+            let questColor = "#fbbf24";
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+              if (pal && pal.questMarker) questColor = pal.questMarker || questColor;
+            } catch (_) {}
+            ctx2d.fillStyle = questColor;
             for (const m of qms) {
               const lx = (m.x | 0) - ox;
               const ly = (m.y | 0) - oy;
@@ -707,9 +832,19 @@ export function draw(ctx, view) {
     const screenY = (player.y - startY) * TILE - tileOffsetY;
 
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(255,255,255,0.16)";
+    // Palette-driven player backdrop fill/stroke
+    let pbFill = "rgba(255,255,255,0.16)";
+    let pbStroke = "rgba(255,255,255,0.35)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        pbFill = pal.playerBackdropFill || pbFill;
+        pbStroke = pal.playerBackdropStroke || pbStroke;
+      }
+    } catch (_) {}
+    ctx2d.fillStyle = pbFill;
     ctx2d.fillRect(screenX + 4, screenY + 4, TILE - 8, TILE - 8);
-    ctx2d.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx2d.strokeStyle = pbStroke;
     ctx2d.lineWidth = 1;
     ctx2d.strokeRect(screenX + 4.5, screenY + 4.5, TILE - 9, TILE - 9);
 
@@ -722,35 +857,73 @@ export function draw(ctx, view) {
     ctx2d.restore();
   }
 
-  // Day/night tint overlay
+  // Day/night tint overlay (palette-driven when available)
   try {
     const time = ctx.time;
     if (time && time.phase) {
+      let nightTint = "rgba(0,0,0,0.35)";
+      let duskTint  = "rgba(255,120,40,0.12)";
+      let dawnTint  = "rgba(120,180,255,0.10)";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          nightTint = pal.night || nightTint;
+          duskTint  = pal.dusk  || duskTint;
+          dawnTint  = pal.dawn  || dawnTint;
+        }
+      } catch (_) {}
       ctx2d.save();
+      // Optional alpha overrides (palette numeric keys)
+      let a = 1.0;
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          if (time.phase === "night" && Number.isFinite(Number(pal.nightA))) a = Math.max(0, Math.min(1, Number(pal.nightA)));
+          else if (time.phase === "dusk" && Number.isFinite(Number(pal.duskA))) a = Math.max(0, Math.min(1, Number(pal.duskA)));
+          else if (time.phase === "dawn" && Number.isFinite(Number(pal.dawnA))) a = Math.max(0, Math.min(1, Number(pal.dawnA)));
+        }
+      } catch (_) {}
+      ctx2d.globalAlpha = a;
       if (time.phase === "night") {
-        ctx2d.fillStyle = "rgba(0,0,0,0.35)";
+        ctx2d.fillStyle = nightTint;
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       } else if (time.phase === "dusk") {
-        ctx2d.fillStyle = "rgba(255,120,40,0.12)";
+        ctx2d.fillStyle = duskTint;
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       } else if (time.phase === "dawn") {
-        ctx2d.fillStyle = "rgba(120,180,255,0.10)";
+        ctx2d.fillStyle = dawnTint;
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       }
       ctx2d.restore();
     }
   } catch (_) {}
 
-  // Subtle vignette around viewport edges
+  // Subtle vignette around viewport edges (palette-driven when available)
   try {
     ctx2d.save();
     const grad = ctx2d.createRadialGradient(
       cam.width / 2, cam.height / 2, Math.min(cam.width, cam.height) * 0.60,
       cam.width / 2, cam.height / 2, Math.max(cam.width, cam.height) * 0.70
     );
-    grad.addColorStop(0, "rgba(0,0,0,0.00)");
-    grad.addColorStop(1, "rgba(0,0,0,0.12)");
+    let vgStart = "rgba(0,0,0,0.00)";
+    let vgEnd = "rgba(0,0,0,0.12)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        vgStart = pal.vignetteStart || vgStart;
+        vgEnd = pal.vignetteEnd || vgEnd;
+      }
+    } catch (_) {}
+    grad.addColorStop(0, vgStart);
+    grad.addColorStop(1, vgEnd);
     ctx2d.fillStyle = grad;
+    // Optional alpha override for vignette
+    let va = 1.0;
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal && Number.isFinite(Number(pal.vignetteA))) va = Math.max(0, Math.min(1, Number(pal.vignetteA)));
+    } catch (_) {}
+    ctx2d.globalAlpha = va;
     ctx2d.fillRect(0, 0, cam.width, cam.height);
     ctx2d.restore();
   } catch (_) {}

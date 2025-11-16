@@ -1,6 +1,41 @@
 s 
 # Game Version History
-Last updated: 2025-11-11 15:00 UTC
+Last updated: 2025-11-16 00:00 UTC
+
+v1.45.4 — Phase 3 completion + roadmap (Phases 4–6)
+- Palette/Theming
+  - Overlays now derive from palette for grid, routes, exit highlights, vignette, minimap, panels, and player backdrops across overworld/town/region/dungeon.
+  - Lamp/torch glows use palette alpha keys glowStartA/glowMidA/glowEndA with time-of-day multipliers.
+  - Blood decals color driven by overlays.blood; corpse colors centralized (corpse/corpseEmpty).
+  - Exit overlays use tiles.json STAIRS colors in encounter/dungeon; tinted squares remain consistent with Region Map.
+- Prop palette fallbacks
+  - prop_palette.js provides category fallbacks (propWood/propMetal/propFabric/propLight/propSign/propPlant/propStone and specific keys).
+  - Renderers use palette fallbacks when JSON/tiles are missing colors.
+- Theme switching
+  - GOD panel dropdown now reads data/world/palettes.json; supports direct path overrides via ?palette=.
+  - Loader warns when palettes.json manifest is missing/empty and when a selected id is not found; logs path resolution and load results.
+- Validation and docs
+  - Smoketest validation checks palette overlay keys and numeric alpha keys; tiles coverage is mode-aware; props coverage warns when no color sources exist.
+  - Docs viewer added under /docs; palette_schema.md and palette_theming.md expanded.
+- Deployment: see latest production URL
+- Roadmap next phases
+  - Phase 4 — Theming completeness and validation:
+    - Prefab Editor theming (palette-driven panels and grid).
+    - UI color sweep behind palette keys (panel/button text/background/border).
+    - Alpha range checks with warnings for keys outside [0,1].
+    - Props/tile coverage validation improvements and minimal stubs as needed.
+    - Additional palette presets in palettes.json; GOD dropdown auto-populates.
+    - Docs updates for schema and theming.
+  - Phase 5 — Stability, validation, and CI:
+    - JSON schema validators and in-game warnings for critical registries.
+    - CI smoketest for a reduced scenario set; pipeline fails on hard errors.
+    - Crash-free policy: unify optional module calls via Capabilities.safeCall; remove legacy try/catch duplication.
+  - Phase 6 — Optional gameplay and UX expansions:
+    - Multi-floor dungeons, portal variants, ED/loot scaling.
+    - Quest board extensions; palette-driven POI markers.
+    - Biome effects (swamp slow, snow visibility), palette-configurable.
+    - Merchant/encounter improvements; Seppo inventory in encounters.
+    - Theme packs and curated palettes for quick switching.
 
 v1.45.3 — Comment consistency sweep + tile_lookup/logger notes
 - Docs/Comments

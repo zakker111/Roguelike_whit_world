@@ -215,11 +215,24 @@ function ensureSleepPanel() {
   panel.style.top = "50%";
   panel.style.transform = "translate(-50%, -50%)";
   panel.style.zIndex = "40000";
-  panel.style.background = "rgba(20,24,33,0.98)";
-  panel.style.border = "1px solid rgba(80,90,120,0.6)";
+  // Palette-driven sleep panel styling
+  (function () {
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      const bg = pal && pal.panelBg ? pal.panelBg : "rgba(20,24,33,0.98)";
+      const bd = pal && pal.panelBorder ? pal.panelBorder : "1px solid rgba(80,90,120,0.6)";
+      const sh = pal && pal.panelShadow ? pal.panelShadow : "0 10px 30px rgba(0,0,0,0.5)";
+      panel.style.background = bg;
+      panel.style.border = bd;
+      panel.style.boxShadow = sh;
+    } catch (_) {
+      panel.style.background = "rgba(20,24,33,0.98)";
+      panel.style.border = "1px solid rgba(80,90,120,0.6)";
+      panel.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
+    }
+  })();
   panel.style.borderRadius = "8px";
   panel.style.padding = "12px";
-  panel.style.boxShadow = "0 10px 30px rgba(0,0,0,0.5)";
   panel.style.minWidth = "360px";
   panel.style.maxWidth = "92vw";
   panel.style.display = "none";

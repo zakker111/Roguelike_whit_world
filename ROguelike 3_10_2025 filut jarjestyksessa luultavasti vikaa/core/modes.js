@@ -83,6 +83,16 @@ function movePlayerToTownGateInterior(ctx) {
   } catch (_) {}
 }
 
+// DEV diagnostics: town biome on entry
+function _devTownBiomeLog(ctx) {
+  try {
+    if (typeof window !== "undefined" && window.DEV) {
+      const wrp = ctx.worldReturnPos ? `${ctx.worldReturnPos.x|0},${ctx.worldReturnPos.y|0}` : "n/a";
+      console.debug(`[DEV] Town enter biome=${String(ctx.townBiome || "")} at ${wrp}`);
+    }
+  } catch (_) {}
+}
+
 // Public API
 export function leaveTownNow(ctx) {
   if (!ctx || !ctx.world) return;
@@ -161,15 +171,64 @@ export function enterTownIfOnTile(ctx) {
   if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
   const t = mapRef[py][px];
 
-  // If already on the town tile, there's no clear approach; clear any stale dir
-  if (WT && t === ctx.World.TILES.TOWN) {
-    ctx.enterFromDir = "";
+  // Entry: allow adjacent entry. First prefer cardinal adjacency; if none, allow diagonals.
+  let townPx = px, townPy = py;
+  let approachedDir = "";
+  let onTownTile = !!(WT && t === ctx.World.TILES.TOWN);
+  if (!onTownTile && WT) {
+    // Cardinal neighbors (prefer these)
+    const dirs = [
+      { dx:  1, dy:  0, dir: "W" },
+      { dx: -1, dy:  0, dir: "E" },
+      { dx:  0, dy:  1, dir: "N" },
+      { dx:  0, dy: -1, dir: "S" },
+    ];
+    for (const d of dirs) {
+      const nx = px + d.dx, ny = py + d.dy;
+      if (!inBounds(ctx, nx, ny)) continue;
+      if (mapRef[ny][nx] === WT.TOWN) {
+        townPx = nx; townPy = ny;
+        approachedDir = d.dir;
+        onTownTile = true;
+        break;
+      }
+    }
+    // Diagonals as fallback (helps when towns are corner-accessible)
+    if (!onTownTile) {
+      const diags = [
+        { dx:  1, dy:  1, dir: "NW" },
+        { dx: -1, dy:  1, dir: "NE" },
+        { dx:  1, dy: -1, dir: "SW" },
+        { dx: -1, dy: -1, dir: "SE" },
+      ];
+      for (const d of diags) {
+        const nx = px + d.dx, ny = py + d.dy;
+        if (!inBounds(ctx, nx, ny)) continue;
+        if (mapRef[ny][nx] === WT.TOWN) {
+          townPx = nx; townPy = ny;
+          approachedDir = d.dir;
+          onTownTile = true;
+          break;
+        }
+      }
+    }
   }
 
-  if (WT && t === ctx.World.TILES.TOWN) {
-      // Store absolute world coords for return
-      const enterWX = (ctx.world ? ctx.world.originX : 0) + ctx.player.x;
-      const enterWY = (ctx.world ? ctx.world.originY : 0) + ctx.player.y;
+  // Record approach direction (used by Town generation to pick gate side). Empty string when stepping directly on tile.
+  if (onTownTile) {
+    ctx.enterFromDir = approachedDir || "";
+  }
+
+  if (WT && onTownTile) {
+      // Proactively close any confirm dialog to avoid UI overlap
+      try {
+        const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(ctx);
+      } catch (_) {}
+
+      // Store absolute world coords for return (use town tile if adjacent entry)
+      const enterWX = (ctx.world ? ctx.world.originX : 0) + townPx;
+      const enterWY = (ctx.world ? ctx.world.originY : 0) + townPy;
       ctx.worldReturnPos = { x: enterWX, y: enterWY };
       // Preserve world fog-of-war before switching maps
       try {
@@ -179,6 +238,8 @@ export function enterTownIfOnTile(ctx) {
         }
       } catch (_) {}
       ctx.mode = "town";
+      // Reset town biome on entry so each town derives or loads its own biome correctly
+      try { ctx.townBiome = undefined; } catch (_) {}
 
       // First, try to load a persisted town state for this overworld tile
       try {
@@ -200,6 +261,7 @@ export function enterTownIfOnTile(ctx) {
             // Ensure player spawns on gate interior tile on entry
             movePlayerToTownGateInterior(ctx);
             if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            _devTownBiomeLog(ctx);
             syncAfterMutation(ctx);
             return true;
           }
@@ -226,6 +288,7 @@ export function enterTownIfOnTile(ctx) {
               }
             } catch (_) {}
             if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            _devTownBiomeLog(ctx);
             syncAfterMutation(ctx);
             return true;
           }

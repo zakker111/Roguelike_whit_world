@@ -12,6 +12,7 @@ import '/utils/utils.js';
 import '/utils/bounds.js';
 import '/utils/item_describe.js';
 import '/utils/rng.js';
+import '/utils/tiles_validation.js';
 
 // World and LOS/FOV primitives
 import '/world/infinite_gen.js';
@@ -142,6 +143,28 @@ document.addEventListener('DOMContentLoaded', function () {
       window.Logger.init(undefined, 80);
     }
   } catch (e) {}
+  // Log active palette after Logger is ready (covers URL-param load that happened before Logger)
+  try {
+    const GD = (typeof window !== 'undefined' ? window.GameData : null);
+    const sel = (typeof localStorage !== 'undefined' ? (localStorage.getItem('PALETTE') || 'default') : 'default');
+    if (GD && GD.palette) {
+      // Resolve path from manifest if available
+      let path = null;
+      try {
+        const list = Array.isArray(GD.palettes) ? GD.palettes : null;
+        if (list) {
+          const hit = list.find(p => String(p.id || '') === String(sel));
+          if (hit && hit.path) path = hit.path;
+        }
+      } catch (_) {}
+      if (!path) {
+        path = sel === 'default' ? 'data/world/palette.json' : (sel === 'alt' ? 'data/world/palette_alt.json' : String(sel));
+      }
+      if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') {
+        window.Logger.log(`[Palette] Active ${sel} (${path})`, 'notice');
+      }
+    }
+  } catch (_) {}
 });
 
 // Optional smoke test loader: load when ?smoketest=1 via dynamic imports,
@@ -165,6 +188,8 @@ document.addEventListener('DOMContentLoaded', function () {
         // Reporting
         '/smoketest/reporting/render.js',
         '/smoketest/reporting/export.js',
+        // DEV data validation (includes palette overlays checks)
+        '/smoketest/validate_data.js',
         // Runner helpers
         '/smoketest/runner/init.js',
         '/smoketest/runner/banner.js',
@@ -201,4 +226,15 @@ document.addEventListener('DOMContentLoaded', function () {
   } catch (e) {
     console.error('[SMOKE] loader: error', e);
   }
+})();
+
+// DEV-only: run validation checks (including palette overlays) even without smoketest runner
+(async function () {
+  try {
+    const params = new URLSearchParams(location.search);
+    const isDev = (params.get('dev') === '1') || (typeof localStorage !== 'undefined' && localStorage.getItem('DEV') === '1') || (typeof window !== 'undefined' && window.DEV);
+    if (isDev) {
+      try { await import('/smoketest/validate_data.js'); } catch (_) {}
+    }
+  } catch (_) {}
 })();

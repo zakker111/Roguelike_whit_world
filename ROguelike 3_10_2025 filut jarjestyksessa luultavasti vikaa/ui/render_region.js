@@ -68,6 +68,13 @@ export function draw(ctx, view) {
     }
   }
 
+  // Record map for tiles coverage smoketest (optional)
+  try {
+    if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+      window.TilesValidation.recordMap({ mode: "region", map });
+    }
+  } catch (_) {}
+
   // Per-frame glyph overlay for any tile with a non-blank JSON glyph (drawn before visibility overlays)
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
@@ -118,11 +125,20 @@ export function draw(ctx, view) {
     }
   }
 
-  // Orange edge tiles (center tiles on each side)
+  // Region edge tiles highlight (palette-driven)
   try {
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(241,153,40,0.28)";
-    ctx2d.strokeStyle = "rgba(241,153,40,0.80)";
+    let fillCol = "rgba(241,153,40,0.28)";
+    let strokeCol = "rgba(241,153,40,0.80)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        fillCol = pal.exitRegionFill || fillCol;
+        strokeCol = pal.exitRegionStroke || strokeCol;
+      }
+    } catch (_) {}
+    ctx2d.fillStyle = fillCol;
+    ctx2d.strokeStyle = strokeCol;
     ctx2d.lineWidth = 2;
     for (const e of (ctx.region.exitTiles || [])) {
       const ex = (e.x | 0), ey = (e.y | 0);
@@ -152,7 +168,15 @@ export function draw(ctx, view) {
 
       const prev = ctx2d.globalAlpha;
       ctx2d.globalAlpha = alpha;
-      ctx2d.fillStyle = "#7a1717";
+      // Palette-driven blood color
+      (function () {
+        let blood = "#7a1717";
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          if (pal && typeof pal.blood === "string" && pal.blood.trim().length) blood = pal.blood;
+        } catch (_) {}
+        ctx2d.fillStyle = blood;
+      })();
       const r = Math.max(4, Math.min(TILE - 2, d.r || Math.floor(TILE * 0.4)));
       const cx = sx + TILE / 2;
       const cy = sy + TILE / 2;
@@ -174,11 +198,17 @@ export function draw(ctx, view) {
         if (!visible[ey] || !visible[ey][ex]) continue;
         const sx = (ex - startX) * TILE - tileOffsetX;
         const sy = (ey - startY) * TILE - tileOffsetY;
-        // Color scheme: neutral animals are amber; hostile use enemyColor fallback to red
+        // Color scheme: neutral animals use palette; hostile use enemyColor fallback
         const faction = String(e.faction || "");
         let color = "#f7768e"; // hostile default
-        if (faction === "animal") color = "#e9d5a1";            // neutral animal (deer/fox/boar)
-        else if (typeof ctx.enemyColor === "function") {
+        if (faction === "animal") {
+          try {
+            const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+            color = (pal && pal.regionAnimal) ? pal.regionAnimal : "#e9d5a1"; // neutral animal (deer/fox/boar)
+          } catch (_) {
+            color = "#e9d5a1";
+          }
+        } else if (typeof ctx.enemyColor === "function") {
           try { color = ctx.enemyColor(e.type || "enemy"); } catch (_) {}
         }
         ctx2d.save();
@@ -230,9 +260,19 @@ export function draw(ctx, view) {
     const screenY = (py - startY) * TILE - tileOffsetY;
 
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(255,255,255,0.16)";
+    // Palette-driven player backdrop
+    let pbFill = "rgba(255,255,255,0.16)";
+    let pbStroke = "rgba(255,255,255,0.35)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        pbFill = pal.playerBackdropFill || pbFill;
+        pbStroke = pal.playerBackdropStroke || pbStroke;
+      }
+    } catch (_) {}
+    ctx2d.fillStyle = pbFill;
     ctx2d.fillRect(screenX + 4, screenY + 4, TILE - 8, TILE - 8);
-    ctx2d.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx2d.strokeStyle = pbStroke;
     ctx2d.lineWidth = 1;
     ctx2d.strokeRect(screenX + 4.5, screenY + 4.5, TILE - 9, TILE - 9);
 
@@ -245,18 +285,19 @@ export function draw(ctx, view) {
     ctx2d.restore();
   }
 
-  // Label + clock + hint (+ animals memory badge)
+  // Label + clock + hint (+ animals memory badge) with palette-driven panel styling
   try {
     const prevAlign = ctx2d.textAlign;
     const prevBaseline = ctx2d.textBaseline;
     ctx2d.textAlign = "left";
     ctx2d.textBaseline = "top";
-    ctx2d.fillStyle = "#cbd5e1";
+
     const clock = ctx.time && ctx.time.hhmm ? `   |   Time: ${ctx.time.hhmm}` : "";
-    ctx2d.fillText(`Region Map${clock}`, 8, 8);
-    ctx2d.fillStyle = "#a1a1aa";
-    ctx2d.fillText("Move with arrows. Press G on orange edge to return.", 8, 26);
-    // Animals memory badge: show cleared vs seen
+    const titleText = `Region Map${clock}`;
+    const hintText = "Move with arrows. Press G on orange edge to return.";
+
+    // Determine animals status text (optional third line)
+    let animalsText = null;
     try {
       const pos = (ctx.region && ctx.region.enterWorldPos) ? ctx.region.enterWorldPos : null;
       let cleared = false;
@@ -265,31 +306,114 @@ export function draw(ctx, view) {
           cleared = !!window.RegionMapRuntime.animalsClearedHere(pos.x | 0, pos.y | 0);
         }
       } catch (_) {}
-      if (cleared) {
-        ctx2d.fillStyle = "#86efac"; // green accent
-        ctx2d.fillText("Animals cleared here", 8, 44);
-      } else if (ctx.region && ctx.region._hasKnownAnimals) {
-        ctx2d.fillStyle = "#f0abfc"; // soft magenta accent
-        ctx2d.fillText("Animals known in this area", 8, 44);
+      if (cleared) animalsText = "Animals cleared here";
+      else if (ctx.region && ctx.region._hasKnownAnimals) animalsText = "Animals known in this area";
+    } catch (_) {}
+
+    // Panel dimensions
+    const bx = 8, by = 8;
+    const titleLen = titleText.length | 0;
+    const hintLen = hintText.length | 0;
+    const baseW = Math.max(260, 16 * (Math.max(titleLen, hintLen) / 2));
+    const bw = baseW | 0;
+    const bh = animalsText ? 66 : 48;
+
+    // Panel colors from palette overlays
+    let panelBg = "rgba(13,16,24,0.80)";
+    let panelBorder = "rgba(122,162,247,0.35)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        panelBg = pal.panelBg || panelBg;
+        panelBorder = pal.panelBorder || panelBorder;
       }
     } catch (_) {}
+
+    // Panel background (rounded) + border
+    ctx2d.fillStyle = panelBg;
+    try {
+      const r = 6;
+      ctx2d.beginPath();
+      ctx2d.moveTo(bx + r, by);
+      ctx2d.lineTo(bx + bw - r, by);
+      ctx2d.quadraticCurveTo(bx + bw, by, bx + bw, by + r);
+      ctx2d.lineTo(bx + bw, by + bh - r);
+      ctx2d.quadraticCurveTo(bx + bw, by + bh, bx + bw - r, by + bh);
+      ctx2d.lineTo(bx + r, by + bh);
+      ctx2d.quadraticCurveTo(bx, by + bh, bx, by + bh - r);
+      ctx2d.lineTo(bx, by + r);
+      ctx2d.quadraticCurveTo(bx, by, bx + r, by);
+      ctx2d.closePath();
+      ctx2d.fill();
+      ctx2d.strokeStyle = panelBorder;
+      ctx2d.lineWidth = 1;
+      ctx2d.stroke();
+    } catch (_) {
+      ctx2d.fillRect(bx, by, bw, bh);
+      ctx2d.strokeStyle = panelBorder;
+      ctx2d.lineWidth = 1;
+      ctx2d.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+    }
+
+    // Draw texts
+    ctx2d.fillStyle = "#cbd5e1";
+    ctx2d.fillText(titleText, bx + 10, by + 8);
+    ctx2d.fillStyle = "#a1a1aa";
+    ctx2d.fillText(hintText, bx + 10, by + 26);
+    if (animalsText) {
+      let clearedClr = "#86efac";
+      let knownClr = "#f0abfc";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          clearedClr = pal.regionAnimalsCleared || clearedClr;
+          knownClr = pal.regionAnimalsKnown || knownClr;
+        }
+      } catch (_) {}
+      ctx2d.fillStyle = animalsText.toLowerCase().includes("cleared") ? clearedClr : knownClr;
+      ctx2d.fillText(animalsText, bx + 10, by + 44);
+    }
+    ctx2d.restore();
+
     ctx2d.textAlign = prevAlign;
     ctx2d.textBaseline = prevBaseline;
   } catch (_) {}
 
-  // Day/night tint overlay (same palette as town/overworld)
+  // Day/night tint overlay (palette-driven for consistency)
   try {
     const time = ctx.time;
     if (time && time.phase) {
+      let nightTint = "rgba(0,0,0,0.35)";
+      let duskTint  = "rgba(255,120,40,0.12)";
+      let dawnTint  = "rgba(120,180,255,0.10)";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          nightTint = pal.night || nightTint;
+          duskTint  = pal.dusk  || duskTint;
+          dawnTint  = pal.dawn  || dawnTint;
+        }
+      } catch (_) {}
       ctx2d.save();
+      // Optional alpha overrides (palette numeric keys)
+      let a = 1.0;
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          if (time.phase === "night" && Number.isFinite(Number(pal.nightA))) a = Math.max(0, Math.min(1, Number(pal.nightA)));
+          else if (time.phase === "dusk" && Number.isFinite(Number(pal.duskA))) a = Math.max(0, Math.min(1, Number(pal.duskA)));
+          else if (time.phase === "dawn" && Number.isFinite(Number(pal.dawnA))) a = Math.max(0, Math.min(1, Number(pal.dawnA)));
+        }
+      } catch (_) {}
+      ctx2d.globalAlpha = a;
       if (time.phase === "night") {
-        ctx2d.fillStyle = "rgba(0,0,0,0.35)";
+        ctx2d.fillStyle = nightTint;
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       } else if (time.phase === "dusk") {
-        ctx2d.fillStyle = "rgba(255,120,40,0.12)";
+        ctx2d.fillStyle = duskTint;
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       } else if (time.phase === "dawn") {
-        ctx2d.fillStyle = "rgba(120,180,255,0.10)";
+        ctx2d.fillStyle = dawnTint;
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       }
       ctx2d.restore();

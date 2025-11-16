@@ -16,11 +16,21 @@
       el.style.padding = "8px 10px";
       el.style.fontFamily = "JetBrains Mono, monospace";
       el.style.fontSize = "12px";
-      el.style.background = "rgba(21,22,27,0.9)";
+      // Palette-driven banner styling (fallback to neutral)
+      (function () {
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          el.style.background = pal && pal.panelBg ? pal.panelBg : "rgba(21,22,27,0.9)";
+          el.style.border = pal && pal.panelBorder ? pal.panelBorder : "1px solid rgba(122,162,247,0.35)";
+          el.style.boxShadow = pal && pal.panelShadow ? pal.panelShadow : "0 10px 24px rgba(0,0,0,0.5)";
+        } catch (_) {
+          el.style.background = "rgba(21,22,27,0.9)";
+          el.style.border = "1px solid rgba(122,162,247,0.35)";
+          el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.5)";
+        }
+      })();
       el.style.color = "#d6deeb";
-      el.style.border = "1px solid rgba(122,162,247,0.35)";
       el.style.borderRadius = "8px";
-      el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.5)";
       el.textContent = "[SMOKE] Runner ready…";
       document.body.appendChild(el);
       return el;

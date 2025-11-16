@@ -156,6 +156,29 @@ Development
 - Format: npx prettier -c . / -w .
 - See VERSIONS.md for a concise changelog and recent improvements.
 
+Roadmap (Upcoming Phases)
+- Phase 4 — Theming completeness and validation
+  - Prefab Editor theming: drive grid background/lines and hint/status panels from palette overlays (panelBg/panelBorder/panelShadow), use overlays.grid for editor grid lines.
+  - UI color sweep (cosmetic): expose remaining button/text colors behind palette keys (e.g., overlays.panelText, overlays.buttonBg, overlays.buttonBorder, overlays.buttonText) for Quest Board, Confirm modal, Sleep panel, and smoketest banner.
+  - Alpha range checks: smoketest warns when numeric alpha keys nightA/duskA/dawnA/vignetteA and glowStartA/glowMidA/glowEndA are outside [0,1].
+  - Props/tile coverage validation: smoketest flags props missing color sources (JSON/tiles/palette) and tiles with missing mode coverage; add minimal stubs or palette fallbacks as needed.
+  - Palette presets: add high-contrast/retro/warm/cool to data/world/palettes.json; GOD dropdown auto-populates from the manifest.
+  - Documentation: expand palette_schema.md and palette_theming.md with the new keys and editor theming notes.
+
+- Phase 5 — Stability, validation, and CI
+  - JSON schema validation: add lightweight validators for critical registries (tiles/props, items/enemies/materials/recipes/palette) with clear in-game warnings.
+  - CI smoketest: run a reduced scenario set on every build (world/town/dungeon/inventory/overlays) and fail the pipeline on hard errors or missing data.
+  - Crash-free policy: unify module guards and remove legacy try/catch duplications in hot paths; prefer Capabilities.safeCall for optional modules.
+
+- Phase 6 — Optional gameplay and UX expansions
+  - Multi-floor dungeons and portal variants; scale ED and loot appropriately.
+  - Quest board extensions: multi-step quests, rewards from palette-driven POI markers.
+  - Overworld hazards/biome effects (swamp slow, snow visibility); palette-configurable.
+  - Merchant/encounter improvements: shopkeeper themes, Seppo inventory in encounters.
+  - Theme packs: curated palettes in palettes.json for quick switching via GOD.
+
+To proceed on any phase, say “continue” and specify which items you want implemented next. Spot-check guides and deployments will follow each step.
+
 Cleanup and pre‑merge checklist (Phase 5)
 - Duplicate/dead code policy:
   - Prefer ctx.* handles over window.*; facades centralize UI (UIBridge) and mode lifecycles (WorldRuntime/TownRuntime/DungeonRuntime).

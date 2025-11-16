@@ -12,7 +12,10 @@
 import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
+import { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay } from "./decor_overlays.js";
 import { attachGlobal } from "../utils/global.js";
+import { shade as _shade, rgba as _rgba } from "./color_utils.js";
+import { propColor as _propColor } from "./prop_palette.js";
 
 // Base layer offscreen cache for dungeon (tiles only; overlays drawn per frame)
 let DUN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
@@ -89,23 +92,7 @@ export function draw(ctx, view) {
   // Hoist tileset capability check outside hot loops
   const canTileset = !!(tilesetReady && TS && typeof TS.draw === "function" && ctx.mode !== "encounter");
 
-  // Helpers: biome-aware fill colors for encounter maps (fallback when no tileset)
-  function parseHex(c) {
-    const m = /^#?([0-9a-f]{6})$/i.exec(String(c || ""));
-    if (!m) return null;
-    const v = parseInt(m[1], 16);
-    return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
-  }
-  function toHex(rgb) {
-    const clamp = (x) => Math.max(0, Math.min(255, Math.round(x)));
-    const v = (clamp(rgb.r) << 16) | (clamp(rgb.g) << 8) | clamp(rgb.b);
-    return "#" + v.toString(16).padStart(6, "0");
-  }
-  function shade(hex, factor) {
-    const rgb = parseHex(hex);
-    if (!rgb) return hex;
-    return toHex({ r: rgb.r * factor, g: rgb.g * factor, b: rgb.b * factor });
-  }
+  // Color helpers moved to ./color_utils.js
   function biomeBaseFill() {
     const b = String(ctx.encounterBiome || "").toUpperCase();
     if (!b) return null;
@@ -145,8 +132,8 @@ export function draw(ctx, view) {
     const base = biomeBaseFill();
     if (!base) return null;
     // Use lighter, biome-driven colors to avoid overly dark maps
-    if (type === TILES.WALL) return shade(base, 0.88);            // slightly darker than floor, not murky
-    if (type === TILES.DOOR) return shade(base, 1.06);            // slight highlight
+    if (type === TILES.WALL) return _shade(base, 0.88);            // slightly darker than floor, not murky
+    if (type === TILES.DOOR) return _shade(base, 1.06);            // slight highlight
     if (type === TILES.FLOOR || type === TILES.STAIRS) return base;
     return null;
   }
@@ -275,79 +262,7 @@ export function draw(ctx, view) {
   }
 
   // Biome-driven visual overlays (icons/textures) drawn before visibility overlays
-  if (ctx.encounterBiome) {
-    const biome = String(ctx.encounterBiome).toUpperCase();
-    const fgFor = (key, fallback) => {
-      try {
-        const td = getTileDefByKey("overworld", key) || getTileDefByKey("region", key);
-        if (td && td.colors && td.colors.fg) return td.colors.fg;
-      } catch (_) {}
-      return fallback;
-    };
-    const fgForest = fgFor("FOREST", "#3fa650");
-    const fgGrass  = fgFor("GRASS",  "#84cc16");
-    const fgDesert = fgFor("DESERT", "#d7ba7d");
-    const fgBeach  = fgFor("BEACH",  "#d7ba7d");
-    const fgSnow   = fgFor("SNOW",   "#e5e7eb");
-    const fgSwamp  = fgFor("SWAMP",  "#6fbf73");
-
-    for (let y = startY; y <= endY; y++) {
-      const yIn = y >= 0 && y < mapRows;
-      const rowMap = yIn ? map[y] : null;
-      for (let x = startX; x <= endX; x++) {
-        if (!yIn || x < 0 || x >= mapCols) continue;
-        const type = rowMap[x];
-        const sx = (x - startX) * TILE - tileOffsetX;
-        const sy = (y - startY) * TILE - tileOffsetY;
-
-        // Deterministic scatter using hashed tile coordinate
-        const hash = ((x * 73856093) ^ (y * 19349663)) >>> 0;
-
-        // Forest: decorate walls as tree-tops; floors get sparse leaf speckles
-        if (biome === "FOREST") {
-          if (type === TILES.WALL) {
-            let treeGlyph = "♣";
-            let treeColor = fgForest;
-            try {
-              const t = getTileDefByKey("region", "TREE") || getTileDefByKey("town", "TREE");
-              if (t) {
-                if (Object.prototype.hasOwnProperty.call(t, "glyph")) treeGlyph = t.glyph || treeGlyph;
-                if (t.colors && t.colors.fg) treeColor = t.colors.fg || treeColor;
-              }
-            } catch (_) {}
-            RenderCore.drawGlyph(ctx2d, sx, sy, treeGlyph, treeColor, TILE);
-          } else if (type === TILES.FLOOR && (hash & 7) === 0) {
-            RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgForest, TILE);
-          }
-        }
-
-        // Grass plains: light green speckles on floors
-        if (biome === "GRASS" && type === TILES.FLOOR && (hash % 9) === 0) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgGrass, TILE);
-        }
-
-        // Desert: sand dots
-        if (biome === "DESERT" && type === TILES.FLOOR && (hash % 11) === 0) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgDesert, TILE);
-        }
-
-        // Beach: lighter sand dots, a bit denser
-        if (biome === "BEACH" && type === TILES.FLOOR && (hash % 8) === 0) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgBeach, TILE);
-        }
-
-        // Snow: sparse snow speckles (existing behavior), slightly denser to be visible
-        if (biome === "SNOW" && type === TILES.FLOOR && (hash & 7) <= 1) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "·", fgSnow, TILE);
-        }
-
-        // Swamp: occasional ripples
-        if (biome === "SWAMP" && type === TILES.FLOOR && (hash % 13) === 0) {
-          RenderCore.drawGlyph(ctx2d, sx, sy, "≈", fgSwamp, TILE);
-        }
-      }
-    }
-  }
+  try { drawBiomeDecor(ctx, { ctx2d, TILE, TILES, map, startX, startY, endX, endY, tileOffsetX, tileOffsetY }); } catch (_) {}
 
   // Visibility overlays within viewport (void for unseen, dim for seen-but-not-visible)
   for (let y = startY; y <= endY; y++) {
@@ -375,28 +290,9 @@ export function draw(ctx, view) {
   }
 
   // Encounter exit overlay: tinted squares on STAIRS tiles (like Region Map edges)
-  if (ctx.mode === "encounter") {
-    try {
-      ctx2d.save();
-      ctx2d.fillStyle = "rgba(241,153,40,0.28)";
-      ctx2d.strokeStyle = "rgba(241,153,40,0.80)";
-      ctx2d.lineWidth = 2;
-      for (let y = startY; y <= endY; y++) {
-        const yIn = y >= 0 && y < mapRows;
-        const rowMap = yIn ? map[y] : null;
-        if (!yIn) continue;
-        for (let x = startX; x <= endX; x++) {
-          if (x < 0 || x >= mapCols) continue;
-          if (!rowMap || rowMap[x] !== TILES.STAIRS) continue;
-          const sx = (x - startX) * TILE - tileOffsetX;
-          const sy = (y - startY) * TILE - tileOffsetY;
-          ctx2d.fillRect(sx, sy, TILE, TILE);
-          ctx2d.strokeRect(sx + 0.5, sy + 0.5, TILE - 1, TILE - 1);
-        }
-      }
-      ctx2d.restore();
-    } catch (_) {}
-  }
+  try { drawEncounterExitOverlay(ctx, { ctx2d, TILE, TILES, map, startX, startY, endX, endY, tileOffsetX, tileOffsetY }); } catch (_) {}
+  // Dungeon exit overlay: subtle highlight under STAIRS glyph using tiles.json color
+  try { drawDungeonExitOverlay(ctx, { ctx2d, TILE, TILES, map, startX, startY, endX, endY, tileOffsetX, tileOffsetY }); } catch (_) {}
 
   // decals (e.g., blood stains)
   if (ctx.decals && ctx.decals.length) {
@@ -428,7 +324,15 @@ export function draw(ctx, view) {
       if (!usedTile) {
         const prev = ctx2d.globalAlpha;
         ctx2d.globalAlpha = alpha;
-        ctx2d.fillStyle = "#7a1717";
+        // Palette-driven blood color
+        (function () {
+          let blood = "#7a1717";
+          try {
+            const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+            if (pal && typeof pal.blood === "string" && pal.blood.trim().length) blood = pal.blood;
+          } catch (_) {}
+          ctx2d.fillStyle = blood;
+        })();
         const r = Math.max(4, Math.min(TILE - 2, d.r || Math.floor(TILE * 0.4)));
         const cx = sx + TILE / 2;
         const cy = sy + TILE / 2;
@@ -464,7 +368,8 @@ export function draw(ctx, view) {
       }
       // JSON-only: look up by key in tiles.json (prefer dungeon, then town/overworld); robust fallback glyph/color
       let glyph = "";
-      let color = c.looted ? (COLORS.corpseEmpty || "#808080") : (COLORS.corpse || "#b22222");
+      // Palette-driven corpse colors (fallback to palette defaults if COLORS missing)
+      let color = c.looted ? (COLORS.corpseEmpty || "#6b7280") : (COLORS.corpse || "#c3cad9");
       try {
         const key = String(c.kind || (c.kind === "chest" ? "chest" : "corpse")).toUpperCase();
         const td = getTileDefByKey("dungeon", key) || getTileDefByKey("town", key) || getTileDefByKey("overworld", key);
@@ -512,10 +417,12 @@ export function draw(ctx, view) {
         const sx = (px - startX) * TILE - tileOffsetX;
         const sy = (py - startY) * TILE - tileOffsetY;
 
+        try { if (typeof window !== "undefined" && window.PropsValidation && typeof window.PropsValidation.recordProp === "function") { window.PropsValidation.recordProp({ mode: (ctx.mode || "dungeon"), type: p.type, x: p.x, y: p.y }); } } catch (_) {}
+
         if (p.type === "campfire") {
           // Prefer tileset mapping if available (custom key), else JSON glyph from town FIREPLACE
           let glyph = "♨";
-          let color = "#ff6d00";
+          let color = null;
           try {
             const td = getTileDefByKey("town", "FIREPLACE");
             if (td) {
@@ -523,6 +430,9 @@ export function draw(ctx, view) {
               if (td.colors && td.colors.fg) color = td.colors.fg || color;
             }
           } catch (_) {}
+          // Palette-driven fallback for fireplace if JSON/tiles missing a color
+          try { if (!color) color = _propColor("fireplace", null); } catch (_) {}
+          if (!color) color = "#ff6d00";
 
           // Subtle glow: draw a radial gradient under the glyph; stronger at night/dusk/dawn.
           try {
@@ -531,10 +441,23 @@ export function draw(ctx, view) {
             const cx = sx + TILE / 2;
             const cy = sy + TILE / 2;
             const r = TILE * (2.0 * phaseMult + 1.2); // ~2.2T at night, ~1.6T at day
+
+            // Palette-driven alpha stops (fallback to defaults)
+            let a0 = 0.55, a1 = 0.30, a2 = 0.0;
+            try {
+              const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+              if (pal) {
+                const v0 = Number(pal.glowStartA), v1 = Number(pal.glowMidA), v2 = Number(pal.glowEndA);
+                if (Number.isFinite(v0)) a0 = Math.max(0, Math.min(1, v0));
+                if (Number.isFinite(v1)) a1 = Math.max(0, Math.min(1, v1));
+                if (Number.isFinite(v2)) a2 = Math.max(0, Math.min(1, v2));
+              }
+            } catch (_) {}
+
             const grad = ctx2d.createRadialGradient(cx, cy, Math.max(2, TILE * 0.10), cx, cy, r);
-            grad.addColorStop(0, "rgba(255, 200, 120, " + (0.55 * phaseMult).toFixed(3) + ")");
-            grad.addColorStop(0.4, "rgba(255, 170, 80, " + (0.30 * phaseMult).toFixed(3) + ")");
-            grad.addColorStop(1, "rgba(255, 140, 40, 0.0)");
+            grad.addColorStop(0, _rgba(color, a0 * phaseMult));
+            grad.addColorStop(0.4, _rgba(color, a1 * phaseMult));
+            grad.addColorStop(1, _rgba(color, a2));
             ctx2d.save();
             ctx2d.globalCompositeOperation = "lighter";
             ctx2d.fillStyle = grad;
@@ -564,7 +487,7 @@ export function draw(ctx, view) {
           }
           if (!drawn) {
             let glyph = "";
-            let color = COLORS.corpse || "#cbd5e1";
+            let color = COLORS.corpse || "#c3cad9";
             // Prefer GameData.props for glyph/color
             try {
               const GD = (typeof window !== "undefined" ? window.GameData : null);
@@ -590,13 +513,15 @@ export function draw(ctx, view) {
                 }
               } catch (_) {}
             }
+            // Palette-driven fallback color for props if still missing
+            try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
             // Robust fallback glyphs/colors
             if (!glyph) {
               if (p.type === "crate") glyph = "□";
               else if (p.type === "barrel") glyph = "◍";
               else glyph = "≡";
             }
-            if (p.type === "barrel" && (!color || color === (COLORS.corpse || "#cbd5e1"))) {
+            if (p.type === "barrel" && (!color || color === (COLORS.corpse || "#c3cad9"))) {
               color = "#b5651d";
             }
             if (!visNow) {
@@ -675,9 +600,12 @@ export function draw(ctx, view) {
             if (entry) {
               if (typeof entry.glyph === "string") glyph = entry.glyph;
               if (entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg || color;
+              if (!color && typeof entry.color === "string") color = entry.color;
             }
           }
         } catch (_) {}
+        // Palette-driven fallback color for torch/lamp props if still missing
+        try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
         if (!glyph) glyph = "†";
 
         if (!visNow) {

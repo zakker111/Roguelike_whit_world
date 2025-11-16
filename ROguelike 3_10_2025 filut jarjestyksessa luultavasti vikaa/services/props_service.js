@@ -197,6 +197,155 @@ function _sleepModal(ctx, defaultMinutes, logTemplate) {
   } catch (_) {}
 }
 
+/* Fireplace cooking (town) */
+
+function _matName(ctx, id) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const mats = GD && GD.materials && (Array.isArray(GD.materials.materials) ? GD.materials.materials : GD.materials.list);
+    const iid = String(id || "").toLowerCase();
+    if (Array.isArray(mats)) {
+      const entry = mats.find(m => m && (String(m.id || "").toLowerCase() === iid || String(m.name || "").toLowerCase() === iid));
+      return entry && entry.name ? entry.name : String(id).replace(/_/g, " ");
+    }
+  } catch (_) {}
+  return String(id || "").replace(/_/g, " ");
+}
+
+function _findCampfireRecipe(ctx, inputId) {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const recipes = GD && GD.crafting && Array.isArray(GD.crafting.recipes) ? GD.crafting.recipes : [];
+    const iid = String(inputId || "").toLowerCase();
+    const rj = recipes.find(r =>
+      r && String(r.station || "").toLowerCase() === "campfire" &&
+      Array.isArray(r.inputs) &&
+      r.inputs.some(inp => String(inp.id || "").toLowerCase() === iid)
+    );
+    if (rj) return rj;
+    if (iid === "meat") return { id: "cook_meat_default", station: "campfire", inputs: [{ id: "meat", amount: 1 }], outputs: [{ id: "meat_cooked", amount: 1 }] };
+    if (iid === "fish") return { id: "cook_fish_default", station: "campfire", inputs: [{ id: "fish", amount: 1 }], outputs: [{ id: "fish_cooked", amount: 1 }] };
+    return null;
+  } catch (_) {
+    const iid = String(inputId || "").toLowerCase();
+    if (iid === "meat") return { id: "cook_meat_default", station: "campfire", inputs: [{ id: "meat", amount: 1 }], outputs: [{ id: "meat_cooked", amount: 1 }] };
+    if (iid === "fish") return { id: "cook_fish_default", station: "campfire", inputs: [{ id: "fish", amount: 1 }], outputs: [{ id: "fish_cooked", amount: 1 }] };
+    return null;
+  }
+}
+
+function _collectMaterial(ctx, inputId) {
+  const inv = (ctx && ctx.player && Array.isArray(ctx.player.inventory)) ? ctx.player.inventory : [];
+  const iid = String(inputId || "").toLowerCase();
+  const idxs = [];
+  let total = 0;
+  for (let i = 0; i < inv.length; i++) {
+    const it = inv[i];
+    if (!it || it.kind !== "material") continue;
+    const id = String(it.type || it.name || "").toLowerCase();
+    if (id === iid) {
+      const amt = (it.amount | 0) || (it.count | 0) || 1;
+      total += amt;
+      idxs.push(i);
+    }
+  }
+  return { idxs, total };
+}
+
+function _applyCooking(ctx, inputId, bundle) {
+  const rec = _findCampfireRecipe(ctx, inputId);
+  if (!rec || !Array.isArray(rec.outputs) || rec.outputs.length === 0) {
+    _log(ctx, "You stand by the fireplace.", "info");
+    return;
+  }
+  const inv = ctx.player.inventory || (ctx.player.inventory = []);
+  const outId = String(rec.outputs[0].id || "");
+  const outName = _matName(ctx, outId);
+  const inName = _matName(ctx, inputId);
+
+  let remaining = bundle.total;
+  bundle.idxs.sort((a, b) => {
+    const aa = ((inv[a]?.amount | 0) || (inv[a]?.count | 0) || 1);
+    const bb = ((inv[b]?.amount | 0) || (inv[b]?.count | 0) || 1);
+    return bb - aa;
+  });
+  for (const idx of bundle.idxs) {
+    if (remaining <= 0) break;
+    const it = inv[idx];
+    if (!it) continue;
+    const amt = (it.amount | 0) || (it.count | 0) || 1;
+    const take = Math.min(amt, remaining);
+    const left = amt - take;
+    if (typeof it.amount === "number") it.amount = left;
+    else if (typeof it.count === "number") it.count = left;
+    if (((it.amount | 0) || (it.count | 0) || 0) <= 0) {
+      inv.splice(idx, 1);
+    }
+    remaining -= take;
+  }
+  const existing = inv.find(x => x && x.kind === "material" && String(x.type || x.name || "").toLowerCase() === outId.toLowerCase());
+  if (existing) {
+    if (typeof existing.amount === "number") existing.amount += bundle.total;
+    else if (typeof existing.count === "number") existing.count += bundle.total;
+    else existing.amount = bundle.total;
+  } else {
+    inv.push({ kind: "material", type: outId, name: outName, amount: bundle.total });
+  }
+  try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.cooking = (ctx.player.skills.cooking || 0) + Math.max(1, bundle.total); } catch (_) {}
+  _log(ctx, `You cook ${bundle.total} ${inName} into ${bundle.total} ${outName}.`, "good");
+  try {
+    if (typeof ctx.updateUI === "function") ctx.updateUI();
+    const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
+    if (UIO && typeof UIO.renderInventory === "function") UIO.renderInventory(ctx);
+  } catch (_) {}
+}
+
+function _interactFireplace(ctx) {
+  try {
+    const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
+    const meat = _collectMaterial(ctx, "meat");
+    const fish = _collectMaterial(ctx, "fish");
+    const canMeat = meat.total > 0 && !!_findCampfireRecipe(ctx, "meat");
+    const canFish = fish.total > 0 && !!_findCampfireRecipe(ctx, "fish");
+
+    if (!canFish && !canMeat) {
+      _log(ctx, "You stand by the fireplace.", "info");
+      return true;
+    } else if (canFish && !canMeat) {
+      const prompt = `You stand by the fireplace. Cook ${fish.total} ${_matName(ctx, "fish")}?`;
+      const onOk = () => _applyCooking(ctx, "fish", fish);
+      const onCancel = () => _log(ctx, "You warm your hands by the fire.", "info");
+      if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+      else onOk();
+      return true;
+    } else if (canMeat && !canFish) {
+      const prompt = `You stand by the fireplace. Cook ${meat.total} ${_matName(ctx, "meat")}?`;
+      const onOk = () => _applyCooking(ctx, "meat", meat);
+      const onCancel = () => _log(ctx, "You warm your hands by the fire.", "info");
+      if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+      else onOk();
+      return true;
+    } else {
+      const askMeat = () => {
+        const promptM = `Cook ${meat.total} ${_matName(ctx, "meat")}?`;
+        const onOkM = () => _applyCooking(ctx, "meat", meat);
+        const onCancelM = () => _log(ctx, "You warm your hands by the fire.", "info");
+        if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctx, promptM, null, onOkM, onCancelM);
+        else onOkM();
+      };
+      const promptF = `You stand by the fireplace. Cook ${fish.total} ${_matName(ctx, "fish")}? (Cancel for meat)`;
+      const onOkF = () => _applyCooking(ctx, "fish", fish);
+      const onCancelF = () => askMeat();
+      if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctx, promptF, null, onOkF, onCancelF);
+      else onOkF();
+      return true;
+    }
+  } catch (_) {
+    _log(ctx, "You stand by the fireplace.", "info");
+    return true;
+  }
+}
+
 export function interact(ctx, prop) {
   if (!ctx || ctx.mode !== "town" || !prop) return false;
   const map = _propsMap();
@@ -205,15 +354,25 @@ export function interact(ctx, prop) {
   const def = map[key];
   if (!def || !Array.isArray(def.variants) || !def.variants.length) return false;
 
+  // Special-case: fireplace cooking in town
+  if (key === "fireplace") {
+    const handled = _interactFireplace(ctx);
+    try {
+      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
+    return handled;
+  }
+
   const ph = _phase(ctx);
   const insideInn = _isInsideInn(ctx, prop.x, prop.y);
-  // Helper: does player have current night rented?
   const hasInnStay = (function () {
     const dayIdx = _dayIndex(ctx);
     return !!(ctx.player && ctx.player._innStayDay === dayIdx);
   })();
 
-  // Pick first matching variant by conditions
   let variant = null;
   for (let i = 0; i < def.variants.length; i++) {
     const v = def.variants[i];
@@ -228,14 +387,12 @@ export function interact(ctx, prop) {
   }
   if (!variant) return false;
 
-  // Execute effect if any
   const eff = variant.effect || null;
   if (eff && eff.type === "restUntil") {
     const delta = _restUntil(ctx, eff.hhmm || "06:00");
     const res = _healByPercent(ctx, eff.healPercent || 0);
     const msg = _renderTemplate(eff.logTemplate || "You rest until morning (${time}). HP ${prev} -> ${hp}.", { time: _timeHHMM(ctx), prev: (res.prev.toFixed ? res.prev.toFixed(1) : res.prev), hp: (res.hp.toFixed ? res.hp.toFixed(1) : res.hp) });
     _log(ctx, msg, variant.style || "info");
-    // Ensure HUD/time reflect changes immediately
     try {
       const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
       if (SS && typeof SS.applyAndRefresh === "function") {
@@ -245,7 +402,6 @@ export function interact(ctx, prop) {
     return true;
   }
   if (eff && eff.type === "restTurn") {
-    // Simple one-turn rest with a log; consistent with Wait semantics.
     _log(ctx, variant.message || "You rest a while.", variant.style || "info");
     try { if (typeof ctx.turn === "function") ctx.turn(); else if (typeof ctx.updateUI === "function") ctx.updateUI(); } catch (_) {}
     return true;
@@ -265,19 +421,16 @@ export function interact(ctx, prop) {
     return true;
   }
   if (eff && eff.type === "questBoard") {
-    // Open Quest Board panel (placeholder UI) via UIOrchestration where available
     try {
       const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
       const wasOpen = UIO && typeof UIO.isQuestBoardOpen === "function" ? !!UIO.isQuestBoardOpen(ctx) : false;
       if (UIO && typeof UIO.showQuestBoard === "function") UIO.showQuestBoard(ctx);
-      // Request draw only if open-state changed
       try { if (!wasOpen && typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
     } catch (_) {}
     _log(ctx, variant.message || "Quest Board", variant.style || "info");
     return true;
   }
 
-  // Default: just log the message
   _log(ctx, _renderTemplate(variant.message || "", { title: prop.name || "" }), variant.style || "info");
   return true;
 }

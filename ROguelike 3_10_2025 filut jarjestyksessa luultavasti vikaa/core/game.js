@@ -37,6 +37,24 @@
         Dungeon: !!(window.Dungeon),
         Enemies: !!(window.Enemies),
       });
+      // DEV: report missing critical modules once at boot
+      (function _devReportMissingModules() {
+        const missing = [];
+        function has(name) { try { return !!window[name]; } catch (_) { return false; } }
+        if (!has("Combat")) missing.push("Combat");
+        if (!has("EquipmentDecay")) missing.push("EquipmentDecay");
+        if (!has("FOVCamera")) missing.push("FOVCamera");
+        if (!has("GameFOV") && !has("FOV")) missing.push("GameFOV/FOV");
+        if (!has("InventoryFlow") && !has("InventoryController")) missing.push("InventoryFlow/InventoryController");
+        if (!has("LootFlow") && !has("Loot")) missing.push("LootFlow/Loot");
+        if (!has("ModeController") && !has("ModesTransitions") && !has("Modes")) missing.push("ModeController/Modes");
+        if (!has("TownRuntime")) missing.push("TownRuntime");
+        if (!has("WorldRuntime")) missing.push("WorldRuntime");
+        if (!has("RenderOrchestration")) missing.push("RenderOrchestration");
+        if (missing.length) {
+          console.warn("[DEV] Missing modules:", missing.join(", "));
+        }
+      })();
     }
   } catch (_) {}
   // Runtime configuration (loaded via GameData.config when available)
@@ -216,35 +234,25 @@
   let floor = 1;
   // RNG: centralized via RNG service; allow persisted seed for reproducibility
   let currentSeed = null;
-  if (typeof window !== "undefined" && window.RNG && typeof window.RNG.autoInit === "function") {
-    try {
+  try {
+    if (typeof window !== "undefined" && window.RNG && typeof window.RNG.autoInit === "function") {
       currentSeed = window.RNG.autoInit();
-      // RNG.autoInit returns the seed value
-    } catch (_) {
-      try {
-        const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
-        const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
-        currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
-      } catch (_) { currentSeed = null; }
-    }
-  } else {
-    try {
+    } else {
+      // If RNG service is unavailable, try to read persisted seed for diagnostics only
       const noLS = (typeof window !== "undefined" && !!window.NO_LOCALSTORAGE);
       const sRaw = (!noLS && typeof localStorage !== "undefined") ? localStorage.getItem("SEED") : null;
       currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
-    } catch (_) { currentSeed = null; }
-  }
-  let rng = ((typeof window !== "undefined" && window.RNG && typeof window.RNG.rng === "function")
-    ? window.RNG.rng
-    : (function () {
-        try {
-          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-            return window.RNGUtils.getRng();
-          }
-        } catch (_) {}
-        // Deterministic fallback without RNG service
-        return () => 0.5;
-      })());
+    }
+  } catch (_) { currentSeed = null; }
+  // Single RNG function from RNGUtils; deterministic (0.5) if RNG is unavailable
+  let rng = (function () {
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        return window.RNGUtils.getRng();
+      }
+    } catch (_) {}
+    return () => 0.5;
+  })();
   let isDead = false;
   let startRoomRect = null;
   // GOD toggles (config-driven defaults with localStorage/window override)
@@ -396,28 +404,15 @@
     return null;
   }
 
-  // Use RNG service if available for helpers
+  // Use RNGUtils exclusively for helpers; deterministic midpoints when RNG unavailable
   const randInt = (min, max) => {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") {
-        return window.RNGUtils.int(min, max, rng);
-      }
-    } catch (_) {}
-    try {
-      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.int === "function") return window.RNG.int(min, max);
-    } catch (_) {}
-    return Math.floor(rng() * (max - min + 1)) + min;
+    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") return window.RNGUtils.int(min, max, rng); } catch (_) {}
+    // midpoint fallback
+    return Math.floor((min + max) / 2);
   };
   const chance = (p) => {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-        return window.RNGUtils.chance(p, rng);
-      }
-    } catch (_) {}
-    try {
-      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.chance === "function") return window.RNG.chance(p);
-    } catch (_) {}
-    return rng() < p;
+    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") return window.RNGUtils.chance(p, rng); } catch (_) {}
+    return false;
   };
   const capitalize = ((typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.capitalize === "function")
     ? window.PlayerUtils.capitalize
@@ -430,15 +425,9 @@
     return COLORS.enemy;
   };
   const randFloat = (min, max, decimals = 1) => {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") {
-        return window.RNGUtils.float(min, max, decimals, rng);
-      }
-    } catch (_) {}
-    try {
-      if (typeof window !== "undefined" && window.RNG && typeof window.RNG.float === "function") return window.RNG.float(min, max, decimals);
-    } catch (_) {}
-    const v = min + rng() * (max - min);
+    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") return window.RNGUtils.float(min, max, decimals, rng); } catch (_) {}
+    // midpoint fallback
+    const v = (min + max) / 2;
     const p = Math.pow(10, decimals);
     return Math.round(v * p) / p;
   };
@@ -577,11 +566,8 @@
     if (FB && typeof FB.rollHitLocation === "function") {
       return FB.rollHitLocation(rng);
     }
-    const r = rng();
-    if (r < 0.50) return { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.00 };
-    if (r < 0.65) return { part: "head",  mult: 1.1, blockMod: 0.85, critBonus: 0.15 };
-    if (r < 0.80) return { part: "hands", mult: 0.9, blockMod: 0.75, critBonus: -0.05 };
-    return { part: "legs", mult: 0.95, blockMod: 0.75, critBonus: -0.03 };
+    log("Combat system not available: using default hit location.", "warn");
+    return { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
   }
 
   function critMultiplier() {
@@ -593,11 +579,11 @@
     if (FB && typeof FB.critMultiplier === "function") {
       return FB.critMultiplier(rng);
     }
-    return 1.6 + rng() * 0.4;
+    log("Combat system not available: using default crit multiplier.", "warn");
+    return 1.5;
   }
 
   function getEnemyBlockChance(enemy, loc) {
-    // Prefer Combat math; then fall back to Fallbacks; minimal local last-resort
     const C = modHandle("Combat");
     if (C && typeof C.getEnemyBlockChance === "function") {
       return C.getEnemyBlockChance(getCtx(), enemy, loc);
@@ -606,8 +592,8 @@
     if (FB && typeof FB.enemyBlockChance === "function") {
       return FB.enemyBlockChance(getCtx(), enemy, loc);
     }
-    const base = enemy.type === "ogre" ? 0.10 : enemy.type === "troll" ? 0.08 : 0.06;
-    return Math.max(0, Math.min(0.35, base * (loc?.blockMod || 1.0)));
+    log("Combat system not available: enemy block chance defaulting to 0.", "warn");
+    return 0;
   }
 
   function getPlayerBlockChance(loc) {
@@ -615,20 +601,15 @@
     if (C && typeof C.getPlayerBlockChance === "function") {
       return C.getPlayerBlockChance(getCtx(), loc);
     }
-    // Minimal fallback aligned with Combat module (includes brace bonus)
-    const p = player || {};
-    const eq = p.equipment || {};
-    const leftDef = (eq.left && typeof eq.left.def === "number") ? eq.left.def : 0;
-    const rightDef = (eq.right && typeof eq.right.def === "number") ? eq.right.def : 0;
-    const handDef = Math.max(leftDef, rightDef);
-    const base = 0.08 + handDef * 0.06;
-    const mod = (loc && typeof loc.blockMod === "number") ? loc.blockMod : 1.0;
-    const braceBonus = (p && typeof p.braceTurns === "number" && p.braceTurns > 0) ? 1.5 : 1.0;
-    const clampMax = (braceBonus > 1.0) ? 0.75 : 0.6;
-    return Math.max(0, Math.min(clampMax, base * mod * braceBonus));
+    const FB = modHandle("Fallbacks");
+    if (FB && typeof FB.getPlayerBlockChance === "function") {
+      return FB.getPlayerBlockChance(getCtx(), loc);
+    }
+    log("Combat system not available: player block chance defaulting to 0.", "warn");
+    return 0;
   }
 
-  // Enemy damage after applying player's defense with diminishing returns and a chip-damage floor
+  // Enemy damage after applying player's defense
   function enemyDamageAfterDefense(raw) {
     const C = modHandle("Combat");
     if (C && typeof C.enemyDamageAfterDefense === "function") {
@@ -638,10 +619,8 @@
     if (FB && typeof FB.enemyDamageAfterDefense === "function") {
       return FB.enemyDamageAfterDefense(getCtx(), raw);
     }
-    const def = getPlayerDefense();
-    const DR = Math.max(0, Math.min(0.85, def / (def + 6)));
-    const reduced = raw * (1 - DR);
-    return Math.max(0.1, round1(reduced));
+    log("Combat system not available: using raw damage.", "warn");
+    return raw;
   }
 
   
@@ -690,137 +669,43 @@
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.addPotionToInventory === "function") {
-        IF.addPotionToInventory(getCtx(), heal, name);
-        return;
-      }
-    } catch (_) {}
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.addPotion === "function") {
-      return IC.addPotion(getCtx(), heal, name);
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.addPotion === "function") {
-      P.addPotion(player, heal, name);
+    // Delegate to centralized inventory modules only
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.addPotionToInventory === "function") {
+      IF.addPotionToInventory(getCtx(), heal, name);
       return;
     }
-    const existing = player.inventory.find(i => i.kind === "potion" && (i.heal ?? 3) === heal);
-    if (existing) {
-      existing.count = (existing.count || 1) + 1;
-    } else {
-      player.inventory.push({ kind: "potion", heal, count: 1, name });
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.addPotion === "function") {
+      IC.addPotion(getCtx(), heal, name);
+      return;
     }
+    log("Inventory system not available.", "warn");
   }
 
   function drinkPotionByIndex(idx) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.drinkPotionByIndex === "function") {
-        IF.drinkPotionByIndex(getCtx(), idx);
-        return;
-      }
-    } catch (_) {}
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.drinkByIndex === "function") {
-      return IC.drinkByIndex(getCtx(), idx);
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.drinkPotionByIndex === "function") {
-      P.drinkPotionByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => rerenderInventoryIfOpen(),
-      });
+    // Delegate to centralized inventory modules only
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.drinkPotionByIndex === "function") {
+      IF.drinkPotionByIndex(getCtx(), idx);
       return;
     }
-    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
-    const it = player.inventory[idx];
-    if (!it || (it.kind !== "potion" && it.kind !== "drink")) return;
-
-    const heal = it.heal ?? (it.kind === "drink" ? 2 : 3);
-    const prev = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + heal);
-    const gained = player.hp - prev;
-    const label = it.name ? it.name : (it.kind === "drink" ? "drink" : "potion");
-    if (gained > 0) {
-      log(`You drink ${label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
-    } else {
-      log(`You drink ${label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.drinkByIndex === "function") {
+      IC.drinkByIndex(getCtx(), idx);
+      return;
     }
-
-    if (it.count && it.count > 1) {
-      it.count -= 1;
-    } else {
-      player.inventory.splice(idx, 1);
-    }
-    updateUI();
-    rerenderInventoryIfOpen();
+    log("Inventory system not available.", "warn");
   }
 
-  // Eat edible materials using a uniform data-driven rule (materials.json: edible.heal)
+  // Eat edible materials using centralized inventory flow
   function eatFoodByIndex(idx) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.eatByIndex === "function") {
-        IF.eatByIndex(getCtx(), idx);
-        return;
-      }
-    } catch (_) {}
-    if (!player.inventory || idx < 0 || idx >= player.inventory.length) return;
-    const it = player.inventory[idx];
-    if (!it || it.kind !== "material") return;
-
-    function edibleFromData(item) {
-      try {
-        const GD = (typeof window !== "undefined" ? window.GameData : null);
-        const M = GD && GD.materials ? GD.materials : null;
-        const list = M
-          ? (Array.isArray(M.materials) ? M.materials : (Array.isArray(M.list) ? M.list : null))
-          : null;
-        const id = String(item.type || item.name || "").toLowerCase();
-        if (list && id) {
-          const entry = list.find(e => e && (String(e.id || "").toLowerCase() === id || String(e.name || "").toLowerCase() === id));
-          if (entry && entry.edible && typeof entry.edible.heal === "number") {
-            return { heal: Math.max(0, Number(entry.edible.heal) || 0), label: entry.name || item.name || id };
-          }
-        }
-      } catch (_) {}
-      // Fallback to previous hardcoded mapping
-      const nm = String(item.type || item.name || "").toLowerCase();
-      if (nm === "meat_cooked" || nm === "meat (cooked)") return { heal: 2, label: "meat (cooked)" };
-      if (nm === "fish_cooked" || nm === "fish (cooked)") return { heal: 5, label: "fish (cooked)" };
-      if (nm === "berries") return { heal: 1, label: "berries" };
-      return { heal: 0, label: item.name || nm };
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.eatByIndex === "function") {
+      IF.eatByIndex(getCtx(), idx);
+      return;
     }
-
-    const info = edibleFromData(it);
-    if (!(info.heal > 0)) return;
-
-    const prev = player.hp;
-    player.hp = Math.min(player.maxHp, player.hp + info.heal);
-    const gained = player.hp - prev;
-    if (gained > 0) {
-      log(`You eat ${info.label} and restore ${gained.toFixed(1)} HP (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "good");
-    } else {
-      log(`You eat ${info.label} but feel no different (HP ${player.hp.toFixed(1)}/${player.maxHp.toFixed(1)}).`, "warn");
-    }
-    // decrement one from stack
-    if (typeof it.amount === "number") {
-      it.amount = Math.max(0, (it.amount | 0) - 1);
-      if (it.amount <= 0) player.inventory.splice(idx, 1);
-    } else if (typeof it.count === "number") {
-      it.count = Math.max(0, (it.count | 0) - 1);
-      if (it.count <= 0) player.inventory.splice(idx, 1);
-    } else {
-      player.inventory.splice(idx, 1);
-    }
-    updateUI();
-    rerenderInventoryIfOpen();
+    log("Inventory system not available.", "warn");
   }
 
   
@@ -865,67 +750,8 @@
       startRoomRect = ctx.startRoomRect || startRoomRect;
       return;
     }
-    // Fallback: keep previous inline behavior
-    const D = modHandle("Dungeon");
-    if (D && typeof D.generateLevel === "function") {
-      const ctx = getCtx();
-      ctx.startRoomRect = startRoomRect;
-      D.generateLevel(ctx, depth);
-      map = ctx.map;
-      seen = ctx.seen;
-      visible = ctx.visible;
-      enemies = ctx.enemies;
-      corpses = ctx.corpses;
-      startRoomRect = ctx.startRoomRect;
-      decals = [];
-      _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
-      if (inBounds(player.x, player.y) && !visible[player.y][player.x]) {
-        try { log("FOV sanity check: player tile not visible after gen; recomputing.", "warn"); } catch (_) {}
-        recomputeFOV();
-        if (inBounds(player.x, player.y)) {
-          visible[player.y][player.x] = true;
-          seen[player.y][player.x] = true;
-        }
-      }
-      // Rebuild occupancy using unified facade
-      {
-        try {
-          const ctx2 = getCtx();
-          const OF = modHandle("OccupancyFacade");
-          if (OF && typeof OF.rebuild === "function") {
-            OF.rebuild(ctx2);
-            occupancy = ctx2.occupancy || occupancy;
-          }
-        } catch (_) {}
-      }
-      if (window.DEV) {
-        try {
-          const visCount = enemies.filter(e => inBounds(e.x, e.y) && visible[e.y][e.x]).length;
-          log(`[DEV] Enemies spawned: ${enemies.length}, visible now: ${visCount}.`, "notice");
-        } catch (_) {}
-      }
-      applyCtxSyncAndRefresh(getCtx());
-      {
-        const MZ = modHandle("Messages");
-        if (MZ && typeof MZ.log === "function") {
-          MZ.log(getCtx(), "dungeon.explore");
-        } else {
-          log("You explore the dungeon.");
-        }
-      }
-      try {
-        const DR2 = modHandle("DungeonRuntime");
-        if (DR2 && typeof DR2.save === "function") {
-          DR2.save(ctx, true);
-        } else {
-          const DS = modHandle("DungeonState");
-          if (DS && typeof DS.save === "function") {
-            DS.save(ctx);
-          }
-        }
-      } catch (_) {}
-      return;
-    }
+    // Fallback deprecated: skip inline Dungeon.generateLevel path; use minimal fallback below
+    try { log("Dungeon module path deprecated; using minimal fallback.", "warn"); } catch (_) {}
     // Fallback: flat-floor map
     map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
     const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
@@ -1027,11 +853,10 @@
   let _lastPlayerX = -1, _lastPlayerY = -1, _lastFovRadius = -1, _lastMode = "", _lastMapCols = -1, _lastMapRows = -1;
 
   function recomputeFOV() {
-    // Prefer centralized GameFOV guard-based recompute
+    // Delegate to centralized FOV modules only
     try {
       const GF = modHandle("GameFOV");
       if (GF && typeof GF.recomputeWithGuard === "function") {
-        // Ensure ctx carries current seen/visible references
         const ctx = getCtx();
         ctx.seen = seen;
         ctx.visible = visible;
@@ -1039,34 +864,16 @@
         if (did) {
           visible = ctx.visible;
           seen = ctx.seen;
+          const rows = map.length;
+          const cols = map[0] ? map[0].length : 0;
+          _lastPlayerX = player.x; _lastPlayerY = player.y;
+          _lastFovRadius = fovRadius; _lastMode = mode;
+          _lastMapCols = cols; _lastMapRows = rows;
         }
         return;
       }
     } catch (_) {}
-
-    // Legacy inline path
-    const rows = map.length;
-    const cols = map[0] ? map[0].length : 0;
-
-    const moved = (player.x !== _lastPlayerX) || (player.y !== _lastPlayerY);
-    const fovChanged = (fovRadius !== _lastFovRadius);
-    const modeChanged = (mode !== _lastMode);
-    const mapChanged = (rows !== _lastMapRows) || (cols !== _lastMapCols);
-
-    if (!modeChanged && !mapChanged && !fovChanged && !moved) {
-      return;
-    }
-
-    // Prefer centralized GameState ensuring grid shape
     try {
-      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.ensureVisibilityShape === "function") {
-        window.GameState.ensureVisibilityShape(getCtx());
-      } else {
-        ensureVisibilityShape();
-      }
-    } catch (_) { ensureVisibilityShape(); }
-
-    {
       const F = modHandle("FOV");
       if (F && typeof F.recomputeFOV === "function") {
         const ctx = getCtx();
@@ -1075,16 +882,29 @@
         F.recomputeFOV(ctx);
         visible = ctx.visible;
         seen = ctx.seen;
+        const rows = map.length;
+        const cols = map[0] ? map[0].length : 0;
         _lastPlayerX = player.x; _lastPlayerY = player.y;
         _lastFovRadius = fovRadius; _lastMode = mode;
         _lastMapCols = cols; _lastMapRows = rows;
         return;
       }
-    }
+    } catch (_) {}
+    // Fallback: minimal visibility of current tile only
+    log("FOV system not available.", "warn");
+    try {
+      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.ensureVisibilityShape === "function") {
+        window.GameState.ensureVisibilityShape(getCtx());
+      } else {
+        ensureVisibilityShape();
+      }
+    } catch (_) { ensureVisibilityShape(); }
     if (inBounds(player.x, player.y)) {
       visible[player.y][player.x] = true;
       seen[player.y][player.x] = true;
     }
+    const rows = map.length;
+    const cols = map[0] ? map[0].length : 0;
     _lastPlayerX = player.x; _lastPlayerY = player.y;
     _lastFovRadius = fovRadius; _lastMode = mode;
     _lastMapCols = cols; _lastMapRows = rows;
@@ -1742,153 +1562,15 @@
         }
       } catch (_) {}
 
-      // If standing on an encounter prop, interact or describe it (consistent with town prop messages)
+      // Delegate prop interactions to EncounterInteractions
       try {
-        const props = Array.isArray(ctxMod.encounterProps) ? ctxMod.encounterProps : [];
-        const p = props.find(pr => pr && pr.x === ctxMod.player.x && pr.y === ctxMod.player.y);
-        if (p) {
-          const type = String(p.type || "").toLowerCase();
-          if (type === "captive") {
-            // Rescue captive objective support
-            if (ctxMod.encounterObjective && ctxMod.encounterObjective.type === "rescueTarget" && !ctxMod.encounterObjective.rescued) {
-              ctxMod.encounterObjective.rescued = true;
-              log("You free the captive! Now reach an exit (>) to leave.", "good");
-            } else {
-              log("You help the captive to their feet.", "info");
-            }
-          } else if (type === "barrel") log("You stand next to a barrel.", "info");
-          else if (type === "crate") log("You stand next to a crate.", "info");
-          else if (type === "bench") log("You stand next to a bench.", "info");
-          else if (type === "campfire") {
-            // Campfire cooking via data-driven recipes (data/crafting/recipes.json)
-            try {
-              const UIO = modHandle("UIOrchestration");
-              const inv = ctxMod.player.inventory || [];
-              const GD = (typeof window !== "undefined" ? window.GameData : null);
-              const recipes = GD && GD.crafting && Array.isArray(GD.crafting.recipes) ? GD.crafting.recipes : [];
-              const mats = GD && GD.materials && (Array.isArray(GD.materials.materials) ? GD.materials.materials : GD.materials.list);
-              const matName = (id) => {
-                try {
-                  const e = Array.isArray(mats) ? mats.find(m => m && String(m.id || "").toLowerCase() === String(id).toLowerCase()) : null;
-                  return e && e.name ? e.name : String(id).replace(/_/g, " ");
-                } catch (_) { return String(id); }
-              };
-              const findRecipe = (inputId) => {
-                const iid = String(inputId).toLowerCase();
-                return recipes.find(r => r && String(r.station || "").toLowerCase() === "campfire" && Array.isArray(r.inputs) && r.inputs.some(inp => String(inp.id || "").toLowerCase() === iid));
-              };
-              const collect = (inputId) => {
-                const iid = String(inputId).toLowerCase();
-                const idxs = [];
-                let total = 0;
-                for (let i = 0; i < inv.length; i++) {
-                  const it = inv[i];
-                  if (!it || it.kind !== "material") continue;
-                  const id = String(it.type || it.name || "").toLowerCase();
-                  if (id === iid) {
-                    const amt = (it.amount | 0) || (it.count | 0) || 1;
-                    total += amt;
-                    idxs.push(i);
-                  }
-                }
-                return { idxs, total };
-              };
-              const cookUsing = (inputId, bundle) => {
-                const rec = findRecipe(inputId);
-                if (!rec || !Array.isArray(rec.outputs) || rec.outputs.length === 0) { log("You stand by a campfire.", "info"); return; }
-                const outId = String(rec.outputs[0].id || "");
-                const outName = matName(outId);
-                const inName = matName(inputId);
-
-                // Remove raw entries (largest stacks first)
-                let remaining = bundle.total;
-                bundle.idxs.sort((a, b) => {
-                  const aa = ((inv[a]?.amount | 0) || (inv[a]?.count | 0) || 1);
-                  const bb = ((inv[b]?.amount | 0) || (inv[b]?.count | 0) || 1);
-                  return bb - aa;
-                });
-                for (const idx of bundle.idxs) {
-                  if (remaining <= 0) break;
-                  const it = inv[idx];
-                  if (!it) continue;
-                  const amt = (it.amount | 0) || (it.count | 0) || 1;
-                  const take = Math.min(amt, remaining);
-                  const left = amt - take;
-                  if (typeof it.amount === "number") it.amount = left;
-                  else if (typeof it.count === "number") it.count = left;
-                  if (((it.amount | 0) || (it.count | 0) || 0) <= 0) {
-                    inv.splice(idx, 1);
-                  }
-                  remaining -= take;
-                }
-                // Add cooked stack
-                const existing = inv.find(x => x && x.kind === "material" && String(x.type || x.name || "").toLowerCase() === outId.toLowerCase());
-                if (existing) {
-                  if (typeof existing.amount === "number") existing.amount += bundle.total;
-                  else if (typeof existing.count === "number") existing.count += bundle.total;
-                  else existing.amount = bundle.total;
-                } else {
-                  inv.push({ kind: "material", type: outId, name: outName, amount: bundle.total });
-                }
-                // Cooking skill gain scales with items cooked
-                try { ctxMod.player.skills = ctxMod.player.skills || {}; ctxMod.player.skills.cooking = (ctxMod.player.skills.cooking || 0) + Math.max(1, bundle.total); } catch (_) {}
-                log(`You cook ${bundle.total} ${inName} into ${bundle.total} ${outName}.`, "good");
-                updateUI();
-                try { const UIO2 = modHandle("UIOrchestration"); if (UIO2 && typeof UIO2.renderInventory === "function") UIO2.renderInventory(getCtx()); } catch (_) {}
-              };
-
-              const meat = collect("meat");
-              const fish = collect("fish");
-              const canMeat = meat.total > 0 && !!findRecipe("meat");
-              const canFish = fish.total > 0 && !!findRecipe("fish");
-
-              if (!canFish && !canMeat) {
-                log("You stand by a campfire.", "info");
-              } else if (canFish && !canMeat) {
-                // Only fish available
-                const prompt = `You stand by a campfire. Cook ${fish.total} ${matName("fish")}?`;
-                const onOk = () => cookUsing("fish", fish);
-                const onCancel = () => log("You warm your hands by the fire.", "info");
-                if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctxMod, prompt, null, onOk, onCancel);
-                else onOk();
-              } else if (canMeat && !canFish) {
-                // Only meat available
-                const prompt = `You stand by a campfire. Cook ${meat.total} ${matName("meat")}?`;
-                const onOk = () => cookUsing("meat", meat);
-                const onCancel = () => log("You warm your hands by the fire.", "info");
-                if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctxMod, prompt, null, onOk, onCancel);
-                else onOk();
-              } else {
-                // Both available — ask fish first; if cancelled, ask meat
-                const askMeat = () => {
-                  const promptM = `Cook ${meat.total} ${matName("meat")}?`;
-                  const onOkM = () => cookUsing("meat", meat);
-                  const onCancelM = () => log("You warm your hands by the fire.", "info");
-                  if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctxMod, promptM, null, onOkM, onCancelM);
-                  else onOkM();
-                };
-                const promptF = `You stand by a campfire. Cook ${fish.total} ${matName("fish")}? (Cancel for meat)`;
-                const onOkF = () => cookUsing("fish", fish);
-                const onCancelF = () => askMeat();
-                if (UIO && typeof UIO.showConfirm === "function") UIO.showConfirm(ctxMod, promptF, null, onOkF, onCancelF);
-                else onOkF();
-              }
-            } catch (_) {
-              log("You stand by a campfire.", "info");
-            }
+        const EI = modHandle("EncounterInteractions") || (typeof window !== "undefined" ? window.EncounterInteractions : null);
+        if (EI && typeof EI.interactHere === "function") {
+          const handled = !!EI.interactHere(ctxMod);
+          if (handled) {
+            applyCtxSyncAndRefresh(ctxMod);
+            return;
           }
-          else if (type === "merchant") {
-            try {
-              const UIO = modHandle("UIOrchestration");
-              if (UIO && typeof UIO.showShop === "function") {
-                UIO.showShop(ctxMod, { name: p.name || "Merchant", vendor: p.vendor || "merchant" });
-              } else {
-                log("The merchant nods. (Trading UI not available)", "warn");
-              }
-            } catch (_) {}
-          } else log(`You stand on ${p.name || p.type || "a prop"}.`, "info");
-          applyCtxSyncAndRefresh(ctxMod);
-          return;
         }
       } catch (_) {}
 
@@ -2092,45 +1774,22 @@
 
   function lootCorpse() {
     if (isDead) return;
-    // Prefer centralized LootFlow
-    try {
-      const LF = modHandle("LootFlow");
-      if (LF && typeof LF.loot === "function") {
-        const ok = !!LF.loot(getCtx());
-        if (ok) return;
-      }
-    } catch (_) {}
-    // Prefer ctx-first Actions module for all interaction/loot flows across modes
-    {
-      const A = modHandle("Actions");
-      if (A && typeof A.loot === "function") {
-        const ctxMod = getCtx();
-        const handled = A.loot(ctxMod);
-        if (handled) {
-          applyCtxSyncAndRefresh(ctxMod);
-          return;
-        }
-      }
-    }
-
-    if (mode === "dungeon") {
-      const DR = modHandle("DungeonRuntime");
-      if (DR && typeof DR.lootHere === "function") {
-        DR.lootHere(getCtx());
-        return;
-      }
-      {
-        const L = modHandle("Loot");
-        if (L && typeof L.lootHere === "function") {
-          L.lootHere(getCtx());
-          return;
-        }
-      }
-      log("Return to the entrance (the hole '>') and press G to leave.", "info");
+    const LF = modHandle("LootFlow");
+    if (LF && typeof LF.loot === "function") {
+      LF.loot(getCtx());
       return;
     }
-
-    log("Nothing to do here.");
+    const DR = modHandle("DungeonRuntime");
+    if (DR && typeof DR.lootHere === "function") {
+      DR.lootHere(getCtx());
+      return;
+    }
+    const L = modHandle("Loot");
+    if (L && typeof L.lootHere === "function") {
+      L.lootHere(getCtx());
+      return;
+    }
+    log("Nothing to loot here.", "info");
   }
 
   function showLootPanel(list) {
@@ -2304,83 +1963,42 @@
   }
 
   function equipItemByIndex(idx) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.equipItemByIndex === "function") {
-        IF.equipItemByIndex(getCtx(), idx);
-        return;
-      }
-    } catch (_) {}
-    // Delegate to InventoryController (which uses Player/PlayerEquip internally)
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.equipItemByIndex === "function") {
+      IF.equipItemByIndex(getCtx(), idx);
+      return;
+    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.equipByIndex === "function") {
       IC.equipByIndex(getCtx(), idx);
-      return;
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.equipItemByIndex === "function") {
-      P.equipItemByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => rerenderInventoryIfOpen(),
-        describeItem: (it) => describeItem(it),
-      });
       return;
     }
     log("Equip system not available.", "warn");
   }
 
   function equipItemByIndexHand(idx, hand) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.equipItemByIndexHand === "function") {
-        IF.equipItemByIndexHand(getCtx(), idx, hand);
-        return;
-      }
-    } catch (_) {}
-    // Delegate to InventoryController
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.equipItemByIndexHand === "function") {
+      IF.equipItemByIndexHand(getCtx(), idx, hand);
+      return;
+    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.equipByIndexHand === "function") {
       IC.equipByIndexHand(getCtx(), idx, hand);
-      return;
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.equipItemByIndex === "function") {
-      P.equipItemByIndex(player, idx, {
-        log,
-        updateUI,
-        renderInventory: () => rerenderInventoryIfOpen(),
-        describeItem: (it) => describeItem(it),
-        preferredHand: hand,
-      });
       return;
     }
     log("Equip system not available.", "warn");
   }
 
   function unequipSlot(slot) {
-    // Prefer centralized InventoryFlow
-    try {
-      const IF = modHandle("InventoryFlow");
-      if (IF && typeof IF.unequipSlot === "function") {
-        IF.unequipSlot(getCtx(), slot);
-        return;
-      }
-    } catch (_) {}
+    const IF = modHandle("InventoryFlow");
+    if (IF && typeof IF.unequipSlot === "function") {
+      IF.unequipSlot(getCtx(), slot);
+      return;
+    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.unequipSlot === "function") {
       IC.unequipSlot(getCtx(), slot);
-      return;
-    }
-    const P = modHandle("Player");
-    if (P && typeof P.unequipSlot === "function") {
-      P.unequipSlot(player, slot, {
-        log,
-        updateUI,
-        renderInventory: () => rerenderInventoryIfOpen(),
-      });
       return;
     }
     log("Equip system not available.", "warn");
@@ -2565,18 +2183,7 @@
       P.gainXP(player, amount, { log, updateUI });
       return;
     }
-    player.xp += amount;
-    log(`You gain ${amount} XP.`);
-    while (player.xp >= player.xpNext) {
-      player.xp -= player.xpNext;
-      player.level += 1;
-      player.maxHp += 2;
-      player.hp = player.maxHp;
-      if (player.level % 2 === 0) player.atk += 1;
-      player.xpNext = Math.floor(player.xpNext * 1.3 + 10);
-      log(`You are now level ${player.level}. Max HP increased.`, "good");
-    }
-    updateUI();
+    log("XP system not available.", "warn");
   }
 
   function killEnemy(enemy) {
@@ -2588,59 +2195,13 @@
       syncFromCtx(ctx);
       return;
     }
-    // Minimal fallback: announce death, add corpse with flavor, clear enemy, award XP
+    // Fallback: module-only; minimal corpse + removal
     const name = capitalize(enemy.type || "enemy");
     log(`${name} dies.`, "bad");
-    const last = enemy._lastHit || null;
-    function flavorFromLastHit(lh) {
-      if (!lh) return null;
-      const part = lh.part || "torso";
-      const killer = lh.by || "unknown";
-      const via = lh.weapon ? lh.weapon : (lh.via || "attack");
-      let wound = "";
-      if (part === "head") wound = lh.crit ? "head crushed into pieces" : "wound to the head";
-      else if (part === "torso") wound = lh.crit ? "deep gash across the torso" : "stab wound in the torso";
-      else if (part === "legs") wound = lh.crit ? "leg shattered beyond use" : "wound to the leg";
-      else if (part === "hands") wound = lh.crit ? "hands mangled" : "cut on the hand";
-      else wound = "fatal wound";
-      const killedBy = (killer === "player") ? "you" : killer;
-      return { killedBy, wound, via };
-    }
-    const meta = flavorFromLastHit(last);
-    // Basic loot: animals drop meat/hide; others drop generic coin scrap
-    let loot = [];
-    try {
-      const isAnimal = String(enemy.faction || "").startsWith("animal");
-      if (isAnimal) {
-        // Simple animal loot (stackable material)
-        const meatAmt = 1 + Math.floor(rng() * 2); // 1–2
-        loot.push({ kind: "material", type: "meat", name: "meat", amount: meatAmt });
-        if (rng() < 0.35) loot.push({ kind: "material", type: "hide", name: "hide", amount: 1 });
-      } else {
-        // Fallback: small gold scrap
-        loot.push({ kind: "gold", amount: 1, name: "gold" });
-      }
-    } catch (_) {}
-    corpses.push({ x: enemy.x, y: enemy.y, loot: loot, looted: loot.length === 0, meta: meta || undefined });
+    corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
     enemies = enemies.filter(e => e !== enemy);
-    try {
-      if (occupancy && typeof occupancy.clearEnemy === "function") {
-        occupancy.clearEnemy(enemy.x, enemy.y);
-      }
-    } catch (_) {}
+    try { if (occupancy && typeof occupancy.clearEnemy === "function") occupancy.clearEnemy(enemy.x, enemy.y); } catch (_) {}
     gainXP(enemy.xp || 5);
-    // If in Region Map and this was an animal, mark region cleared to prevent future spawns
-    try {
-      const wasAnimal = String(enemy.faction || "").startsWith("animal");
-      if (mode === "region" && wasAnimal && region && region.enterWorldPos) {
-        const pos = region.enterWorldPos;
-        if (typeof window !== "undefined" && window.RegionMapRuntime && typeof window.RegionMapRuntime.markAnimalsCleared === "function") {
-          window.RegionMapRuntime.markAnimalsCleared(pos.x | 0, pos.y | 0);
-        }
-        // Update flag immediately in current session
-        try { region._hasKnownAnimals = true; } catch (_) {}
-      }
-    } catch (_) {}
   }
 
   
@@ -2907,7 +2468,6 @@
   }
 
   function decayAttackHands(light = false) {
-    // Prefer centralized EquipmentDecay service
     const ED = modHandle("EquipmentDecay");
     if (ED && typeof ED.decayAttackHands === "function") {
       ED.decayAttackHands(player, rng, { twoHanded: usingTwoHanded(), light }, {
@@ -2917,32 +2477,10 @@
       });
       return;
     }
-    // Fallback: local logic
-    const eq = player.equipment || {};
-    const amtMain = light ? randFloat(0.6, 1.6, 1) : randFloat(1.0, 2.2, 1);
-    if (usingTwoHanded()) {
-      // Two-handed: same item is referenced in both hands; applying to both intentionally doubles wear.
-      // If we ever want to apply once per swing, change to a single decayEquipped on one hand.
-      if (eq.left) decayEquipped("left", amtMain);
-      if (eq.right) decayEquipped("right", amtMain);
-      return;
-    }
-    // prefer decaying a hand with attack stat
-    const leftAtk = (eq.left && typeof eq.left.atk === "number") ? eq.left.atk : 0;
-    const rightAtk = (eq.right && typeof eq.right.atk === "number") ? eq.right.atk : 0;
-    if (leftAtk >= rightAtk && leftAtk > 0) {
-      decayEquipped("left", amtMain);
-    } else if (rightAtk > 0) {
-      decayEquipped("right", amtMain);
-    } else if (eq.left) {
-      decayEquipped("left", amtMain);
-    } else if (eq.right) {
-      decayEquipped("right", amtMain);
-    }
+    log("Equipment decay system not available.", "warn");
   }
 
   function decayBlockingHands() {
-    // Prefer centralized EquipmentDecay service
     const ED = modHandle("EquipmentDecay");
     if (ED && typeof ED.decayBlockingHands === "function") {
       ED.decayBlockingHands(player, rng, { twoHanded: usingTwoHanded() }, {
@@ -2952,22 +2490,7 @@
       });
       return;
     }
-    // Fallback: local logic
-    const eq = player.equipment || {};
-    const amt = randFloat(0.6, 1.6, 1);
-    if (usingTwoHanded()) {
-      // Two-handed: same object on both hands; decaying both sides doubles the wear when blocking.
-      if (eq.left) decayEquipped("left", amt);
-      if (eq.right) decayEquipped("right", amt);
-      return;
-    }
-    const leftDef = (eq.left && typeof eq.left.def === "number") ? eq.left.def : 0;
-    const rightDef = (eq.right && typeof eq.right.def === "number") ? eq.right.def : 0;
-    if (rightDef >= leftDef && eq.right) {
-      decayEquipped("right", amt);
-    } else if (eq.left) {
-      decayEquipped("left", amt);
-    }
+    log("Equipment decay system not available.", "warn");
   }
 
   

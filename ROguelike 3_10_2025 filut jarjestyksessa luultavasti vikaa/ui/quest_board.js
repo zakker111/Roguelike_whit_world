@@ -42,11 +42,24 @@ function ensurePanel() {
     el.style.maxHeight = "70vh";
     el.style.overflow = "auto";
     el.style.padding = "12px";
-    el.style.background = "rgba(14, 18, 28, 0.95)";
+    // Palette-driven panel styling
+    (function () {
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        const bg = pal && pal.panelBg ? pal.panelBg : "rgba(14, 18, 28, 0.95)";
+        const bd = pal && pal.panelBorder ? pal.panelBorder : "1px solid #334155";
+        const sh = pal && pal.panelShadow ? pal.panelShadow : "0 10px 24px rgba(0,0,0,0.6)";
+        el.style.background = bg;
+        el.style.border = bd;
+        el.style.boxShadow = sh;
+      } catch (_) {
+        el.style.background = "rgba(14, 18, 28, 0.95)";
+        el.style.border = "1px solid #334155";
+        el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
+      }
+    })();
     el.style.color = "#e5e7eb";
-    el.style.border = "1px solid #334155";
     el.style.borderRadius = "8px";
-    el.style.boxShadow = "0 10px 24px rgba(0,0,0,0.6)";
     el.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong id="questboard-title">Quest Board</strong><button id="questboard-close-btn" style="padding:4px 8px;background:#1f2937;color:#e5e7eb;border:1px solid #334155;border-radius:4px;cursor:pointer;">Close</button></div><div id="questboard-body" style="color:#94a3b8;"></div>';
     document.body.appendChild(el);
     try {

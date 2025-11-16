@@ -13,6 +13,7 @@ import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
+import { propColor as _propColor } from "./prop_palette.js";
 
 // Tile cache to avoid repeated JSON lookups inside hot loops
 const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
@@ -367,11 +368,21 @@ export function draw(ctx, view) {
     }
   }
 
-  // Road overlay pass:
-  // 1) Prefer explicit ROAD tiles (authoritative).
-  // 2) If no ROAD tiles are present in view (e.g., older saved towns), fall back to townRoads mask over FLOOR tiles.
+  // Record map for tiles coverage smoketest (optional)
+  try {
+    if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
+      window.TilesValidation.recordMap({ mode: "town", map });
+    }
+  } catch (_) {}
+  // Road overlay pass (palette/tiles-driven):
+  // - If tiles.json defines a ROAD fill, we skip overlay because the base layer already draws it correctly.
+  // - Otherwise, draw a muted fallback overlay color.
   (function drawRoadOverlay() {
     try {
+      const tdRoad = getTileDef("town", TILES.ROAD) || getTileDef("dungeon", TILES.ROAD);
+      const hasRoadFill = !!(tdRoad && tdRoad.colors && tdRoad.colors.fill);
+
+      // quick scan to see if there are explicit ROAD tiles
       let anyRoad = false;
       for (let y = startY; y <= endY && !anyRoad; y++) {
         const yIn = y >= 0 && y < mapRows;
@@ -382,7 +393,13 @@ export function draw(ctx, view) {
         }
       }
 
-      if (anyRoad) {
+      // If JSON defines ROAD fill, do not overlay explicit ROAD tiles
+      if (anyRoad && hasRoadFill) return;
+
+      // Fallback overlay color when road fill is not provided in JSON
+      const overlayColor = hasRoadFill ? null : "#6b7280";
+
+      if (anyRoad && overlayColor) {
         ctx2d.save();
         ctx2d.globalAlpha = 0.65;
         for (let y = startY; y <= endY; y++) {
@@ -393,12 +410,16 @@ export function draw(ctx, view) {
             if (map[y][x] !== TILES.ROAD) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#6b7280"; // semi-transparent slate over biome tint
+            ctx2d.fillStyle = overlayColor;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
         ctx2d.restore();
-      } else if (ctx.townRoads) {
+        return;
+      }
+
+      // Legacy towns saved without explicit ROAD tiles: use townRoads mask over FLOOR
+      if (!anyRoad && ctx.townRoads && overlayColor) {
         ctx2d.save();
         ctx2d.globalAlpha = 0.65;
         for (let y = startY; y <= endY; y++) {
@@ -406,12 +427,11 @@ export function draw(ctx, view) {
           if (!yIn) continue;
           for (let x = startX; x <= endX; x++) {
             if (x < 0 || x >= mapCols) continue;
-            // Only paint where the saved mask indicates a road and the map tile is FLOOR
             if (!(ctx.townRoads[y] && ctx.townRoads[y][x])) continue;
             if (map[y][x] !== TILES.FLOOR) continue;
             const screenX = (x - startX) * TILE - tileOffsetX;
             const screenY = (y - startY) * TILE - tileOffsetY;
-            ctx2d.fillStyle = "#6b7280";
+            ctx2d.fillStyle = overlayColor;
             ctx2d.fillRect(screenX, screenY, TILE, TILE);
           }
         }
@@ -471,7 +491,16 @@ export function draw(ctx, view) {
           ctx2d.fillRect(screenX, screenY, TILE, TILE);
           // Upstairs stairs glyph
           if (type === TILES.STAIRS) {
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+            let g = ">";
+            let c = "#d7ba7d";
+            try {
+              const tdSt = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
+              if (tdSt) {
+                if (Object.prototype.hasOwnProperty.call(tdSt, "glyph")) g = tdSt.glyph || g;
+                if (tdSt.colors && tdSt.colors.fg) c = tdSt.colors.fg || c;
+              }
+            } catch (_) {}
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
           }
         }
       }
@@ -497,10 +526,17 @@ export function draw(ctx, view) {
       const screenX = (x - startX) * TILE - tileOffsetX;
       const screenY = (y - startY) * TILE - tileOffsetY;
 
-      // Stairs: explicit fallback glyph/color to ensure visibility
+      // Stairs: prefer JSON glyph/color; fallback to '>' with amber if missing
       if (type === TILES.STAIRS) {
-        const g = ">";
-        const c = "#d7ba7d";
+        let g = ">";
+        let c = "#d7ba7d";
+        try {
+          const tdSt = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
+          if (tdSt) {
+            if (Object.prototype.hasOwnProperty.call(tdSt, "glyph")) g = tdSt.glyph || g;
+            if (tdSt.colors && tdSt.colors.fg) c = tdSt.colors.fg || c;
+          }
+        } catch (_) {}
         RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
         continue;
       }
@@ -558,7 +594,19 @@ export function draw(ctx, view) {
           if (!everSeen) continue;
           const screenX = (x - startX) * TILE - tileOffsetX;
           const screenY = (y - startY) * TILE - tileOffsetY;
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, ">", "#d7ba7d", TILE);
+          // Stairs glyph: prefer JSON color/glyph
+          (function () {
+            let g = ">";
+            let c = "#d7ba7d";
+            try {
+              const tdSt = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
+              if (tdSt) {
+                if (Object.prototype.hasOwnProperty.call(tdSt, "glyph")) g = tdSt.glyph || g;
+                if (tdSt.colors && tdSt.colors.fg) c = tdSt.colors.fg || c;
+              }
+            } catch (_) {}
+            RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
+          })();
         }
       }
     } catch (_) {}
@@ -615,6 +663,9 @@ export function draw(ctx, view) {
         }
       } catch (_) {}
 
+      // Palette-driven fallback color (if still missing)
+      try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
+
       // Fallback glyphs/colors for common props
       if (!glyph || !color) {
         const t = String(p.type || "").toLowerCase();
@@ -666,6 +717,8 @@ export function draw(ctx, view) {
         if (!hasLine) drawDim = true;
       }
 
+      try { if (typeof window !== "undefined" && window.PropsValidation && typeof window.PropsValidation.recordProp === "function") { window.PropsValidation.recordProp({ mode: "town", type: p.type, x: p.x, y: p.y }); } } catch (_) {}
+
       if (drawDim) {
         ctx2d.save();
         ctx2d.globalAlpha = 0.65;
@@ -714,6 +767,8 @@ export function draw(ctx, view) {
             if (!color && tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
           }
         } catch (_) {}
+        // Palette-driven fallback color (if still missing)
+        try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
         if (!glyph || !color) {
           const t = String(p.type || "").toLowerCase();
           if (!glyph) {
@@ -798,8 +853,15 @@ export function draw(ctx, view) {
 
         const screenX = (dx - startX) * TILE - tileOffsetX;
         const screenY = (dy - startY) * TILE - tileOffsetY;
-        // match sign color; draw above tiles/props
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "⚑", "#d7ba7d", TILE);
+        // match sign color from tiles.json if present; draw above tiles/props
+        let signColor = "#d7ba7d";
+        try {
+          const tdSign = getTileDefByKey("town", "SIGN") || getTileDefByKey("dungeon", "SIGN");
+          if (tdSign && tdSign.colors && tdSign.colors.fg) signColor = tdSign.colors.fg || signColor;
+        } catch (_) {}
+        // Palette-driven fallback for sign if JSON missing
+        try { signColor = _propColor("sign", signColor) || signColor; } catch (_) {}
+        RenderCore.drawGlyph(ctx2d, screenX, screenY, "⚑", signColor, TILE);
       }
     } catch (_) {}
   })();
@@ -848,8 +910,13 @@ export function draw(ctx, view) {
         glyph = "S";
         color = "#f6c177";
       } else if (n.isShopkeeper || n._shopRef) {
-        // Highlight shopkeepers so the player can spot them easily
-        color = "#ffd166"; // warm gold
+        // Highlight shopkeepers so the player can spot them easily (palette-driven)
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          color = pal && pal.shopkeeper ? pal.shopkeeper : "#ffd166";
+        } catch (_) {
+          color = "#ffd166";
+        }
       }
 
       // Dim draw when not visible or visible-without-LOS; full draw when visible with LOS
@@ -873,7 +940,12 @@ export function draw(ctx, view) {
         const zy = screenY + TILE / 2 - TILE * 0.6 + bob; // above head
         ctx2d.save();
         ctx2d.globalAlpha = drawDim ? 0.55 : 0.9;
-        ctx2d.fillStyle = "#a3be8c";
+        let zColor = "#a3be8c";
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+          if (pal && pal.sleepingZ) zColor = pal.sleepingZ || zColor;
+        } catch (_) {}
+        ctx2d.fillStyle = zColor;
         ctx2d.fillText(zChar, zx, zy);
         ctx2d.restore();
       }
@@ -924,12 +996,18 @@ export function draw(ctx, view) {
     const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t / 520));
     ctx2d.globalAlpha = pulse;
     ctx2d.lineWidth = 3;
-    ctx2d.strokeStyle = "#9ece6a";
+    // Palette-driven exit color for town gate
+    let exitColor = "#9ece6a";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal && pal.exitTown) exitColor = pal.exitTown || exitColor;
+    } catch (_) {}
+    ctx2d.strokeStyle = exitColor;
     ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
     // Large 'G' glyph centered on the gate tile
     try {
       ctx2d.globalAlpha = 0.95;
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", exitColor, TILE);
     } catch (_) {}
     ctx2d.restore();
   })();
@@ -940,9 +1018,19 @@ export function draw(ctx, view) {
     const screenY = (player.y - startY) * TILE - tileOffsetY;
 
     ctx2d.save();
-    ctx2d.fillStyle = "rgba(255,255,255,0.16)";
+    // Palette-driven player backdrop
+    let pbFill = "rgba(255,255,255,0.16)";
+    let pbStroke = "rgba(255,255,255,0.35)";
+    try {
+      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+      if (pal) {
+        pbFill = pal.playerBackdropFill || pbFill;
+        pbStroke = pal.playerBackdropStroke || pbStroke;
+      }
+    } catch (_) {}
+    ctx2d.fillStyle = pbFill;
     ctx2d.fillRect(screenX + 4, screenY + 4, TILE - 8, TILE - 8);
-    ctx2d.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx2d.strokeStyle = pbStroke;
     ctx2d.lineWidth = 1;
     ctx2d.strokeRect(screenX + 4.5, screenY + 4.5, TILE - 9, TILE - 9);
 
@@ -964,24 +1052,51 @@ export function draw(ctx, view) {
       ctx2d.save();
       // Solid glyph above any previous draw calls
       ctx2d.globalAlpha = 1.0;
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", "#9ece6a", TILE);
+      let exitColor = "#9ece6a";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal && pal.exitTown) exitColor = pal.exitTown || exitColor;
+      } catch (_) {}
+      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", exitColor, TILE);
       ctx2d.restore();
     }
   }
 
-  // Day/night tint overlay
+  // Day/night tint overlay (palette-driven when available)
   try {
     const time = ctx.time;
     if (time && time.phase) {
+      let nightTint = "rgba(0,0,0,0.35)";
+      let duskTint  = "rgba(255,120,40,0.12)";
+      let dawnTint  = "rgba(120,180,255,0.10)";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          nightTint = pal.night || nightTint;
+          duskTint  = pal.dusk  || duskTint;
+          dawnTint  = pal.dawn  || dawnTint;
+        }
+      } catch (_) {}
       ctx2d.save();
+      // Optional alpha overrides (palette numeric keys)
+      let a = 1.0;
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        if (pal) {
+          if (time.phase === "night" && Number.isFinite(Number(pal.nightA))) a = Math.max(0, Math.min(1, Number(pal.nightA)));
+          else if (time.phase === "dusk" && Number.isFinite(Number(pal.duskA))) a = Math.max(0, Math.min(1, Number(pal.duskA)));
+          else if (time.phase === "dawn" && Number.isFinite(Number(pal.dawnA))) a = Math.max(0, Math.min(1, Number(pal.dawnA)));
+        }
+      } catch (_) {}
+      ctx2d.globalAlpha = a;
       if (time.phase === "night") {
-        ctx2d.fillStyle = "rgba(0,0,0,0.35)";
+        ctx2d.fillStyle = nightTint;
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       } else if (time.phase === "dusk") {
-        ctx2d.fillStyle = "rgba(255,120,40,0.12)";
+        ctx2d.fillStyle = duskTint;
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       } else if (time.phase === "dawn") {
-        ctx2d.fillStyle = "rgba(120,180,255,0.10)";
+        ctx2d.fillStyle = dawnTint;
         ctx2d.fillRect(0, 0, cam.width, cam.height);
       }
       ctx2d.restore();
