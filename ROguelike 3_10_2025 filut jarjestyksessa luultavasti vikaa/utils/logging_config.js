@@ -161,8 +161,19 @@ export const LogConfig = {
   },
 
   canEmit(type, msg, opts) {
-    const lvl = this.typeToLevel(type);
-    if (lvl < this.getThresholdValue()) return false;
+    const t = String(type || "info").toLowerCase();
+    const mapped = this._typeMap[t] || "info";
+    const lvl = this._levels[mapped] || this._levels.info;
+
+    // Special-case: threshold "info" should show ONLY info-level messages (and synonyms)
+    // This keeps default deploy quiet and player-facing.
+    const thrName = this._thresholdName || "info";
+    if (thrName === "info") {
+      if (mapped !== "info") return false;
+    } else {
+      if (lvl < this.getThresholdValue()) return false;
+    }
+
     const cat = this.extractCategory(msg, opts);
     this.registerCategory(cat);
     return this.isCategoryEnabled(cat);
