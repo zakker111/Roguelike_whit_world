@@ -49,7 +49,7 @@ export function applyBleedToEnemy(ctx, enemy, duration) {
   const d = Math.max(1, duration | 0);
   enemy.bleedTurns = Math.max(enemy.bleedTurns || 0, d);
   try {
-    ctx.log(`${Cap(ctx, enemy.type || "enemy")} starts bleeding (${enemy.bleedTurns}).`, "flavor");
+    ctx.log(`${Cap(ctx, enemy.type || "enemy")} starts bleeding (${enemy.bleedTurns}).`, "flavor", { category: "Combat", side: "enemy", tone: "bleed" });
   } catch (_) {}
 }
 
@@ -84,7 +84,7 @@ export function tick(ctx) {
       ctx.player.hp = 0;
       if (typeof ctx.onPlayerDied === "function") ctx.onPlayerDied();
     } else {
-      try { ctx.log(`You bleed (1).`, "warn"); } catch (_) {}
+      try { ctx.log(`You bleed (1).`, "warn", { category: "Combat", side: "player", tone: "bleed" }); } catch (_) {}
     }
   }
 
@@ -106,7 +106,7 @@ export function tick(ctx) {
         if (e.hp <= 0) {
           died.push(e);
         } else {
-          try { ctx.log(`${Cap(ctx, e.type || "enemy")} bleeds (1).`, "flavor"); } catch (_) {}
+          try { ctx.log(`${Cap(ctx, e.type || "enemy")} bleeds (1).`, "flavor", { category: "Combat", side: "enemy", tone: "bleed" }); } catch (_) {}
         }
       }
     }

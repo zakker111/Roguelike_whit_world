@@ -27,6 +27,23 @@ function applyRefresh(ctx) {
   } catch (_) {}
 }
 
+// DEV-gated movement trace (enable with window.DEV or localStorage LOG_TRACE_MOVEMENT=1)
+function _mvTraceEnabled() {
+  try {
+    if (typeof window !== "undefined" && window.DEV) return true;
+    const v = (typeof localStorage !== "undefined") ? localStorage.getItem("LOG_TRACE_MOVEMENT") : null;
+    return String(v).toLowerCase() === "1";
+  } catch (_) { return false; }
+}
+function _mvLog(ctx, msg, details) {
+  try {
+    if (!_mvTraceEnabled()) return;
+    if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+      window.Logger.log(`[Movement] ${msg}`, "info", Object.assign({ category: "Movement", mode: ctx && ctx.mode }, details || {}));
+    }
+  } catch (_) {}
+}
+
 export function fastForwardMinutes(ctx, mins) {
   const total = Math.max(0, (Number(mins) || 0) | 0);
   if (total <= 0) return 0;
@@ -135,12 +152,12 @@ export function tryMove(ctx, dx, dy) {
     const nx = ctx.player.x + dx;
     const ny = ctx.player.y + dy;
     const wmap = ctx.world && ctx.world.map ? ctx.world.map : null;
-    if (!wmap) return false;
+    if (!wmap) { _mvLog(ctx, "blocked: no world map", {}); return false; }
     const rows = wmap.length, cols = rows ? (wmap[0] ? wmap[0].length : 0) : 0;
-    if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return false;
+    if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) { _mvLog(ctx, "blocked: out of bounds", { nx, ny, cols, rows }); return false; }
     const W = mod("World");
     const walkable = (W && typeof W.isWalkable === "function") ? !!W.isWalkable(wmap[ny][nx]) : true;
-    if (!walkable) return false;
+    if (!walkable) { try { const tHere = (ctx.world && ctx.world.map && ctx.world.map[ny] && ctx.world.map[ny][nx]); _mvLog(ctx, "blocked: not walkable", { nx, ny, tile: tHere }); } catch (_) {} return false; }
     ctx.player.x = nx; ctx.player.y = ny;
     applyRefresh(ctx);
 

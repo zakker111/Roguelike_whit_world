@@ -149,6 +149,28 @@
     <div class="inv-subtitle">Logs</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
       <button id="god-toggle-mirror-btn" class="btn">Side Log: On</button>
+      <button id="god-toggle-trace-move-btn" class="btn" title="Enable movement trace logs (DEV or local setting)">Trace Move: Off</button>
+      <button id="god-toggle-trace-enc-btn" class="btn" title="Enable encounter trace logs (DEV or local setting)">Trace Enc: Off</button>
+      <button id="god-toggle-trace-shop-btn" class="btn" title="Enable shop trace logs (DEV or local setting)">Trace Shop: Off</button>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+      <label class="help" style="font-size:12px; color:#8a98b0;">Level:</label>
+      <select id="god-log-level" style="min-width:140px; padding:6px 8px; background:#0f0f12; color:#e5e7eb; border:1px solid #334155; border-radius:6px;">
+        <option value="info">(info)</option>
+        <option value="notice">notice</option>
+        <option value="warn">warn</option>
+        <option value="error">error</option>
+        <option value="fatal">fatal</option>
+        <option value="all">all</option>
+      </select>
+      <button id="god-log-reset-btn" class="btn" title="Reset log filters to defaults">Reset Logs</button>
+      <button id="god-log-clear-btn" class="btn" title="Clear on-screen and in-memory logs">Clear Logs</button>
+      <button id="god-log-download-btn" class="btn" title="Download current session logs">Download Logs</button>
+      <button id="god-log-download-json-btn" class="btn" title="Download logs as JSON">Download JSON</button>
+    </div>
+    <div class="help" style="font-size:12px; color:#8a98b0; margin-bottom:6px;">Categories:</div>
+    <div id="god-log-categories" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:6px; margin-bottom:12px;">
+      <!-- checkboxes inserted by GodPanel.renderLogCategories() -->
     </div>
     <div class="inv-subtitle">Combat</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">

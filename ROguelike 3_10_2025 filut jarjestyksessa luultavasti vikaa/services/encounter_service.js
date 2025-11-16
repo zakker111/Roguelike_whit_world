@@ -177,6 +177,14 @@ export function maybeTryEncounter(ctx) {
 
     // Simple cooldown to avoid back-to-back prompts
     if (STATE.cooldownMoves > 0) {
+      const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
+      if (_trace) {
+        try {
+          if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+            window.Logger.log("[Encounter] cooldown active", "info", { category: "Encounter", cooldownMoves: STATE.cooldownMoves, movesSinceLast: STATE.movesSinceLast });
+          }
+        } catch (_) {}
+      }
       STATE.cooldownMoves -= 1;
       STATE.movesSinceLast += 1;
       return false;
@@ -197,6 +205,16 @@ export function maybeTryEncounter(ctx) {
     const pityBoost = pitySteps * (pityStep0 * scale);
     const cap = Math.min(0.35, 0.18 * scale); // raise cap modestly with scale (max 35%)
     const chance = Math.min(cap, baseP + pityBoost);
+    (function logChance() {
+      const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
+      if (_trace) {
+        try {
+          if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+            window.Logger.log("[Encounter] chance computed", "info", { category: "Encounter", biome, rate, scale, baseP, pityBoost, cap, chance, movesSinceLast: STATE.movesSinceLast });
+          }
+        } catch (_) {}
+      }
+    })();
 
     // Deterministic roll using RNGUtils when available; fallback to direct rng() comparison
     const willEncounter = (function () {
@@ -211,6 +229,14 @@ export function maybeTryEncounter(ctx) {
       return roll < chance;
     })();
     if (!willEncounter) {
+      const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
+      if (_trace) {
+        try {
+          if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+            window.Logger.log("[Encounter] skipped roll", "info", { category: "Encounter", biome, chance });
+          }
+        } catch (_) {}
+      }
       STATE.movesSinceLast += 1;
       return false;
     }
@@ -249,6 +275,16 @@ export function maybeTryEncounter(ctx) {
     // Select a suitable template for this biome
     const tmpl = pickTemplate(ctx, biome);
     if (!tmpl) { STATE.movesSinceLast += 1; return false; }
+    (function logPick() {
+      const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
+      if (_trace) {
+        try {
+          if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+            window.Logger.log("[Encounter] template selected", "info", { category: "Encounter", id: String(tmpl.id || ""), name: tmpl.name || "", biome, difficulty: computeDifficulty(ctx, biome) });
+          }
+        } catch (_) {}
+      }
+    })();
 
     const difficulty = computeDifficulty(ctx, biome);
     // Build enemy preview from template groups

@@ -20,6 +20,16 @@ export function rebuild(ctx, overrides) {
       const payload = overrides && typeof overrides === "object" ? Object.assign(source, overrides) : source;
       const grid = OG.build(payload);
       ctx.occupancy = grid;
+      try {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+          const enemies = Array.isArray(ctx.enemies) ? ctx.enemies.length : 0;
+          const npcs = Array.isArray(ctx.npcs) ? ctx.npcs.length : 0;
+          const props = Array.isArray(ctx.townProps) ? ctx.townProps.length : 0;
+          const w = (grid && grid.width) ? (grid.width | 0) : 0;
+          const h = (grid && grid.height) ? (grid.height | 0) : 0;
+          window.Logger.log("[Occupancy] Rebuilt", "notice", { category: "Occupancy", enemies, npcs, props, w, h });
+        }
+      } catch (_) {}
       return grid || null;
     }
   } catch (_) {}

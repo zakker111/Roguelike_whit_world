@@ -110,14 +110,50 @@ html, body {
   }
 }
 .log .entry { margin: 2px 0; }
-.log .entry.crit { color: var(--danger); font-weight: 600; }
+.log .entry.info { color: #cbd5e1; } /* neutral info */
 .log .entry.block { color: var(--accent); font-weight: 500; }
-.log .entry.death { color: var(--danger); font-weight: 700; text-shadow: 0 0 6px rgba(247,118,142,0.25); } /* legacy */
-.log .entry.bad { color: var(--danger); font-weight: 700; text-shadow: 0 0 6px rgba(247,118,142,0.25); }
+.log .entry.notice { color: #718918; font-weight: 500; } /* informational: custom */
+.log .entry.warn { color: #eab308; font-weight: 600; } /* warning: amber */
+.log .entry.error, .log .entry.bad { color: #ff9e64; font-weight: 700; text-shadow: 0 0 6px rgba(255,158,100,0.25); } /* error: orange */
+.log .entry.fatal, .log .entry.crit, .log .entry.death { color: #ff4c4c; font-weight: 700; text-shadow: 0 0 8px rgba(255,76,76,0.35); } /* fatal: red */
 .log .entry.good { color: var(--success); }
-.log .entry.warn { color: #e0af68; }
-.log .entry.notice { color: #e0af68; } /* yellow notice for spotting */
 .log .entry.flavor { color: #b4f9f8; } /* teal for flavor text */
+
+/* Status/injury tones */
+.log .entry.warn[data-cat="combat"][data-tone="bleed"] { color: #f87171; font-weight: 700; }  /* player bleed ticks */
+.log .entry.flavor[data-cat="combat"][data-tone="bleed"] { color: #f87171; font-weight: 600; } /* enemy bleed ticks and start bleed */
+.log .entry.flavor[data-cat="combat"][data-tone="injury"] { color: #ff9e64; font-weight: 600; font-style: italic; } /* corpse injury descriptions */
+.log .entry .detail-toggle { margin-left: 6px; color: #718918; cursor: pointer; font-size: 11px; }
+.log .entry .details { margin-top: 4px; padding: 6px 8px; background: #0f1117; border: 1px solid #253047; border-radius: 6px; color: #cbd5e1; font-size: 11px; white-space: pre-wrap; }
+
+/* Combat-specific coloring by side */
+.log .entry.info[data-cat="combat"][data-side="player"] { color: var(--success); } /* player normal hits: green */
+.log .entry.info[data-cat="combat"][data-side="enemy"] { color: #eab308; }        /* enemy normal hits: amber */
+.log .entry.crit[data-side="player"] { color: var(--success); font-weight: 700; text-shadow: 0 0 6px rgba(158,206,106,0.35); } /* player crit: bright green */
+.log .entry.crit[data-side="enemy"] { color: #ff4c4c; font-weight: 700; text-shadow: 0 0 8px rgba(255,76,76,0.35); }           /* enemy crit: red */
+/* blocks remain blue via .entry.block */
+
+/* category accents for info-level only (subtle left border) */
+.log .entry.info[data-cat="world"],
+.log .entry.info[data-cat="worldgen"] { border-left: 3px solid #5cc9f5; padding-left: 6px; }
+.log .entry.info[data-cat="town"],
+.log .entry.info[data-cat="townstate"],
+.log .entry.info[data-cat="towngen"] { border-left: 3px solid #8ec07c; padding-left: 6px; }
+.log .entry.info[data-cat="dungeon"],
+.log .entry.info[data-cat="dungeonstate"] { border-left: 3px solid #c678dd; padding-left: 6px; }
+.log .entry.info[data-cat="encounter"] { border-left: 3px solid #d3869b; padding-left: 6px; }
+.log .entry.info[data-cat="combat"] { border-left: 3px solid #e06c75; padding-left: 6px; }
+.log .entry.info[data-cat="shop"] { border-left: 3px solid #d4b483; padding-left: 6px; }
+.log .entry.info[data-cat="prefabs"] { border-left: 3px solid #ff9e64; padding-left: 6px; }
+.log .entry.info[data-cat="palette"] { border-left: 3px solid #7aa2f7; padding-left: 6px; }
+.log .entry.info[data-cat="render"] { border-left: 3px solid #89ddff; padding-left: 6px; }
+.log .entry.info[data-cat="rng"] { border-left: 3px solid #7e83e1; padding-left: 6px; }
+.log .entry.info[data-cat="services"] { border-left: 3px solid #a3a3a3; padding-left: 6px; }
+.log .entry.info[data-cat="occupancy"] { border-left: 3px solid #c9a26b; padding-left: 6px; }
+.log .entry.info[data-cat="movement"] { border-left: 3px solid #94a3b8; padding-left: 6px; }
+.log .entry.info[data-cat="region"] { border-left: 3px solid #5cc9f5; padding-left: 6px; }
+.log .entry.info[data-cat="items"] { border-left: 3px solid #d7ba7d; padding-left: 6px; }
+.log .entry.info[data-cat="enemies"] { border-left: 3px solid #e06c75; padding-left: 6px; }
 
 .loot-panel {
   position: fixed;

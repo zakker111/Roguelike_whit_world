@@ -8,6 +8,7 @@
  * - isOpen()
  */
 import * as ClientAnalyzer from "/analysis/client_analyzer.js";
+import { LogConfig } from "/utils/logging_config.js";
 
 function panel() {
   try { return document.getElementById("god-panel"); } catch (_) { return null; }
@@ -63,6 +64,55 @@ function populatePaletteSelect() {
       let value = params.get("palette") || localStorage.getItem("PALETTE") || "default";
       sel.value = value;
     } catch (_) {}
+  } catch (_) {}
+}
+
+// Build or refresh the Log categories checkbox list
+function renderLogCategories() {
+  try {
+    const container = byId("god-log-categories");
+    if (!container) return;
+
+    // Keep scroll position if re-rendering
+    const prevScroll = container.scrollTop;
+
+    let cats = [];
+    try {
+      cats = (LogConfig && typeof LogConfig.getCategories === "function") ? LogConfig.getCategories() : [];
+    } catch (_) {}
+
+    // Fallback list if LogConfig not ready
+    if (!cats || !cats.length) {
+      cats = [
+        { id: "general", enabled: true },
+        { id: "palette", enabled: true },
+        { id: "items", enabled: true },
+        { id: "enemies", enabled: true },
+        { id: "ai", enabled: true },
+        { id: "combat", enabled: true },
+        { id: "dungeon", enabled: true },
+        { id: "world", enabled: true },
+        { id: "render", enabled: true },
+        { id: "ui", enabled: true }
+      ];
+    }
+
+    const html = cats.map((c) => {
+      const id = c && c.id ? String(c.id) : "";
+      if (!id) return "";
+      const checked = c.enabled ? " checked" : "";
+      const label = (LogConfig && typeof LogConfig.displayName === "function") ? LogConfig.displayName(id) : (id.charAt(0).toUpperCase() + id.slice(1));
+      return `
+        <label style="display:flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid #253047; border-radius:6px; background:#0f1117;">
+          <input type="checkbox" class="log-cat-sel" value="${id}"${checked} />
+          <span style="color:#cbd5e1; font-size:13px;">${label}</span>
+        </label>
+      `;
+    }).join("");
+    container.innerHTML = html;
+
+    // Restore scroll
+    container.scrollTop = prevScroll;
   } catch (_) {}
 }
 
@@ -256,6 +306,146 @@ export function init(UI) {
   if (mirrorBtn) {
     mirrorBtn.addEventListener("click", () => { try { UI.toggleSideLog(); } catch (_) {} });
     try { UI.updateSideLogButton(); } catch (_) {}
+  }
+
+  // Trace toggles: movement, encounters, shops
+  const traceMoveBtn = byId("god-toggle-trace-move-btn");
+  const traceEncBtn = byId("god-toggle-trace-enc-btn");
+  const traceShopBtn = byId("god-toggle-trace-shop-btn");
+
+  function _lsGetBool(key) {
+    try { const v = localStorage.getItem(key); return String(v).toLowerCase() === "1"; } catch (_) { return false; }
+  }
+  function _lsSetBool(key, on) {
+    try { if (on) localStorage.setItem(key, "1"); else localStorage.removeItem(key); } catch (_) {}
+  }
+  function _isDev() { try { return !!window.DEV; } catch (_) { return false; } }
+
+  function updateTraceMoveButton() {
+    try {
+      if (!traceMoveBtn) return;
+      const active = _isDev() || _lsGetBool("LOG_TRACE_MOVEMENT");
+      traceMoveBtn.textContent = `Trace Move: ${active ? "On" : "Off"}`;
+    } catch (_) {}
+  }
+  function updateTraceEncButton() {
+    try {
+      if (!traceEncBtn) return;
+      const active = _isDev() || _lsGetBool("LOG_TRACE_ENCOUNTERS");
+      traceEncBtn.textContent = `Trace Enc: ${active ? "On" : "Off"}`;
+    } catch (_) {}
+  }
+  function updateTraceShopButton() {
+    try {
+      if (!traceShopBtn) return;
+      const active = _isDev() || _lsGetBool("LOG_TRACE_SHOPS");
+      traceShopBtn.textContent = `Trace Shop: ${active ? "On" : "Off"}`;
+    } catch (_) {}
+  }
+
+  if (traceMoveBtn) {
+    traceMoveBtn.addEventListener("click", () => {
+      const next = !_lsGetBool("LOG_TRACE_MOVEMENT");
+      _lsSetBool("LOG_TRACE_MOVEMENT", next);
+      updateTraceMoveButton();
+    });
+    updateTraceMoveButton();
+  }
+  if (traceEncBtn) {
+    traceEncBtn.addEventListener("click", () => {
+      const next = !_lsGetBool("LOG_TRACE_ENCOUNTERS");
+      _lsSetBool("LOG_TRACE_ENCOUNTERS", next);
+      updateTraceEncButton();
+    });
+    updateTraceEncButton();
+  }
+  if (traceShopBtn) {
+    traceShopBtn.addEventListener("click", () => {
+      const next = !_lsGetBool("LOG_TRACE_SHOPS");
+      _lsSetBool("LOG_TRACE_SHOPS", next);
+      updateTraceShopButton();
+    });
+    updateTraceShopButton();
+  }
+
+  // Log level select
+  const lvlSel = byId("god-log-level");
+  if (lvlSel) {
+    try {
+      const cur = (LogConfig && typeof LogConfig.getThresholdName === "function") ? LogConfig.getThresholdName() : "info";
+      // Ensure value is one of the options
+      const valid = new Set(["info","notice","warn","error","fatal","all"]);
+      lvlSel.value = valid.has(cur) ? cur : "info";
+    } catch (_) {}
+    lvlSel.addEventListener("change", () => {
+      try {
+        const val = lvlSel.value || "info";
+        if (LogConfig && typeof LogConfig.setThreshold === "function") LogConfig.setThreshold(val);
+      } catch (_) {}
+    });
+  }
+
+  // Categories list (checkboxes)
+  const catContainer = byId("god-log-categories");
+  if (catContainer) {
+    try { renderLogCategories(); } catch (_) {}
+    catContainer.addEventListener("change", (ev) => {
+      try {
+        const t = ev && ev.target;
+        if (t && t.classList && t.classList.contains("log-cat-sel")) {
+          const id = t.value || "";
+          const enabled = !!t.checked;
+          if (LogConfig && typeof LogConfig.setCategory === "function") LogConfig.setCategory(id, enabled);
+        }
+      } catch (_) {}
+    });
+  }
+
+  // Reset log filters
+  const resetBtn = byId("god-log-reset-btn");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      try {
+        if (LogConfig && typeof LogConfig.reset === "function") LogConfig.reset();
+        // Sync UI after reset
+        if (lvlSel && LogConfig && typeof LogConfig.getThresholdName === "function") {
+          lvlSel.value = LogConfig.getThresholdName();
+        }
+        renderLogCategories();
+      } catch (_) {}
+    });
+  }
+
+  // Download & clear logs
+  const dlLogsBtn = byId("god-log-download-btn");
+  if (dlLogsBtn) {
+    dlLogsBtn.addEventListener("click", () => {
+      try {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.download === "function") {
+          window.Logger.download("game_logs.txt");
+        }
+      } catch (_) {}
+    });
+  }
+  const dlLogsJSONBtn = byId("god-log-download-json-btn");
+  if (dlLogsJSONBtn) {
+    dlLogsJSONBtn.addEventListener("click", () => {
+      try {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.downloadJSON === "function") {
+          window.Logger.downloadJSON("game_logs.json");
+        }
+      } catch (_) {}
+    });
+  }
+  const clearLogsBtn = byId("god-log-clear-btn");
+  if (clearLogsBtn) {
+    clearLogsBtn.addEventListener("click", () => {
+      try {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.clear === "function") {
+          window.Logger.clear();
+        }
+      } catch (_) {}
+    });
   }
 
   // Always Crit toggle + chooser

@@ -171,48 +171,10 @@ export function enterTownIfOnTile(ctx) {
   if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
   const t = mapRef[py][px];
 
-  // Entry: allow adjacent entry. First prefer cardinal adjacency; if none, allow diagonals.
+  // Strict entry: require standing exactly on the town tile (no adjacency allowed)
   let townPx = px, townPy = py;
   let approachedDir = "";
-  let onTownTile = !!(WT && t === ctx.World.TILES.TOWN);
-  if (!onTownTile && WT) {
-    // Cardinal neighbors (prefer these)
-    const dirs = [
-      { dx:  1, dy:  0, dir: "W" },
-      { dx: -1, dy:  0, dir: "E" },
-      { dx:  0, dy:  1, dir: "N" },
-      { dx:  0, dy: -1, dir: "S" },
-    ];
-    for (const d of dirs) {
-      const nx = px + d.dx, ny = py + d.dy;
-      if (!inBounds(ctx, nx, ny)) continue;
-      if (mapRef[ny][nx] === WT.TOWN) {
-        townPx = nx; townPy = ny;
-        approachedDir = d.dir;
-        onTownTile = true;
-        break;
-      }
-    }
-    // Diagonals as fallback (helps when towns are corner-accessible)
-    if (!onTownTile) {
-      const diags = [
-        { dx:  1, dy:  1, dir: "NW" },
-        { dx: -1, dy:  1, dir: "NE" },
-        { dx:  1, dy: -1, dir: "SW" },
-        { dx: -1, dy: -1, dir: "SE" },
-      ];
-      for (const d of diags) {
-        const nx = px + d.dx, ny = py + d.dy;
-        if (!inBounds(ctx, nx, ny)) continue;
-        if (mapRef[ny][nx] === WT.TOWN) {
-          townPx = nx; townPy = ny;
-          approachedDir = d.dir;
-          onTownTile = true;
-          break;
-        }
-      }
-    }
-  }
+  const onTownTile = !!(WT && t === ctx.World.TILES.TOWN);
 
   // Record approach direction (used by Town generation to pick gate side). Empty string when stepping directly on tile.
   if (onTownTile) {
@@ -426,7 +388,7 @@ export function enterDungeonIfOnEntrance(ctx) {
       if (ctx.log) ctx.log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
       const dx = (ctx.dungeonExitAt && typeof ctx.dungeonExitAt.x === "number") ? ctx.dungeonExitAt.x : "n/a";
       const dy = (ctx.dungeonExitAt && typeof ctx.dungeonExitAt.y === "number") ? ctx.dungeonExitAt.y : "n/a";
-      if (window.DEV) console.log("[DEV] Initial dungeon save for key " + k + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + ctx.player.x + "," + ctx.player.y + ")");
+      if (typeof window !== "undefined" && window.DEV && window.Logger && typeof window.Logger.log === "function") window.Logger.log("[DEV] Initial dungeon save for key " + k + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + ctx.player.x + "," + ctx.player.y + ")", "notice", { category: "DungeonState" });
     } catch (_) {}
     if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "notice");
     syncAfterMutation(ctx);

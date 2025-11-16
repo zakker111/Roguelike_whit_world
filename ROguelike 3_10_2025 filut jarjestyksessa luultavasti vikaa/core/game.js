@@ -30,13 +30,15 @@
  */
   try {
     if (window.DEV) {
-      console.log("[BOOT] game.js loaded. Modules present:", {
-        DungeonState: !!(window.DungeonState),
-        Logger: !!(window.Logger),
-        UI: !!(window.UI),
-        Dungeon: !!(window.Dungeon),
-        Enemies: !!(window.Enemies),
-      });
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log("[Boot] game.js loaded. Modules present.", "notice", {
+          DungeonState: !!(window.DungeonState),
+          Logger: !!(window.Logger),
+          UI: !!(window.UI),
+          Dungeon: !!(window.Dungeon),
+          Enemies: !!(window.Enemies)
+        });
+      }
       // DEV: report missing critical modules once at boot
       (function _devReportMissingModules() {
         const missing = [];
@@ -52,7 +54,11 @@
         if (!has("WorldRuntime")) missing.push("WorldRuntime");
         if (!has("RenderOrchestration")) missing.push("RenderOrchestration");
         if (missing.length) {
-          console.warn("[DEV] Missing modules:", missing.join(", "));
+          try {
+            if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+              window.Logger.log("[DEV] Missing modules: " + missing.join(", "), "warn", { category: "Boot" });
+            }
+          } catch (_) {}
         }
       })();
     }
@@ -479,7 +485,7 @@
     const before = it.decay || 0;
     it.decay = Math.min(100, round1(before + amount));
     if (it.decay >= 100) {
-      log(`${capitalize(it.name)} breaks and is destroyed.`, "bad");
+      log(`${capitalize(it.name)} breaks and is destroyed.`, "info");
       // Optional flavor for breakage
       try {
         const F = modHandle("Flavor");

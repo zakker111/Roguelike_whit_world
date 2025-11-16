@@ -134,6 +134,81 @@ Useful flags and persistence
 - Seed persists in localStorage SEED and is shown in the GOD panel.
 - Version-based storage clearing: on each deploy, the app compares meta[name="app-version"] with the stored version. If changed, it clears saved town/dungeon/region state and resets in‑memory mirrors to guarantee a clean start (preferences like seed/toggles remain).
 
+Logging system (UI + Dev API)
+- Overview
+  - In-DOM log overlay with optional right-side mirror.
+  - Severity filtering and category filtering at runtime (persisted to localStorage).
+  - Structured payloads with inline “details” toggles.
+  - Export logs to text or JSON; clear overlay/history; dedup repeated lines.
+
+- UI controls (GOD panel → Logs)
+  - Side Log toggle: shows/hides right-side mirror.
+  - Level selector: info, notice, warn, error, fatal, all.
+    - Strict info: only player-facing info-style messages (info, good, block, flavor) are shown at “info”.
+    - “all” allows everything regardless of severity threshold (categories still apply).
+  - Reset Logs: restores default threshold and category set.
+  - Clear Logs: clears on-screen overlay and in-memory history.
+  - Download Logs: saves a text file; each line: [ISO timestamp] [level] [category] message {JSON details if present}.
+  - Download JSON: saves structured history with message, type, category, timestamp, details, and dedup count.
+  - Categories grid: enable/disable common categories (persisted). Includes General, Prefabs, WorldGen, TownGen, TownState, DungeonState, Encounter, Palette, Render, Shop, AI, Combat, Items, Services, Smoketest, RNG, Occupancy, Movement, Region.
+  - Trace toggles: granular tracing for Movement, Encounters, Shops (also respected by DEV mode).
+    - LocalStorage keys: LOG_TRACE_MOVEMENT, LOG_TRACE_ENCOUNTERS, LOG_TRACE_SHOPS set to “1” to enable.
+
+- Severity, synonyms, and styles (ui/style.css)
+  - info: neutral light grey (#cbd5e1)
+  - notice: olive (#718918)
+  - warn: amber (#eab308)
+  - error/bad: orange (#ff9e64) with subtle glow
+  - fatal/crit/death: bright red (#ff4c4c) with stronger glow
+  - good: green (var(--success))
+  - block: accent blue (var(--accent))
+  - flavor: teal (#b4f9f8)
+  - Combat side-aware coloring: player hits green, enemy hits amber; player crit green glow, enemy crit red glow.
+  - Status tones: bleed (red), injury flavor (orange italic).
+  - Info-level category accents: subtle left border per category (e.g., WorldGen teal, Town green, Dungeon purple, Encounter magenta, Combat red tint, Shop gold, Prefabs orange, Palette blue).
+
+- Category inference
+  - Heuristics guess categories from message prefixes/keywords (e.g., [WorldGen], [Prefabs], “DungeonState.applyState…”).
+  - Messages without explicit prefixes fall under General.
+
+- Developer APIs
+  - Emit:
+    - window.Logger.log(message, type = "info", details?)
+      - details is optional (object or string); renders a “details” toggle when present.
+    - window.Logger.logOnce(key, message, type = "info", details?)
+    - window.Logger.warnOnce(key, message, details?)
+  - History:
+    - window.Logger.getHistory() → array of structured entries { ts, type, cat, msg, details, count }.
+    - window.Logger.clear() → clears overlay and history.
+    - window.Logger.download(filename = "game_logs.txt")
+    - window.Logger.downloadJSON(filename = "game_logs.json")
+  - Runtime config (filters):
+    - window.LogConfig.setThreshold(name) → "info" | "notice" | "warn" | "error" | "fatal" | "all"
+    - window.LogConfig.getThresholdName()
+    - window.LogConfig.setCategory(id, enabled)
+    - window.LogConfig.getCategories() → [{ id, enabled }]
+    - window.LogConfig.reset()
+  - Examples (in DevTools):
+    - window.LogConfig.setThreshold('warn')          // warnings and above
+    - window.LogConfig.setCategory('palette', false) // mute palette logs
+    - window.Logger.log('[Shop] Restock', 'notice', { category: 'Shop', rows: 12 })
+
+- Instrumented emitters (examples)
+  - World expansion (category WorldGen): side expanded, tiles added, origin shifts.
+  - Occupancy rebuild (category Occupancy): counts of enemies/NPCs/props and grid dimensions.
+  - Encounter tracing (category Encounter): cooldown, chance computations, template selection (gated).
+  - Movement tracing (category Movement, world mode): blocked reasons and tile details (gated).
+  - Shop lifecycle (category Shop): phase changes and restock summaries; row details when tracing enabled.
+  - Prefab/Town/Dungeon state notices and errors under their respective categories.
+
+- Gameplay-specific logging refinements
+  - Weapon/equipment breakage now logs at info level (neutral styling) instead of error/bad.
+  - Combat “crit” messages pass the threshold at info-level (styled red for distinction).
+
+Notes
+- Most runtime modules log via ctx.log(...), which the engine routes to window.Logger.log(...) when available.
+- DEV mode enables some additional traces automatically; toggles are persisted and can be switched in the GOD panel.
+
 Project layout and docs
 - core/ — engine, loop, ctx, input, modes — see core/README.md
 - world/ — overworld generation and walkability — see world/README.md
@@ -150,6 +225,14 @@ Project layout and docs
 - data/ — JSON registries and loader — see data/docs/README.md
 - scripts/ — Node helper scripts — see scripts/README.md
 - tools/ — developer tools (prefab editor) — see tools/README.md
+
+Docs viewer
+- Access via the “Docs” button in the HUD; opens /docs/index.html.
+- Click a title to expand/collapse its contents inline. A caret (▶) indicates state and rotates when expanded.
+- Hover over a title to see a brief description of the document.
+- Filter by title and use Expand All / Collapse All to manage sections quickly.
+- Fresh content: the viewer fetches the latest file content when the Docs page opens and when you expand a title (no periodic auto-refresh). Requests use cache-busting with no-cache to avoid stale data.
+- “Open raw” links open the source file directly in a new tab for copy/paste or download.
 
 Development
 - Lint: npx eslint .

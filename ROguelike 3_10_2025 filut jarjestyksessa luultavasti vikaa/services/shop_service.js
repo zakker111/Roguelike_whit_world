@@ -402,8 +402,14 @@ export function restockIfNeeded(ctx, shop) {
     shouldPrimary = isShopOpenNow(ctx, shop) && st.rows.length === 0;
   }
   if (st.lastPhase !== phase) {
+    const prev = st.lastPhase;
     shouldPrimary = true;
     st.lastPhase = phase;
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log("[Shop] Phase change", "notice", { category: "Shop", type: String(shop && shop.type || "shop"), from: prev || null, to: phase });
+      }
+    } catch (_) {}
   }
 
   if (shouldPrimary) {
@@ -437,6 +443,22 @@ export function restockIfNeeded(ctx, shop) {
     try { rows = _stackRows(rows); } catch (_) {}
 
     st.rows = rows;
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log("[Shop] Restock", "notice", { category: "Shop", type: String(shop && shop.type || "shop"), phase, rows: Array.isArray(st.rows) ? st.rows.length : 0 });
+        // Optional per-row trace
+        const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_SHOPS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
+        if (_trace && Array.isArray(st.rows)) {
+          for (let i = 0; i < st.rows.length; i++) {
+            const r0 = st.rows[i];
+            const it0 = r0 && r0.item;
+            const kind0 = it0 ? String(it0.kind || "") : "";
+            const name0 = it0 ? (it0.name || it0.id || "") : "";
+            window.Logger.log("[Shop] Row", "info", { category: "Shop", idx: i, kind: kind0, name: name0, price: r0 && r0.price, qty: r0 && r0.qty });
+          }
+        }
+      }
+    } catch (_) {}
     // If no inventory was generated, log a warning (crash-free policy)
     try {
       if (!Array.isArray(st.rows) || st.rows.length === 0) {
@@ -500,7 +522,18 @@ export function restockIfNeeded(ctx, shop) {
         var pick2 = _weightedPick(rng2, cfg2.entries, phase);
         var item2 = _materializeItem(ctx, pick2);
         if (item2) {
-          st.rows[idx] = { item: item2, price: calculatePrice(shop.type, item2, phase, null), qty: Math.max(1, (pick2 && pick2.stack && pick2.stack.max) ? pick2.stack.max : 1) };
+          var price2 = calculatePrice(shop.type, item2, phase, null);
+          var qty2 = Math.max(1, (pick2 && pick2.stack && pick2.stack.max) ? pick2.stack.max : 1);
+          st.rows[idx] = { item: item2, price: price2, qty: qty2 };
+          // Optional trace
+          try {
+            const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_SHOPS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
+            if (_trace && typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+              const kind2 = String(item2.kind || "");
+              const name2 = item2.name || item2.id || "";
+              window.Logger.log("[Shop] Mini restock row replaced", "info", { category: "Shop", idx, kind: kind2, name: name2, price: price2, qty: qty2 });
+            }
+          } catch (_) {}
         }
       }
       // Re-stack after mini restock to keep duplicate consumables merged

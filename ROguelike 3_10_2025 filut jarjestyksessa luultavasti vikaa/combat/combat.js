@@ -137,7 +137,7 @@ export function playerAttackEnemy(ctx, enemy) {
   if (didBlock) {
     try {
       const name = (enemy.type || "enemy");
-      if (ctx.log) ctx.log(`${name.charAt(0).toUpperCase()}${name.slice(1)} blocks your attack to the ${loc.part}.`, "block");
+      if (ctx.log) ctx.log(`${name.charAt(0).toUpperCase()}${name.slice(1)} blocks your attack to the ${loc.part}.`, "block", { category: "Combat", side: "player" });
     } catch (_) {}
     // Small passive skill gain even on block (half)
     try {
@@ -218,8 +218,8 @@ export function playerAttackEnemy(ctx, enemy) {
   // Log
   try {
     const name = (enemy.type || "enemy");
-    if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit");
-    else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`);
+    if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit", { category: "Combat", side: "player" });
+    else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`, "info", { category: "Combat", side: "player" });
     if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
     // Record last hit for death flavor/meta
     try {

@@ -140,7 +140,7 @@ export function save(ctx) {
     const shopCount = Array.isArray(snapshot.shops) ? snapshot.shops.length : 0;
     const msg = `TownState.save: key ${k}, npcs=${npcCount}, shops=${shopCount}`;
     if (typeof window !== "undefined" && window.DEV && ctx.log) ctx.log(msg, "notice");
-    try { if (typeof window !== "undefined" && window.DEV) console.log(msg); } catch (_) {}
+    try { if (typeof window !== "undefined" && window.DEV && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "notice", { category: "TownState" }); } catch (_) {}
   } catch (_) {}
 }
 
@@ -220,7 +220,7 @@ function applyState(ctx, st, x, y) {
         if (removed > 0) {
           const msg = `TownState: sanitized ${removed} dangling props on load.`;
           if (typeof window !== "undefined" && window.DEV && ctx.log) ctx.log(msg, "warn");
-          console.log(msg);
+          try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "warn", { category: "TownState" }); } catch (_) {}
         }
       } catch (_) {}
     } catch (_) {}
@@ -456,7 +456,7 @@ export function load(ctx, x, y) {
     try {
       const msg = `TownState.load: no state for key ${k}`;
       if (ctx.log) ctx.log(msg, "warn");
-      console.log(msg);
+      try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "warn", { category: "TownState" }); } catch (_) {}
     } catch (_) {}
     return false;
   }
@@ -466,7 +466,7 @@ export function load(ctx, x, y) {
     const shopCount = Array.isArray(st.shops) ? st.shops.length : 0;
     const msg = `TownState.load: key ${k}, npcs=${npcCount}, shops=${shopCount}`;
     if (typeof window !== "undefined" && window.DEV && ctx.log) ctx.log(msg, "notice");
-    console.log(msg);
+    try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "notice", { category: "TownState" }); } catch (_) {}
   } catch (_) {}
 
   applyState(ctx, st, x, y);

@@ -22,17 +22,7 @@ import { attachGlobal } from "../utils/global.js";
 const DEFAULT_WIDTH = 28;
 const DEFAULT_HEIGHT = 18;
 
-// Compute a stable region "anchor" in overworld coordinates for persistence.
-// Adjacent overworld tiles that fall within the same sampled window share the same anchor.
-function computeRegionAnchor(ctx, worldX, worldY, width, height) {
-  const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
-  const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
-  const winW = Math.max(12, Math.min(worldW, Math.floor(worldW * 0.35)));
-  const winH = Math.max(8, Math.min(worldH, Math.floor(worldH * 0.35)));
-  const minX = Math.max(0, Math.min(worldW - winW, (worldX | 0) - Math.floor(winW / 2)));
-  const minY = Math.max(0, Math.min(worldH - winH, (worldY | 0) - Math.floor(winH / 2)));
-  return { ax: minX | 0, ay: minY | 0, winW, winH, w: width | 0, h: height | 0 };
-}
+
 
 /**
  * Deterministic RNG for region map based on global seed and world position
@@ -62,6 +52,15 @@ function getRegionRng(ctx) {
   const py = (ctx && ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
   const mix = (((px & 0xffff) | ((py & 0xffff) << 16)) ^ base) >>> 0;
   return _mulberry32(mix);
+}
+
+// RNG helper: prefer ctx.RNGUtils; fallback to window.RNGUtils
+function getRU(ctx) {
+  try {
+    return (ctx && ctx.RNGUtils) || (typeof window !== "undefined" ? window.RNGUtils : null);
+  } catch (_) {
+    return null;
+  }
 }
 
 function clamp(v, lo, hi) {
@@ -230,10 +229,7 @@ function _saveCutsMap(map) {
     localStorage.setItem(REGION_CUTS_LS_KEY, JSON.stringify(map || {}));
   } catch (_) {}
 }
-function regionCutKeyFromAnchor(anchor) {
-  // Include window extent in key to be robust across different region sizes
-  return `r:${anchor.ax},${anchor.ay}:${anchor.winW}x${anchor.winH}`;
-}
+
 function applyRegionCuts(sample, key) {
   if (!key) return;
   const map = _loadCutsMap();
@@ -618,67 +614,100 @@ function open(ctx, size) {
   const worldY = ctx.player.y | 0;
   // Only allow from walkable, non-town, non-dungeon tiles
   const WT = World.TILES;
-  const tile = ctx.world.map[worldY][worldX];
+  const tileHere = ctx.world.map[worldY][worldX];
   // Disallow from towns/dungeons; allow RUINS explicitly even if not walkable in overworld semantics
-  if (tile === WT.TOWN || tile === WT.DUNGEON) return false;
+  if (tileHere === WT.TOWN || tileHere === WT.DUNGEON) return false;
+
+  // Allow entering RUINS even when standing adjacent: retarget the region anchor to the neighboring RUINS tile
+  let anchorX = worldX, anchorY = worldY;
+  let anchorTile = tileHere;
+  if (anchorTile !== WT.RUINS) {
+    const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
+    const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
+    outer: for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = worldX + dx, ny = worldY + dy;
+        if (nx < 0 || ny < 0 || nx >= worldW || ny >= worldH) continue;
+        const nt = ctx.world.map[ny][nx];
+        if (nt === WT.RUINS) {
+          anchorX = nx; anchorY = ny; anchorTile = WT.RUINS;
+          break outer;
+        }
+      }
+    }
+  }
+
   let isWalkable = true;
   try {
-    isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tile) : true;
+    isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tileHere) : true;
   } catch (_) { isWalkable = true; }
-  const allowNonWalkableHere = (tile === WT.RUINS);
+  const allowNonWalkableHere = (anchorTile === WT.RUINS);
   if (!isWalkable && !allowNonWalkableHere) return false;
+  const RU = getRU(ctx);
+  const rng = getRegionRng(ctx);
 
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
 
-  // If persisted state exists for this tile, load it; else build a fresh sample.
-  const persisted = loadRegionState(worldX, worldY);
+  // If persisted state exists for this tile (anchor), load it; else build a fresh sample.
+  const persisted = loadRegionState(anchorX, anchorY);
   let sample = null;
   let restoredCorpses = null;
+  let loadedPersisted = false;
   if (persisted && Array.isArray(persisted.map) && (persisted.w | 0) === width && (persisted.h | 0) === height) {
     sample = persisted.map;
     restoredCorpses = Array.isArray(persisted.corpses) ? persisted.corpses : [];
+    loadedPersisted = true;
   } else {
-    // Build local sample reflecting biomes near the player.
-    sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
+    // Build local sample reflecting biomes near the anchor (RUINS if adjacent, otherwise player tile).
+    sample = buildLocalDownscaled(ctx.world, anchorX, anchorY, width, height);
   }
 
-  // If animals were previously cleared for this tile, do not spawn new ones this session.
-  const animalsCleared = animalsClearedHere(worldX, worldY);
+  // If animals were previously cleared for this tile (anchor), do not spawn new ones this session.
+  const animalsCleared = animalsClearedHere(anchorX, anchorY);
 
-  // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile).
-  const playerTile = tile;
-  const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, worldX, worldY);
-  neighborSet.add(playerTile);
-  const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
-  filterSampleByNeighborSet(sample, neighborSet, primaryTile);
+  // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile)
+  // and perform decorative transforms ONLY when not loading a previously persisted region state.
+  if (!loadedPersisted) {
+    const playerTile = anchorTile;
+    const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, anchorX, anchorY);
+    neighborSet.add(playerTile);
+    const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
+    filterSampleByNeighborSet(sample, neighborSet, primaryTile);
 
-  // Orient biomes by robust directional sampling (cardinals + diagonals) to line up with overworld
-  const dirs = computeDirectionalTiles(ctx.world, worldX, worldY, 7);
-  orientSampleByCardinals(sample, dirs.cardinals, 0.33, dirs.diagonals, dirs.weights);
+    // Orient biomes by robust directional sampling (cardinals + diagonals) to line up with overworld (anchored at RUINS when adjacent)
+    const dirs = computeDirectionalTiles(ctx.world, anchorX, anchorY, 7);
+    orientSampleByCardinals(sample, dirs.cardinals, 0.33, dirs.diagonals, dirs.weights);
 
-  // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
-  const rng = getRegionRng(ctx);
-  // RNGUtils handle (chance/int/float) when available; falls back to direct rng comparisons
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-  addMinorWaterAndBeaches(sample, rng);
-  // Sprinkle sparse trees and scarce berry bushes for region visualization/foraging
-  addSparseTreesInForests(sample, 0.10, rng);
-  addBerryBushesInForests(sample, 0.025, rng);
-  // Apply persisted cuts for this region so trees/bushes don't respawn
-  try {
-    const cutKey = regionCutKey(worldX, worldY, width, height);
-    applyRegionCuts(sample, cutKey);
-    // Stash key for onAction persistence
-    if (!ctx.region) ctx.region = {};
-    ctx.region._cutKey = cutKey;
-  } catch (_) {}
+    // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
+    // rng precomputed above for the whole open() scope
+    addMinorWaterAndBeaches(sample, rng);
+    // Sprinkle sparse trees and scarce berry bushes for region visualization/foraging
+    addSparseTreesInForests(sample, 0.10, rng);
+    addBerryBushesInForests(sample, 0.025, rng);
+    // Apply persisted cuts for this region so trees/bushes don't respawn
+    try {
+      const cutKey = regionCutKey(anchorX, anchorY, width, height);
+      applyRegionCuts(sample, cutKey);
+      // Stash key for onAction persistence
+      if (!ctx.region) ctx.region = {};
+      ctx.region._cutKey = cutKey;
+    } catch (_) {}
+  } else {
+    // Persisted map is authoritative; do not mutate it. Still set cut key so new cuts can be recorded.
+    try {
+      const cutKey = regionCutKey(anchorX, anchorY, width, height);
+      if (!ctx.region) ctx.region = {};
+      ctx.region._cutKey = cutKey;
+    } catch (_) {}
+  }
 
   // PHASE 2: Ruins decoration and encounter setup on RUINS tiles
-  const isRuins = (tile === World.TILES.RUINS);
+  const isRuins = (anchorTile === World.TILES.RUINS);
   if (isRuins) {
     // Only decorate/spawn if there is no persisted map for this tile (respect persistence)
-    if (!persisted) {
+    if (!loadedPersisted) {
       // Resolve RUIN_WALL id from tileset (region scope); fallback to MOUNTAIN if missing
       let ruinWallId = World.TILES.MOUNTAIN;
       try {
@@ -784,10 +813,10 @@ function open(ctx, size) {
   const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
   const winW = clamp(Math.floor(worldW * 0.35), 12, worldW);
   const winH = clamp(Math.floor(worldH * 0.35), 8, worldH);
-  const minX = clamp(worldX - Math.floor(winW / 2), 0, Math.max(0, worldW - winW));
-  const minY = clamp(worldY - Math.floor(winH / 2), 0, Math.max(0, worldH - winH));
-  let spawnX = Math.round(((worldX - minX) * (width - 1)) / Math.max(1, (winW - 1)));
-  let spawnY = Math.round(((worldY - minY) * (height - 1)) / Math.max(1, (winH - 1)));
+  const minX = clamp(anchorX - Math.floor(winW / 2), 0, Math.max(0, worldW - winW));
+  const minY = clamp(anchorY - Math.floor(winH / 2), 0, Math.max(0, worldH - winH));
+  let spawnX = Math.round(((anchorX - minX) * (width - 1)) / Math.max(1, (winW - 1)));
+  let spawnY = Math.round(((anchorY - minY) * (height - 1)) / Math.max(1, (winH - 1)));
   spawnX = clamp(spawnX, 0, width - 1);
   spawnY = clamp(spawnY, 0, height - 1);
 
@@ -910,9 +939,9 @@ function open(ctx, size) {
     cursor: { x: spawnX | 0, y: spawnY | 0 },
     // Exits: four edges; the spawn edge uses the exact chosen tile to avoid duplicates
     exitTiles: exitTilesFinal,
-    enterWorldPos: { x: worldX, y: worldY },
+    enterWorldPos: { x: anchorX, y: anchorY },
     _prevLOS: ctx.los || null,
-    _hasKnownAnimals: animalsSeenHere(worldX, worldY)
+    _hasKnownAnimals: animalsSeenHere(anchorX, anchorY)
   };
 
   // Region behaves like a normal mode: use region map as active map and player follows cursor
@@ -974,7 +1003,7 @@ function open(ctx, size) {
   (function spawnRuinsEncounter() {
     try {
       const WT = World.TILES;
-      const isRuinsHere = (ctx.world && ctx.world.map && ctx.world.map[worldY][worldX] === WT.RUINS);
+      const isRuinsHere = (ctx.world && ctx.world.map && ctx.world.map[anchorY][anchorX] === WT.RUINS);
       if (!isRuinsHere) return;
       // If animalsCleared is set for this tile, treat ruins as cleared as well (shared flag)
       if (animalsCleared) {
@@ -982,12 +1011,11 @@ function open(ctx, size) {
         return;
       }
       // If we restored a persisted map state, assume encounter already handled
-      if (persisted) return;
+      if (loadedPersisted) return;
 
       const h = ctx.region.map.length;
       const w = ctx.region.map[0] ? ctx.region.map[0].length : 0;
       if (!w || !h) return;
-      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
 
       // Resolve ruin wall id for walkability/FOV checks
       let ruinWallId = WT.MOUNTAIN;
@@ -1099,7 +1127,7 @@ function open(ctx, size) {
   })();
 
   // Rare neutral animals in region: deer/boar/fox that wander; become hostile only if attacked.
-  if (!(tile === World.TILES.RUINS)) (function spawnNeutralAnimals() {
+  if (!(anchorTile === World.TILES.RUINS)) (function spawnNeutralAnimals() {
     try {
       // If animals were cleared previously in this region, skip spawning and inform player
       if (animalsCleared) {
@@ -1107,16 +1135,13 @@ function open(ctx, size) {
         return;
       }
       const WT = World.TILES;
-      // Use the game's global RNG stream for variety across sessions (still deterministic per run)
-      const rng = (RU && typeof RU.getRng === "function")
-        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-        : ((typeof ctx.rng === "function") ? ctx.rng : Math.random);
+      // Use the deterministic region RNG defined in open()
       const sample = ctx.region.map;
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
 
       // If animals were already seen here in a prior visit, reduce the chance to spawn again (60% allowed)
-      const seenBefore = animalsSeenHere(worldX, worldY);
+      const seenBefore = animalsSeenHere(anchorX, anchorY);
       if (seenBefore && rng() >= 0.40) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
@@ -1298,7 +1323,7 @@ function open(ctx, size) {
       // Persist animal presence for this region (world coordinates) so we remember later
       try {
         if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {
-          markAnimalsSeen(worldX | 0, worldY | 0);
+          markAnimalsSeen(anchorX | 0, anchorY | 0);
           // Survivalism skill gain for spotting wildlife
           try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.survivalism = (ctx.player.skills.survivalism || 0) + 1; } catch (_) {}
           // Also update flag in this session
@@ -1420,54 +1445,54 @@ function tryMove(ctx, dx, dy) {
     try { enemy = ctx.enemies.find(e => e && e.x === nx && e.y === ny) || null; } catch (_) { enemy = null; }
   }
   if (enemy) {
-    // If this is a neutral animal, make it hostile when attacked and mark region as an encounter
-    try {
-      if (String(enemy.faction || "") === "animal") {
-        enemy.faction = "animal_hostile";
-        ctx.region._isEncounter = true;
-        ctx.log && ctx.log(`The ${enemy.type} turns hostile!`, "warn");
+      // If this is a neutral animal, make it hostile when attacked and mark region as an encounter
+      try {
+        if (String(enemy.faction || "") === "animal") {
+          enemy.faction = "animal_hostile";
+          ctx.region._isEncounter = true;
+          ctx.log && ctx.log(`The ${enemy.type} turns hostile!`, "warn");
+        }
+      } catch (_) {}
+      const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
+      if (C && typeof C.playerAttackEnemy === "function") {
+        try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
+        try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+        return true;
       }
-    } catch (_) {}
-    const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
-    if (C && typeof C.playerAttackEnemy === "function") {
-      try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
+      // Minimal fallback
+      try {
+        const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
+        const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
+        // Prefer RNGUtils.chance for determinism; fallback to raw rng comparison
+        let didBlock = false;
+        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+          didBlock = window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
+        } else {
+          const RU = getRU(ctx);
+          const rfn = (RU && typeof RU.getRng === "function")
+            ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+            : ((typeof ctx.rng === "function") ? ctx.rng : null);
+          didBlock = ((typeof rfn === "function") ? rfn() : 0.5) < blockChance;
+        }
+        if (didBlock) {
+          ctx.log && ctx.log(`${(enemy.type || "enemy")[0].toUpperCase()}${(enemy.type || "enemy").slice(1)} blocks your attack to the ${loc.part}.`, "block", { category: "Combat", side: "player" });
+        } else {
+          const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
+          const dmg = Math.max(0.1, Math.round(atk * 10) / 10);
+          enemy.hp -= dmg;
+          ctx.log && ctx.log(`You hit the ${(enemy.type || "enemy")} for ${dmg}.`, "info", { category: "Combat", side: "player" });
+          if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
+        }
+      } catch (_) {}
       try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
       return true;
     }
-    // Minimal fallback
-    try {
-      const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
-      const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
-      // Prefer RNGUtils.chance for determinism; fallback to raw rng comparison
-      let didBlock = false;
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-        didBlock = window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
-      } else {
-        const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-        const rfn = (RU && typeof RU.getRng === "function")
-          ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-          : ((typeof ctx.rng === "function") ? ctx.rng : null);
-        didBlock = ((typeof rfn === "function") ? rfn() : 0.5) < blockChance;
-      }
-      if (didBlock) {
-        ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
-      } else {
-        const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
-        const dmg = Math.max(0.1, Math.round(atk * 10) / 10);
-        enemy.hp -= dmg;
-        ctx.log && ctx.log(`You hit the ${(enemy.type || "enemy")} for ${dmg}.`);
-        if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
-      }
-    } catch (_) {}
-    try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
-    return true;
-  }
-
-  if (!walkable) {
-    return false;
-  }
-
-  ctx.region.cursor = { x: nx, y: ny };
+  // Move cursor and player together in Region Map
+  try {
+    if (ctx.region && ctx.region.cursor) {
+      ctx.region.cursor.x = nx; ctx.region.cursor.y = ny;
+    }
+  } catch (_) {}
   ctx.player.x = nx; ctx.player.y = ny;
 
   try {
@@ -1554,7 +1579,7 @@ function onAction(ctx) {
 
     if (t === WT.TREE) {
       // Log and convert this spot back to forest for visualization
-      if (ctx.log) ctx.log("You cut the tree.", "notice");
+      if (ctx.log) ctx.log("You cut the tree.", "good");
       try {
         // Foraging skill gain
         try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.foraging = (ctx.player.skills.foraging || 0) + 1; } catch (_) {}
@@ -1693,7 +1718,7 @@ function tick(ctx) {
   } else {
     // Neutral animals wander slowly even when not in an encounter
     try {
-      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const RU = getRU(ctx);
       const rfn = (RU && typeof RU.getRng === "function")
         ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
         : ((typeof ctx.rng === "function") ? ctx.rng : null);
