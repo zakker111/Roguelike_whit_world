@@ -112,7 +112,7 @@ html, body {
 .log .entry { margin: 2px 0; }
 .log .entry.info { color: #e0af68; } /* default game-related: yellowish */
 .log .entry.block { color: var(--accent); font-weight: 500; }
-.log .entry.notice { color: var(--accent); font-weight: 500; } /* informational: blue */
+.log .entry.notice { color: #718918; font-weight: 500; } /* informational: custom */
 .log .entry.warn { color: #eab308; font-weight: 600; } /* warning: amber */
 .log .entry.error, .log .entry.bad { color: #ff9e64; font-weight: 700; text-shadow: 0 0 6px rgba(255,158,100,0.25); } /* error: orange */
 .log .entry.fatal, .log .entry.crit, .log .entry.death { color: #ff4c4c; font-weight: 700; text-shadow: 0 0 8px rgba(255,76,76,0.35); } /* fatal: red */
