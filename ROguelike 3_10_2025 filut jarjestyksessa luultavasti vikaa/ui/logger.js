@@ -104,8 +104,13 @@ export const Logger = {
       const node = document.createElement("div");
       node.className = `entry ${type}`;
       if (category) { try { node.dataset.cat = String(category).toLowerCase(); } catch (_) {} }
-      if (details && typeof details === "object" && details.side) {
-        try { node.dataset.side = String(details.side).toLowerCase(); } catch (_) {}
+      if (details && typeof details === "object") {
+        if (details.side) {
+          try { node.dataset.side = String(details.side).toLowerCase(); } catch (_) {}
+        }
+        if (details.tone) {
+          try { node.dataset.tone = String(details.tone).toLowerCase(); } catch (_) {}
+        }
       }
       let text = String(msg);
       try {
@@ -141,8 +146,13 @@ export const Logger = {
         const node2 = document.createElement("div");
         node2.className = `entry ${type}`;
         if (category) { try { node2.dataset.cat = String(category).toLowerCase(); } catch (_) {} }
-        if (details && typeof details === "object" && details.side) {
-          try { node2.dataset.side = String(details.side).toLowerCase(); } catch (_) {}
+        if (details && typeof details === "object") {
+          if (details.side) {
+            try { node2.dataset.side = String(details.side).toLowerCase(); } catch (_) {}
+          }
+          if (details.tone) {
+            try { node2.dataset.tone = String(details.tone).toLowerCase(); } catch (_) {}
+          }
         }
         node2.textContent = text;
         fragRight.appendChild(node2);

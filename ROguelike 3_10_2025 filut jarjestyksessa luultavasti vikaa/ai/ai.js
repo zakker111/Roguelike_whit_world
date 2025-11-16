@@ -313,10 +313,20 @@ export function enemiesAct(ctx) {
 
     // Special behavior: mime_ghost logic only cares about player proximity/LOS
     if (e.type === "mime_ghost") {
+      // Reduce yelling frequency: one immediate yell on first sight, then at most once every 5 turns.
       if (typeof e._arghCd === "number" && e._arghCd > 0) e._arghCd -= 1;
-      if ((e._arghCd | 0) <= 0 && chance(0.15)) {
-        try { ctx.log("Argh!", "flavor"); } catch (_) {}
-        e._arghCd = 3;
+      const pdistNow = Math.abs(player.x - e.x) + Math.abs(player.y - e.y);
+      if (pdistNow <= senseRange && hasLOS(ctx, e.x, e.y, player.x, player.y)) {
+        if (!e._arghDoneOnce) {
+          try { ctx.log("Argh!", "flavor", { category: "Combat", side: "enemy" }); } catch (_) {}
+          e._arghDoneOnce = true;
+          e._arghCd = 5;
+        } else if ((e._arghCd | 0) <= 0) {
+          if (chance(0.30)) {
+            try { ctx.log("Argh!", "flavor", { category: "Combat", side: "enemy" }); } catch (_) {}
+            e._arghCd = 5;
+          }
+        }
       }
 
       const pdx = player.x - e.x;
