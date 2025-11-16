@@ -1554,7 +1554,7 @@ function onAction(ctx) {
 
     if (t === WT.TREE) {
       // Log and convert this spot back to forest for visualization
-      if (ctx.log) ctx.log("You cut the tree.", "notice");
+      if (ctx.log) ctx.log("You cut the tree.", "info");
       try {
         // Foraging skill gain
         try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.foraging = (ctx.player.skills.foraging || 0) + 1; } catch (_) {}
