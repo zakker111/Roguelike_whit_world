@@ -251,7 +251,7 @@ export function maybeTryEncounter(ctx) {
       return false;
     }
 
-    // Special pick: Night Raid goblins vs bandits (3% of all encounters, night-only, once per in-game week)
+    // Special pick: Night Raid goblins vs bandits (configurable share, night-only, cooldown in days)
     (function maybeNightRaid() {
       try {
         const reg = registry(ctx);
@@ -262,17 +262,23 @@ export function maybeTryEncounter(ctx) {
         if (phase !== "night") return;
         const tc = (typeof clock.turnCounter === "number") ? (clock.turnCounter | 0) : 0;
         if (tc < (STATE.nightRaidCooldownUntilTurn | 0)) return;
-        // 3% share among all rolled encounters
+
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const NRC = GD && GD.encountersConfig && GD.encountersConfig.nightRaid ? GD.encountersConfig.nightRaid : null;
+        const share = NRC && typeof NRC.share === "number" ? NRC.share : 0.03;
+        const cooldownDays = NRC && typeof NRC.cooldownDays === "number" ? NRC.cooldownDays : 7;
+
+        // Global share among all rolled encounters
         const r = rngFor(ctx)();
-        if (r >= 0.03) return;
+        if (r >= share) return;
         const tmpl = findTemplateById(ctx, "night_raid_goblins");
         if (!tmpl) return;
         const diff = computeDifficulty(ctx, biome);
         if (tryEnter(ctx, tmpl, biome, diff)) {
-          // Set cooldown for one in-game week
+          // Set cooldown for configured days
           const minsPerTurn = (clock.minutesPerTurn || 4);
-          const oneWeekTurns = Math.ceil((7 * 24 * 60) / minsPerTurn);
-          STATE.nightRaidCooldownUntilTurn = tc + oneWeekTurns;
+          const turns = Math.ceil(((cooldownDays * 24 * 60) || (7 * 24 * 60)) / minsPerTurn);
+          STATE.nightRaidCooldownUntilTurn = tc + turns;
           STATE.movesSinceLast = 0;
           STATE.cooldownMoves = 10;
           throw { _earlyExit: true };
