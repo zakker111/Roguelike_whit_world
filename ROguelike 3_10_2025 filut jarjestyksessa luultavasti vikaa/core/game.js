@@ -992,21 +992,6 @@
     const GL = modHandle("GameLoop");
     if (GL && typeof GL.requestDraw === "function") {
       GL.requestDraw();
-      return;
-    }
-    const R = modHandle("Render");
-    if (R && typeof R.draw === "function") {
-      const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-      R.draw(getRenderCtx());
-      const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-      PERF.lastDrawMs = t1 - t0;
-      // EMA smoothing for draw time
-      try {
-        const a = 0.35; // smoothing factor
-        if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = PERF.lastDrawMs;
-        else PERF.avgDrawMs = (a * PERF.lastDrawMs) + ((1 - a) * PERF.avgDrawMs);
-      } catch (_) {}
-      try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms (avg ${PERF.avgDrawMs.toFixed(2)}ms)`); } catch (_) {}
     }
   }
 
