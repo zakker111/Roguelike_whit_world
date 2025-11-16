@@ -2,6 +2,22 @@ s
 # Game Version History
 Last updated: 2025-11-16 00:00 UTC
 
+v1.46.1 — Region Map anchor sampling, strict town entry, and info-level break logs
+- Region Map
+  - Anchor-based sampling: when opening adjacent to Ruins, the sampled window centers on the Ruins tile (anchor), not the player tile, improving orientation and exits consistency.
+  - Persistence guard: when a persisted region is loaded, skip transform passes (orientation, beaches/trees, ruins decoration) to prevent tile drift on re-entry.
+  - RNG normalization: added getRU(ctx) helper; removed local RU redeclarations; deterministic region rng wired once in open().
+  - Movement: cursor and player positions are synchronized in Region Map movement to avoid “wonky” behavior.
+  - Cleanup: removed unused helpers computeRegionAnchor and regionCutKeyFromAnchor.
+
+- Towns
+  - Strict entry to towns: the player must stand exactly on the town tile to enter (adjacent entry removed).
+
+- Logging
+  - Equipment/weapon break messages now log at info level instead of bad, ensuring neutral visibility at the “info” threshold.
+
+Deployment: https://9g3fs7bmqxca.cosine.page, https://w4mg3hf9jejz.cosine.page, https://533vxuxv1ir2.cosine.page
+
 v1.46.0 — Phase 5: Registry defaults, encounter fog-of-war persistence, and validation polish
 - Changed: entities/enemies.js
   - Missing glyph now falls back to the first character of the enemy id instead of "?". Keeps the warning but avoids unusable/hidden glyphs.
