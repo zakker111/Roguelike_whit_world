@@ -37,6 +37,21 @@
     .card h2 {
       margin-top: 0;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card h2:hover {
+      color: #7aa2f7;
+      text-decoration: underline;
+    }
+    .caret {
+      display: inline-block;
+      color: #7aa2f7;
+      transition: transform 0.18s ease;
+    }
+    .card[data-expanded="true"] .caret {
+      transform: rotate(90deg);
     }
     .card .actions {
       display: flex;
@@ -125,6 +140,37 @@
         { title: 'Smoketest: Scenarios', path: '/smoketest/scenarios/README.md' },
       ];
 
+      const descriptions = {
+        '/README.md': 'Top-level overview, controls, and quick start.',
+        '/VERSIONS.md': 'Detailed changelog of versions and deployments.',
+        '/CHECKLIST.md': 'Developer/testing checklist and verification items.',
+        '/smoketest.md': 'Smoke test documentation and scenario notes.',
+
+        '/data/docs/README.md': 'Index of data documentation and palette guides.',
+        '/data/docs/palette_schema.md': 'Schema for palette JSON: keys, sections, and constraints.',
+        '/data/docs/palette_theming.md': 'Theming guidance: how colors drive tiles, overlays, and UI.',
+        '/data/docs/tiles_coverage.md': 'Tiles coverage report: which modes use which tiles.',
+
+        '/core/README.md': 'Core engine: game loop, modes, FOV, camera, orchestration.',
+        '/ui/README.md': 'UI modules: HUD, panels, renderer wiring.',
+        '/world/README.md': 'World generation/runtime and overworld helpers.',
+        '/dungeon/README.md': 'Dungeon generation, state persistence, and runtime.',
+        '/services/README.md': 'Shared services: time, shop, capabilities.',
+        '/entities/README.md': 'Items, enemies, player, loot registries.',
+        '/combat/README.md': 'Combat engine, stats, status effects, decay.',
+        '/ai/README.md': 'AI behavior and movement (town/dungeon).',
+        '/region_map/README.md': 'Region Map overlay: sampling, persistence, encounters.',
+        '/utils/README.md': 'Utilities and helpers (bounds, RNG, numbers).',
+        '/tools/README.md': 'Tools (e.g., Prefab Editor, analyzers).',
+        '/scripts/README.md': 'Node scripts for manifests and analysis.',
+        '/worldgen/README.md': 'Prefabs and town/world generation assets.',
+
+        '/smoketest/README.md': 'Smoketest overview: goals and flows.',
+        '/smoketest/runner/README.md': 'Runner orchestrator and controls.',
+        '/smoketest/helpers/README.md': 'Runner helper modules (movement, logging).',
+        '/smoketest/reporting/README.md': 'Rendering/export of per-run and aggregated reports.',
+        '/smoketest/scenarios/README.md': 'Scenario definitions and expectations.',
+      };
       const root = document.getElementById('docs');
       const st = document.getElementById('status');
 
@@ -134,7 +180,13 @@
         card.dataset.title = (entry.title || '').toLowerCase();
 
         const h2 = document.createElement('h2');
-        h2.textContent = entry.title || entry.path;
+        h2.setAttribute('role', 'button');
+        h2.setAttribute('aria-expanded', 'false');
+        h2.title = descriptions[entry.path] || 'Click to expand/collapse';
+        const caret = document.createElement('span'); caret.className = 'caret'; caret.textContent = '▶';
+        const label = document.createElement('span'); label.textContent = entry.title || entry.path;
+        h2.appendChild(caret);
+        h2.appendChild(label);
         card.appendChild(h2);
 
         const actions = document.createElement('div');
@@ -173,10 +225,14 @@
           if (pre.hidden) {
             pre.hidden = false;
             status.textContent = 'Expanded';
+            h2.setAttribute('aria-expanded', 'true');
+            card.dataset.expanded = 'true';
             if (!loaded) { status.textContent = 'Loading…'; load().then(() => { status.textContent = 'Expanded'; }).catch(() => { status.textContent = 'Loaded with warnings'; }); }
           } else {
             pre.hidden = true;
             status.textContent = 'Collapsed';
+            h2.setAttribute('aria-expanded', 'false');
+            card.dataset.expanded = 'false';
           }
         }
         h2.addEventListener('click', toggle);
