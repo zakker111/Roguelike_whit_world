@@ -108,6 +108,7 @@ import '/core/render_orchestration.js';
 import '/core/death_flow.js';
 import '/core/capabilities.js';
 import '/core/god_handlers.js';
+import '/core/validation_runner.js';
 
 // Finally: game orchestrator (boots world, sets up input, starts loop/render)
 // Minimal orchestrator keeps current boot-in-game.js behavior behind a stable entrypoint.
@@ -235,6 +236,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const isDev = (params.get('dev') === '1') || (typeof localStorage !== 'undefined' && localStorage.getItem('DEV') === '1') || (typeof window !== 'undefined' && window.DEV);
     if (isDev) {
       try { await import('/smoketest/validate_data.js'); } catch (_) {}
+      // After registries are ready, build and log a summary via ValidationRunner
+      try {
+        const GD = (typeof window !== 'undefined' ? window.GameData : null);
+        const VR = (typeof window !== 'undefined' ? window.ValidationRunner : null);
+        if (GD && GD.ready && typeof GD.ready.then === 'function' && VR && typeof VR.run === 'function') {
+          GD.ready.then(() => { try { VR.run(); VR.logSummary(null); } catch (_) {} });
+        }
+      } catch (_) {}
     }
   } catch (_) {}
 })();

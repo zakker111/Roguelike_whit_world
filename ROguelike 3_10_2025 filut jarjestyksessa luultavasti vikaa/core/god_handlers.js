@@ -565,6 +565,21 @@ export function install(getCtx) {
         }
       } catch (_) {}
     },
+
+    // Validation: run and show summary
+    onGodRunValidation: () => {
+      try {
+        const c = getCtx();
+        const VR = (typeof window !== "undefined" ? window.ValidationRunner : null);
+        if (VR && typeof VR.run === "function") {
+          VR.run(c);
+          if (typeof VR.logSummary === "function") VR.logSummary(c);
+          else c.log("Validation summary available in console/Logger.", "notice");
+        } else {
+          c.log("ValidationRunner not available.", "warn");
+        }
+      } catch (_) {}
+    },
     // Legacy smoke test button (UI now opens Smoke panel; keep for back-compat if wired)
     onGodRunSmokeTest: () => {
       try {
