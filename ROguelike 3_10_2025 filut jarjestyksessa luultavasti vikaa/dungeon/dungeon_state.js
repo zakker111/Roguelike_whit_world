@@ -106,7 +106,7 @@ export function save(ctx) {
     const corpsesCount = Array.isArray(snapshot.corpses) ? snapshot.corpses.length : 0;
     const msg = `DungeonState.save: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}`;
     if (window.DEV && ctx.log) ctx.log(msg, "notice");
-    try { if (typeof window !== "undefined" && window.DEV) console.log(msg); } catch (_) {}
+    try { if (typeof window !== "undefined" && window.DEV && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "notice", { category: "DungeonState" }); } catch (_) {}
   } catch (_) {}
 }
 
@@ -179,7 +179,7 @@ function applyState(ctx, st, x, y) {
 
   // Debug: log a concise position summary for entry
   try {
-    console.log("DungeonState.applyState: key " + key(x,y) + ", exit=(" + ctx.dungeonExitAt.x + "," + ctx.dungeonExitAt.y + "), player " + prevPX + "," + prevPY + " -> " + ctx.player.x + "," + ctx.player.y + ", corpses=" + ctx.corpses.length + ", enemies=" + ctx.enemies.length);
+    if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log("DungeonState.applyState: key " + key(x,y) + ", exit=(" + ctx.dungeonExitAt.x + "," + ctx.dungeonExitAt.y + "), player " + prevPX + "," + prevPY + " -> " + ctx.player.x + "," + ctx.player.y + ", corpses=" + ctx.corpses.length + ", enemies=" + ctx.enemies.length, "notice", { category: "DungeonState" });
     if (window.DEV && ctx.log) ctx.log("DungeonState.applyState: player at (" + ctx.player.x + "," + ctx.player.y + ").", "info");
   } catch (_) {}
 
@@ -209,7 +209,7 @@ export function load(ctx, x, y) {
     try {
       const msg = `DungeonState.load: no state for key ${k}`;
       if (ctx.log) ctx.log(msg, "warn");
-      console.log(msg);
+      try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "warn", { category: "DungeonState" }); } catch (_) {}
     } catch (_) {}
     return false;
   }
@@ -219,7 +219,7 @@ export function load(ctx, x, y) {
     const corpsesCount = Array.isArray(st.corpses) ? st.corpses.length : 0;
     const msg = `DungeonState.load: key ${k}, enemies=${enemiesCount}, corpses=${corpsesCount}`;
     if (window.DEV && ctx.log) ctx.log(msg, "notice");
-    console.log(msg);
+    try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "notice", { category: "DungeonState" }); } catch (_) {}
   } catch (_) {}
 
   applyState(ctx, st, x, y);

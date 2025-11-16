@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
   try {
     const params = new URLSearchParams(location.search);
     if (params.get('smoketest') === '1') {
-      console.log('[SMOKE] loader: detected ?smoketest=1, dynamic importing runner');
+      try { if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') window.Logger.log('[SMOKE] loader: detected ?smoketest=1, dynamic importing runner', 'notice', { category: 'Smoketest' }); } catch (_) {}
       const legacy = params.get('legacy') === '1';
       const injectList = [
         // Helpers
@@ -217,15 +217,23 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
           await import(url);
         } catch (e) {
-          console.error('[SMOKE] loader: failed to import', url, e);
+          try {
+            if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') {
+              window.Logger.log('[SMOKE] loader: failed to import ' + url, 'bad', { category: 'Smoketest', error: (e && e.message) ? e.message : String(e), url });
+            }
+          } catch (_) {}
         }
       }
       window.SMOKETEST_REQUESTED = true;
     } else {
-      console.log('[SMOKE] loader: no smoketest param');
+      try { if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') window.Logger.log('[SMOKE] loader: no smoketest param', 'notice', { category: 'Smoketest' }); } catch (_) {}
     }
   } catch (e) {
-    console.error('[SMOKE] loader: error', e);
+    try {
+      if (typeof window !== 'undefined' && window.Logger && typeof window.Logger.log === 'function') {
+        window.Logger.log('[SMOKE] loader: error', 'bad', { category: 'Smoketest', error: (e && e.message) ? e.message : String(e) });
+      }
+    } catch (_) {}
   }
 })();
 

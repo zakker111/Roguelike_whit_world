@@ -63,12 +63,12 @@ function spawnWallTorches(ctx, options = {}) {
 
 export function save(ctx, logOnce) {
   if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
-    try { if (typeof window !== "undefined" && window.DEV && logOnce) console.log("[TRACE] Calling ctx.DungeonState.save"); } catch (_) {}
+    try { if (typeof window !== "undefined" && window.DEV && logOnce && window.Logger && typeof window.Logger.log === "function") window.Logger.log("[TRACE] Calling ctx.DungeonState.save", "notice", { category: "DungeonState" }); } catch (_) {}
     ctx.DungeonState.save(ctx);
     return;
   }
   if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") {
-    try { if (window.DEV && logOnce) console.log("[TRACE] Calling DungeonState.save"); } catch (_) {}
+    try { if (typeof window !== "undefined" && window.DEV && logOnce && window.Logger && typeof window.Logger.log === "function") window.Logger.log("[TRACE] Calling DungeonState.save", "notice", { category: "DungeonState" }); } catch (_) {}
     window.DungeonState.save(ctx);
     return;
   }
