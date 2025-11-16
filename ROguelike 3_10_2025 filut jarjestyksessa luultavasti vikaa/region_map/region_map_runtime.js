@@ -22,17 +22,7 @@ import { attachGlobal } from "../utils/global.js";
 const DEFAULT_WIDTH = 28;
 const DEFAULT_HEIGHT = 18;
 
-// Compute a stable region "anchor" in overworld coordinates for persistence.
-// Adjacent overworld tiles that fall within the same sampled window share the same anchor.
-function computeRegionAnchor(ctx, worldX, worldY, width, height) {
-  const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
-  const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
-  const winW = Math.max(12, Math.min(worldW, Math.floor(worldW * 0.35)));
-  const winH = Math.max(8, Math.min(worldH, Math.floor(worldH * 0.35)));
-  const minX = Math.max(0, Math.min(worldW - winW, (worldX | 0) - Math.floor(winW / 2)));
-  const minY = Math.max(0, Math.min(worldH - winH, (worldY | 0) - Math.floor(winH / 2)));
-  return { ax: minX | 0, ay: minY | 0, winW, winH, w: width | 0, h: height | 0 };
-}
+
 
 /**
  * Deterministic RNG for region map based on global seed and world position
@@ -62,6 +52,15 @@ function getRegionRng(ctx) {
   const py = (ctx && ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
   const mix = (((px & 0xffff) | ((py & 0xffff) << 16)) ^ base) >>> 0;
   return _mulberry32(mix);
+}
+
+// RNG helper: prefer ctx.RNGUtils; fallback to window.RNGUtils
+function getRU(ctx) {
+  try {
+    return (ctx && ctx.RNGUtils) || (typeof window !== "undefined" ? window.RNGUtils : null);
+  } catch (_) {
+    return null;
+  }
 }
 
 function clamp(v, lo, hi) {
@@ -230,10 +229,7 @@ function _saveCutsMap(map) {
     localStorage.setItem(REGION_CUTS_LS_KEY, JSON.stringify(map || {}));
   } catch (_) {}
 }
-function regionCutKeyFromAnchor(anchor) {
-  // Include window extent in key to be robust across different region sizes
-  return `r:${anchor.ax},${anchor.ay}:${anchor.winW}x${anchor.winH}`;
-}
+
 function applyRegionCuts(sample, key) {
   if (!key) return;
   const map = _loadCutsMap();
@@ -648,7 +644,7 @@ function open(ctx, size) {
   } catch (_) { isWalkable = true; }
   const allowNonWalkableHere = (anchorTile === WT.RUINS);
   if (!isWalkable && !allowNonWalkableHere) return false;
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const RU = getRU(ctx);
   const rng = getRegionRng(ctx);
 
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
@@ -1020,7 +1016,6 @@ function open(ctx, size) {
       const h = ctx.region.map.length;
       const w = ctx.region.map[0] ? ctx.region.map[0].length : 0;
       if (!w || !h) return;
-      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
 
       // Resolve ruin wall id for walkability/FOV checks
       let ruinWallId = WT.MOUNTAIN;
@@ -1140,10 +1135,7 @@ function open(ctx, size) {
         return;
       }
       const WT = World.TILES;
-      // Use the game's global RNG stream for variety across sessions (still deterministic per run)
-      const rng = (RU && typeof RU.getRng === "function")
-        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-        : ((typeof ctx.rng === "function") ? ctx.rng : Math.random);
+      // Use the deterministic region RNG defined in open()
       const sample = ctx.region.map;
       const h = sample.length, w = sample[0] ? sample[0].length : 0;
       if (!w || !h) return;
@@ -1476,7 +1468,7 @@ function tryMove(ctx, dx, dy) {
         if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
           didBlock = window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
         } else {
-          const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+          const RU = getRU(ctx);
           const rfn = (RU && typeof RU.getRng === "function")
             ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
             : ((typeof ctx.rng === "function") ? ctx.rng : null);
@@ -1726,7 +1718,7 @@ function tick(ctx) {
   } else {
     // Neutral animals wander slowly even when not in an encounter
     try {
-      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const RU = getRU(ctx);
       const rfn = (RU && typeof RU.getRng === "function")
         ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
         : ((typeof ctx.rng === "function") ? ctx.rng : null);
