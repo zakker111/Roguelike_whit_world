@@ -184,6 +184,37 @@ export function run(ctx = null) {
       validateItems(GD.items);
       validateEnemies(GD.enemies);
 
+      // Cross-check: enemy loot pools reference valid item ids
+      try {
+        const ItemsMod = (typeof window !== "undefined" ? window.Items : null);
+        const hasItems = !!(ItemsMod && typeof ItemsMod.getTypeDef === "function");
+        if (hasItems && Array.isArray(GD.enemies)) {
+          for (const row of GD.enemies) {
+            const enemyId = (row && (row.id || row.key)) ? String(row.id || row.key) : "";
+            if (!enemyId) continue;
+            const pools = row && row.lootPools ? row.lootPools : null;
+            if (!pools) continue;
+            const objs = [];
+            if (pools.weapons || pools.armor) {
+              if (pools.weapons && typeof pools.weapons === "object") objs.push({ obj: pools.weapons, label: "weapons" });
+              if (pools.armor && typeof pools.armor === "object") objs.push({ obj: pools.armor, label: "armor" });
+            } else if (typeof pools === "object") {
+              objs.push({ obj: pools, label: "pools" });
+            }
+            for (const { obj, label } of objs) {
+              for (const key of Object.keys(obj)) {
+                const w = Number(obj[key] || 0);
+                if (!(w > 0)) continue; // zero/negative weights effectively disabled
+                const def = ItemsMod.getTypeDef(key);
+                if (!def) {
+                  pushWarn(`[LootPools] enemy '${enemyId}' ${label} references unknown item id '${key}'.`);
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
       // Palette overlays (basic presence)
       const pal = GD.palette;
       const ov = pal && pal.overlays ? pal.overlays : null;
