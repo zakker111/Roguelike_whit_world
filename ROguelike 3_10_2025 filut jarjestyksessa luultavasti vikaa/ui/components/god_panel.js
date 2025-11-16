@@ -308,44 +308,64 @@ export function init(UI) {
     try { UI.updateSideLogButton(); } catch (_) {}
   }
 
-  // Trace toggle (movement + encounter)
-  const traceBtn = byId("god-toggle-trace-btn");
-  function isTraceEnabledLS() {
-    try {
-      const m = localStorage.getItem("LOG_TRACE_MOVEMENT");
-      const e = localStorage.getItem("LOG_TRACE_ENCOUNTERS");
-      return (String(m).toLowerCase() === "1") || (String(e).toLowerCase() === "1");
-    } catch (_) { return false; }
+  // Trace toggles: movement, encounters, shops
+  const traceMoveBtn = byId("god-toggle-trace-move-btn");
+  const traceEncBtn = byId("god-toggle-trace-enc-btn");
+  const traceShopBtn = byId("god-toggle-trace-shop-btn");
+
+  function _lsGetBool(key) {
+    try { const v = localStorage.getItem(key); return String(v).toLowerCase() === "1"; } catch (_) { return false; }
   }
-  function isTraceActive() {
-    try { if (typeof window !== "undefined" && window.DEV) return true; } catch (_) {}
-    return isTraceEnabledLS();
+  function _lsSetBool(key, on) {
+    try { if (on) localStorage.setItem(key, "1"); else localStorage.removeItem(key); } catch (_) {}
   }
-  function setTraceLS(on) {
+  function _isDev() { try { return !!window.DEV; } catch (_) { return false; } }
+
+  function updateTraceMoveButton() {
     try {
-      if (on) {
-        localStorage.setItem("LOG_TRACE_MOVEMENT", "1");
-        localStorage.setItem("LOG_TRACE_ENCOUNTERS", "1");
-      } else {
-        localStorage.removeItem("LOG_TRACE_MOVEMENT");
-        localStorage.removeItem("LOG_TRACE_ENCOUNTERS");
-      }
+      if (!traceMoveBtn) return;
+      const active = _isDev() || _lsGetBool("LOG_TRACE_MOVEMENT");
+      traceMoveBtn.textContent = `Trace Move: ${active ? "On" : "Off"}`;
     } catch (_) {}
   }
-  function updateTraceButton() {
+  function updateTraceEncButton() {
     try {
-      if (!traceBtn) return;
-      const active = isTraceActive();
-      traceBtn.textContent = `Trace: ${active ? "On" : "Off"}`;
+      if (!traceEncBtn) return;
+      const active = _isDev() || _lsGetBool("LOG_TRACE_ENCOUNTERS");
+      traceEncBtn.textContent = `Trace Enc: ${active ? "On" : "Off"}`;
     } catch (_) {}
   }
-  if (traceBtn) {
-    traceBtn.addEventListener("click", () => {
-      const next = !isTraceEnabledLS();
-      setTraceLS(next);
-      updateTraceButton();
+  function updateTraceShopButton() {
+    try {
+      if (!traceShopBtn) return;
+      const active = _isDev() || _lsGetBool("LOG_TRACE_SHOPS");
+      traceShopBtn.textContent = `Trace Shop: ${active ? "On" : "Off"}`;
+    } catch (_) {}
+  }
+
+  if (traceMoveBtn) {
+    traceMoveBtn.addEventListener("click", () => {
+      const next = !_lsGetBool("LOG_TRACE_MOVEMENT");
+      _lsSetBool("LOG_TRACE_MOVEMENT", next);
+      updateTraceMoveButton();
     });
-    updateTraceButton();
+    updateTraceMoveButton();
+  }
+  if (traceEncBtn) {
+    traceEncBtn.addEventListener("click", () => {
+      const next = !_lsGetBool("LOG_TRACE_ENCOUNTERS");
+      _lsSetBool("LOG_TRACE_ENCOUNTERS", next);
+      updateTraceEncButton();
+    });
+    updateTraceEncButton();
+  }
+  if (traceShopBtn) {
+    traceShopBtn.addEventListener("click", () => {
+      const next = !_lsGetBool("LOG_TRACE_SHOPS");
+      _lsSetBool("LOG_TRACE_SHOPS", next);
+      updateTraceShopButton();
+    });
+    updateTraceShopButton();
   }
 
   // Log level select
@@ -396,13 +416,33 @@ export function init(UI) {
     });
   }
 
-  // Download logs
+  // Download & clear logs
   const dlLogsBtn = byId("god-log-download-btn");
   if (dlLogsBtn) {
     dlLogsBtn.addEventListener("click", () => {
       try {
         if (typeof window !== "undefined" && window.Logger && typeof window.Logger.download === "function") {
           window.Logger.download("game_logs.txt");
+        }
+      } catch (_) {}
+    });
+  }
+  const dlLogsJSONBtn = byId("god-log-download-json-btn");
+  if (dlLogsJSONBtn) {
+    dlLogsJSONBtn.addEventListener("click", () => {
+      try {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.downloadJSON === "function") {
+          window.Logger.downloadJSON("game_logs.json");
+        }
+      } catch (_) {}
+    });
+  }
+  const clearLogsBtn = byId("god-log-clear-btn");
+  if (clearLogsBtn) {
+    clearLogsBtn.addEventListener("click", () => {
+      try {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.clear === "function") {
+          window.Logger.clear();
         }
       } catch (_) {}
     });
