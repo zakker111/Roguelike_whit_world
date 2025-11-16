@@ -663,8 +663,6 @@
     if (clamped !== fovRadius) {
       fovRadius = clamped;
       log(`FOV radius set to ${fovRadius}.`);
-      // Force recompute by invalidating cache
-      _lastFovRadius = -1;
       recomputeFOV();
       requestDraw();
     }
@@ -842,18 +840,7 @@
     return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS || t === TILES.ROAD;
   }
 
-  function ensureVisibilityShape() {
-    const rows = map.length;
-    const cols = map[0] ? map[0].length : 0;
-    const shapeOk = Array.isArray(visible) && visible.length === rows && (rows === 0 || (visible[0] && visible[0].length === cols));
-    if (!shapeOk) {
-      visible = Array.from({ length: rows }, () => Array(cols).fill(false));
-    }
-    const seenOk = Array.isArray(seen) && seen.length === rows && (rows === 0 || (seen[0] && seen[0].length === cols));
-    if (!seenOk) {
-      seen = Array.from({ length: rows }, () => Array(cols).fill(false));
-    }
-  }
+  
 
   // FOV recompute guard: skip recompute unless player moved, FOV radius changed, mode changed, or map shape changed.
   let _lastPlayerX = -1, _lastPlayerY = -1, _lastFovRadius = -1, _lastMode = "", _lastMapCols = -1, _lastMapRows = -1;
@@ -902,8 +889,6 @@
   }
 
   // Batch multiple draw requests within a frame to avoid redundant renders.
-  let _drawQueued = false;
-  let _rafId = null;
   // Suppress draw flag used for fast-forward time (sleep/wait simulations)
   let _suppressDraw = false;
 
