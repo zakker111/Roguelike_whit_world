@@ -25,7 +25,8 @@ export const LogConfig = {
     error: "error",
     bad: "error",
     fatal: "fatal",
-    crit: "fatal",
+    // Treat combat crits as visible at info threshold; fatal remains fatal.
+    crit: "info",
     death: "fatal"
   },
   _cats: Object.create(null),

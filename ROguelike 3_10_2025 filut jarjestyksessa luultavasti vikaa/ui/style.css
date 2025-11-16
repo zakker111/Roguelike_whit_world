@@ -121,6 +121,13 @@ html, body {
 .log .entry .detail-toggle { margin-left: 6px; color: #718918; cursor: pointer; font-size: 11px; }
 .log .entry .details { margin-top: 4px; padding: 6px 8px; background: #0f1117; border: 1px solid #253047; border-radius: 6px; color: #cbd5e1; font-size: 11px; white-space: pre-wrap; }
 
+/* Combat-specific coloring by side */
+.log .entry.info[data-cat="combat"][data-side="player"] { color: var(--success); } /* player normal hits: green */
+.log .entry.info[data-cat="combat"][data-side="enemy"] { color: #eab308; }        /* enemy normal hits: amber */
+.log .entry.crit[data-side="player"] { color: var(--success); font-weight: 700; text-shadow: 0 0 6px rgba(158,206,106,0.35); } /* player crit: bright green */
+.log .entry.crit[data-side="enemy"] { color: #ff4c4c; font-weight: 700; text-shadow: 0 0 8px rgba(255,76,76,0.35); }           /* enemy crit: red */
+/* blocks remain blue via .entry.block */
+
 /* category accents for info-level only (subtle left border) */
 .log .entry.info[data-cat="world"],
 .log .entry.info[data-cat="worldgen"] { border-left: 3px solid #5cc9f5; padding-left: 6px; }

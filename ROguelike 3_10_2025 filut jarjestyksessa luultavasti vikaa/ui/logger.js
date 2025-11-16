@@ -104,6 +104,9 @@ export const Logger = {
       const node = document.createElement("div");
       node.className = `entry ${type}`;
       if (category) { try { node.dataset.cat = String(category).toLowerCase(); } catch (_) {} }
+      if (details && typeof details === "object" && details.side) {
+        try { node.dataset.side = String(details.side).toLowerCase(); } catch (_) {}
+      }
       let text = String(msg);
       try {
         const cnt = (entry && typeof entry.count === "number") ? entry.count : 0;
@@ -138,6 +141,9 @@ export const Logger = {
         const node2 = document.createElement("div");
         node2.className = `entry ${type}`;
         if (category) { try { node2.dataset.cat = String(category).toLowerCase(); } catch (_) {} }
+        if (details && typeof details === "object" && details.side) {
+          try { node2.dataset.side = String(details.side).toLowerCase(); } catch (_) {}
+        }
         node2.textContent = text;
         fragRight.appendChild(node2);
       }

@@ -710,7 +710,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
     if (rBlock < blockChance) {
       try {
         const name = (enemy.type || "enemy");
-        ctx.log && ctx.log(`${name.charAt(0).toUpperCase()}${name.slice(1)} blocks your attack to the ${loc.part}.`, "block");
+        ctx.log && ctx.log(`${name.charAt(0).toUpperCase()}${name.slice(1)} blocks your attack to the ${loc.part}.`, "block", { category: "Combat", side: "player" });
       } catch (_) {}
       // Decay hands (light) on block
       try {
@@ -777,18 +777,18 @@ export function tryMoveDungeon(ctx, dx, dy) {
     // Log
     try {
       const name = (enemy.type || "enemy");
-      if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit");
-    else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`);
-    if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
-    // Record last hit for death flavor
-    try {
-      const eq = ctx.player && ctx.player.equipment ? ctx.player.equipment : {};
-      const weaponName = (eq.right && eq.right.name) ? eq.right.name
-                   : (eq.left && eq.left.name) ? eq.left.name
-                   : null;
-      enemy._lastHit = { by: "player", part: loc.part, crit: isCrit, dmg, weapon: weaponName, via: weaponName ? `with ${weaponName}` : "melee" };
+      if (isCrit) ctx.log && ctx.log(`Critical! You hit the ${name}'s ${loc.part} for ${dmg}.`, "crit", { category: "Combat", side: "player" });
+      else ctx.log && ctx.log(`You hit the ${name}'s ${loc.part} for ${dmg}.`, "info", { category: "Combat", side: "player" });
+      if (ctx.Flavor && typeof ctx.Flavor.logPlayerHit === "function") ctx.Flavor.logPlayerHit(ctx, { target: enemy, loc, crit: isCrit, dmg });
+      // Record last hit for death flavor
+      try {
+        const eq = ctx.player && ctx.player.equipment ? ctx.player.equipment : {};
+        const weaponName = (eq.right && eq.right.name) ? eq.right.name
+                     : (eq.left && eq.left.name) ? eq.left.name
+                     : null;
+        enemy._lastHit = { by: "player", part: loc.part, crit: isCrit, dmg, weapon: weaponName, via: weaponName ? `with ${weaponName}` : "melee" };
+      } catch (_) {}
     } catch (_) {}
-  } catch (_) {}
 
     // Status effects on crit
     try {
