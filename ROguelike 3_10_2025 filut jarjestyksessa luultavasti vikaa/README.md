@@ -226,6 +226,14 @@ Project layout and docs
 - scripts/ — Node helper scripts — see scripts/README.md
 - tools/ — developer tools (prefab editor) — see tools/README.md
 
+Docs viewer
+- Access via the “Docs” button in the HUD; opens /docs/index.html.
+- Click a title to expand/collapse its contents inline. A caret (▶) indicates state and rotates when expanded.
+- Hover over a title to see a brief description of the document.
+- Filter by title and use Expand All / Collapse All to manage sections quickly.
+- Fresh content: the viewer fetches the latest file content when the Docs page opens and when you expand a title (no periodic auto-refresh). Requests use cache-busting with no-cache to avoid stale data.
+- “Open raw” links open the source file directly in a new tab for copy/paste or download.
+
 Development
 - Lint: npx eslint .
 - Format: npx prettier -c . / -w .

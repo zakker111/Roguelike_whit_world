@@ -2,6 +2,18 @@ s
 # Game Version History
 Last updated: 2025-11-16 00:00 UTC
 
+v1.46.2 — Docs viewer: clickable titles, tooltips, and on-demand refresh
+- Docs viewer (docs/index.html)
+  - Titles now show a caret and clear hover styling; clicking toggles expand/collapse. Hovering shows a brief description for context.
+  - Removed auto-refresh, interval controls, and manual “Refresh Expanded” button. Docs reload on demand:
+    - When opening the Docs page.
+    - When expanding a title (first load is lazy, then toggling keeps content visible).
+  - Fetches the latest file content with cache-busting and no-cache to avoid stale data.
+  - Filter by title and Expand/Collapse All remain.
+  - Each card has an “Open raw” link to the underlying file; per-card “Refresh” button removed.
+
+Deployment: https://hjgbz2bgh20b.cosine.page
+
 v1.46.1 — Region Map anchor sampling, strict town entry, and info-level break logs
 - Region Map
   - Anchor-based sampling: when opening adjacent to Ruins, the sampled window centers on the Ruins tile (anchor), not the player tile, improving orientation and exits consistency.
