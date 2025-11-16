@@ -485,7 +485,7 @@
     const before = it.decay || 0;
     it.decay = Math.min(100, round1(before + amount));
     if (it.decay >= 100) {
-      log(`${capitalize(it.name)} breaks and is destroyed.`, "bad");
+      log(`${capitalize(it.name)} breaks and is destroyed.`, "info");
       // Optional flavor for breakage
       try {
         const F = modHandle("Flavor");

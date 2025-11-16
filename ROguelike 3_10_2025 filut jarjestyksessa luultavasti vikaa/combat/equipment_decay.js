@@ -62,7 +62,7 @@ export function decayEquipped(player, slot, amount, hooks) {
   const before = it.decay || 0;
   it.decay = Math.min(100, round1(before + amount));
   if (it.decay >= 100) {
-    log(`${(it.name || "item")[0].toUpperCase()}${(it.name || "item").slice(1)} breaks and is destroyed.`, "bad");
+    log(`${(it.name || "item")[0].toUpperCase()}${(it.name || "item").slice(1)} breaks and is destroyed.`, "info");
     try {
       if (Flavor && typeof Flavor.onBreak === "function") {
         Flavor.onBreak({ player }, { side: "player", slot, item: it });
