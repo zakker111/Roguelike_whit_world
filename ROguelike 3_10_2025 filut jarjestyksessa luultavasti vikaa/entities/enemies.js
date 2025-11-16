@@ -103,7 +103,7 @@ function applyJsonEnemies(json) {
 
     const def = {
       key,
-      glyph: row.glyph || ((typeof key === "string" && key.length) ? String(key)[0] : "?"),
+      glyph: row.glyph || "?",
       color: row.color || "#cbd5e1",
       tier: Number(row.tier || 1),
       blockBase: typeof row.blockBase === "number" ? row.blockBase : 0.06,
