@@ -132,7 +132,8 @@ function _signSchedule(ctx, p, template, style) {
       sched = (window.ShopService && typeof window.ShopService.shopScheduleStr === "function") ? window.ShopService.shopScheduleStr(shop) : "";
       openNowStatus = isOpen ? "Open now." : "Closed now.";
       const final = _renderTemplate(template, { title: p.name || "Sign", schedule: sched, openNowStatus });
-      _log(ctx, final, isOpen ? "good" : "warn");
+      // Shop signs should log as neutral info (not green/warn)
+      _log(ctx, final, "info");
       return true;
     }
   } catch (_) {}
