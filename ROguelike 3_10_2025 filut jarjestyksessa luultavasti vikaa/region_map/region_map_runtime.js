@@ -618,21 +618,42 @@ function open(ctx, size) {
   const worldY = ctx.player.y | 0;
   // Only allow from walkable, non-town, non-dungeon tiles
   const WT = World.TILES;
-  const tile = ctx.world.map[worldY][worldX];
+  const tileHere = ctx.world.map[worldY][worldX];
   // Disallow from towns/dungeons; allow RUINS explicitly even if not walkable in overworld semantics
-  if (tile === WT.TOWN || tile === WT.DUNGEON) return false;
+  if (tileHere === WT.TOWN || tileHere === WT.DUNGEON) return false;
+
+  // Allow entering RUINS even when standing adjacent: retarget the region anchor to the neighboring RUINS tile
+  let anchorX = worldX, anchorY = worldY;
+  let anchorTile = tileHere;
+  if (anchorTile !== WT.RUINS) {
+    const worldW = (ctx.world && (ctx.world.width || (ctx.world.map[0] ? ctx.world.map[0].length : 0))) || 0;
+    const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
+    outer: for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const nx = worldX + dx, ny = worldY + dy;
+        if (nx < 0 || ny < 0 || nx >= worldW || ny >= worldH) continue;
+        const nt = ctx.world.map[ny][nx];
+        if (nt === WT.RUINS) {
+          anchorX = nx; anchorY = ny; anchorTile = WT.RUINS;
+          break outer;
+        }
+      }
+    }
+  }
+
   let isWalkable = true;
   try {
-    isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tile) : true;
+    isWalkable = (typeof World.isWalkable === "function") ? World.isWalkable(tileHere) : true;
   } catch (_) { isWalkable = true; }
-  const allowNonWalkableHere = (tile === WT.RUINS);
+  const allowNonWalkableHere = (anchorTile === WT.RUINS);
   if (!isWalkable && !allowNonWalkableHere) return false;
 
   const width = clamp((size && size.width) || DEFAULT_WIDTH, 12, 80);
   const height = clamp((size && size.height) || DEFAULT_HEIGHT, 8, 60);
 
-  // If persisted state exists for this tile, load it; else build a fresh sample.
-  const persisted = loadRegionState(worldX, worldY);
+  // If persisted state exists for this tile (anchor), load it; else build a fresh sample.
+  const persisted = loadRegionState(anchorX, anchorY);
   let sample = null;
   let restoredCorpses = null;
   let loadedPersisted = false;
@@ -645,20 +666,20 @@ function open(ctx, size) {
     sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
   }
 
-  // If animals were previously cleared for this tile, do not spawn new ones this session.
-  const animalsCleared = animalsClearedHere(worldX, worldY);
+  // If animals were previously cleared for this tile (anchor), do not spawn new ones this session.
+  const animalsCleared = animalsClearedHere(anchorX, anchorY);
 
   // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile)
   // and perform decorative transforms ONLY when not loading a previously persisted region state.
   if (!loadedPersisted) {
-    const playerTile = tile;
-    const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, worldX, worldY);
+    const playerTile = anchorTile;
+    const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, anchorX, anchorY);
     neighborSet.add(playerTile);
     const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
     filterSampleByNeighborSet(sample, neighborSet, primaryTile);
 
-    // Orient biomes by robust directional sampling (cardinals + diagonals) to line up with overworld
-    const dirs = computeDirectionalTiles(ctx.world, worldX, worldY, 7);
+    // Orient biomes by robust directional sampling (cardinals + diagonals) to line up with overworld (anchored at RUINS when adjacent)
+    const dirs = computeDirectionalTiles(ctx.world, anchorX, anchorY, 7);
     orientSampleByCardinals(sample, dirs.cardinals, 0.33, dirs.diagonals, dirs.weights);
 
     // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
@@ -671,7 +692,7 @@ function open(ctx, size) {
     addBerryBushesInForests(sample, 0.025, rng);
     // Apply persisted cuts for this region so trees/bushes don't respawn
     try {
-      const cutKey = regionCutKey(worldX, worldY, width, height);
+      const cutKey = regionCutKey(anchorX, anchorY, width, height);
       applyRegionCuts(sample, cutKey);
       // Stash key for onAction persistence
       if (!ctx.region) ctx.region = {};
@@ -680,14 +701,14 @@ function open(ctx, size) {
   } else {
     // Persisted map is authoritative; do not mutate it. Still set cut key so new cuts can be recorded.
     try {
-      const cutKey = regionCutKey(worldX, worldY, width, height);
+      const cutKey = regionCutKey(anchorX, anchorY, width, height);
       if (!ctx.region) ctx.region = {};
       ctx.region._cutKey = cutKey;
     } catch (_) {}
   }
 
   // PHASE 2: Ruins decoration and encounter setup on RUINS tiles
-  const isRuins = (tile === World.TILES.RUINS);
+  const isRuins = (anchorTile === World.TILES.RUINS);
   if (isRuins) {
     // Only decorate/spawn if there is no persisted map for this tile (respect persistence)
     if (!loadedPersisted) {
@@ -796,10 +817,10 @@ function open(ctx, size) {
   const worldH = (ctx.world && (ctx.world.height || ctx.world.map.length)) || 0;
   const winW = clamp(Math.floor(worldW * 0.35), 12, worldW);
   const winH = clamp(Math.floor(worldH * 0.35), 8, worldH);
-  const minX = clamp(worldX - Math.floor(winW / 2), 0, Math.max(0, worldW - winW));
-  const minY = clamp(worldY - Math.floor(winH / 2), 0, Math.max(0, worldH - winH));
-  let spawnX = Math.round(((worldX - minX) * (width - 1)) / Math.max(1, (winW - 1)));
-  let spawnY = Math.round(((worldY - minY) * (height - 1)) / Math.max(1, (winH - 1)));
+  const minX = clamp(anchorX - Math.floor(winW / 2), 0, Math.max(0, worldW - winW));
+  const minY = clamp(anchorY - Math.floor(winH / 2), 0, Math.max(0, worldH - winH));
+  let spawnX = Math.round(((anchorX - minX) * (width - 1)) / Math.max(1, (winW - 1)));
+  let spawnY = Math.round(((anchorY - minY) * (height - 1)) / Math.max(1, (winH - 1)));
   spawnX = clamp(spawnX, 0, width - 1);
   spawnY = clamp(spawnY, 0, height - 1);
 
@@ -922,9 +943,9 @@ function open(ctx, size) {
     cursor: { x: spawnX | 0, y: spawnY | 0 },
     // Exits: four edges; the spawn edge uses the exact chosen tile to avoid duplicates
     exitTiles: exitTilesFinal,
-    enterWorldPos: { x: worldX, y: worldY },
+    enterWorldPos: { x: anchorX, y: anchorY },
     _prevLOS: ctx.los || null,
-    _hasKnownAnimals: animalsSeenHere(worldX, worldY)
+    _hasKnownAnimals: animalsSeenHere(anchorX, anchorY)
   };
 
   // Region behaves like a normal mode: use region map as active map and player follows cursor
@@ -986,7 +1007,7 @@ function open(ctx, size) {
   (function spawnRuinsEncounter() {
     try {
       const WT = World.TILES;
-      const isRuinsHere = (ctx.world && ctx.world.map && ctx.world.map[worldY][worldX] === WT.RUINS);
+      const isRuinsHere = (ctx.world && ctx.world.map && ctx.world.map[anchorY][anchorX] === WT.RUINS);
       if (!isRuinsHere) return;
       // If animalsCleared is set for this tile, treat ruins as cleared as well (shared flag)
       if (animalsCleared) {
@@ -1111,7 +1132,7 @@ function open(ctx, size) {
   })();
 
   // Rare neutral animals in region: deer/boar/fox that wander; become hostile only if attacked.
-  if (!(tile === World.TILES.RUINS)) (function spawnNeutralAnimals() {
+  if (!(anchorTile === World.TILES.RUINS)) (function spawnNeutralAnimals() {
     try {
       // If animals were cleared previously in this region, skip spawning and inform player
       if (animalsCleared) {
@@ -1128,7 +1149,7 @@ function open(ctx, size) {
       if (!w || !h) return;
 
       // If animals were already seen here in a prior visit, reduce the chance to spawn again (60% allowed)
-      const seenBefore = animalsSeenHere(worldX, worldY);
+      const seenBefore = animalsSeenHere(anchorX, anchorY);
       if (seenBefore && rng() >= 0.40) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
@@ -1310,7 +1331,7 @@ function open(ctx, size) {
       // Persist animal presence for this region (world coordinates) so we remember later
       try {
         if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {
-          markAnimalsSeen(worldX | 0, worldY | 0);
+          markAnimalsSeen(anchorX | 0, anchorY | 0);
           // Survivalism skill gain for spotting wildlife
           try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.survivalism = (ctx.player.skills.survivalism || 0) + 1; } catch (_) {}
           // Also update flag in this session
