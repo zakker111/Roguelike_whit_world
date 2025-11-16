@@ -588,11 +588,26 @@ export const UI = {
     } catch (_) {}
     this.updatePerfButton();
     try {
-      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-      if (UIO && typeof UIO.requestDraw === "function") {
-        UIO.requestDraw(null);
-      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-        window.GameLoop.requestDraw();
+      const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
+      if (Cap && typeof Cap.safeCall === "function") {
+        const r = Cap.safeCall(null, "UIOrchestration", "requestDraw", null);
+        if (r && r.ok) {
+          // requested
+        } else {
+          const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.requestDraw === "function") {
+            UIO.requestDraw(null);
+          } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+            window.GameLoop.requestDraw();
+          }
+        }
+      } else {
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(null);
+        } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+          window.GameLoop.requestDraw();
+        }
       }
     } catch (_) {}
   },
@@ -708,11 +723,26 @@ export const UI = {
     } catch (_) {}
     this.updateMinimapButton();
     try {
-      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-      if (UIO && typeof UIO.requestDraw === "function") {
-        UIO.requestDraw(null);
-      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-        window.GameLoop.requestDraw();
+      const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
+      if (Cap && typeof Cap.safeCall === "function") {
+        const r = Cap.safeCall(null, "UIOrchestration", "requestDraw", null);
+        if (r && r.ok) {
+          // requested
+        } else {
+          const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.requestDraw === "function") {
+            UIO.requestDraw(null);
+          } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+            window.GameLoop.requestDraw();
+          }
+        }
+      } else {
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(null);
+        } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+          window.GameLoop.requestDraw();
+        }
       }
     } catch (_) {}
   },
