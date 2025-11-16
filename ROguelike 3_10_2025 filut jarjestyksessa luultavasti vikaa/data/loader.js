@@ -171,8 +171,15 @@ export const GameData = {
             console.debug("[Palette] Loaded", id, "from", path);
           }
         } catch (_) {}
-        // Request a redraw
+        // Request a redraw (prefer Capabilities.safeCall)
         try {
+          const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
+          if (Cap && typeof Cap.safeCall === "function") {
+            const r = Cap.safeCall(null, "UIOrchestration", "requestDraw", null);
+            if (r && r.ok) {
+              return true;
+            }
+          }
           const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
           if (UIO && typeof UIO.requestDraw === "function") {
             UIO.requestDraw(null);

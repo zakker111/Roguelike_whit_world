@@ -7,6 +7,22 @@
       "tags": ["tool", "fishing"],
       "decay": { "start": 0, "perUse": 10 },
       "price": { "base": 200, "shops": { "seppo": 50 } }
+    },
+    {
+      "id": "torch",
+      "name": "torch",
+      "stackLimit": 5,
+      "tags": ["tool", "light"],
+      "decay": { "start": 0, "perUse": 1 },
+      "price": { "base": 15, "shops": { "trader": 15, "seppo": 12 } }
+    },
+    {
+      "id": "lockpick",
+      "name": "lockpick",
+      "stackLimit": 20,
+      "tags": ["tool", "utility"],
+      "decay": { "start": 0, "perUse": 1 },
+      "price": { "base": 120, "shops": { "trader": 120, "seppo": 100 } }
     }
   ]
 }

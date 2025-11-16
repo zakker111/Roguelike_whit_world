@@ -108,6 +108,11 @@ export function init(UI) {
     if (typeof UI.handlers.onGodDiagnostics === "function") UI.handlers.onGodDiagnostics();
   });
 
+  const runValBtn = byId("god-run-validation-btn");
+  runValBtn?.addEventListener("click", () => {
+    if (typeof UI.handlers.onGodRunValidation === "function") UI.handlers.onGodRunValidation();
+  });
+
   const newGameBtn = byId("god-newgame-btn");
   newGameBtn?.addEventListener("click", () => {
     try { hide(); } catch (_) {}

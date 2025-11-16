@@ -836,8 +836,21 @@ export function complete(ctx, outcome = "victory") {
   if (ctx.world && ctx.world.map) {
     ctx.map = ctx.world.map;
     const rows = ctx.map.length, cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-    ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(true));
-    ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(true));
+    // Restore fog-of-war arrays from world if available; do not mark entire map as seen.
+    if (Array.isArray(ctx.world.seenRef) && Array.isArray(ctx.world.visibleRef)) {
+      ctx.seen = ctx.world.seenRef;
+      ctx.visible = ctx.world.visibleRef;
+    } else {
+      // Fallback: preserve array shapes and mark current tile only
+      ctx.seen = Array.from({ length: rows }, () => Array(cols).fill(false));
+      ctx.visible = Array.from({ length: rows }, () => Array(cols).fill(false));
+      try {
+        if (typeof ctx.inBounds === "function" && ctx.inBounds(ctx.player.x, ctx.player.y)) {
+          ctx.seen[ctx.player.y][ctx.player.x] = true;
+          ctx.visible[ctx.player.y][ctx.player.x] = true;
+        }
+      } catch (_) {}
+    }
   }
   // Restore player to the entry tile (convert absolute world coords -> local window indices)
   try {

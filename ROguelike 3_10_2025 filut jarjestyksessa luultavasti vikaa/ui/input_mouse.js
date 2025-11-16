@@ -12,6 +12,9 @@
  * - Otherwise map pixel to tile using camera, then dispatch by mode.
  */
 
+// Prefer Capabilities for optional module access
+import "/core/capabilities.js";
+
 export function init(opts) {
   try {
     var canvasId = (opts && opts.canvasId) ? String(opts.canvasId) : "game";
@@ -52,8 +55,14 @@ export function init(opts) {
           var hasAnyModalOpen = (opts && typeof opts.isAnyModalOpen === "function") ? opts.isAnyModalOpen : null;
           if (hasAnyModalOpen ? hasAnyModalOpen() : (function () {
             try {
+              var ctxForUI = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.getCtx === "function") ? window.GameAPI.getCtx() : null;
+              var Cap = (typeof window !== "undefined" ? window.Capabilities : null);
+              if (Cap && typeof Cap.safeCall === "function") {
+                var res = Cap.safeCall(ctxForUI, "UIOrchestration", "isAnyModalOpen", ctxForUI);
+                if (res && res.ok) return !!res.result;
+              }
               var UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-              if (UIO && typeof UIO.isAnyModalOpen === "function") return !!UIO.isAnyModalOpen((typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.getCtx === "function") ? window.GameAPI.getCtx() : null);
+              if (UIO && typeof UIO.isAnyModalOpen === "function") return !!UIO.isAnyModalOpen(ctxForUI);
             } catch (_) {}
             return false;
           })()) return;

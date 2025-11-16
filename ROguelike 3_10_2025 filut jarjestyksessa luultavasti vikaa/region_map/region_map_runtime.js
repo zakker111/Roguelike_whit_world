@@ -1132,16 +1132,17 @@ function open(ctx, size) {
       const snowBias = (counts[WT.SNOW] || 0) / totalCells;
       const swampBias = (counts[WT.SWAMP] || 0) / totalCells;
       const mountainBias = (counts[WT.MOUNTAIN] || 0) / totalCells;
-      const wildFrac = forestBias + grassBias + beachBias;
+      // Wildness excludes BEACH to reduce unrealistic shoreline spawns
+      const wildFrac = forestBias + grassBias;
 
       // Gate: skip spawns unless area is fairly wild or the player stands on a wild tile
       const playerTileWild = (function () {
         try {
           const tHere = ctx.world.map[worldY][worldX];
-          return (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
+          return (tHere === WT.FOREST || tHere === WT.GRASS);
         } catch (_) { return false; }
       })();
-      if (wildFrac < 0.35 && !playerTileWild) {
+      if (wildFrac < 0.30 && !playerTileWild) {
         try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
         return;
       }
@@ -1151,8 +1152,8 @@ function open(ctx, size) {
         return;
       }
 
-      // Probability for at most a single animal
-      let pOne = Math.max(0, Math.min(0.6, 0.12 + forestBias * 0.35 + grassBias * 0.25 + beachBias * 0.12));
+      // Probability for at most a single animal (forest/grass weighted)
+      let pOne = Math.max(0, Math.min(0.6, 0.10 + forestBias * 0.40 + grassBias * 0.25));
       // Survivalism slightly increases chance to spot animals (up to +5%)
       try {
         const s = (ctx.player && ctx.player.skills) ? ctx.player.skills : null;
@@ -1170,17 +1171,27 @@ function open(ctx, size) {
       }
 
       ctx.enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
+      // Map a tile id to a biome key used in spawnWeight (FOREST, GRASS, BEACH, etc.)
+      function tileKeyFor(t) {
+        try {
+          const WT2 = World.TILES;
+          for (const k of Object.keys(WT2)) {
+            if (WT2[k] === t) return k;
+          }
+        } catch (_) {}
+        return "";
+      }
       // Pick animal definition from GameData.animals using biome-weighted selection (with sensible fallbacks)
       function pickAnimalDef() {
         try {
           const fallbackAnimals = [
             {
               id: "deer", glyph: "d", hp: 3, atk: 0.6,
-              spawnWeight: { FOREST: 0.7, GRASS: 0.5, BEACH: 0.2, DESERT: 0.0, SNOW: 0.1, SWAMP: 0.2, MOUNTAIN: 0.0 }
+              spawnWeight: { FOREST: 0.7, GRASS: 0.5, BEACH: 0.0, DESERT: 0.0, SNOW: 0.1, SWAMP: 0.2, MOUNTAIN: 0.0 }
             },
             {
               id: "fox", glyph: "f", hp: 2, atk: 0.7,
-              spawnWeight: { FOREST: 0.6, GRASS: 0.4, BEACH: 0.1, DESERT: 0.0, SNOW: 0.2, SWAMP: 0.1, MOUNTAIN: 0.0 }
+              spawnWeight: { FOREST: 0.6, GRASS: 0.4, BEACH: 0.0, DESERT: 0.0, SNOW: 0.2, SWAMP: 0.1, MOUNTAIN: 0.0 }
             },
             {
               id: "boar", glyph: "b", hp: 4, atk: 0.9,
@@ -1223,50 +1234,59 @@ function open(ctx, size) {
           return arr[arr.length - 1];
         } catch (_) {
           // Fallback hard default if something goes wrong
-          return { id: "deer", glyph: "d", hp: 3, atk: 0.6 };
+          return { id: "deer", glyph: "d", hp: 3, atk: 0.6, spawnWeight: { FOREST: 1.0, GRASS: 0.5 } };
         }
       }
-      function randomWalkable() {
-        for (let tries = 0; tries < 200; tries++) {
-          const x = (rng() * w) | 0;
-          const y = (rng() * h) | 0;
-          const t = sample[y][x];
-          const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
-          const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
-          const atCursor = (ctx.region.cursor && ctx.region.cursor.x === x && ctx.region.cursor.y === y);
-          if (walkable && !occupied && !atCursor) return { x, y };
+      // Choose a valid walkable position for a given animal def respecting its spawnWeight (>0 for tile biome)
+      function pickPosForAnimal(def, preferNear, cx, cy) {
+        const hasWeight = (key) => {
+          try { return def && def.spawnWeight && Number(def.spawnWeight[key] || 0) > 0; } catch (_) { return false; }
+        };
+        function tryNear(radius) {
+          for (let tries = 0; tries < 160; tries++) {
+            const dx = ((rng() * (radius * 2 + 1)) | 0) - radius;
+            const dy = ((rng() * (radius * 2 + 1)) | 0) - radius;
+            const x = cx + dx;
+            const y = cy + dy;
+            if (x < 0 || y < 0 || x >= w || y >= h) continue;
+            if (Math.abs(dx) + Math.abs(dy) > radius) continue;
+            const t = sample[y][x];
+            const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+            const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
+            const atCursor = (ctx.region.cursor && ctx.region.cursor.x === x && ctx.region.cursor.y === y);
+            const key = tileKeyFor(t);
+            if (walkable && !occupied && !atCursor && hasWeight(key)) return { x, y };
+          }
+          return null;
         }
-        return null;
-      }
-      function randomNearWalkable(cx, cy, radius = 6) {
-        for (let tries = 0; tries < 120; tries++) {
-          const dx = ((rng() * (radius * 2 + 1)) | 0) - radius;
-          const dy = ((rng() * (radius * 2 + 1)) | 0) - radius;
-          const x = cx + dx;
-          const y = cy + dy;
-          if (x < 0 || y < 0 || x >= w || y >= h) continue;
-          if (Math.abs(dx) + Math.abs(dy) > radius) continue;
-          const t = sample[y][x];
-          const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
-          const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
-          const atCursor = (ctx.region.cursor && ctx.region.cursor.x === x && ctx.region.cursor.y === y);
-          if (walkable && !occupied && !atCursor) return { x, y };
+        function tryAnywhere() {
+          for (let tries = 0; tries < 240; tries++) {
+            const x = (rng() * w) | 0;
+            const y = (rng() * h) | 0;
+            const t = sample[y][x];
+            const walkable = (t !== WT.WATER && t !== WT.RIVER && t !== WT.MOUNTAIN);
+            const occupied = ctx.enemies.some(e => e && e.x === x && e.y === y);
+            const atCursor = (ctx.region.cursor && ctx.region.cursor.x === x && ctx.region.cursor.y === y);
+            const key = tileKeyFor(t);
+            if (walkable && !occupied && !atCursor && hasWeight(key)) return { x, y };
+          }
+          return null;
         }
-        return null;
+        if (preferNear) {
+          const near = tryNear(6);
+          if (near) return near;
+        }
+        return tryAnywhere();
       }
+
       let spawned = 0;
       const cx0 = (ctx.region.cursor && typeof ctx.region.cursor.x === "number") ? (ctx.region.cursor.x | 0) : 0;
       const cy0 = (ctx.region.cursor && typeof ctx.region.cursor.y === "number") ? (ctx.region.cursor.y | 0) : 0;
 
       for (let i = 0; i < count; i++) {
-        // Ensure at least one creature spawns near the player to improve visibility
-        let pos = null;
-        if (i === 0) {
-          pos = randomNearWalkable(cx0, cy0, 6);
-        }
-        if (!pos) pos = randomWalkable();
-        if (!pos) break;
         const def = pickAnimalDef();
+        const pos = pickPosForAnimal(def, i === 0, cx0, cy0);
+        if (!pos) continue;
         const typeId = (def && def.id) ? def.id : (def && def.type) ? def.type : null;
         const glyph = (def && def.glyph) ? def.glyph : (typeId && typeId[0]) ? typeId[0] : "?";
         const hp = (def && typeof def.hp === "number") ? def.hp : 3;
@@ -1274,6 +1294,7 @@ function open(ctx, size) {
         ctx.enemies.push({ x: pos.x, y: pos.y, type: typeId || "animal", glyph, hp, atk, xp: 0, level: 1, faction: "animal", announced: false });
         spawned++;
       }
+
       // Persist animal presence for this region (world coordinates) so we remember later
       try {
         if (spawned > 0 && ctx.region && ctx.region.enterWorldPos) {

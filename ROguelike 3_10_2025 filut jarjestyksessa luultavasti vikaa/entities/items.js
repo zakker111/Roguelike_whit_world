@@ -63,8 +63,12 @@ function applyJsonItems(json) {
   for (const row of json) {
     const key = row.id || row.key || row.name;
     if (!key) { warn("Missing id/key for item entry; skipped.", row); continue; }
-    if (!row.slot || !VALID_SLOTS.has(row.slot)) { warn(`Invalid or missing slot for item '${key}'; expected one of hand/head/torso/legs/hands.`, row); continue; }
-    if (row.twoHanded && row.slot !== "hand") { warn(`twoHanded is true for '${key}' but slot is '${row.slot}'; twoHanded only applies to 'hand'.`, row); }
+    let slot = row.slot;
+    if (!slot || !VALID_SLOTS.has(slot)) {
+      warn(`Invalid or missing slot for item '${key}'; expected one of hand/head/torso/legs/hands. Defaulting to 'hand'.`, row);
+      slot = "hand";
+    }
+    if (row.twoHanded && slot !== "hand") { warn(`twoHanded is true for '${key}' but slot is '${slot}'; twoHanded only applies to 'hand'.`, row); }
     const hasAtk = !!row.atk;
     const hasDef = !!row.def;
     if (!hasAtk && !hasDef) { warn(`Item '${key}' has neither atk nor def ranges; it may be useless.`, row); }
@@ -73,7 +77,7 @@ function applyJsonItems(json) {
 
     const def = {
       key,
-      slot: row.slot,
+      slot: slot,
       twoHanded: !!row.twoHanded,
       minTier: Math.max(1, Number(row.tierMin || 1)),
     };

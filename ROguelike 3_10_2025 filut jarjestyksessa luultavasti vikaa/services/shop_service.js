@@ -437,6 +437,19 @@ export function restockIfNeeded(ctx, shop) {
     try { rows = _stackRows(rows); } catch (_) {}
 
     st.rows = rows;
+    // If no inventory was generated, log a warning (crash-free policy)
+    try {
+      if (!Array.isArray(st.rows) || st.rows.length === 0) {
+        const msg = `[Shops] ${String(shop && shop.type || 'shop')} has no saleable inventory for phase ${phase}.`;
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+          window.Logger.log(msg, "warn");
+        } else if (ctx && typeof ctx.log === "function") {
+          ctx.log(msg, "warn");
+        } else if (typeof console !== "undefined") {
+          console.warn(msg);
+        }
+      }
+    } catch (_) {}
   }
 
   // Inject inn service: "Rent room (one night)"

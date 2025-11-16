@@ -280,7 +280,7 @@ export const UI = {
     try { TownExit.hide(); } catch (_) {}
   },
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -307,6 +307,7 @@ export const UI = {
     if (typeof onGodCheckSigns === "function") this.handlers.onGodCheckSigns = onGodCheckSigns;
     if (typeof onGodCheckPrefabs === "function") this.handlers.onGodCheckPrefabs = onGodCheckPrefabs;
     if (typeof onGodDiagnostics === "function") this.handlers.onGodDiagnostics = onGodDiagnostics;
+    if (typeof onGodRunValidation === "function") this.handlers.onGodRunValidation = onGodRunValidation;
     if (typeof onGodToggleGrid === "function") this.handlers.onGodToggleGrid = onGodToggleGrid;
     if (typeof onGodApplyBleed === "function") this.handlers.onGodApplyBleed = onGodApplyBleed;
     if (typeof onGodApplyDazed === "function") this.handlers.onGodApplyDazed = onGodApplyDazed;
@@ -587,11 +588,26 @@ export const UI = {
     } catch (_) {}
     this.updatePerfButton();
     try {
-      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-      if (UIO && typeof UIO.requestDraw === "function") {
-        UIO.requestDraw(null);
-      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-        window.GameLoop.requestDraw();
+      const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
+      if (Cap && typeof Cap.safeCall === "function") {
+        const r = Cap.safeCall(null, "UIOrchestration", "requestDraw", null);
+        if (r && r.ok) {
+          // requested
+        } else {
+          const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.requestDraw === "function") {
+            UIO.requestDraw(null);
+          } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+            window.GameLoop.requestDraw();
+          }
+        }
+      } else {
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(null);
+        } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+          window.GameLoop.requestDraw();
+        }
       }
     } catch (_) {}
   },
@@ -707,11 +723,26 @@ export const UI = {
     } catch (_) {}
     this.updateMinimapButton();
     try {
-      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-      if (UIO && typeof UIO.requestDraw === "function") {
-        UIO.requestDraw(null);
-      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-        window.GameLoop.requestDraw();
+      const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
+      if (Cap && typeof Cap.safeCall === "function") {
+        const r = Cap.safeCall(null, "UIOrchestration", "requestDraw", null);
+        if (r && r.ok) {
+          // requested
+        } else {
+          const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.requestDraw === "function") {
+            UIO.requestDraw(null);
+          } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+            window.GameLoop.requestDraw();
+          }
+        }
+      } else {
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(null);
+        } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+          window.GameLoop.requestDraw();
+        }
       }
     } catch (_) {}
   },

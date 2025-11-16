@@ -433,6 +433,11 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
           setTimeout(() => {
             el.style.display = "none";
             try {
+              const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
+              if (Cap && typeof Cap.safeCall === "function") {
+                const r = Cap.safeCall(ctx, "UIOrchestration", "requestDraw", ctx);
+                if (r && r.ok) return;
+              }
               const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
               if (UIO && typeof UIO.requestDraw === "function") {
                 UIO.requestDraw(ctx);
@@ -451,6 +456,11 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
     try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
     try {
       ctx.updateUI && ctx.updateUI();
+      const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
+      if (Cap && typeof Cap.safeCall === "function") {
+        const r2 = Cap.safeCall(ctx, "UIOrchestration", "requestDraw", ctx);
+        if (r2 && r2.ok) return;
+      }
       const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
       if (UIO && typeof UIO.requestDraw === "function") {
         UIO.requestDraw(ctx);
