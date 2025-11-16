@@ -308,6 +308,46 @@ export function init(UI) {
     try { UI.updateSideLogButton(); } catch (_) {}
   }
 
+  // Trace toggle (movement + encounter)
+  const traceBtn = byId("god-toggle-trace-btn");
+  function isTraceEnabledLS() {
+    try {
+      const m = localStorage.getItem("LOG_TRACE_MOVEMENT");
+      const e = localStorage.getItem("LOG_TRACE_ENCOUNTERS");
+      return (String(m).toLowerCase() === "1") || (String(e).toLowerCase() === "1");
+    } catch (_) { return false; }
+  }
+  function isTraceActive() {
+    try { if (typeof window !== "undefined" && window.DEV) return true; } catch (_) {}
+    return isTraceEnabledLS();
+  }
+  function setTraceLS(on) {
+    try {
+      if (on) {
+        localStorage.setItem("LOG_TRACE_MOVEMENT", "1");
+        localStorage.setItem("LOG_TRACE_ENCOUNTERS", "1");
+      } else {
+        localStorage.removeItem("LOG_TRACE_MOVEMENT");
+        localStorage.removeItem("LOG_TRACE_ENCOUNTERS");
+      }
+    } catch (_) {}
+  }
+  function updateTraceButton() {
+    try {
+      if (!traceBtn) return;
+      const active = isTraceActive();
+      traceBtn.textContent = `Trace: ${active ? "On" : "Off"}`;
+    } catch (_) {}
+  }
+  if (traceBtn) {
+    traceBtn.addEventListener("click", () => {
+      const next = !isTraceEnabledLS();
+      setTraceLS(next);
+      updateTraceButton();
+    });
+    updateTraceButton();
+  }
+
   // Log level select
   const lvlSel = byId("god-log-level");
   if (lvlSel) {
