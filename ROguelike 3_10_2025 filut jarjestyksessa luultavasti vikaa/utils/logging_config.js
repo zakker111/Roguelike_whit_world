@@ -32,7 +32,7 @@ export const LogConfig = {
   _defaultCats: [
     "General","AI","Boot","Combat","Data","Dungeon","DungeonState","Enemies","Entities","Encounter","Items",
     "Overlays","Palette","Prefabs","Quest","Region","Render","RNG","Services","Shop","Smoketest",
-    "Town","TownState","TownGen","World","WorldGen"
+    "Town","TownState","TownGen","World","WorldGen","Occupancy","Movement"
   ],
 
   init() {

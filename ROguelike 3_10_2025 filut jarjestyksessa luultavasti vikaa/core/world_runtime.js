@@ -383,8 +383,23 @@ function expandMap(ctx, side, K) {
       ctx.seen[y] = seenPre.concat(seenRow);
       ctx.visible[y] = visPre.concat(visRow);
     }
+    const _prevOX = world.originX | 0, _prevOY = world.originY | 0;
     world.originX -= K;
     // Newly added strip is columns [0..K-1]
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log(`[WorldGen] Expanded ${String(side)}`, "notice", {
+          category: "WorldGen",
+          side: String(side),
+          tilesAdded: K | 0,
+          originXFrom: _prevOX,
+          originXTo: world.originX,
+          originYFrom: _prevOY,
+          originYTo: _prevOY,
+          playerShifted: !ctx._suspendExpandShift
+        });
+      }
+    } catch (_) {}
     scanPOIs(ctx, 0, 0, K, rows);
     // Shift player and entities right by K to preserve world position mapping, unless ctx._suspendExpandShift is true.
     // When suspended (e.g., during mode transitions), expansion avoids shifting to prevent camera snap; caller handles camera/position.
@@ -421,6 +436,20 @@ function expandMap(ctx, side, K) {
       ctx.visible[y] = visRow.concat(visApp);
     }
     // Newly added strip starts at previous width (cols)
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log(`[WorldGen] Expanded ${String(side)}`, "notice", {
+          category: "WorldGen",
+          side: String(side),
+          tilesAdded: K | 0,
+          originXFrom: world.originX | 0,
+          originXTo: world.originX | 0,
+          originYFrom: world.originY | 0,
+          originYTo: world.originY | 0,
+          playerShifted: false
+        });
+      }
+    } catch (_) {}
     scanPOIs(ctx, cols, 0, K, rows);
   } else if (side === "top") {
     // prepend K rows; shift origin and player by +K to keep world coords aligned, and offset camera to avoid visual snap
@@ -441,7 +470,22 @@ function expandMap(ctx, side, K) {
     ctx.map = newRows.concat(ctx.map);
     ctx.seen = newSeen.concat(ctx.seen.map(r => toRowArray(r, cols)));
     ctx.visible = newVis.concat(ctx.visible.map(r => toRowArray(r, cols)));
+    const _prevOX2 = world.originX | 0, _prevOY2 = world.originY | 0;
     world.originY -= K;
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log(`[WorldGen] Expanded ${String(side)}`, "notice", {
+          category: "WorldGen",
+          side: String(side),
+          tilesAdded: K | 0,
+          originXFrom: _prevOX2,
+          originXTo: _prevOX2,
+          originYFrom: _prevOY2,
+          originYTo: world.originY,
+          playerShifted: !ctx._suspendExpandShift
+        });
+      }
+    } catch (_) {}
     // Newly added strip is rows [0..K-1]
     scanPOIs(ctx, 0, 0, cols, K);
     // Shift player and entities down by K to preserve world position mapping, unless ctx._suspendExpandShift is true.
@@ -471,6 +515,20 @@ function expandMap(ctx, side, K) {
       ctx.visible.push(visArr);
     }
     // Newly added strip starts at previous height (rows)
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log(`[WorldGen] Expanded ${String(side)}`, "notice", {
+          category: "WorldGen",
+          side: String(side),
+          tilesAdded: K | 0,
+          originXFrom: world.originX | 0,
+          originXTo: world.originX | 0,
+          originYFrom: world.originY | 0,
+          originYTo: world.originY | 0,
+          playerShifted: false
+        });
+      }
+    } catch (_) {}
     scanPOIs(ctx, 0, rows, cols, K);
   }
 

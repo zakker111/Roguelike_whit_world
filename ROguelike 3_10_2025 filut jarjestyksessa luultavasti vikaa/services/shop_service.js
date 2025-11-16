@@ -402,8 +402,14 @@ export function restockIfNeeded(ctx, shop) {
     shouldPrimary = isShopOpenNow(ctx, shop) && st.rows.length === 0;
   }
   if (st.lastPhase !== phase) {
+    const prev = st.lastPhase;
     shouldPrimary = true;
     st.lastPhase = phase;
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log("[Shop] Phase change", "notice", { category: "Shop", type: String(shop && shop.type || "shop"), from: prev || null, to: phase });
+      }
+    } catch (_) {}
   }
 
   if (shouldPrimary) {
@@ -437,6 +443,11 @@ export function restockIfNeeded(ctx, shop) {
     try { rows = _stackRows(rows); } catch (_) {}
 
     st.rows = rows;
+    try {
+      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+        window.Logger.log("[Shop] Restock", "notice", { category: "Shop", type: String(shop && shop.type || "shop"), phase, rows: Array.isArray(st.rows) ? st.rows.length : 0 });
+      }
+    } catch (_) {}
     // If no inventory was generated, log a warning (crash-free policy)
     try {
       if (!Array.isArray(st.rows) || st.rows.length === 0) {
