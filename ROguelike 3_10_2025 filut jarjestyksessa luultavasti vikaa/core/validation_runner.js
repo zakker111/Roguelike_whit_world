@@ -215,6 +215,125 @@ export function run(ctx = null) {
         }
       } catch (_) {}
 
+      // Shops: validate pools, rules, and restock shapes
+      try {
+        const poolsRoot = GD.shopPools || null;
+        const rulesRoot = GD.shopRules || null;
+        const phasesArr = (GD.shopPhases && Array.isArray(GD.shopPhases.phases)) ? GD.shopPhases.phases : [];
+        const phaseSet = new Set(phasesArr.map(p => String(p.id || "")));
+
+        function hasItem(id) {
+          try { const ItemsMod = (typeof window !== "undefined" ? window.Items : null); return !!(ItemsMod && typeof ItemsMod.getTypeDef === "function" && ItemsMod.getTypeDef(String(id || ""))); } catch (_) { return false; }
+        }
+        function hasTool(id) {
+          try { const list = GD.tools && Array.isArray(GD.tools.tools) ? GD.tools.tools : null; return !!(list && String(id) && list.find(t => String(t.id || "").toLowerCase() === String(id).toLowerCase())); } catch (_) { return false; }
+        }
+        function hasPotion(id) {
+          try { const list = GD.consumables && Array.isArray(GD.consumables.potions) ? GD.consumables.potions : null; return !!(list && String(id) && list.find(p => String(p.id || "").toLowerCase() === String(id).toLowerCase())); } catch (_) { return false; }
+        }
+        function hasMaterial(idOrType) {
+          try { const list = GD.materials && (Array.isArray(GD.materials.materials) ? GD.materials.materials : GD.materials.list); if (!Array.isArray(list)) return false; const t = String(idOrType || ""); return !!list.find(m => String(m.id || "").toLowerCase() === t.toLowerCase() || String(m.name || "").toLowerCase() === t.toLowerCase()); } catch (_) { return false; }
+        }
+
+        const KIND_OK = new Set(["potion","antidote","weapon","low_tier_equip","shield","armor","tool","material","curio","food","drink"]);
+        const EQUIP_KINDS = new Set(["weapon","low_tier_equip","shield","armor"]);
+
+        if (poolsRoot && typeof poolsRoot === "object") {
+          for (const shopType of Object.keys(poolsRoot)) {
+            const pools = poolsRoot[shopType];
+            const rules = rulesRoot && rulesRoot[shopType] ? rulesRoot[shopType] : null;
+            const sells = rules && Array.isArray(rules.sells) ? rules.sells.map(x => String(x).toLowerCase()) : [];
+            const cats = pools && pools.categories ? pools.categories : null;
+            if (!cats || typeof cats !== "object") {
+              pushWarn(`[Shops] '${shopType}' pools missing categories.`);
+              continue;
+            }
+            for (const cat of Object.keys(cats)) {
+              const cfg = cats[cat];
+              if (typeof cfg.capPerDay !== "number" || (cfg.capPerDay | 0) < 0) {
+                pushWarn(`[Shops] '${shopType}.${cat}' capPerDay should be a non-negative number.`);
+              }
+              const entries = Array.isArray(cfg.entries) ? cfg.entries : [];
+              if (!entries.length) {
+                pushWarn(`[Shops] '${shopType}.${cat}' has no entries.`);
+                continue;
+              }
+              for (const entry of entries) {
+                const kind = String(entry.kind || "").toLowerCase();
+                if (!KIND_OK.has(kind)) {
+                  pushWarn(`[Shops] '${shopType}.${cat}' uses unknown kind '${kind}'.`);
+                }
+                // phaseWeights validation
+                const pw = entry.phaseWeights || null;
+                if (!pw || typeof pw !== "object") {
+                  pushWarn(`[Shops] '${shopType}.${cat}.${entry.id || kind}' missing phaseWeights.`);
+                } else {
+                  let anyPos = false;
+                  for (const k of Object.keys(pw)) {
+                    if (!phaseSet.has(String(k))) pushWarn(`[Shops] '${shopType}.${cat}.${entry.id || kind}' phaseWeights has unknown phase '${k}'.`);
+                    const w = Number(pw[k]);
+                    if (!Number.isFinite(w) || w < 0) pushWarn(`[Shops] '${shopType}.${cat}.${entry.id || kind}' phaseWeights['${k}'] invalid; expected non-negative number.`);
+                    if (Number.isFinite(w) && w > 0) anyPos = true;
+                  }
+                  if (!anyPos) pushWarn(`[Shops] '${shopType}.${cat}.${entry.id || kind}' phaseWeights all zero; will never appear.`);
+                }
+                // stack shape
+                if (entry.stack && typeof entry.stack === "object") {
+                  const mn = Number(entry.stack.min), mx = Number(entry.stack.max);
+                  if (!Number.isFinite(mn) || !Number.isFinite(mx) || mn < 0 || mx < mn) {
+                    pushWarn(`[Shops] '${shopType}.${cat}.${entry.id || kind}' stack invalid; expected {min,max} with 0 <= min <= max.`);
+                  }
+                }
+                if (entry.maxPerRestock != null && (!Number.isFinite(Number(entry.maxPerRestock)) || (Number(entry.maxPerRestock) | 0) < 1)) {
+                  pushWarn(`[Shops] '${shopType}.${cat}.${entry.id || kind}' maxPerRestock should be >= 1.`);
+                }
+                // sells vs kind alignment
+                if (sells && sells.length && kind && sells.indexOf(kind) === -1) {
+                  // Equip kinds map to equip family in some rules; treat as allowed if shopType is blacksmith/armorer
+                  const isEquip = EQUIP_KINDS.has(kind);
+                  if (!(isEquip && (shopType === "blacksmith" || shopType === "armorer" || shopType === "seppo"))) {
+                    pushWarn(`[Shops] '${shopType}' rules do not list kind '${kind}' in sells.`);
+                  }
+                }
+                // registry checks
+                const id = String(entry.id || "").toLowerCase();
+                if (EQUIP_KINDS.has(kind)) {
+                  if (id && !hasItem(id)) {
+                    pushWarn(`[Shops] '${shopType}.${cat}' ${kind} id '${entry.id}' not found in Items registry.`);
+                  } else if (kind === "armor" && entry.slot) {
+                    // If armor id exists, check slot consistency
+                    try {
+                      const ItemsMod = (typeof window !== "undefined" ? window.Items : null);
+                      const def = ItemsMod && typeof ItemsMod.getTypeDef === "function" ? ItemsMod.getTypeDef(id) : null;
+                      if (def && def.slot && String(def.slot) !== String(entry.slot)) {
+                        pushWarn(`[Shops] '${shopType}.${cat}' armor id '${entry.id}' slot mismatch: registry=${def.slot}, pool=${entry.slot}.`);
+                      }
+                    } catch (_) {}
+                  }
+                } else if (kind === "tool") {
+                  if (id && !hasTool(id)) {
+                    pushWarn(`[Shops] '${shopType}.${cat}' tool id '${entry.id}' not found in Tools registry.`);
+                  }
+                } else if (kind === "potion") {
+                  if (id && !hasPotion(id)) {
+                    pushWarn(`[Shops] '${shopType}.${cat}' potion id '${entry.id}' not found in Consumables registry.`);
+                  }
+                } else if (kind === "material") {
+                  const mat = String(entry.material || entry.id || "").toLowerCase();
+                  if (mat && !hasMaterial(mat)) {
+                    pushWarn(`[Shops] '${shopType}.${cat}' material '${entry.material || entry.id}' not found in Materials registry.`);
+                  }
+                } else if (kind === "drink" || kind === "food") {
+                  if (entry.heal != null && (!Number.isFinite(Number(entry.heal)) || Number(entry.heal) < 0)) {
+                    pushWarn(`[Shops] '${shopType}.${cat}' ${kind} '${entry.id || entry.name || kind}' has invalid heal; expected non-negative number.`);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
       // Palette overlays (basic presence)
       const pal = GD.palette;
       const ov = pal && pal.overlays ? pal.overlays : null;
