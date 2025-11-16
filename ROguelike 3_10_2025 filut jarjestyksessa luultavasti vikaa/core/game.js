@@ -918,30 +918,11 @@
 
   
   function updateCamera() {
-    // Prefer centralized camera module
+    // Centralize camera updates via FOVCamera
     const FC = modHandle("FOVCamera");
     if (FC && typeof FC.updateCamera === "function") {
       FC.updateCamera(getCtx());
-      return;
     }
-    // Fallback: center camera on player with half-viewport slack beyond edges
-    const mapCols = map[0] ? map[0].length : COLS;
-    const mapRows = map ? map.length : ROWS;
-    const mapWidth = mapCols * TILE;
-    const mapHeight = mapRows * TILE;
-
-    const targetX = player.x * TILE + TILE / 2 - camera.width / 2;
-    const targetY = player.y * TILE + TILE / 2 - camera.height / 2;
-
-    const slackX = Math.max(0, camera.width / 2 - TILE / 2);
-    const slackY = Math.max(0, camera.height / 2 - TILE / 2);
-    const minX = -slackX;
-    const minY = -slackY;
-    const maxX = (mapWidth - camera.width) + slackX;
-    const maxY = (mapHeight - camera.height) + slackY;
-
-    camera.x = Math.max(minX, Math.min(targetX, maxX));
-    camera.y = Math.max(minY, Math.min(targetY, maxY));
   }
 
   
