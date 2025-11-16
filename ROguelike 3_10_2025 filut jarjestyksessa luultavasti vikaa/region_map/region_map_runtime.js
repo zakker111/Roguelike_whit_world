@@ -635,9 +635,11 @@ function open(ctx, size) {
   const persisted = loadRegionState(worldX, worldY);
   let sample = null;
   let restoredCorpses = null;
+  let loadedPersisted = false;
   if (persisted && Array.isArray(persisted.map) && (persisted.w | 0) === width && (persisted.h | 0) === height) {
     sample = persisted.map;
     restoredCorpses = Array.isArray(persisted.corpses) ? persisted.corpses : [];
+    loadedPersisted = true;
   } else {
     // Build local sample reflecting biomes near the player.
     sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
@@ -646,39 +648,49 @@ function open(ctx, size) {
   // If animals were previously cleared for this tile, do not spawn new ones this session.
   const animalsCleared = animalsClearedHere(worldX, worldY);
 
-  // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile).
-  const playerTile = tile;
-  const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, worldX, worldY);
-  neighborSet.add(playerTile);
-  const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
-  filterSampleByNeighborSet(sample, neighborSet, primaryTile);
+  // Restrict the region map to only the immediate neighbor biomes around the player (+ current tile)
+  // and perform decorative transforms ONLY when not loading a previously persisted region state.
+  if (!loadedPersisted) {
+    const playerTile = tile;
+    const { set: neighborSet, counts: neighborCounts } = collectNeighborSet(ctx.world, worldX, worldY);
+    neighborSet.add(playerTile);
+    const primaryTile = choosePrimaryTile(neighborCounts, playerTile);
+    filterSampleByNeighborSet(sample, neighborSet, primaryTile);
 
-  // Orient biomes by robust directional sampling (cardinals + diagonals) to line up with overworld
-  const dirs = computeDirectionalTiles(ctx.world, worldX, worldY, 7);
-  orientSampleByCardinals(sample, dirs.cardinals, 0.33, dirs.diagonals, dirs.weights);
+    // Orient biomes by robust directional sampling (cardinals + diagonals) to line up with overworld
+    const dirs = computeDirectionalTiles(ctx.world, worldX, worldY, 7);
+    orientSampleByCardinals(sample, dirs.cardinals, 0.33, dirs.diagonals, dirs.weights);
 
-  // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
-  const rng = getRegionRng(ctx);
-  // RNGUtils handle (chance/int/float) when available; falls back to direct rng comparisons
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-  addMinorWaterAndBeaches(sample, rng);
-  // Sprinkle sparse trees and scarce berry bushes for region visualization/foraging
-  addSparseTreesInForests(sample, 0.10, rng);
-  addBerryBushesInForests(sample, 0.025, rng);
-  // Apply persisted cuts for this region so trees/bushes don't respawn
-  try {
-    const cutKey = regionCutKey(worldX, worldY, width, height);
-    applyRegionCuts(sample, cutKey);
-    // Stash key for onAction persistence
-    if (!ctx.region) ctx.region = {};
-    ctx.region._cutKey = cutKey;
-  } catch (_) {}
+    // Enhance per rules: minor water ponds in uniform grass/forest and shoreline beaches near water
+    const rng = getRegionRng(ctx);
+    // RNGUtils handle (chance/int/float) when available; falls back to direct rng comparisons
+    const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+    addMinorWaterAndBeaches(sample, rng);
+    // Sprinkle sparse trees and scarce berry bushes for region visualization/foraging
+    addSparseTreesInForests(sample, 0.10, rng);
+    addBerryBushesInForests(sample, 0.025, rng);
+    // Apply persisted cuts for this region so trees/bushes don't respawn
+    try {
+      const cutKey = regionCutKey(worldX, worldY, width, height);
+      applyRegionCuts(sample, cutKey);
+      // Stash key for onAction persistence
+      if (!ctx.region) ctx.region = {};
+      ctx.region._cutKey = cutKey;
+    } catch (_) {}
+  } else {
+    // Persisted map is authoritative; do not mutate it. Still set cut key so new cuts can be recorded.
+    try {
+      const cutKey = regionCutKey(worldX, worldY, width, height);
+      if (!ctx.region) ctx.region = {};
+      ctx.region._cutKey = cutKey;
+    } catch (_) {}
+  }
 
   // PHASE 2: Ruins decoration and encounter setup on RUINS tiles
   const isRuins = (tile === World.TILES.RUINS);
   if (isRuins) {
     // Only decorate/spawn if there is no persisted map for this tile (respect persistence)
-    if (!persisted) {
+    if (!loadedPersisted) {
       // Resolve RUIN_WALL id from tileset (region scope); fallback to MOUNTAIN if missing
       let ruinWallId = World.TILES.MOUNTAIN;
       try {
@@ -982,7 +994,7 @@ function open(ctx, size) {
         return;
       }
       // If we restored a persisted map state, assume encounter already handled
-      if (persisted) return;
+      if (loadedPersisted) return;
 
       const h = ctx.region.map.length;
       const w = ctx.region.map[0] ? ctx.region.map[0].length : 0;
