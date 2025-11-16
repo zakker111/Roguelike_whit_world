@@ -26,6 +26,10 @@ import '/data/flavor.js';
 import '/data/god.js';
 import '/data/tile_lookup.js';
 
+// Plugin system (optional, loads data/plugins.json if present)
+import '/core/plugin_registry.js';
+import '/core/plugin_loader.js';
+
 // Entities and dungeon adapters
 import '/entities/items.js';
 import '/entities/enemies.js';
