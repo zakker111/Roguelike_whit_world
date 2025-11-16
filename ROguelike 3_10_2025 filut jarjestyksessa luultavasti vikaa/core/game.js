@@ -1668,43 +1668,34 @@
   }
 
   function showLootPanel(list) {
-    // Prefer centralized LootFlow or UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "LootFlow", "show", ctxLocal, list);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "UIOrchestration", "showLoot", ctxLocal, list);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    // Direct UIOrchestration fallback only
+    const Cap = modHandle("Capabilities");
+    const ctxLocal = getCtx();
+    if (Cap && typeof Cap.safeCall === "function") {
+      let res = Cap.safeCall(ctxLocal, "LootFlow", "show", ctxLocal, list);
+      if (res && res.ok) { requestDraw(); return; }
+      res = Cap.safeCall(ctxLocal, "UIOrchestration", "showLoot", ctxLocal, list);
+      if (res && res.ok) { requestDraw(); return; }
+    }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.showLoot === "function") {
       UIO.showLoot(getCtx(), list);
+      requestDraw();
     }
   }
 
   function hideLootPanel() {
-    // Prefer centralized LootFlow or UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "LootFlow", "hide", ctxLocal);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    // Direct UIOrchestration fallback only
+    const Cap = modHandle("Capabilities");
+    const ctxLocal = getCtx();
+    if (Cap && typeof Cap.safeCall === "function") {
+      let res = Cap.safeCall(ctxLocal, "LootFlow", "hide", ctxLocal);
+      if (res && res.ok) { requestDraw(); return; }
+      res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
+      if (res && res.ok) { requestDraw(); return; }
+    }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideLoot === "function") {
-      let wasOpen = false;
-      try { if (typeof UIO.isLootOpen === "function") wasOpen = !!UIO.isLootOpen(getCtx()); } catch (_) {}
       UIO.hideLoot(getCtx());
-      if (wasOpen) requestDraw();
+      requestDraw();
     }
   }
 
@@ -1744,97 +1735,62 @@
 
   
   function renderInventoryPanel() {
-    // Prefer centralized UI orchestration or InventoryController via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "UIOrchestration", "renderInventory", ctxLocal);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "InventoryController", "render", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    // Fallback: UIOrchestration
+    const Cap = modHandle("Capabilities");
+    const ctxLocal = getCtx();
+    if (Cap && typeof Cap.safeCall === "function") {
+      const res = Cap.safeCall(ctxLocal, "UIOrchestration", "renderInventory", ctxLocal);
+      if (res && res.ok) return;
+    }
+    const IC = modHandle("InventoryController");
+    if (IC && typeof IC.render === "function") {
+      IC.render(getCtx());
+      return;
+    }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.renderInventory === "function") {
       UIO.renderInventory(getCtx());
-      return;
     }
   }
 
   function showInventoryPanel() {
-    // Prefer centralized UI orchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "showInventory", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    let wasOpen = false;
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
-        if (r && r.ok) wasOpen = !!r.result;
-      }
-      if (!wasOpen) {
-        const UIO = modHandle("UIOrchestration");
-        if (UIO && typeof UIO.isInventoryOpen === "function") wasOpen = !!UIO.isInventoryOpen(getCtx());
-      }
-    } catch (_) {}
+    const Cap = modHandle("Capabilities");
+    const ctxLocal = getCtx();
+    if (Cap && typeof Cap.safeCall === "function") {
+      const res = Cap.safeCall(ctxLocal, "UIOrchestration", "showInventory", ctxLocal);
+      if (res && res.ok) { requestDraw(); return; }
+    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.show === "function") {
       IC.show(getCtx());
-    } else {
-      renderInventoryPanel();
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.showInventory === "function") {
-        UIO.showInventory(getCtx());
-      }
+      requestDraw();
+      return;
     }
-    if (!wasOpen) requestDraw();
+    renderInventoryPanel();
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.showInventory === "function") {
+      UIO.showInventory(getCtx());
+      requestDraw();
+    }
   }
 
   function hideInventoryPanel() {
-    // Prefer centralized UI orchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideInventory", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    let wasOpen = false;
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
-        if (r && r.ok) wasOpen = !!r.result;
-      }
-      if (!wasOpen) {
-        const UIO = modHandle("UIOrchestration");
-        if (UIO && typeof UIO.isInventoryOpen === "function") wasOpen = !!UIO.isInventoryOpen(getCtx());
-      }
-    } catch (_) {}
+    const Cap = modHandle("Capabilities");
+    const ctxLocal = getCtx();
+    if (Cap && typeof Cap.safeCall === "function") {
+      const res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideInventory", ctxLocal);
+      if (res && res.ok) { requestDraw(); return; }
+    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.hide === "function") {
       IC.hide(getCtx());
-      if (wasOpen) requestDraw();
+      requestDraw();
       return;
     }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideInventory === "function") {
       UIO.hideInventory(getCtx());
-      if (wasOpen) requestDraw();
-      return;
+      requestDraw();
     }
-    if (wasOpen) requestDraw();
   }
 
   function equipItemByIndex(idx) {
