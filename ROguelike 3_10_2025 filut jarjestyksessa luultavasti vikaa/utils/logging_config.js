@@ -30,9 +30,9 @@ export const LogConfig = {
   },
   _cats: Object.create(null),
   _defaultCats: [
-    "General","AI","Boot","Combat","Data","Dungeon","Enemies","Entities","Items",
-    "Overlays","Palette","Quest","Region","Render","RNG","Services",
-    "Shop","Smoketest","Town","UI","Validation","World"
+    "General","AI","Boot","Combat","Data","Dungeon","DungeonState","Enemies","Entities","Encounter","Items",
+    "Overlays","Palette","Prefabs","Quest","Region","Render","RNG","Services","Shop","Smoketest",
+    "Town","TownState","TownGen","World","WorldGen"
   ],
 
   init() {
@@ -120,16 +120,50 @@ export const LogConfig = {
     return this._levels[key] || this._levels.info;
   },
 
-  extractCategory(msg) {
+  extractCategory(msg, opts) {
+    // 1) Explicit category via options
+    try {
+      const c = opts && (opts.category || (opts.cat));
+      if (c) return c;
+    } catch (_) {}
+
+    // 2) Bracketed prefix [Category]
     const m = String(msg || "").match(/^\s*\[([^\]]+)\]/);
     if (m && m[1]) return m[1];
+
+    // 3) Heuristics based on common message prefixes and keywords
+    try {
+      const s = String(msg || "").toLowerCase();
+
+      // Strong prefixes
+      if (s.startsWith("strict prefabs") || s.includes("prefab")) return "Prefabs";
+      if (s.startsWith("residential fill")) return "TownGen";
+      if (s.startsWith("townstate.")) return "TownState";
+      if (s.includes("you re-enter the town") || s.includes("you re-enter")) return "Town";
+      if (s.includes("you return to the overworld") || s.includes("you arrive in the overworld") || s.includes("overworld")) return "World";
+      if (s.includes("dungeonstate") || s.includes("you explore the dungeon") || s.includes("dungeon")) return "Dungeon";
+      if (s.includes("region map")) return "Region";
+      if (s.includes("encounter")) return "Encounter";
+      if (s.includes("palette")) return "Palette";
+      if (s.includes("render")) return "Render";
+      if (s.includes("shop") || s.includes("sold out") || s.includes("you bought") || s.includes("you sold")) return "Shop";
+      if (s.includes("npc") || s.includes("villager") || s.includes("talk")) return "Town";
+      if (s.includes("ai ")) return "AI";
+      if (s.includes("combat") || s.includes("blocks your attack") || s.includes("critical!")) return "Combat";
+      if (s.includes("items") || s.includes("inventory") || s.includes("equip") || s.includes("potion")) return "Items";
+      if (s.includes("smoke")) return "Smoketest";
+      if (s.includes("rng")) return "RNG";
+      if (s.includes("service")) return "Services";
+    } catch (_) {}
+
+    // 4) Default
     return "General";
   },
 
-  canEmit(type, msg) {
+  canEmit(type, msg, opts) {
     const lvl = this.typeToLevel(type);
     if (lvl < this.getThresholdValue()) return false;
-    const cat = this.extractCategory(msg);
+    const cat = this.extractCategory(msg, opts);
     this.registerCategory(cat);
     return this.isCategoryEnabled(cat);
   },

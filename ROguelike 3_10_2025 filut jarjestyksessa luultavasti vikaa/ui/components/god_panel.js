@@ -356,6 +356,18 @@ export function init(UI) {
     });
   }
 
+  // Download logs
+  const dlLogsBtn = byId("god-log-download-btn");
+  if (dlLogsBtn) {
+    dlLogsBtn.addEventListener("click", () => {
+      try {
+        if (typeof window !== "undefined" && window.Logger && typeof window.Logger.download === "function") {
+          window.Logger.download("game_logs.txt");
+        }
+      } catch (_) {}
+    });
+  }
+
   // Always Crit toggle + chooser
   const critBtn = byId("god-toggle-crit-btn");
   if (critBtn) {

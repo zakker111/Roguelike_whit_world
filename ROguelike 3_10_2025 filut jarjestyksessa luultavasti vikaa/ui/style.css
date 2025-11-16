@@ -118,6 +118,8 @@ html, body {
 .log .entry.fatal, .log .entry.crit, .log .entry.death { color: #ff4c4c; font-weight: 700; text-shadow: 0 0 8px rgba(255,76,76,0.35); } /* fatal: red */
 .log .entry.good { color: var(--success); }
 .log .entry.flavor { color: #b4f9f8; } /* teal for flavor text */
+.log .entry .detail-toggle { margin-left: 6px; color: #718918; cursor: pointer; font-size: 11px; }
+.log .entry .details { margin-top: 4px; padding: 6px 8px; background: #0f1117; border: 1px solid #253047; border-radius: 6px; color: #cbd5e1; font-size: 11px; white-space: pre-wrap; }
 
 .loot-panel {
   position: fixed;
