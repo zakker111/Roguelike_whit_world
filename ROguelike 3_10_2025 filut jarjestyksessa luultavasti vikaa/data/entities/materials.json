@@ -42,6 +42,20 @@
       "kind": "material",
       "stackLimit": 99,
       "tags": ["forage", "food", "raw"]
+    },
+    {
+      "id": "wood",
+      "name": "wood",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["craft", "resource"]
+    },
+    {
+      "id": "wood_planks",
+      "name": "wood planks",
+      "kind": "material",
+      "stackLimit": 99,
+      "tags": ["craft", "resource"]
     }
   ]
 }

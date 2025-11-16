@@ -298,18 +298,15 @@ export function run(ctx = null) {
                 // registry checks
                 const id = String(entry.id || "").toLowerCase();
                 if (EQUIP_KINDS.has(kind)) {
-                  if (id && !hasItem(id)) {
-                    pushWarn(`[Shops] '${shopType}.${cat}' ${kind} id '${entry.id}' not found in Items registry.`);
-                  } else if (kind === "armor" && entry.slot) {
-                    // If armor id exists, check slot consistency
-                    try {
-                      const ItemsMod = (typeof window !== "undefined" ? window.Items : null);
-                      const def = ItemsMod && typeof ItemsMod.getTypeDef === "function" ? ItemsMod.getTypeDef(id) : null;
-                      if (def && def.slot && String(def.slot) !== String(entry.slot)) {
-                        pushWarn(`[Shops] '${shopType}.${cat}' armor id '${entry.id}' slot mismatch: registry=${def.slot}, pool=${entry.slot}.`);
-                      }
-                    } catch (_) {}
-                  }
+                  // Equip pools act as descriptors; specific id is optional.
+                  // If an id exists in Items, verify slot consistency when pool declares a slot.
+                  try {
+                    const ItemsMod = (typeof window !== "undefined" ? window.Items : null);
+                    const def = (ItemsMod && typeof ItemsMod.getTypeDef === "function") ? ItemsMod.getTypeDef(id) : null;
+                    if (def && entry.slot && def.slot && String(def.slot) !== String(entry.slot)) {
+                      pushWarn(`[Shops] '${shopType}.${cat}' armor id '${entry.id}' slot mismatch: registry=${def.slot}, pool=${entry.slot}.`);
+                    }
+                  } catch (_) {}
                 } else if (kind === "tool") {
                   if (id && !hasTool(id)) {
                     pushWarn(`[Shops] '${shopType}.${cat}' tool id '${entry.id}' not found in Tools registry.`);
