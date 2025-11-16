@@ -429,9 +429,7 @@ export function lootHere(ctx) {
                 const parts = [woundStr, killerStr].filter(Boolean).join(" ");
                 return `${parts} ${viaStr}`.trim();
               })();
-          if (line) ctx.log && ctx.log(line, "flavor", { category: "Combat", side: "enemy", tone: "injury" });eturn `${parts} ${viaStr}`.trim();
-              })();
-            if (line) ctx.log && ctx.log(line, "flavor", { category: "Combat", side: "enemy", tone: "injury" });
+          if (line) ctx.log && ctx.log(line, "flavor", { category: "Combat", side: "enemy", tone: "injury" });
         }
       }
     } catch (_) {}
