@@ -22,7 +22,9 @@ export const LogConfig = {
     block: "info",
     notice: "notice",
     warn: "warn",
+    error: "error",
     bad: "error",
+    fatal: "fatal",
     crit: "fatal",
     death: "fatal"
   },
