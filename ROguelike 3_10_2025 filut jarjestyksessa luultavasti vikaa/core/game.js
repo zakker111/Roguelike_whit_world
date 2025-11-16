@@ -927,53 +927,23 @@
 
   
   function getRenderCtx() {
-    // Prefer centralized RenderOrchestration facade
+    const RO = modHandle("RenderOrchestration");
+    if (!RO || typeof RO.getRenderCtx !== "function") {
+      return null;
+    }
+    const base = RO.getRenderCtx(getCtx());
+    // Ensure PERF sink uses local PERF tracker
     try {
-      const RO = modHandle("RenderOrchestration");
-      if (RO && typeof RO.getRenderCtx === "function") {
-        const base = RO.getRenderCtx(getCtx());
-        // Ensure PERF sink uses local PERF tracker
-        try { base.onDrawMeasured = (ms) => {
-          PERF.lastDrawMs = ms;
-          try {
-            const a = 0.35;
-            if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = ms;
-            else PERF.avgDrawMs = (a * ms) + ((1 - a) * PERF.avgDrawMs);
-          } catch (_) {}
-        }; } catch (_) {}
-        return base;
-      }
-    } catch (_) {}
-    // Fallback: inline context builder
-    return {
-      ctx2d: ctx,
-      TILE, ROWS, COLS, COLORS, TILES,
-      map, seen, visible,
-      player, enemies, corpses, decals,
-      camera,
-      mode,
-      world,
-      region,
-      npcs,
-      shops,
-      townProps,
-      townBuildings,
-      townExitAt,
-      // encounter visuals for RenderDungeon
-      encounterProps,
-      encounterBiome,
-      dungeonProps,
-      enemyColor: (t) => enemyColor(t),
-      time: getClock(),
-      onDrawMeasured: (ms) => {
+      base.onDrawMeasured = (ms) => {
         PERF.lastDrawMs = ms;
         try {
           const a = 0.35;
           if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = ms;
           else PERF.avgDrawMs = (a * ms) + ((1 - a) * PERF.avgDrawMs);
         } catch (_) {}
-      },
-    };
+      };
+    } catch (_) {}
+    return base;
   }
 
   // Batch multiple draw requests within a frame to avoid redundant renders.
