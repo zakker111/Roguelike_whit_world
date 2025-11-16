@@ -251,6 +251,25 @@
       const skipSet = new Set((ctx && ctx.skipScenarios) ? ctx.skipScenarios : []);
 
       await waitUntilRunnerReady(6000);
+
+      // Validation summary (non-fatal): record warnings/notices up front
+      let __valWarnings = 0, __valNotices = 0;
+      try {
+        const VR = (typeof window !== "undefined" ? window.ValidationRunner : null);
+        if (VR && typeof VR.run === "function") {
+          VR.run();
+          const s = (typeof VR.summary === "function") ? VR.summary() : null;
+          if (s) { __valWarnings = (s.totalWarnings | 0); __valNotices = (s.totalNotices | 0); }
+          record(true, `Validation summary: ${__valWarnings} warnings, ${__valNotices} notices.`);
+        } else {
+          const V = (typeof window !== "undefined" ? window.ValidationLog : null) || {};
+          const w = Array.isArray(V.warnings) ? V.warnings.length : 0;
+          const n = Array.isArray(V.notices) ? V.notices.length : 0;
+          __valWarnings = (w | 0); __valNotices = (n | 0);
+          record(true, `Validation summary (fallback): ${__valWarnings} warnings, ${__valNotices} notices.`);
+        }
+      } catch (_) {}
+
       const caps = detectCaps();
       const params = parseParams();
       const sel = params.scenarios;
@@ -1372,7 +1391,28 @@
         }
       } catch (_) {}
 
-      try { window.SMOKE_OK = ok; window.SMOKE_STEPS = steps.slice(); window.SMOKE_JSON = { ok, steps, caps, trace, keyChecklist: keyChecklistRun }; } catch (_) {}
+      try {
+        window.SMOKE_OK = ok;
+        window.SMOKE_STEPS = steps.slice();
+        // Include validation counts in exported JSON (non-fatal)
+        const valObj = {};
+        try {
+          // Pull from last recorded summary if available via ValidationRunner
+          const VR = (typeof window !== "undefined" ? window.ValidationRunner : null);
+          if (VR && typeof VR.summary === "function") {
+            const s = VR.summary();
+            valObj.warnings = (s && (s.totalWarnings | 0)) || 0;
+            valObj.notices = (s && (s.totalNotices | 0)) || 0;
+          } else {
+            const V = (typeof window !== "undefined" ? window.ValidationLog : null) || {};
+            valObj.warnings = Array.isArray(V.warnings) ? V.warnings.length : 0;
+            valObj.notices = Array.isArray(V.notices) ? V.notices.length : 0;
+          }
+          window.SMOKE_VALIDATION_WARNINGS = valObj.warnings | 0;
+          window.SMOKE_VALIDATION_NOTICES = valObj.notices | 0;
+        } catch (_) {}
+        window.SMOKE_JSON = { ok, steps, caps, trace, keyChecklist: keyChecklistRun, validation: valObj };
+      } catch (_) {}
       try { localStorage.setItem("smoke-pass-token", ok ? "PASS" : "FAIL"); localStorage.setItem("smoke-json-token", JSON.stringify({ ok, steps, caps, trace, keyChecklist: keyChecklistRun })); } catch (_) {}
       // Provide hidden DOM tokens for CI (align with legacy runner)
       try {
