@@ -859,61 +859,16 @@
   let _lastPlayerX = -1, _lastPlayerY = -1, _lastFovRadius = -1, _lastMode = "", _lastMapCols = -1, _lastMapRows = -1;
 
   function recomputeFOV() {
-    // Delegate to centralized FOV modules only
-    try {
-      const GF = modHandle("GameFOV");
-      if (GF && typeof GF.recomputeWithGuard === "function") {
-        const ctx = getCtx();
-        ctx.seen = seen;
-        ctx.visible = visible;
-        const did = !!GF.recomputeWithGuard(ctx);
-        if (did) {
-          visible = ctx.visible;
-          seen = ctx.seen;
-          const rows = map.length;
-          const cols = map[0] ? map[0].length : 0;
-          _lastPlayerX = player.x; _lastPlayerY = player.y;
-          _lastFovRadius = fovRadius; _lastMode = mode;
-          _lastMapCols = cols; _lastMapRows = rows;
-        }
-        return;
-      }
-    } catch (_) {}
-    try {
-      const F = modHandle("FOV");
-      if (F && typeof F.recomputeFOV === "function") {
-        const ctx = getCtx();
-        ctx.seen = seen;
-        ctx.visible = visible;
-        F.recomputeFOV(ctx);
-        visible = ctx.visible;
-        seen = ctx.seen;
-        const rows = map.length;
-        const cols = map[0] ? map[0].length : 0;
-        _lastPlayerX = player.x; _lastPlayerY = player.y;
-        _lastFovRadius = fovRadius; _lastMode = mode;
-        _lastMapCols = cols; _lastMapRows = rows;
-        return;
-      }
-    } catch (_) {}
-    // Fallback: minimal visibility of current tile only
-    log("FOV system not available.", "warn");
-    try {
-      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.ensureVisibilityShape === "function") {
-        window.GameState.ensureVisibilityShape(getCtx());
-      } else {
-        ensureVisibilityShape();
-      }
-    } catch (_) { ensureVisibilityShape(); }
-    if (inBounds(player.x, player.y)) {
-      visible[player.y][player.x] = true;
-      seen[player.y][player.x] = true;
+    // Centralize FOV recompute via GameFOV; remove inline and legacy fallbacks
+    const GF = modHandle("GameFOV");
+    if (GF && typeof GF.recomputeWithGuard === "function") {
+      const ctx = getCtx();
+      ctx.seen = seen;
+      ctx.visible = visible;
+      GF.recomputeWithGuard(ctx);
+      visible = ctx.visible;
+      seen = ctx.seen;
     }
-    const rows = map.length;
-    const cols = map[0] ? map[0].length : 0;
-    _lastPlayerX = player.x; _lastPlayerY = player.y;
-    _lastFovRadius = fovRadius; _lastMode = mode;
-    _lastMapCols = cols; _lastMapRows = rows;
   }
 
   
