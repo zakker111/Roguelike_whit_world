@@ -765,7 +765,6 @@
     enemies = [];
     corpses = [];
     decals = [];
-    _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
     applyCtxSyncAndRefresh(getCtx());
     {
       const MZ = modHandle("Messages");
@@ -1084,7 +1083,6 @@
         const ctx = getCtx();
         const ok = !!MC.enterTownIfOnTile(ctx);
         if (ok) {
-          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
           applyCtxSyncAndRefresh(ctx);
           try {
             const TR = modHandle("TownRuntime");
@@ -1102,7 +1100,6 @@
         const ctx = getCtx();
         const ok = !!MT.enterTownIfOnTile(ctx);
         if (ok) {
-          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
           applyCtxSyncAndRefresh(ctx);
           try {
             const TR = modHandle("TownRuntime");
@@ -1118,7 +1115,6 @@
       const ctx = getCtx();
       const ok = !!M.enterTownIfOnTile(ctx);
       if (ok) {
-        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         applyCtxSyncAndRefresh(ctx);
         try {
           const TR = modHandle("TownRuntime");
@@ -1138,7 +1134,6 @@
         const ctx = getCtx();
         const ok = !!MC.enterDungeonIfOnEntrance(ctx);
         if (ok) {
-          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
           applyCtxSyncAndRefresh(ctx);
         }
         return ok;
@@ -1152,7 +1147,6 @@
         const ctx = getCtx();
         const ok = !!MT.enterDungeonIfOnEntrance(ctx);
         if (ok) {
-          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
           applyCtxSyncAndRefresh(ctx);
         }
         return ok;
@@ -1164,7 +1158,6 @@
       const ctx = getCtx();
       const ok = !!M.enterDungeonIfOnEntrance(ctx);
       if (ok) {
-        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         applyCtxSyncAndRefresh(ctx);
       }
       return ok;
