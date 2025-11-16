@@ -664,8 +664,8 @@ function open(ctx, size) {
     restoredCorpses = Array.isArray(persisted.corpses) ? persisted.corpses : [];
     loadedPersisted = true;
   } else {
-    // Build local sample reflecting biomes near the player.
-    sample = buildLocalDownscaled(ctx.world, worldX, worldY, width, height);
+    // Build local sample reflecting biomes near the anchor (RUINS if adjacent, otherwise player tile).
+    sample = buildLocalDownscaled(ctx.world, anchorX, anchorY, width, height);
   }
 
   // If animals were previously cleared for this tile (anchor), do not spawn new ones this session.
