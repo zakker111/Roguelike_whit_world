@@ -5,9 +5,7 @@
   <title>Docs</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    :root {
-      color-scheme: dark;
-    }
+    :root { color-scheme: dark; }
     body {
       margin: 0;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "JetBrains Mono", "Liberation Mono", "Courier New", monospace;
@@ -21,6 +19,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
     }
     main {
       padding: 16px;
@@ -35,22 +34,29 @@
       background: #0f1117;
       padding: 12px;
     }
+    .card h2 {
+      margin-top: 0;
+      cursor: pointer;
+    }
+    .card .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .card .actions .status {
+      margin-left: auto;
+    }
     pre {
       white-space: pre-wrap;
       word-wrap: break-word;
       tab-size: 2;
       line-height: 1.45;
+      margin: 8px 0 0 0;
     }
-    code {
-      font-family: inherit;
-    }
-    a {
-      color: #7aa2f7;
-    }
-    .status {
-      font-size: 13px;
-      color: #a1a1aa;
-    }
+    code { font-family: inherit; }
+    a { color: #7aa2f7; }
+    .status { font-size: 13px; color: #a1a1aa; }
     .btn {
       display: inline-block;
       padding: 6px 10px;
@@ -59,52 +65,147 @@
       background: #0b0d13;
       color: #cbd5e1;
       text-decoration: none;
+      font-size: 13px;
     }
-    .btn:hover {
-      border-color: #3b4b6a;
-      background: #0f1320;
+    .btn:hover { border-color: #3b4b6a; background: #0f1320; }
+    .toolbar {
+      display:flex; align-items:center; gap:8px;
+    }
+    input[type="search"] {
+      padding: 6px 8px;
+      background:#0f0f12; color:#e5e7eb;
+      border:1px solid #334155; border-radius:6px;
+      min-width: 220px;
     }
   </style>
 </head>
 <body>
   <header>
     <h1 style="margin:0; font-size:16px;">ROguelike Docs</h1>
-    <span class="status" id="status">Loading…</span>
+    <span class="status" id="status">Ready</span>
+    <div class="toolbar">
+      <input id="filter" type="search" placeholder="Filter docs by title…" />
+      <button id="expand-all" class="btn">Expand All</button>
+      <button id="collapse-all" class="btn">Collapse All</button>
+    </div>
     <a class="btn" href="/">Back to game</a>
   </header>
-  <main>
-    <div class="card">
-      <h2 style="margin-top:0;">Palette Schema</h2>
-      <p class="status">Source: <code>/data/docs/palette_schema.md</code></p>
-      <pre id="md-schema"><code>Loading…</code></pre>
-    </div>
-    <div class="card">
-      <h2 style="margin-top:0;">Palette Theming</h2>
-      <p class="status">Source: <code>/data/docs/palette_theming.md</code></p>
-      <pre id="md-theme"><code>Loading…</code></pre>
-    </div>
-    <div class="card">
-      <h2 style="margin-top:0;">Tiles Coverage</h2>
-      <p class="status">Source: <code>/data/docs/tiles_coverage.md</code></p>
-      <pre id="md-tiles"><code>Loading…</code></pre>
-    </div>
-  </main>
+  <main id="docs"></main>
   <script>
     (function(){
+      const catalog = [
+        { title: 'Top-level README', path: '/README.md' },
+        { title: 'Changelog (VERSIONS.md)', path: '/VERSIONS.md' },
+        { title: 'Checklist', path: '/CHECKLIST.md' },
+        { title: 'Smoke Test Guide', path: '/smoketest.md' },
+
+        { title: 'Data Docs: Index', path: '/data/docs/README.md' },
+        { title: 'Data Docs: Palette Schema', path: '/data/docs/palette_schema.md' },
+        { title: 'Data Docs: Palette Theming', path: '/data/docs/palette_theming.md' },
+        { title: 'Data Docs: Tiles Coverage', path: '/data/docs/tiles_coverage.md' },
+
+        { title: 'Core', path: '/core/README.md' },
+        { title: 'UI', path: '/ui/README.md' },
+        { title: 'World', path: '/world/README.md' },
+        { title: 'Dungeon', path: '/dungeon/README.md' },
+        { title: 'Services', path: '/services/README.md' },
+        { title: 'Entities', path: '/entities/README.md' },
+        { title: 'Combat', path: '/combat/README.md' },
+        { title: 'AI', path: '/ai/README.md' },
+        { title: 'Region Map', path: '/region_map/README.md' },
+        { title: 'Utils', path: '/utils/README.md' },
+        { title: 'Tools', path: '/tools/README.md' },
+        { title: 'Scripts', path: '/scripts/README.md' },
+        { title: 'Worldgen', path: '/worldgen/README.md' },
+
+        { title: 'Smoketest (Overview)', path: '/smoketest/README.md' },
+        { title: 'Smoketest: Runner', path: '/smoketest/runner/README.md' },
+        { title: 'Smoketest: Helpers', path: '/smoketest/helpers/README.md' },
+        { title: 'Smoketest: Reporting', path: '/smoketest/reporting/README.md' },
+        { title: 'Smoketest: Scenarios', path: '/smoketest/scenarios/README.md' },
+      ];
+
+      const root = document.getElementById('docs');
       const st = document.getElementById('status');
-      function loadInto(id, url) {
-        const el = document.getElementById(id);
-        return fetch(url, { cache: 'no-cache' })
-          .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-          .then(txt => { el.textContent = txt; })
-          .catch(err => { el.textContent = 'Unable to load ' + url + ' (' + err.message + ').'; });
+
+      function makeCard(entry) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.title = (entry.title || '').toLowerCase();
+
+        const h2 = document.createElement('h2');
+        h2.textContent = entry.title || entry.path;
+        card.appendChild(h2);
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const src = document.createElement('span');
+        src.className = 'status';
+        src.innerHTML = 'Source: <code>' + entry.path + '</code>';
+        actions.appendChild(src);
+        const raw = document.createElement('a');
+        raw.className = 'btn';
+        raw.href = entry.path;
+        raw.target = '_blank';
+        raw.textContent = 'Open raw';
+        actions.appendChild(raw);
+        const status = document.createElement('span');
+        status.className = 'status';
+        status.textContent = 'Collapsed';
+        actions.appendChild(status);
+        card.appendChild(actions);
+
+        const pre = document.createElement('pre');
+        pre.hidden = true;
+        const code = document.createElement('code');
+        code.textContent = '';
+        pre.appendChild(code);
+        card.appendChild(pre);
+
+        let loaded = false;
+        function load() {
+          return fetch(entry.path, { cache: 'no-cache' })
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(txt => { code.textContent = txt; loaded = true; })
+            .catch(err => { code.textContent = 'Unable to load ' + entry.path + ' (' + err.message + ').'; loaded = true; });
+        }
+        function toggle() {
+          if (pre.hidden) {
+            pre.hidden = false;
+            status.textContent = 'Expanded';
+            if (!loaded) { status.textContent = 'Loading…'; load().then(() => { status.textContent = 'Expanded'; }).catch(() => { status.textContent = 'Loaded with warnings'; }); }
+          } else {
+            pre.hidden = true;
+            status.textContent = 'Collapsed';
+          }
+        }
+        h2.addEventListener('click', toggle);
+        return { card, toggle, expand: () => { if (pre.hidden) h2.click(); }, collapse: () => { if (!pre.hidden) h2.click(); } };
       }
-      Promise.all([
-        loadInto('md-schema', '/data/docs/palette_schema.md'),
-        loadInto('md-theme', '/data/docs/palette_theming.md'),
-        loadInto('md-tiles', '/data/docs/tiles_coverage.md')
-      ]).then(() => { st.textContent = 'Loaded'; })
-      .catch(() => { st.textContent = 'Loaded with warnings'; });
+
+      const cards = catalog.map(makeCard);
+      cards.forEach(c => root.appendChild(c.card));
+
+      function expandAll() { cards.forEach(c => c.expand()); st.textContent = 'Expanded ' + cards.length; }
+      function collapseAll() { cards.forEach(c => c.collapse()); st.textContent = 'Collapsed'; }
+
+      document.getElementById('expand-all').addEventListener('click', expandAll);
+      document.getElementById('collapse-all').addEventListener('click', collapseAll);
+
+      const filter = document.getElementById('filter');
+      filter.addEventListener('input', function() {
+        const q = (filter.value || '').toLowerCase();
+        let vis = 0;
+        cards.forEach(c => {
+          const t = c.card.dataset.title || '';
+          const show = !q || t.indexOf(q) !== -1;
+          c.card.style.display = show ? '' : 'none';
+          if (show) vis++;
+        });
+        st.textContent = q ? ('Showing ' + vis + ' / ' + cards.length) : ('Ready (' + cards.length + ' docs)');
+      });
+
+      st.textContent = 'Ready (' + cards.length + ' docs)';
     })();
   </script>
 </body>
