@@ -14,7 +14,7 @@
  */
 export const LogConfig = {
   _thresholdName: "info",
-  _levels: { info: 10, notice: 15, warn: 20, error: 30, fatal: 40 },
+  _levels: { all: 0, info: 10, notice: 15, warn: 20, error: 30, fatal: 40 },
   _typeMap: {
     info: "info",
     good: "info",

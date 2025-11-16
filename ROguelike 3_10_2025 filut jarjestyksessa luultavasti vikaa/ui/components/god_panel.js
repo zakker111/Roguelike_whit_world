@@ -314,7 +314,7 @@ export function init(UI) {
     try {
       const cur = (LogConfig && typeof LogConfig.getThresholdName === "function") ? LogConfig.getThresholdName() : "info";
       // Ensure value is one of the options
-      const valid = new Set(["info","notice","warn","error","fatal"]);
+      const valid = new Set(["info","notice","warn","error","fatal","all"]);
       lvlSel.value = valid.has(cur) ? cur : "info";
     } catch (_) {}
     lvlSel.addEventListener("change", () => {
