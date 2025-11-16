@@ -1486,7 +1486,7 @@ function tryMove(ctx, dx, dy) {
       } catch (_) {}
       try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
       return true;
-    };
+    }
   // Move cursor and player together in Region Map
   try {
     if (ctx.region && ctx.region.cursor) {
