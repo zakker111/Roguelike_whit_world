@@ -2,6 +2,20 @@ s
 # Game Version History
 Last updated: 2025-11-16 00:00 UTC
 
+v1.46.0 — Phase 5: Registry defaults, encounter fog-of-war persistence, and validation polish
+- Changed: entities/enemies.js
+  - Missing glyph now falls back to the first character of the enemy id instead of "?". Keeps the warning but avoids unusable/hidden glyphs.
+- Changed: entities/items.js
+  - Invalid or missing slot now defaults to "hand" (with a warning) so the item remains registered and usable.
+  - twoHanded is enforced only for "hand" slot; weights default to 1.0 when not provided (warning logged).
+- Fixed: Encounter → Overworld fog-of-war/minimap
+  - core/encounter_runtime.js complete(): restores ctx.seen/ctx.visible from ctx.world.seenRef/visibleRef when returning to overworld, preventing full-map reveal.
+  - Fallback marks only the current tile as seen/visible when world refs are missing.
+- Validation
+  - GOD “Run Validation” continues to surface warnings only; bad JSON test remains non-fatal.
+  - Shops that generate no inventory log a warning; runtime remains crash-free.
+- Deployment: https://9ngsjszq65jp.cosine.page
+
 v1.45.4 — Phase 3 completion + roadmap (Phases 4–6)
 - Palette/Theming
   - Overlays now derive from palette for grid, routes, exit highlights, vignette, minimap, panels, and player backdrops across overworld/town/region/dungeon.
