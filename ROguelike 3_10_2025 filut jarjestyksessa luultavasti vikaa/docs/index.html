@@ -85,13 +85,15 @@
     .btn:hover { border-color: #3b4b6a; background: #0f1320; }
     .toolbar {
       display:flex; align-items:center; gap:8px;
+      flex-wrap: wrap;
     }
-    input[type="search"] {
+    input[type="search"], input[type="number"] {
       padding: 6px 8px;
       background:#0f0f12; color:#e5e7eb;
       border:1px solid #334155; border-radius:6px;
       min-width: 220px;
     }
+    input[type="number"] { min-width: 100px; width: 120px; }
   </style>
 </head>
 <body>
@@ -102,6 +104,10 @@
       <input id="filter" type="search" placeholder="Filter docs by title…" />
       <button id="expand-all" class="btn">Expand All</button>
       <button id="collapse-all" class="btn">Collapse All</button>
+      <button id="refresh-all" class="btn">Refresh Expanded</button>
+      <button id="auto-refresh" class="btn">Auto Refresh: Off</button>
+      <label class="status" for="refresh-interval">Interval (sec):</label>
+      <input id="refresh-interval" type="number" min="5" step="5" value="30" />
     </div>
     <a class="btn" href="/">Back to game</a>
   </header>
@@ -201,6 +207,10 @@
         raw.target = '_blank';
         raw.textContent = 'Open raw';
         actions.appendChild(raw);
+        const refresh = document.createElement('button');
+        refresh.className = 'btn';
+        refresh.textContent = 'Refresh';
+        actions.appendChild(refresh);
         const status = document.createElement('span');
         status.className = 'status';
         status.textContent = 'Collapsed';
@@ -216,7 +226,9 @@
 
         let loaded = false;
         function load() {
-          return fetch(entry.path, { cache: 'no-cache' })
+          // cache-bust to avoid stale content; keep server validation via no-cache
+          const url = entry.path + (entry.path.indexOf('?') === -1 ? ('?ts=' + Date.now()) : ('&ts=' + Date.now()));
+          return fetch(url, { cache: 'no-cache' })
             .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
             .then(txt => { code.textContent = txt; loaded = true; })
             .catch(err => { code.textContent = 'Unable to load ' + entry.path + ' (' + err.message + ').'; loaded = true; });
@@ -235,8 +247,20 @@
             card.dataset.expanded = 'false';
           }
         }
+        refresh.addEventListener('click', function () {
+          status.textContent = 'Loading…';
+          load().then(() => { status.textContent = pre.hidden ? 'Collapsed' : 'Expanded'; })
+                .catch(() => { status.textContent = 'Loaded with warnings'; });
+        });
         h2.addEventListener('click', toggle);
-        return { card, toggle, expand: () => { if (pre.hidden) h2.click(); }, collapse: () => { if (!pre.hidden) h2.click(); } };
+        return {
+          card,
+          toggle,
+          expand: () => { if (pre.hidden) h2.click(); },
+          collapse: () => { if (!pre.hidden) h2.click(); },
+          isExpanded: () => !pre.hidden,
+          refresh: () => { status.textContent = 'Loading…'; return load().then(() => { status.textContent = pre.hidden ? 'Collapsed' : 'Expanded'; }).catch(() => { status.textContent = 'Loaded with warnings'; }); }
+        };
       }
 
       const cards = catalog.map(makeCard);
@@ -244,9 +268,16 @@
 
       function expandAll() { cards.forEach(c => c.expand()); st.textContent = 'Expanded ' + cards.length; }
       function collapseAll() { cards.forEach(c => c.collapse()); st.textContent = 'Collapsed'; }
+      function refreshExpanded() {
+        const ex = cards.filter(c => c.isExpanded());
+        Promise.all(ex.map(c => c.refresh())).then(() => {
+          st.textContent = 'Refreshed ' + ex.length + ' expanded docs';
+        }).catch(() => { st.textContent = 'Refresh completed with warnings'; });
+      }
 
       document.getElementById('expand-all').addEventListener('click', expandAll);
       document.getElementById('collapse-all').addEventListener('click', collapseAll);
+      document.getElementById('refresh-all').addEventListener('click', refreshExpanded);
 
       const filter = document.getElementById('filter');
       filter.addEventListener('input', function() {
@@ -259,6 +290,43 @@
           if (show) vis++;
         });
         st.textContent = q ? ('Showing ' + vis + ' / ' + cards.length) : ('Ready (' + cards.length + ' docs)');
+      });
+
+      // Auto-refresh support
+      let autoTimer = null;
+      function setAutoRefresh(on) {
+        const btn = document.getElementById('auto-refresh');
+        const secsInput = document.getElementById('refresh-interval');
+        if (on) {
+          const secs = Math.max(5, parseInt(secsInput.value || '30', 10));
+          if (autoTimer) clearInterval(autoTimer);
+          autoTimer = setInterval(refreshExpanded, secs * 1000);
+          btn.textContent = 'Auto Refresh: On';
+          try { localStorage.setItem('DOCS_AUTO_REFRESH', '1'); localStorage.setItem('DOCS_REFRESH_SECS', String(secs)); } catch(_) {}
+          st.textContent = 'Auto-refresh every ' + secs + 's';
+        } else {
+          if (autoTimer) clearInterval(autoTimer);
+          autoTimer = null;
+          btn.textContent = 'Auto Refresh: Off';
+          try { localStorage.removeItem('DOCS_AUTO_REFRESH'); } catch(_) {}
+          st.textContent = 'Auto-refresh disabled';
+        }
+      }
+      // Restore persisted settings
+      try {
+        const persistedOn = localStorage.getItem('DOCS_AUTO_REFRESH') === '1';
+        const secs = parseInt(localStorage.getItem('DOCS_REFRESH_SECS') || '30', 10);
+        const secsInput = document.getElementById('refresh-interval');
+        if (secsInput && Number.isFinite(secs)) secsInput.value = secs;
+        setAutoRefresh(persistedOn);
+      } catch (_) {}
+      document.getElementById('auto-refresh').addEventListener('click', function () { setAutoRefresh(!autoTimer); });
+      document.getElementById('refresh-interval').addEventListener('change', function () {
+        if (autoTimer) setAutoRefresh(true); // reapply with new interval
+      });
+      // Refresh expanded when the tab regains focus
+      window.addEventListener('focus', function () {
+        if (autoTimer) refreshExpanded();
       });
 
       st.textContent = 'Ready (' + cards.length + ' docs)';
