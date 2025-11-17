@@ -28,11 +28,7 @@
  * - RNG is seeded via the GOD panel or auto-init; seed is persisted to localStorage ("SEED").
  * - Diagnostics in GOD and boot logs show current RNG source and seed for reproducibility.
  */
-  try {
-    if (window.DEV && typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-      window.Logger.log("[Boot] game.js loaded.", "notice");
-    }
-  } catch (_) {}
+  
   // Runtime configuration (loaded via GameData.config when available)
   const CFG = (typeof window !== "undefined" && window.GameData && window.GameData.config && typeof window.GameData.config === "object")
     ? window.GameData.config

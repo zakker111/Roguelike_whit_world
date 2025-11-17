@@ -249,14 +249,7 @@ export const UI = {
   },
 
   showConfirm(text, pos, onOk, onCancel) {
-    try { ConfirmModal.show(text, pos, onOk, onCancel); } catch (_) {
-      // fallback
-      try {
-        const ans = window.confirm(text || "Are you sure?");
-        if (ans && typeof onOk === "function") onOk();
-        else if (!ans && typeof onCancel === "function") onCancel();
-      } catch (_) {}
-    }
+    try { ConfirmModal.show(text, pos, onOk, onCancel); } catch (_) {}
   },
 
   hideConfirm() {

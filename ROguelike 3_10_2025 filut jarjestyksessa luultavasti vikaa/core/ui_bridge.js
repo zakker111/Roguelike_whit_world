@@ -518,14 +518,7 @@ export function isAnyModalOpen() {
 export function showConfirm(ctx, text, pos, onOk, onCancel) {
   if (hasUI() && typeof window.UI.showConfirm === "function") {
     try { window.UI.showConfirm(text, pos, onOk, onCancel); } catch (_) {}
-    return;
   }
-  // Fallback: simple browser confirm
-  try {
-    const ok = typeof window !== "undefined" && window.confirm ? window.confirm(text) : true;
-    if (ok && typeof onOk === "function") onOk();
-    else if (!ok && typeof onCancel === "function") onCancel();
-  } catch (_) {}
 }
 
 
