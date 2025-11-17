@@ -422,15 +422,6 @@
   }
 
   function rerenderInventoryIfOpen() {
-    // Prefer UIOrchestration via Capabilities.safeCall; fallback to UIBridge
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
-        if (res && res.ok && !!res.result) { renderInventoryPanel(); return; }
-      }
-    } catch (_) {}
     const UIO = modHandle("UIOrchestration");
     let open = false;
     try {
@@ -1427,13 +1418,11 @@
   }
 
   function showLootPanel(list) {
-    const Cap = modHandle("Capabilities");
-    const ctxLocal = getCtx();
-    if (Cap && typeof Cap.safeCall === "function") {
-      let res = Cap.safeCall(ctxLocal, "LootFlow", "show", ctxLocal, list);
-      if (res && res.ok) { requestDraw(); return; }
-      res = Cap.safeCall(ctxLocal, "UIOrchestration", "showLoot", ctxLocal, list);
-      if (res && res.ok) { requestDraw(); return; }
+    const LF = modHandle("LootFlow");
+    if (LF && typeof LF.show === "function") {
+      LF.show(getCtx(), list);
+      requestDraw();
+      return;
     }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.showLoot === "function") {
@@ -1443,13 +1432,11 @@
   }
 
   function hideLootPanel() {
-    const Cap = modHandle("Capabilities");
-    const ctxLocal = getCtx();
-    if (Cap && typeof Cap.safeCall === "function") {
-      let res = Cap.safeCall(ctxLocal, "LootFlow", "hide", ctxLocal);
-      if (res && res.ok) { requestDraw(); return; }
-      res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
-      if (res && res.ok) { requestDraw(); return; }
+    const LF = modHandle("LootFlow");
+    if (LF && typeof LF.hide === "function") {
+      LF.hide(getCtx());
+      requestDraw();
+      return;
     }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideLoot === "function") {
@@ -1486,12 +1473,6 @@
 
   
   function renderInventoryPanel() {
-    const Cap = modHandle("Capabilities");
-    const ctxLocal = getCtx();
-    if (Cap && typeof Cap.safeCall === "function") {
-      const res = Cap.safeCall(ctxLocal, "UIOrchestration", "renderInventory", ctxLocal);
-      if (res && res.ok) return;
-    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.render === "function") {
       IC.render(getCtx());
@@ -1504,12 +1485,6 @@
   }
 
   function showInventoryPanel() {
-    const Cap = modHandle("Capabilities");
-    const ctxLocal = getCtx();
-    if (Cap && typeof Cap.safeCall === "function") {
-      const res = Cap.safeCall(ctxLocal, "UIOrchestration", "showInventory", ctxLocal);
-      if (res && res.ok) { requestDraw(); return; }
-    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.show === "function") {
       IC.show(getCtx());
@@ -1525,12 +1500,6 @@
   }
 
   function hideInventoryPanel() {
-    const Cap = modHandle("Capabilities");
-    const ctxLocal = getCtx();
-    if (Cap && typeof Cap.safeCall === "function") {
-      const res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideInventory", ctxLocal);
-      if (res && res.ok) { requestDraw(); return; }
-    }
     const IC = modHandle("InventoryController");
     if (IC && typeof IC.hide === "function") {
       IC.hide(getCtx());
@@ -2139,14 +2108,7 @@
           },
           // Open Region Map at current overworld tile and sync orchestrator state
           openRegionMap: () => {
-            const Cap = modHandle("Capabilities");
             const ctx = getCtx();
-            if (Cap && typeof Cap.safeCall === "function") {
-              const res = Cap.safeCall(ctx, "RegionMapRuntime", "open", ctx);
-              const ok = !!(res && res.ok && res.result);
-              if (ok) applyCtxSyncAndRefresh(ctx);
-              return ok;
-            }
             const RM = modHandle("RegionMapRuntime");
             if (RM && typeof RM.open === "function") {
               const ok = !!RM.open(ctx);
@@ -2157,22 +2119,12 @@
           },
           // Start an encounter inside the active Region Map (ctx.mode === "region")
           startRegionEncounter: (template, biome) => {
-            const Cap = modHandle("Capabilities");
             const ctx = getCtx();
-            if (Cap && typeof Cap.safeCall === "function") {
-              const res = Cap.safeCall(ctx, "EncounterRuntime", "enterRegion", ctx, { template, biome });
-              const ok = !!(res && res.ok && res.result);
-              if (ok) {
-                applyCtxSyncAndRefresh(ctx);
-              }
-              return ok;
-            }
             const ER = modHandle("EncounterRuntime");
             if (ER && typeof ER.enterRegion === "function") {
               const ok = !!ER.enterRegion(ctx, { template, biome });
               if (ok) {
                 applyCtxSyncAndRefresh(ctx);
-                
               }
               return ok;
             }
