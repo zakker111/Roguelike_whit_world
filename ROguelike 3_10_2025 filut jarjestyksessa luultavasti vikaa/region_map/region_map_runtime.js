@@ -17,7 +17,7 @@
  */
 import * as World from "../world/world.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
-import { getMod, getRNGUtils, getUIOrchestration } from "../utils/access.js";
+import { getMod, getRNGUtils, getUIOrchestration, getGameData } from "../utils/access.js";
 import { attachGlobal } from "../utils/global.js";
 
 const DEFAULT_WIDTH = 28;
@@ -1111,7 +1111,7 @@ function open(ctx, size) {
 
       // Place 1–2 lootable corpses/chests inside
       try {
-        const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+        const L = ctx.Loot || getMod(ctx, "Loot");
         const chestCount = 1 + ((rng() * 2) | 0);
         for (let i = 0; i < chestCount; i++) {
           const spot = pickInteriorSpot(180);
@@ -1224,7 +1224,7 @@ function open(ctx, size) {
               spawnWeight: { FOREST: 0.5, GRASS: 0.3, BEACH: 0.0, DESERT: 0.0, SNOW: 0.1, SWAMP: 0.4, MOUNTAIN: 0.0 }
             }
           ];
-          const GD = (typeof window !== "undefined" ? window.GameData : null);
+          const GD = getGameData(ctx);
           const arrRaw = GD && Array.isArray(GD.animals) ? GD.animals : null;
           // Ensure minimal shape consistency on loaded rows (id, glyph, hp, atk, spawnWeight)
           const arr = (arrRaw && arrRaw.length) ? arrRaw : fallbackAnimals;

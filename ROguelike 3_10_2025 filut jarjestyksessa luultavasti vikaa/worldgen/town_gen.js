@@ -476,7 +476,7 @@ function generate(ctx) {
   // Enforce strict prefab mode when prefab registry has loaded
   function prefabsAvailable() {
     try {
-      return Prefabs.prefabsAvailable();
+      return Prefabs.prefabsAvailable(ctx);
     } catch (_) { return false; }
   }
   const strictNow = !!STRICT_PREFABS && !!prefabsAvailable();
@@ -1966,8 +1966,11 @@ function generate(ctx) {
   try {
     if (ctx && ctx.TownAI && typeof ctx.TownAI.populateTown === "function") {
       ctx.TownAI.populateTown(ctx);
-    } else if (typeof window !== "undefined" && window.TownAI && typeof window.TownAI.populateTown === "function") {
-      window.TownAI.populateTown(ctx);
+    } else {
+      const TAI = ctx.TownAI || getMod(ctx, "TownAI");
+      if (TAI && typeof TAI.populateTown === "function") {
+        TAI.populateTown(ctx);
+      }
     }
   } catch (_) {}
 
