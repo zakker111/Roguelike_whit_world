@@ -659,9 +659,69 @@ export function generate(ctx, opts = {}) {
     return true;
   }
 
-  // Infinite generator unavailable: throw a hard error (no finite fallback)
-  try { ctx.log && ctx.log("Error: Infinite world generator unavailable or not initialized.", "bad"); } catch (_) {}
-  throw new Error("Infinite world generator unavailable or not initialized");
+  // Infinite generator unavailable: fallback to finite world generator for compatibility
+try {
+  if (W && typeof W.generate === "function") {
+    const w = W.generate(ctx, { width, height });
+    // Build world object compatible with infinite runtime fields
+    ctx.world = {
+      type: "finite",
+      originX: 0,
+      originY: 0,
+      width: w.width | 0,
+      height: w.height | 0,
+      map: w.map,
+      towns: Array.isArray(w.towns) ? w.towns : [],
+      dungeons: Array.isArray(w.dungeons) ? w.dungeons : [],
+      roads: Array.isArray(w.roads) ? w.roads : [],
+      bridges: Array.isArray(w.bridges) ? w.bridges : [],
+      ruins: Array.isArray(w.ruins) ? w.ruins : []
+    };
+
+    ctx.map = w.map;
+    ctx.mode = "world";
+
+    // Place player near a town if available; otherwise pick first walkable tile
+    try {
+      if (typeof W.pickTownStart === "function") {
+        const start = W.pickTownStart(ctx.world, (ctx && ctx.rng) ? ctx.rng : Math.random);
+        if (start && typeof start.x === "number" && typeof start.y === "number") {
+          ctx.player.x = start.x | 0;
+          ctx.player.y = start.y | 0;
+        }
+      }
+    } catch (_) {}
+
+    // Allocate fog-of-war arrays and keep references on world
+    ctx.seen = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
+    ctx.visible = Array.from({ length: ctx.world.height }, () => Array(ctx.world.width).fill(false));
+    ctx.world.seenRef = ctx.seen;
+    ctx.world.visibleRef = ctx.visible;
+
+    // Camera/FOV/UI via StateSync
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      }
+    } catch (_) {}
+
+    // Arrival log
+    ctx.log && ctx.log("You arrive in the overworld. (finite world fallback)", "notice");
+
+    // Hide town exit button via TownRuntime
+    try {
+      const TR = (ctx && ctx.TownRuntime) || (typeof window !== "undefined" ? window.TownRuntime : null);
+      if (TR && typeof TR.hideExitButton === "function") TR.hideExitButton(ctx);
+    } catch (_) {}
+
+    return true;
+  }
+} catch (_) {}
+
+// Hard error if no generator available at all
+try { ctx.log && ctx.log("Error: Infinite world generator unavailable and no finite fallback found.", "bad"); } catch (_) {}
+throw new Error("World generation unavailable");
 }
 
 export function tryMovePlayerWorld(ctx, dx, dy) {
