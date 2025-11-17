@@ -1,6 +1,46 @@
 s 
 # Game Version History
-Last updated: 2025-11-16 00:00 UTC
+Last updated: 2025-11-17 00:00 UTC
+
+v1.47.0 — Rendering/FOV centralization, Town Exit UI removal, ctx‑first RNG/StateSync sweep
+- Core (camera/draw/FOV)
+  - core/game.js: updateCamera now delegates exclusively to FOVCamera.updateCamera(ctx).
+  - requestDraw is centralized via GameLoop.requestDraw() (removed Render.draw fallback).
+  - getRenderCtx always uses RenderOrchestration.getRenderCtx(getCtx()) and wires onDrawMeasured for the HUD perf overlay.
+  - recomputeFOV delegates to GameFOV.recomputeWithGuard(ctx); removed legacy guards (_lastPlayerX/_lastFovRadius/etc.) and ensureVisibilityShape().
+  - setFovRadius simplified: update radius → recompute via GameFOV → request draw.
+  - Removed legacy invalidation writes scattered across transitions and generation paths.
+- UI and panels
+  - Inventory/Loot flows in core/game.js simplified to UIOrchestration + InventoryFlow/LootFlow; show/hide always schedules a single redraw.
+  - Game Over, Help, Character Sheet, Region Map actions route directly via UIOrchestration (Capabilities.safeCall removal).
+  - Confirm dialogs now rely on UI-only modals; browser confirm fallback removed in ui/ui.js and core/ui_bridge.js.
+- Town Exit button removed
+  - Deleted the floating “Exit Town” button component and all related wiring:
+    - ui/components/town_exit.js removed.
+    - Removed showTownExitButton/hideTownExitButton from ui/ui.js, core/ui_orchestration.js, and core/ui_bridge.js.
+    - Calls eliminated in core/modes.js, core/game.js, and core/town_runtime.js.
+  - Exit remains via pressing G on the interior gate tile (robust returnToWorldFromTown logic retained).
+- GOD tools and actions
+  - core/game.js GOD helpers (heal/spawn stairs/items/enemy/crit toggles/seed) slimmed to delegate to GodControls; preserved ctx.alwaysCrit and ctx.forcedCritPart wiring.
+  - doAction: toggling Loot panel uses UIOrchestration.isLootOpen(ctx) and avoids consuming a turn when closing.
+- RNG and ctx-first access
+  - Added/used utils/access.js helpers (getGameData, getRNGUtils, getMod) across modules to remove direct window.* coupling:
+    - entities/loot.js, ai/town_ai.js, services/props_service.js, data/flavor.js, region_map/region_map_runtime.js, services/encounter_service.js, worldgen/town_gen.js, worldgen/prefabs.js, data/tile_lookup.js.
+  - combat/combat.js now imports getRNGUtils/getMod; block/crit/decay use RU via ctx-first RNG; alwaysCrit reads ctx.alwaysCrit; forcedCritPart reads ctx.forcedCritPart (with back-compat).
+- StateSync adoption (final sweep focus areas)
+  - Standardized SS = ctx.StateSync || getMod(ctx, "StateSync") usage; prefer StateSync.applyAndRefresh(ctx,{}) after state mutations.
+  - core/ui_bridge.js animateSleep now advances time and refreshes via StateSync.applyAndRefresh (fallback to updateUI/requestDraw preserved).
+- Capabilities.safeCall removal (cleanup)
+  - Removed safeCall indirections in inventory/loot/region/encounter/palette redraws/input mouse and replaced with direct ctx-first module calls; draw scheduling via UIOrchestration or GameLoop.
+- Dungeon generation fallback removal
+  - generateLevel path now relies on DungeonRuntime.generate; on absence, logs and throws “Dungeon generation unavailable” (explicit failure instead of silent flat-floor).
+- Safety and logging
+  - Removed DEV-only boot/trace noise from hot paths; retained HUD perf overlay.
+- Deployment:
+  - https://o16n5g00pl0q.cosine.page (town enter DEV log removal)
+  - https://12y856v3oqwg.cosine.page (combat RNG ctx-first + prefab refactor fix)
+  - https://jqq9n1t2ac9e.cosine.page (sleep animation → StateSync refresh)
+  - https://tie2fqbfp9f4.cosine.page (current)
 
 v1.46.2 — Docs viewer: clickable titles, tooltips, and on-demand refresh
 - Docs viewer (docs/index.html)
