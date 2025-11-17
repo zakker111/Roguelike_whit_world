@@ -528,15 +528,7 @@ export function showConfirm(ctx, text, pos, onOk, onCancel) {
   } catch (_) {}
 }
 
-export function showTownExitButton(ctx) {
-  if (!hasUI()) return;
-  try { window.UI.showTownExitButton && window.UI.showTownExitButton(); } catch (_) {}
-}
 
-export function hideTownExitButton(ctx) {
-  if (!hasUI()) return;
-  try { window.UI.hideTownExitButton && window.UI.hideTownExitButton(); } catch (_) {}
-}
 
 // ---- Quest Board panel wrappers ----
 export function isQuestBoardOpen() {
@@ -612,8 +604,6 @@ if (typeof window !== "undefined") {
     // Aggregate
     isAnyModalOpen,
     showConfirm,
-    showTownExitButton,
-    hideTownExitButton,
     // Sleep animation
     animateSleep
   };

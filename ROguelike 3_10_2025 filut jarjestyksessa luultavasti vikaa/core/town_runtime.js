@@ -397,9 +397,7 @@ export function applyLeaveSync(ctx) {
     ctx.dungeon = ctx.dungeonInfo = null;
   } catch (_) {}
 
-  // Hide UI elements
-  hideExitButton(ctx);
-  // Ensure Quest Board (and similar town-only modals) are closed on exit
+  // Hide UI elements (Quest Board and similar town-only modals)
   try {
     const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UB && typeof UB.hideQuestBoard === "function") UB.hideQuestBoard(ctx);
@@ -442,22 +440,7 @@ function centerCamera(ctx) {
   } catch (_) {}
 }
 
-export function showExitButton(ctx) {
-  try {
-    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
-    if (UIO && typeof UIO.showTownExitButton === "function") {
-      UIO.showTownExitButton(ctx);
-    }
-  } catch (_) {}
-}
-export function hideExitButton(ctx) {
-  try {
-    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
-    if (UIO && typeof UIO.hideTownExitButton === "function") {
-      UIO.hideTownExitButton(ctx);
-    }
-  } catch (_) {}
-}
+
 
 // Back-compat: attach to window for classic scripts
 export function tick(ctx) {
@@ -652,5 +635,5 @@ export function rebuildOccupancy(ctx) {
 }
 
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, showExitButton, hideExitButton, rebuildOccupancy };
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, rebuildOccupancy };
 }

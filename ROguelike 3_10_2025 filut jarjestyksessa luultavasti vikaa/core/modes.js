@@ -137,12 +137,7 @@ export function leaveTownNow(ctx) {
       ctx.player.y = Math.max(0, Math.min((rows ? rows - 1 : 0), ly));
     }
   }
-  try {
-    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
-    if (UIO && typeof UIO.hideTownExitButton === "function") {
-      UIO.hideTownExitButton(ctx);
-    }
-  } catch (_) {}
+  
   if (ctx.log) ctx.log("You return to the overworld.", "notice");
   syncAfterMutation(ctx);
 }
@@ -213,13 +208,6 @@ export function enterTownIfOnTile(ctx) {
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
-            try {
-              if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
-              else {
-                const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-                if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
-              }
-            } catch (_) {}
             // Ensure player spawns on gate interior tile on entry
             movePlayerToTownGateInterior(ctx);
             if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
@@ -242,13 +230,6 @@ export function enterTownIfOnTile(ctx) {
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
-            try {
-              if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
-              else {
-                const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-                if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
-              }
-            } catch (_) {}
             if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
             _devTownBiomeLog(ctx);
             syncAfterMutation(ctx);
@@ -270,13 +251,7 @@ export function enterTownIfOnTile(ctx) {
       try {
         if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
       } catch (_) {}
-      try {
-        if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
-        else {
-          const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
-          if (UIO && typeof UIO.showTownExitButton === "function") UIO.showTownExitButton(ctx);
-        }
-      } catch (_) {}
+      
       if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
       syncAfterMutation(ctx);
       return true;

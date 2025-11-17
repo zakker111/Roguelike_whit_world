@@ -1000,10 +1000,6 @@
       const ok = !!MT.enterTownIfOnTile(ctx);
       if (ok) {
         applyCtxSyncAndRefresh(ctx);
-        try {
-          const TR = modHandle("TownRuntime");
-          if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
-        } catch (_) {}
       }
       return ok;
     }
@@ -1946,8 +1942,7 @@
           onDrink: (idx) => drinkPotionByIndex(idx),
           onEat: (idx) => eatFoodByIndex(idx),
           onRestart: () => restartGame(),
-          onWait: () => turn(),
-          onTownExit: () => requestLeaveTown()
+          onWait: () => turn()
         });
       }
       // Install GOD-specific handlers via dedicated module

@@ -405,21 +405,6 @@ attachGlobal("UIOrchestration", {
   cancelConfirm,
   isConfirmOpen,
   isAnyModalOpen,
-  // Town exit button
-  showTownExitButton: (ctx) => {
-    const u = U(ctx);
-    if (u && typeof u.showTownExitButton === "function") {
-      u.showTownExitButton(ctx);
-      requestDraw(ctx);
-    }
-  },
-  hideTownExitButton: (ctx) => {
-    const u = U(ctx);
-    if (u && typeof u.hideTownExitButton === "function") {
-      // Do not force a draw here; button hide is DOM-only
-      u.hideTownExitButton(ctx);
-    }
-  },
   // Quest Board panel
   showQuestBoard: (ctx) => {
     const u = U(ctx);
