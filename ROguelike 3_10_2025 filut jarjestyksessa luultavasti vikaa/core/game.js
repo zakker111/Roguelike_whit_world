@@ -29,38 +29,8 @@
  * - Diagnostics in GOD and boot logs show current RNG source and seed for reproducibility.
  */
   try {
-    if (window.DEV) {
-      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-        window.Logger.log("[Boot] game.js loaded. Modules present.", "notice", {
-          DungeonState: !!(window.DungeonState),
-          Logger: !!(window.Logger),
-          UI: !!(window.UI),
-          Dungeon: !!(window.Dungeon),
-          Enemies: !!(window.Enemies)
-        });
-      }
-      // DEV: report missing critical modules once at boot
-      (function _devReportMissingModules() {
-        const missing = [];
-        function has(name) { try { return !!window[name]; } catch (_) { return false; } }
-        if (!has("Combat")) missing.push("Combat");
-        if (!has("EquipmentDecay")) missing.push("EquipmentDecay");
-        if (!has("FOVCamera")) missing.push("FOVCamera");
-        if (!has("GameFOV") && !has("FOV")) missing.push("GameFOV/FOV");
-        if (!has("InventoryFlow") && !has("InventoryController")) missing.push("InventoryFlow/InventoryController");
-        if (!has("LootFlow") && !has("Loot")) missing.push("LootFlow/Loot");
-        if (!has("ModeController") && !has("ModesTransitions") && !has("Modes")) missing.push("ModeController/Modes");
-        if (!has("TownRuntime")) missing.push("TownRuntime");
-        if (!has("WorldRuntime")) missing.push("WorldRuntime");
-        if (!has("RenderOrchestration")) missing.push("RenderOrchestration");
-        if (missing.length) {
-          try {
-            if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-              window.Logger.log("[DEV] Missing modules: " + missing.join(", "), "warn", { category: "Boot" });
-            }
-          } catch (_) {}
-        }
-      })();
+    if (window.DEV && typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+      window.Logger.log("[Boot] game.js loaded.", "notice");
     }
   } catch (_) {}
   // Runtime configuration (loaded via GameData.config when available)
@@ -742,38 +712,8 @@
       startRoomRect = ctx.startRoomRect || startRoomRect;
       return;
     }
-    // Fallback deprecated: skip inline Dungeon.generateLevel path; use minimal fallback below
-    try { log("Dungeon module path deprecated; using minimal fallback.", "warn"); } catch (_) {}
-    // Fallback: flat-floor map
-    map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
-    const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
-    if (map[sy] && typeof map[sy][sx] !== "undefined") {
-      map[sy][sx] = TILES.STAIRS;
-    }
-    enemies = [];
-    corpses = [];
-    decals = [];
-    applyCtxSyncAndRefresh(getCtx());
-    {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(getCtx(), "dungeon.explore");
-      } else {
-        log("You explore the dungeon.");
-      }
-    }
-    try {
-      const DR2 = modHandle("DungeonRuntime");
-      if (DR2 && typeof DR2.save === "function") {
-        DR2.save(getCtx(), true);
-      } else {
-        const DS = modHandle("DungeonState");
-        if (DS && typeof DS.save === "function") {
-          DS.save(getCtx());
-        }
-      }
-    } catch (_) {}
-    return;
+    log("Error: Dungeon generation unavailable.", "bad");
+    throw new Error("Dungeon generation unavailable");
   }
 
   function inBounds(x, y) {
@@ -829,8 +769,7 @@
 
   
 
-  // FOV recompute guard: skip recompute unless player moved, FOV radius changed, mode changed, or map shape changed.
-  let _lastPlayerX = -1, _lastPlayerY = -1, _lastFovRadius = -1, _lastMode = "", _lastMapCols = -1, _lastMapRows = -1;
+  
 
   function recomputeFOV() {
     // Centralize FOV recompute via GameFOV; remove inline and legacy fallbacks
