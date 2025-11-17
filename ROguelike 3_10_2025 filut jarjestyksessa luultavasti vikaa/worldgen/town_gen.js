@@ -1092,7 +1092,8 @@ function generate(ctx) {
         if (overlapsPlazaRect(bx, by, bw, bh, 1)) return false;
         if (!isAreaClearForBuilding(bx, by, bw, bh, 1)) return false;
         // Strict prefabs: attempt to stamp a house prefab; else carve fallback rectangle
-        const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+        const GDq = getGameData(ctx);
+        const PFB = (GDq && GDq.prefabs) ? GDq.prefabs : null;
         if (PFB && Array.isArray(PFB.houses) && PFB.houses.length) {
           const candidates = PFB.houses.filter(p => p && p.size && p.size.w <= bw && p.size.h <= bh);
           if (candidates.length) {
