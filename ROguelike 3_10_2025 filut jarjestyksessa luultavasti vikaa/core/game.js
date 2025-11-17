@@ -1704,32 +1704,24 @@
   function godHeal() {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.heal === "function") { GC.heal(() => getCtx()); return; }
-    const G = modHandle("God");
-    if (G && typeof G.heal === "function") { G.heal(getCtx()); return; }
     log("GOD: heal not available.", "warn");
   }
 
   function godSpawnStairsHere() {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.spawnStairsHere === "function") { GC.spawnStairsHere(() => getCtx()); return; }
-    const G = modHandle("God");
-    if (G && typeof G.spawnStairsHere === "function") { G.spawnStairsHere(getCtx()); return; }
     log("GOD: spawnStairsHere not available.", "warn");
   }
 
   function godSpawnItems(count = 3) {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.spawnItems === "function") { GC.spawnItems(() => getCtx(), count); return; }
-    const G = modHandle("God");
-    if (G && typeof G.spawnItems === "function") { G.spawnItems(getCtx(), count); return; }
     log("GOD: spawnItems not available.", "warn");
   }
 
   function godSpawnEnemyNearby(count = 1) {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.spawnEnemyNearby === "function") { GC.spawnEnemyNearby(() => getCtx(), count); return; }
-    const G = modHandle("God");
-    if (G && typeof G.spawnEnemyNearby === "function") { G.spawnEnemyNearby(getCtx(), count); return; }
     log("GOD: spawnEnemyNearby not available.", "warn");
   }
 
@@ -1861,8 +1853,6 @@
   function setAlwaysCrit(v) {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.setAlwaysCrit === "function") { GC.setAlwaysCrit(() => getCtx(), v); alwaysCrit = !!v; return; }
-    const G = modHandle("God");
-    if (G && typeof G.setAlwaysCrit === "function") { G.setAlwaysCrit(getCtx(), v); alwaysCrit = !!v; return; }
     log("GOD: setAlwaysCrit not available.", "warn");
   }
 
@@ -1870,8 +1860,6 @@
   function setCritPart(part) {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.setCritPart === "function") { GC.setCritPart(() => getCtx(), part); forcedCritPart = part; return; }
-    const G = modHandle("God");
-    if (G && typeof G.setCritPart === "function") { G.setCritPart(getCtx(), part); forcedCritPart = part; return; }
     log("GOD: setCritPart not available.", "warn");
   }
 
@@ -1881,14 +1869,6 @@
     if (GC && typeof GC.applySeed === "function") {
       const ctx = getCtx();
       GC.applySeed(() => getCtx(), seedUint32);
-      rng = ctx.rng || rng;
-      applyCtxSyncAndRefresh(ctx);
-      return;
-    }
-    const G = modHandle("God");
-    if (G && typeof G.applySeed === "function") {
-      const ctx = getCtx();
-      G.applySeed(ctx, seedUint32);
       rng = ctx.rng || rng;
       applyCtxSyncAndRefresh(ctx);
       return;
@@ -1904,14 +1884,6 @@
     if (GC && typeof GC.rerollSeed === "function") {
       const ctx = getCtx();
       GC.rerollSeed(() => getCtx());
-      rng = ctx.rng || rng;
-      applyCtxSyncAndRefresh(ctx);
-      return;
-    }
-    const G = modHandle("God");
-    if (G && typeof G.rerollSeed === "function") {
-      const ctx = getCtx();
-      G.rerollSeed(ctx);
       rng = ctx.rng || rng;
       applyCtxSyncAndRefresh(ctx);
       return;
