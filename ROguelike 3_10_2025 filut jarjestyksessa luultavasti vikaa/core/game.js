@@ -340,22 +340,7 @@
         // No fallback: enforce JSON-defined enemies only for clarity
         return null;
       };
-      if (window.DEV && ctx && ctx.utils) {
-        try {
-          console.debug("[DEV] ctx created:", {
-            utils: Object.keys(ctx.utils),
-            los: !!(ctx.los || ctx.LOS),
-            modules: {
-              Enemies: !!ctx.Enemies, Items: !!ctx.Items, Player: !!ctx.Player,
-              UI: !!ctx.UI, Logger: !!ctx.Logger, Loot: !!ctx.Loot,
-              Dungeon: !!ctx.Dungeon, DungeonItems: !!ctx.DungeonItems,
-              FOV: !!ctx.FOV, AI: !!ctx.AI, Input: !!ctx.Input,
-              Render: !!ctx.Render, Tileset: !!ctx.Tileset, Flavor: !!ctx.Flavor,
-              World: !!ctx.World
-            }
-          });
-        } catch (_) {}
-      }
+      
       return ctx;
     }
 
@@ -1830,7 +1815,6 @@
           if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
           else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
         } catch (_) {}
-        try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms (avg ${PERF.avgTurnMs.toFixed(2)}ms)`); } catch (_) {}
         return;
       }
     } catch (_) {}
@@ -1925,7 +1909,6 @@
       if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
       else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
     } catch (_) {}
-    try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms (avg ${PERF.avgTurnMs.toFixed(2)}ms)`); } catch (_) {}
   }
   
   

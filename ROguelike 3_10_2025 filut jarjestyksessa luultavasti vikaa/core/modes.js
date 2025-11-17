@@ -83,15 +83,7 @@ function movePlayerToTownGateInterior(ctx) {
   } catch (_) {}
 }
 
-// DEV diagnostics: town biome on entry
-function _devTownBiomeLog(ctx) {
-  try {
-    if (typeof window !== "undefined" && window.DEV) {
-      const wrp = ctx.worldReturnPos ? `${ctx.worldReturnPos.x|0},${ctx.worldReturnPos.y|0}` : "n/a";
-      console.debug(`[DEV] Town enter biome=${String(ctx.townBiome || "")} at ${wrp}`);
-    }
-  } catch (_) {}
-}
+
 
 // Public API
 export function leaveTownNow(ctx) {
@@ -358,13 +350,7 @@ export function enterDungeonIfOnEntrance(ctx) {
       if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     } catch (_) {}
     saveCurrentDungeonState(ctx);
-    try {
-      const k = `${info.x},${info.y}`;
-      if (ctx.log) ctx.log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
-      const dx = (ctx.dungeonExitAt && typeof ctx.dungeonExitAt.x === "number") ? ctx.dungeonExitAt.x : "n/a";
-      const dy = (ctx.dungeonExitAt && typeof ctx.dungeonExitAt.y === "number") ? ctx.dungeonExitAt.y : "n/a";
-      if (typeof window !== "undefined" && window.DEV && window.Logger && typeof window.Logger.log === "function") window.Logger.log("[DEV] Initial dungeon save for key " + k + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + ctx.player.x + "," + ctx.player.y + ")", "notice", { category: "DungeonState" });
-    } catch (_) {}
+    
     if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "notice");
     syncAfterMutation(ctx);
     return true;
