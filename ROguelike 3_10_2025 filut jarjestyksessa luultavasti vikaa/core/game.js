@@ -1111,14 +1111,43 @@
 
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
+    const ctx = getCtx();
+
+    // Primary: use TownRuntime gate-aware exit
+    const TR = modHandle("TownRuntime");
+    if (TR && typeof TR.returnToWorldIfAtGate === "function") {
+      const ok = !!TR.returnToWorldIfAtGate(ctx);
+      if (ok) {
+        applyCtxSyncAndRefresh(ctx);
+        return true;
+      }
+    }
+
+    // Fallback: if standing exactly on the gate tile, apply leave sync directly
+    if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
+      if (TR && typeof TR.applyLeaveSync === "function") {
+        TR.applyLeaveSync(ctx);
+        applyCtxSyncAndRefresh(ctx);
+        return true;
+      }
+    }
+
+    // Compatibility: if a returnToWorldFromTown transition exists, try it
     const MT = modHandle("ModesTransitions");
     if (MT && typeof MT.returnToWorldFromTown === "function") {
-      const ctx = getCtx();
       const ok = !!MT.returnToWorldFromTown(ctx);
       if (ok) {
         applyCtxSyncAndRefresh(ctx);
         return true;
       }
+    }
+
+    // Guidance when not at gate
+    const MZ = modHandle("Messages");
+    if (MZ && typeof MZ.log === "function") {
+      MZ.log(getCtx(), "town.exitHint");
+    } else {
+      log("Return to the town gate to exit to the overworld.", "info");
     }
     return false;
   }
