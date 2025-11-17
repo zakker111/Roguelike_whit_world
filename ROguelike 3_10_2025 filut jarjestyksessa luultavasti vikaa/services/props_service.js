@@ -7,9 +7,11 @@
  * - Variant selection uses `when` conditions: phaseIs/phaseNot, insideInn, requiresInnStay, nearShop.
  * - Supported effects: restUntil, restTurn, grantMaterial, signSchedule, sleepModal, questBoard.
  */
-function _propsMap() {
+import { getGameData, getUIOrchestration, getMod } from "../utils/access.js";
+
+function _propsMap(ctx) {
   try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const GD = getGameData(ctx);
     const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
     if (!arr) return null;
     const map = {};
@@ -50,8 +52,11 @@ function _adjacentShops(ctx, x, y) {
       let s = null;
       if (ctx && ctx.ShopService && typeof ctx.ShopService.shopAt === "function") {
         s = ctx.ShopService.shopAt(ctx, c.x, c.y);
-      } else if (typeof window !== "undefined" && window.ShopService && typeof window.ShopService.shopAt === "function") {
-        s = window.ShopService.shopAt(ctx, c.x, c.y);
+      } else {
+        const SSvc = getMod(ctx, "ShopService");
+        if (SSvc && typeof SSvc.shopAt === "function") {
+          s = SSvc.shopAt(ctx, c.x, c.y);
+        }
       }
       if (s) out.push(s);
     }
@@ -128,8 +133,9 @@ function _signSchedule(ctx, p, template, style) {
     const shops = _adjacentShops(ctx, p.x, p.y);
     shop = shops.length ? shops[0] : null;
     if (shop) {
-      const isOpen = (window.ShopService && typeof window.ShopService.isShopOpenNow === "function") ? window.ShopService.isShopOpenNow(ctx, shop) : false;
-      sched = (window.ShopService && typeof window.ShopService.shopScheduleStr === "function") ? window.ShopService.shopScheduleStr(shop) : "";
+      const SSvc = getMod(ctx, "ShopService");
+      const isOpen = (SSvc && typeof SSvc.isShopOpenNow === "function") ? SSvc.isShopOpenNow(ctx, shop) : false;
+      sched = (SSvc && typeof SSvc.shopScheduleStr === "function") ? SSvc.shopScheduleStr(shop) : "";
       openNowStatus = isOpen ? "Open now." : "Closed now.";
       const final = _renderTemplate(template, { title: p.name || "Sign", schedule: sched, openNowStatus });
       // Shop signs should log as neutral info (not green/warn)
@@ -144,8 +150,8 @@ function _signSchedule(ctx, p, template, style) {
 }
 
 function _sleepModal(ctx, defaultMinutes, logTemplate) {
-  const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
-  const UB = (typeof window !== "undefined" ? window.UIBridge : (ctx.UIBridge || null));
+  const UIO = getUIOrchestration(ctx);
+  const UB = getMod(ctx, "UIBridge") || (ctx.UIBridge || null);
   const mins = Math.max(30, defaultMinutes | 0);
   const afterTime = function (m) {
     const prev = ctx.player.hp;
@@ -190,7 +196,7 @@ function _sleepModal(ctx, defaultMinutes, logTemplate) {
     _advanceTime(ctx, mins);
     afterTime(mins);
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = getMod(ctx, "StateSync") || ctx.StateSync || null;
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
@@ -202,7 +208,7 @@ function _sleepModal(ctx, defaultMinutes, logTemplate) {
 
 function _matName(ctx, id) {
   try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const GD = getGameData(ctx);
     const mats = GD && GD.materials && (Array.isArray(GD.materials.materials) ? GD.materials.materials : GD.materials.list);
     const iid = String(id || "").toLowerCase();
     if (Array.isArray(mats)) {
@@ -215,7 +221,7 @@ function _matName(ctx, id) {
 
 function _findCampfireRecipe(ctx, inputId) {
   try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const GD = getGameData(ctx);
     const recipes = GD && GD.crafting && Array.isArray(GD.crafting.recipes) ? GD.crafting.recipes : [];
     const iid = String(inputId || "").toLowerCase();
     const rj = recipes.find(r =>
@@ -296,14 +302,14 @@ function _applyCooking(ctx, inputId, bundle) {
   _log(ctx, `You cook ${bundle.total} ${inName} into ${bundle.total} ${outName}.`, "good");
   try {
     if (typeof ctx.updateUI === "function") ctx.updateUI();
-    const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
+    const UIO = getUIOrchestration(ctx);
     if (UIO && typeof UIO.renderInventory === "function") UIO.renderInventory(ctx);
   } catch (_) {}
 }
 
 function _interactFireplace(ctx) {
   try {
-    const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
+    const UIO = getUIOrchestration(ctx);
     const meat = _collectMaterial(ctx, "meat");
     const fish = _collectMaterial(ctx, "fish");
     const canMeat = meat.total > 0 && !!_findCampfireRecipe(ctx, "meat");
@@ -349,7 +355,7 @@ function _interactFireplace(ctx) {
 
 export function interact(ctx, prop) {
   if (!ctx || ctx.mode !== "town" || !prop) return false;
-  const map = _propsMap();
+  const map = _propsMap(ctx);
   if (!map) return false;
   const key = String(prop.type || "").toLowerCase();
   const def = map[key];
@@ -359,7 +365,7 @@ export function interact(ctx, prop) {
   if (key === "fireplace") {
     const handled = _interactFireplace(ctx);
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = getMod(ctx, "StateSync") || ctx.StateSync || null;
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
@@ -395,7 +401,7 @@ export function interact(ctx, prop) {
     const msg = _renderTemplate(eff.logTemplate || "You rest until morning (${time}). HP ${prev} -> ${hp}.", { time: _timeHHMM(ctx), prev: (res.prev.toFixed ? res.prev.toFixed(1) : res.prev), hp: (res.hp.toFixed ? res.hp.toFixed(1) : res.hp) });
     _log(ctx, msg, variant.style || "info");
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = getMod(ctx, "StateSync") || ctx.StateSync || null;
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
@@ -423,7 +429,7 @@ export function interact(ctx, prop) {
   }
   if (eff && eff.type === "questBoard") {
     try {
-      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
+      const UIO = getUIOrchestration(ctx);
       const wasOpen = UIO && typeof UIO.isQuestBoardOpen === "function" ? !!UIO.isQuestBoardOpen(ctx) : false;
       if (UIO && typeof UIO.showQuestBoard === "function") UIO.showQuestBoard(ctx);
       try { if (!wasOpen && typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}

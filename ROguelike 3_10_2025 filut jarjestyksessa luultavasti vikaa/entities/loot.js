@@ -19,18 +19,20 @@
  * }
  */
 
+import { getMod, getGameData, getRNGUtils, getUIOrchestration } from "../utils/access.js";
+
 /**
  * Choose a potion tier based on enemy type.
  * Uses enemy.lootPools.potions weights and materializes a potion from GameData.consumables when available.
  * Returns a plain item object: { kind: "potion", name, heal, count:1 }
  */
 function pickPotion(ctx, source) {
-  const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
+  const EM = getMod(ctx, "Enemies");
   const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(source?.type || "") : null;
   const potW = def && def.lootPools && def.lootPools.potions ? def.lootPools.potions : null;
   if (!potW) return null;
 
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const RU = getRNGUtils(ctx);
   const rfn = (RU && typeof RU.getRng === "function")
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
     : ((typeof ctx.rng === "function") ? ctx.rng : null);
@@ -50,7 +52,7 @@ function pickPotion(ctx, source) {
 
   // Try to fetch potion def from data/entities/consumables.json
   try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const GD = getGameData(ctx);
     const list = GD && GD.consumables && Array.isArray(GD.consumables.potions) ? GD.consumables.potions : null;
     if (list) {
       const id = `potion_${tier}`;
@@ -83,7 +85,7 @@ function fallbackEquipment(ctx, tier) {
   const categories = ["hand", "head", "torso", "legs", "hands"];
   const cat = categories[ctx.randInt(0, categories.length - 1)];
   // Seeded RNG for decisions within fallback equipment
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const RU = getRNGUtils(ctx);
   const rnd = (RU && typeof RU.getRng === "function")
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
     : ((typeof ctx.rng === "function") ? ctx.rng : null);
@@ -217,7 +219,7 @@ export function generate(ctx, source) {
   // Helper: material registry lookup for pretty names
   function materialNameFor(id) {
     try {
-      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const GD = getGameData(ctx);
       const M = GD && GD.materials && (Array.isArray(GD.materials.materials) ? GD.materials.materials : GD.materials.list);
       if (Array.isArray(M)) {
         const entry = M.find(m => m && String(m.id).toLowerCase() === String(id).toLowerCase());
@@ -230,11 +232,11 @@ export function generate(ctx, source) {
   // Helper: roll material drops from JSON pools if present
   function rollMaterialsFromPools(enemy) {
     try {
-      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const GD = getGameData(ctx);
       const pools = GD && GD.materialPools ? GD.materialPools : null;
       if (!pools || typeof pools !== "object") return null;
 
-      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const RU = getRNGUtils(ctx);
       const rng = (RU && typeof RU.getRng === "function")
         ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
         : ((typeof ctx.rng === "function") ? ctx.rng : null);
@@ -287,18 +289,14 @@ export function generate(ctx, source) {
       return jsonDrops;
     }
     const drops = [];
-    const rngFn = (function () {
-      try {
-        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-          return window.RNGUtils.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
-        }
-      } catch (_) {}
-      return (typeof ctx.rng === "function") ? ctx.rng : null;
-    })();
+    const RU0 = getRNGUtils(ctx);
+    const rngFn = (RU0 && typeof RU0.getRng === "function")
+      ? RU0.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+      : ((typeof ctx.rng === "function") ? ctx.rng : null);
     const chance = (p) => {
       try {
-        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-          return window.RNGUtils.chance(p, rngFn);
+        if (RU0 && typeof RU0.chance === "function") {
+          return RU0.chance(p, rngFn);
         }
       } catch (_) {}
       // Deterministic: no random gating when rng unavailable
@@ -330,7 +328,7 @@ export function generate(ctx, source) {
 
   // Potion drop: only when enemy has embedded potions weights in its lootPools
   (function maybeDropPotion() {
-    const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
+    const EM = getMod(ctx, "Enemies");
     const def = EM && typeof EM.getDefById === "function" ? EM.getDefById(type) : null;
     const hasPotionsInPool = !!(def && def.lootPools && def.lootPools.potions);
     if (!hasPotionsInPool) return;
@@ -341,7 +339,7 @@ export function generate(ctx, source) {
     }
   })();
 
-  const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
+  const EM = getMod(ctx, "Enemies");
   const tier = (EM && typeof EM.equipTierFor === "function") ? EM.equipTierFor(type) : (type === "ogre" ? 3 : (type === "troll" ? 2 : 1));
   const equipChance = (EM && typeof EM.equipChanceFor === "function") ? EM.equipChanceFor(type) : (type === "ogre" ? 0.75 : (type === "troll" ? 0.55 : 0.35));
   if (ctx.chance(equipChance)) {
@@ -355,7 +353,7 @@ export function generate(ctx, source) {
   // Rare special-case drop: bandits can very rarely carry a fishing pole (tool)
   if (type === "bandit") {
     try {
-      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const RU = getRNGUtils(ctx);
       const rfn = (RU && typeof RU.getRng === "function")
         ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
         : ((typeof ctx.rng === "function") ? ctx.rng : null);
@@ -377,7 +375,7 @@ export function generate(ctx, source) {
 function showLoot(ctx, list) {
   // Route solely via UIOrchestration; no direct UIBridge usage
   try {
-    const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    const UIO = getUIOrchestration(ctx);
     if (UIO && typeof UIO.showLoot === "function") {
       UIO.showLoot(ctx, list || []);
       return;
@@ -393,7 +391,7 @@ function showLoot(ctx, list) {
 function hideLoot(ctx) {
   // Route solely via UIOrchestration; no direct UIBridge usage
   try {
-    const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    const UIO = getUIOrchestration(ctx);
     if (UIO && typeof UIO.hideLoot === "function") {
       UIO.hideLoot(ctx);
       return;
@@ -459,8 +457,8 @@ export function lootHere(ctx) {
         const equipped = ctx.equipIfBetter(item);
         const desc = (typeof ctx.describeItem === "function")
           ? ctx.describeItem(item)
-          : ((typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function")
-              ? window.ItemDescribe.describe(item)
+          : ((getMod(ctx, "ItemDescribe") && typeof getMod(ctx, "ItemDescribe").describe === "function")
+              ? getMod(ctx, "ItemDescribe").describe(item)
               : (item.name || item.kind || "item"));
         acquired.push(equipped ? `equipped ${desc}` : desc);
         if (!equipped) {
@@ -469,7 +467,7 @@ export function lootHere(ctx) {
           // Rerender inventory if open via UIOrchestration
           let invOpen = false;
           try {
-            const UIO = (ctx && ctx.UIOrchestration) || (typeof window !== "undefined" ? window.UIOrchestration : null);
+            const UIO = getUIOrchestration(ctx);
             if (UIO && typeof UIO.isInventoryOpen === "function") {
               invOpen = !!UIO.isInventoryOpen(ctx);
             }
