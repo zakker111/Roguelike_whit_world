@@ -673,30 +673,18 @@
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    // Delegate to centralized inventory modules only
     const IF = modHandle("InventoryFlow");
     if (IF && typeof IF.addPotionToInventory === "function") {
       IF.addPotionToInventory(getCtx(), heal, name);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.addPotion === "function") {
-      IC.addPotion(getCtx(), heal, name);
       return;
     }
     log("Inventory system not available.", "warn");
   }
 
   function drinkPotionByIndex(idx) {
-    // Delegate to centralized inventory modules only
     const IF = modHandle("InventoryFlow");
     if (IF && typeof IF.drinkPotionByIndex === "function") {
       IF.drinkPotionByIndex(getCtx(), idx);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.drinkByIndex === "function") {
-      IC.drinkByIndex(getCtx(), idx);
       return;
     }
     log("Inventory system not available.", "warn");
@@ -1076,44 +1064,10 @@
   
 
   function enterTownIfOnTile() {
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.enterTownIfOnTile === "function") {
-        const ctx = getCtx();
-        const ok = !!MC.enterTownIfOnTile(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-          try {
-            const TR = modHandle("TownRuntime");
-            if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
-          } catch (_) {}
-        }
-        return ok;
-      }
-    } catch (_) {}
-
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.enterTownIfOnTile === "function") {
-        const ctx = getCtx();
-        const ok = !!MT.enterTownIfOnTile(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-          try {
-            const TR = modHandle("TownRuntime");
-            if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
-          } catch (_) {}
-        }
-        return ok;
-      }
-    } catch (_) {}
-
-    const M = modHandle("Modes");
-    if (M && typeof M.enterTownIfOnTile === "function") {
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.enterTownIfOnTile === "function") {
       const ctx = getCtx();
-      const ok = !!M.enterTownIfOnTile(ctx);
+      const ok = !!MT.enterTownIfOnTile(ctx);
       if (ok) {
         applyCtxSyncAndRefresh(ctx);
         try {
@@ -1127,36 +1081,10 @@
   }
 
   function enterDungeonIfOnEntrance() {
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.enterDungeonIfOnEntrance === "function") {
-        const ctx = getCtx();
-        const ok = !!MC.enterDungeonIfOnEntrance(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-        }
-        return ok;
-      }
-    } catch (_) {}
-
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.enterDungeonIfOnEntrance === "function") {
-        const ctx = getCtx();
-        const ok = !!MT.enterDungeonIfOnEntrance(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-        }
-        return ok;
-      }
-    } catch (_) {}
-
-    const M = modHandle("Modes");
-    if (M && typeof M.enterDungeonIfOnEntrance === "function") {
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.enterDungeonIfOnEntrance === "function") {
       const ctx = getCtx();
-      const ok = !!M.enterDungeonIfOnEntrance(ctx);
+      const ok = !!MT.enterDungeonIfOnEntrance(ctx);
       if (ok) {
         applyCtxSyncAndRefresh(ctx);
       }
@@ -1166,137 +1094,40 @@
   }
 
   function leaveTownNow() {
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.leaveTownNow === "function") {
-        const ctx = getCtx();
-        MC.leaveTownNow(ctx);
-        applyCtxSyncAndRefresh(ctx);
-        return;
-      }
-    } catch (_) {}
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.leaveTownNow === "function") {
-        const ctx = getCtx();
-        MT.leaveTownNow(ctx);
-        applyCtxSyncAndRefresh(ctx);
-        return;
-      }
-    } catch (_) {}
-    const M = modHandle("Modes");
-    if (M && typeof M.leaveTownNow === "function") {
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.leaveTownNow === "function") {
       const ctx = getCtx();
-      M.leaveTownNow(ctx);
+      MT.leaveTownNow(ctx);
       applyCtxSyncAndRefresh(ctx);
-      return;
     }
   }
 
   function requestLeaveTown() {
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.requestLeaveTown === "function") {
-        MC.requestLeaveTown(getCtx());
-        return;
-      }
-    } catch (_) {}
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.requestLeaveTown === "function") {
-        MT.requestLeaveTown(getCtx());
-        return;
-      }
-    } catch (_) {}
-    const M = modHandle("Modes");
-    if (M && typeof M.requestLeaveTown === "function") {
-      M.requestLeaveTown(getCtx());
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.requestLeaveTown === "function") {
+      MT.requestLeaveTown(getCtx());
     }
   }
 
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.returnToWorldFromTown === "function") {
-        const ctx = getCtx();
-        const ok = !!MC.returnToWorldFromTown(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-          return true;
-        }
-      }
-    } catch (_) {}
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.returnToWorldFromTown === "function") {
-        const ok = !!MT.returnToWorldFromTown(getCtx());
-        if (ok) {
-          applyCtxSyncAndRefresh(getCtx());
-          return true;
-        }
-      }
-    } catch (_) {}
-    const ctx = getCtx();
-    const TR = modHandle("TownRuntime");
-    if (TR && typeof TR.returnToWorldIfAtGate === "function") {
-      const ok = !!TR.returnToWorldIfAtGate(ctx);
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.returnToWorldFromTown === "function") {
+      const ctx = getCtx();
+      const ok = !!MT.returnToWorldFromTown(ctx);
       if (ok) {
         applyCtxSyncAndRefresh(ctx);
         return true;
-      }
-    }
-    if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      if (TR && typeof TR.applyLeaveSync === "function") {
-        TR.applyLeaveSync(ctx);
-        applyCtxSyncAndRefresh(ctx);
-        return true;
-      }
-    }
-    {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(getCtx(), "town.exitHint");
-      } else {
-        log("Return to the town gate to exit to the overworld.", "info");
       }
     }
     return false;
   }
 
   function returnToWorldIfAtExit() {
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.returnToWorldIfAtExit === "function") {
-        const ctx = getCtx();
-        const ok = MC.returnToWorldIfAtExit(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-        }
-        return ok;
-      }
-    } catch (_) {}
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.returnToWorldIfAtExit === "function") {
-        const ctx = getCtx();
-        const ok = MT.returnToWorldIfAtExit(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-        }
-        return ok;
-      }
-    } catch (_) {}
-    const M = modHandle("Modes");
-    if (M && typeof M.returnToWorldIfAtExit === "function") {
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.returnToWorldIfAtExit === "function") {
       const ctx = getCtx();
-      const ok = M.returnToWorldIfAtExit(ctx);
+      const ok = MT.returnToWorldIfAtExit(ctx);
       if (ok) {
         applyCtxSyncAndRefresh(ctx);
       }
@@ -1813,21 +1644,9 @@
   
 
   function showGameOver() {
-    // Prefer centralized DeathFlow or UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "DeathFlow", "show", ctxLocal);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "UIOrchestration", "showGameOver", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    // Fallback: UIBridge
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.showGameOver === "function") {
-      UB.showGameOver(getCtx());
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.showGameOver === "function") {
+      UIO.showGameOver(getCtx());
       requestDraw();
     }
   }
@@ -1875,17 +1694,6 @@
   }
 
   function hideGameOver() {
-    // Prefer centralized DeathFlow or UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "DeathFlow", "hide", ctxLocal);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideGameOver", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideGameOver === "function") {
       UIO.hideGameOver(getCtx());
@@ -1992,15 +1800,6 @@
 
   
   function updateUI() {
-    // Prefer UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "updateStats", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.updateStats === "function") {
       UIO.updateStats(getCtx());
