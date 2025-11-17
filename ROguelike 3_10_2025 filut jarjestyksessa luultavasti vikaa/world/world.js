@@ -28,14 +28,7 @@ export const TILES = {
   BERRY_BUSH: 14, // region-only forage bush; walkable, does not block FOV
 };
 
-function clamp(v, lo, hi) {
-  try {
-    if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.clamp === "function") {
-      return window.Bounds.clamp(v, lo, hi);
-    }
-  } catch (_) {}
-  return Math.max(lo, Math.min(hi, v));
-}
+import { clamp } from "../utils/bounds.js";
 
 
 

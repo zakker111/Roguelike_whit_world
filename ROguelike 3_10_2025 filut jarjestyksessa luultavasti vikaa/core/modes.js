@@ -13,23 +13,7 @@
  */
 
 import { getMod } from "../utils/access.js";
-
-// Helpers
-function inBounds(ctx, x, y) {
-  try {
-    if (typeof ctx.inBounds === "function") {
-      return !!ctx.inBounds(x, y);
-    }
-  } catch (_) {}
-  try {
-    if (ctx.Utils && typeof ctx.Utils.inBounds === "function") {
-      return !!ctx.Utils.inBounds(ctx, x, y);
-    }
-  } catch (_) {}
-  const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
-  const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
-  return x >= 0 && y >= 0 && x < cols && y < rows;
-}
+import { inBounds } from "../utils/bounds.js";
 
 function syncAfterMutation(ctx) {
   try {

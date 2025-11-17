@@ -18,20 +18,7 @@
  */
 
 import { getMod } from "../utils/access.js";
-
-// Helpers
-function inBounds(ctx, x, y) {
-  // Prefer centralized Bounds utility if available
-  try {
-    if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.inBounds === "function") {
-      return window.Bounds.inBounds(ctx, x, y);
-    }
-    if (ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
-    if (typeof window !== "undefined" && window.Utils && typeof window.Utils.inBounds === "function") return window.Utils.inBounds(ctx, x, y);
-  } catch (_) {}
-  const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
-  return x >= 0 && y >= 0 && x < cols && y < rows;
-}
+import { inBounds } from "../utils/bounds.js";
 
 function shopAt(ctx, x, y) {
   try {

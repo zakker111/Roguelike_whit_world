@@ -13,11 +13,8 @@ export function manhattan(ax, ay, bx, by) {
   return Math.abs(ax - bx) + Math.abs(ay - by);
 }
 
-export function inBounds(ctx, x, y) {
-  if (!ctx || !Array.isArray(ctx.map) || !ctx.map.length) return false;
-  const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
-  return x >= 0 && y >= 0 && x < cols && y < rows;
-}
+import { inBounds } from "./bounds.js";
+export { inBounds };
 
 export function isWalkableTile(ctx, x, y) {
   if (!inBounds(ctx, x, y)) return false;

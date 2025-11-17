@@ -61,7 +61,7 @@ function valueNoise2(seed, x, y, freq = 1 / 16) {
   return lerp(vx0, vx1, ty);
 }
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+import { clamp } from "../utils/bounds.js";
 
 function create(seed, opts = {}) {
   const s = (Number(seed) >>> 0) || 1;

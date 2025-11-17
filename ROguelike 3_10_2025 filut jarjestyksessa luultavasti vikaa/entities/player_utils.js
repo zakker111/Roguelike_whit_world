@@ -10,9 +10,8 @@
 export function round1(n) {
   return Math.round(n * 10) / 10;
 }
-export function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v));
-}
+import { clamp as boundsClamp } from "../utils/bounds.js";
+export const clamp = boundsClamp;
 export function capitalize(s) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }

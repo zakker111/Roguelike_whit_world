@@ -53,7 +53,7 @@ function isOnScreen(ctx, x, y, marginTiles = 2) {
             y >= vp.y0 - marginTiles && y <= vp.y1 + marginTiles);
   } catch (_) { return false; }
 }
-function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
+import { manhattan } from "../utils/utils.js";
 
 // --- Core A* (single solve) ---
 export function computePath(ctx, occ, sx, sy, tx, ty, opts = {}) {

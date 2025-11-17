@@ -23,30 +23,9 @@
  */
 
 import { getGameData, getMod, getRNGUtils } from "../utils/access.js";
-
-function inBounds(ctx, x, y) {
-  try {
-    if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.inBounds === "function") {
-      return window.Bounds.inBounds(ctx, x, y);
-    }
-    if (ctx && ctx.Utils && typeof ctx.Utils.inBounds === "function") return ctx.Utils.inBounds(ctx, x, y);
-    if (typeof window !== "undefined" && window.Utils && typeof window.Utils.inBounds === "function") return window.Utils.inBounds(ctx, x, y);
-  } catch (_) {}
-  const rows = ctx.map.length, cols = ctx.map[0] ? ctx.map[0].length : 0;
-  return x >= 0 && y >= 0 && x < cols && y < rows;
-}
-
-
-
-function _manhattan(ctx, ax, ay, bx, by) {
-  try {
-    if (ctx && ctx.Utils && typeof ctx.Utils.manhattan === "function") return ctx.Utils.manhattan(ax, ay, bx, by);
-  } catch (_) {}
-  try {
-    if (typeof window !== "undefined" && window.Utils && typeof window.Utils.manhattan === "function") return window.Utils.manhattan(ax, ay, bx, by);
-  } catch (_) {}
-  return Math.abs(ax - bx) + Math.abs(ay - by);
-}
+import { inBounds } from "../utils/bounds.js";
+import { manhattan } from "../utils/utils.js";
+const _manhattan = manhattan;
 
 function _isFreeTownFloor(ctx, x, y) {
   try {
