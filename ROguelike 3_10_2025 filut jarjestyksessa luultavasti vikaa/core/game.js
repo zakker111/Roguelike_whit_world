@@ -1377,19 +1377,7 @@
     }
 
     if (mode === "region") {
-      // Prefer RegionMapRuntime.onAction via Capabilities.safeCall
       const ctxMod = getCtx();
-      try {
-        const Cap = modHandle("Capabilities");
-        if (Cap && typeof Cap.safeCall === "function") {
-          const res = Cap.safeCall(ctxMod, "RegionMapRuntime", "onAction", ctxMod);
-          const handled = !!(res && res.ok && res.result);
-          if (handled) {
-            applyCtxSyncAndRefresh(ctxMod);
-            return;
-          }
-        }
-      } catch (_) {}
       const RM = modHandle("RegionMapRuntime");
       if (RM && typeof RM.onAction === "function") {
         const handled = !!RM.onAction(ctxMod);
