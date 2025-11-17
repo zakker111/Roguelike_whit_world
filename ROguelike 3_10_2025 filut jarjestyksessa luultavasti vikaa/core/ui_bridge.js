@@ -38,6 +38,8 @@
  * - Keeps calls consistent and reduces direct UI wiring inside core/game.js.
  */
 
+import { getMod } from "../utils/access.js";
+
 function hasUI() {
   return (typeof window !== "undefined" && window.UI);
 }
@@ -409,7 +411,15 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
       else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
     } catch (_) {}
     try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
-    try { ctx.updateUI && ctx.updateUI(); ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        ctx.updateUI && ctx.updateUI();
+        ctx.requestDraw && ctx.requestDraw();
+      }
+    } catch (_) {}
     return;
   }
   try {
@@ -426,20 +436,26 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
           else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
         } catch (_) {}
         try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
-        try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+        try {
+          const SS = ctx.StateSync || getMod(ctx, "StateSync");
+          if (SS && typeof SS.applyAndRefresh === "function") {
+            SS.applyAndRefresh(ctx, {});
+          } else {
+            ctx.updateUI && ctx.updateUI();
+          }
+        } catch (_) {}
         // small hold before fade back up
         setTimeout(() => {
           el.style.opacity = "0";
           setTimeout(() => {
             el.style.display = "none";
             try {
-              const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-              if (UIO && typeof UIO.requestDraw === "function") {
-                UIO.requestDraw(ctx);
-              } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-                window.GameLoop.requestDraw();
-              } else if (ctx && typeof ctx.requestDraw === "function") {
-                ctx.requestDraw();
+              const SS = ctx.StateSync || getMod(ctx, "StateSync");
+              if (SS && typeof SS.applyAndRefresh === "function") {
+                SS.applyAndRefresh(ctx, {});
+              } else {
+                if (typeof ctx.updateUI === "function") ctx.updateUI();
+                if (typeof ctx.requestDraw === "function") ctx.requestDraw();
               }
             } catch (_) {}
           }, 260);
@@ -454,14 +470,12 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
     } catch (_) {}
     try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
     try {
-      ctx.updateUI && ctx.updateUI();
-      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-      if (UIO && typeof UIO.requestDraw === "function") {
-        UIO.requestDraw(ctx);
-      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-        window.GameLoop.requestDraw();
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
       } else {
-        ctx.requestDraw && ctx.requestDraw();
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+        if (typeof ctx.requestDraw === "function") ctx.requestDraw();
       }
     } catch (_) {}
   }
