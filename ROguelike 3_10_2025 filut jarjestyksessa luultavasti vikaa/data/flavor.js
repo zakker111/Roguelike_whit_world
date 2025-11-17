@@ -18,20 +18,20 @@ function pickFrom(arr, ctx) {
   }
   // Prefer centralized RNGUtils when available
   try {
-    if (typeof window !== "undefined" && window.RNGUtils) {
-      const rngFn = (typeof window.RNGUtils.getRng === "function")
-        ? window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined)
-        : ((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
-      if (typeof window.RNGUtils.int === "function" && typeof rngFn === "function") {
-        const idx = window.RNGUtils.int(0, arr.length - 1, rngFn);
-        return arr[idx];
-      }
+    const RU = getRNGUtils(ctx);
+    const rngFn = (RU && typeof RU.getRng === "function")
+      ? RU.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined)
+      : ((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
+    if (RU && typeof RU.int === "function" && typeof rngFn === "function") {
+      const idx = RU.int(0, arr.length - 1, rngFn);
+      return arr[idx];
     }
   } catch (_) {}
   const r = (function () {
     try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-        return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
+      const RU = getRNGUtils(ctx);
+      if (RU && typeof RU.getRng === "function") {
+        return RU.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
       }
     } catch (_) {}
     return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
@@ -55,12 +55,11 @@ function pools() {
 }
 
 // Death-specific pools from flavor.json (schema: { death: { category: { part: { normal, crit } } } })
-function deathPools() {
+function deathPools(ctx) {
   try {
-    if (typeof window !== "undefined" && window.GameData && window.GameData.flavor && typeof window.GameData.flavor === "object") {
-      const f = window.GameData.flavor;
-      return (f && typeof f.death === "object") ? f.death : null;
-    }
+    const GD = getGameData(ctx);
+    const f = GD && GD.flavor;
+    return (f && typeof f.death === "object") ? f.death : null;
   } catch (_) {}
   return null;
 }
@@ -112,7 +111,7 @@ export function logDeath(ctx, opts) {
   const target = (opts && opts.target) || {};
   const loc = (opts && opts.loc) || { part: "torso" };
   const isCrit = !!(opts && opts.crit);
-  const P = deathPools(); if (!P) return;
+  const P = deathPools(ctx); if (!P) return;
   const cat = flavorCategory(ctx, target);
   const lines = pickDeathLine(P, cat, String(loc.part || "torso"), isCrit);
   if (!Array.isArray(lines) || lines.length === 0) return;
@@ -120,7 +119,7 @@ export function logDeath(ctx, opts) {
   // Chance gating: log death flavor often; deterministic when RNGUtils is present
   let ok = true;
   try {
-    const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
+    const RU = getRNGUtils(ctx);
     if (RU && typeof RU.getRng === "function" && typeof RU.chance === "function") {
       const rng = RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
       ok = RU.chance(isCrit ? 0.9 : 0.75, rng);
@@ -136,7 +135,7 @@ export function logHit(ctx, opts) {
   const crit = !!(opts && opts.crit);
 
   // Use flavor.json death pools as general combat flavor source
-  const P = deathPools(); if (!P) return;
+  const P = deathPools(ctx); if (!P) return;
   const cat = flavorCategory(ctx, attacker);
   const part = String(loc.part || "torso");
   const lines = pickDeathLine(P, cat, part, crit);
@@ -145,7 +144,7 @@ export function logHit(ctx, opts) {
   // Chance gating via RNGUtils when available
   let ok = true;
   try {
-    const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
+    const RU = getRNGUtils(ctx);
     if (RU && typeof RU.getRng === "function" && typeof RU.chance === "function") {
       const rng = RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
       ok = RU.chance(crit ? 0.6 : 0.4, rng);
@@ -163,7 +162,7 @@ export function logPlayerHit(ctx, opts) {
   const loc = (opts && opts.loc) || {};
   const crit = !!(opts && opts.crit);
   const dmg = (opts && typeof opts.dmg === "number") ? opts.dmg : null;
-  const P = deathPools(); if (!P) return;
+  const P = deathPools(ctx); if (!P) return;
 
   // Choose line from death pools based on category/part/crit (reuse for hit flavor)
   const cat = flavorCategory(ctx, target);
@@ -175,7 +174,7 @@ export function logPlayerHit(ctx, opts) {
   let p = crit ? 0.85 : (dmg != null && dmg >= 2.0 ? 0.7 : 0.4);
   let ok = true;
   try {
-    const RU = (typeof window !== "undefined") ? window.RNGUtils : null;
+    const RU = getRNGUtils(ctx);
     if (RU && typeof RU.getRng === "function" && typeof RU.chance === "function") {
       const rng = RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
       ok = RU.chance(p, rng);
@@ -191,7 +190,7 @@ export function announceFloorEnemyCount(ctx) {
   if (!ctx || typeof ctx.log !== "function" || !Array.isArray(ctx.enemies)) return;
   const n = ctx.enemies.length | 0;
   try {
-    const M = (typeof window !== "undefined" ? window.Messages : null);
+    const M = (ctx && ctx.Messages) || getMod(ctx, "Messages");
     if (M && typeof M.get === "function") {
       if (n <= 0) {
         const text = M.get("dungeon.floorEnemyCount0");
@@ -208,6 +207,7 @@ export function announceFloorEnemyCount(ctx) {
   } catch (_) {}
 }
 
+import { getRNGUtils, getGameData, getMod } from "../utils/access.js";
 import { attachGlobal } from "../utils/global.js";
 // Back-compat: attach to window via helper
 attachGlobal("Flavor", { logHit, logPlayerHit, logDeath, announceFloorEnemyCount });
