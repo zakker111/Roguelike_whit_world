@@ -645,7 +645,7 @@ export const UI = {
           const title = s.label || id;
           return `
             <label style="display:flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid #253047; border-radius:6px; background:#0f1117;">
-              <input type="checkbox" class="smoke-sel" value="${id}"${checked} />
+              <input type="checkbox" class="smoke-sel" name="smoke-${id}" value="${id}"${checked} />
               <span style="color:#cbd5e1; font-size:13px;">${title}</span>
             </label>
           `;

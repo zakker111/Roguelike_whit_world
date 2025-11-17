@@ -104,7 +104,7 @@ function renderLogCategories() {
       const label = (LogConfig && typeof LogConfig.displayName === "function") ? LogConfig.displayName(id) : (id.charAt(0).toUpperCase() + id.slice(1));
       return `
         <label style="display:flex; align-items:center; gap:6px; padding:4px 6px; border:1px solid #253047; border-radius:6px; background:#0f1117;">
-          <input type="checkbox" class="log-cat-sel" value="${id}"${checked} />
+          <input type="checkbox" class="log-cat-sel" name="log-cat-${id}" value="${id}"${checked} />
           <span style="color:#cbd5e1; font-size:13px;">${label}</span>
         </label>
       `;
