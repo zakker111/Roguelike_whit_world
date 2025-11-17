@@ -1309,17 +1309,12 @@
   function doAction() {
     // Toggle behavior: if Loot UI is open, close it and do nothing else (do not consume a turn)
     try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "isLootOpen", ctxLocal);
-        if (res && res.ok && !!res.result) {
-          Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
-          return;
-        }
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx())) {
+        hideLootPanel();
+        return;
       }
     } catch (_) {}
-    hideLootPanel();
 
     // Town gate exit takes priority over other interactions
     if (mode === "town" && townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
