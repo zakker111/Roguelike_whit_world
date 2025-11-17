@@ -13,6 +13,7 @@
  * - triggerAtMarkerIfHere(ctx) -> boolean  // starts encounter when pressing G on an 'E' tile
  * - onEncounterComplete(ctx, payload) -> void  // marks encounter status and enables turn-in
  */
+import { getMod } from "../utils/access.js";
 (function initQuestService() {
   function _gd() {
     try { return (typeof window !== "undefined" ? window.GameData : null); } catch (_) { return null; }
@@ -459,7 +460,7 @@
   }
   function _applyAndRefresh(ctx) {
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") SS.applyAndRefresh(ctx, {});
     } catch (_) {}
   }

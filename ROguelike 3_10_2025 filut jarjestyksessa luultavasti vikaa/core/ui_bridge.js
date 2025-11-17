@@ -38,6 +38,8 @@
  * - Keeps calls consistent and reduces direct UI wiring inside core/game.js.
  */
 
+import { getMod } from "../utils/access.js";
+
 function hasUI() {
   return (typeof window !== "undefined" && window.UI);
 }
@@ -409,7 +411,15 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
       else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
     } catch (_) {}
     try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
-    try { ctx.updateUI && ctx.updateUI(); ctx.requestDraw && ctx.requestDraw(); } catch (_) {}
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        ctx.updateUI && ctx.updateUI();
+        ctx.requestDraw && ctx.requestDraw();
+      }
+    } catch (_) {}
     return;
   }
   try {
@@ -426,21 +436,26 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
           else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
         } catch (_) {}
         try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
-        try { ctx.updateUI && ctx.updateUI(); } catch (_) {}
+        try {
+          const SS = ctx.StateSync || getMod(ctx, "StateSync");
+          if (SS && typeof SS.applyAndRefresh === "function") {
+            SS.applyAndRefresh(ctx, {});
+          } else {
+            ctx.updateUI && ctx.updateUI();
+          }
+        } catch (_) {}
         // small hold before fade back up
         setTimeout(() => {
           el.style.opacity = "0";
           setTimeout(() => {
             el.style.display = "none";
             try {
-              const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
-              if (Cap && typeof Cap.safeCall === "function") {
-                const r = Cap.safeCall(ctx, "UIOrchestration", "requestDraw", ctx);
-                if (r && r.ok) return;
-              }
-              const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-              if (UIO && typeof UIO.requestDraw === "function") {
-                UIO.requestDraw(ctx);
+              const SS = ctx.StateSync || getMod(ctx, "StateSync");
+              if (SS && typeof SS.applyAndRefresh === "function") {
+                SS.applyAndRefresh(ctx, {});
+              } else {
+                if (typeof ctx.updateUI === "function") ctx.updateUI();
+                if (typeof ctx.requestDraw === "function") ctx.requestDraw();
               }
             } catch (_) {}
           }, 260);
@@ -455,17 +470,12 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
     } catch (_) {}
     try { if (typeof afterTimeCb === "function") afterTimeCb(minutes); } catch (_) {}
     try {
-      ctx.updateUI && ctx.updateUI();
-      const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
-      if (Cap && typeof Cap.safeCall === "function") {
-        const r2 = Cap.safeCall(ctx, "UIOrchestration", "requestDraw", ctx);
-        if (r2 && r2.ok) return;
-      }
-      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-      if (UIO && typeof UIO.requestDraw === "function") {
-        UIO.requestDraw(ctx);
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
       } else {
-        ctx.requestDraw && ctx.requestDraw();
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+        if (typeof ctx.requestDraw === "function") ctx.requestDraw();
       }
     } catch (_) {}
   }
@@ -522,25 +532,10 @@ export function isAnyModalOpen() {
 export function showConfirm(ctx, text, pos, onOk, onCancel) {
   if (hasUI() && typeof window.UI.showConfirm === "function") {
     try { window.UI.showConfirm(text, pos, onOk, onCancel); } catch (_) {}
-    return;
   }
-  // Fallback: simple browser confirm
-  try {
-    const ok = typeof window !== "undefined" && window.confirm ? window.confirm(text) : true;
-    if (ok && typeof onOk === "function") onOk();
-    else if (!ok && typeof onCancel === "function") onCancel();
-  } catch (_) {}
 }
 
-export function showTownExitButton(ctx) {
-  if (!hasUI()) return;
-  try { window.UI.showTownExitButton && window.UI.showTownExitButton(); } catch (_) {}
-}
 
-export function hideTownExitButton(ctx) {
-  if (!hasUI()) return;
-  try { window.UI.hideTownExitButton && window.UI.hideTownExitButton(); } catch (_) {}
-}
 
 // ---- Quest Board panel wrappers ----
 export function isQuestBoardOpen() {
@@ -616,8 +611,6 @@ if (typeof window !== "undefined") {
     // Aggregate
     isAnyModalOpen,
     showConfirm,
-    showTownExitButton,
-    hideTownExitButton,
     // Sleep animation
     animateSleep
   };

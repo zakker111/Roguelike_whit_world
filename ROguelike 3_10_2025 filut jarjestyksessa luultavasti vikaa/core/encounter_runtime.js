@@ -12,6 +12,8 @@ let _victoryNotified = false;
 // Persist the active quest instance id across ctx recreations
 let _currentQuestInstanceId = null;
 
+import { getMod } from "../utils/access.js";
+
 function createDungeonEnemyAt(ctx, x, y, depth) {
   // Prefer the same factory used by dungeon floors
   try {
@@ -581,7 +583,7 @@ export function enter(ctx, info) {
     if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
   } catch (_) {}
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -662,7 +664,7 @@ export function tryMoveEncounter(ctx, dx, dy) {
   if (walkable && !blocked) {
     ctx.player.x = nx; ctx.player.y = ny;
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
@@ -818,7 +820,7 @@ export function enterRegion(ctx, info) {
   ctx.region._isEncounter = true;
 
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -899,7 +901,7 @@ export function complete(ctx, outcome = "victory") {
   try { ctx._questInstanceId = null; } catch (_) {}
   try { _currentQuestInstanceId = null; } catch (_) {}
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }

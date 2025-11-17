@@ -28,41 +28,7 @@
  * - RNG is seeded via the GOD panel or auto-init; seed is persisted to localStorage ("SEED").
  * - Diagnostics in GOD and boot logs show current RNG source and seed for reproducibility.
  */
-  try {
-    if (window.DEV) {
-      if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-        window.Logger.log("[Boot] game.js loaded. Modules present.", "notice", {
-          DungeonState: !!(window.DungeonState),
-          Logger: !!(window.Logger),
-          UI: !!(window.UI),
-          Dungeon: !!(window.Dungeon),
-          Enemies: !!(window.Enemies)
-        });
-      }
-      // DEV: report missing critical modules once at boot
-      (function _devReportMissingModules() {
-        const missing = [];
-        function has(name) { try { return !!window[name]; } catch (_) { return false; } }
-        if (!has("Combat")) missing.push("Combat");
-        if (!has("EquipmentDecay")) missing.push("EquipmentDecay");
-        if (!has("FOVCamera")) missing.push("FOVCamera");
-        if (!has("GameFOV") && !has("FOV")) missing.push("GameFOV/FOV");
-        if (!has("InventoryFlow") && !has("InventoryController")) missing.push("InventoryFlow/InventoryController");
-        if (!has("LootFlow") && !has("Loot")) missing.push("LootFlow/Loot");
-        if (!has("ModeController") && !has("ModesTransitions") && !has("Modes")) missing.push("ModeController/Modes");
-        if (!has("TownRuntime")) missing.push("TownRuntime");
-        if (!has("WorldRuntime")) missing.push("WorldRuntime");
-        if (!has("RenderOrchestration")) missing.push("RenderOrchestration");
-        if (missing.length) {
-          try {
-            if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-              window.Logger.log("[DEV] Missing modules: " + missing.join(", "), "warn", { category: "Boot" });
-            }
-          } catch (_) {}
-        }
-      })();
-    }
-  } catch (_) {}
+  
   // Runtime configuration (loaded via GameData.config when available)
   const CFG = (typeof window !== "undefined" && window.GameData && window.GameData.config && typeof window.GameData.config === "object")
     ? window.GameData.config
@@ -370,22 +336,7 @@
         // No fallback: enforce JSON-defined enemies only for clarity
         return null;
       };
-      if (window.DEV && ctx && ctx.utils) {
-        try {
-          console.debug("[DEV] ctx created:", {
-            utils: Object.keys(ctx.utils),
-            los: !!(ctx.los || ctx.LOS),
-            modules: {
-              Enemies: !!ctx.Enemies, Items: !!ctx.Items, Player: !!ctx.Player,
-              UI: !!ctx.UI, Logger: !!ctx.Logger, Loot: !!ctx.Loot,
-              Dungeon: !!ctx.Dungeon, DungeonItems: !!ctx.DungeonItems,
-              FOV: !!ctx.FOV, AI: !!ctx.AI, Input: !!ctx.Input,
-              Render: !!ctx.Render, Tileset: !!ctx.Tileset, Flavor: !!ctx.Flavor,
-              World: !!ctx.World
-            }
-          });
-        } catch (_) {}
-      }
+      
       return ctx;
     }
 
@@ -452,15 +403,6 @@
   }
 
   function rerenderInventoryIfOpen() {
-    // Prefer UIOrchestration via Capabilities.safeCall; fallback to UIBridge
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
-        if (res && res.ok && !!res.result) { renderInventoryPanel(); return; }
-      }
-    } catch (_) {}
     const UIO = modHandle("UIOrchestration");
     let open = false;
     try {
@@ -663,8 +605,6 @@
     if (clamped !== fovRadius) {
       fovRadius = clamped;
       log(`FOV radius set to ${fovRadius}.`);
-      // Force recompute by invalidating cache
-      _lastFovRadius = -1;
       recomputeFOV();
       requestDraw();
     }
@@ -675,30 +615,18 @@
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    // Delegate to centralized inventory modules only
     const IF = modHandle("InventoryFlow");
     if (IF && typeof IF.addPotionToInventory === "function") {
       IF.addPotionToInventory(getCtx(), heal, name);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.addPotion === "function") {
-      IC.addPotion(getCtx(), heal, name);
       return;
     }
     log("Inventory system not available.", "warn");
   }
 
   function drinkPotionByIndex(idx) {
-    // Delegate to centralized inventory modules only
     const IF = modHandle("InventoryFlow");
     if (IF && typeof IF.drinkPotionByIndex === "function") {
       IF.drinkPotionByIndex(getCtx(), idx);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.drinkByIndex === "function") {
-      IC.drinkByIndex(getCtx(), idx);
       return;
     }
     log("Inventory system not available.", "warn");
@@ -756,39 +684,8 @@
       startRoomRect = ctx.startRoomRect || startRoomRect;
       return;
     }
-    // Fallback deprecated: skip inline Dungeon.generateLevel path; use minimal fallback below
-    try { log("Dungeon module path deprecated; using minimal fallback.", "warn"); } catch (_) {}
-    // Fallback: flat-floor map
-    map = Array.from({ length: MAP_ROWS }, () => Array(MAP_COLS).fill(TILES.FLOOR));
-    const sy = Math.max(1, MAP_ROWS - 2), sx = Math.max(1, MAP_COLS - 2);
-    if (map[sy] && typeof map[sy][sx] !== "undefined") {
-      map[sy][sx] = TILES.STAIRS;
-    }
-    enemies = [];
-    corpses = [];
-    decals = [];
-    _lastMapCols = -1; _lastMapRows = -1; _lastMode = ""; _lastPlayerX = -1; _lastPlayerY = -1;
-    applyCtxSyncAndRefresh(getCtx());
-    {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(getCtx(), "dungeon.explore");
-      } else {
-        log("You explore the dungeon.");
-      }
-    }
-    try {
-      const DR2 = modHandle("DungeonRuntime");
-      if (DR2 && typeof DR2.save === "function") {
-        DR2.save(getCtx(), true);
-      } else {
-        const DS = modHandle("DungeonState");
-        if (DS && typeof DS.save === "function") {
-          DS.save(getCtx());
-        }
-      }
-    } catch (_) {}
-    return;
+    log("Error: Dungeon generation unavailable.", "bad");
+    throw new Error("Dungeon generation unavailable");
   }
 
   function inBounds(x, y) {
@@ -842,162 +739,54 @@
     return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.STAIRS || t === TILES.ROAD;
   }
 
-  function ensureVisibilityShape() {
-    const rows = map.length;
-    const cols = map[0] ? map[0].length : 0;
-    const shapeOk = Array.isArray(visible) && visible.length === rows && (rows === 0 || (visible[0] && visible[0].length === cols));
-    if (!shapeOk) {
-      visible = Array.from({ length: rows }, () => Array(cols).fill(false));
-    }
-    const seenOk = Array.isArray(seen) && seen.length === rows && (rows === 0 || (seen[0] && seen[0].length === cols));
-    if (!seenOk) {
-      seen = Array.from({ length: rows }, () => Array(cols).fill(false));
-    }
-  }
+  
 
-  // FOV recompute guard: skip recompute unless player moved, FOV radius changed, mode changed, or map shape changed.
-  let _lastPlayerX = -1, _lastPlayerY = -1, _lastFovRadius = -1, _lastMode = "", _lastMapCols = -1, _lastMapRows = -1;
+  
 
   function recomputeFOV() {
-    // Delegate to centralized FOV modules only
-    try {
-      const GF = modHandle("GameFOV");
-      if (GF && typeof GF.recomputeWithGuard === "function") {
-        const ctx = getCtx();
-        ctx.seen = seen;
-        ctx.visible = visible;
-        const did = !!GF.recomputeWithGuard(ctx);
-        if (did) {
-          visible = ctx.visible;
-          seen = ctx.seen;
-          const rows = map.length;
-          const cols = map[0] ? map[0].length : 0;
-          _lastPlayerX = player.x; _lastPlayerY = player.y;
-          _lastFovRadius = fovRadius; _lastMode = mode;
-          _lastMapCols = cols; _lastMapRows = rows;
-        }
-        return;
-      }
-    } catch (_) {}
-    try {
-      const F = modHandle("FOV");
-      if (F && typeof F.recomputeFOV === "function") {
-        const ctx = getCtx();
-        ctx.seen = seen;
-        ctx.visible = visible;
-        F.recomputeFOV(ctx);
-        visible = ctx.visible;
-        seen = ctx.seen;
-        const rows = map.length;
-        const cols = map[0] ? map[0].length : 0;
-        _lastPlayerX = player.x; _lastPlayerY = player.y;
-        _lastFovRadius = fovRadius; _lastMode = mode;
-        _lastMapCols = cols; _lastMapRows = rows;
-        return;
-      }
-    } catch (_) {}
-    // Fallback: minimal visibility of current tile only
-    log("FOV system not available.", "warn");
-    try {
-      if (typeof window !== "undefined" && window.GameState && typeof window.GameState.ensureVisibilityShape === "function") {
-        window.GameState.ensureVisibilityShape(getCtx());
-      } else {
-        ensureVisibilityShape();
-      }
-    } catch (_) { ensureVisibilityShape(); }
-    if (inBounds(player.x, player.y)) {
-      visible[player.y][player.x] = true;
-      seen[player.y][player.x] = true;
+    // Centralize FOV recompute via GameFOV; remove inline and legacy fallbacks
+    const GF = modHandle("GameFOV");
+    if (GF && typeof GF.recomputeWithGuard === "function") {
+      const ctx = getCtx();
+      ctx.seen = seen;
+      ctx.visible = visible;
+      GF.recomputeWithGuard(ctx);
+      visible = ctx.visible;
+      seen = ctx.seen;
     }
-    const rows = map.length;
-    const cols = map[0] ? map[0].length : 0;
-    _lastPlayerX = player.x; _lastPlayerY = player.y;
-    _lastFovRadius = fovRadius; _lastMode = mode;
-    _lastMapCols = cols; _lastMapRows = rows;
   }
 
   
   function updateCamera() {
-    // Prefer centralized camera module
+    // Centralize camera updates via FOVCamera
     const FC = modHandle("FOVCamera");
     if (FC && typeof FC.updateCamera === "function") {
       FC.updateCamera(getCtx());
-      return;
     }
-    // Fallback: center camera on player with half-viewport slack beyond edges
-    const mapCols = map[0] ? map[0].length : COLS;
-    const mapRows = map ? map.length : ROWS;
-    const mapWidth = mapCols * TILE;
-    const mapHeight = mapRows * TILE;
-
-    const targetX = player.x * TILE + TILE / 2 - camera.width / 2;
-    const targetY = player.y * TILE + TILE / 2 - camera.height / 2;
-
-    const slackX = Math.max(0, camera.width / 2 - TILE / 2);
-    const slackY = Math.max(0, camera.height / 2 - TILE / 2);
-    const minX = -slackX;
-    const minY = -slackY;
-    const maxX = (mapWidth - camera.width) + slackX;
-    const maxY = (mapHeight - camera.height) + slackY;
-
-    camera.x = Math.max(minX, Math.min(targetX, maxX));
-    camera.y = Math.max(minY, Math.min(targetY, maxY));
   }
 
   
   function getRenderCtx() {
-    // Prefer centralized RenderOrchestration facade
+    const RO = modHandle("RenderOrchestration");
+    if (!RO || typeof RO.getRenderCtx !== "function") {
+      return null;
+    }
+    const base = RO.getRenderCtx(getCtx());
+    // Ensure PERF sink uses local PERF tracker
     try {
-      const RO = modHandle("RenderOrchestration");
-      if (RO && typeof RO.getRenderCtx === "function") {
-        const base = RO.getRenderCtx(getCtx());
-        // Ensure PERF sink uses local PERF tracker
-        try { base.onDrawMeasured = (ms) => {
-          PERF.lastDrawMs = ms;
-          try {
-            const a = 0.35;
-            if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = ms;
-            else PERF.avgDrawMs = (a * ms) + ((1 - a) * PERF.avgDrawMs);
-          } catch (_) {}
-        }; } catch (_) {}
-        return base;
-      }
-    } catch (_) {}
-    // Fallback: inline context builder
-    return {
-      ctx2d: ctx,
-      TILE, ROWS, COLS, COLORS, TILES,
-      map, seen, visible,
-      player, enemies, corpses, decals,
-      camera,
-      mode,
-      world,
-      region,
-      npcs,
-      shops,
-      townProps,
-      townBuildings,
-      townExitAt,
-      // encounter visuals for RenderDungeon
-      encounterProps,
-      encounterBiome,
-      dungeonProps,
-      enemyColor: (t) => enemyColor(t),
-      time: getClock(),
-      onDrawMeasured: (ms) => {
+      base.onDrawMeasured = (ms) => {
         PERF.lastDrawMs = ms;
         try {
           const a = 0.35;
           if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = ms;
           else PERF.avgDrawMs = (a * ms) + ((1 - a) * PERF.avgDrawMs);
         } catch (_) {}
-      },
-    };
+      };
+    } catch (_) {}
+    return base;
   }
 
   // Batch multiple draw requests within a frame to avoid redundant renders.
-  let _drawQueued = false;
-  let _rafId = null;
   // Suppress draw flag used for fast-forward time (sleep/wait simulations)
   let _suppressDraw = false;
 
@@ -1011,21 +800,6 @@
     const GL = modHandle("GameLoop");
     if (GL && typeof GL.requestDraw === "function") {
       GL.requestDraw();
-      return;
-    }
-    const R = modHandle("Render");
-    if (R && typeof R.draw === "function") {
-      const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-      R.draw(getRenderCtx());
-      const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-      PERF.lastDrawMs = t1 - t0;
-      // EMA smoothing for draw time
-      try {
-        const a = 0.35; // smoothing factor
-        if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = PERF.lastDrawMs;
-        else PERF.avgDrawMs = (a * PERF.lastDrawMs) + ((1 - a) * PERF.avgDrawMs);
-      } catch (_) {}
-      try { if (window.DEV) console.debug(`[PERF] draw ${PERF.lastDrawMs.toFixed(2)}ms (avg ${PERF.avgDrawMs.toFixed(2)}ms)`); } catch (_) {}
     }
   }
 
@@ -1201,53 +975,12 @@
   
 
   function enterTownIfOnTile() {
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.enterTownIfOnTile === "function") {
-        const ctx = getCtx();
-        const ok = !!MC.enterTownIfOnTile(ctx);
-        if (ok) {
-          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-          applyCtxSyncAndRefresh(ctx);
-          try {
-            const TR = modHandle("TownRuntime");
-            if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
-          } catch (_) {}
-        }
-        return ok;
-      }
-    } catch (_) {}
-
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.enterTownIfOnTile === "function") {
-        const ctx = getCtx();
-        const ok = !!MT.enterTownIfOnTile(ctx);
-        if (ok) {
-          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-          applyCtxSyncAndRefresh(ctx);
-          try {
-            const TR = modHandle("TownRuntime");
-            if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
-          } catch (_) {}
-        }
-        return ok;
-      }
-    } catch (_) {}
-
-    const M = modHandle("Modes");
-    if (M && typeof M.enterTownIfOnTile === "function") {
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.enterTownIfOnTile === "function") {
       const ctx = getCtx();
-      const ok = !!M.enterTownIfOnTile(ctx);
+      const ok = !!MT.enterTownIfOnTile(ctx);
       if (ok) {
-        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         applyCtxSyncAndRefresh(ctx);
-        try {
-          const TR = modHandle("TownRuntime");
-          if (TR && typeof TR.showExitButton === "function") TR.showExitButton(getCtx());
-        } catch (_) {}
       }
       return ok;
     }
@@ -1255,40 +988,11 @@
   }
 
   function enterDungeonIfOnEntrance() {
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.enterDungeonIfOnEntrance === "function") {
-        const ctx = getCtx();
-        const ok = !!MC.enterDungeonIfOnEntrance(ctx);
-        if (ok) {
-          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-          applyCtxSyncAndRefresh(ctx);
-        }
-        return ok;
-      }
-    } catch (_) {}
-
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.enterDungeonIfOnEntrance === "function") {
-        const ctx = getCtx();
-        const ok = !!MT.enterDungeonIfOnEntrance(ctx);
-        if (ok) {
-          _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
-          applyCtxSyncAndRefresh(ctx);
-        }
-        return ok;
-      }
-    } catch (_) {}
-
-    const M = modHandle("Modes");
-    if (M && typeof M.enterDungeonIfOnEntrance === "function") {
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.enterDungeonIfOnEntrance === "function") {
       const ctx = getCtx();
-      const ok = !!M.enterDungeonIfOnEntrance(ctx);
+      const ok = !!MT.enterDungeonIfOnEntrance(ctx);
       if (ok) {
-        _lastMode = ""; _lastMapCols = -1; _lastMapRows = -1; _lastPlayerX = -1; _lastPlayerY = -1;
         applyCtxSyncAndRefresh(ctx);
       }
       return ok;
@@ -1297,82 +1001,26 @@
   }
 
   function leaveTownNow() {
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.leaveTownNow === "function") {
-        const ctx = getCtx();
-        MC.leaveTownNow(ctx);
-        applyCtxSyncAndRefresh(ctx);
-        return;
-      }
-    } catch (_) {}
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.leaveTownNow === "function") {
-        const ctx = getCtx();
-        MT.leaveTownNow(ctx);
-        applyCtxSyncAndRefresh(ctx);
-        return;
-      }
-    } catch (_) {}
-    const M = modHandle("Modes");
-    if (M && typeof M.leaveTownNow === "function") {
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.leaveTownNow === "function") {
       const ctx = getCtx();
-      M.leaveTownNow(ctx);
+      MT.leaveTownNow(ctx);
       applyCtxSyncAndRefresh(ctx);
-      return;
     }
   }
 
   function requestLeaveTown() {
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.requestLeaveTown === "function") {
-        MC.requestLeaveTown(getCtx());
-        return;
-      }
-    } catch (_) {}
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.requestLeaveTown === "function") {
-        MT.requestLeaveTown(getCtx());
-        return;
-      }
-    } catch (_) {}
-    const M = modHandle("Modes");
-    if (M && typeof M.requestLeaveTown === "function") {
-      M.requestLeaveTown(getCtx());
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.requestLeaveTown === "function") {
+      MT.requestLeaveTown(getCtx());
     }
   }
 
   function returnToWorldFromTown() {
     if (mode !== "town" || !world) return false;
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.returnToWorldFromTown === "function") {
-        const ctx = getCtx();
-        const ok = !!MC.returnToWorldFromTown(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-          return true;
-        }
-      }
-    } catch (_) {}
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.returnToWorldFromTown === "function") {
-        const ok = !!MT.returnToWorldFromTown(getCtx());
-        if (ok) {
-          applyCtxSyncAndRefresh(getCtx());
-          return true;
-        }
-      }
-    } catch (_) {}
     const ctx = getCtx();
+
+    // Primary: use TownRuntime gate-aware exit
     const TR = modHandle("TownRuntime");
     if (TR && typeof TR.returnToWorldIfAtGate === "function") {
       const ok = !!TR.returnToWorldIfAtGate(ctx);
@@ -1381,6 +1029,8 @@
         return true;
       }
     }
+
+    // Fallback: if standing exactly on the gate tile, apply leave sync directly
     if (townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
       if (TR && typeof TR.applyLeaveSync === "function") {
         TR.applyLeaveSync(ctx);
@@ -1388,46 +1038,32 @@
         return true;
       }
     }
-    {
-      const MZ = modHandle("Messages");
-      if (MZ && typeof MZ.log === "function") {
-        MZ.log(getCtx(), "town.exitHint");
-      } else {
-        log("Return to the town gate to exit to the overworld.", "info");
+
+    // Compatibility: if a returnToWorldFromTown transition exists, try it
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.returnToWorldFromTown === "function") {
+      const ok = !!MT.returnToWorldFromTown(ctx);
+      if (ok) {
+        applyCtxSyncAndRefresh(ctx);
+        return true;
       }
+    }
+
+    // Guidance when not at gate
+    const MZ = modHandle("Messages");
+    if (MZ && typeof MZ.log === "function") {
+      MZ.log(getCtx(), "town.exitHint");
+    } else {
+      log("Return to the town gate to exit to the overworld.", "info");
     }
     return false;
   }
 
   function returnToWorldIfAtExit() {
-    // Prefer app-level ModeController facade
-    try {
-      const MC = modHandle("ModeController");
-      if (MC && typeof MC.returnToWorldIfAtExit === "function") {
-        const ctx = getCtx();
-        const ok = MC.returnToWorldIfAtExit(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-        }
-        return ok;
-      }
-    } catch (_) {}
-    // Fallback to core facades
-    try {
-      const MT = modHandle("ModesTransitions");
-      if (MT && typeof MT.returnToWorldIfAtExit === "function") {
-        const ctx = getCtx();
-        const ok = MT.returnToWorldIfAtExit(ctx);
-        if (ok) {
-          applyCtxSyncAndRefresh(ctx);
-        }
-        return ok;
-      }
-    } catch (_) {}
-    const M = modHandle("Modes");
-    if (M && typeof M.returnToWorldIfAtExit === "function") {
+    const MT = modHandle("ModesTransitions");
+    if (MT && typeof MT.returnToWorldIfAtExit === "function") {
       const ctx = getCtx();
-      const ok = M.returnToWorldIfAtExit(ctx);
+      const ok = MT.returnToWorldIfAtExit(ctx);
       if (ok) {
         applyCtxSyncAndRefresh(ctx);
       }
@@ -1440,17 +1076,12 @@
   function doAction() {
     // Toggle behavior: if Loot UI is open, close it and do nothing else (do not consume a turn)
     try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "isLootOpen", ctxLocal);
-        if (res && res.ok && !!res.result) {
-          Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
-          return;
-        }
+      const UIO = modHandle("UIOrchestration");
+      if (UIO && typeof UIO.isLootOpen === "function" && UIO.isLootOpen(getCtx())) {
+        hideLootPanel();
+        return;
       }
     } catch (_) {}
-    hideLootPanel();
 
     // Town gate exit takes priority over other interactions
     if (mode === "town" && townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
@@ -1513,19 +1144,7 @@
     }
 
     if (mode === "region") {
-      // Prefer RegionMapRuntime.onAction via Capabilities.safeCall
       const ctxMod = getCtx();
-      try {
-        const Cap = modHandle("Capabilities");
-        if (Cap && typeof Cap.safeCall === "function") {
-          const res = Cap.safeCall(ctxMod, "RegionMapRuntime", "onAction", ctxMod);
-          const handled = !!(res && res.ok && res.result);
-          if (handled) {
-            applyCtxSyncAndRefresh(ctxMod);
-            return;
-          }
-        }
-      } catch (_) {}
       const RM = modHandle("RegionMapRuntime");
       if (RM && typeof RM.onAction === "function") {
         const handled = !!RM.onAction(ctxMod);
@@ -1659,34 +1278,28 @@
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideGod", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideGod === "function") UIO.hideGod(getCtx());
         },
         onHideShop: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideShop", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideShop === "function") UIO.hideShop(getCtx());
         },
         onHideSmoke: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideSmoke", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideSmoke === "function") UIO.hideSmoke(getCtx());
         },
         onHideSleep: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideSleep", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideSleep === "function") UIO.hideSleep(getCtx());
         },
         onCancelConfirm: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "cancelConfirm", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(getCtx());
         },
         onShowGod: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showGod", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.showGod === "function") UIO.showGod(getCtx());
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
         },
@@ -1697,14 +1310,12 @@
           return !!(UIO && typeof UIO.isHelpOpen === "function" && UIO.isHelpOpen(getCtx()));
         },
         onShowHelp: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showHelp", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.showHelp === "function") UIO.showHelp(getCtx());
         },
         onHideHelp: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideHelp", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideHelp === "function") UIO.hideHelp(getCtx());
         },
         // Character Sheet (C)
         isCharacterOpen: () => {
@@ -1712,14 +1323,12 @@
           return !!(UIO && typeof UIO.isCharacterOpen === "function" && UIO.isCharacterOpen(getCtx()));
         },
         onShowCharacter: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showCharacter", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.showCharacter === "function") UIO.showCharacter(getCtx());
         },
         onHideCharacter: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideCharacter", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideCharacter === "function") UIO.hideCharacter(getCtx());
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
@@ -1734,22 +1343,9 @@
   
   // Visual: add or strengthen a blood decal at tile (x,y)
   function addBloodDecal(x, y, mult = 1.0) {
-    // Prefer Decals module
     const DC = modHandle("Decals");
     if (DC && typeof DC.add === "function") {
       DC.add(getCtx(), x, y, mult);
-      return;
-    }
-    if (!inBounds(x, y)) return;
-    const d = decals.find(d => d.x === x && d.y === y);
-    const baseA = 0.16 + rng() * 0.18;
-    const baseR = Math.floor(TILE * (0.32 + rng() * 0.20));
-    if (d) {
-      d.a = Math.min(0.9, d.a + baseA * mult);
-      d.r = Math.max(d.r, baseR);
-    } else {
-      decals.push({ x, y, a: Math.min(0.9, baseA * mult), r: baseR });
-      if (decals.length > 240) decals.splice(0, decals.length - 240);
     }
   }
 
@@ -1799,43 +1395,30 @@
   }
 
   function showLootPanel(list) {
-    // Prefer centralized LootFlow or UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "LootFlow", "show", ctxLocal, list);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "UIOrchestration", "showLoot", ctxLocal, list);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    // Direct UIOrchestration fallback only
+    const LF = modHandle("LootFlow");
+    if (LF && typeof LF.show === "function") {
+      LF.show(getCtx(), list);
+      requestDraw();
+      return;
+    }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.showLoot === "function") {
       UIO.showLoot(getCtx(), list);
+      requestDraw();
     }
   }
 
   function hideLootPanel() {
-    // Prefer centralized LootFlow or UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "LootFlow", "hide", ctxLocal);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideLoot", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    // Direct UIOrchestration fallback only
+    const LF = modHandle("LootFlow");
+    if (LF && typeof LF.hide === "function") {
+      LF.hide(getCtx());
+      requestDraw();
+      return;
+    }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideLoot === "function") {
-      let wasOpen = false;
-      try { if (typeof UIO.isLootOpen === "function") wasOpen = !!UIO.isLootOpen(getCtx()); } catch (_) {}
       UIO.hideLoot(getCtx());
-      if (wasOpen) requestDraw();
+      requestDraw();
     }
   }
 
@@ -1844,128 +1427,49 @@
   function godHeal() {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.heal === "function") { GC.heal(() => getCtx()); return; }
-    const G = modHandle("God");
-    if (G && typeof G.heal === "function") { G.heal(getCtx()); return; }
     log("GOD: heal not available.", "warn");
   }
 
   function godSpawnStairsHere() {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.spawnStairsHere === "function") { GC.spawnStairsHere(() => getCtx()); return; }
-    const G = modHandle("God");
-    if (G && typeof G.spawnStairsHere === "function") { G.spawnStairsHere(getCtx()); return; }
     log("GOD: spawnStairsHere not available.", "warn");
   }
 
   function godSpawnItems(count = 3) {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.spawnItems === "function") { GC.spawnItems(() => getCtx(), count); return; }
-    const G = modHandle("God");
-    if (G && typeof G.spawnItems === "function") { G.spawnItems(getCtx(), count); return; }
     log("GOD: spawnItems not available.", "warn");
   }
 
   function godSpawnEnemyNearby(count = 1) {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.spawnEnemyNearby === "function") { GC.spawnEnemyNearby(() => getCtx(), count); return; }
-    const G = modHandle("God");
-    if (G && typeof G.spawnEnemyNearby === "function") { G.spawnEnemyNearby(getCtx(), count); return; }
     log("GOD: spawnEnemyNearby not available.", "warn");
   }
 
   
   function renderInventoryPanel() {
-    // Prefer centralized UI orchestration or InventoryController via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "UIOrchestration", "renderInventory", ctxLocal);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "InventoryController", "render", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    // Fallback: UIOrchestration
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.renderInventory === "function") {
       UIO.renderInventory(getCtx());
-      return;
     }
   }
 
   function showInventoryPanel() {
-    // Prefer centralized UI orchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "showInventory", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    let wasOpen = false;
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
-        if (r && r.ok) wasOpen = !!r.result;
-      }
-      if (!wasOpen) {
-        const UIO = modHandle("UIOrchestration");
-        if (UIO && typeof UIO.isInventoryOpen === "function") wasOpen = !!UIO.isInventoryOpen(getCtx());
-      }
-    } catch (_) {}
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.show === "function") {
-      IC.show(getCtx());
-    } else {
-      renderInventoryPanel();
-      const UIO = modHandle("UIOrchestration");
-      if (UIO && typeof UIO.showInventory === "function") {
-        UIO.showInventory(getCtx());
-      }
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.showInventory === "function") {
+      UIO.showInventory(getCtx());
+      requestDraw();
     }
-    if (!wasOpen) requestDraw();
   }
 
   function hideInventoryPanel() {
-    // Prefer centralized UI orchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideInventory", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    let wasOpen = false;
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const r = Cap.safeCall(ctxLocal, "UIOrchestration", "isInventoryOpen", ctxLocal);
-        if (r && r.ok) wasOpen = !!r.result;
-      }
-      if (!wasOpen) {
-        const UIO = modHandle("UIOrchestration");
-        if (UIO && typeof UIO.isInventoryOpen === "function") wasOpen = !!UIO.isInventoryOpen(getCtx());
-      }
-    } catch (_) {}
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.hide === "function") {
-      IC.hide(getCtx());
-      if (wasOpen) requestDraw();
-      return;
-    }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideInventory === "function") {
       UIO.hideInventory(getCtx());
-      if (wasOpen) requestDraw();
-      return;
+      requestDraw();
     }
-    if (wasOpen) requestDraw();
   }
 
   function equipItemByIndex(idx) {
@@ -2013,21 +1517,9 @@
   
 
   function showGameOver() {
-    // Prefer centralized DeathFlow or UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "DeathFlow", "show", ctxLocal);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "UIOrchestration", "showGameOver", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
-    // Fallback: UIBridge
-    const UB = modHandle("UIBridge");
-    if (UB && typeof UB.showGameOver === "function") {
-      UB.showGameOver(getCtx());
+    const UIO = modHandle("UIOrchestration");
+    if (UIO && typeof UIO.showGameOver === "function") {
+      UIO.showGameOver(getCtx());
       requestDraw();
     }
   }
@@ -2036,8 +1528,6 @@
   function setAlwaysCrit(v) {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.setAlwaysCrit === "function") { GC.setAlwaysCrit(() => getCtx(), v); alwaysCrit = !!v; return; }
-    const G = modHandle("God");
-    if (G && typeof G.setAlwaysCrit === "function") { G.setAlwaysCrit(getCtx(), v); alwaysCrit = !!v; return; }
     log("GOD: setAlwaysCrit not available.", "warn");
   }
 
@@ -2045,8 +1535,6 @@
   function setCritPart(part) {
     const GC = modHandle("GodControls");
     if (GC && typeof GC.setCritPart === "function") { GC.setCritPart(() => getCtx(), part); forcedCritPart = part; return; }
-    const G = modHandle("God");
-    if (G && typeof G.setCritPart === "function") { G.setCritPart(getCtx(), part); forcedCritPart = part; return; }
     log("GOD: setCritPart not available.", "warn");
   }
 
@@ -2056,14 +1544,6 @@
     if (GC && typeof GC.applySeed === "function") {
       const ctx = getCtx();
       GC.applySeed(() => getCtx(), seedUint32);
-      rng = ctx.rng || rng;
-      applyCtxSyncAndRefresh(ctx);
-      return;
-    }
-    const G = modHandle("God");
-    if (G && typeof G.applySeed === "function") {
-      const ctx = getCtx();
-      G.applySeed(ctx, seedUint32);
       rng = ctx.rng || rng;
       applyCtxSyncAndRefresh(ctx);
       return;
@@ -2083,29 +1563,10 @@
       applyCtxSyncAndRefresh(ctx);
       return;
     }
-    const G = modHandle("God");
-    if (G && typeof G.rerollSeed === "function") {
-      const ctx = getCtx();
-      G.rerollSeed(ctx);
-      rng = ctx.rng || rng;
-      applyCtxSyncAndRefresh(ctx);
-      return;
-    }
     log("GOD: rerollSeed not available.", "warn");
   }
 
   function hideGameOver() {
-    // Prefer centralized DeathFlow or UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        let res = Cap.safeCall(ctxLocal, "DeathFlow", "hide", ctxLocal);
-        if (res && res.ok) return;
-        res = Cap.safeCall(ctxLocal, "UIOrchestration", "hideGameOver", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideGameOver === "function") {
       UIO.hideGameOver(getCtx());
@@ -2212,15 +1673,6 @@
 
   
   function updateUI() {
-    // Prefer UIOrchestration via Capabilities.safeCall
-    try {
-      const Cap = modHandle("Capabilities");
-      const ctxLocal = getCtx();
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctxLocal, "UIOrchestration", "updateStats", ctxLocal);
-        if (res && res.ok) return;
-      }
-    } catch (_) {}
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.updateStats === "function") {
       UIO.updateStats(getCtx());
@@ -2341,7 +1793,6 @@
           if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
           else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
         } catch (_) {}
-        try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms (avg ${PERF.avgTurnMs.toFixed(2)}ms)`); } catch (_) {}
         return;
       }
     } catch (_) {}
@@ -2436,7 +1887,6 @@
       if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
       else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
     } catch (_) {}
-    try { if (window.DEV) console.debug(`[PERF] turn ${PERF.lastTurnMs.toFixed(2)}ms (avg ${PERF.avgTurnMs.toFixed(2)}ms)`); } catch (_) {}
   }
   
   
@@ -2453,8 +1903,7 @@
           onDrink: (idx) => drinkPotionByIndex(idx),
           onEat: (idx) => eatFoodByIndex(idx),
           onRestart: () => restartGame(),
-          onWait: () => turn(),
-          onTownExit: () => requestLeaveTown()
+          onWait: () => turn()
         });
       }
       // Install GOD-specific handlers via dedicated module
@@ -2615,14 +2064,7 @@
           },
           // Open Region Map at current overworld tile and sync orchestrator state
           openRegionMap: () => {
-            const Cap = modHandle("Capabilities");
             const ctx = getCtx();
-            if (Cap && typeof Cap.safeCall === "function") {
-              const res = Cap.safeCall(ctx, "RegionMapRuntime", "open", ctx);
-              const ok = !!(res && res.ok && res.result);
-              if (ok) applyCtxSyncAndRefresh(ctx);
-              return ok;
-            }
             const RM = modHandle("RegionMapRuntime");
             if (RM && typeof RM.open === "function") {
               const ok = !!RM.open(ctx);
@@ -2633,22 +2075,12 @@
           },
           // Start an encounter inside the active Region Map (ctx.mode === "region")
           startRegionEncounter: (template, biome) => {
-            const Cap = modHandle("Capabilities");
             const ctx = getCtx();
-            if (Cap && typeof Cap.safeCall === "function") {
-              const res = Cap.safeCall(ctx, "EncounterRuntime", "enterRegion", ctx, { template, biome });
-              const ok = !!(res && res.ok && res.result);
-              if (ok) {
-                applyCtxSyncAndRefresh(ctx);
-              }
-              return ok;
-            }
             const ER = modHandle("EncounterRuntime");
             if (ER && typeof ER.enterRegion === "function") {
               const ok = !!ER.enterRegion(ctx, { template, biome });
               if (ok) {
                 applyCtxSyncAndRefresh(ctx);
-                
               }
               return ok;
             }

@@ -19,13 +19,15 @@
  * - Runtime occupancy considers blocking props; relaxed occupancy is used only for debug visualization.
  */
 
+import { getGameData, getRNGUtils } from "../utils/access.js";
+
   function randInt(ctx, a, b) { return Math.floor(ctx.rng() * (b - a + 1)) + a; }
   function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
 
   // Seeded RNG helper: prefers RNGUtils.getRng(ctx.rng), falls back to ctx.rng; deterministic when unavailable
   function rngFor(ctx) {
     try {
-      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+      const RU = getRNGUtils(ctx);
       if (RU && typeof RU.getRng === "function") {
         return RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
       }
@@ -617,7 +619,8 @@
     // Shopkeepers with homes and signs
     (function spawnShopkeepers() {
       if (!Array.isArray(shops) || shops.length === 0) return;
-      const ND = (typeof window !== "undefined" && window.GameData && window.GameData.npcs) ? window.GameData.npcs : null;
+      const GD = getGameData(ctx);
+      const ND = GD && GD.npcs ? GD.npcs : null;
       const keeperLines = (ND && Array.isArray(ND.shopkeeperLines) && ND.shopkeeperLines.length) ? ND.shopkeeperLines : ["We open on schedule.","Welcome in!","Back soon."];
       const keeperNames = (ND && Array.isArray(ND.shopkeeperNames) && ND.shopkeeperNames.length) ? ND.shopkeeperNames : ["Shopkeeper","Trader","Smith"];
       for (const s of shops) {
@@ -702,7 +705,8 @@
         return null;
       }
 
-      const ND = (typeof window !== "undefined" && window.GameData && window.GameData.npcs) ? window.GameData.npcs : null;
+      const GD = getGameData(ctx);
+      const ND = GD && GD.npcs ? GD.npcs : null;
       const linesHome = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length) ? ND.residentLines : ["Home sweet home.","A quiet day indoors.","Just tidying up."];
       const residentNames = (ND && Array.isArray(ND.residentNames) && ND.residentNames.length) ? ND.residentNames : ["Resident","Villager"];
 
@@ -787,7 +791,8 @@
     // Pets
     (function spawnPets() {
       const maxCats = 2, maxDogs = 2;
-      const ND = (typeof window !== "undefined" && window.GameData && window.GameData.npcs) ? window.GameData.npcs : null;
+      const GD = getGameData(ctx);
+      const ND = GD && GD.npcs ? GD.npcs : null;
       const namesCat = (ND && Array.isArray(ND.petCats) && ND.petCats.length) ? ND.petCats : ["Cat","Mittens","Whiskers"];
       const namesDog = (ND && Array.isArray(ND.petDogs) && ND.petDogs.length) ? ND.petDogs : ["Dog","Rover","Buddy"];
       function placeFree() {

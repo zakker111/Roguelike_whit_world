@@ -13,6 +13,7 @@
  *   clearGameStorage(ctx)
  */
 import { attachGlobal } from "../utils/global.js";
+import { getMod } from "../utils/access.js";
 
 export function heal(ctx) {
   const prev = ctx.player.hp;
@@ -31,7 +32,7 @@ export function spawnStairsHere(ctx) {
   ctx.visible[y][x] = true;
   ctx.log("GOD: Stairs appear beneath your feet.", "notice");
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -234,7 +235,7 @@ export function spawnEnemyNearby(ctx, count = 1) {
 
   if (spawned.length) {
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }

@@ -10,6 +10,8 @@
  * - returnToWorldIfAtGate(ctx): leaves town if the player stands on the gate tile; returns true if handled
  */
 
+import { getMod } from "../utils/access.js";
+
 export function generate(ctx) {
   // Ensure townBiome is not carrying over from previous towns; allow derive/persist per town
   try { ctx.townBiome = undefined; } catch (_) {}
@@ -43,7 +45,7 @@ export function generate(ctx) {
 
       // Post-gen refresh via StateSync
       try {
-        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }
@@ -179,13 +181,10 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
       const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, shopRef) : false;
       const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(shopRef) : "";
       if (openNow) {
-        let wasOpen = false;
         try {
-          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-          if (Cap && typeof Cap.safeCall === "function") {
-            const state = Cap.safeCall(ctx, "UIOrchestration", "isShopOpen", ctx);
-            wasOpen = !!(state && state.result);
-            Cap.safeCall(ctx, "UIOrchestration", "showShop", ctx, sourceNpc || npc);
+          const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.showShop === "function") {
+            UIO.showShop(ctx, sourceNpc || npc);
           }
         } catch (_) {}
         // UIOrchestration.showShop schedules draw when opening; no manual draw needed
@@ -317,7 +316,7 @@ export function tryMoveTown(ctx, dx, dy) {
   if (walkable) {
     ctx.player.x = nx; ctx.player.y = ny;
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
@@ -400,9 +399,7 @@ export function applyLeaveSync(ctx) {
     ctx.dungeon = ctx.dungeonInfo = null;
   } catch (_) {}
 
-  // Hide UI elements
-  hideExitButton(ctx);
-  // Ensure Quest Board (and similar town-only modals) are closed on exit
+  // Hide UI elements (Quest Board and similar town-only modals)
   try {
     const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
     if (UB && typeof UB.hideQuestBoard === "function") UB.hideQuestBoard(ctx);
@@ -412,7 +409,7 @@ export function applyLeaveSync(ctx) {
 
   // Refresh via StateSync
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -445,22 +442,7 @@ function centerCamera(ctx) {
   } catch (_) {}
 }
 
-export function showExitButton(ctx) {
-  try {
-    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-    if (Cap && typeof Cap.safeCall === "function") {
-      Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
-    }
-  } catch (_) {}
-}
-export function hideExitButton(ctx) {
-  try {
-    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-    if (Cap && typeof Cap.safeCall === "function") {
-      Cap.safeCall(ctx, "UIOrchestration", "hideTownExitButton", ctx);
-    }
-  } catch (_) {}
-}
+
 
 // Back-compat: attach to window for classic scripts
 export function tick(ctx) {
@@ -655,5 +637,5 @@ export function rebuildOccupancy(ctx) {
 }
 
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, showExitButton, hideExitButton, rebuildOccupancy };
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, rebuildOccupancy };
 }

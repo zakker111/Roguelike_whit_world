@@ -14,6 +14,7 @@
  * - Keeps logic aligned with existing game.js/dungeon flow for consistency.
  */
 
+import { getRNGUtils, getMod } from "../utils/access.js";
 function round1(ctx, n) {
   if (ctx && ctx.utils && typeof ctx.utils.round1 === "function") return ctx.utils.round1(n);
   return Math.round(n * 10) / 10;
@@ -80,14 +81,10 @@ export function enemyDamageMultiplier(level) {
  */
 export function playerAttackEnemy(ctx, enemy) {
   if (!ctx || !enemy) return;
-  const rng = (function () {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-        return window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
-      }
-    } catch (_) {}
-    return (typeof ctx.rng === "function") ? ctx.rng : null;
-  })();
+  const RU = (function(){ try { return getRNGUtils(ctx); } catch(_) { return null; } })();
+  const rng = (RU && typeof RU.getRng === "function")
+    ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+    : ((typeof ctx.rng === "function") ? ctx.rng : null);
 
   // Helper: classify equipped weapon for skill tracking
   function classifyWeapon(p) {
@@ -109,9 +106,11 @@ export function playerAttackEnemy(ctx, enemy) {
 
   // GOD forced part (best-effort)
   try {
-    const forcedPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string")
-      ? window.ALWAYS_CRIT_PART
-      : (typeof localStorage !== "undefined" ? (localStorage.getItem("ALWAYS_CRIT_PART") || "") : "");
+    const forcedPart = (typeof ctx.forcedCritPart === "string" && ctx.forcedCritPart)
+      ? ctx.forcedCritPart
+      : ((typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string")
+        ? window.ALWAYS_CRIT_PART
+        : (typeof localStorage !== "undefined" ? (localStorage.getItem("ALWAYS_CRIT_PART") || "") : ""));
     if (forcedPart && (ctx.Combat && ctx.Combat.profiles && ctx.Combat.profiles[forcedPart])) {
       loc = ctx.Combat.profiles[forcedPart];
     }
@@ -126,8 +125,8 @@ export function playerAttackEnemy(ctx, enemy) {
   // Prefer RNGUtils.chance when available for determinism; fallback to raw rng comparison
   const didBlock = (function () {
     try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-        return window.RNGUtils.chance(blockChance, rng);
+      if (RU && typeof RU.chance === "function") {
+        return RU.chance(blockChance, rng);
       }
     } catch (_) {}
     if (typeof rng === "function") return rng() < blockChance;
@@ -153,9 +152,9 @@ export function playerAttackEnemy(ctx, enemy) {
       if (typeof ctx.decayBlockingHands === "function") ctx.decayBlockingHands();
       else if (typeof ctx.decayEquipped === "function") {
         const rf = (min, max) =>
-          (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function")
-            ? window.RNGUtils.float(min, max, 1, rng)
-            : (min + (rng() * (max - min)));
+          (RU && typeof RU.float === "function")
+            ? RU.float(min, max, 1, rng)
+            : (min + ((typeof rng === "function" ? rng() : Math.random()) * (max - min)));
         ctx.decayEquipped("hands", rf(0.2, 0.7));
       }
     } catch (_) {}
@@ -187,18 +186,18 @@ export function playerAttackEnemy(ctx, enemy) {
   } catch (_) {}
 
   let isCrit = false;
-  const alwaysCrit = !!((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false);
+  const alwaysCrit = !!(((typeof ctx.alwaysCrit === "boolean") ? ctx.alwaysCrit : ((typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? window.ALWAYS_CRIT : false)));
   const critChance = Math.max(0, Math.min(0.6, 0.12 + (loc.critBonus || 0)));
   let critMult = 1.8;
   try { if (ctx.Combat && typeof ctx.Combat.critMultiplier === "function") critMult = ctx.Combat.critMultiplier(rng); } catch (_) {}
   const didCrit = (function () {
     if (alwaysCrit) return true;
     try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-        return window.RNGUtils.chance(critChance, rng);
+      if (RU && typeof RU.chance === "function") {
+        return RU.chance(critChance, rng);
       }
     } catch (_) {}
-    const r = rng();
+    const r = (typeof rng === "function") ? rng() : Math.random();
     return r < critChance;
   })();
   if (didCrit) {
@@ -231,7 +230,7 @@ export function playerAttackEnemy(ctx, enemy) {
 
   // Status effects on crit
   try {
-    const ST = (typeof window !== "undefined") ? window.Status : (ctx.Status || null);
+    const ST = (ctx.Status || getMod(ctx, "Status") || (typeof window !== "undefined" ? window.Status : null));
     if (isCrit && loc.part === "legs" && enemy.hp > 0) {
       if (ST && typeof ST.applyLimpToEnemy === "function") ST.applyLimpToEnemy(ctx, enemy, 2);
       else { enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2); if (ctx.log) ctx.log(`${(enemy.type || "enemy")[0].toUpperCase()}${(enemy.type || "enemy").slice(1)} staggers; its legs are crippled and it can't move for 2 turns.`, "notice"); }
@@ -272,8 +271,8 @@ export function playerAttackEnemy(ctx, enemy) {
     if (typeof ctx.decayAttackHands === "function") ctx.decayAttackHands(false);
     else if (typeof ctx.decayEquipped === "function") {
       const rf = (min, max) =>
-        (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function")
-          ? window.RNGUtils.float(min, max, 1, rng)
+        (RU && typeof RU.float === "function")
+          ? RU.float(min, max, 1, rng)
           : ((min + max) / 2);
       ctx.decayEquipped("hands", rf(0.3, 1.0));
     }

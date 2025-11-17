@@ -7,9 +7,11 @@
 // Notes:
 // - Mode should match appearsIn in world_assets.json tiles (e.g., "overworld", "town", "dungeon", "region").
 // - Properties may include walkable, blocksFOV, emitsLight, etc., used by renderers/FOV.
+import { getGameData } from "../utils/access.js";
+
 export function getTileDef(mode, id) {
   try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const GD = getGameData();
     const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
     if (!arr) return null;
     const m = String(mode || "").toLowerCase();
@@ -28,7 +30,7 @@ export function getTileDef(mode, id) {
 // Lookup by symbolic key for a given mode, e.g., getTileDefByKey("town", "DOOR")
 export function getTileDefByKey(mode, key) {
   try {
-    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const GD = getGameData();
     const arr = GD && GD.tiles && Array.isArray(GD.tiles.tiles) ? GD.tiles.tiles : null;
     if (!arr) return null;
     const m = String(mode || "").toLowerCase();

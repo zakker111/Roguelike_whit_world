@@ -17,6 +17,8 @@
  * - encounter: exit via STAIRS or loot underfoot, consistent with dungeon behavior.
  */
 
+import { getMod } from "../utils/access.js";
+
 // Helpers
 function inBounds(ctx, x, y) {
   // Prefer centralized Bounds utility if available
@@ -178,7 +180,7 @@ export function doAction(ctx) {
         }
         // Unified refresh via StateSync (mandatory)
         try {
-          const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+          const SS = ctx.StateSync || getMod(ctx, "StateSync");
           if (SS && typeof SS.applyAndRefresh === "function") {
             SS.applyAndRefresh(ctx, {});
           }
@@ -201,7 +203,7 @@ export function doAction(ctx) {
           }
           // Unified refresh via StateSync (mandatory)
           try {
-            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            const SS = ctx.StateSync || getMod(ctx, "StateSync");
             if (SS && typeof SS.applyAndRefresh === "function") {
               SS.applyAndRefresh(ctx, {});
             }

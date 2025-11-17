@@ -12,6 +12,8 @@
  *   loadDungeonStateFor(ctx, x, y)
  */
 
+import { getMod } from "../utils/access.js";
+
 // Helpers
 function inBounds(ctx, x, y) {
   try {
@@ -31,7 +33,7 @@ function inBounds(ctx, x, y) {
 
 function syncAfterMutation(ctx) {
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
       return;
@@ -83,15 +85,7 @@ function movePlayerToTownGateInterior(ctx) {
   } catch (_) {}
 }
 
-// DEV diagnostics: town biome on entry
-function _devTownBiomeLog(ctx) {
-  try {
-    if (typeof window !== "undefined" && window.DEV) {
-      const wrp = ctx.worldReturnPos ? `${ctx.worldReturnPos.x|0},${ctx.worldReturnPos.y|0}` : "n/a";
-      console.debug(`[DEV] Town enter biome=${String(ctx.townBiome || "")} at ${wrp}`);
-    }
-  } catch (_) {}
-}
+
 
 // Public API
 export function leaveTownNow(ctx) {
@@ -137,12 +131,7 @@ export function leaveTownNow(ctx) {
       ctx.player.y = Math.max(0, Math.min((rows ? rows - 1 : 0), ly));
     }
   }
-  try {
-    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-    if (Cap && typeof Cap.safeCall === "function") {
-      Cap.safeCall(ctx, "UIOrchestration", "hideTownExitButton", ctx);
-    }
-  } catch (_) {}
+  
   if (ctx.log) ctx.log("You return to the overworld.", "notice");
   syncAfterMutation(ctx);
 }
@@ -150,10 +139,10 @@ export function leaveTownNow(ctx) {
 export function requestLeaveTown(ctx) {
   const pos = { x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60 };
   try {
-    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-    if (Cap && typeof Cap.safeCall === "function") {
-      const { ok } = Cap.safeCall(ctx, "UIOrchestration", "showConfirm", ctx, "Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
-      if (ok) return;
+    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.showConfirm === "function") {
+      UIO.showConfirm(ctx, "Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
+      return;
     }
   } catch (_) {}
   // Fallback: proceed to leave to avoid getting stuck without a confirm UI
@@ -213,17 +202,9 @@ export function enterTownIfOnTile(ctx) {
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
-            try {
-              if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
-              else {
-                const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-                if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
-              }
-            } catch (_) {}
             // Ensure player spawns on gate interior tile on entry
             movePlayerToTownGateInterior(ctx);
             if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
-            _devTownBiomeLog(ctx);
             syncAfterMutation(ctx);
             return true;
           }
@@ -242,44 +223,14 @@ export function enterTownIfOnTile(ctx) {
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
-            try {
-              if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
-              else {
-                const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-                if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
-              }
-            } catch (_) {}
             if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
-            _devTownBiomeLog(ctx);
             syncAfterMutation(ctx);
             return true;
           }
         }
       } catch (_) {}
 
-      // Fallback: inline generation path via Town module (ctx-first)
-      if (ctx.Town && typeof ctx.Town.generate === "function") {
-        ctx.Town.generate(ctx);
-        try { if (typeof ctx.Town.ensureSpawnClear === "function") ctx.Town.ensureSpawnClear(ctx); } catch (_) {}
-        ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
-        // Ensure player stands on the gate interior tile
-        movePlayerToTownGateInterior(ctx);
-        // Town.generate already spawns a gate greeter; avoid duplicates.
-        try { if (typeof ctx.Town.spawnGateGreeters === "function") ctx.Town.spawnGateGreeters(ctx, 0); } catch (_) {}
-      }
-      try {
-        if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
-      } catch (_) {}
-      try {
-        if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
-        else {
-          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
-        }
-      } catch (_) {}
-      if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
-      syncAfterMutation(ctx);
-      return true;
+      
     }
     return false;
   }
@@ -298,10 +249,6 @@ export function saveCurrentDungeonState(ctx) {
       ctx.DungeonState.save(ctx);
       return;
     }
-    if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") {
-      window.DungeonState.save(ctx);
-      return;
-    }
   } catch (_) {}
 }
 
@@ -317,11 +264,6 @@ export function loadDungeonStateFor(ctx, x, y) {
   try {
     if (ctx.DungeonState && typeof ctx.DungeonState.load === "function") {
       const ok = ctx.DungeonState.load(ctx, x, y);
-      if (ok) syncAfterMutation(ctx);
-      return ok;
-    }
-    if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.load === "function") {
-      const ok = window.DungeonState.load(ctx, x, y);
       if (ok) syncAfterMutation(ctx);
       return ok;
     }
@@ -383,13 +325,7 @@ export function enterDungeonIfOnEntrance(ctx) {
       if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     } catch (_) {}
     saveCurrentDungeonState(ctx);
-    try {
-      const k = `${info.x},${info.y}`;
-      if (ctx.log) ctx.log(`[DEV] Initial dungeon save for key ${k}.`, "notice");
-      const dx = (ctx.dungeonExitAt && typeof ctx.dungeonExitAt.x === "number") ? ctx.dungeonExitAt.x : "n/a";
-      const dy = (ctx.dungeonExitAt && typeof ctx.dungeonExitAt.y === "number") ? ctx.dungeonExitAt.y : "n/a";
-      if (typeof window !== "undefined" && window.DEV && window.Logger && typeof window.Logger.log === "function") window.Logger.log("[DEV] Initial dungeon save for key " + k + ". worldEnter=(" + enterWX + "," + enterWY + ") dungeonExit=(" + dx + "," + dy + ") player=(" + ctx.player.x + "," + ctx.player.y + ")", "notice", { category: "DungeonState" });
-    } catch (_) {}
+    
     if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "notice");
     syncAfterMutation(ctx);
     return true;
@@ -409,7 +345,7 @@ export function enterRuinsIfOnTile(ctx) {
   if (t && WT && t === WT.RUINS) {
     // Open Region Map at this location; RegionMapRuntime.open rejects town/dungeon but allows ruins
     try {
-      const RMR = (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+      const RMR = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
       if (RMR && typeof RMR.open === "function") {
         const ok = !!RMR.open(ctx);
         if (ok) {

@@ -23,7 +23,7 @@ import * as ConfirmModal from "/ui/components/confirm_modal.js";
 import * as HandChooser from "/ui/components/hand_chooser.js";
 import * as HitChooser from "/ui/components/hit_chooser.js";
 import * as GameOverModal from "/ui/components/game_over_modal.js";
-import * as TownExit from "/ui/components/town_exit.js";
+
 import * as GodPanel from "/ui/components/god_panel.js";
 import * as InventoryPanel from "/ui/components/inventory_panel.js";
 import * as LootPanel from "/ui/components/loot_panel.js";
@@ -43,7 +43,6 @@ export const UI = {
     onGodSetFov: null,
     onGodSetEncounterRate: null,
     onGodSpawnEnemy: null,
-    onTownExit: null,
   },
 
   init() {
@@ -250,14 +249,7 @@ export const UI = {
   },
 
   showConfirm(text, pos, onOk, onCancel) {
-    try { ConfirmModal.show(text, pos, onOk, onCancel); } catch (_) {
-      // fallback
-      try {
-        const ans = window.confirm(text || "Are you sure?");
-        if (ans && typeof onOk === "function") onOk();
-        else if (!ans && typeof onCancel === "function") onCancel();
-      } catch (_) {}
-    }
+    try { ConfirmModal.show(text, pos, onOk, onCancel); } catch (_) {}
   },
 
   hideConfirm() {
@@ -272,15 +264,9 @@ export const UI = {
     try { ConfirmModal.cancel(); } catch (_) {}
   },
 
-  showTownExitButton() {
-    try { TownExit.show(); } catch (_) {}
-  },
+  
 
-  hideTownExitButton() {
-    try { TownExit.hide(); } catch (_) {}
-  },
-
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onTownExit, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -298,10 +284,6 @@ export const UI = {
     if (typeof onGodSetCritPart === "function") this.handlers.onGodSetCritPart = onGodSetCritPart;
     if (typeof onGodApplySeed === "function") this.handlers.onGodApplySeed = onGodApplySeed;
     if (typeof onGodRerollSeed === "function") this.handlers.onGodRerollSeed = onGodRerollSeed;
-    if (typeof onTownExit === "function") {
-      this.handlers.onTownExit = onTownExit;
-      try { TownExit.setHandler(onTownExit); } catch (_) {}
-    }
     if (typeof onGodCheckHomes === "function") this.handlers.onGodCheckHomes = onGodCheckHomes;
     if (typeof onGodCheckInnTavern === "function") this.handlers.onGodCheckInnTavern = onGodCheckInnTavern;
     if (typeof onGodCheckSigns === "function") this.handlers.onGodCheckSigns = onGodCheckSigns;
@@ -588,26 +570,11 @@ export const UI = {
     } catch (_) {}
     this.updatePerfButton();
     try {
-      const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
-      if (Cap && typeof Cap.safeCall === "function") {
-        const r = Cap.safeCall(null, "UIOrchestration", "requestDraw", null);
-        if (r && r.ok) {
-          // requested
-        } else {
-          const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-          if (UIO && typeof UIO.requestDraw === "function") {
-            UIO.requestDraw(null);
-          } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-            window.GameLoop.requestDraw();
-          }
-        }
-      } else {
-        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-        if (UIO && typeof UIO.requestDraw === "function") {
-          UIO.requestDraw(null);
-        } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-          window.GameLoop.requestDraw();
-        }
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
       }
     } catch (_) {}
   },
@@ -723,26 +690,11 @@ export const UI = {
     } catch (_) {}
     this.updateMinimapButton();
     try {
-      const Cap = (typeof window !== "undefined" ? window.Capabilities : null);
-      if (Cap && typeof Cap.safeCall === "function") {
-        const r = Cap.safeCall(null, "UIOrchestration", "requestDraw", null);
-        if (r && r.ok) {
-          // requested
-        } else {
-          const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-          if (UIO && typeof UIO.requestDraw === "function") {
-            UIO.requestDraw(null);
-          } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-            window.GameLoop.requestDraw();
-          }
-        }
-      } else {
-        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
-        if (UIO && typeof UIO.requestDraw === "function") {
-          UIO.requestDraw(null);
-        } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
-          window.GameLoop.requestDraw();
-        }
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
       }
     } catch (_) {}
   },

@@ -227,10 +227,12 @@
         function toggle() {
           if (pre.hidden) {
             pre.hidden = false;
-            status.textContent = 'Expanded';
             h2.setAttribute('aria-expanded', 'true');
             card.dataset.expanded = 'true';
-            if (!loaded) { status.textContent = 'Loading…'; load().then(() => { status.textContent = 'Expanded'; }).catch(() => { status.textContent = 'Loaded with warnings'; }); }
+            status.textContent = 'Loading…';
+            load()
+              .then(() => { status.textContent = 'Expanded'; })
+              .catch(() => { status.textContent = 'Loaded with warnings'; });
           } else {
             pre.hidden = true;
             status.textContent = 'Collapsed';

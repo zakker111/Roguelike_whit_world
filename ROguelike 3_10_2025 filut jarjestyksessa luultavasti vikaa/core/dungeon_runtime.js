@@ -12,6 +12,8 @@
  * - enter(ctx, info)
  */
 
+import { getMod } from "../utils/access.js";
+
 export function keyFromWorldPos(x, y) {
   // Use a stable string key; avoid coupling to external state modules
   return `${x},${y}`;
@@ -63,12 +65,10 @@ function spawnWallTorches(ctx, options = {}) {
 
 export function save(ctx, logOnce) {
   if (ctx.DungeonState && typeof ctx.DungeonState.save === "function") {
-    try { if (typeof window !== "undefined" && window.DEV && logOnce && window.Logger && typeof window.Logger.log === "function") window.Logger.log("[TRACE] Calling ctx.DungeonState.save", "notice", { category: "DungeonState" }); } catch (_) {}
     ctx.DungeonState.save(ctx);
     return;
   }
   if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") {
-    try { if (typeof window !== "undefined" && window.DEV && logOnce && window.Logger && typeof window.Logger.log === "function") window.Logger.log("[TRACE] Calling DungeonState.save", "notice", { category: "DungeonState" }); } catch (_) {}
     window.DungeonState.save(ctx);
     return;
   }
@@ -112,7 +112,7 @@ export function load(ctx, x, y) {
     const ok = ctx.DungeonState.load(ctx, x, y);
     if (ok) {
       try {
-        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }
@@ -124,7 +124,7 @@ export function load(ctx, x, y) {
     const ok = window.DungeonState.load(ctx, x, y);
     if (ok) {
       try {
-        const SS = ctx.StateSync || window.StateSync || null;
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }
@@ -161,7 +161,7 @@ export function load(ctx, x, y) {
   }
 
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -199,17 +199,10 @@ export function generate(ctx, depth) {
       const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
       if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     } catch (_) {}
-    // Dev counts
-    try {
-      if (window.DEV) {
-        const visCount = ctx.enemies.filter(e => ctx.inBounds(e.x, e.y) && ctx.visible[e.y][e.x]).length;
-        const torchCount = Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps.filter(p => p && p.type === "wall_torch").length : 0;
-        ctx.log && ctx.log(`[DEV] Enemies spawned: ${ctx.enemies.length}, visible now: ${visCount}. Torches: ${torchCount}.`, "notice");
-      }
-    } catch (_) {}
+    
     // Refresh UI and visuals via StateSync, then message
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
@@ -239,7 +232,7 @@ export function generate(ctx, depth) {
   ctx.decals = [];
   ctx.dungeonProps = [];
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     } else {
@@ -330,7 +323,7 @@ export function returnToWorldIfAtExit(ctx) {
 
   // Refresh visuals via StateSync
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     } else {
@@ -621,7 +614,7 @@ export function enter(ctx, info) {
 
   // Ensure visuals are refreshed via StateSync
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -859,7 +852,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
     if (walkable && !blockedByEnemy) {
       ctx.player.x = nx; ctx.player.y = ny;
       try {
-        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }

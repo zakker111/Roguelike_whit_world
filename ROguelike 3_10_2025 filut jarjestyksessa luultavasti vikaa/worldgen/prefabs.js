@@ -20,15 +20,18 @@
 //   upstairsOverlay?: { w, h, offset: { x, y } | { ox, oy }, tiles: [...], props?: [...] }
 // }
 
+import { getGameData } from "../utils/access.js";
+
 function inBounds(ctx, x, y) {
   const H = Array.isArray(ctx.map) ? ctx.map.length : 0;
   const W = H && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
   return x >= 0 && y >= 0 && x < W && y < H;
 }
 
-export function prefabsAvailable() {
+export function prefabsAvailable(ctx) {
   try {
-    const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+    const GD = getGameData(ctx);
+    const PFB = (GD && GD.prefabs) ? GD.prefabs : null;
     if (!PFB || typeof PFB !== "object") return false;
     const hasHouses = Array.isArray(PFB.houses) && PFB.houses.length > 0;
     const hasInns = Array.isArray(PFB.inns) && PFB.inns.length > 0;

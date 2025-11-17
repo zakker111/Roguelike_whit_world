@@ -8,6 +8,8 @@
  * - onPlayerDied(ctx) [optional usage]
  */
 
+import { getMod } from "../utils/access.js";
+
 function mod(name) {
   try {
     const w = (typeof window !== "undefined") ? window : {};
@@ -87,7 +89,7 @@ export function restart(ctx) {
 export function onPlayerDied(ctx) {
   try { ctx.isDead = true; } catch (_) {}
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }

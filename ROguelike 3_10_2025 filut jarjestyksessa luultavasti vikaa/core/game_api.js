@@ -3,20 +3,19 @@
  * Provides a factory to attach a stable testing/automation API without coupling to core/game.js internals.
  */
 
+import { getMod } from "../utils/access.js";
+
 export function create(ctx) {
   function closeAnyModal() {
     try {
-      const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-      if (Cap && typeof Cap.safeCall === "function") {
-        const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
-        if (any && any.result) {
-          Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
-          Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
-          Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
-          Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
-          Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
-          Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
-        }
+      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.isAnyModalOpen === "function" && UIO.isAnyModalOpen(ctx)) {
+        if (typeof UIO.hideGod === "function") UIO.hideGod(ctx);
+        if (typeof UIO.hideInventory === "function") UIO.hideInventory(ctx);
+        if (typeof UIO.hideShop === "function") UIO.hideShop(ctx);
+        if (typeof UIO.hideSmoke === "function") UIO.hideSmoke(ctx);
+        if (typeof UIO.hideLoot === "function") UIO.hideLoot(ctx);
+        if (typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(ctx);
       }
     } catch (_) {}
   }
@@ -65,7 +64,7 @@ export function create(ctx) {
               try {
                 // Advance a turn to keep time/FOV/UI consistent with normal movement flows
                 if (typeof ctx.turn === "function") ctx.turn();
-                const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+                const SS = ctx.StateSync || getMod(ctx, "StateSync");
                 if (SS && typeof SS.applyAndRefresh === "function") {
                   SS.applyAndRefresh(ctx, {});
                 }
@@ -193,20 +192,7 @@ export function create(ctx) {
         if (!target) return true;
 
         // Ensure modals are closed to avoid movement gating
-        try {
-          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-          if (Cap && typeof Cap.safeCall === "function") {
-            const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
-            if (any && any.result) {
-              Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
-            }
-          }
-        } catch (_) {}
+        try { closeAnyModal(); } catch (_) {}
 
         const path = window.GameAPI.routeTo(target.x, target.y);
         if (!path || !path.length) return false;
@@ -231,20 +217,7 @@ export function create(ctx) {
         if (!target) return true;
 
         // Ensure modals are closed to avoid movement gating
-        try {
-          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-          if (Cap && typeof Cap.safeCall === "function") {
-            const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
-            if (any && any.result) {
-              Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
-            }
-          }
-        } catch (_) {}
+        try { closeAnyModal(); } catch (_) {}
 
         const path = window.GameAPI.routeTo(target.x, target.y);
         if (!path || !path.length) return false;
@@ -268,20 +241,7 @@ export function create(ctx) {
     enterTownIfOnTile: () => {
       try {
         // Ensure modals are closed to avoid movement gating
-        try {
-          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-          if (Cap && typeof Cap.safeCall === "function") {
-            const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
-            if (any && any.result) {
-              Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
-            }
-          }
-        } catch (_) {}
+        try { closeAnyModal(); } catch (_) {}
         // Fast path
         if (ctx.enterTownIfOnTile && ctx.enterTownIfOnTile()) return true;
         // Only attempt routing in overworld
@@ -332,20 +292,7 @@ export function create(ctx) {
     enterDungeonIfOnEntrance: () => {
       try {
         // Ensure modals are closed to avoid movement gating
-        try {
-          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-          if (Cap && typeof Cap.safeCall === "function") {
-            const any = Cap.safeCall(ctx, "UIOrchestration", "isAnyModalOpen", ctx);
-            if (any && any.result) {
-              Cap.safeCall(ctx, "UIOrchestration", "hideGod", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideInventory", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideShop", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideSmoke", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "hideLoot", ctx);
-              Cap.safeCall(ctx, "UIOrchestration", "cancelConfirm", ctx);
-            }
-          }
-        } catch (_) {}
+        try { closeAnyModal(); } catch (_) {}
         // Fast path
         if (ctx.enterDungeonIfOnEntrance && ctx.enterDungeonIfOnEntrance()) return true;
         // Only attempt routing in overworld
@@ -703,7 +650,7 @@ export function create(ctx) {
         }
         if (made > 0) {
           try {
-            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            const SS = ctx.StateSync || getMod(ctx, "StateSync");
             if (SS && typeof SS.applyAndRefresh === "function") {
               SS.applyAndRefresh(ctx, {});
             }
@@ -829,7 +776,7 @@ export function create(ctx) {
 
         if (ok) {
           try {
-            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            const SS = ctx.StateSync || getMod(ctx, "StateSync");
             if (SS && typeof SS.applyAndRefresh === "function") {
               SS.applyAndRefresh(ctx, {});
             }
