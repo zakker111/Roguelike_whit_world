@@ -179,13 +179,10 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
       const openNow = (SS && typeof SS.isShopOpenNow === "function") ? SS.isShopOpenNow(ctx, shopRef) : false;
       const sched = (SS && typeof SS.shopScheduleStr === "function") ? SS.shopScheduleStr(shopRef) : "";
       if (openNow) {
-        let wasOpen = false;
         try {
-          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-          if (Cap && typeof Cap.safeCall === "function") {
-            const state = Cap.safeCall(ctx, "UIOrchestration", "isShopOpen", ctx);
-            wasOpen = !!(state && state.result);
-            Cap.safeCall(ctx, "UIOrchestration", "showShop", ctx, sourceNpc || npc);
+          const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.showShop === "function") {
+            UIO.showShop(ctx, sourceNpc || npc);
           }
         } catch (_) {}
         // UIOrchestration.showShop schedules draw when opening; no manual draw needed
