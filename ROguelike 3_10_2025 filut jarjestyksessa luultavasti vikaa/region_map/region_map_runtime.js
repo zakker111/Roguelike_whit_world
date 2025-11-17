@@ -17,6 +17,7 @@
  */
 import * as World from "../world/world.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
+import { getMod, getRNGUtils, getUIOrchestration } from "../utils/access.js";
 import { attachGlobal } from "../utils/global.js";
 
 const DEFAULT_WIDTH = 28;
@@ -54,10 +55,10 @@ function getRegionRng(ctx) {
   return _mulberry32(mix);
 }
 
-// RNG helper: prefer ctx.RNGUtils; fallback to window.RNGUtils
+// RNG helper: prefer ctx.RNGUtils via access helper
 function getRU(ctx) {
   try {
-    return (ctx && ctx.RNGUtils) || (typeof window !== "undefined" ? window.RNGUtils : null);
+    return getRNGUtils(ctx);
   } catch (_) {
     return null;
   }
@@ -1065,7 +1066,7 @@ function open(ctx, size) {
       // Create enemies using Enemies definitions only (JSON-only)
       function createEnemyOfType(x, y, type) {
         try {
-          const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
+          const EM = ctx.Enemies || getMod(ctx, "Enemies");
           if (EM && typeof EM.getTypeDef === "function") {
             const td = EM.getTypeDef(type);
             if (td) {
@@ -1453,7 +1454,7 @@ function tryMove(ctx, dx, dy) {
           ctx.log && ctx.log(`The ${enemy.type} turns hostile!`, "warn");
         }
       } catch (_) {}
-      const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
+      const C = ctx.Combat || getMod(ctx, "Combat");
       if (C && typeof C.playerAttackEnemy === "function") {
         try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
         try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
@@ -1522,7 +1523,7 @@ function onAction(ctx) {
     if (corpseHere) {
       // Delegate to Loot subsystem so the loot panel is shown, matching dungeon behavior
       try {
-        const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+        const L = ctx.Loot || getMod(ctx, "Loot");
         if (L && typeof L.lootHere === "function") {
           L.lootHere(ctx);
           // Persist region state immediately so looted containers remain emptied on reopen
@@ -1658,15 +1659,18 @@ function onAction(ctx) {
     })();
 
     if (nearWater && hasPole) {
-      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
-      const UB = ctx.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
+      const UIO = getUIOrchestration(ctx);
+      const UB = ctx.UIBridge || getMod(ctx, "UIBridge");
       const onOk = () => {
         if (UB && typeof UB.showFishing === "function") {
           UB.showFishing(ctx, { minutesPerAttempt: 15, difficulty: 0.55 });
-        } else if (typeof window !== "undefined" && window.FishingModal && typeof window.FishingModal.show === "function") {
-          window.FishingModal.show(ctx, { minutesPerAttempt: 15, difficulty: 0.55 });
         } else {
-          try { ctx.log && ctx.log("Fishing UI not available.", "warn"); } catch (_) {}
+          const FM = getMod(ctx, "FishingModal");
+          if (FM && typeof FM.show === "function") {
+            FM.show(ctx, { minutesPerAttempt: 15, difficulty: 0.55 });
+          } else {
+            try { ctx.log && ctx.log("Fishing UI not available.", "warn"); } catch (_) {}
+          }
         }
       };
       const onCancel = () => {};
@@ -1693,13 +1697,13 @@ function tick(ctx) {
   // If an encounter is active within the region map, drive simple AI and completion check
   if (ctx.region && ctx.region._isEncounter) {
     try {
-      const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);
+      const AIH = ctx.AI || getMod(ctx, "AI");
       if (AIH && typeof AIH.enemiesAct === "function") {
         AIH.enemiesAct(ctx);
       }
     } catch (_) {}
     try {
-      const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+      const OF = ctx.OccupancyFacade || getMod(ctx, "OccupancyFacade");
       if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     } catch (_) {}
     // Victory: no enemies remain — keep player in Region Map (no auto-close or victory log)
@@ -1770,7 +1774,7 @@ function tick(ctx) {
 
         if (anyMoved) {
           try {
-            const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+            const OF = ctx.OccupancyFacade || getMod(ctx, "OccupancyFacade");
             if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
           } catch (_) {}
           try {

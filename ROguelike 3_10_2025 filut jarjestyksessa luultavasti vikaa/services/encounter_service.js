@@ -13,6 +13,8 @@
  * Exports (ESM + window.EncounterService):
  * - maybeTryEncounter(ctx) — call after a successful world step; may open a confirm UI.
  */
+import { getGameData, getRNGUtils, getMod, getUIOrchestration } from "../utils/access.js";
+
 const STATE = {
   lastWorldX: null,
   lastWorldY: null,
@@ -62,14 +64,15 @@ function biomeFromTile(tile) {
 }
 
 function registry(ctx) {
-  const GD = (typeof window !== "undefined" ? window.GameData : null);
+  const GD = getGameData(ctx);
   return GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : null;
 }
 
 function rngFor(ctx) {
   try {
-    if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-      return window.RNGUtils.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
+    const RU = getRNGUtils(ctx);
+    if (RU && typeof RU.getRng === "function") {
+      return RU.getRng((ctx && typeof ctx.rng === "function") ? ctx.rng : undefined);
     }
   } catch (_) {}
   return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
@@ -127,13 +130,14 @@ function findTemplateById(ctx, id) {
 
 function tryEnter(ctx, tmpl, biome, difficulty) {
   try {
-    if (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function") {
-      const ok = !!window.GameAPI.enterEncounter(tmpl, biome, difficulty);
+    const GA = ctx.GameAPI || getMod(ctx, "GameAPI");
+    if (GA && typeof GA.enterEncounter === "function") {
+      const ok = !!GA.enterEncounter(tmpl, biome, difficulty);
       if (ok) return true;
     }
   } catch (_) {}
   try {
-    const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+    const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime");
     if (ER && typeof ER.enter === "function") {
       const ok2 = !!ER.enter(ctx, { template: tmpl, biome, difficulty });
       if (ok2) {
@@ -219,9 +223,10 @@ export function maybeTryEncounter(ctx) {
     // Deterministic roll using RNGUtils when available; fallback to direct rng() comparison
     const willEncounter = (function () {
       try {
-        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
+        const RU = getRNGUtils(ctx);
+        if (RU && typeof RU.chance === "function") {
           const rngFn = (typeof ctx.rng === "function") ? ctx.rng : undefined;
-          return window.RNGUtils.chance(chance, rngFn);
+          return RU.chance(chance, rngFn);
         }
       } catch (_) {}
       const rng = rngFor(ctx);
@@ -323,7 +328,7 @@ export function maybeTryEncounter(ctx) {
 
     // Prompt the user via UIOrchestration; cancel if confirm UI is unavailable
     try {
-      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      const UIO = getUIOrchestration(ctx);
       if (UIO && typeof UIO.showConfirm === "function") {
         UIO.showConfirm(ctx, text, null, () => enter(), () => cancel());
       } else {

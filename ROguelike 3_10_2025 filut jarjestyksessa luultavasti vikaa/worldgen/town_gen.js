@@ -22,6 +22,8 @@
  * - Interactions (signs, well, benches) give quick flavor and small resting options.
  */
 
+import { getGameData, getMod, getRNGUtils } from "../utils/access.js";
+
 function inBounds(ctx, x, y) {
   try {
     if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.inBounds === "function") {
@@ -81,8 +83,9 @@ function interactProps(ctx) {
   const p = candidates[0];
 
   // Data-driven interactions strictly via PropsService + props.json
-  if (typeof window !== "undefined" && window.PropsService && typeof window.PropsService.interact === "function") {
-    return window.PropsService.interact(ctx, p);
+  const PS = ctx.PropsService || getMod(ctx, "PropsService");
+  if (PS && typeof PS.interact === "function") {
+    return PS.interact(ctx, p);
   }
   return false;
 }
@@ -252,7 +255,7 @@ function clearAdjacentNPCsAroundPlayer(ctx) {
 // ---- Generation (compact version; retains core behavior and mutations) ----
 function generate(ctx) {
   // Seeded RNG helper for determinism
-  const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+  const RU = getRNGUtils(ctx);
   const rng = (RU && typeof RU.getRng === "function")
     ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
     : ((typeof ctx.rng === "function") ? ctx.rng : null);
@@ -270,7 +273,8 @@ function generate(ctx) {
   } catch (_) { info = null; }
 
   // Size the town map from data/town.json (fallback to previous values)
-  const TOWNCFG = (typeof window !== "undefined" && window.GameData && window.GameData.town) || null;
+  const GD = getGameData(ctx);
+  const TOWNCFG = (GD && GD.town) || null;
   function cfgSize(sizeKey) {
     const d = (TOWNCFG && TOWNCFG.sizes && TOWNCFG.sizes[sizeKey]) || null;
     if (d) return { W: Math.min(ctx.MAP_COLS, d.W | 0), H: Math.min(ctx.MAP_ROWS, d.H | 0) };
@@ -354,7 +358,7 @@ function generate(ctx) {
   // Derive and persist the town biome from the overworld around this town's location
   (function deriveTownBiome() {
     try {
-      const WMOD = (typeof window !== "undefined" ? window.World : null);
+      const WMOD = ctx.World || getMod(ctx, "World");
       const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
       const world = ctx.world || {};
 
@@ -683,7 +687,8 @@ function generate(ctx) {
     const innRect = placeInnRect();
 
     // Prefer prefab-based Inn stamping when available
-    const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+    const GD2 = getGameData(ctx);
+    const PFB = (GD2 && GD2.prefabs) ? GD2.prefabs : null;
     let usedPrefabInn = false;
     if (PFB && Array.isArray(PFB.inns) && PFB.inns.length) {
       // Prefer the largest inn prefab that fits, to ensure a roomy tavern
@@ -714,7 +719,8 @@ function generate(ctx) {
     
     if (!usedPrefabInn) {
       // Second pass: try stamping an inn prefab anywhere on the map (largest-first), allowing removal of overlapping buildings
-      const PFB2 = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      const GD3 = getGameData(ctx);
+      const PFB2 = (GD3 && GD3.prefabs) ? GD3.prefabs : null;
       if (PFB2 && Array.isArray(PFB2.inns) && PFB2.inns.length) {
         const innsSorted2 = PFB2.inns
           .slice()
@@ -960,7 +966,8 @@ function generate(ctx) {
       // Enforce at least one tile of floor margin between buildings
       if (!isAreaClearForBuilding(fx, fy, w, h, 1)) continue;
 
-      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      const GD4 = getGameData(ctx);
+      const PFB = (GD4 && GD4.prefabs) ? GD4.prefabs : null;
       let usedPrefab = false;
       if (PFB && Array.isArray(PFB.houses) && PFB.houses.length) {
         // Pick a house prefab that fits in (w,h)
@@ -988,7 +995,8 @@ function generate(ctx) {
   // Additional residential fill pass: attempt to reach a target count by random-fit stamping with slip
   (function prefabResidentialFillPass() {
     try {
-      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      const GD5 = getGameData(ctx);
+      const PFB = (GD5 && GD5.prefabs) ? GD5.prefabs : null;
       if (!PFB || !Array.isArray(PFB.houses) || !PFB.houses.length) return;
       const sizeKey = townSize;
       const targetBySize = (sizeKey === "small") ? 12 : (sizeKey === "city" ? 34 : 22);
@@ -1119,7 +1127,8 @@ function generate(ctx) {
   // Place shop prefabs near plaza with conflict resolution
   (function placeShopPrefabsStrict() {
     try {
-      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      const GD6 = getGameData(ctx);
+      const PFB = (GD6 && GD6.prefabs) ? GD6.prefabs : null;
       if (!PFB || !Array.isArray(PFB.shops) || !PFB.shops.length) return;
       const pr = ctx.townPlazaRect;
       if (!pr) return;
@@ -1293,9 +1302,10 @@ function generate(ctx) {
   }
 
   // Shop definitions: disable data-assigned shops only when strict prefabs are available
+  const GD9 = getGameData(ctx);
   let shopDefs = strictNow
     ? []
-    : ((typeof window !== "undefined" && window.GameData && Array.isArray(window.GameData.shops)) ? window.GameData.shops.slice(0) : [
+    : ((GD9 && Array.isArray(GD9.shops)) ? GD9.shops.slice(0) : [
         { type: "inn", name: "Inn", alwaysOpen: true },
         { type: "blacksmith", name: "Blacksmith", open: "08:00", close: "17:00" },
         { type: "apothecary", name: "Apothecary", open: "09:00", close: "18:00" },
@@ -1901,7 +1911,8 @@ function generate(ctx) {
       try {
         if (ctx.townPrefabUsage && Array.isArray(ctx.townPrefabUsage.plazas) && ctx.townPrefabUsage.plazas.length > 0) return;
       } catch (_) {}
-      const PFB = (typeof window !== "undefined" && window.GameData && window.GameData.prefabs) ? window.GameData.prefabs : null;
+      const GD7 = getGameData(ctx);
+      const PFB = (GD7 && GD7.prefabs) ? GD7.prefabs : null;
       const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
       if (!plazas.length) return;
       // Filter prefabs that fit inside current plaza rectangle
@@ -2008,7 +2019,8 @@ function generate(ctx) {
   })();
 
   // Roaming villagers near plaza
-  const ND = (typeof window !== "undefined" && window.GameData && window.GameData.npcs) ? window.GameData.npcs : null;
+  const GD8 = getGameData(ctx);
+  const ND = (GD8 && GD8.npcs) ? GD8.npcs : null;
   const baseLines = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length)
     ? ND.residentLines
     : [
