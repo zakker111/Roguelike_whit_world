@@ -12,6 +12,8 @@
  *   loadDungeonStateFor(ctx, x, y)
  */
 
+import { getMod } from "../utils/access.js";
+
 // Helpers
 function inBounds(ctx, x, y) {
   try {
@@ -31,7 +33,7 @@ function inBounds(ctx, x, y) {
 
 function syncAfterMutation(ctx) {
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
       return;

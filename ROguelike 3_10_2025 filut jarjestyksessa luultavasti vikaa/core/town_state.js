@@ -12,6 +12,8 @@
  * - Storage is kept both in-memory (page session) and localStorage so revisits are stable and memory persists.
  */
 
+import { getMod } from "../utils/access.js";
+
 const LS_KEY = "TOWN_STATES_V1";
 
 // Global in-memory fallback that persists across ctx instances within the same page/session
@@ -429,7 +431,7 @@ function applyState(ctx, st, x, y) {
 
   // Visual refresh via StateSync when available
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     } else {

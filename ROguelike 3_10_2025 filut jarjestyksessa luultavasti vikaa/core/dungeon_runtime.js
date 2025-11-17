@@ -12,6 +12,8 @@
  * - enter(ctx, info)
  */
 
+import { getMod } from "../utils/access.js";
+
 export function keyFromWorldPos(x, y) {
   // Use a stable string key; avoid coupling to external state modules
   return `${x},${y}`;
@@ -110,7 +112,7 @@ export function load(ctx, x, y) {
     const ok = ctx.DungeonState.load(ctx, x, y);
     if (ok) {
       try {
-        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }
@@ -122,7 +124,7 @@ export function load(ctx, x, y) {
     const ok = window.DungeonState.load(ctx, x, y);
     if (ok) {
       try {
-        const SS = ctx.StateSync || window.StateSync || null;
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }
@@ -159,7 +161,7 @@ export function load(ctx, x, y) {
   }
 
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -200,7 +202,7 @@ export function generate(ctx, depth) {
     
     // Refresh UI and visuals via StateSync, then message
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
@@ -230,7 +232,7 @@ export function generate(ctx, depth) {
   ctx.decals = [];
   ctx.dungeonProps = [];
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     } else {
@@ -321,7 +323,7 @@ export function returnToWorldIfAtExit(ctx) {
 
   // Refresh visuals via StateSync
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     } else {
@@ -612,7 +614,7 @@ export function enter(ctx, info) {
 
   // Ensure visuals are refreshed via StateSync
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -850,7 +852,7 @@ export function tryMoveDungeon(ctx, dx, dy) {
     if (walkable && !blockedByEnemy) {
       ctx.player.x = nx; ctx.player.y = ny;
       try {
-        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }

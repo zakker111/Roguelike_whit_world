@@ -11,6 +11,8 @@
  * - brace(ctx) applies only in dungeon mode and is effective when the player has a defensive hand item; it increases block chance for this turn.
  */
 
+import { getMod } from "../utils/access.js";
+
 function mod(name) {
   try {
     const w = (typeof window !== "undefined") ? window : {};
@@ -20,7 +22,7 @@ function mod(name) {
 
 function applyRefresh(ctx) {
   try {
-    const SS = mod("StateSync");
+    const SS = ctx.StateSync || getMod(ctx, "StateSync") || mod("StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }

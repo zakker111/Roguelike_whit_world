@@ -1331,7 +1331,7 @@ function open(ctx, size) {
           ctx.region._hasKnownAnimals = true;
 
           try {
-            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            const SS = ctx.StateSync || getMod(ctx, "StateSync");
             if (SS && typeof SS.applyAndRefresh === "function") {
               SS.applyAndRefresh(ctx, {});
             }
@@ -1364,7 +1364,7 @@ function open(ctx, size) {
   })();
 
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -1413,7 +1413,7 @@ function close(ctx) {
     ctx.player.y = pos.y | 0;
   }
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -1497,7 +1497,7 @@ function tryMove(ctx, dx, dy) {
   ctx.player.x = nx; ctx.player.y = ny;
 
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }
@@ -1569,7 +1569,7 @@ function onAction(ctx) {
         } catch (_) {}
         if (typeof ctx.updateUI === "function") ctx.updateUI();
         try {
-          const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+          const SS = ctx.StateSync || getMod(ctx, "StateSync");
           if (SS && typeof SS.applyAndRefresh === "function") {
             SS.applyAndRefresh(ctx, {});
           }
@@ -1587,7 +1587,7 @@ function onAction(ctx) {
         ctx.region.map[cursor.y][cursor.x] = World.TILES.FOREST;
         // Reflect change via orchestrator refresh
         try {
-          const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+          const SS = ctx.StateSync || getMod(ctx, "StateSync");
           if (SS && typeof SS.applyAndRefresh === "function") {
             SS.applyAndRefresh(ctx, {});
           }
@@ -1778,7 +1778,7 @@ function tick(ctx) {
             if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
           } catch (_) {}
           try {
-            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            const SS = ctx.StateSync || getMod(ctx, "StateSync");
             if (SS && typeof SS.applyAndRefresh === "function") SS.applyAndRefresh(ctx, {});
           } catch (_) {}
         }

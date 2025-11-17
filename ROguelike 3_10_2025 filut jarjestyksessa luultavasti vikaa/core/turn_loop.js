@@ -10,6 +10,8 @@
  * - Orchestrator remains responsible for perf timing and final sync.
  */
 
+import { getMod } from "../utils/access.js";
+
 function modHandle(ctx, name) {
   try {
     if (ctx && ctx[name]) return ctx[name];
@@ -89,7 +91,7 @@ export function tick(ctx) {
 
   // Visual updates via StateSync (mandatory)
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }

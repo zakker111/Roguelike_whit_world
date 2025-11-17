@@ -7,6 +7,8 @@
  * - interactHere(ctx) -> handled:boolean
  */
 
+import { getMod } from "../utils/access.js";
+
 function log(ctx, msg, type = "info") {
   try { if (ctx && typeof ctx.log === "function") ctx.log(msg, type); } catch (_) {}
 }
@@ -215,7 +217,7 @@ export function interactHere(ctx) {
     const handled = !!interactProp(ctx, p);
     if (handled) {
       try {
-        const SS = (ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null));
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") SS.applyAndRefresh(ctx, {});
       } catch (_) {}
       return true;

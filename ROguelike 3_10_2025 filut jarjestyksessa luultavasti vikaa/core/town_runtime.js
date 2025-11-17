@@ -10,6 +10,8 @@
  * - returnToWorldIfAtGate(ctx): leaves town if the player stands on the gate tile; returns true if handled
  */
 
+import { getMod } from "../utils/access.js";
+
 export function generate(ctx) {
   // Ensure townBiome is not carrying over from previous towns; allow derive/persist per town
   try { ctx.townBiome = undefined; } catch (_) {}
@@ -43,7 +45,7 @@ export function generate(ctx) {
 
       // Post-gen refresh via StateSync
       try {
-        const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+        const SS = ctx.StateSync || getMod(ctx, "StateSync");
         if (SS && typeof SS.applyAndRefresh === "function") {
           SS.applyAndRefresh(ctx, {});
         }
@@ -314,7 +316,7 @@ export function tryMoveTown(ctx, dx, dy) {
   if (walkable) {
     ctx.player.x = nx; ctx.player.y = ny;
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
@@ -407,7 +409,7 @@ export function applyLeaveSync(ctx) {
 
   // Refresh via StateSync
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }

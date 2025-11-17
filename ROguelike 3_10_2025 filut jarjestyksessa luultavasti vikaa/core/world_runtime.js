@@ -7,6 +7,8 @@
  * - tick(ctx)      // optional per-turn hook for world mode
  */
 
+import { getMod } from "../utils/access.js";
+
 function currentSeed() {
   try {
     if (typeof window !== "undefined" && window.RNG && typeof window.RNG.getSeed === "function") {
@@ -639,7 +641,7 @@ export function generate(ctx, opts = {}) {
 
     // Camera/FOV/UI via StateSync
     try {
-      const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
       if (SS && typeof SS.applyAndRefresh === "function") {
         SS.applyAndRefresh(ctx, {});
       }
@@ -708,7 +710,7 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   ctx.player.x = nx; ctx.player.y = ny;
 
   try {
-    const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
     }

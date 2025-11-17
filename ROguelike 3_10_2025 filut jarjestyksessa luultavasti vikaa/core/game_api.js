@@ -3,6 +3,8 @@
  * Provides a factory to attach a stable testing/automation API without coupling to core/game.js internals.
  */
 
+import { getMod } from "../utils/access.js";
+
 export function create(ctx) {
   function closeAnyModal() {
     try {
@@ -62,7 +64,7 @@ export function create(ctx) {
               try {
                 // Advance a turn to keep time/FOV/UI consistent with normal movement flows
                 if (typeof ctx.turn === "function") ctx.turn();
-                const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+                const SS = ctx.StateSync || getMod(ctx, "StateSync");
                 if (SS && typeof SS.applyAndRefresh === "function") {
                   SS.applyAndRefresh(ctx, {});
                 }
@@ -648,7 +650,7 @@ export function create(ctx) {
         }
         if (made > 0) {
           try {
-            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            const SS = ctx.StateSync || getMod(ctx, "StateSync");
             if (SS && typeof SS.applyAndRefresh === "function") {
               SS.applyAndRefresh(ctx, {});
             }
@@ -774,7 +776,7 @@ export function create(ctx) {
 
         if (ok) {
           try {
-            const SS = ctx.StateSync || (typeof window !== "undefined" ? window.StateSync : null);
+            const SS = ctx.StateSync || getMod(ctx, "StateSync");
             if (SS && typeof SS.applyAndRefresh === "function") {
               SS.applyAndRefresh(ctx, {});
             }
