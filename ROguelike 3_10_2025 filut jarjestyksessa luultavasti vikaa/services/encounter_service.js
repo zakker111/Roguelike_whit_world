@@ -321,15 +321,7 @@ export function maybeTryEncounter(ctx) {
       STATE.movesSinceLast += 1;
     };
 
-    // Prompt the user (prefer UIOrchestration via Capabilities.safeCall)
-    try {
-      const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-      if (Cap && typeof Cap.safeCall === "function") {
-        const res = Cap.safeCall(ctx, "UIOrchestration", "showConfirm", ctx, text, null, () => enter(), () => cancel());
-        if (res && res.ok) return true;
-      }
-    } catch (_) {}
-    // Fallback: UIOrchestration direct (no UIBridge/browser confirm)
+    // Prompt the user via UIOrchestration; cancel if confirm UI is unavailable
     try {
       const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
       if (UIO && typeof UIO.showConfirm === "function") {
