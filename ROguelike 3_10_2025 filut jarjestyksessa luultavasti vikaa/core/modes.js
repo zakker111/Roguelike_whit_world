@@ -203,7 +203,6 @@ export function enterTownIfOnTile(ctx) {
             // Ensure player spawns on gate interior tile on entry
             movePlayerToTownGateInterior(ctx);
             if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
-            _devTownBiomeLog(ctx);
             syncAfterMutation(ctx);
             return true;
           }
@@ -223,7 +222,6 @@ export function enterTownIfOnTile(ctx) {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
             if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
-            _devTownBiomeLog(ctx);
             syncAfterMutation(ctx);
             return true;
           }
