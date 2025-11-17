@@ -1371,34 +1371,28 @@
         onHideInventory: () => hideInventoryPanel(),
         onHideLoot: () => hideLootPanel(),
         onHideGod: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideGod", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideGod === "function") UIO.hideGod(getCtx());
         },
         onHideShop: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideShop", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideShop === "function") UIO.hideShop(getCtx());
         },
         onHideSmoke: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideSmoke", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideSmoke === "function") UIO.hideSmoke(getCtx());
         },
         onHideSleep: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideSleep", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideSleep === "function") UIO.hideSleep(getCtx());
         },
         onCancelConfirm: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "cancelConfirm", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(getCtx());
         },
         onShowGod: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showGod", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.showGod === "function") UIO.showGod(getCtx());
           const UIH = modHandle("UI");
           if (UIH && typeof UIH.setGodFov === "function") UIH.setGodFov(fovRadius);
         },
@@ -1409,14 +1403,12 @@
           return !!(UIO && typeof UIO.isHelpOpen === "function" && UIO.isHelpOpen(getCtx()));
         },
         onShowHelp: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showHelp", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.showHelp === "function") UIO.showHelp(getCtx());
         },
         onHideHelp: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideHelp", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideHelp === "function") UIO.hideHelp(getCtx());
         },
         // Character Sheet (C)
         isCharacterOpen: () => {
@@ -1424,14 +1416,12 @@
           return !!(UIO && typeof UIO.isCharacterOpen === "function" && UIO.isCharacterOpen(getCtx()));
         },
         onShowCharacter: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "showCharacter", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.showCharacter === "function") UIO.showCharacter(getCtx());
         },
         onHideCharacter: () => {
-          const Cap = modHandle("Capabilities");
-          const ctxLocal = getCtx();
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctxLocal, "UIOrchestration", "hideCharacter", ctxLocal);
+          const UIO = modHandle("UIOrchestration");
+          if (UIO && typeof UIO.hideCharacter === "function") UIO.hideCharacter(getCtx());
         },
         onMove: (dx, dy) => tryMovePlayer(dx, dy),
         onWait: () => turn(),
@@ -1446,22 +1436,9 @@
   
   // Visual: add or strengthen a blood decal at tile (x,y)
   function addBloodDecal(x, y, mult = 1.0) {
-    // Prefer Decals module
     const DC = modHandle("Decals");
     if (DC && typeof DC.add === "function") {
       DC.add(getCtx(), x, y, mult);
-      return;
-    }
-    if (!inBounds(x, y)) return;
-    const d = decals.find(d => d.x === x && d.y === y);
-    const baseA = 0.16 + rng() * 0.18;
-    const baseR = Math.floor(TILE * (0.32 + rng() * 0.20));
-    if (d) {
-      d.a = Math.min(0.9, d.a + baseA * mult);
-      d.r = Math.max(d.r, baseR);
-    } else {
-      decals.push({ x, y, a: Math.min(0.9, baseA * mult), r: baseR });
-      if (decals.length > 240) decals.splice(0, decals.length - 240);
     }
   }
 
