@@ -230,23 +230,7 @@ export function enterTownIfOnTile(ctx) {
         }
       } catch (_) {}
 
-      // Fallback: inline generation path via Town module (ctx-first)
-      if (ctx.Town && typeof ctx.Town.generate === "function") {
-        ctx.Town.generate(ctx);
-        try { if (typeof ctx.Town.ensureSpawnClear === "function") ctx.Town.ensureSpawnClear(ctx); } catch (_) {}
-        ctx.townExitAt = { x: ctx.player.x, y: ctx.player.y };
-        // Ensure player stands on the gate interior tile
-        movePlayerToTownGateInterior(ctx);
-        // Town.generate already spawns a gate greeter; avoid duplicates.
-        try { if (typeof ctx.Town.spawnGateGreeters === "function") ctx.Town.spawnGateGreeters(ctx, 0); } catch (_) {}
-      }
-      try {
-        if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
-      } catch (_) {}
       
-      if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
-      syncAfterMutation(ctx);
-      return true;
     }
     return false;
   }
@@ -265,10 +249,6 @@ export function saveCurrentDungeonState(ctx) {
       ctx.DungeonState.save(ctx);
       return;
     }
-    if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.save === "function") {
-      window.DungeonState.save(ctx);
-      return;
-    }
   } catch (_) {}
 }
 
@@ -284,11 +264,6 @@ export function loadDungeonStateFor(ctx, x, y) {
   try {
     if (ctx.DungeonState && typeof ctx.DungeonState.load === "function") {
       const ok = ctx.DungeonState.load(ctx, x, y);
-      if (ok) syncAfterMutation(ctx);
-      return ok;
-    }
-    if (typeof window !== "undefined" && window.DungeonState && typeof window.DungeonState.load === "function") {
-      const ok = window.DungeonState.load(ctx, x, y);
       if (ok) syncAfterMutation(ctx);
       return ok;
     }
@@ -370,7 +345,7 @@ export function enterRuinsIfOnTile(ctx) {
   if (t && WT && t === WT.RUINS) {
     // Open Region Map at this location; RegionMapRuntime.open rejects town/dungeon but allows ruins
     try {
-      const RMR = (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+      const RMR = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
       if (RMR && typeof RMR.open === "function") {
         const ok = !!RMR.open(ctx);
         if (ok) {

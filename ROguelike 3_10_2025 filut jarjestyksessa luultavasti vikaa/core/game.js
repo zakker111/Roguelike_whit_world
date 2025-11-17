@@ -1450,11 +1450,6 @@
 
   
   function renderInventoryPanel() {
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.render === "function") {
-      IC.render(getCtx());
-      return;
-    }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.renderInventory === "function") {
       UIO.renderInventory(getCtx());
@@ -1462,13 +1457,6 @@
   }
 
   function showInventoryPanel() {
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.show === "function") {
-      IC.show(getCtx());
-      requestDraw();
-      return;
-    }
-    renderInventoryPanel();
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.showInventory === "function") {
       UIO.showInventory(getCtx());
@@ -1477,12 +1465,6 @@
   }
 
   function hideInventoryPanel() {
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.hide === "function") {
-      IC.hide(getCtx());
-      requestDraw();
-      return;
-    }
     const UIO = modHandle("UIOrchestration");
     if (UIO && typeof UIO.hideInventory === "function") {
       UIO.hideInventory(getCtx());
