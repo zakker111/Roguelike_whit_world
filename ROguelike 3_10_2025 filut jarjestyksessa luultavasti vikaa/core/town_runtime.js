@@ -447,17 +447,17 @@ function centerCamera(ctx) {
 
 export function showExitButton(ctx) {
   try {
-    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-    if (Cap && typeof Cap.safeCall === "function") {
-      Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
+    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.showTownExitButton === "function") {
+      UIO.showTownExitButton(ctx);
     }
   } catch (_) {}
 }
 export function hideExitButton(ctx) {
   try {
-    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-    if (Cap && typeof Cap.safeCall === "function") {
-      Cap.safeCall(ctx, "UIOrchestration", "hideTownExitButton", ctx);
+    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.hideTownExitButton === "function") {
+      UIO.hideTownExitButton(ctx);
     }
   } catch (_) {}
 }

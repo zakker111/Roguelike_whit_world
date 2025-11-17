@@ -138,9 +138,9 @@ export function leaveTownNow(ctx) {
     }
   }
   try {
-    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-    if (Cap && typeof Cap.safeCall === "function") {
-      Cap.safeCall(ctx, "UIOrchestration", "hideTownExitButton", ctx);
+    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.hideTownExitButton === "function") {
+      UIO.hideTownExitButton(ctx);
     }
   } catch (_) {}
   if (ctx.log) ctx.log("You return to the overworld.", "notice");
@@ -150,10 +150,10 @@ export function leaveTownNow(ctx) {
 export function requestLeaveTown(ctx) {
   const pos = { x: window.innerWidth / 2 - 140, y: window.innerHeight / 2 - 60 };
   try {
-    const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-    if (Cap && typeof Cap.safeCall === "function") {
-      const { ok } = Cap.safeCall(ctx, "UIOrchestration", "showConfirm", ctx, "Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
-      if (ok) return;
+    const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+    if (UIO && typeof UIO.showConfirm === "function") {
+      UIO.showConfirm(ctx, "Do you want to leave the town?", pos, () => leaveTownNow(ctx), () => {});
+      return;
     }
   } catch (_) {}
   // Fallback: proceed to leave to avoid getting stuck without a confirm UI
@@ -273,8 +273,8 @@ export function enterTownIfOnTile(ctx) {
       try {
         if (ctx.TownRuntime && typeof ctx.TownRuntime.showExitButton === "function") ctx.TownRuntime.showExitButton(ctx);
         else {
-          const Cap = ctx.Capabilities || (typeof window !== "undefined" ? window.Capabilities : null);
-          if (Cap && typeof Cap.safeCall === "function") Cap.safeCall(ctx, "UIOrchestration", "showTownExitButton", ctx);
+          const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (UIO && typeof UIO.showTownExitButton === "function") UIO.showTownExitButton(ctx);
         }
       } catch (_) {}
       if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
