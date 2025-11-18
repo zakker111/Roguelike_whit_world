@@ -1,18 +1,15 @@
 /**
- * Encounter module aggregator (Phase 1): re-exports from core/encounter_runtime.js.
- * Keeps API stable while future phases split into submodules.
+ * Encounter module aggregator:
+ * - Expose extracted helpers from core/encounter/* modules
  */
 
 import * as EncounterRuntime from '../encounter_runtime.js';
 
-// Re-export public API from the existing runtime
-export {
-  enter,
-  tryMoveEncounter,
-  tick,
-  complete,
-  enterRegion
-} from '../encounter_runtime.js';
+export { enter } from './enter.js';
+export { tryMoveEncounter } from './movement.js';
+export { tick } from './tick.js';
+export { complete } from './transitions.js';
+// Region-embedded encounters still come from runtime for now
+export { enterRegion } from '../encounter_runtime.js';
 
-// Optional default export for convenience
 export default EncounterRuntime;
