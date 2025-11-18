@@ -1,15 +1,16 @@
 /**
- * Dungeon module aggregator (Phase 1): re-exports from core/dungeon_runtime.js.
- * Keeps API stable while future phases split into submodules.
+ * Dungeon module aggregator:
+ * - Phase 2: expose state helpers from core/dungeon/state.js
+ * - Other APIs still come from core/dungeon_runtime.js
  */
 
 import * as DungeonRuntime from '../dungeon_runtime.js';
 
-// Re-export public API from the existing runtime
+// State helpers (extracted)
+export { keyFromWorldPos, save, load } from './state.js';
+
+// Remaining APIs from the existing runtime
 export {
-  keyFromWorldPos,
-  save,
-  load,
   generate,
   generateLoot,
   returnToWorldIfAtExit,
@@ -20,5 +21,5 @@ export {
   tick
 } from '../dungeon_runtime.js';
 
-// Optional default export for convenience
+// Optional default export for convenience (unchanged)
 export default DungeonRuntime;

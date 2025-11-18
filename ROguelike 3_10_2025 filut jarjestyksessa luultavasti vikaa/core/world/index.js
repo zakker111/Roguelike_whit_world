@@ -1,9 +1,13 @@
 /**
- * World module aggregator (Phase 1): re-exports from core/world_runtime.js.
- * Keeps API stable while future phases split into submodules.
+ * World module aggregator:
+ * - Phase 2: expose POI helpers from core/world/poi.js
+ * - Other APIs still come from core/world_runtime.js
  */
 
 import * as WorldRuntime from '../world_runtime.js';
+
+// POI helpers (extracted)
+export { ensurePOIState, addTown, addDungeon, addRuins } from './poi.js';
 
 // Re-export public API from the existing runtime
 export {
@@ -11,7 +15,6 @@ export {
   tryMovePlayerWorld,
   tick,
   _ensureInBounds,
-  // Provide a friendlier alias too
   _ensureInBounds as ensureInBounds
 } from '../world_runtime.js';
 
