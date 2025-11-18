@@ -34,6 +34,25 @@ import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./p
 import { createTimeFacade } from "./time_facade.js";
 import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./perf.js";
 import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./game_config.js";
+import {
+  renderInventoryPanel as renderInventoryPanelFacade,
+  showInventoryPanel as showInventoryPanelFacade,
+  hideInventoryPanel as hideInventoryPanelFacade,
+  equipItemByIndex as equipItemByIndexFacade,
+  equipItemByIndexHand as equipItemByIndexHandFacade,
+  unequipSlot as unequipSlotFacade,
+  addPotionToInventory as addPotionToInventoryFacade,
+  drinkPotionByIndex as drinkPotionByIndexFacade,
+  eatFoodByIndex as eatFoodByIndexFacade
+} from "./inventory_facade.js";
+import {
+  setAlwaysCrit as setAlwaysCritFacade,
+  setCritPart as setCritPartFacade,
+  godSpawnEnemyNearby as godSpawnEnemyNearbyFacade,
+  godSpawnItems as godSpawnItemsFacade,
+  godHeal as godHealFacade,
+  godSpawnStairsHere as godSpawnStairsHereFacade
+} from "./god_facade.js";
 
   // Runtime configuration (loaded via GameData.config via core/game_config.js)
   const CFG = getRawConfig();
@@ -573,30 +592,18 @@ import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, ge
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.addPotionToInventory === "function") {
-      IF.addPotionToInventory(getCtx(), heal, name);
-      return;
-    }
+    try { addPotionToInventoryFacade(getCtx(), heal, name); return; } catch (_) {}
     log("Inventory system not available.", "warn");
   }
 
   function drinkPotionByIndex(idx) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.drinkPotionByIndex === "function") {
-      IF.drinkPotionByIndex(getCtx(), idx);
-      return;
-    }
+    try { drinkPotionByIndexFacade(getCtx(), idx); return; } catch (_) {}
     log("Inventory system not available.", "warn");
   }
 
   // Eat edible materials using centralized inventory flow
   function eatFoodByIndex(idx) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.eatByIndex === "function") {
-      IF.eatByIndex(getCtx(), idx);
-      return;
-    }
+    try { eatFoodByIndexFacade(getCtx(), idx); return; } catch (_) {}
     log("Inventory system not available.", "warn");
   }
 
@@ -1376,94 +1383,52 @@ import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, ge
   }
 
   
-  // GOD mode actions (delegated to GodControls)
+  // GOD mode actions (delegated to core/god_facade.js)
   function godHeal() {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.heal === "function") { GC.heal(() => getCtx()); return; }
+    try { if (godHealFacade(getCtx())) return; } catch (_) {}
     log("GOD: heal not available.", "warn");
   }
 
   function godSpawnStairsHere() {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.spawnStairsHere === "function") { GC.spawnStairsHere(() => getCtx()); return; }
+    try { if (godSpawnStairsHereFacade(getCtx())) return; } catch (_) {}
     log("GOD: spawnStairsHere not available.", "warn");
   }
 
   function godSpawnItems(count = 3) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.spawnItems === "function") { GC.spawnItems(() => getCtx(), count); return; }
+    try { if (godSpawnItemsFacade(getCtx(), count)) return; } catch (_) {}
     log("GOD: spawnItems not available.", "warn");
   }
 
   function godSpawnEnemyNearby(count = 1) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.spawnEnemyNearby === "function") { GC.spawnEnemyNearby(() => getCtx(), count); return; }
+    try { if (godSpawnEnemyNearbyFacade(getCtx(), count)) return; } catch (_) {}
     log("GOD: spawnEnemyNearby not available.", "warn");
   }
 
   
   function renderInventoryPanel() {
-    const UIO = modHandle("UIOrchestration");
-    if (UIO && typeof UIO.renderInventory === "function") {
-      UIO.renderInventory(getCtx());
-    }
+    try { renderInventoryPanelFacade(getCtx()); } catch (_) {}
   }
 
   function showInventoryPanel() {
-    const UIO = modHandle("UIOrchestration");
-    if (UIO && typeof UIO.showInventory === "function") {
-      UIO.showInventory(getCtx());
-      requestDraw();
-    }
+    try { showInventoryPanelFacade(getCtx()); } catch (_) {}
   }
 
   function hideInventoryPanel() {
-    const UIO = modHandle("UIOrchestration");
-    if (UIO && typeof UIO.hideInventory === "function") {
-      UIO.hideInventory(getCtx());
-      requestDraw();
-    }
+    try { hideInventoryPanelFacade(getCtx()); } catch (_) {}
   }
 
   function equipItemByIndex(idx) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.equipItemByIndex === "function") {
-      IF.equipItemByIndex(getCtx(), idx);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.equipByIndex === "function") {
-      IC.equipByIndex(getCtx(), idx);
-      return;
-    }
+    try { equipItemByIndexFacade(getCtx(), idx); return; } catch (_) {}
     log("Equip system not available.", "warn");
   }
 
   function equipItemByIndexHand(idx, hand) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.equipItemByIndexHand === "function") {
-      IF.equipItemByIndexHand(getCtx(), idx, hand);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.equipByIndexHand === "function") {
-      IC.equipByIndexHand(getCtx(), idx, hand);
-      return;
-    }
+    try { equipItemByIndexHandFacade(getCtx(), idx, hand); return; } catch (_) {}
     log("Equip system not available.", "warn");
   }
 
   function unequipSlot(slot) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.unequipSlot === "function") {
-      IF.unequipSlot(getCtx(), slot);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.unequipSlot === "function") {
-      IC.unequipSlot(getCtx(), slot);
-      return;
-    }
+    try { unequipSlotFacade(getCtx(), slot); return; } catch (_) {}
     log("Equip system not available.", "warn");
   }
 
@@ -1477,17 +1442,21 @@ import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, ge
     }
   }
 
-  // GOD: always-crit toggle (delegated)
+  // GOD: always-crit toggle (delegated to core/god_facade.js)
   function setAlwaysCrit(v) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.setAlwaysCrit === "function") { GC.setAlwaysCrit(() => getCtx(), v); alwaysCrit = !!v; return; }
+    try {
+      const ok = setAlwaysCritFacade(getCtx(), v);
+      if (ok) { alwaysCrit = !!v; return; }
+    } catch (_) {}
     log("GOD: setAlwaysCrit not available.", "warn");
   }
 
-  // GOD: set forced crit body part for player attacks (delegated)
+  // GOD: set forced crit body part for player attacks (delegated to core/god_facade.js)
   function setCritPart(part) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.setCritPart === "function") { GC.setCritPart(() => getCtx(), part); forcedCritPart = part; return; }
+    try {
+      const ok = setCritPartFacade(getCtx(), part);
+      if (ok) { forcedCritPart = part; return; }
+    } catch (_) {}
     log("GOD: setCritPart not available.", "warn");
   }
 
