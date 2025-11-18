@@ -29,6 +29,9 @@
  * - Diagnostics in GOD and boot logs show current RNG source and seed for reproducibility.
  */
   
+  import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
+import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./persistence.js";
+
   // Runtime configuration (loaded via GameData.config when available)
   const CFG = (typeof window !== "undefined" && window.GameData && window.GameData.config && typeof window.GameData.config === "object")
     ? window.GameData.config
@@ -1573,31 +1576,9 @@
     }
   }
 
-  // Clear persisted game state (towns, dungeons, region map) from both localStorage and in-memory mirrors
+  // Clear persisted game state (towns, dungeons, region map) via core/persistence.js
   function clearPersistentGameStorage() {
-    try {
-      if (typeof localStorage !== "undefined") {
-        localStorage.removeItem("DUNGEON_STATES_V1");
-        localStorage.removeItem("TOWN_STATES_V1");
-        localStorage.removeItem("REGION_CUTS_V1");
-        localStorage.removeItem("REGION_ANIMALS_V1");
-        localStorage.removeItem("REGION_ANIMALS_V2");
-        localStorage.removeItem("REGION_STATE_V1");
-      }
-    } catch (_) {}
-    try {
-      if (typeof window !== "undefined") {
-        window._DUNGEON_STATES_MEM = Object.create(null);
-        window._TOWN_STATES_MEM = Object.create(null);
-      }
-    } catch (_) {}
-    try {
-      const ctx = getCtx();
-      if (ctx) {
-        if (ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
-        if (ctx._townStates) ctx._townStates = Object.create(null);
-      }
-    } catch (_) {}
+    try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
   }
 
   function restartGame() {
@@ -1691,72 +1672,12 @@
   
 
   
-  // Lightweight hint: in overworld, occasionally inform the player about nearby wildlife so they can open Region Map.
+  // Lightweight hint: delegated to core/world_hints.js
   let _wildNoHintTurns = 0;
   function maybeEmitOverworldAnimalHint() {
     try {
-      if (mode !== "world" || !world || !world.map) { _wildNoHintTurns = 0; return; }
-
-      const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
-      if (!WT) return;
-      const tHere = world.map[player.y] && world.map[player.y][player.x];
-
-      // Only hint on wild-ish tiles
-      const onWild = (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
-      if (!onWild) { _wildNoHintTurns = 0; return; }
-
-      // Respect a cooldown to avoid log spam
-      const MIN_TURNS_BETWEEN_HINTS = 12;
-      if ((turnCounter - lastAnimalHintTurn) < MIN_TURNS_BETWEEN_HINTS) { _wildNoHintTurns++; return; }
-
-      // Skip if this tile has been fully cleared in Region Map
-      try {
-        const RM = (typeof window !== "undefined" ? window.RegionMapRuntime : null);
-        if (RM && typeof RM.animalsClearedHere === "function") {
-          if (RM.animalsClearedHere(player.x | 0, player.y | 0)) { _wildNoHintTurns = 0; return; }
-        }
-      } catch (_) {}
-
-      // Biome-weighted chance (more generous to ensure visibility)
-      let base =
-        (tHere === WT.FOREST) ? 0.55 :
-        (tHere === WT.GRASS)  ? 0.35 :
-        (tHere === WT.BEACH)  ? 0.20 : 0.0;
-      // Survivalism slightly increases hint chance (up to +5%)
-      try {
-        const s = (player && player.skills) ? player.skills : null;
-        if (s) {
-          const survBuff = Math.max(0, Math.min(0.05, Math.floor((s.survivalism || 0) / 25) * 0.01));
-          base = Math.min(0.80, base * (1 + survBuff));
-        }
-      } catch (_) {}
-
-      // Pity: if we've been on wild tiles a long time without a hint, force one
-      const PITY_TURNS = 40;
-      const force = (_wildNoHintTurns >= PITY_TURNS);
-
-      let success = false;
-      if (force) {
-        success = true;
-      } else if (base > 0) {
-        try {
-          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-            success = !!window.RNGUtils.chance(base, rng);
-          } else {
-            success = rng() < base;
-          }
-        } catch (_) {
-          success = rng() < base;
-        }
-      }
-
-      if (success) {
-        log("You notice signs of wildlife nearby. Press G to open the Region Map.", "notice");
-        lastAnimalHintTurn = turnCounter;
-        _wildNoHintTurns = 0;
-      } else {
-        _wildNoHintTurns++;
-      }
+      const ctx = getCtx();
+      maybeEmitOverworldAnimalHintExt(ctx, turnCounter);
     } catch (_) {}
   }
 
