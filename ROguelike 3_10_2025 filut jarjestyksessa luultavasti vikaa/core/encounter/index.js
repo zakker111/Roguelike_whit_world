@@ -9,7 +9,6 @@ export { enter } from './enter.js';
 export { tryMoveEncounter } from './movement.js';
 export { tick } from './tick.js';
 export { complete } from './transitions.js';
-// Region-embedded encounters still come from runtime for now
-export { enterRegion } from '../encounter_runtime.js';
+export { enterRegion } from './enter_region.js';
 
 export default EncounterRuntime;
