@@ -2,7 +2,7 @@
  * World POI helpers (Phase 2): towns, dungeons, ruins registration.
  * Extracted from core/world_runtime.js with no behavior changes.
  */
-import { getMod } from "../utils/access.js";
+import { getMod } from "../../utils/access.js";
 
 // Config helpers (GameData.config overrides, with localStorage flags for quick toggles)
 function _getConfig() {

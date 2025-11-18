@@ -2,7 +2,7 @@
  * Dungeon state helpers (Phase 2): key derivation and persistence.
  * Extracted from core/dungeon_runtime.js with no behavior changes.
  */
-import { getMod } from "../utils/access.js";
+import { getMod } from "../../utils/access.js";
 
 export function keyFromWorldPos(x, y) {
   // Use a stable string key; avoid coupling to external state modules
