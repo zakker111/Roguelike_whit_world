@@ -1,7 +1,7 @@
 /**
  * Dungeon module aggregator:
- * - Phase 2: expose state helpers from core/dungeon/state.js
- * - Other APIs still come from core/dungeon_runtime.js
+ * - Expose extracted helpers from core/dungeon/* modules
+ * - Keep killEnemy from core/dungeon_runtime.js for now
  */
 
 import * as DungeonRuntime from '../dungeon_runtime.js';
@@ -9,17 +9,16 @@ import * as DungeonRuntime from '../dungeon_runtime.js';
 // State helpers (extracted)
 export { keyFromWorldPos, save, load } from './state.js';
 
-// Remaining APIs from the existing runtime
-export {
-  generate,
-  generateLoot,
-  returnToWorldIfAtExit,
-  lootHere,
-  killEnemy,
-  enter,
-  tryMoveDungeon,
-  tick
-} from '../dungeon_runtime.js';
+// Extracted modules (Phase 3)
+export { generate } from './generate.js';
+export { generateLoot, lootHere } from './loot.js';
+export { tryMoveDungeon } from './movement.js';
+export { tick } from './tick.js';
+export { returnToWorldIfAtExit } from './transitions.js';
+export { enter } from './enter.js';
+
+// Still export killEnemy from runtime until we extract it
+export { killEnemy } from '../dungeon_runtime.js';
 
 // Optional default export for convenience (unchanged)
 export default DungeonRuntime;
