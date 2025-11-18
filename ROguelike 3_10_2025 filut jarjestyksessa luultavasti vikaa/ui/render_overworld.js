@@ -19,77 +19,12 @@ import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 import { shade as _shade, mix as _mix, rgba as _rgba, parseHex as _parseHex, toHex as _toHex } from "./color_utils.js";
 
-// Tile cache to avoid repeated JSON lookups inside hot loops
-const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
-function cacheResetIfNeeded() {
-  const ref = tilesRef();
-  if (TILE_CACHE.ref !== ref) {
-    TILE_CACHE.ref = ref;
-    TILE_CACHE.fill = Object.create(null);
-    TILE_CACHE.glyph = Object.create(null);
-    TILE_CACHE.fg = Object.create(null);
-  }
-}
-function fillOverworldFor(WT, id) {
-  cacheResetIfNeeded();
-  const k = id | 0;
-  let v = TILE_CACHE.fill[k];
-  if (v) return v;
-  const td = getTileDef("overworld", id);
-  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillOverworld(WT, id);
-  TILE_CACHE.fill[k] = v;
-  return v;
-}
-function glyphOverworldFor(id) {
-  cacheResetIfNeeded();
-  const k = id | 0;
-  let g = TILE_CACHE.glyph[k];
-  let c = TILE_CACHE.fg[k];
-  if (typeof g !== "undefined" && typeof c !== "undefined") return { glyph: g, fg: c };
-  const td = getTileDef("overworld", id);
-  if (td) {
-    g = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
-    c = td.colors && td.colors.fg ? td.colors.fg : null;
-  } else {
-    g = "";
-    c = null;
-  }
-  TILE_CACHE.glyph[k] = g;
-  TILE_CACHE.fg[k] = c;
-  return { glyph: g, fg: c };
-}
+// Modularized helpers
+import { drawWorldBase } from "./render/overworld_base_layer.js";
+import { fillOverworldFor, glyphOverworldFor, tilesRef, fallbackFillOverworld } from "./render/overworld_tile_cache.js";
 
 // Minimap offscreen cache to avoid redrawing every frame
 let MINI = { mapRef: null, canvas: null, wpx: 0, hpx: 0, scale: 0, _tilesRef: null };
-// World base layer offscreen cache (full map at TILE resolution)
-let WORLD = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null };
-
-// getTileDef moved to centralized helper in ../data/tile_lookup.js
-
-// Robust fallback fill color mapping when tiles.json is missing/incomplete
-function fallbackFillOverworld(WT, id) {
-  try {
-    if (id === WT.WATER) return "#0a1b2a";
-    if (id === WT.RIVER) return "#0e2f4a";
-    if (id === WT.BEACH) return "#b59b6a";
-    if (id === WT.SWAMP) return "#1b2a1e";
-    if (id === WT.FOREST) return "#0d2615";
-    if (id === WT.GRASS) return "#10331a";
-    if (id === WT.MOUNTAIN) return "#2f2f34";
-    if (id === WT.DESERT) return "#c2a36b";
-    if (id === WT.SNOW) return "#b9c7d3";
-    if (id === WT.TOWN) return "#3a2f1b";
-    if (id === WT.DUNGEON) return "#2a1b2a";
-  } catch (_) {}
-  return "#0b0c10";
-}
-
-// Helper: current tiles.json reference (for cache invalidation)
-function tilesRef() {
-  try {
-    return (typeof window !== "undefined" && window.GameData && window.GameData.tiles) ? window.GameData.tiles : null;
-  } catch (_) { return null; }
-}
 
 // Color helpers moved to ./color_utils.js (imported above)
 
@@ -103,95 +38,8 @@ export function draw(ctx, view) {
   const mapRows = map.length;
   const mapCols = map[0] ? map[0].length : 0;
 
-  // Build world base offscreen once per map/TILE change
-  try {
-    const mw = mapCols;
-    const mh = mapRows;
-    if (mw && mh) {
-      const wpx = mw * TILE;
-      const hpx = mh * TILE;
-      const needsWorldRebuild = (!WORLD.canvas) || WORLD.mapRef !== map || WORLD.wpx !== wpx || WORLD.hpx !== hpx || WORLD.TILE !== TILE || WORLD._tilesRef !== tilesRef();
-      if (needsWorldRebuild) {
-        WORLD.mapRef = map;
-        WORLD.wpx = wpx;
-        WORLD.hpx = hpx;
-        WORLD.TILE = TILE;
-        WORLD._tilesRef = tilesRef();
-        const off = RenderCore.createOffscreen(wpx, hpx);
-        const oc = off.getContext("2d");
-        // Set font/align once for glyphs
-        try {
-          oc.font = "bold 20px JetBrains Mono, monospace";
-          oc.textAlign = "center";
-          oc.textBaseline = "middle";
-        } catch (_) {}
-        let missingDefsCount = 0;
-        const missingSet = new Set();
-        for (let yy = 0; yy < mh; yy++) {
-          const rowM = map[yy];
-          for (let xx = 0; xx < mw; xx++) {
-            const t = rowM[xx];
-            // Cached JSON fill color for overworld with robust fallback
-            const td = getTileDef("overworld", t);
-            // Only count as missing when tiles.json is actually loaded; avoid noisy warnings during early boot.
-            if (!td && tilesRef()) { missingDefsCount++; missingSet.add(t); }
-            const c = fillOverworldFor(WT, t);
-            oc.fillStyle = c;
-            oc.fillRect(xx * TILE, yy * TILE, TILE, TILE);
-            // Note: glyph overlays are drawn per-frame below, not baked into base.
-          }
-        }
-        // DEV-only: log a single summary if tile defs were missing
-        try {
-          // Log missing defs only once tiles.json is present to avoid transient startup warnings
-          if (missingDefsCount > 0 && tilesRef() && typeof window !== "undefined" && (window.DEV || (typeof localStorage !== "undefined" && localStorage.getItem("DEV") === "1"))) {
-            const LG = (typeof window !== "undefined" ? window.Logger : null);
-            const msg = `[RenderOverworld] Missing ${missingDefsCount} tile def lookups; ids without defs: ${Array.from(missingSet).join(", ")}. Using fallback colors.`;
-            if (LG && typeof LG.log === "function") LG.log(msg, "warn");
-            else console.warn(msg);
-          }
-        } catch (_) {}
-        WORLD.canvas = off;
-      }
-    }
-  } catch (_) {}
-
-  // Draw world base: offscreen blit if available; if blit fails, fall back to per-tile loop
-  let blitted = false;
-  if (WORLD.canvas) {
-    try {
-      blitted = !!RenderCore.blitViewport(ctx2d, WORLD.canvas, cam, WORLD.wpx, WORLD.hpx);
-    } catch (_) { blitted = false; }
-  }
-  if (!blitted) {
-    for (let y = startY; y <= endY; y++) {
-      const yIn = y >= 0 && y < mapRows;
-      const row = yIn ? map[y] : null;
-      for (let x = startX; x <= endX; x++) {
-        const screenX = (x - startX) * TILE - tileOffsetX;
-        const screenY = (y - startY) * TILE - tileOffsetY;
-
-        // Off-map: draw canvas background color tile
-        if (!yIn || x < 0 || x >= mapCols) {
-          ctx2d.fillStyle = "#0b0c10";
-          ctx2d.fillRect(screenX, screenY, TILE, TILE);
-          continue;
-        }
-
-        const t = row[x];
-        const fill = fillOverworldFor(WT, t);
-        ctx2d.fillStyle = fill;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      }
-    }
-  }
-
-  // Record map for tiles coverage smoketest (optional)
-  try {
-    if (typeof window !== "undefined" && window.TilesValidation && typeof window.TilesValidation.recordMap === "function") {
-      window.TilesValidation.recordMap({ mode: "overworld", map });
-    }
-  } catch (_) {}
+  // Base layer (offscreen cache + fallback)
+  try { drawWorldBase(ctx, view); } catch (_) {}
   // Top-edge boundary: render an organic shoreline + water to disguise the hard boundary.
   // Visual only; world data isn't changed. Movement into y < 0 is blocked in world_runtime.
   try {
