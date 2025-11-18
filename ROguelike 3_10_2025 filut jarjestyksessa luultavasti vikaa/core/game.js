@@ -31,6 +31,8 @@
   
   import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
 import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./persistence.js";
+import { createTimeFacade } from "./time_facade.js";
+import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./perf.js";
 
   // Runtime configuration (loaded via GameData.config when available)
   const CFG = (typeof window !== "undefined" && window.GameData && window.GameData.config && typeof window.GameData.config === "object")
@@ -95,44 +97,7 @@ import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./p
   const _CFG_DAY_MINUTES = (CFG && CFG.time && typeof CFG.time.dayMinutes === "number") ? CFG.time.dayMinutes : (24 * 60);
   const _CFG_CYCLE_TURNS = (CFG && CFG.time && typeof CFG.time.cycleTurns === "number") ? CFG.time.cycleTurns : 360;
 
-  const TS = (typeof window !== "undefined" && window.TimeService && typeof window.TimeService.create === "function")
-    ? window.TimeService.create({ dayMinutes: _CFG_DAY_MINUTES, cycleTurns: _CFG_CYCLE_TURNS })
-    : (function () {
-        const DAY_MINUTES = _CFG_DAY_MINUTES;
-        const CYCLE_TURNS = _CFG_CYCLE_TURNS;
-        const MINUTES_PER_TURN = DAY_MINUTES / CYCLE_TURNS;
-        function getClock(tc) {
-          const totalMinutes = Math.floor((tc | 0) * MINUTES_PER_TURN) % DAY_MINUTES;
-          const h = Math.floor(totalMinutes / 60);
-          const m = totalMinutes % 60;
-          const hh = String(h).padStart(2, "0");
-          const mm = String(m).padStart(2, "0");
-          const phase = (h >= 20 || h < 6) ? "night" : (h < 8 ? "dawn" : (h < 18 ? "day" : "dusk"));
-          return { hours: h, minutes: m, hhmm: `${hh}:${mm}`, phase, totalMinutes, minutesPerTurn: MINUTES_PER_TURN, cycleTurns: CYCLE_TURNS, turnCounter: (tc | 0) };
-        }
-        function minutesUntil(tc, hourTarget, minuteTarget = 0) {
-          const clock = getClock(tc);
-          const cur = clock.hours * 60 + clock.minutes;
-          const goal = ((hourTarget | 0) * 60 + (minuteTarget | 0) + DAY_MINUTES) % DAY_MINUTES;
-          let delta = goal - cur;
-          if (delta <= 0) delta += DAY_MINUTES;
-          return delta;
-        }
-        function advanceMinutes(tc, mins) {
-          const turns = Math.ceil((mins | 0) / MINUTES_PER_TURN);
-          return (tc | 0) + turns;
-        }
-        function tick(tc) { return (tc | 0) + 1; }
-        return {
-          DAY_MINUTES,
-          CYCLE_TURNS,
-          MINUTES_PER_TURN,
-          getClock,
-          minutesUntil,
-          advanceMinutes,
-          tick,
-        };
-      })();
+  const TS = createTimeFacade({ dayMinutes: _CFG_DAY_MINUTES, cycleTurns: _CFG_CYCLE_TURNS });
   const DAY_MINUTES = TS.DAY_MINUTES;
   const CYCLE_TURNS = TS.CYCLE_TURNS;
   const MINUTES_PER_TURN = TS.MINUTES_PER_TURN;
@@ -278,10 +243,7 @@ import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./p
       _dungeonStates: dungeonStates,
       time: getClock(),
       // Perf stats for HUD overlay (smoothed via EMA when available)
-      getPerfStats: () => ({
-        lastTurnMs: (typeof PERF.avgTurnMs === "number" && PERF.avgTurnMs > 0 ? PERF.avgTurnMs : (PERF.lastTurnMs || 0)),
-        lastDrawMs: (typeof PERF.avgDrawMs === "number" && PERF.avgDrawMs > 0 ? PERF.avgDrawMs : (PERF.lastDrawMs || 0)),
-      }),
+      getPerfStats: () => perfGetPerfStats(),
       requestDraw,
       log,
       isWalkable, inBounds,
@@ -775,15 +737,10 @@ import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./p
       return null;
     }
     const base = RO.getRenderCtx(getCtx());
-    // Ensure PERF sink uses local PERF tracker
+    // Perf sink: delegate to core/perf.js
     try {
       base.onDrawMeasured = (ms) => {
-        PERF.lastDrawMs = ms;
-        try {
-          const a = 0.35;
-          if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = ms;
-          else PERF.avgDrawMs = (a * ms) + ((1 - a) * PERF.avgDrawMs);
-        } catch (_) {}
+        try { perfMeasureDraw(ms); } catch (_) {}
       };
     } catch (_) {}
     return base;
@@ -1707,13 +1664,7 @@ import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./p
           if (mode === "world") { maybeEmitOverworldAnimalHint(); }
         } catch (_) {}
         const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-        PERF.lastTurnMs = t1 - t0;
-        // EMA smoothing for turn time
-        try {
-          const a = 0.35; // smoothing factor
-          if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
-          else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
-        } catch (_) {}
+        try { perfMeasureTurn(t1 - t0); } catch (_) {}
         return;
       }
     } catch (_) {}
@@ -1801,13 +1752,7 @@ import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./p
     } catch (_) {}
 
     const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-    PERF.lastTurnMs = t1 - t0;
-    // EMA smoothing for turn time
-    try {
-      const a = 0.35; // smoothing factor
-      if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
-      else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
-    } catch (_) {}
+    try { perfMeasureTurn(t1 - t0); } catch (_) {}
   }
   
   
@@ -1944,7 +1889,7 @@ import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./p
           getCamera: () => camera,
           getOccupancy: () => occupancy,
           getDecals: () => decals,
-          getPerfStats: () => ({ lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }),
+          getPerfStats: () => perfGetPerfStats(),
           TILES,
           tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
           enterTownIfOnTile: () => enterTownIfOnTile(),
