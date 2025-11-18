@@ -2,6 +2,7 @@
  * Dungeon base layer: offscreen tile cache build and base rendering.
  */
 import * as RenderCore from "../render_core.js";
+import { shade as _shade } from "../color_utils.js";
 import { getTileDef, getTileDefByKey } from "../../data/tile_lookup.js";
 import { fillDungeonFor } from "./dungeon_tile_cache.js";
 
@@ -50,9 +51,9 @@ export function encounterFillForFactory(ctx) {
     if (!ctx.encounterBiome) return null;
     const base = bFill;
     if (!base) return null;
-    // Use lighter, biome-driven colors to avoid overly dark maps
-    if (type === TILES.WALL) return base; // slightly darker could be applied via shade, but keep consistent
-    if (type === TILES.DOOR) return base;
+    // Match pre-refactor behavior: slight shade differences per tile type
+    if (type === TILES.WALL) return _shade(base, 0.88); // slightly darker to distinguish walls
+    if (type === TILES.DOOR) return _shade(base, 1.06); // slight highlight
     if (type === TILES.FLOOR || type === TILES.STAIRS) return base;
     return null;
   }

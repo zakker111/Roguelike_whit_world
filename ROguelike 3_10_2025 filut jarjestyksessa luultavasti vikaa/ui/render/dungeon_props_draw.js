@@ -147,6 +147,26 @@ export function drawEncounterProps(ctx, view) {
           RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
         }
       }
+    } else if (p.type === "tree") {
+      // Optional explicit tree prop support if generators add them
+      let glyph = "♣";
+      let color = "#3fa650";
+      try {
+        const td = getTileDefByKey("region", "TREE") || getTileDefByKey("town", "TREE");
+        if (td) {
+          if (Object.prototype.hasOwnProperty.call(td, "glyph")) glyph = td.glyph || glyph;
+          if (td.colors && td.colors.fg) color = td.colors.fg || color;
+        }
+      } catch (_) {}
+      try { color = _propColor("tree", color) || color; } catch (_) {}
+      if (!visNow) {
+        ctx2d.save();
+        ctx2d.globalAlpha = 0.70;
+        RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+        ctx2d.restore();
+      } else {
+        RenderCore.drawGlyph(ctx2d, sx, sy, glyph, color, TILE);
+      }
     } else if (p.type === "captive") {
       let glyph = "☺";
       let color = "#eab308";
