@@ -34,6 +34,9 @@ import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./p
 import { createTimeFacade } from "./time_facade.js";
 import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./perf.js";
 import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./game_config.js";
+import { TILES as TILES_CONST, getColors as getColorsConst } from "./game_visuals.js";
+import { log as logFacade } from "./log.js";
+import { getRng as rngGetRng, int as rngInt, chance as rngChance, float as rngFloat } from "./rng_facade.js";
 import {
   renderInventoryPanel as renderInventoryPanelFacade,
   showInventoryPanel as showInventoryPanelFacade,
@@ -128,35 +131,8 @@ import {
   };
 
   
-  const TILES = {
-    WALL: 0,
-    FLOOR: 1,
-    DOOR: 2,
-    STAIRS: 3,
-    WINDOW: 4, // town-only: blocks movement, lets light through
-    ROAD: 5,   // town-only: outdoor road; walkable; always brown
-  };
-
-  // Palette override from JSON when available
-  const PAL = (typeof window !== "undefined" && window.GameData && window.GameData.palette && typeof window.GameData.palette === "object")
-    ? window.GameData.palette
-    : null;
-
-  const COLORS = {
-    wall: (PAL && PAL.tiles && PAL.tiles.wall) || "#1b1f2a",
-    wallDark: (PAL && PAL.tiles && PAL.tiles.wallDark) || "#131722",
-    floor: (PAL && PAL.tiles && PAL.tiles.floor) || "#0f1320",
-    floorLit: (PAL && PAL.tiles && PAL.tiles.floorLit) || "#0f1628",
-    player: (PAL && PAL.entities && PAL.entities.player) || "#9ece6a",
-    enemy: (PAL && PAL.entities && PAL.entities.enemyDefault) || "#f7768e",
-    enemyGoblin: (PAL && PAL.entities && PAL.entities.goblin) || "#8bd5a0",
-    enemyTroll: (PAL && PAL.entities && PAL.entities.troll) || "#e0af68",
-    enemyOgre: (PAL && PAL.entities && PAL.entities.ogre) || "#f7768e",
-    item: (PAL && PAL.entities && PAL.entities.item) || "#7aa2f7",
-    corpse: (PAL && PAL.entities && PAL.entities.corpse) || "#c3cad9",
-    corpseEmpty: (PAL && PAL.entities && PAL.entities.corpseEmpty) || "#6b7280",
-    dim: (PAL && PAL.overlays && PAL.overlays.dim) || "rgba(13, 16, 24, 0.75)"
-  };
+  const TILES = TILES_CONST;
+  const COLORS = getColorsConst();
 
   
   const canvas = document.getElementById("game");
@@ -195,15 +171,8 @@ import {
       currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
     }
   } catch (_) { currentSeed = null; }
-  // Single RNG function from RNGUtils; deterministic (0.5) if RNG is unavailable
-  let rng = (function () {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-        return window.RNGUtils.getRng();
-      }
-    } catch (_) {}
-    return () => 0.5;
-  })();
+  // Single RNG function via RNG facade; deterministic (0.5) if RNG is unavailable
+  let rng = rngGetRng();
   let isDead = false;
   let startRoomRect = null;
   // GOD toggles (config-driven defaults with localStorage/window override)
@@ -338,16 +307,9 @@ import {
     return null;
   }
 
-  // Use RNGUtils exclusively for helpers; deterministic midpoints when RNG unavailable
-  const randInt = (min, max) => {
-    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") return window.RNGUtils.int(min, max, rng); } catch (_) {}
-    // midpoint fallback
-    return Math.floor((min + max) / 2);
-  };
-  const chance = (p) => {
-    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") return window.RNGUtils.chance(p, rng); } catch (_) {}
-    return false;
-  };
+  // RNG helpers via facade
+  const randInt = (min, max) => rngInt(min, max, rng);
+  const chance = (p) => rngChance(p, rng);
   const capitalize = ((typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.capitalize === "function")
     ? window.PlayerUtils.capitalize
     : (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -358,13 +320,7 @@ import {
     }
     return COLORS.enemy;
   };
-  const randFloat = (min, max, decimals = 1) => {
-    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") return window.RNGUtils.float(min, max, decimals, rng); } catch (_) {}
-    // midpoint fallback
-    const v = (min + max) / 2;
-    const p = Math.pow(10, decimals);
-    return Math.round(v * p) / p;
-  };
+  const randFloat = (min, max, decimals = 1) => rngFloat(min, max, decimals, rng);
   const round1 = (n) => Math.round(n * 10) / 10;
 
   // Decay helpers
@@ -625,15 +581,9 @@ import {
 
   
   function log(msg, type = "info") {
-    // Prefer UI logger; avoid direct DOM fallbacks
-    try { if (window.DEV) console.debug(`[${type}] ${msg}`); } catch (_) {}
-    const LG = modHandle("Logger");
-    if (LG && typeof LG.log === "function") {
-      LG.log(msg, type);
-      return;
+    try { logFacade(getCtx(), msg, type); } catch (_) {
+      try { console.log(`[${type}] ${msg}`); } catch (_) {}
     }
-    // Fallback: console only
-    try { console.log(`[${type}] ${msg}`); } catch (_) {}
   }
 
   
