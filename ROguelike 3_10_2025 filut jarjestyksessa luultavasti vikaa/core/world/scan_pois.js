@@ -1,0 +1,78 @@
+/**
+ * World scanPOIs helper (Phase 3 extraction):
+ * Registers towns/dungeons/ruins in the current window and triggers roads/bridges when enabled.
+ */
+import { addTown, addDungeon, addRuins } from './poi.js';
+import { ensureRoads, ensureExtraBridges } from './roads_bridges.js';
+
+// Config helpers (duplicated from world_runtime for now; will be centralized later)
+function _getConfig() {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    if (GD && GD.config && GD.config.world) return GD.config.world;
+  } catch (_) {}
+  return {};
+}
+function _lsBool(key) {
+  try {
+    const v = localStorage.getItem(key);
+    if (typeof v === "string") {
+      const s = v.toLowerCase();
+      return s === "1" || s === "true" || s === "yes" || s === "on";
+    }
+  } catch (_) {}
+  return null;
+}
+function featureEnabled(name, defaultVal) {
+  const ls = _lsBool(name);
+  if (ls != null) return !!ls;
+  const cfg = _getConfig();
+  if (name === "WORLD_INFINITE") {
+    if (typeof cfg.infinite === "boolean") return !!cfg.infinite;
+    return !!defaultVal;
+  }
+  if (name === "WORLD_ROADS") {
+    if (typeof cfg.roadsEnabled === "boolean") return !!cfg.roadsEnabled;
+    return !!defaultVal;
+  }
+  if (name === "WORLD_BRIDGES") {
+    if (typeof cfg.bridgesEnabled === "boolean") return !!cfg.bridgesEnabled;
+    return !!defaultVal;
+  }
+  return !!defaultVal;
+}
+
+// Scan a rectangle of the current window (map space) and register POIs sparsely
+export function scanPOIs(ctx, x0, y0, w, h) {
+  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, TOWNK: 4, DUNGEONK: 5 };
+  const world = ctx.world;
+  for (let yy = y0; yy < y0 + h; yy++) {
+    if (yy < 0 || yy >= ctx.map.length) continue;
+    const row = ctx.map[yy];
+    for (let xx = x0; xx < x0 + w; xx++) {
+      if (xx < 0 || xx >= row.length) continue;
+      const t = row[xx];
+      if (t === WT.TOWN) {
+        const wx = world.originX + xx;
+        const wy = world.originY + yy;
+        addTown(world, wx, wy);
+      } else if (t === WT.DUNGEON) {
+        const wx = world.originX + xx;
+        const wy = world.originY + yy;
+        addDungeon(world, wx, wy);
+      } else if (t === WT.RUINS) {
+        const wx = world.originX + xx;
+        const wy = world.originY + yy;
+        addRuins(world, wx, wy);
+      }
+    }
+  }
+  // After registering POIs in this strip/window, connect nearby towns with roads and mark bridges (feature-gated).
+  try {
+    if (featureEnabled("WORLD_ROADS", false)) ensureRoads(ctx);
+  } catch (_) {}
+  // Ensure there are usable river crossings independent of roads (feature-gated).
+  try {
+    if (featureEnabled("WORLD_BRIDGES", false)) ensureExtraBridges(ctx);
+  } catch (_) {}
+}
