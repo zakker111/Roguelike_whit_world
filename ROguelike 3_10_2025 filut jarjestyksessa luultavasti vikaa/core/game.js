@@ -33,18 +33,12 @@
 import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./persistence.js";
 import { createTimeFacade } from "./time_facade.js";
 import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./perf.js";
+import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./game_config.js";
 
-  // Runtime configuration (loaded via GameData.config when available)
-  const CFG = (typeof window !== "undefined" && window.GameData && window.GameData.config && typeof window.GameData.config === "object")
-    ? window.GameData.config
-    : null;
-
-  const TILE = (CFG && CFG.viewport && typeof CFG.viewport.TILE === "number") ? CFG.viewport.TILE : 32;
-  const COLS = (CFG && CFG.viewport && typeof CFG.viewport.COLS === "number") ? CFG.viewport.COLS : 30;
-  const ROWS = (CFG && CFG.viewport && typeof CFG.viewport.ROWS === "number") ? CFG.viewport.ROWS : 20;
-  
-  const MAP_COLS = (CFG && CFG.world && typeof CFG.world.MAP_COLS === "number") ? CFG.world.MAP_COLS : 120;
-  const MAP_ROWS = (CFG && CFG.world && typeof CFG.world.MAP_ROWS === "number") ? CFG.world.MAP_ROWS : 80;
+  // Runtime configuration (loaded via GameData.config via core/game_config.js)
+  const CFG = getRawConfig();
+  const { TILE, COLS, ROWS } = getViewportDefaults(CFG);
+  const { MAP_COLS, MAP_ROWS } = getWorldDefaults(CFG);
 
   // Fresh session (no localStorage) support via URL params: ?fresh=1 or ?reset=1 or ?nolocalstorage=1
   try {
@@ -59,9 +53,7 @@ import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerf
     }
   } catch (_) {}
 
-  const FOV_DEFAULT = (CFG && CFG.fov && typeof CFG.fov.default === "number") ? CFG.fov.default : 8;
-  const FOV_MIN = (CFG && CFG.fov && typeof CFG.fov.min === "number") ? CFG.fov.min : 3;
-  const FOV_MAX = (CFG && CFG.fov && typeof CFG.fov.max === "number") ? CFG.fov.max : 14;
+  const { FOV_DEFAULT, FOV_MIN, FOV_MAX } = getFovDefaults(CFG);
   let fovRadius = FOV_DEFAULT;
 
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
@@ -196,8 +188,9 @@ import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerf
   let isDead = false;
   let startRoomRect = null;
   // GOD toggles (config-driven defaults with localStorage/window override)
-  const AC_DEFAULT = (CFG && CFG.dev && typeof CFG.dev.alwaysCritDefault === "boolean") ? !!CFG.dev.alwaysCritDefault : false;
-  const CP_DEFAULT = (CFG && CFG.dev && typeof CFG.dev.critPartDefault === "string") ? CFG.dev.critPartDefault : "";
+  const DEV_DEFAULTS = getDevDefaults(CFG);
+  const AC_DEFAULT = !!DEV_DEFAULTS.alwaysCritDefault;
+  const CP_DEFAULT = DEV_DEFAULTS.critPartDefault;
   let alwaysCrit = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? !!window.ALWAYS_CRIT : AC_DEFAULT;
   let forcedCritPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string")
     ? window.ALWAYS_CRIT_PART
