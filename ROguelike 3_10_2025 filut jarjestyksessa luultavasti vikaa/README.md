@@ -134,6 +134,17 @@ Useful flags and persistence
 - Seed persists in localStorage SEED and is shown in the GOD panel.
 - Version-based storage clearing: on each deploy, the app compares meta[name="app-version"] with the stored version. If changed, it clears saved town/dungeon/region state and resets in‑memory mirrors to guarantee a clean start (preferences like seed/toggles remain).
 
+HUD visibility (dev toggles)
+- Overworld HUD (biome + clock):
+  - Toggle via GOD → Render → “Overworld HUD: On/Off”
+  - Programmatic: set window.SHOW_OVERWORLD_HUD = true|false (persists to localStorage "SHOW_OVERWORLD_HUD")
+- Region Map HUD (title + clock + animals status):
+  - Toggle via GOD → Render → “Region HUD: On/Off”
+  - Programmatic: set window.SHOW_REGION_HUD = true|false (persists to localStorage "SHOW_REGION_HUD")
+- Encounter HUD (biome + clock):
+  - Toggle via GOD → Render → “Encounter HUD: On/Off”
+  - Programmatic: set window.SHOW_ENCOUNTER_HUD = true|false (persists to localStorage "SHOW_ENCOUNTER_HUD")
+
 Logging system (UI + Dev API)
 - Overview
   - In-DOM log overlay with optional right-side mirror.

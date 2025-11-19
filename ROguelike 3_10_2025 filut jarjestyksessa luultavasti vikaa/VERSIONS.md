@@ -1,6 +1,21 @@
 s 
 # Game Version History
-Last updated: 2025-11-17 00:00 UTC
+Last updated: 2025-11-19 00:00 UTC
+
+v1.47.1 — Phase 5: renderer direct-import cleanup + HUD dev toggles (GOD)
+- Renderers
+  - ui/render_town.js and ui/render_dungeon.js now import overlay functions directly from ui/render/* modules (no RenderOverlays indirection).
+  - ui/render_overlays.js retained as a thin aggregator for back-compat (window.RenderOverlays) during a short deprecation window.
+- HUD dev toggles
+  - Overworld HUD (biome + clock), Region HUD (title/clock/animals), and Encounter HUD (biome + clock) can be toggled at runtime:
+    - Globals: window.SHOW_OVERWORLD_HUD, window.SHOW_REGION_HUD, window.SHOW_ENCOUNTER_HUD (persisted to localStorage).
+    - GOD panel (Render): new buttons “Overworld HUD”, “Region HUD”, “Encounter HUD”.
+  - drawEncounterHUD now respects window.SHOW_ENCOUNTER_HUD; overworld/region HUD modules respect their respective flags.
+- ESLint
+  - Added soft limit: "max-lines": ["warn", { max: 500, skipBlankLines: true, skipComments: true }].
+- Docs
+  - README updated with the new HUD dev toggles and persistence keys.
+- Deployment: https://jcg923ua0s90.cosine.page
 
 v1.47.0 — Rendering/FOV centralization, Town Exit UI removal, ctx‑first RNG/StateSync sweep
 - Core (camera/draw/FOV)

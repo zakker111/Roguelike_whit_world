@@ -546,6 +546,37 @@ export function init(UI) {
     try { UI.updateMinimapButton(); } catch (_) {}
   }
 
+  // HUD toggles
+  const owHudBtn = byId("god-toggle-ow-hud-btn");
+  if (owHudBtn) {
+    owHudBtn.addEventListener("click", () => {
+      const next = !UI.getOverworldHudState();
+      UI.setOverworldHudState(next);
+      UI.updateOverworldHudButton();
+    });
+    try { UI.updateOverworldHudButton(); } catch (_) {}
+  }
+
+  const regionHudBtn = byId("god-toggle-region-hud-btn");
+  if (regionHudBtn) {
+    regionHudBtn.addEventListener("click", () => {
+      const next = !UI.getRegionHudState();
+      UI.setRegionHudState(next);
+      UI.updateRegionHudButton();
+    });
+    try { UI.updateRegionHudButton(); } catch (_) {}
+  }
+
+  const encHudBtn = byId("god-toggle-enc-hud-btn");
+  if (encHudBtn) {
+    encHudBtn.addEventListener("click", () => {
+      const next = !UI.getEncounterHudState();
+      UI.setEncounterHudState(next);
+      UI.updateEncounterHudButton();
+    });
+    try { UI.updateEncounterHudButton(); } catch (_) {}
+  }
+
   // Palette switcher
   const palSel = byId("god-palette-select");
   const palApply = byId("god-apply-palette-btn");
