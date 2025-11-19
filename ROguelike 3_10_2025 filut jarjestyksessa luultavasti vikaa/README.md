@@ -250,6 +250,18 @@ Development
 - Format: npx prettier -c . / -w .
 - See VERSIONS.md for a concise changelog and recent improvements.
 
+CI and Validation
+- Validation (GOD → Run Validation): runs data checks for items, enemies, shops, tiles/props, palette, encounters.
+  - Download JSON: use “Download Validation” to export validation_report.json (warnings/notices + per-category counts).
+- Smoketest (browser-run):
+  - Auto-run: open /index.html?smoketest=1 to run the orchestrator runner.
+  - Filter: &scenarios=world,dungeon,overlays (reduced set for CI); &smokecount=N for multi-run.
+  - Outputs:
+    - PASS/FAIL tokens in DOM (#smoke-pass-token) and localStorage ('smoke-pass-token').
+    - JSON report in DOM (#smoke-json-token) and localStorage ('smoke-json-token').
+    - Download buttons in the GOD panel (Report JSON, Summary TXT, Checklist TXT).
+  - Tip: for headless CI, launch a headless browser (Playwright/Puppeteer) against the deployed URL with ?smoketest=1&scenarios=world,dungeon,overlays, wait for #smoke-pass-token, and download #smoke-json-token payload.
+
 Roadmap (Upcoming Phases)
 - Phase 4 — Theming completeness and validation
   - Prefab Editor theming: drive grid background/lines and hint/status panels from palette overlays (panelBg/panelBorder/panelShadow), use overlays.grid for editor grid lines.

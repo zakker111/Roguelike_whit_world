@@ -7,6 +7,7 @@
  * - run(ctx?): builds/refreshes category counts based on current GameData + ValidationLog
  * - summary(): returns { totalWarnings, totalNotices, perCategory: { [name]: { warnings, notices } } }
  * - logSummary(ctx?): writes summary to Logger and GOD output element if present
+ * - getReport(): returns full report object { warnings, notices, perCategory, timestamp }
  */
 
 function ensureValidationLog() {
@@ -184,6 +185,20 @@ export function run(ctx = null) {
       validateItems(GD.items);
       validateEnemies(GD.enemies);
 
+      // Consumables (potions)
+      try {
+        const potions = GD.consumables && Array.isArray(GD.consumables.potions) ? GD.consumables.potions : [];
+        const seen = new Set();
+        for (const p of potions) {
+          const id = (p && p.id) ? String(p.id) : "";
+          if (!id) { pushWarn("[Consumables] potion missing id."); continue; }
+          if (seen.has(id)) pushWarn(`[Consumables] duplicate potion id '${id}'.`);
+          seen.add(id);
+          if (typeof p.name !== "string" || !p.name.trim().length) pushWarn(`[Consumables] potion '${id}' missing name.`);
+          if (!isNum(p.heal) || p.heal < 0) pushWarn(`[Consumables] potion '${id}' heal should be non-negative number.`);
+        }
+      } catch (_) {}
+
       // Cross-check: enemy loot pools reference valid item ids
       try {
         const ItemsMod = (typeof window !== "undefined" ? window.Items : null);
@@ -322,7 +337,7 @@ export function run(ctx = null) {
                   }
                 } else if (kind === "drink" || kind === "food") {
                   if (entry.heal != null && (!Number.isFinite(Number(entry.heal)) || Number(entry.heal) < 0)) {
-                    pushWarn(`[Shops] '${shopType}.${cat}' ${kind} '${entry.id || entry.name || kind}' has invalid heal; expected non-negative number.`);
+                    pushWarn(`[Shops] '${shopType}.${cat}.${entry.id || kind}' ${kind} '${entry.id || entry.name || kind}' has invalid heal; expected non-negative number.`);
                   }
                 }
               }
@@ -331,7 +346,7 @@ export function run(ctx = null) {
         }
       } catch (_) {}
 
-      // Palette overlays (basic presence)
+      // Palette overlays (basic presence + numeric alpha checks)
       const pal = GD.palette;
       const ov = pal && pal.overlays ? pal.overlays : null;
       if (!ov || typeof ov !== "object") {
@@ -344,7 +359,45 @@ export function run(ctx = null) {
           if (typeof v !== "string" || !v.trim().length) missingBasic.push(k);
         }
         if (missingBasic.length) pushWarn("[Palette] overlays missing keys: " + missingBasic.join(", ") + ".");
+        // Numeric alpha keys range check (warn-only)
+        const expectAlpha = [
+          "nightA","duskA","dawnA","vignetteA",
+          "exitOverlayFillA","exitOverlayStrokeA",
+          "exitEncounterFillA","exitEncounterStrokeA",
+          "exitDungeonFillA","exitDungeonStrokeA",
+          "glowStartA","glowMidA","glowEndA"
+        ];
+        for (const k of expectAlpha) {
+          if (Object.prototype.hasOwnProperty.call(ov, k)) {
+            const v = ov[k];
+            if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1) {
+              pushWarn(`[Palette] overlays: alpha key '${k}' should be a number in [0,1].`);
+            }
+          }
+        }
       }
+
+      // Encounters templates validation (basic)
+      try {
+        const templates = GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
+        const seenIds = new Set();
+        const BIOMES_OK = new Set(["FOREST","GRASS","SWAMP","SNOW","DESERT","BEACH","MOUNTAIN"]);
+        for (const t of templates) {
+          const id = String((t && t.id) || "").trim();
+          if (!id) { pushWarn("[Encounters] template missing id."); continue; }
+          if (seenIds.has(id)) pushWarn(`[Encounters] duplicate template id '${id}'.`);
+          seenIds.add(id);
+          if (t.allowedBiomes && Array.isArray(t.allowedBiomes)) {
+            for (const b of t.allowedBiomes) {
+              const bb = String(b || "").toUpperCase();
+              if (!BIOMES_OK.has(bb)) pushWarn(`[Encounters] '${id}' allowedBiomes contains unknown biome '${b}'.`);
+            }
+          }
+          if (t.share != null && (!Number.isFinite(Number(t.share)) || Number(t.share) < 0)) {
+            pushWarn(`[Encounters] '${id}' share should be a non-negative number (fraction).`);
+          }
+        }
+      } catch (_) {}
 
       // Tiles/props presence
       if (!GD.tiles || !GD.tiles.tiles || !Array.isArray(GD.tiles.tiles)) {
@@ -352,6 +405,21 @@ export function run(ctx = null) {
       }
       if (!GD.props || !GD.props.props || !Array.isArray(GD.props.props)) {
         try { V.notices.push("[Props] Props registry missing; decor glyphs may use fallbacks."); } catch (_) {}
+      } else {
+        // Light-emitting props should have light shape
+        try {
+          for (const p of GD.props.props) {
+            const id = String(p && (p.id || p.key) || "");
+            if (!id) continue;
+            const emits = !!(p && p.properties && p.properties.emitsLight);
+            if (emits) {
+              const L = p.light || {};
+              const r = Number(L.castRadius || 0);
+              if (!Number.isFinite(r) || r <= 0) pushWarn(`[Props] '${id}' emitsLight but light.castRadius is missing/invalid.`);
+              if (typeof L.color !== "string" || !String(L.color || "").trim().length) pushWarn(`[Props] '${id}' emitsLight but light.color is missing/invalid.`);
+            }
+          }
+        } catch (_) {}
       }
     }
   } catch (_) {}
@@ -425,6 +493,18 @@ export function logSummary(ctx = null) {
       UIO.requestDraw(ctx);
     }
   } catch (_) {}
+}
+
+export function getReport() {
+  const V = ensureValidationLog();
+  const cats = summary().perCategory || {};
+  const rep = {
+    warnings: Array.isArray(V.warnings) ? V.warnings.slice() : [],
+    notices: Array.isArray(V.notices) ? V.notices.slice() : [],
+    perCategory: cats,
+    timestamp: Date.now()
+  };
+  return rep;
 }
 
 import { attachGlobal } from "../utils/global.js";
