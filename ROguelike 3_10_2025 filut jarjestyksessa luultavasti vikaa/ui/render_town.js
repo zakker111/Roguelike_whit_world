@@ -10,7 +10,6 @@
  * - draw(ctx, view)
  */
 import * as RenderCore from "./render_core.js";
-import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 import { propColor as _propColor } from "./prop_palette.js";
@@ -25,6 +24,11 @@ import { drawShopMarkers as drawShopMarkersLayer } from "./render/town_shop_mark
 import { drawNPCs } from "./render/town_npc_draw.js";
 import { drawGateOverlay } from "./render/town_gate_overlay.js";
 import { drawTownDayNightTint } from "./render/town_tints.js";
+import { drawTownDebugOverlay } from "./render/town_debug_overlay.js";
+import { drawTownPaths } from "./render/town_paths.js";
+import { drawTownHomePaths } from "./render/town_home_paths.js";
+import { drawTownRoutePaths } from "./render/town_route_paths.js";
+import { drawLampGlow } from "./render/lamp_glow.js";
 
 
 export function draw(ctx, view) {
@@ -325,11 +329,11 @@ export function draw(ctx, view) {
   try { drawNPCs(ctx, view); } catch (_) {}
 
   // Debug overlays and effects
-  RenderOverlays.drawTownDebugOverlay(ctx, view);
-  RenderOverlays.drawTownPaths(ctx, view);
-  RenderOverlays.drawTownHomePaths(ctx, view);
-  RenderOverlays.drawTownRoutePaths(ctx, view);
-  RenderOverlays.drawLampGlow(ctx, view);
+  try { drawTownDebugOverlay(ctx, view); } catch (_) {}
+  try { drawTownPaths(ctx, view); } catch (_) {}
+  try { drawTownHomePaths(ctx, view); } catch (_) {}
+  try { drawTownRoutePaths(ctx, view); } catch (_) {}
+  try { drawLampGlow(ctx, view); } catch (_) {}
 
   // Gate overlay
   try { drawGateOverlay(ctx, view); } catch (_) {}

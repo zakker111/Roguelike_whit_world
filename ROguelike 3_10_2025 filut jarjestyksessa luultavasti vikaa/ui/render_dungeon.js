@@ -10,7 +10,6 @@
  * - draw(ctx, view)
  */
 import * as RenderCore from "./render_core.js";
-import * as RenderOverlays from "./render_overlays.js";
 import { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay, drawEncounterHUD } from "./decor_overlays.js";
 import { attachGlobal } from "../utils/global.js";
 import { getTileDefByKey } from "../data/tile_lookup.js";
@@ -20,6 +19,7 @@ import { drawBaseLayer } from "./render/dungeon_base_layer.js";
 import { glyphDungeonFor } from "./render/dungeon_tile_cache.js";
 import { drawEncounterProps, drawDungeonProps } from "./render/dungeon_props_draw.js";
 import { drawEnemies, drawPlayer } from "./render/dungeon_entities_draw.js";
+import { drawDungeonGlow } from "./render/dungeon_glow.js";
 
 export function draw(ctx, view) {
   const {
@@ -202,7 +202,7 @@ export function draw(ctx, view) {
   try { drawEncounterHUD(ctx, view); } catch (_) {}
 
   // Dungeon glow overlays (e.g., wall torches)
-  RenderOverlays.drawDungeonGlow(ctx, view);
+  try { drawDungeonGlow(ctx, view); } catch (_) {}
 
   // Grid overlay (if enabled)
   RenderCore.drawGridOverlay(view);

@@ -150,6 +150,7 @@ export function drawEncounterExitOverlay(ctx, view) {
 
 export function drawEncounterHUD(ctx, view) {
   if (ctx.mode !== "encounter") return;
+  if (typeof window !== "undefined" && window.SHOW_ENCOUNTER_HUD === false) return;
   const { ctx2d } = Object.assign({}, view, ctx);
   try {
     const prevAlign = ctx2d.textAlign;
@@ -265,4 +266,4 @@ export function drawDungeonExitOverlay(ctx, view) {
 
 // Back-compat
 import { attachGlobal } from "../utils/global.js";
-attachGlobal("DecorOverlays", { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay });
+attachGlobal("DecorOverlays", { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay, drawEncounterHUD });
