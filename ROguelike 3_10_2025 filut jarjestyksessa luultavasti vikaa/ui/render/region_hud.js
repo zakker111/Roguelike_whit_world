@@ -2,6 +2,7 @@
  * Region HUD: title, hint, clock, animals status.
  */
 export function drawRegionHUD(ctx, view) {
+  if (typeof window !== "undefined" && window.SHOW_REGION_HUD === false) return;
   const { ctx2d } = Object.assign({}, view, ctx);
   try {
     const prevAlign = ctx2d.textAlign;

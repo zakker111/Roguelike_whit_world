@@ -2,6 +2,7 @@
  * Overworld HUD: biome label + clock.
  */
 export function drawBiomeClockLabel(ctx, view) {
+  if (typeof window !== "undefined" && window.SHOW_OVERWORLD_HUD === false) return;
   const { ctx2d, TILE, map, player, cam } = Object.assign({}, view, ctx);
   try {
     let labelWidth = 260;
