@@ -11,7 +11,7 @@
  */
 import * as RenderCore from "./render_core.js";
 import * as RenderOverlays from "./render_overlays.js";
-import { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay } from "./decor_overlays.js";
+import { drawBiomeDecor, drawEncounterExitOverlay, drawDungeonExitOverlay, drawEncounterHUD } from "./decor_overlays.js";
 import { attachGlobal } from "../utils/global.js";
 import { getTileDefByKey } from "../data/tile_lookup.js";
 
@@ -197,6 +197,9 @@ export function draw(ctx, view) {
   // Entities
   try { drawEnemies(ctx, view); } catch (_) {}
   try { drawPlayer(ctx, view); } catch (_) {}
+
+  // Encounter HUD (biome + time)
+  try { drawEncounterHUD(ctx, view); } catch (_) {}
 
   // Dungeon glow overlays (e.g., wall torches)
   RenderOverlays.drawDungeonGlow(ctx, view);
