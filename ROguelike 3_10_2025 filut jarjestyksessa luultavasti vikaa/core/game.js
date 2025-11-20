@@ -55,7 +55,7 @@ import {
   godSpawnItems as godSpawnItemsFacade,
   godHeal as godHealFacade,
   godSpawnStairsHere as godSpawnStairsHereFacade
-} from "./god_facade.js";
+} from "./god/facade.js";
 
   // Runtime configuration (loaded via GameData.config via core/game_config.js)
   const CFG = getRawConfig();

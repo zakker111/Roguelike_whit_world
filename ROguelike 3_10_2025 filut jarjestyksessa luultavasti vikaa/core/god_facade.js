@@ -1,1 +1,0 @@
-export * from "./god/facade.js";

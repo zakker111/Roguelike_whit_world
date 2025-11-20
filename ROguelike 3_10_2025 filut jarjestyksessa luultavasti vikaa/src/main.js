@@ -87,7 +87,7 @@ import '/core/modes.js';
 import '/core/game_loop.js';
 import '/core/input.js';
 import '/core/game_api.js';
-import '/core/fov_camera.js';
+import '/core/engine/fov_camera.js';
 import '/core/inventory_controller.js';
 import '/core/inventory_flow.js';
 import '/core/town_runtime.js';
@@ -98,21 +98,21 @@ import '/region_map/region_map_runtime.js';
 import '/core/occupancy_facade.js';
 import '/core/world_runtime.js';
 import '/core/game_state.js';
-import '/core/turn_loop.js';
-import '/core/game_fov.js';
+import '/core/engine/turn_loop.js';
+import '/core/engine/game_fov.js';
 import '/core/modes_transitions.js';
 import '/core/ui_orchestration.js';
 import '/core/movement.js';
 import '/core/loot_flow.js';
-import '/core/render_orchestration.js';
+import '/core/engine/render_orchestration.js';
 import '/core/death_flow.js';
 import '/core/capabilities.js';
-import '/core/god_handlers.js';
+import '/core/god/handlers.js';
 import '/core/validation_runner.js';
 
 // Finally: game orchestrator (boots world, sets up input, starts loop/render)
 // Minimal orchestrator keeps current boot-in-game.js behavior behind a stable entrypoint.
-import '/core/game_orchestrator.js';
+import '/core/engine/game_orchestrator.js';
 
 // Boot diagnostics: log RNG source and seed once registries are loaded.
 (function () {

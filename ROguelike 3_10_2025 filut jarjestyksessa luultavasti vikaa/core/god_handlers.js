@@ -1,1 +1,0 @@
-export * from "./god/handlers.js";
