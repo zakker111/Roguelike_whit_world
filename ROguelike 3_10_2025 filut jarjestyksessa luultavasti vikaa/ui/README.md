@@ -8,7 +8,7 @@ Key modules
 - render_overworld.js — overworld renderer (tiles, fog-of-war, minimap integration).
 - render_town.js — town renderer (biome tinting, roads, buildings, props).
 - render_dungeon.js — dungeon renderer (rooms, walls, torches, stairs).
-- render_overlays.js — diagnostic overlays (grid, paths, perf, minimap toggle).
+- overlay modules under ui/render/*.js — diagnostic overlays (grid, town paths/home/routes, lamp/torch glow), HUD toggles, and minimap controls (see ui/render/* and ui/ui.js toggles).
 - render_region.js — local tactical Region Map overlay renderer.
 - render.js — orchestration and common glue across mode renderers.
 - tileset.js — glyph/char/color lookup, caching, and tileset utilities.

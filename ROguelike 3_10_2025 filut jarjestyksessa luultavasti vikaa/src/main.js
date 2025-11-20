@@ -60,7 +60,7 @@ import '/ui/render_core.js';
 import '/ui/render_overworld.js';
 import '/ui/render_town.js';
 import '/ui/render_dungeon.js';
-import '/ui/render_overlays.js';
+
 import '/ui/render_region.js';
 import '/ui/render.js';
 import '/ui/decals.js';
