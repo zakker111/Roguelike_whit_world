@@ -1521,27 +1521,43 @@ function onAction(ctx) {
     const list = Array.isArray(ctx.corpses) ? ctx.corpses : [];
     const corpseHere = list.find(c => c && c.x === cursor.x && c.y === cursor.y);
     if (corpseHere) {
-      // Prefer DungeonRuntime.lootHere for unified corpse flavor + loot behavior (matches dungeon/encounter).
-      // Fallback to Loot.lootHere when DungeonRuntime is unavailable.
+      // Show corpse flavor consistently (victim, wound, killer, weapon/likely cause) before looting.
+      try {
+        const FS = (typeof window !== "undefined" ? window.FlavorService : null);
+        if (FS && typeof FS.describeCorpse === "function") {
+          const underfoot = list.filter(c => c && c.x === cursor.x && c.y === cursor.y);
+          for (const c of underfoot) {
+            const meta = c && c.meta;
+            if (meta && (meta.killedBy || meta.wound || meta.via || meta.likely)) {
+              const line = FS.describeCorpse(meta);
+              if (line) ctx.log && ctx.log(line, "flavor", { category: "Combat", side: "enemy", tone: "injury" });
+            }
+          }
+        }
+      } catch (_) {}
+      // Prefer DungeonRuntime.lootHere; if it declines (returns false in region mode), fall back to Loot.lootHere.
+      let handled = false;
       try {
         const DR = ctx.DungeonRuntime || getMod(ctx, "DungeonRuntime");
         if (DR && typeof DR.lootHere === "function") {
-          DR.lootHere(ctx);
-          // Persist region state immediately so looted containers remain emptied on reopen
-          try { saveRegionState(ctx); } catch (_) {}
-        } else {
+          handled = !!DR.lootHere(ctx);
+        }
+      } catch (_) { handled = false; }
+      if (!handled) {
+        try {
           const L = ctx.Loot || getMod(ctx, "Loot");
           if (L && typeof L.lootHere === "function") {
             L.lootHere(ctx);
-            // Persist region state immediately so looted containers remain emptied on reopen
-            try { saveRegionState(ctx); } catch (_) {}
-          } else {
-            // Minimal fallback: keep previous inline summary logging if Loot subsystem unavailable
-            ctx.log && ctx.log("Loot system not available.", "warn");
+            handled = true;
           }
-        }
-      } catch (_) {
-        ctx.log && ctx.log("Loot failed.", "warn");
+        } catch (_) { handled = false; }
+      }
+      if (!handled) {
+        // Minimal fallback: signal lack of loot subsystem
+        ctx.log && ctx.log("Loot system not available.", "warn");
+      } else {
+        // Persist region state immediately so looted containers remain emptied on reopen
+        try { saveRegionState(ctx); } catch (_) {}
       }
       return true;
     }
