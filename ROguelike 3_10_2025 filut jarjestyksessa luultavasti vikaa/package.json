@@ -13,7 +13,9 @@
     "format": "prettier --write .",
     "gen:manifest": "node scripts/gen_manifest.js",
     "gen:smoke": "node scripts/gen_smoke_manifest.js",
-    "analyze:phase1": "node scripts/analyze.js"
+    "analyze:phase1": "node scripts/analyze.js",
+    "analyze:imports": "node scripts/import_graph.js",
+    "ci": "npm run lint:strict && npm run build"
   },
   "devDependencies": {
     "vite": "^5.3.3",
