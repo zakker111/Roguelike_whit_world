@@ -134,6 +134,17 @@ Useful flags and persistence
 - Seed persists in localStorage SEED and is shown in the GOD panel.
 - Version-based storage clearing: on each deploy, the app compares meta[name="app-version"] with the stored version. If changed, it clears saved town/dungeon/region state and resets in‑memory mirrors to guarantee a clean start (preferences like seed/toggles remain).
 
+HUD visibility (dev toggles)
+- Overworld HUD (biome + clock):
+  - Toggle via GOD → Render → “Overworld HUD: On/Off”
+  - Programmatic: set window.SHOW_OVERWORLD_HUD = true|false (persists to localStorage "SHOW_OVERWORLD_HUD")
+- Region Map HUD (title + clock + animals status):
+  - Toggle via GOD → Render → “Region HUD: On/Off”
+  - Programmatic: set window.SHOW_REGION_HUD = true|false (persists to localStorage "SHOW_REGION_HUD")
+- Encounter HUD (biome + clock):
+  - Toggle via GOD → Render → “Encounter HUD: On/Off”
+  - Programmatic: set window.SHOW_ENCOUNTER_HUD = true|false (persists to localStorage "SHOW_ENCOUNTER_HUD")
+
 Logging system (UI + Dev API)
 - Overview
   - In-DOM log overlay with optional right-side mirror.
@@ -238,6 +249,18 @@ Development
 - Lint: npx eslint .
 - Format: npx prettier -c . / -w .
 - See VERSIONS.md for a concise changelog and recent improvements.
+
+CI and Validation
+- Validation (GOD → Run Validation): runs data checks for items, enemies, shops, tiles/props, palette, encounters.
+  - Download JSON: use “Download Validation” to export validation_report.json (warnings/notices + per-category counts).
+- Smoketest (browser-run):
+  - Auto-run: open /index.html?smoketest=1 to run the orchestrator runner.
+  - Filter: &scenarios=world,dungeon,overlays (reduced set for CI); &smokecount=N for multi-run.
+  - Outputs:
+    - PASS/FAIL tokens in DOM (#smoke-pass-token) and localStorage ('smoke-pass-token').
+    - JSON report in DOM (#smoke-json-token) and localStorage ('smoke-json-token').
+    - Download buttons in the GOD panel (Report JSON, Summary TXT, Checklist TXT).
+  - Tip: for headless CI, launch a headless browser (Playwright/Puppeteer) against the deployed URL with ?smoketest=1&scenarios=world,dungeon,overlays, wait for #smoke-pass-token, and download #smoke-json-token payload.
 
 Roadmap (Upcoming Phases)
 - Phase 4 — Theming completeness and validation

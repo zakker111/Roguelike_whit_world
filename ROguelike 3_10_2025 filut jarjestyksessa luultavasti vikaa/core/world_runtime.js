@@ -8,6 +8,11 @@
  */
 
 import { getMod } from "../utils/access.js";
+import { scanPOIs as scanPOIsExt } from "./world/scan_pois.js";
+import { ensureRoads as ensureRoadsExt, ensureExtraBridges as ensureExtraBridgesExt } from "./world/roads_bridges.js";
+import { ensureInBounds as ensureInBoundsExt } from "./world/expand.js";
+import { tryMovePlayerWorld as tryMovePlayerWorldExt } from "./world/move.js";
+import { tick as tickExt } from "./world/tick.js";
 
 function currentSeed() {
   try {
@@ -111,243 +116,19 @@ function addRuins(world, x, y) {
 
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 function scanPOIs(ctx, x0, y0, w, h) {
-  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, TOWNK: 4, DUNGEONK: 5 };
-  const world = ctx.world;
-  for (let yy = y0; yy < y0 + h; yy++) {
-    if (yy < 0 || yy >= ctx.map.length) continue;
-    const row = ctx.map[yy];
-    for (let xx = x0; xx < x0 + w; xx++) {
-      if (xx < 0 || xx >= row.length) continue;
-      const t = row[xx];
-      if (t === WT.TOWN) {
-        const wx = world.originX + xx;
-        const wy = world.originY + yy;
-        addTown(world, wx, wy);
-      } else if (t === WT.DUNGEON) {
-        const wx = world.originX + xx;
-        const wy = world.originY + yy;
-        addDungeon(world, wx, wy);
-      } else if (t === WT.RUINS) {
-        const wx = world.originX + xx;
-        const wy = world.originY + yy;
-        addRuins(world, wx, wy);
-      }
-    }
-  }
-  // After registering POIs in this strip/window, connect nearby towns with roads and mark bridges (feature-gated).
-  try {
-    if (featureEnabled("WORLD_ROADS", false)) ensureRoads(ctx);
-  } catch (_) {}
-  // Ensure there are usable river crossings independent of roads (feature-gated).
-  try {
-    if (featureEnabled("WORLD_BRIDGES", false)) ensureExtraBridges(ctx);
-  } catch (_) {}
+  return scanPOIsExt(ctx, x0, y0, w, h);
 }
 
 // Build roads between nearby towns in current window and mark bridge points where crossing water/river
 function ensureRoads(ctx) {
-  const WT = (ctx.World && ctx.World.TILES) || { WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3 };
-  const world = ctx.world;
-  if (!world) return;
-  world.roads = Array.isArray(world.roads) ? world.roads : [];
-  world.bridges = Array.isArray(world.bridges) ? world.bridges : [];
-  const roadSet = world._roadSet || (world._roadSet = new Set());
-  const bridgeSet = world._bridgeSet || (world._bridgeSet = new Set());
-
-  const ox = world.originX | 0, oy = world.originY | 0;
-  const cols = ctx.map[0] ? ctx.map[0].length : 0;
-  const rows = ctx.map.length;
-
-  function inWin(x, y) {
-    const lx = x - ox, ly = y - oy;
-    return lx >= 0 && ly >= 0 && lx < cols && ly < rows;
-  }
-
-  function addRoadPoint(x, y) {
-    const key = `${x},${y}`;
-    if (!roadSet.has(key)) {
-      roadSet.add(key);
-      world.roads.push({ x, y });
-    }
-  }
-  function addBridgePoint(x, y) {
-    const key = `${x},${y}`;
-    if (!bridgeSet.has(key)) {
-      bridgeSet.add(key);
-      world.bridges.push({ x, y });
-    }
-  }
-
-  function carveRoad(x0, y0, x1, y1) {
-    let x = x0, y = y0;
-    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
-    const sx = x0 < x1 ? 1 : -1;
-    const sy = y0 < y1 ? 1 : -1;
-    let err = dx - dy;
-    while (true) {
-      if (inWin(x, y)) {
-        const lx = x - ox, ly = y - oy;
-        const t = ctx.map[ly][lx];
-        // Across water/river: carve to BEACH and mark bridge overlay
-        if (t === WT.WATER || t === WT.RIVER) {
-          ctx.map[ly][lx] = WT.BEACH;
-          addBridgePoint(x, y);
-        }
-        addRoadPoint(x, y);
-      }
-      if (x === x1 && y === y1) break;
-      const e2 = 2 * err;
-      if (e2 > -dy) { err -= dy; x += sx; }
-      if (e2 < dx) { err += dx; y += sy; }
-    }
-  }
-
-  const towns = Array.isArray(world.towns) ? world.towns.slice(0) : [];
-  // Connect each town to its nearest neighbor within a reasonable distance, but only if BOTH endpoints are within the current window
-  for (let i = 0; i < towns.length; i++) {
-    const a = towns[i];
-    if (!inWin(a.x, a.y)) continue;
-    let best = null, bd = Infinity;
-    for (let j = 0; j < towns.length; j++) {
-      if (i === j) continue;
-      const b = towns[j];
-      if (!inWin(b.x, b.y)) continue; // avoid dangling roads that lead off-window
-      const d = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-      if (d < bd) { bd = d; best = b; }
-    }
-    if (best && bd <= 100) {
-      carveRoad(a.x, a.y, best.x, best.y);
-    }
-  }
+  return ensureRoadsExt(ctx);
 }
 
 // Add extra bridges so players can always find at least one crossing point over rivers in the current window.
 // Strategy: scan vertical and horizontal spans of RIVER/WATER and place a BEACH + bridge overlay every N tiles.
 function ensureExtraBridges(ctx) {
-  const WT = (ctx.World && ctx.World.TILES) || { WATER: 0, RIVER: 7, BEACH: 8, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6 };
-  const world = ctx.world;
-  const ox = world.originX | 0, oy = world.originY | 0;
-  const cols = ctx.map[0] ? ctx.map[0].length : 0;
-  const rows = ctx.map.length;
-  world.bridges = Array.isArray(world.bridges) ? world.bridges : [];
-  const bridgeSet = world._bridgeSet || (world._bridgeSet = new Set());
-
-  function markBridgeLocal(lx, ly) {
-    if (lx < 0 || ly < 0 || lx >= cols || ly >= rows) return;
-    const ax = ox + lx, ay = oy + ly;
-    const key = `${ax},${ay}`;
-    if (bridgeSet.has(key)) return;
-    // Carve to BEACH to be walkable and record overlay
-    ctx.map[ly][lx] = WT.BEACH;
-    world.bridges.push({ x: ax, y: ay });
-    bridgeSet.add(key);
-  }
-
-  // Helper: local walkable check for land (not water/river)
-  function isLandLocal(lx, ly) {
-    if (lx < 0 || ly < 0 || lx >= cols || ly >= rows) return false;
-    const t = ctx.map[ly][lx];
-    return !(t === WT.WATER || t === WT.RIVER);
-  }
-
-  // Carve a full horizontal bridge at (lx, ly) across all contiguous WATER/RIVER tiles, ensuring a continuous span from land to land.
-  function carveAcrossRow(lx, ly) {
-    // Extend left
-    let x = lx;
-    while (x >= 0 && (ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) {
-      markBridgeLocal(x, ly);
-      x--;
-    }
-    // Also extend right
-    x = lx + 1;
-    while (x < cols && (ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) {
-      markBridgeLocal(x, ly);
-      x++;
-    }
-  }
-
-  // Carve a full vertical bridge at (lx, ly) across all contiguous WATER/RIVER tiles
-  function carveAcrossCol(lx, ly) {
-    // Up
-    let y = ly;
-    while (y >= 0 && (ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) {
-      markBridgeLocal(lx, y);
-      y--;
-    }
-    // Down
-    y = ly + 1;
-    while (y < rows && (ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) {
-      markBridgeLocal(lx, y);
-      y++;
-    }
-  }
-
-  // Reduce frequency and cap per window
-  const stride = 32; // place at most one bridge per ~32 tiles per span
-  const maxBridges = Math.max(1, Math.floor((rows + cols) / 80)); // soft cap per window size
-  let placed = 0;
-
-  // Vertical scans (columns) — choose a row and carve horizontally across the whole river thickness
-  for (let lx = 0; lx < cols; lx += 3) {
-    if (placed >= maxBridges) break;
-    let y = 0;
-    while (y < rows && placed < maxBridges) {
-      // find start of river span
-      while (y < rows && !(ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) y++;
-      if (y >= rows) break;
-      const y0 = y;
-      while (y < rows && (ctx.map[y][lx] === WT.WATER || ctx.map[y][lx] === WT.RIVER)) y++;
-      const y1 = y - 1;
-      const spanLen = y1 - y0 + 1;
-      if (spanLen >= 2) {
-        for (let k = 0; k * stride < spanLen; k++) {
-          if (placed >= maxBridges) break;
-          const off = Math.floor(spanLen / 2) + k * stride;
-          const lyBridge = y0 + Math.min(off, spanLen - 1);
-          // ensure adjacent horizontal tiles lead to land within 1 step
-          const hasLandSide = isLandLocal(Math.max(0, lx - 1), lyBridge) || isLandLocal(Math.min(cols - 1, lx + 1), lyBridge);
-          if (hasLandSide) {
-            carveAcrossRow(lx, lyBridge);
-            placed++;
-            break; // one per span in this pass
-          }
-        }
-      }
-    }
-  }
-
-  // Horizontal scans (rows) — choose a column and carve vertically across the whole river thickness
-  // Only proceed if we have not reached cap; this halves previous density
-  if (placed < maxBridges) {
-    for (let ly = 0; ly < rows; ly += 3) {
-      if (placed >= maxBridges) break;
-      let x = 0;
-      while (x < cols && placed < maxBridges) {
-        while (x < cols && !(ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) x++;
-        if (x >= cols) break;
-        const x0 = x;
-        while (x < cols && (ctx.map[ly][x] === WT.WATER || ctx.map[ly][x] === WT.RIVER)) x++;
-        const x1 = x - 1;
-        const spanLen = x1 - x0 + 1;
-        if (spanLen >= 2) {
-          for (let k = 0; k * stride < spanLen; k++) {
-            if (placed >= maxBridges) break;
-            const off = Math.floor(spanLen / 2) + k * stride;
-            const lxBridge = x0 + Math.min(off, spanLen - 1);
-            const hasLandSide = isLandLocal(lxBridge, Math.max(0, ly - 1)) || isLandLocal(lxBridge, Math.min(rows - 1, ly + 1));
-            if (hasLandSide) {
-              carveAcrossCol(lxBridge, ly);
-              placed++;
-              break;
-            }
-          }
-        }
-      }
-    }
-  }
+  return ensureExtraBridgesExt(ctx);
 }
-
-
 
 // Expand map arrays on any side by K tiles, generating via world.gen.tileAt against world origin offsets.
 function expandMap(ctx, side, K) {
@@ -545,19 +326,7 @@ function expandMap(ctx, side, K) {
 
 // Ensure (nx,ny) is inside map bounds; expand outward by chunk size if needed.
 function ensureInBounds(ctx, nx, ny, CHUNK = 32) {
-  let expanded = false;
-  const rows = ctx.map.length;
-  const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-
-  if (nx < 0) { expandMap(ctx, "left", Math.max(CHUNK, -nx + 4)); expanded = true; }
-  if (ny < 0) { expandMap(ctx, "top", Math.max(CHUNK, -ny + 4)); expanded = true; }
-  // Recompute after potential prepends
-  const rows2 = ctx.map.length;
-  const cols2 = rows2 ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-  if (nx >= cols2) { expandMap(ctx, "right", Math.max(CHUNK, nx - cols2 + 5)); expanded = true; }
-  if (ny >= rows2) { expandMap(ctx, "bottom", Math.max(CHUNK, ny - rows2 + 5)); expanded = true; }
-
-  return expanded;
+  return ensureInBoundsExt(ctx, nx, ny, CHUNK);
 }
 
 // Expose ensureInBounds for other runtimes (town/dungeon) to place the player at absolute world coords.
@@ -665,94 +434,7 @@ export function generate(ctx, opts = {}) {
 }
 
 export function tryMovePlayerWorld(ctx, dx, dy) {
-  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.map) return false;
-
-  // Compute intended target
-  let nx = ctx.player.x + (dx | 0);
-  let ny = ctx.player.y + (dy | 0);
-
-  // Ensure expand-shift is enabled during normal movement (may have been suspended during transitions)
-  if (ctx._suspendExpandShift) ctx._suspendExpandShift = false;
-
-  // Top-edge water band: treat any attempt to move above row 0 as blocked (like water), do not expand upward
-  if (ny < 0) {
-    return false;
-  }
-
-  // Expand if outside (only for infinite worlds)
-  try {
-    if (ctx.world && ctx.world.type === "infinite" && ctx.world.gen && typeof ctx.world.gen.tileAt === "function") {
-      const expanded = ensureInBounds(ctx, nx, ny, 32);
-      if (expanded) {
-        // Player may have been shifted by left/top prepends; recompute target
-        nx = ctx.player.x + (dx | 0);
-        ny = ctx.player.y + (dy | 0);
-      }
-    }
-  } catch (_) {}
-
-  const rows = ctx.map.length, cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-  if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return false;
-
-  let walkable = true;
-  try {
-    // Prefer World.isWalkable for compatibility with tiles.json overrides
-    const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
-    if (W && typeof W.isWalkable === "function") {
-      walkable = !!W.isWalkable(ctx.map[ny][nx]);
-    } else if (ctx.world && ctx.world.gen && typeof ctx.world.gen.isWalkable === "function") {
-      walkable = !!ctx.world.gen.isWalkable(ctx.map[ny][nx]);
-    }
-  } catch (_) {}
-
-  if (!walkable) return false;
-
-  ctx.player.x = nx; ctx.player.y = ny;
-
-  try {
-    const SS = ctx.StateSync || getMod(ctx, "StateSync");
-    if (SS && typeof SS.applyAndRefresh === "function") {
-      SS.applyAndRefresh(ctx, {});
-    }
-  } catch (_) {}
-
-  // Non-combat skill hooks on overworld step
-  try {
-    const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
-    const WT = W ? W.TILES : null;
-    const tileHere = ctx.world && ctx.world.map ? ctx.world.map[ny][nx] : null;
-    const isWild = WT ? (tileHere === WT.FOREST || tileHere === WT.GRASS || tileHere === WT.BEACH || tileHere === WT.SWAMP) : true;
-
-    // Survivalism: gradual progress when traversing wild tiles
-    if (isWild) {
-      try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.survivalism = (ctx.player.skills.survivalism || 0) + 0.2; } catch (_) {}
-    }
-
-    // Foraging via region map berry bushes only (overworld walking no longer grants berries)
-  } catch (_) {}
-
-  // Quest markers: if standing on an active marker, show a hint; starting the quest now requires pressing G
-  try {
-    const markers = Array.isArray(ctx.world?.questMarkers) ? ctx.world.questMarkers : [];
-    if (markers.length) {
-      const rx = ((ctx.world?.originX | 0) + (ctx.player.x | 0)) | 0;
-      const ry = ((ctx.world?.originY | 0) + (ctx.player.y | 0)) | 0;
-      const here = markers.find(m => m && (m.x | 0) === rx && (m.y | 0) === ry);
-      if (here) {
-        try { ctx.log && ctx.log("Quest location: Press G to start the encounter.", "notice"); } catch (_) {}
-      }
-    }
-  } catch (_) {}
-
-  // Encounter roll before advancing time (modules may switch mode)
-  try {
-    const ES = ctx.EncounterService || (typeof window !== "undefined" ? window.EncounterService : null);
-    if (ES && typeof ES.maybeTryEncounter === "function") {
-      ES.maybeTryEncounter(ctx);
-    }
-  } catch (_) {}
-  try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
-  return true;
+  return tryMovePlayerWorldExt(ctx, dx, dy);
 }
 
 /**
@@ -760,8 +442,7 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
  * Keeps the interface consistent with TownRuntime/DungeonRuntime tick hooks.
  */
 export function tick(ctx) {
-  // Placeholder for future day/night effects or ambient overlays in world mode
-  return true;
+  return tickExt(ctx);
 }
 
 // Back-compat: attach to window

@@ -14,7 +14,7 @@
       const p = (name, def) => u.searchParams.get(name) || def;
       // Support both legacy "smoke" and new "scenarios" params
       const legacySel = (p("smoke", "") || "").trim();
-      const sel = legacySel ? legacySel : p("scenarios", "world,encounters,dungeon,inventory,combat,town,overlays,determinism");
+      const sel = legacySel ? legacySel : p("scenarios", "world,region,encounters,dungeon,inventory,combat,town,overlays,determinism");
       return {
         smoketest: p("smoketest", "0") === "1",
         dev: p("dev", "0") === "1",
@@ -998,6 +998,7 @@
       // Build pipeline; if scenarios were provided in URL, respect that order; else use default
       const avail = {
         world: S.World && S.World.run,
+        region: S.Region && S.Region.run,
         dungeon: S.Dungeon && S.Dungeon.run,
         inventory: S.Inventory && S.Inventory.run,
         combat: S.Combat && S.Combat.run,
@@ -1020,6 +1021,7 @@
       if (!pipeline.length) {
         pipeline = [
           { name: "world", fn: avail.world },
+          { name: "region", fn: avail.region },
           { name: "encounters", fn: avail.encounters },
           { name: "dungeon", fn: avail.dungeon },
           { name: "inventory", fn: avail.inventory },

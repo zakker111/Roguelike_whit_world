@@ -546,6 +546,66 @@ export function init(UI) {
     try { UI.updateMinimapButton(); } catch (_) {}
   }
 
+  // HUD toggles
+  const owHudBtn = byId("god-toggle-ow-hud-btn");
+  if (owHudBtn) {
+    owHudBtn.addEventListener("click", () => {
+      const next = !UI.getOverworldHudState();
+      UI.setOverworldHudState(next);
+      UI.updateOverworldHudButton();
+    });
+    try { UI.updateOverworldHudButton(); } catch (_) {}
+  }
+
+  const regionHudBtn = byId("god-toggle-region-hud-btn");
+  if (regionHudBtn) {
+    regionHudBtn.addEventListener("click", () => {
+      const next = !UI.getRegionHudState();
+      UI.setRegionHudState(next);
+      UI.updateRegionHudButton();
+    });
+    try { UI.updateRegionHudButton(); } catch (_) {}
+  }
+
+  const encHudBtn = byId("god-toggle-enc-hud-btn");
+  if (encHudBtn) {
+    encHudBtn.addEventListener("click", () => {
+      const next = !UI.getEncounterHudState();
+      UI.setEncounterHudState(next);
+      UI.updateEncounterHudButton();
+    });
+    try { UI.updateEncounterHudButton(); } catch (_) {}
+  }
+
+  // Validation download
+  const valBtn = byId("god-download-validation-btn");
+  if (valBtn) {
+    valBtn.addEventListener("click", () => {
+      try {
+        const VR = (typeof window !== "undefined" ? window.ValidationRunner : null);
+        if (!VR || typeof VR.getReport !== "function") {
+          const ctx = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.getCtx === "function") ? window.GameAPI.getCtx() : null;
+          if (ctx && typeof ctx.log === "function") ctx.log("ValidationRunner.getReport not available.", "warn");
+          return;
+        }
+        const rep = VR.getReport();
+        const blob = new Blob([JSON.stringify(rep, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "validation_report.json";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          try { document.body.removeChild(a); } catch (_) {}
+          try { URL.revokeObjectURL(url); } catch (_) {}
+        }, 100);
+      } catch (e) {
+        try { console.error("Validation export failed", e); } catch (_) {}
+      }
+    });
+  }
+
   // Palette switcher
   const palSel = byId("god-palette-select");
   const palApply = byId("god-apply-palette-btn");

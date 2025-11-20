@@ -16,7 +16,7 @@
     connect-src 'self';
   ">
   <!-- App version for storage invalidation on deploy -->
-  <meta name="app-version" content="1.45.2">
+  <meta name="app-version" content="1.47.3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/ui/style.css">
@@ -183,8 +183,11 @@
       <button id="god-toggle-town-paths-btn" class="btn" title="Draw NPC planned paths (town only)">Paths: Off</button>
       <button id="god-toggle-home-paths-btn" class="btn" title="Draw full home paths in blue (NPCs to their homes/beds)">Home Paths: Off</button>
       <button id="god-toggle-route-paths-btn" class="btn" title="Draw blue line to current destination for each NPC">Routes: Off</button>
-      <button id="god-toggle-perf-btn" class="btn" title="Show turn/draw perf timings in HUD top bar">Perf: On</button>
+      <button id="god-toggle-perf-btn" class="btn" title="Show turn/draw perf timings in HUD">Perf: On</button>
       <button id="god-toggle-minimap-btn" class="btn" title="Show or hide the overworld minimap">Minimap: On</button>
+      <button id="god-toggle-ow-hud-btn" class="btn" title="Show or hide the Overworld HUD (biome + clock)">Overworld HUD: On</button>
+      <button id="god-toggle-region-hud-btn" class="btn" title="Show or hide the Region Map HUD (title + clock + animals)">Region HUD: On</button>
+      <button id="god-toggle-enc-hud-btn" class="btn" title="Show or hide the Encounter HUD (biome + clock)">Encounter HUD: On</button>
       
       <button id="god-check-home-btn" class="btn" title="Compute each NPC’s full route home and report unreachable cases">Check Home Routes</button>
       <button id="god-check-inn-tavern-btn" class="btn" title="Report coordinates for Inn and Plaza/Square">Check Inn/Plaza</button>
@@ -192,6 +195,7 @@
       <button id="god-check-prefabs-btn" class="btn" title="List loaded prefabs and which ones were used in this town">Check Prefabs</button>
       <button id="god-diagnostics-btn" class="btn" title="Show system diagnostics (determinism source, seed, module handles) in log">Diagnostics</button>
       <button id="god-run-validation-btn" class="btn" title="Run data validation and show counts">Run Validation</button>
+      <button id="god-download-validation-btn" class="btn" title="Download latest validation report as JSON">Download Validation</button>
       <button id="god-newgame-btn" class="btn" title="Start New Game">Start New Game</button>
       <div style="display:flex; gap:6px; align-items:center;">
         <button id="god-run-smoke-btn" class="btn" title="Configure and run automated smoke tests">Run Smoke Test</button>
@@ -201,6 +205,7 @@
       <div style="display:flex; gap:6px; align-items:center; margin-top:8px;">
         <button id="god-open-prefab-editor-btn" class="btn" title="Open Prefab Editor (DEV)">Prefab Editor</button>
       </div>
+    </div>
     </div>
 
     <div class="inv-subtitle">Theme</div>

@@ -5,7 +5,7 @@
 // Core context and deterministic RNG service
 import '/core/ctx.js';
 import '/core/rng_service.js';
-import '/core/state_sync.js';
+import '/core/state/state_sync.js';
 
 // Utilities
 import '/utils/utils.js';
@@ -60,7 +60,7 @@ import '/ui/render_core.js';
 import '/ui/render_overworld.js';
 import '/ui/render_town.js';
 import '/ui/render_dungeon.js';
-import '/ui/render_overlays.js';
+
 import '/ui/render_region.js';
 import '/ui/render.js';
 import '/ui/decals.js';
@@ -81,38 +81,38 @@ import '/ai/town_ai.js';
 import '/worldgen/town_gen.js';
 
 // Core runtime orchestration and facades
-import '/core/actions.js';
-import '/core/town_state.js';
-import '/core/modes.js';
-import '/core/game_loop.js';
+import '/core/modes/actions.js';
+import '/core/town/state.js';
+import '/core/modes/modes.js';
+import '/core/engine/game_loop.js';
 import '/core/input.js';
 import '/core/game_api.js';
-import '/core/fov_camera.js';
+import '/core/engine/fov_camera.js';
 import '/core/inventory_controller.js';
 import '/core/inventory_flow.js';
-import '/core/town_runtime.js';
-import '/core/dungeon_runtime.js';
-import '/core/encounter_runtime.js';
-import '/core/ui_bridge.js';
+import '/core/town/runtime.js';
+import '/core/dungeon/runtime.js';
+import '/core/encounter/runtime.js';
+import '/core/bridge/ui_bridge.js';
 import '/region_map/region_map_runtime.js';
-import '/core/occupancy_facade.js';
+import '/core/facades/occupancy.js';
 import '/core/world_runtime.js';
-import '/core/game_state.js';
-import '/core/turn_loop.js';
-import '/core/game_fov.js';
-import '/core/modes_transitions.js';
-import '/core/ui_orchestration.js';
+import '/core/state/game_state.js';
+import '/core/engine/turn_loop.js';
+import '/core/engine/game_fov.js';
+import '/core/modes/transitions.js';
+import '/core/bridge/ui_orchestration.js';
 import '/core/movement.js';
 import '/core/loot_flow.js';
-import '/core/render_orchestration.js';
+import '/core/engine/render_orchestration.js';
 import '/core/death_flow.js';
 import '/core/capabilities.js';
-import '/core/god_handlers.js';
+import '/core/god/handlers.js';
 import '/core/validation_runner.js';
 
 // Finally: game orchestrator (boots world, sets up input, starts loop/render)
 // Minimal orchestrator keeps current boot-in-game.js behavior behind a stable entrypoint.
-import '/core/game_orchestrator.js';
+import '/core/engine/game_orchestrator.js';
 
 // Boot diagnostics: log RNG source and seed once registries are loaded.
 (function () {
@@ -201,6 +201,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/combat.js',
         '/smoketest/scenarios/overlays.js',
         '/smoketest/scenarios/world.js',
+        '/smoketest/scenarios/region.js',
         '/smoketest/scenarios/determinism.js',
         '/smoketest/scenarios/town_flows.js',
         '/smoketest/scenarios/dungeon_persistence.js',

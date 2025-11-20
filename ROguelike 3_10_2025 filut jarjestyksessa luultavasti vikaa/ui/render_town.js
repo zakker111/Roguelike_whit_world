@@ -10,77 +10,25 @@
  * - draw(ctx, view)
  */
 import * as RenderCore from "./render_core.js";
-import * as RenderOverlays from "./render_overlays.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 import { propColor as _propColor } from "./prop_palette.js";
 
-// Tile cache to avoid repeated JSON lookups inside hot loops
-const TILE_CACHE = { ref: null, fill: Object.create(null), glyph: Object.create(null), fg: Object.create(null) };
-function cacheResetIfNeeded() {
-  const ref = tilesRef();
-  if (TILE_CACHE.ref !== ref) {
-    TILE_CACHE.ref = ref;
-    TILE_CACHE.fill = Object.create(null);
-    TILE_CACHE.glyph = Object.create(null);
-    TILE_CACHE.fg = Object.create(null);
-  }
-}
-function fillTownFor(TILES, type, COLORS) {
-  cacheResetIfNeeded();
-  const k = type | 0;
-  let v = TILE_CACHE.fill[k];
-  if (v) return v;
-  const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-  v = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-  TILE_CACHE.fill[k] = v;
-  return v;
-}
-function glyphTownFor(type) {
-  cacheResetIfNeeded();
-  const k = type | 0;
-  let g = TILE_CACHE.glyph[k];
-  let c = TILE_CACHE.fg[k];
-  if (typeof g !== "undefined" && typeof c !== "undefined") return { glyph: g, fg: c };
-  const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-  if (td) {
-    g = Object.prototype.hasOwnProperty.call(td, "glyph") ? td.glyph : "";
-    c = td.colors && td.colors.fg ? td.colors.fg : null;
-  } else {
-    g = "";
-    c = null;
-  }
-  TILE_CACHE.glyph[k] = g;
-  TILE_CACHE.fg[k] = c;
-  return { glyph: g, fg: c };
-}
-
-// getTileDef moved to centralized helper in ../data/tile_lookup.js
-
-// Robust fallback fill for town tiles when tiles.json is missing/incomplete
-function fallbackFillTown(TILES, type, COLORS) {
-  try {
-    if (type === TILES.WALL) return (COLORS && COLORS.wall) || "#1b1f2a";
-    if (type === TILES.FLOOR) return (COLORS && COLORS.floorLit) || (COLORS && COLORS.floor) || "#0f1628";
-    if (type === TILES.ROAD) return "#b0a58a"; // muted brown road
-    if (type === TILES.DOOR) return "#3a2f1b";
-    if (type === TILES.WINDOW) return "#26728c";
-    if (type === TILES.STAIRS) return "#3a2f1b";
-  } catch (_) {}
-  return "#0b0c10";
-}
-
-// getTileDefByKey moved to centralized helper in ../data/tile_lookup.js
-
-// Helper: current tiles.json reference (for cache invalidation)
-function tilesRef() {
-  try {
-    return (typeof window !== "undefined" && window.GameData && window.GameData.tiles) ? window.GameData.tiles : null;
-  } catch (_) { return null; }
-}
-
-// Base layer offscreen cache for town (tiles only; overlays drawn per frame)
-let TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null, _palRef: null };
+// Modularized helpers
+import { drawTownBase } from "./render/town_base_layer.js";
+import { fillTownFor, glyphTownFor, tilesRef, fallbackFillTown } from "./render/town_tile_cache.js";
+import { drawTownGlyphOverlay, drawStairsGlyphTop } from "./render/town_glyph_overlay.js";
+import { drawInnUpstairsTiles, drawInnUpstairsProps } from "./render/town_inn_upstairs_overlay.js";
+import { drawTownProps as drawTownPropsLayer } from "./render/town_props_draw.js";
+import { drawShopMarkers as drawShopMarkersLayer } from "./render/town_shop_markers.js";
+import { drawNPCs } from "./render/town_npc_draw.js";
+import { drawGateOverlay } from "./render/town_gate_overlay.js";
+import { drawTownDayNightTint } from "./render/town_tints.js";
+import { drawTownDebugOverlay } from "./render/town_debug_overlay.js";
+import { drawTownPaths } from "./render/town_paths.js";
+import { drawTownHomePaths } from "./render/town_home_paths.js";
+import { drawTownRoutePaths } from "./render/town_route_paths.js";
+import { drawLampGlow } from "./render/lamp_glow.js";
 
 
 export function draw(ctx, view) {
@@ -259,114 +207,8 @@ export function draw(ctx, view) {
     } catch (_) {}
   }
 
-  // Build base offscreen once per map/TILE/biome change
-  try {
-    if (mapRows && mapCols) {
-      // Ensure biome is determined first
-      ensureTownBiome(ctx);
-      const biomeKey = String(ctx.townBiome || "");
-      const townKey = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number")
-        ? `${ctx.worldReturnPos.x|0},${ctx.worldReturnPos.y|0}` : null;
-
-      const wpx = mapCols * TILE;
-      const hpx = mapRows * TILE;
-      const palRef = paletteTownRef();
-      const needsRebuild = (!TOWN.canvas)
-        || TOWN.mapRef !== map
-        || TOWN.wpx !== wpx
-        || TOWN.hpx !== hpx
-        || TOWN.TILE !== TILE
-        || TOWN._tilesRef !== tilesRef()
-        || TOWN._biomeKey !== biomeKey
-        || TOWN._townKey !== townKey
-        || TOWN._maskRef !== ctx.townOutdoorMask
-        || TOWN._palRef !== palRef;
-
-      // Only rebuild the offscreen base once tint is actually ready (palette + biome key available).
-      if (needsRebuild && tintReady(ctx)) {
-        TOWN.mapRef = map;
-        TOWN.wpx = wpx;
-        TOWN.hpx = hpx;
-        TOWN.TILE = TILE;
-        TOWN._tilesRef = tilesRef();
-        TOWN._biomeKey = biomeKey;
-        TOWN._townKey = townKey;
-        TOWN._palRef = palRef;
-
-        const off = RenderCore.createOffscreen(wpx, hpx);
-        const oc = off.getContext("2d");
-        try {
-          oc.font = "bold 20px JetBrains Mono, monospace";
-          oc.textAlign = "center";
-          oc.textBaseline = "middle";
-        } catch (_) {}
-        // Prepare biome fill and outdoor mask
-        ensureOutdoorMask(ctx);
-        const biomeFill = townBiomeFill(ctx); // palette-backed at this point
-        // Track mask reference to trigger rebuild when it changes externally
-        TOWN._maskRef = ctx.townOutdoorMask;
-
-        for (let yy = 0; yy < mapRows; yy++) {
-          const rowMap = map[yy];
-          for (let xx = 0; xx < mapCols; xx++) {
-            const type = rowMap[xx];
-            const sx = xx * TILE, sy = yy * TILE;
-            // Cached fill color: prefer town JSON, then dungeon JSON; else robust fallback
-            let fill = fillTownFor(TILES, type, COLORS);
-            // Apply outdoor biome tint to both FLOOR outdoors (mask) and ROAD tiles outside buildings
-            try {
-              const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
-              const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, xx, yy);
-              if ((isOutdoorFloor || isOutdoorRoad) && biomeFill) {
-                fill = biomeFill;
-              }
-            } catch (_) {}
-            oc.fillStyle = fill;
-            oc.fillRect(sx, sy, TILE, TILE);
-          }
-        }
-        TOWN.canvas = off;
-      }
-    }
-  } catch (_) {}
-
-  // Blit base layer if available
-  if (TOWN.canvas) {
-    try {
-      RenderCore.blitViewport(ctx2d, TOWN.canvas, cam, TOWN.wpx, TOWN.hpx);
-    } catch (_) {}
-  } else {
-    // Fallback: draw base tiles in viewport using JSON colors or robust fallback
-    ensureTownBiome(ctx);
-    ensureOutdoorMask(ctx);
-    const biomeFill = resolvedTownBiomeFill(ctx);
-    for (let y = startY; y <= endY; y++) {
-      const yIn = y >= 0 && y < mapRows;
-      const rowMap = yIn ? map[y] : null;
-      for (let x = startX; x <= endX; x++) {
-        const screenX = (x - startX) * TILE - tileOffsetX;
-        const screenY = (y - startY) * TILE - tileOffsetY;
-        if (!yIn || x < 0 || x >= mapCols) {
-          ctx2d.fillStyle = COLORS.wallDark;
-          ctx2d.fillRect(screenX, screenY, TILE, TILE);
-          continue;
-        }
-        const type = rowMap[x];
-        const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-        let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-        // Apply outdoor tint to FLOOR outdoors and ROAD tiles outside buildings using resolved fallback color
-        try {
-          const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
-          const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, x, y);
-          if ((isOutdoorFloor || isOutdoorRoad) && biomeFill) {
-            fill = biomeFill;
-          }
-        } catch (_) {}
-        ctx2d.fillStyle = fill;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      }
-    }
-  }
+  // Base layer (offscreen cache + fallback)
+  try { drawTownBase(ctx, view); } catch (_) {}
 
   // Record map for tiles coverage smoketest (optional)
   try {
@@ -440,120 +282,11 @@ export function draw(ctx, view) {
     } catch (_) {}
   })();
 
-  // Inn upstairs overlay: draw upstairs tiles over the inn footprint when active
-  (function drawInnUpstairsOverlay() {
-    try {
-      const up = ctx.innUpstairs;
-      const tav = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-      if (!ctx.innUpstairsActive || !up || !tav) return;
+  // Inn upstairs overlay tiles
+  try { drawInnUpstairsTiles(ctx, view); } catch (_) {}
 
-      // 1) Cover only the inn interior area with a neutral upstairs floor fill
-      //    to hide downstairs doors inside the hall while preserving perimeter walls.
-      const x0 = up.offset ? up.offset.x : (tav.x + 1);
-      const y0 = up.offset ? up.offset.y : (tav.y + 1);
-      const w = up.w | 0;
-      const h = up.h | 0;
-      const x1 = x0 + w - 1;
-      const y1 = y0 + h - 1;
-
-      const yyStartFill = Math.max(startY, y0);
-      const yyEndFill = Math.min(endY, y1);
-      const xxStartFill = Math.max(startX, x0);
-      const xxEndFill = Math.min(endX, x1);
-      const floorFill = fillTownFor(TILES, TILES.FLOOR, COLORS);
-      for (let y = yyStartFill; y <= yyEndFill; y++) {
-        for (let x = xxStartFill; x <= xxEndFill; x++) {
-          const screenX = (x - startX) * TILE - tileOffsetX;
-          const screenY = (y - startY) * TILE - tileOffsetY;
-          ctx2d.fillStyle = floorFill;
-          ctx2d.fillRect(screenX, screenY, TILE, TILE);
-        }
-      }
-
-      // 2) Draw the upstairs interior tiles over the inn interior (offset inside perimeter)
-      const yyStart = yyStartFill;
-      const yyEnd = yyEndFill;
-      const xxStart = xxStartFill;
-      const xxEnd = xxEndFill;
-
-      for (let y = yyStart; y <= yyEnd; y++) {
-        const ly = y - y0;
-        const rowUp = (up.tiles && up.tiles[ly]) ? up.tiles[ly] : null;
-        if (!rowUp) continue;
-        for (let x = xxStart; x <= xxEnd; x++) {
-          const lx = x - x0;
-          if (lx < 0 || ly < 0 || lx >= w || ly >= h) continue;
-          const type = rowUp[lx];
-          const screenX = (x - startX) * TILE - tileOffsetX;
-          const screenY = (y - startY) * TILE - tileOffsetY;
-          const fill = fillTownFor(TILES, type, COLORS);
-          ctx2d.fillStyle = fill;
-          ctx2d.fillRect(screenX, screenY, TILE, TILE);
-          // Upstairs stairs glyph
-          if (type === TILES.STAIRS) {
-            let g = ">";
-            let c = "#d7ba7d";
-            try {
-              const tdSt = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
-              if (tdSt) {
-                if (Object.prototype.hasOwnProperty.call(tdSt, "glyph")) g = tdSt.glyph || g;
-                if (tdSt.colors && tdSt.colors.fg) c = tdSt.colors.fg || c;
-              }
-            } catch (_) {}
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
-          }
-        }
-      }
-    } catch (_) {}
-  })();
-
-  // Per-frame glyph overlay (drawn before visibility overlays)
-  // Keep town clean: suppress door glyphs; show stairs ('>') clearly; windows get a subtle pane glyph for readability
-  for (let y = startY; y <= endY; y++) {
-    const yIn = y >= 0 && y < mapRows;
-    const rowMap = yIn ? map[y] : null;
-    for (let x = startX; x <= endX; x++) {
-      if (!yIn || x < 0 || x >= mapCols) continue;
-      const type = rowMap[x];
-
-      // Suppress DOOR glyphs
-      if (type === TILES.DOOR) continue;
-
-      const tg = glyphTownFor(type);
-      let glyph = tg ? tg.glyph : "";
-      let fg = tg ? tg.fg : null;
-
-      const screenX = (x - startX) * TILE - tileOffsetX;
-      const screenY = (y - startY) * TILE - tileOffsetY;
-
-      // Stairs: prefer JSON glyph/color; fallback to '>' with amber if missing
-      if (type === TILES.STAIRS) {
-        let g = ">";
-        let c = "#d7ba7d";
-        try {
-          const tdSt = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
-          if (tdSt) {
-            if (Object.prototype.hasOwnProperty.call(tdSt, "glyph")) g = tdSt.glyph || g;
-            if (tdSt.colors && tdSt.colors.fg) c = tdSt.colors.fg || c;
-          }
-        } catch (_) {}
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
-        continue;
-      }
-
-      if (type === TILES.WINDOW) {
-        if (!glyph || String(glyph).trim().length === 0) glyph = "□";
-        if (!fg) fg = "#8ecae6";
-        ctx2d.save();
-        ctx2d.globalAlpha = 0.50;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-        ctx2d.restore();
-      } else {
-        if (!glyph || !fg || String(glyph).trim().length === 0) continue;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, fg, TILE);
-      }
-    }
-  }
+  // Glyph overlays
+  try { drawTownGlyphOverlay(ctx, view); } catch (_) {}
 
   // Visibility overlays within viewport (void for unseen, dim for seen-but-not-visible)
   for (let y = startY; y <= endY; y++) {
@@ -580,437 +313,30 @@ export function draw(ctx, view) {
     }
   }
 
-  // Stairs glyph overlay above visibility tint so it's always readable once seen
-  (function drawStairsGlyphTop() {
-    try {
-      for (let y = startY; y <= endY; y++) {
-        const yIn = y >= 0 && y < mapRows;
-        if (!yIn) continue;
-        for (let x = startX; x <= endX; x++) {
-          if (x < 0 || x >= mapCols) continue;
-          const type = map[y][x];
-          if (type !== TILES.STAIRS) continue;
-          const everSeen = !!(seen[y] && seen[y][x]);
-          if (!everSeen) continue;
-          const screenX = (x - startX) * TILE - tileOffsetX;
-          const screenY = (y - startY) * TILE - tileOffsetY;
-          // Stairs glyph: prefer JSON color/glyph
-          (function () {
-            let g = ">";
-            let c = "#d7ba7d";
-            try {
-              const tdSt = getTileDef("town", TILES.STAIRS) || getTileDef("dungeon", TILES.STAIRS);
-              if (tdSt) {
-                if (Object.prototype.hasOwnProperty.call(tdSt, "glyph")) g = tdSt.glyph || g;
-                if (tdSt.colors && tdSt.colors.fg) c = tdSt.colors.fg || c;
-              }
-            } catch (_) {}
-            RenderCore.drawGlyph(ctx2d, screenX, screenY, g, c, TILE);
-          })();
-        }
-      }
-    } catch (_) {}
-  })();
+  // Stairs glyph above tint
+  try { drawStairsGlyphTop(ctx, view); } catch (_) {}
 
-  // Props: draw remembered (seen) props dimmed; draw fully only when currently visible with direct LOS.
-  // When upstairs overlay is active, suppress ground props inside the inn footprint and draw upstairs props instead.
-  if (Array.isArray(ctx.townProps)) {
-    for (const p of ctx.townProps) {
-      if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
+  // Props layer
+  try { drawTownPropsLayer(ctx, view); } catch (_) {}
 
-      // Suppress ground-level props inside inn when upstairs overlay is active
-      if (ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building) {
-        const b = ctx.tavern.building;
-        if (p.x > b.x && p.x < b.x + b.w - 1 && p.y > b.y && p.y < b.y + b.h - 1) {
-          continue;
-        }
-      }
+  // Upstairs props overlay
+  try { drawInnUpstairsProps(ctx, view); } catch (_) {}
 
-      const wasSeen = !!(seen[p.y] && seen[p.y][p.x]);
-      if (!wasSeen) continue;
+  // Shop markers
+  try { drawShopMarkersLayer(ctx, view); } catch (_) {}
 
-      const visNow = !!(visible[p.y] && visible[p.y][p.x]);
-
-      // Lookup by key in JSON: prefer town mode, then dungeon/overworld; fallback glyph/color if missing
-      const screenX = (p.x - startX) * TILE - tileOffsetX;
-      const screenY = (p.y - startY) * TILE - tileOffsetY;
-
-      let glyph = "";
-      let color = null;
-
-      // Prefer glyph and color from props registry if present (data-driven props styling)
-      try {
-        const GD = (typeof window !== "undefined" ? window.GameData : null);
-        const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
-        if (arr) {
-          const tId = String(p.type || "").toLowerCase();
-          const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
-          if (entry && typeof entry.glyph === "string") glyph = entry.glyph;
-          if (entry && entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg;
-          // Back-compat: allow plain 'color' field if present
-          if (!color && entry && typeof entry.color === "string") color = entry.color;
-        }
-      } catch (_) {}
-
-      // Next, consult tiles.json by key to fill in missing glyph/color
-      let tdProp = null;
-      try {
-        const key = String(p.type || "").toUpperCase();
-        tdProp = getTileDefByKey("town", key) || getTileDefByKey("dungeon", key) || getTileDefByKey("overworld", key);
-        if (tdProp) {
-          if (!glyph && Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph || glyph;
-          if (!color && tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
-        }
-      } catch (_) {}
-
-      // Palette-driven fallback color (if still missing)
-      try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
-
-      // Fallback glyphs/colors for common props
-      if (!glyph || !color) {
-        const t = String(p.type || "").toLowerCase();
-        if (!glyph) {
-          if (t === "well") glyph = "◍";
-          else if (t === "lamp") glyph = "†";
-          else if (t === "bench") glyph = "=";
-          else if (t === "stall") glyph = "▣";
-          else if (t === "crate") glyph = "▢";
-          else if (t === "barrel") glyph = "◍";
-          else if (t === "chest") glyph = "□";
-          else if (t === "shelf") glyph = "≡";
-          else if (t === "plant") glyph = "*";
-          else if (t === "rug") glyph = "░";
-          else if (t === "fireplace") glyph = "♨";
-          else if (t === "counter") glyph = "▭";
-          else if (t === "sign") glyph = "⚑";
-          else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
-        }
-        if (!color) {
-          if (t === "well") color = "#9dd8ff";
-          else if (t === "lamp") color = "#ffd166";
-          else if (t === "bench") color = "#cbd5e1";
-          else if (t === "stall") color = "#eab308";
-          else if (t === "crate") color = "#cbd5e1";
-          else if (t === "barrel") color = "#b5651d";
-          else if (t === "chest") color = "#d7ba7d";
-          else if (t === "shelf") color = "#cbd5e1";
-          else if (t === "plant") color = "#65a30d";
-          else if (t === "rug") color = "#b45309";
-          else if (t === "fireplace") color = "#ff6d00";
-          else if (t === "counter") color = "#d7ba7d";
-          else if (t === "sign") color = "#d7ba7d";
-          else color = "#cbd5e1";
-        }
-      }
-
-      // Decide opacity: full if visible and LOS; dim if not visible or visible-without-LOS
-      let drawDim = !visNow;
-      if (visNow) {
-        let hasLine = true;
-        try {
-          if (ctx.los && typeof ctx.los.hasLOS === "function") {
-            hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, p.x, p.y);
-          } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
-            hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, p.x, p.y);
-          }
-        } catch (_) {}
-        if (!hasLine) drawDim = true;
-      }
-
-      try { if (typeof window !== "undefined" && window.PropsValidation && typeof window.PropsValidation.recordProp === "function") { window.PropsValidation.recordProp({ mode: "town", type: p.type, x: p.x, y: p.y }); } } catch (_) {}
-
-      if (drawDim) {
-        ctx2d.save();
-        ctx2d.globalAlpha = 0.65;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-        ctx2d.restore();
-      } else {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-      }
-    }
-  }
-
-  // Upstairs props overlay when active
-  (function drawInnUpstairsProps() {
-    try {
-      if (!ctx.innUpstairsActive || !ctx.innUpstairs || !Array.isArray(ctx.innUpstairs.props)) return;
-      const props = ctx.innUpstairs.props;
-      for (const p of props) {
-        if (p.x < startX || p.x > endX || p.y < startY || p.y > endY) continue;
-        const wasSeen = !!(seen[p.y] && seen[p.y][p.x]);
-        if (!wasSeen) continue;
-        const visNow = !!(visible[p.y] && visible[p.y][p.x]);
-
-        const screenX = (p.x - startX) * TILE - tileOffsetX;
-        const screenY = (p.y - startY) * TILE - tileOffsetY;
-
-        let glyph = "";
-        let color = null;
-
-        try {
-          const GD = (typeof window !== "undefined" ? window.GameData : null);
-          const arr = GD && GD.props && Array.isArray(GD.props.props) ? GD.props.props : null;
-          if (arr) {
-            const tId = String(p.type || "").toLowerCase();
-            const entry = arr.find(pp => String(pp.id || "").toLowerCase() === tId || String(pp.key || "").toLowerCase() === tId);
-            if (entry && typeof entry.glyph === "string") glyph = entry.glyph;
-            if (entry && entry.colors && typeof entry.colors.fg === "string") color = entry.colors.fg;
-            if (!color && entry && typeof entry.color === "string") color = entry.color;
-          }
-        } catch (_) {}
-        let tdProp = null;
-        try {
-          const key = String(p.type || "").toUpperCase();
-          tdProp = getTileDefByKey("town", key) || getTileDefByKey("dungeon", key) || getTileDefByKey("overworld", key);
-          if (tdProp) {
-            if (!glyph && Object.prototype.hasOwnProperty.call(tdProp, "glyph")) glyph = tdProp.glyph || glyph;
-            if (!color && tdProp.colors && tdProp.colors.fg) color = tdProp.colors.fg || color;
-          }
-        } catch (_) {}
-        // Palette-driven fallback color (if still missing)
-        try { if (!color) color = _propColor(p.type, null) || color; } catch (_) {}
-        if (!glyph || !color) {
-          const t = String(p.type || "").toLowerCase();
-          if (!glyph) {
-            if (t === "crate") glyph = "▢";
-            else if (t === "barrel") glyph = "◍";
-            else if (t === "chest") glyph = "□";
-            else if (t === "shelf") glyph = "≡";
-            else if (t === "plant") glyph = "*";
-            else if (t === "rug") glyph = "░";
-            else if (t === "bed") glyph = "u";
-            else if (t === "table") glyph = "⊏";
-            else if (t === "chair") glyph = "n";
-            else if (t === "counter") glyph = "▭";
-            else if (t === "sign") glyph = "⚑";
-            else glyph = (p.name && p.name[0]) ? p.name[0] : "?";
-          }
-          if (!color) {
-            if (t === "crate") color = "#cbd5e1";
-            else if (t === "barrel") color = "#b5651d";
-            else if (t === "chest") color = "#d7ba7d";
-            else if (t === "shelf") color = "#cbd5e1";
-            else if (t === "plant") color = "#65a30d";
-            else if (t === "rug") color = "#b45309";
-            else if (t === "bed") color = "#cbd5e1";
-            else if (t === "table") color = "#cbd5e1";
-            else if (t === "chair") color = "#cbd5e1";
-            else if (t === "counter") color = "#d7ba7d";
-            else color = "#cbd5e1";
-          }
-        }
-
-        let drawDim = !visNow;
-        if (visNow) {
-          let hasLine = true;
-          try {
-            if (ctx.los && typeof ctx.los.hasLOS === "function") {
-              hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, p.x, p.y);
-            } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
-              hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, p.x, p.y);
-            }
-          } catch (_) {}
-          if (!hasLine) drawDim = true;
-        }
-
-        if (drawDim) {
-          ctx2d.save();
-          ctx2d.globalAlpha = 0.65;
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-          ctx2d.restore();
-        } else {
-          RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-        }
-      }
-    } catch (_) {}
-  })();
-
-  // Shop markers: draw a small flag ⚑ at shop doors once seen.
-  // To avoid \"double sign\" visuals, suppress the door marker if a shop already has an interior sign prop.
-  (function drawShopMarkers() {
-    try {
-      if (!Array.isArray(ctx.shops) || !ctx.shops.length) return;
-      for (const s of ctx.shops) {
-        const dx = (s.building && s.building.door && typeof s.building.door.x === "number") ? s.building.door.x : s.x;
-        const dy = (s.building && s.building.door && typeof s.building.door.y === "number") ? s.building.door.y : s.y;
-        if (dx < startX || dx > endX || dy < startY || dy > endY) continue;
-        const everSeen = !!(seen[dy] && seen[dy][dx]);
-        if (!everSeen) continue;
-
-        // Suppress marker if there is already a sign inside this shop's building
-        let hasSignInside = false;
-        try {
-          if (Array.isArray(ctx.townProps) && s.building) {
-            hasSignInside = ctx.townProps.some(p =>
-              p && String(p.type || "").toLowerCase() === "sign" &&
-              p.x > s.building.x && p.x < s.building.x + s.building.w - 1 &&
-              p.y > s.building.y && p.y < s.building.y + s.building.h - 1
-            );
-          }
-        } catch (_) {}
-
-        if (hasSignInside) continue;
-
-        const screenX = (dx - startX) * TILE - tileOffsetX;
-        const screenY = (dy - startY) * TILE - tileOffsetY;
-        // match sign color from tiles.json if present; draw above tiles/props
-        let signColor = "#d7ba7d";
-        try {
-          const tdSign = getTileDefByKey("town", "SIGN") || getTileDefByKey("dungeon", "SIGN");
-          if (tdSign && tdSign.colors && tdSign.colors.fg) signColor = tdSign.colors.fg || signColor;
-        } catch (_) {}
-        // Palette-driven fallback for sign if JSON missing
-        try { signColor = _propColor("sign", signColor) || signColor; } catch (_) {}
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, "⚑", signColor, TILE);
-      }
-    } catch (_) {}
-  })();
-
-  // NPCs: draw when the tile has been seen; dim if not currently visible or no LOS.
-  // This avoids \"disappearing\" when visibility is affected by lamp-light or corners.
-  if (Array.isArray(ctx.npcs)) {
-    for (const n of ctx.npcs) {
-      if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
-
-      // Suppress downstairs NPCs inside the inn footprint when upstairs overlay is active
-      if (ctx.innUpstairsActive && ctx.tavern && ctx.tavern.building) {
-        const b = ctx.tavern.building;
-        if (n.x > b.x && n.x < b.x + b.w - 1 && n.y > b.y && n.y < b.y + b.h - 1) {
-          continue;
-        }
-      }
-
-      const everSeen = !!(seen[n.y] && seen[n.y][n.x]);
-      if (!everSeen) continue;
-
-      const isVisible = !!(visible[n.y] && visible[n.y][n.x]);
-
-      // Only check LOS when currently visible; otherwise we'll draw dim without LOS gating
-      let hasLine = true;
-      if (isVisible) {
-        try {
-          if (ctx.los && typeof ctx.los.hasLOS === "function") {
-            hasLine = !!ctx.los.hasLOS(ctx, player.x, player.y, n.x, n.y);
-          } else if (typeof window !== "undefined" && window.LOS && typeof window.LOS.hasLOS === "function") {
-            hasLine = !!window.LOS.hasLOS(ctx, player.x, player.y, n.x, n.y);
-          }
-        } catch (_) {}
-      }
-
-      const screenX = (n.x - startX) * TILE - tileOffsetX;
-      const screenY = (n.y - startY) * TILE - tileOffsetY;
-
-      // Pets: cat 'c', dog 'd'; Seppo 'S'; others 'n'
-      let glyph = "n";
-      let color = "#b4f9f8";
-      if (n.isPet) {
-        if (n.kind === "cat") glyph = "c";
-        else if (n.kind === "dog") glyph = "d";
-      } else if (n.isSeppo || n.seppo) {
-        glyph = "S";
-        color = "#f6c177";
-      } else if (n.isShopkeeper || n._shopRef) {
-        // Highlight shopkeepers so the player can spot them easily (palette-driven)
-        try {
-          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-          color = pal && pal.shopkeeper ? pal.shopkeeper : "#ffd166";
-        } catch (_) {
-          color = "#ffd166";
-        }
-      }
-
-      // Dim draw when not visible or visible-without-LOS; full draw when visible with LOS
-      const drawDim = (!isVisible || !hasLine);
-      if (drawDim) {
-        ctx2d.save();
-        ctx2d.globalAlpha = 0.70;
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-        ctx2d.restore();
-      } else {
-        RenderCore.drawGlyph(ctx2d, screenX, screenY, glyph, color, TILE);
-      }
-
-      // Sleeping indicator: show 'Z' decal even when dim; reduce alpha if not in LOS
-      if (n._sleeping) {
-        const t = Date.now();
-        const phase = Math.floor(t / 600) % 2; // toggle every ~0.6s
-        const zChar = phase ? "Z" : "z";
-        const bob = Math.sin(t / 500) * 3;
-        const zx = screenX + TILE / 2 + 8;          // slight right offset
-        const zy = screenY + TILE / 2 - TILE * 0.6 + bob; // above head
-        ctx2d.save();
-        ctx2d.globalAlpha = drawDim ? 0.55 : 0.9;
-        let zColor = "#a3be8c";
-        try {
-          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-          if (pal && pal.sleepingZ) zColor = pal.sleepingZ || zColor;
-        } catch (_) {}
-        ctx2d.fillStyle = zColor;
-        ctx2d.fillText(zChar, zx, zy);
-        ctx2d.restore();
-      }
-    }
-  }
+  // NPCs
+  try { drawNPCs(ctx, view); } catch (_) {}
 
   // Debug overlays and effects
-  RenderOverlays.drawTownDebugOverlay(ctx, view);
-  RenderOverlays.drawTownPaths(ctx, view);
-  RenderOverlays.drawTownHomePaths(ctx, view);
-  RenderOverlays.drawTownRoutePaths(ctx, view);
-  RenderOverlays.drawLampGlow(ctx, view);
+  try { drawTownDebugOverlay(ctx, view); } catch (_) {}
+  try { drawTownPaths(ctx, view); } catch (_) {}
+  try { drawTownHomePaths(ctx, view); } catch (_) {}
+  try { drawTownRoutePaths(ctx, view); } catch (_) {}
+  try { drawLampGlow(ctx, view); } catch (_) {}
 
-  // Gate highlight: draw a bright outline and a large 'G' glyph on the gate interior tile.
-  // If ctx.townExitAt is missing, fall back to scanning the perimeter door and computing the adjacent interior tile.
-  (function drawGate() {
-    let gx = null, gy = null;
-    if (ctx.townExitAt && typeof ctx.townExitAt.x === "number" && typeof ctx.townExitAt.y === "number") {
-      gx = ctx.townExitAt.x; gy = ctx.townExitAt.y;
-    } else {
-      try {
-        const rows = mapRows, cols = mapCols;
-        // top row -> inside at y=1
-        for (let x = 0; x < cols && gx == null; x++) {
-          if (map[0][x] === TILES.DOOR) { gx = x; gy = 1; }
-        }
-        // bottom row -> inside at y=rows-2
-        for (let x = 0; x < cols && gx == null; x++) {
-          if (map[rows - 1][x] === TILES.DOOR) { gx = x; gy = rows - 2; }
-        }
-        // left column -> inside at x=1
-        for (let y = 0; y < rows && gx == null; y++) {
-          if (map[y][0] === TILES.DOOR) { gx = 1; gy = y; }
-        }
-        // right column -> inside at x=cols-2
-        for (let y = 0; y < rows && gx == null; y++) {
-          if (map[y][cols - 1] === TILES.DOOR) { gx = cols - 2; gy = y; }
-        }
-      } catch (_) {}
-    }
-    if (gx == null || gy == null) return;
-    if (gx < startX || gx > endX || gy < startY || gy > endY) return;
-
-    const screenX = (gx - startX) * TILE - tileOffsetX;
-    const screenY = (gy - startY) * TILE - tileOffsetY;
-    ctx2d.save();
-    const t = Date.now();
-    const pulse = 0.55 + 0.45 * Math.abs(Math.sin(t / 520));
-    ctx2d.globalAlpha = pulse;
-    ctx2d.lineWidth = 3;
-    // Palette-driven exit color for town gate
-    let exitColor = "#9ece6a";
-    try {
-      const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-      if (pal && pal.exitTown) exitColor = pal.exitTown || exitColor;
-    } catch (_) {}
-    ctx2d.strokeStyle = exitColor;
-    ctx2d.strokeRect(screenX + 2.5, screenY + 2.5, TILE - 5, TILE - 5);
-    // Large 'G' glyph centered on the gate tile
-    try {
-      ctx2d.globalAlpha = 0.95;
-      RenderCore.drawGlyph(ctx2d, screenX, screenY, "G", exitColor, TILE);
-    } catch (_) {}
-    ctx2d.restore();
-  })();
+  // Gate overlay
+  try { drawGateOverlay(ctx, view); } catch (_) {}
 
   // player - add subtle backdrop + outlined glyph so it stands out in town view
   if (player.x >= startX && player.x <= endX && player.y >= startY && player.y <= endY) {
@@ -1062,46 +388,8 @@ export function draw(ctx, view) {
     }
   }
 
-  // Day/night tint overlay (palette-driven when available)
-  try {
-    const time = ctx.time;
-    if (time && time.phase) {
-      let nightTint = "rgba(0,0,0,0.35)";
-      let duskTint  = "rgba(255,120,40,0.12)";
-      let dawnTint  = "rgba(120,180,255,0.10)";
-      try {
-        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-        if (pal) {
-          nightTint = pal.night || nightTint;
-          duskTint  = pal.dusk  || duskTint;
-          dawnTint  = pal.dawn  || dawnTint;
-        }
-      } catch (_) {}
-      ctx2d.save();
-      // Optional alpha overrides (palette numeric keys)
-      let a = 1.0;
-      try {
-        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-        if (pal) {
-          if (time.phase === "night" && Number.isFinite(Number(pal.nightA))) a = Math.max(0, Math.min(1, Number(pal.nightA)));
-          else if (time.phase === "dusk" && Number.isFinite(Number(pal.duskA))) a = Math.max(0, Math.min(1, Number(pal.duskA)));
-          else if (time.phase === "dawn" && Number.isFinite(Number(pal.dawnA))) a = Math.max(0, Math.min(1, Number(pal.dawnA)));
-        }
-      } catch (_) {}
-      ctx2d.globalAlpha = a;
-      if (time.phase === "night") {
-        ctx2d.fillStyle = nightTint;
-        ctx2d.fillRect(0, 0, cam.width, cam.height);
-      } else if (time.phase === "dusk") {
-        ctx2d.fillStyle = duskTint;
-        ctx2d.fillRect(0, 0, cam.width, cam.height);
-      } else if (time.phase === "dawn") {
-        ctx2d.fillStyle = dawnTint;
-        ctx2d.fillRect(0, 0, cam.width, cam.height);
-      }
-      ctx2d.restore();
-    }
-  } catch (_) {}
+  // Day/night tint
+  try { drawTownDayNightTint(ctx, view); } catch (_) {}
 
   // Grid overlay (if enabled)
   RenderCore.drawGridOverlay(view);

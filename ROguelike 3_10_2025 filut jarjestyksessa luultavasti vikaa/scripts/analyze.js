@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 
-const ROOT = path.resolve(path.join(process.cwd(), "ROguelike 3_10_2025 filut jarjestyksessa luultavasti vikaa"));
+const ROOT = path.resolve(process.cwd());
 const OUT_DIR = path.join(ROOT, "analysis");
 const OUT_FILE = path.join(OUT_DIR, "phase1_report.md");
 

@@ -85,6 +85,11 @@ export const UI = {
     // Additional GOD toggle buttons (needed for updating button labels/titles)
     this.els.godTogglePerfBtn = document.getElementById("god-toggle-perf-btn");
     this.els.godToggleMinimapBtn = document.getElementById("god-toggle-minimap-btn");
+    // HUD toggles
+    this.els.godToggleOverworldHudBtn = document.getElementById("god-toggle-ow-hud-btn");
+    this.els.godToggleRegionHudBtn = document.getElementById("god-toggle-region-hud-btn");
+    this.els.godToggleEncounterHudBtn = document.getElementById("god-toggle-enc-hud-btn");
+    // Town debug overlays
     this.els.godToggleTownOverlayBtn = document.getElementById("god-toggle-town-overlay-btn");
     this.els.godToggleTownPathsBtn = document.getElementById("god-toggle-town-paths-btn");
     this.els.godToggleHomePathsBtn = document.getElementById("god-toggle-home-paths-btn");
@@ -148,7 +153,7 @@ export const UI = {
         const boxes = (this.els.smokeList ? Array.from(this.els.smokeList.querySelectorAll("input.smoke-sel")) : []);
         const sel = boxes.filter(b => b.checked).map(b => b.value);
         // Fallback: all scenarios if none selected
-        const scenarios = sel.length ? sel : ["world","dungeon","inventory","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
+        const scenarios = sel.length ? sel : ["world","region","dungeon","inventory","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
         // Runs
         const countRaw = (this.els.smokeCount && this.els.smokeCount.value) ? this.els.smokeCount.value.trim() : "1";
         const count = Math.max(1, Math.min(20, parseInt(countRaw, 10) || 1));
@@ -176,7 +181,7 @@ export const UI = {
     if (runLinearBtn) {
       runLinearBtn.addEventListener("click", () => {
         // Fixed linear order
-        const scenarios = ["world","inventory","dungeon","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
+        const scenarios = ["world","region","inventory","dungeon","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
         const countRaw = (this.els.smokeCount && this.els.smokeCount.value) ? this.els.smokeCount.value.trim() : "1";
         const count = Math.max(1, Math.min(20, parseInt(countRaw, 10) || 1));
         try { this.hideSmoke(); } catch (_) {}
@@ -239,10 +244,17 @@ export const UI = {
       if (typeof window.DRAW_GRID !== "boolean") window.DRAW_GRID = this.getGridState();
       if (typeof window.SHOW_PERF !== "boolean") window.SHOW_PERF = this.getPerfState();
       if (typeof window.SHOW_MINIMAP !== "boolean") window.SHOW_MINIMAP = this.getMinimapState();
+      // HUD toggles baselines
+      if (typeof window.SHOW_OVERWORLD_HUD !== "boolean") window.SHOW_OVERWORLD_HUD = this.getOverworldHudState();
+      if (typeof window.SHOW_REGION_HUD !== "boolean") window.SHOW_REGION_HUD = this.getRegionHudState();
+      if (typeof window.SHOW_ENCOUNTER_HUD !== "boolean") window.SHOW_ENCOUNTER_HUD = this.getEncounterHudState();
       // Ensure buttons reflect baseline state
       this.updateGridButton();
       this.updatePerfButton();
       this.updateMinimapButton();
+      this.updateOverworldHudButton();
+      this.updateRegionHudButton();
+      this.updateEncounterHudButton();
     } catch (_) {}
 
     return true;
@@ -622,6 +634,7 @@ export const UI = {
       // Default list (fallback)
       let scenarios = [
         { id: "world", label: "World" },
+        { id: "region", label: "Region Map" },
         { id: "inventory", label: "Inventory" },
         { id: "dungeon", label: "Dungeon" },
         { id: "combat", label: "Combat" },
@@ -704,6 +717,106 @@ export const UI = {
     const on = this.getMinimapState();
     this.els.godToggleMinimapBtn.textContent = `Minimap: ${on ? "On" : "Off"}`;
     this.els.godToggleMinimapBtn.title = on ? "Hide overworld minimap" : "Show overworld minimap";
+  },
+
+  // --- HUD visibility toggles ---
+  getOverworldHudState() {
+    try {
+      if (typeof window.SHOW_OVERWORLD_HUD === "boolean") return window.SHOW_OVERWORLD_HUD;
+      const v = localStorage.getItem("SHOW_OVERWORLD_HUD");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (_) {}
+    return true; // default ON
+  },
+
+  setOverworldHudState(enabled) {
+    try {
+      window.SHOW_OVERWORLD_HUD = !!enabled;
+      localStorage.setItem("SHOW_OVERWORLD_HUD", enabled ? "1" : "0");
+    } catch (_) {}
+    this.updateOverworldHudButton();
+    try {
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
+      }
+    } catch (_) {}
+  },
+
+  updateOverworldHudButton() {
+    if (!this.els.godToggleOverworldHudBtn) return;
+    const on = this.getOverworldHudState();
+    this.els.godToggleOverworldHudBtn.textContent = `Overworld HUD: ${on ? "On" : "Off"}`;
+    this.els.godToggleOverworldHudBtn.title = on ? "Hide biome/clock HUD" : "Show biome/clock HUD";
+  },
+
+  getRegionHudState() {
+    try {
+      if (typeof window.SHOW_REGION_HUD === "boolean") return window.SHOW_REGION_HUD;
+      const v = localStorage.getItem("SHOW_REGION_HUD");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (_) {}
+    return true;
+  },
+
+  setRegionHudState(enabled) {
+    try {
+      window.SHOW_REGION_HUD = !!enabled;
+      localStorage.setItem("SHOW_REGION_HUD", enabled ? "1" : "0");
+    } catch (_) {}
+    this.updateRegionHudButton();
+    try {
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
+      }
+    } catch (_) {}
+  },
+
+  updateRegionHudButton() {
+    if (!this.els.godToggleRegionHudBtn) return;
+    const on = this.getRegionHudState();
+    this.els.godToggleRegionHudBtn.textContent = `Region HUD: ${on ? "On" : "Off"}`;
+    this.els.godToggleRegionHudBtn.title = on ? "Hide Region Map HUD panel" : "Show Region Map HUD panel";
+  },
+
+  getEncounterHudState() {
+    try {
+      if (typeof window.SHOW_ENCOUNTER_HUD === "boolean") return window.SHOW_ENCOUNTER_HUD;
+      const v = localStorage.getItem("SHOW_ENCOUNTER_HUD");
+      if (v === "1") return true;
+      if (v === "0") return false;
+    } catch (_) {}
+    return true;
+  },
+
+  setEncounterHudState(enabled) {
+    try {
+      window.SHOW_ENCOUNTER_HUD = !!enabled;
+      localStorage.setItem("SHOW_ENCOUNTER_HUD", enabled ? "1" : "0");
+    } catch (_) {}
+    this.updateEncounterHudButton();
+    try {
+      const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.requestDraw === "function") {
+        UIO.requestDraw(null);
+      } else if (typeof window !== "undefined" && window.GameLoop && typeof window.GameLoop.requestDraw === "function") {
+        window.GameLoop.requestDraw();
+      }
+    } catch (_) {}
+  },
+
+  updateEncounterHudButton() {
+    if (!this.els.godToggleEncounterHudBtn) return;
+    const on = this.getEncounterHudState();
+    this.els.godToggleEncounterHudBtn.textContent = `Encounter HUD: ${on ? "On" : "Off"}`;
+    this.els.godToggleEncounterHudBtn.title = on ? "Hide Encounter HUD panel" : "Show Encounter HUD panel";
   },
 
   

@@ -29,17 +29,38 @@
  * - Diagnostics in GOD and boot logs show current RNG source and seed for reproducibility.
  */
   
-  // Runtime configuration (loaded via GameData.config when available)
-  const CFG = (typeof window !== "undefined" && window.GameData && window.GameData.config && typeof window.GameData.config === "object")
-    ? window.GameData.config
-    : null;
+  import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
+import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./state/persistence.js";
+import { createTimeFacade } from "./facades/time.js";
+import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./facades/perf.js";
+import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./facades/config.js";
+import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
+import { log as logFacade } from "./facades/log.js";
+import { getRng as rngGetRng, int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
+import {
+  renderInventoryPanel as renderInventoryPanelFacade,
+  showInventoryPanel as showInventoryPanelFacade,
+  hideInventoryPanel as hideInventoryPanelFacade,
+  equipItemByIndex as equipItemByIndexFacade,
+  equipItemByIndexHand as equipItemByIndexHandFacade,
+  unequipSlot as unequipSlotFacade,
+  addPotionToInventory as addPotionToInventoryFacade,
+  drinkPotionByIndex as drinkPotionByIndexFacade,
+  eatFoodByIndex as eatFoodByIndexFacade
+} from "./facades/inventory.js";
+import {
+  setAlwaysCrit as setAlwaysCritFacade,
+  setCritPart as setCritPartFacade,
+  godSpawnEnemyNearby as godSpawnEnemyNearbyFacade,
+  godSpawnItems as godSpawnItemsFacade,
+  godHeal as godHealFacade,
+  godSpawnStairsHere as godSpawnStairsHereFacade
+} from "./god/facade.js";
 
-  const TILE = (CFG && CFG.viewport && typeof CFG.viewport.TILE === "number") ? CFG.viewport.TILE : 32;
-  const COLS = (CFG && CFG.viewport && typeof CFG.viewport.COLS === "number") ? CFG.viewport.COLS : 30;
-  const ROWS = (CFG && CFG.viewport && typeof CFG.viewport.ROWS === "number") ? CFG.viewport.ROWS : 20;
-  
-  const MAP_COLS = (CFG && CFG.world && typeof CFG.world.MAP_COLS === "number") ? CFG.world.MAP_COLS : 120;
-  const MAP_ROWS = (CFG && CFG.world && typeof CFG.world.MAP_ROWS === "number") ? CFG.world.MAP_ROWS : 80;
+  // Runtime configuration (loaded via GameData.config via core/game_config.js)
+  const CFG = getRawConfig();
+  const { TILE, COLS, ROWS } = getViewportDefaults(CFG);
+  const { MAP_COLS, MAP_ROWS } = getWorldDefaults(CFG);
 
   // Fresh session (no localStorage) support via URL params: ?fresh=1 or ?reset=1 or ?nolocalstorage=1
   try {
@@ -54,9 +75,7 @@
     }
   } catch (_) {}
 
-  const FOV_DEFAULT = (CFG && CFG.fov && typeof CFG.fov.default === "number") ? CFG.fov.default : 8;
-  const FOV_MIN = (CFG && CFG.fov && typeof CFG.fov.min === "number") ? CFG.fov.min : 3;
-  const FOV_MAX = (CFG && CFG.fov && typeof CFG.fov.max === "number") ? CFG.fov.max : 14;
+  const { FOV_DEFAULT, FOV_MIN, FOV_MAX } = getFovDefaults(CFG);
   let fovRadius = FOV_DEFAULT;
 
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
@@ -92,44 +111,7 @@
   const _CFG_DAY_MINUTES = (CFG && CFG.time && typeof CFG.time.dayMinutes === "number") ? CFG.time.dayMinutes : (24 * 60);
   const _CFG_CYCLE_TURNS = (CFG && CFG.time && typeof CFG.time.cycleTurns === "number") ? CFG.time.cycleTurns : 360;
 
-  const TS = (typeof window !== "undefined" && window.TimeService && typeof window.TimeService.create === "function")
-    ? window.TimeService.create({ dayMinutes: _CFG_DAY_MINUTES, cycleTurns: _CFG_CYCLE_TURNS })
-    : (function () {
-        const DAY_MINUTES = _CFG_DAY_MINUTES;
-        const CYCLE_TURNS = _CFG_CYCLE_TURNS;
-        const MINUTES_PER_TURN = DAY_MINUTES / CYCLE_TURNS;
-        function getClock(tc) {
-          const totalMinutes = Math.floor((tc | 0) * MINUTES_PER_TURN) % DAY_MINUTES;
-          const h = Math.floor(totalMinutes / 60);
-          const m = totalMinutes % 60;
-          const hh = String(h).padStart(2, "0");
-          const mm = String(m).padStart(2, "0");
-          const phase = (h >= 20 || h < 6) ? "night" : (h < 8 ? "dawn" : (h < 18 ? "day" : "dusk"));
-          return { hours: h, minutes: m, hhmm: `${hh}:${mm}`, phase, totalMinutes, minutesPerTurn: MINUTES_PER_TURN, cycleTurns: CYCLE_TURNS, turnCounter: (tc | 0) };
-        }
-        function minutesUntil(tc, hourTarget, minuteTarget = 0) {
-          const clock = getClock(tc);
-          const cur = clock.hours * 60 + clock.minutes;
-          const goal = ((hourTarget | 0) * 60 + (minuteTarget | 0) + DAY_MINUTES) % DAY_MINUTES;
-          let delta = goal - cur;
-          if (delta <= 0) delta += DAY_MINUTES;
-          return delta;
-        }
-        function advanceMinutes(tc, mins) {
-          const turns = Math.ceil((mins | 0) / MINUTES_PER_TURN);
-          return (tc | 0) + turns;
-        }
-        function tick(tc) { return (tc | 0) + 1; }
-        return {
-          DAY_MINUTES,
-          CYCLE_TURNS,
-          MINUTES_PER_TURN,
-          getClock,
-          minutesUntil,
-          advanceMinutes,
-          tick,
-        };
-      })();
+  const TS = createTimeFacade({ dayMinutes: _CFG_DAY_MINUTES, cycleTurns: _CFG_CYCLE_TURNS });
   const DAY_MINUTES = TS.DAY_MINUTES;
   const CYCLE_TURNS = TS.CYCLE_TURNS;
   const MINUTES_PER_TURN = TS.MINUTES_PER_TURN;
@@ -149,35 +131,8 @@
   };
 
   
-  const TILES = {
-    WALL: 0,
-    FLOOR: 1,
-    DOOR: 2,
-    STAIRS: 3,
-    WINDOW: 4, // town-only: blocks movement, lets light through
-    ROAD: 5,   // town-only: outdoor road; walkable; always brown
-  };
-
-  // Palette override from JSON when available
-  const PAL = (typeof window !== "undefined" && window.GameData && window.GameData.palette && typeof window.GameData.palette === "object")
-    ? window.GameData.palette
-    : null;
-
-  const COLORS = {
-    wall: (PAL && PAL.tiles && PAL.tiles.wall) || "#1b1f2a",
-    wallDark: (PAL && PAL.tiles && PAL.tiles.wallDark) || "#131722",
-    floor: (PAL && PAL.tiles && PAL.tiles.floor) || "#0f1320",
-    floorLit: (PAL && PAL.tiles && PAL.tiles.floorLit) || "#0f1628",
-    player: (PAL && PAL.entities && PAL.entities.player) || "#9ece6a",
-    enemy: (PAL && PAL.entities && PAL.entities.enemyDefault) || "#f7768e",
-    enemyGoblin: (PAL && PAL.entities && PAL.entities.goblin) || "#8bd5a0",
-    enemyTroll: (PAL && PAL.entities && PAL.entities.troll) || "#e0af68",
-    enemyOgre: (PAL && PAL.entities && PAL.entities.ogre) || "#f7768e",
-    item: (PAL && PAL.entities && PAL.entities.item) || "#7aa2f7",
-    corpse: (PAL && PAL.entities && PAL.entities.corpse) || "#c3cad9",
-    corpseEmpty: (PAL && PAL.entities && PAL.entities.corpseEmpty) || "#6b7280",
-    dim: (PAL && PAL.overlays && PAL.overlays.dim) || "rgba(13, 16, 24, 0.75)"
-  };
+  const TILES = TILES_CONST;
+  const COLORS = getColorsConst();
 
   
   const canvas = document.getElementById("game");
@@ -216,20 +171,14 @@
       currentSeed = sRaw != null ? (Number(sRaw) >>> 0) : null;
     }
   } catch (_) { currentSeed = null; }
-  // Single RNG function from RNGUtils; deterministic (0.5) if RNG is unavailable
-  let rng = (function () {
-    try {
-      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
-        return window.RNGUtils.getRng();
-      }
-    } catch (_) {}
-    return () => 0.5;
-  })();
+  // Single RNG function via RNG facade; deterministic (0.5) if RNG is unavailable
+  let rng = rngGetRng();
   let isDead = false;
   let startRoomRect = null;
   // GOD toggles (config-driven defaults with localStorage/window override)
-  const AC_DEFAULT = (CFG && CFG.dev && typeof CFG.dev.alwaysCritDefault === "boolean") ? !!CFG.dev.alwaysCritDefault : false;
-  const CP_DEFAULT = (CFG && CFG.dev && typeof CFG.dev.critPartDefault === "string") ? CFG.dev.critPartDefault : "";
+  const DEV_DEFAULTS = getDevDefaults(CFG);
+  const AC_DEFAULT = !!DEV_DEFAULTS.alwaysCritDefault;
+  const CP_DEFAULT = DEV_DEFAULTS.critPartDefault;
   let alwaysCrit = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT === "boolean") ? !!window.ALWAYS_CRIT : AC_DEFAULT;
   let forcedCritPart = (typeof window !== "undefined" && typeof window.ALWAYS_CRIT_PART === "string")
     ? window.ALWAYS_CRIT_PART
@@ -275,10 +224,7 @@
       _dungeonStates: dungeonStates,
       time: getClock(),
       // Perf stats for HUD overlay (smoothed via EMA when available)
-      getPerfStats: () => ({
-        lastTurnMs: (typeof PERF.avgTurnMs === "number" && PERF.avgTurnMs > 0 ? PERF.avgTurnMs : (PERF.lastTurnMs || 0)),
-        lastDrawMs: (typeof PERF.avgDrawMs === "number" && PERF.avgDrawMs > 0 ? PERF.avgDrawMs : (PERF.lastDrawMs || 0)),
-      }),
+      getPerfStats: () => perfGetPerfStats(),
       requestDraw,
       log,
       isWalkable, inBounds,
@@ -361,16 +307,9 @@
     return null;
   }
 
-  // Use RNGUtils exclusively for helpers; deterministic midpoints when RNG unavailable
-  const randInt = (min, max) => {
-    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.int === "function") return window.RNGUtils.int(min, max, rng); } catch (_) {}
-    // midpoint fallback
-    return Math.floor((min + max) / 2);
-  };
-  const chance = (p) => {
-    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") return window.RNGUtils.chance(p, rng); } catch (_) {}
-    return false;
-  };
+  // RNG helpers via facade
+  const randInt = (min, max) => rngInt(min, max, rng);
+  const chance = (p) => rngChance(p, rng);
   const capitalize = ((typeof window !== "undefined" && window.PlayerUtils && typeof window.PlayerUtils.capitalize === "function")
     ? window.PlayerUtils.capitalize
     : (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -381,13 +320,7 @@
     }
     return COLORS.enemy;
   };
-  const randFloat = (min, max, decimals = 1) => {
-    try { if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.float === "function") return window.RNGUtils.float(min, max, decimals, rng); } catch (_) {}
-    // midpoint fallback
-    const v = (min + max) / 2;
-    const p = Math.pow(10, decimals);
-    return Math.round(v * p) / p;
-  };
+  const randFloat = (min, max, decimals = 1) => rngFloat(min, max, decimals, rng);
   const round1 = (n) => Math.round(n * 10) / 10;
 
   // Decay helpers
@@ -615,30 +548,18 @@
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.addPotionToInventory === "function") {
-      IF.addPotionToInventory(getCtx(), heal, name);
-      return;
-    }
+    try { addPotionToInventoryFacade(getCtx(), heal, name); return; } catch (_) {}
     log("Inventory system not available.", "warn");
   }
 
   function drinkPotionByIndex(idx) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.drinkPotionByIndex === "function") {
-      IF.drinkPotionByIndex(getCtx(), idx);
-      return;
-    }
+    try { drinkPotionByIndexFacade(getCtx(), idx); return; } catch (_) {}
     log("Inventory system not available.", "warn");
   }
 
   // Eat edible materials using centralized inventory flow
   function eatFoodByIndex(idx) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.eatByIndex === "function") {
-      IF.eatByIndex(getCtx(), idx);
-      return;
-    }
+    try { eatFoodByIndexFacade(getCtx(), idx); return; } catch (_) {}
     log("Inventory system not available.", "warn");
   }
 
@@ -660,15 +581,9 @@
 
   
   function log(msg, type = "info") {
-    // Prefer UI logger; avoid direct DOM fallbacks
-    try { if (window.DEV) console.debug(`[${type}] ${msg}`); } catch (_) {}
-    const LG = modHandle("Logger");
-    if (LG && typeof LG.log === "function") {
-      LG.log(msg, type);
-      return;
+    try { logFacade(getCtx(), msg, type); } catch (_) {
+      try { console.log(`[${type}] ${msg}`); } catch (_) {}
     }
-    // Fallback: console only
-    try { console.log(`[${type}] ${msg}`); } catch (_) {}
   }
 
   
@@ -772,15 +687,10 @@
       return null;
     }
     const base = RO.getRenderCtx(getCtx());
-    // Ensure PERF sink uses local PERF tracker
+    // Perf sink: delegate to core/perf.js
     try {
       base.onDrawMeasured = (ms) => {
-        PERF.lastDrawMs = ms;
-        try {
-          const a = 0.35;
-          if (typeof PERF.avgDrawMs !== "number" || PERF.avgDrawMs === 0) PERF.avgDrawMs = ms;
-          else PERF.avgDrawMs = (a * ms) + ((1 - a) * PERF.avgDrawMs);
-        } catch (_) {}
+        try { perfMeasureDraw(ms); } catch (_) {}
       };
     } catch (_) {}
     return base;
@@ -1423,94 +1333,52 @@
   }
 
   
-  // GOD mode actions (delegated to GodControls)
+  // GOD mode actions (delegated to core/god_facade.js)
   function godHeal() {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.heal === "function") { GC.heal(() => getCtx()); return; }
+    try { if (godHealFacade(getCtx())) return; } catch (_) {}
     log("GOD: heal not available.", "warn");
   }
 
   function godSpawnStairsHere() {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.spawnStairsHere === "function") { GC.spawnStairsHere(() => getCtx()); return; }
+    try { if (godSpawnStairsHereFacade(getCtx())) return; } catch (_) {}
     log("GOD: spawnStairsHere not available.", "warn");
   }
 
   function godSpawnItems(count = 3) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.spawnItems === "function") { GC.spawnItems(() => getCtx(), count); return; }
+    try { if (godSpawnItemsFacade(getCtx(), count)) return; } catch (_) {}
     log("GOD: spawnItems not available.", "warn");
   }
 
   function godSpawnEnemyNearby(count = 1) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.spawnEnemyNearby === "function") { GC.spawnEnemyNearby(() => getCtx(), count); return; }
+    try { if (godSpawnEnemyNearbyFacade(getCtx(), count)) return; } catch (_) {}
     log("GOD: spawnEnemyNearby not available.", "warn");
   }
 
   
   function renderInventoryPanel() {
-    const UIO = modHandle("UIOrchestration");
-    if (UIO && typeof UIO.renderInventory === "function") {
-      UIO.renderInventory(getCtx());
-    }
+    try { renderInventoryPanelFacade(getCtx()); } catch (_) {}
   }
 
   function showInventoryPanel() {
-    const UIO = modHandle("UIOrchestration");
-    if (UIO && typeof UIO.showInventory === "function") {
-      UIO.showInventory(getCtx());
-      requestDraw();
-    }
+    try { showInventoryPanelFacade(getCtx()); } catch (_) {}
   }
 
   function hideInventoryPanel() {
-    const UIO = modHandle("UIOrchestration");
-    if (UIO && typeof UIO.hideInventory === "function") {
-      UIO.hideInventory(getCtx());
-      requestDraw();
-    }
+    try { hideInventoryPanelFacade(getCtx()); } catch (_) {}
   }
 
   function equipItemByIndex(idx) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.equipItemByIndex === "function") {
-      IF.equipItemByIndex(getCtx(), idx);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.equipByIndex === "function") {
-      IC.equipByIndex(getCtx(), idx);
-      return;
-    }
+    try { equipItemByIndexFacade(getCtx(), idx); return; } catch (_) {}
     log("Equip system not available.", "warn");
   }
 
   function equipItemByIndexHand(idx, hand) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.equipItemByIndexHand === "function") {
-      IF.equipItemByIndexHand(getCtx(), idx, hand);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.equipByIndexHand === "function") {
-      IC.equipByIndexHand(getCtx(), idx, hand);
-      return;
-    }
+    try { equipItemByIndexHandFacade(getCtx(), idx, hand); return; } catch (_) {}
     log("Equip system not available.", "warn");
   }
 
   function unequipSlot(slot) {
-    const IF = modHandle("InventoryFlow");
-    if (IF && typeof IF.unequipSlot === "function") {
-      IF.unequipSlot(getCtx(), slot);
-      return;
-    }
-    const IC = modHandle("InventoryController");
-    if (IC && typeof IC.unequipSlot === "function") {
-      IC.unequipSlot(getCtx(), slot);
-      return;
-    }
+    try { unequipSlotFacade(getCtx(), slot); return; } catch (_) {}
     log("Equip system not available.", "warn");
   }
 
@@ -1524,17 +1392,21 @@
     }
   }
 
-  // GOD: always-crit toggle (delegated)
+  // GOD: always-crit toggle (delegated to core/god_facade.js)
   function setAlwaysCrit(v) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.setAlwaysCrit === "function") { GC.setAlwaysCrit(() => getCtx(), v); alwaysCrit = !!v; return; }
+    try {
+      const ok = setAlwaysCritFacade(getCtx(), v);
+      if (ok) { alwaysCrit = !!v; return; }
+    } catch (_) {}
     log("GOD: setAlwaysCrit not available.", "warn");
   }
 
-  // GOD: set forced crit body part for player attacks (delegated)
+  // GOD: set forced crit body part for player attacks (delegated to core/god_facade.js)
   function setCritPart(part) {
-    const GC = modHandle("GodControls");
-    if (GC && typeof GC.setCritPart === "function") { GC.setCritPart(() => getCtx(), part); forcedCritPart = part; return; }
+    try {
+      const ok = setCritPartFacade(getCtx(), part);
+      if (ok) { forcedCritPart = part; return; }
+    } catch (_) {}
     log("GOD: setCritPart not available.", "warn");
   }
 
@@ -1573,31 +1445,9 @@
     }
   }
 
-  // Clear persisted game state (towns, dungeons, region map) from both localStorage and in-memory mirrors
+  // Clear persisted game state (towns, dungeons, region map) via core/persistence.js
   function clearPersistentGameStorage() {
-    try {
-      if (typeof localStorage !== "undefined") {
-        localStorage.removeItem("DUNGEON_STATES_V1");
-        localStorage.removeItem("TOWN_STATES_V1");
-        localStorage.removeItem("REGION_CUTS_V1");
-        localStorage.removeItem("REGION_ANIMALS_V1");
-        localStorage.removeItem("REGION_ANIMALS_V2");
-        localStorage.removeItem("REGION_STATE_V1");
-      }
-    } catch (_) {}
-    try {
-      if (typeof window !== "undefined") {
-        window._DUNGEON_STATES_MEM = Object.create(null);
-        window._TOWN_STATES_MEM = Object.create(null);
-      }
-    } catch (_) {}
-    try {
-      const ctx = getCtx();
-      if (ctx) {
-        if (ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
-        if (ctx._townStates) ctx._townStates = Object.create(null);
-      }
-    } catch (_) {}
+    try { clearPersistentGameStorageExt(getCtx()); } catch (_) {}
   }
 
   function restartGame() {
@@ -1691,72 +1541,12 @@
   
 
   
-  // Lightweight hint: in overworld, occasionally inform the player about nearby wildlife so they can open Region Map.
+  // Lightweight hint: delegated to core/world_hints.js
   let _wildNoHintTurns = 0;
   function maybeEmitOverworldAnimalHint() {
     try {
-      if (mode !== "world" || !world || !world.map) { _wildNoHintTurns = 0; return; }
-
-      const WT = (typeof window !== "undefined" && window.World && window.World.TILES) ? window.World.TILES : null;
-      if (!WT) return;
-      const tHere = world.map[player.y] && world.map[player.y][player.x];
-
-      // Only hint on wild-ish tiles
-      const onWild = (tHere === WT.FOREST || tHere === WT.GRASS || tHere === WT.BEACH);
-      if (!onWild) { _wildNoHintTurns = 0; return; }
-
-      // Respect a cooldown to avoid log spam
-      const MIN_TURNS_BETWEEN_HINTS = 12;
-      if ((turnCounter - lastAnimalHintTurn) < MIN_TURNS_BETWEEN_HINTS) { _wildNoHintTurns++; return; }
-
-      // Skip if this tile has been fully cleared in Region Map
-      try {
-        const RM = (typeof window !== "undefined" ? window.RegionMapRuntime : null);
-        if (RM && typeof RM.animalsClearedHere === "function") {
-          if (RM.animalsClearedHere(player.x | 0, player.y | 0)) { _wildNoHintTurns = 0; return; }
-        }
-      } catch (_) {}
-
-      // Biome-weighted chance (more generous to ensure visibility)
-      let base =
-        (tHere === WT.FOREST) ? 0.55 :
-        (tHere === WT.GRASS)  ? 0.35 :
-        (tHere === WT.BEACH)  ? 0.20 : 0.0;
-      // Survivalism slightly increases hint chance (up to +5%)
-      try {
-        const s = (player && player.skills) ? player.skills : null;
-        if (s) {
-          const survBuff = Math.max(0, Math.min(0.05, Math.floor((s.survivalism || 0) / 25) * 0.01));
-          base = Math.min(0.80, base * (1 + survBuff));
-        }
-      } catch (_) {}
-
-      // Pity: if we've been on wild tiles a long time without a hint, force one
-      const PITY_TURNS = 40;
-      const force = (_wildNoHintTurns >= PITY_TURNS);
-
-      let success = false;
-      if (force) {
-        success = true;
-      } else if (base > 0) {
-        try {
-          if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-            success = !!window.RNGUtils.chance(base, rng);
-          } else {
-            success = rng() < base;
-          }
-        } catch (_) {
-          success = rng() < base;
-        }
-      }
-
-      if (success) {
-        log("You notice signs of wildlife nearby. Press G to open the Region Map.", "notice");
-        lastAnimalHintTurn = turnCounter;
-        _wildNoHintTurns = 0;
-      } else {
-        _wildNoHintTurns++;
-      }
+      const ctx = getCtx();
+      maybeEmitOverworldAnimalHintExt(ctx, turnCounter);
     } catch (_) {}
   }
 
@@ -1786,13 +1576,7 @@
           if (mode === "world") { maybeEmitOverworldAnimalHint(); }
         } catch (_) {}
         const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-        PERF.lastTurnMs = t1 - t0;
-        // EMA smoothing for turn time
-        try {
-          const a = 0.35; // smoothing factor
-          if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
-          else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
-        } catch (_) {}
+        try { perfMeasureTurn(t1 - t0); } catch (_) {}
         return;
       }
     } catch (_) {}
@@ -1880,13 +1664,7 @@
     } catch (_) {}
 
     const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-    PERF.lastTurnMs = t1 - t0;
-    // EMA smoothing for turn time
-    try {
-      const a = 0.35; // smoothing factor
-      if (typeof PERF.avgTurnMs !== "number" || PERF.avgTurnMs === 0) PERF.avgTurnMs = PERF.lastTurnMs;
-      else PERF.avgTurnMs = (a * PERF.lastTurnMs) + ((1 - a) * PERF.avgTurnMs);
-    } catch (_) {}
+    try { perfMeasureTurn(t1 - t0); } catch (_) {}
   }
   
   
@@ -2023,7 +1801,7 @@
           getCamera: () => camera,
           getOccupancy: () => occupancy,
           getDecals: () => decals,
-          getPerfStats: () => ({ lastTurnMs: (PERF.lastTurnMs || 0), lastDrawMs: (PERF.lastDrawMs || 0) }),
+          getPerfStats: () => perfGetPerfStats(),
           TILES,
           tryMovePlayer: (dx, dy) => tryMovePlayer(dx, dy),
           enterTownIfOnTile: () => enterTownIfOnTile(),
