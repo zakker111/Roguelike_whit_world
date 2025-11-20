@@ -31,7 +31,7 @@
   
   import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
 import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./state/persistence.js";
-import { createTimeFacade } from "./time_facade.js";
+import { createTimeFacade } from "./facades/time.js";
 import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./facades/perf.js";
 import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./facades/config.js";
 import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
