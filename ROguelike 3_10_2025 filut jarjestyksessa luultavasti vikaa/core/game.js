@@ -30,13 +30,13 @@
  */
   
   import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
-import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./persistence.js";
+import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./state/persistence.js";
 import { createTimeFacade } from "./time_facade.js";
-import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./perf.js";
-import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./game_config.js";
-import { TILES as TILES_CONST, getColors as getColorsConst } from "./game_visuals.js";
-import { log as logFacade } from "./log.js";
-import { getRng as rngGetRng, int as rngInt, chance as rngChance, float as rngFloat } from "./rng_facade.js";
+import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./facades/perf.js";
+import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./facades/config.js";
+import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
+import { log as logFacade } from "./facades/log.js";
+import { getRng as rngGetRng, int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
 import {
   renderInventoryPanel as renderInventoryPanelFacade,
   showInventoryPanel as showInventoryPanelFacade,
@@ -47,7 +47,7 @@ import {
   addPotionToInventory as addPotionToInventoryFacade,
   drinkPotionByIndex as drinkPotionByIndexFacade,
   eatFoodByIndex as eatFoodByIndexFacade
-} from "./inventory_facade.js";
+} from "./facades/inventory.js";
 import {
   setAlwaysCrit as setAlwaysCritFacade,
   setCritPart as setCritPartFacade,
