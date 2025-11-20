@@ -1,6 +1,7 @@
 {
   "scenarios": [
     { "id": "world", "label": "World" },
+    { "id": "region", "label": "Region Map" },
     { "id": "inventory", "label": "Inventory" },
     { "id": "dungeon", "label": "Dungeon" },
     { "id": "combat", "label": "Combat" },

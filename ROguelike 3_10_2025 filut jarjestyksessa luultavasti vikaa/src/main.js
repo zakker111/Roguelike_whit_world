@@ -201,6 +201,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '/smoketest/scenarios/combat.js',
         '/smoketest/scenarios/overlays.js',
         '/smoketest/scenarios/world.js',
+        '/smoketest/scenarios/region.js',
         '/smoketest/scenarios/determinism.js',
         '/smoketest/scenarios/town_flows.js',
         '/smoketest/scenarios/dungeon_persistence.js',

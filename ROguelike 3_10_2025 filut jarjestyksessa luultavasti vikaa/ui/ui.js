@@ -153,7 +153,7 @@ export const UI = {
         const boxes = (this.els.smokeList ? Array.from(this.els.smokeList.querySelectorAll("input.smoke-sel")) : []);
         const sel = boxes.filter(b => b.checked).map(b => b.value);
         // Fallback: all scenarios if none selected
-        const scenarios = sel.length ? sel : ["world","dungeon","inventory","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
+        const scenarios = sel.length ? sel : ["world","region","dungeon","inventory","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
         // Runs
         const countRaw = (this.els.smokeCount && this.els.smokeCount.value) ? this.els.smokeCount.value.trim() : "1";
         const count = Math.max(1, Math.min(20, parseInt(countRaw, 10) || 1));
@@ -181,7 +181,7 @@ export const UI = {
     if (runLinearBtn) {
       runLinearBtn.addEventListener("click", () => {
         // Fixed linear order
-        const scenarios = ["world","inventory","dungeon","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
+        const scenarios = ["world","region","inventory","dungeon","combat","dungeon_persistence","town","town_diagnostics","overlays","determinism"];
         const countRaw = (this.els.smokeCount && this.els.smokeCount.value) ? this.els.smokeCount.value.trim() : "1";
         const count = Math.max(1, Math.min(20, parseInt(countRaw, 10) || 1));
         try { this.hideSmoke(); } catch (_) {}
@@ -634,6 +634,7 @@ export const UI = {
       // Default list (fallback)
       let scenarios = [
         { id: "world", label: "World" },
+        { id: "region", label: "Region Map" },
         { id: "inventory", label: "Inventory" },
         { id: "dungeon", label: "Dungeon" },
         { id: "combat", label: "Combat" },

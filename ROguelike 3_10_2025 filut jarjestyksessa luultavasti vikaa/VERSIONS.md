@@ -1,6 +1,17 @@
 s 
 # Game Version History
-Last updated: 2025-11-19 00:00 UTC
+Last updated: 2025-11-20 00:00 UTC
+
+v1.47.2 — Overlay aggregator removal + Region Map smoketest
+- Removed: ui/render_overlays.js aggregator; renderers import overlay modules directly under ui/render/*.
+- Changed: src/main.js no longer imports ui/render_overlays.js.
+- Docs: ui/README.md updated to reference overlay modules (ui/render/*).
+- Smoketest:
+  - Added new scenario 'region' to open Region Map on a walkable overworld tile, move to the nearest edge, and exit back to world.
+  - Updated smoketest/runner/runner.js to include 'region' in default selections and pipeline; added availability mapping.
+  - Updated src/main.js smoketest inject list to load smoketest/scenarios/region.js.
+  - Updated ui/ui.js default scenario lists and smoketest/scenarios.json to include 'Region Map'.
+- Deployment: (see latest deployment URL)
 
 v1.47.1 — Phase 5: renderer direct-import cleanup + HUD dev toggles (GOD)
 - Renderers
