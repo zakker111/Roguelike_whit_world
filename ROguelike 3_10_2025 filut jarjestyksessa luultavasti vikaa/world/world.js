@@ -450,12 +450,31 @@ if (towns.length) {
     const sx = x0 < x1 ? 1 : -1;
     const sy = y0 < y1 ? 1 : -1;
     let err = dx - dy;
+
+    function adjacentToWaterOrRiver(px, py) {
+      for (let dy2 = -1; dy2 <= 1; dy2++) {
+        for (let dx2 = -1; dx2 <= 1; dx2++) {
+          if (!dx2 && !dy2) continue;
+          const nx = px + dx2, ny = py + dy2;
+          if (!inBounds(nx, ny, width, height)) continue;
+          const nt = map[ny][nx];
+          if (nt === TILES.WATER || nt === TILES.RIVER) return true;
+        }
+      }
+      return false;
+    }
+
     while (true) {
       if (inBounds(x, y, width, height)) {
         const t = map[y][x];
         // Across water/river: mark as beach (walkable) and record bridge overlay
         if (t === TILES.WATER || t === TILES.RIVER) {
           map[y][x] = TILES.BEACH;
+          addBridgePoint(x, y);
+        }
+        // If we've already flattened to BEACH but still border open water/river,
+        // treat this as a bridge span for overlay purposes.
+        else if (t === TILES.BEACH && adjacentToWaterOrRiver(x, y)) {
           addBridgePoint(x, y);
         }
         // Across mountains: flatten to grass for passability
