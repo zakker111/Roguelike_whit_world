@@ -1,4 +1,44 @@
-export * from "./bridge/ui_bridge.js";
+/**
+ * UIBridge: central wrapper for UI interactions using ctx.
+ *
+ * Exports (ESM + window.UIBridge):
+ * - updateStats(ctx)
+ * - renderInventory(ctx)
+ * - showInventory(ctx)
+ * - hideInventory(ctx)
+ * - isInventoryOpen()
+ * - showLoot(ctx, list)
+ * - hideLoot(ctx)
+ * - isLootOpen()
+ * - showGameOver(ctx)
+ * - hideGameOver()
+ * - showGod(ctx)
+ * - hideGod(ctx)
+ * - isGodOpen()
+ * - showConfirm(ctx, text, pos, onOk, onCancel)
+ * - showTownExitButton(ctx)
+ * - hideTownExitButton(ctx)
+ * - isShopOpen()
+ * - showShop(ctx, npc)        // opens shop for a given NPC/spot
+ * - hideShop(ctx)             // hides shop panel
+ * - buyShopIndex(ctx, idx)    // triggers a buy by index
+ * - showSmoke(ctx)            // opens Smoke Config panel
+ * - hideSmoke(ctx)            // hides Smoke Config panel
+ * - showRegionMap(ctx)        // opens Region Map modal
+ * - hideRegionMap(ctx)        // hides Region Map modal
+ * - isRegionMapOpen()         // query open state
+ * - showHelp(ctx)             // opens Help/Controls panel
+ * - hideHelp(ctx)             // hides Help panel
+ * - isHelpOpen()              // query open state
+ * - showCharacter(ctx)        // opens Character Sheet panel
+ * - hideCharacter(ctx)        // hides Character Sheet panel
+ * - isCharacterOpen()         // query open state
+ * Notes:
+ * - Thin layer: delegates to window.UI if present (and window.ShopUI for shop panel).
+ * - Keeps calls consistent and reduces direct UI wiring inside core/game.js.
+ */
+
+import { getMod } from "../../utils/access.js";
 
 function hasUI() {
   return (typeof window !== "undefined" && window.UI);
@@ -158,7 +198,7 @@ export function isCharacterOpen() {
   try { return !!(hasUI() && window.UI.isCharacterOpen && window.UI.isCharacterOpen()); } catch (_) { return false; }
 }
 
-// ---- Sleep panel (Inn beds) ----
+// ---- Sleep panel (Inn) ----
 // Implemented directly in UIBridge to avoid broader UI refactors.
 // Provides a slider to choose minutes to sleep and calls a callback to advance time and heal.
 let _sleepPanel = null;
