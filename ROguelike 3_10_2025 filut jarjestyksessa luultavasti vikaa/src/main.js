@@ -5,7 +5,7 @@
 // Core context and deterministic RNG service
 import '/core/ctx.js';
 import '/core/rng_service.js';
-import '/core/state_sync.js';
+import '/core/state/state_sync.js';
 
 // Utilities
 import '/utils/utils.js';
