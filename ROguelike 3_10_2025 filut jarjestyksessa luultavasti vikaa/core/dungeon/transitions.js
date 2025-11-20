@@ -24,35 +24,57 @@ export function computeAcrossMountainTarget(ctx) {
       { dx: 1, dy: 1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: -1, dy: -1 }
     ];
 
-    function mountainRunLen(dx, dy) {
+    // Walk a mountain run starting from the first mountain tile adjacent to the entrance
+    function mountainRunLenFromNeighbor(dx, dy) {
+      // Step once into the direction; require that tile to be mountain
+      let x = wx0 + dx;
+      let y = wy0 + dy;
+      let t = gen.tileAt(x, y);
+      if (t !== M) {
+        return { len: 0, endX: wx0, endY: wy0 };
+      }
       let len = 0;
-      let x = wx0, y = wy0;
+      // Now walk along this direction while we stay on mountains
       for (let i = 0; i < 300; i++) {
-        const t = gen.tileAt(x, y);
-        if (t === M) { len++; x += dx; y += dy; continue; }
+        t = gen.tileAt(x, y);
+        if (t === M) {
+          len++;
+          x += dx;
+          y += dy;
+          continue;
+        }
         break;
       }
       return { len, endX: x, endY: y };
     }
 
-    let best = null, bestLen = -1;
+    let best = null;
+    let bestLen = -1;
     for (const d of dirs) {
-      const res = mountainRunLen(d.dx, d.dy);
-      if (res.len > bestLen) { bestLen = res.len; best = { d, res }; }
+      const res = mountainRunLenFromNeighbor(d.dx, d.dy);
+      if (res.len > bestLen) {
+        bestLen = res.len;
+        best = { d, res };
+      }
     }
-    if (!best) return null;
+    if (!best || bestLen <= 0) return null;
+
     // Move one more step beyond the last mountain tile to ensure we are across
-    let tx = best.res.endX, ty = best.res.endY;
+    let tx = best.res.endX;
+    let ty = best.res.endY;
     // Nudge a few tiles further into non-mountain terrain for safety
     for (let k = 0; k < 5; k++) {
       const nx = tx + best.d.dx;
       const ny = ty + best.d.dy;
       const t = gen.tileAt(nx, ny);
       if (t === M) break;
-      tx = nx; ty = ny;
+      tx = nx;
+      ty = ny;
     }
     return { x: tx, y: ty };
-  } catch (_) { return null; }
+  } catch (_) {
+    return null;
+  }
 }
 
 // If stepping on a special mountain-pass stairs, transfer to a linked dungeon across the mountain.
