@@ -224,7 +224,33 @@ function create(seed, opts = {}) {
     // Dungeon roll (only at the dungeon anchor of the cell)
     if (atDungAnchor) {
       const rDung = hash2(s ^ 0x2222, cellDungX, cellDungY);
-      if (rDung < cfg.dungeonChance) return TILES.DUNGEON;
+
+      // Prefer dungeon entrances on or near mountain edges to support mountain-pass dungeons.
+      let chance = cfg.dungeonChance;
+      let nearMountain = false;
+
+      if (tHere === TILES.MOUNTAIN) {
+        nearMountain = true;
+      } else {
+        // Check immediate neighbours for mountains (edge of a ridge)
+        for (let dy = -1; dy &lt;= 1 && !nearMountain; dy++) {
+          for (let dx = -1; dx &lt;= 1 && !nearMountain; dx++) {
+            if (!dx && !dy) continue;
+            const nt = classify(x + dx, y + dy);
+            if (nt === TILES.MOUNTAIN) nearMountain = true;
+          }
+        }
+      }
+
+      if (nearMountain) {
+        // Strongly bias toward mountains/edges; clamp to avoid 100% certainty
+        chance = Math.min(0.95, chance * 1.9);
+      } else {
+        // Slightly reduce non-mountain dungeon density to keep total numbers reasonable
+        chance = chance * 0.7;
+      }
+
+      if (rDung &lt; chance) return TILES.DUNGEON;
     }
 
     // Ruins roll (only at the ruins anchor of the cell)
