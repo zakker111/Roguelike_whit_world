@@ -73,6 +73,21 @@ export function scanPOIs(ctx, x0, y0, w, h) {
   } catch (_) {}
   // Ensure there are usable river crossings independent of roads (feature-gated).
   try {
-    if (featureEnabled("WORLD_BRIDGES", false)) ensureExtraBridges(ctx);
+    if (featureEnabled("WORLD_BRIDGES", false)) {
+      ensureExtraBridges(ctx);
+      // One-time DEV log: report whether we have any bridge tiles recorded so far.
+      try {
+        const world = ctx.world;
+        if (world && typeof ctx.log === "function" && !world._bridgesLoggedOnce) {
+          const count = Array.isArray(world.bridges) ? world.bridges.length : 0;
+          if (count > 0) {
+            ctx.log(`World generation: ${count} bridge tiles currently recorded.`, "notice");
+          } else {
+            ctx.log("World generation: no bridge tiles are recorded in this window yet.", "notice");
+          }
+          world._bridgesLoggedOnce = true;
+        }
+      } catch (_) {}
+    }
   } catch (_) {}
 }
