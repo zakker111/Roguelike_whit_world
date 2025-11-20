@@ -514,6 +514,18 @@ if (towns.length) {
     if (d) carveRoad(t.x, t.y, d.x, d.y);
   }
 
+  // Optional DEV log: report whether bridges were created in this world
+  try {
+    if (ctx && typeof ctx.log === "function") {
+      const count = Array.isArray(bridges) ? bridges.length : 0;
+      if (count > 0) {
+        ctx.log(`World generation: ${count} bridge tiles created.`, "notice");
+      } else {
+        ctx.log("World generation: no bridge tiles were created.", "notice");
+      }
+    }
+  } catch (_) {}
+
   return { map, width, height, towns, dungeons, ruins, roads, bridges };
 }
 
