@@ -1,2 +1,1 @@
-export * from "./town/state.js";;
-}
+export * from "./town/state.js";
