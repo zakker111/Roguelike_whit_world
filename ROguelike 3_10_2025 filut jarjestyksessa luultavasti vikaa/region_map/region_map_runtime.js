@@ -1521,16 +1521,24 @@ function onAction(ctx) {
     const list = Array.isArray(ctx.corpses) ? ctx.corpses : [];
     const corpseHere = list.find(c => c && c.x === cursor.x && c.y === cursor.y);
     if (corpseHere) {
-      // Delegate to Loot subsystem so the loot panel is shown, matching dungeon behavior
+      // Prefer DungeonRuntime.lootHere for unified corpse flavor + loot behavior (matches dungeon/encounter).
+      // Fallback to Loot.lootHere when DungeonRuntime is unavailable.
       try {
-        const L = ctx.Loot || getMod(ctx, "Loot");
-        if (L && typeof L.lootHere === "function") {
-          L.lootHere(ctx);
+        const DR = ctx.DungeonRuntime || getMod(ctx, "DungeonRuntime");
+        if (DR && typeof DR.lootHere === "function") {
+          DR.lootHere(ctx);
           // Persist region state immediately so looted containers remain emptied on reopen
           try { saveRegionState(ctx); } catch (_) {}
         } else {
-          // Minimal fallback: keep previous inline summary logging if Loot subsystem unavailable
-          ctx.log && ctx.log("Loot system not available.", "warn");
+          const L = ctx.Loot || getMod(ctx, "Loot");
+          if (L && typeof L.lootHere === "function") {
+            L.lootHere(ctx);
+            // Persist region state immediately so looted containers remain emptied on reopen
+            try { saveRegionState(ctx); } catch (_) {}
+          } else {
+            // Minimal fallback: keep previous inline summary logging if Loot subsystem unavailable
+            ctx.log && ctx.log("Loot system not available.", "warn");
+          }
         }
       } catch (_) {
         ctx.log && ctx.log("Loot failed.", "warn");
