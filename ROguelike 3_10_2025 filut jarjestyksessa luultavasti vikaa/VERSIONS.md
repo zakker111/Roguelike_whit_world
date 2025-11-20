@@ -2,6 +2,20 @@ s
 # Game Version History
 Last updated: 2025-11-20 00:00 UTC
 
+v1.47.3 — Proxy cleanup (direct facades), ESLint guard, docs updates, dead file removal
+- Removed top-level core proxies and pointed imports directly to facades/state:
+  - Deleted: core/perf.js, core/log.js, core/rng_facade.js, core/game_config.js, core/game_visuals.js, core/persistence.js, core/inventory_facade.js, core/time_facade.js, core/town_state.js.
+  - Updated imports in core/game.js to /core/facades/{perf,log,rng,config,visuals,inventory}.js and /core/state/persistence.js.
+  - Updated src/main.js to import /core/state/state_sync.js and direct paths for modes/town/dungeon/encounter/bridge.
+- ESLint
+  - Added an override for \"core/*.js\": warns on re-export-only files via no-restricted-syntax (ExportAllDeclaration). Keeps index.js barrels in subfolders allowed.
+- Docs
+  - core/README.md updated: added facades/ group, removed legacy proxy notes.
+  - VERSIONS.md: this entry records the cleanup.
+- Dead file removal
+  - Deleted app/mode_controller.js (unused; not imported anywhere).
+- Deployment: https://i4c8gzxjz3nn.cosine.page
+
 v1.47.2 — Overlay aggregator removal + Region Map smoketest
 - Removed: ui/render_overlays.js aggregator; renderers import overlay modules directly under ui/render/*.
 - Changed: src/main.js no longer imports ui/render_overlays.js.

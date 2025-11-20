@@ -17,6 +17,8 @@ Module groups (structure)
   - game_state.js — visibility shape helper + minimal refresh fallback (window.GameState).
   - persistence.js — persistent storage clearing helpers (window.Persistence).
   - state_sync.js — applyLocal/applyAndRefresh for ctx→orchestrator sync and unified refresh (window.StateSync).
+- facades/
+  - config.js, visuals.js, perf.js, log.js, rng.js, time.js, inventory.js — direct-import surfaces used by core/game.js and services.
 
 Key modules (ctx-first)
 - ctx.js — shared global context and handles for systems.
@@ -35,14 +37,10 @@ Key modules (ctx-first)
 - inventory_flow.js — UI-driven inventory open/close and equip interactions.
 - loot_flow.js — looting panels and underfoot multi-container consolidation.
 - death_flow.js — simple game over flow and restart.
-- occupancy_facade.js — occupancy queries bridging world/dungeon grids.
 - capabilities.js — feature flags for smoketest and diagnostics.
 - god_handlers.js — GOD panel button wiring and toggles (grid/perf/minimap, diagnostics).
 
 Notes
-- Files kept at legacy paths (core/*.js) that were moved now proxy-export to their new locations in engine/, bridge/, or state/ to avoid breaking imports.
-  - Proxies: render_orchestration.js, turn_loop.js, game_orchestrator.js → engine/
-  - ui_bridge.js, ui_orchestration.js → bridge/
-  - game_state.js, persistence.js, state_sync.js → state/
+- Legacy top-level proxies in core/ were removed. Modules now import deeper paths directly (engine/, bridge/, state/, facades/).
 - Prefer ctx.* handles over window.* for module communication.
 - Movement/actions are ignored while any modal is open; ESC closes the top modal.

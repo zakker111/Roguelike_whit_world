@@ -55,5 +55,19 @@
     "curly": ["warn", "multi-line"],
     "no-debugger": "warn",
     "max-lines": ["warn", { "max": 500, "skipBlankLines": true, "skipComments": true }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["core/*.js"],
+      "rules": {
+        "no-restricted-syntax": [
+          "warn",
+          {
+            "selector": "ExportAllDeclaration",
+            "message": "Avoid re-export-only proxies in core/. Import the underlying module directly or use index.js barrels only in subfolders."
+          }
+        ]
+      }
+    }
+  ]
 }
