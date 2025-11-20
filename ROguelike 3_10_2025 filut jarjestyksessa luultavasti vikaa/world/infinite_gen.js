@@ -233,8 +233,8 @@ function create(seed, opts = {}) {
         nearMountain = true;
       } else {
         // Check immediate neighbours for mountains (edge of a ridge)
-        for (let dy = -1; dy &lt;= 1 && !nearMountain; dy++) {
-          for (let dx = -1; dx &lt;= 1 && !nearMountain; dx++) {
+        for (let dy = -1; dy <= 1 && !nearMountain; dy++) {
+          for (let dx = -1; dx <= 1 && !nearMountain; dx++) {
             if (!dx && !dy) continue;
             const nt = classify(x + dx, y + dy);
             if (nt === TILES.MOUNTAIN) nearMountain = true;
@@ -250,7 +250,7 @@ function create(seed, opts = {}) {
         chance = chance * 0.7;
       }
 
-      if (rDung &lt; chance) return TILES.DUNGEON;
+      if (rDung < chance) return TILES.DUNGEON;
     }
 
     // Ruins roll (only at the ruins anchor of the cell)
