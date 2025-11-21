@@ -8,7 +8,7 @@
     "MAP_COLS": 120,
     "MAP_ROWS": 80,
     "infinite": true,
-    "roadsEnabled": true,
+    "roadsEnabled": false,
     "bridgesEnabled": true
   },
   "fov": {
