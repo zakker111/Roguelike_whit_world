@@ -225,13 +225,14 @@ export function install(getCtx) {
             const pets = (typeof counts.pets === "number") ? counts.pets : skippedCount;
             const shopTotal = (typeof counts.shopkeepersTotal === "number") ? counts.shopkeepersTotal : 0;
             const greetTotal = (typeof counts.greetersTotal === "number") ? counts.greetersTotal : 0;
+            const guardTotal = (typeof counts.guardsTotal === "number") ? counts.guardsTotal : 0;
             const resTotal = (res.residents && typeof res.residents.total === "number") ? res.residents.total
                              : ((typeof counts.residentsTotal === "number") ? counts.residentsTotal : 0);
             const roamersTotal = (typeof counts.roamersTotal === "number")
               ? counts.roamersTotal
-              : Math.max(0, totalChecked - resTotal - shopTotal - greetTotal);
+              : Math.max(0, totalChecked - resTotal - shopTotal - greetTotal - guardTotal);
             extraLines.push(`NPCs: ${totalChecked} checked (excluding pets), ${pets} pet(s) skipped. Total in town: ${npcTotalAll}.`);
-            extraLines.push(`By type: residents ${resTotal}, shopkeepers ${shopTotal}, greeters ${greetTotal}, roamers ${roamersTotal}.`);
+            extraLines.push(`By type: residents ${resTotal}, shopkeepers ${shopTotal}, greeters ${greetTotal}, guards ${guardTotal}, roamers ${roamersTotal}.`);
           } else {
             const npcTotalAll = totalChecked + skippedCount;
             extraLines.push(`NPCs: ${totalChecked} checked (excluding pets). Total in town: ${npcTotalAll}.`);

@@ -2094,7 +2094,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
     // Track resident presence and type counts
     let residentsTotal = 0, residentsAtHome = 0, residentsAtTavern = 0;
-    let shopkeepersTotal = 0, greetersTotal = 0, petsTotal = 0;
+    let shopkeepersTotal = 0, greetersTotal = 0, petsTotal = 0, guardsTotal = 0;
     const tavernB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
 
     // Inn/tavern occupancy across all NPCs (not just residents)
@@ -2171,6 +2171,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       if (n.isShopkeeper || n._shopRef) shopkeepersTotal++;
       if (n.greeter) greetersTotal++;
       if (n.isPet) petsTotal++;
+      if (n.isGuard) guardsTotal++;
 
       // Inn/tavern occupancy across all NPCs
       const atTavernNowAny = tavernB && insideBuilding(tavernB, n.x, n.y);
@@ -2247,7 +2248,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     res.sleepersAtTavern = sleepersAtTavern;
 
     // Type breakdown (for GOD panel diagnostics)
-    const roamersTotal = Math.max(0, res.total - residentsTotal - shopkeepersTotal - greetersTotal);
+    const roamersTotal = Math.max(0, res.total - residentsTotal - shopkeepersTotal - greetersTotal - guardsTotal);
     res.counts = {
       npcTotal: npcs.length,
       checkedTotal: res.total,
@@ -2255,6 +2256,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       residentsTotal,
       shopkeepersTotal,
       greetersTotal,
+      guardsTotal,
       roamersTotal
     };
 
