@@ -20,15 +20,16 @@ Overworld and exploration (infinite world)
 - Infinite, deterministic overworld streaming in 32-tile chunks as you explore beyond the current edges.
 - Real FOV/LOS on the overworld: only tiles you’ve seen are revealed; unseen tiles are fogged.
 - Minimap reflects fog-of-war and grows as the map expands. Toggle in the GOD panel (persists).
-- Roads and bridges:
-  - Roads connect nearby towns within the currently streamed window (no dangling roads off-screen).
-  - Bridges carve fully across river width (1–3 tiles) for complete crossings.
+- Bridges:
+  - Overworld road overlays have been removed; connectivity is still guaranteed via carved walkable corridors, but roads are no longer drawn as separate tiles on the main map.
+  - Bridges carve fully across narrow river spans for complete crossings and are drawn as more opaque overlays.
 - POIs (towns/dungeons) are placed sparsely and deterministically; density slightly increased (~1–2%).
 - Dungeon markers:
   - Color-coded by dungeon level on the main map and minimap:
     - Level 1–2: green
     - Level 3: amber
     - Level 4–5: red
+  - Mountain-edge dungeons (adjacent to MOUNTAIN tiles) are highlighted with a distinct cyan/blue marker to make mountain passes easier to spot.
   - Numeric labels removed; markers render above fog for visibility.
 - Mountain pass dungeons:
   - If a dungeon entrance is on/adjacent to a Mountain tile, a special portal is placed deeper inside.
@@ -56,15 +57,20 @@ Towns and Wild Seppo
 - Residents who like the Inn will sometimes stop by the Inn in the early evening before going home (~33% of days), with short sits and seating cap to avoid crowding.
 - Wild Seppo (wandering merchant) may arrive at the plaza rarely during day/dusk.
   - Only one Seppo can be in town at a time; no duplicates will spawn.
+- Town guards and barracks:
+  - Towns spawn a small number of guard NPCs (blue-tinted “n” glyphs) who patrol around the gate, plaza, and roads instead of wandering randomly.
+  - Many towns also place a Guard Barracks prefab near the plaza/gate; some guards sleep in barracks beds at night while others stay on duty.
 - Outdoor ground tint: towns tint outdoor floors and roads by biome; road overlays are semi‑transparent so the biome tint remains visible.
 
 Region Map (local tactical overlay)
-- Open with G on a walkable overworld tile (or on RUINS tiles); M key is disabled.
-- Looting: pressing G on a corpse or chest opens the loot panel (like in dungeons); dead animals show exactly what you looted via the panel.
+- Open with G on a walkable overworld tile (or on RUINS tiles); M key is disabled. Movement respects region tile walkability: you cannot step onto WATER/RIVER/MOUNTAIN or non-walkable RUIN_WALL tiles.
+- Looting: pressing G on a corpse or chest opens the loot panel (like in dungeons); dead animals show exactly what you looted via the panel. In ruins, corpses/chests also log detailed cause-of-death flavor (who/what killed them, wound, weapon/likely cause) before the loot or “nothing” lines.
 - Neutral animals (deer/fox/boar) are rare:
   - At most one spawns in sufficiently wild areas; many tiles have none.
   - If animals were seen here previously, future visits re‑spawn only with a low chance (seeded).
   - Clearing animals marks the tile as cleared; future spawns are skipped.
+- Blood decals placed in Region Map (ruins fights, animals, etc.) fade over time each turn, mirroring dungeon behavior so stains do not accumulate permanently.
+- Fishing: if you stand next to WATER/RIVER, have a fishing pole, and press G, you can start a short fishing mini-game. Each attempt advances time and wears the pole; success yields fish or, rarely, other items. The mini-game has no on-screen Cancel button; use Escape to cancel.
 
 Data-driven configuration
 - Combined assets (strict): data/world_assets.json contains tiles and props and is required in strict mode.

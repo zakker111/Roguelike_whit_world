@@ -1,6 +1,49 @@
 s 
 # Game Version History
-Last updated: 2025-11-20 00:00 UTC
+Last updated: 2025-11-21 00:00 UTC
+
+v1.47.4 — Ruins/Region Map cohesion, guards + barracks, roads-off overworld, mountain dungeon visibility
+- Region Map / Ruins
+  - Ruins Region Map now uses the same corpse flavor and loot flow as dungeons/encounters:
+    - Pressing G on a corpse in ruins logs detailed death flavor via FlavorService.describeCorpse (wound, killed by, weapon/likely cause).
+    - When a corpse/chest underfoot is empty, the game logs “You search the corpse but find nothing.” (or chests/area variants) instead of generic chest-only text.
+    - Containers underfoot are marked looted/examined and saved via Region Map state so revisits remember emptied corpses/chests.
+  - Region Map tick now fades blood decals each turn via Decals.tick(ctx) (with a small in-place fallback) instead of leaving stains forever; blood in ruins and forest Region Maps fades like in dungeons.
+  - Region movement respects region tileset walkability:
+    - Player movement in Region Map can no longer step onto WATER/RIVER/MOUNTAIN or non-walkable RUIN_WALL tiles.
+    - Enemy AI walkableAt in region mode consults region tile definitions (getTileDef("region", tile)) so monsters respect RUIN_WALL and other non-walkable tiles instead of walking through ruin walls.
+- Overworld / bridges / mountain dungeons
+  - Finite-world roads overlays were removed from World.generate; it still carves walkable corridors between POIs via ensureConnectivity(), but returns an empty roads[] array for back-compat with renderers.
+  - Infinite-world ensureRoads(ctx) is now a no-op; overworld rendering only shows bridge overlays (world.bridges), not global road overlays. Town interiors still build ROAD tiles via worldgen/town_gen + worldgen/roads.
+  - Bridge generation for the infinite overworld was tightened:
+    - ensureExtraBridges(ctx) scans WATER/RIVER spans and only carves BEACH tiles plus bridge overlays across relatively narrow crossings (≤ MAX_BRIDGE_SPAN tiles), avoiding “ocean-sized” bridges.
+    - Bridge tiles are recorded once per world coordinate using an internal Set to avoid duplicates; a soft cap prevents excessive bridge density per streamed window.
+  - Mountain-edge dungeons are now easier to see and reason about:
+    - POI scanning marks dungeons adjacent to MOUNTAIN tiles with isMountainDungeon: true.
+    - Overworld POI rendering uses a dedicated palette color (poiDungeonMountain) to draw these entrances in a distinct cyan/blue on the main map and minimap, while non-mountain dungeons keep their difficulty-based colors.
+- Town guards and Guard Barracks
+  - New Guard Barracks prefab added in data/worldgen/prefabs.json and integrated into town generation:
+    - Towns place at most one small Guard Barracks near the gate or plaza when space allows.
+    - Guard-barracks buildings are tagged so they are not used as generic residential homes; they are reserved as home base for guards.
+  - Town generation promotes a subset of roamers to guards based on town size (small/big/city caps) and assigns their home building to the Guard Barracks when present.
+  - TownAI now treats guards as a distinct NPC role:
+    - Guards patrol around a guard post (gate/plaza/roads) with town-size-based patrol radii, preferring roads and important tiles.
+    - Guards never behave like normal sleepers by default; instead, they are divided into “duty” and “rest” roles:
+      - Duty guards continue patrolling through the night.
+      - Resting guards route to beds in the Guard Barracks during the night rest window, sleep, then return to patrol by day.
+    - Guard glyphs remain “n” but draw with a distinct guard color from the palette (e.g., blue-tinted) so they are visually distinguishable from villagers.
+  - GOD “Home route check” diagnostics now count guards separately:
+    - Output shows “By type: residents X, shopkeepers Y, greeters Z, guards G, roamers R,” so guards no longer inflate the generic “roamers” bucket.
+- Prefab Editor and town prefabs
+  - Prefab editor (tools/prefab_editor.html) now reads prefab definitions from data/worldgen/prefabs.json via GameData.prefabs:
+    - “Load existing prefab” dropdown lists all prefabs (houses/shops/inns/plazas) with category labels and ids (e.g., house: guard_barracks_small_1 — Guard Barracks).
+    - Loading a prefab fills metadata fields (id, name, category, tags), grid size, tiles, and—if present—inn upstairs overlay tiles/props so existing prefabs can be edited in-place.
+  - Export workflow remains JSON-first: after editing, export the prefab block from the editor and paste it back into data/worldgen/prefabs.json; worldgen/prefabs.js stamps prefabs by reading GameData.prefabs at runtime.
+  - Tool and docs references were updated to point at data/worldgen/prefabs.json (instead of worldgen/prefabs.js) as the canonical prefab registry.
+- Region Map UX polish
+  - Fishing mini-game modal no longer shows a visible “Cancel” button; Escape remains the way to cancel an in-progress fishing attempt. This keeps the mini-game UI focused on the bar/canvas.
+  - Region Map movement was hardened to check tile walkability via tiles.json and World.isWalkable; players can no longer walk on water/river tiles around fishing spots or in generic regions.
+- Deployment: https://omfoyg97mutz.cosine.page
 
 v1.47.3 — Proxy cleanup (direct facades), ESLint guard, docs updates, dead file removal
 - Removed top-level core proxies and pointed imports directly to facades/state:
