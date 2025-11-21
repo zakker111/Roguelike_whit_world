@@ -692,6 +692,13 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     (function spawnResidents() {
       if (!Array.isArray(townBuildings) || townBuildings.length === 0) return;
 
+      // Exclude dedicated guard barracks buildings from generic resident assignment (guards use them as their home).
+      const buildingsForResidents = townBuildings.filter(b => {
+        const id = (b && b.prefabId) ? String(b.prefabId).toLowerCase() : "";
+        return !id.includes("guard_barracks");
+      });
+      if (!buildingsForResidents.length) return;
+
       // Helper to find any free interior spot deterministically
       function firstFreeInteriorSpot(ctx, b) {
         for (let y = b.y + 1; y < b.y + b.h - 1; y++) {
@@ -728,8 +735,8 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         return adj ? { x: adj.x, y: adj.y } : { x: s.x, y: s.y };
       };
 
-      // Ensure every building has occupants (at least one), scaled by area
-      for (const b of townBuildings) {
+      // Ensure every building (except guard barracks) has occupants (at least one), scaled by area
+      for (const b of buildingsForResidents) {
         const area = b.w * b.h;
         const baseCount = Math.max(1, Math.min(3, Math.floor(area / 30)));
         const residentCount = baseCount + (rng() < 0.4 ? 1 : 0);
