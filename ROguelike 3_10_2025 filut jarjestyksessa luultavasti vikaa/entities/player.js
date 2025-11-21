@@ -32,7 +32,8 @@ export const defaults = {
     { kind: "gold", amount: 50, name: "gold" },
     { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" },
     // Starter tool for early testing — traders will sell this later.
-    { kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 }
+    { kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 },
+    { kind: "tool", type: "lockpick", name: "lockpick", decay: 0 }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
   injuries: [],
