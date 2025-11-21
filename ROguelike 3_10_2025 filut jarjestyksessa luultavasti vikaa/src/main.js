@@ -66,6 +66,7 @@ import '/ui/render.js';
 import '/ui/decals.js';
 import '/ui/ui.js';
 import '/ui/components/fishing_modal.js';
+import '/ui/components/lockpick_modal.js';
 import '/ui/shop_panel.js';
 import '/ui/quest_board.js';
 import '/ui/input_mouse.js';

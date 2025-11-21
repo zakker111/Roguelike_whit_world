@@ -381,7 +381,7 @@
         "appearsIn": ["town"],
         "tags": ["decor", "container"],
         "variants": [
-          { "message": "The chest is locked.", "style": "warn" }
+          { "message": "The chest is locked.", "style": "warn", "effect": { "type": "lockpick" } }
         ]
       },
       {

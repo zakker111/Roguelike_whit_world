@@ -437,6 +437,22 @@ export function interact(ctx, prop) {
     _log(ctx, variant.message || "Quest Board", variant.style || "info");
     return true;
   }
+  if (eff && eff.type === "lockpick") {
+    // Town chest lockpicking mini-game (LockpickModal).
+    // If UI wiring is unavailable, fall back to the plain log message.
+    try {
+      const UIO = getUIOrchestration(ctx);
+      const wasOpen = UIO && typeof UIO.isLockpickOpen === "function" ? !!UIO.isLockpickOpen(ctx) : false;
+      _log(ctx, variant.message || "The chest is locked.", variant.style || "warn");
+      if (UIO && typeof UIO.showLockpick === "function") {
+        UIO.showLockpick(ctx, { x: prop.x, y: prop.y, type: String(prop.type || "") });
+        try { if (!wasOpen && typeof ctx.requestDraw === "function") ctx.requestDraw(); } catch (_) {}
+      }
+    } catch (_) {
+      _log(ctx, variant.message || "The chest is locked.", variant.style || "warn");
+    }
+    return true;
+  }
 
   _log(ctx, _renderTemplate(variant.message || "", { title: prop.name || "" }), variant.style || "info");
   return true;

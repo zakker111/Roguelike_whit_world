@@ -46,7 +46,8 @@ export const defaults = {
     // Non-combat
     foraging: 0,
     cooking: 0,
-    survivalism: 0
+    survivalism: 0,
+    lockpicking: 0
   }
 };
 
@@ -98,6 +99,7 @@ export function normalize(p) {
       foraging: Math.max(0, (s.foraging | 0)),
       cooking: Math.max(0, (s.cooking | 0)),
       survivalism: Math.max(0, (s.survivalism | 0)),
+      lockpicking: Math.max(0, (s.lockpicking | 0)),
     };
   } catch (_) {}
   return p;
