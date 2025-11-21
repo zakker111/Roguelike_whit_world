@@ -32,6 +32,9 @@ let _targetRow = 2;
 let _selectedCol = 0;
 let _movesUsed = 0;
 let _movesLimit = 0;
+// Fine nudge state (per attempt)
+let _fineUsed = 0;
+let _fineLimit = 0;
 
 // Context for resolution
 let _chestX = 0;
@@ -76,7 +79,7 @@ function ensureOverlay() {
   title.style.marginBottom = "6px";
 
   const hint = document.createElement("div");
-  hint.textContent = "Left/Right or A/D to move between pins. Space/Enter to nudge, Shift+Space for a fine nudge. Align all notches to the line before you run out of moves. Esc cancels.";
+  hint.textContent = "Left/Right or A/D to choose a pin. Space/Enter: normal nudge (pin + neighbors, 1 move). Shift+Space/Enter: fine nudge (only that pin, 2 moves, limited uses; once spent, Shift+Space acts as a normal nudge). Align all notches to the shear line before you run out of moves. Esc cancels.";
   hint.style.color = "#94a3b8";
   hint.style.fontSize = "11px";
   hint.style.marginBottom = "6px";
@@ -197,7 +200,9 @@ function updateInfo() {
   const s = (_gameCtx.player && _gameCtx.player.skills) ? _gameCtx.player.skills : {};
   const lpUses = Math.floor(s.lockpicking || 0);
   const movesLeft = Math.max(0, _movesLimit - _movesUsed);
-  _infoEl.textContent = `Moves: ${_movesUsed}/${_movesLimit} (remaining ${movesLeft}) • Lockpicking uses: ${lpUses}`;
+  const fineMax = Math.max(0, _fineLimit | 0);
+  const fineUsed = Math.max(0, _fineUsed | 0);
+  _infoEl.textContent = `Moves: ${_movesUsed}/${_movesLimit} (left ${movesLeft}) • Fine: ${fineUsed}/${fineMax} • Lockpicking uses: ${lpUses}`;
 }
 
 // Initialize puzzle state based on player skill
@@ -214,6 +219,11 @@ function setupPuzzle(ctx, opts) {
   const bonusMoves = Math.min(6, Math.floor(lockSkill / 3));
   _movesLimit = baseMoves + bonusMoves;
   _movesUsed = 0;
+
+  // Fine nudges: limited, with capacity growing slowly with experience (1–4 per lock)
+  const fineExtra = Math.min(3, Math.floor(lockSkill / 15));
+  _fineLimit = 1 + Math.max(0, fineExtra);
+  _fineUsed = 0;
 
   _pins = [];
   for (let c = 0; c < _cols; c++) {
@@ -334,7 +344,9 @@ function draw() {
   g.fillStyle = "#94a3b8";
   g.font = "11px JetBrains Mono, monospace";
   const movesLeft = Math.max(0, _movesLimit - _movesUsed);
-  g.fillText(`Moves: ${_movesUsed}/${_movesLimit} (left ${movesLeft})`, gridLeft, gridTop - 10);
+  const fineMax = Math.max(0, _fineLimit | 0);
+  const fineUsed = Math.max(0, _fineUsed | 0);
+  g.fillText(`Moves ${_movesUsed}/${_movesLimit} (left ${movesLeft}) • Fine ${fineUsed}/${fineMax}`, gridLeft, gridTop - 10);
   g.fillText(`Selected pin: ${_selectedCol + 1}/${_cols}`, gridLeft, gridBottom + 14);
 }
 
@@ -361,7 +373,9 @@ function decayLockpick(ctx, success) {
         it.decay = 0;
       }
     }
-    const amt = success ? 1 : 2;
+    const baseAmt = success ? 1 : 2;
+    const extraFine = Math.max(0, _fineUsed | 0); // extra wear from precise nudges this attempt
+    const amt = clamp(baseAmt + extraFine, 0, 100);
     const before = it.decay | 0;
     it.decay = clamp((it.decay || 0) + amt, 0, 100);
     if (it.decay >= 100) {
@@ -502,15 +516,24 @@ function applyMove(kind) {
     _pins[c] = (current + delta + _rows) % _rows;
   };
 
-  if (kind === "fine") {
+  // Determine whether this is a fine or normal nudge, degrading to normal when out of fine charges.
+  let mode = kind === "fine" ? "fine" : "normal";
+  const fineMax = Math.max(0, _fineLimit | 0);
+  if (mode === "fine" && (fineMax <= 0 || _fineUsed >= fineMax)) {
+    mode = "normal";
+  }
+
+  if (mode === "fine") {
     stepCol(col);
+    _fineUsed += 1;
   } else {
     stepCol(col);
     stepCol(col - 1);
     stepCol(col + 1);
   }
 
-  _movesUsed += 1;
+  const moveCost = mode === "fine" ? 2 : 1;
+  _movesUsed += moveCost;
   draw();
   updateInfo();
 
