@@ -95,32 +95,9 @@ function ensureOverlay() {
   canvas.style.border = '1px solid #22314e';
   canvas.style.borderRadius = '6px';
 
-  const btnRow = document.createElement('div');
-  btnRow.style.display = 'flex';
-  btnRow.style.gap = '8px';
-  btnRow.style.justifyContent = 'flex-end';
-  btnRow.style.marginTop = '8px';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.textContent = 'Cancel';
-  cancelBtn.style.padding = '6px 10px';
-  cancelBtn.style.background = '#111827';
-  cancelBtn.style.color = '#9ca3af';
-  cancelBtn.style.border = '1px solid #374151';
-  cancelBtn.style.borderRadius = '4px';
-  cancelBtn.style.cursor = 'pointer';
-
-  cancelBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    try { if (typeof _onDone === 'function') _onDone(false); } catch (_) {}
-    hide();
-  });
-
   wrap.appendChild(title);
   wrap.appendChild(hint);
   wrap.appendChild(canvas);
-  wrap.appendChild(btnRow);
-  btnRow.appendChild(cancelBtn);
   ov.appendChild(wrap);
   document.body.appendChild(ov);
 

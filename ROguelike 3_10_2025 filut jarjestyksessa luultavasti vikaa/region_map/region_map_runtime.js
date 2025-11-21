@@ -1436,9 +1436,17 @@ function tryMove(ctx, dx, dy) {
   let walkable = true;
   try {
     const WT = World.TILES;
-    const isWalkableWorld = (typeof World.isWalkable === "function") ? World.isWalkable : null;
-    walkable = isWalkableWorld ? !!isWalkableWorld(tile) : (WT ? (tile !== WT.WATER && tile !== WT.RIVER && tile !== WT.MOUNTAIN) : true);
+    const def = getTileDef("region", tile);
+    if (def && def.properties && typeof def.properties.walkable === "boolean") {
+      walkable = !!def.properties.walkable;
+    } else {
+      const isWalkableWorld = (typeof World.isWalkable === "function") ? World.isWalkable : null;
+      walkable = isWalkableWorld ? !!isWalkableWorld(tile) : (WT ? (tile !== WT.WATER && tile !== WT.RIVER && tile !== WT.MOUNTAIN) : true);
+    }
   } catch (_) {}
+
+  // Non-walkable tiles (e.g., water/river/mountain) cannot be entered in region mode
+  if (!walkable) return false;
 
   // Allow bump attacks on any enemy occupying the target tile
   let enemy = null;
