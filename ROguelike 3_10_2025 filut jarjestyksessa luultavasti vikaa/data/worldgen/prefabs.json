@@ -106,11 +106,11 @@
       "size": { "w": 9, "h": 6 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-        ["WALL","BED","FLOOR","BED","FLOOR","BED","FLOOR","CRATE","WALL"],
+        ["WALL","BED","FLOOR","BED","FLOOR","BED","FLOOR","BED","WALL"],
         ["WALL","SHELF","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","SHELF","WALL"],
-        ["WALL","CRATE","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","BARREL","WALL"],
-        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+        ["WALL","CRATE","FLOOR","BED","FLOOR","FLOOR","BED","BARREL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","DOOR","DOOR","WALL","WALL","WALL","WALL"]
       ],
       "doors": [
         { "x": 3, "y": 4, "orientation": "S", "type": "single", "role": "main" }
