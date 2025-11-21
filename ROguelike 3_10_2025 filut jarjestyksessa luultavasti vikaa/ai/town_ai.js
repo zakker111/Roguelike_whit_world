@@ -1426,10 +1426,80 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         continue;
       }
 
-      // Town guards: patrol towns/cities at all hours, never fully retiring for the night.
+      // Town guards: patrol towns/cities, but use the guard barracks as their home for sleep/off-duty rest.
       if (n.isGuard) {
-        n._sleeping = false;
+        const home = n._home && n._home.building ? n._home.building : null;
+        const isBarracks = !!(home && home.prefabId && String(home.prefabId).toLowerCase().includes("guard_barracks"));
 
+        // Night rest window (22:00–06:00 local time)
+        const GUARD_REST_START = 22 * 60;
+        const GUARD_REST_END = 6 * 60;
+        const wantsRest = isBarracks && inWindow(GUARD_REST_START, GUARD_REST_END, minutes, 1440);
+
+        // Wake sleeping guards outside rest window or in the morning
+        if (n._sleeping) {
+          if (!wantsRest || phase === "morning") {
+            n._sleeping = false;
+          } else {
+            // Stay asleep during the rest window
+            continue;
+          }
+        }
+
+        // Assign a stable rest/duty role per guard so some stay on duty while others use the barracks.
+        if (typeof n._guardRestRole !== "string") {
+          // Roughly half of guards rest at night; others stay on duty
+          n._guardRestRole = (ctx.rng() < 0.5) ? "rest" : "duty";
+        }
+
+        // Off-duty behavior: go to barracks and sleep on a bed during rest window
+        if (wantsRest && n._guardRestRole === "rest" && home) {
+          // Choose a bed inside the barracks, nearest to this guard if possible
+          let target = null;
+          try {
+            const bedList = bedsFor(ctx, home);
+            if (bedList.length) {
+              let best = bedList[0];
+              let bd = manhattan(n.x, n.y, best.x, best.y);
+              for (let i = 1; i < bedList.length; i++) {
+                const b = bedList[i];
+                const d = manhattan(n.x, n.y, b.x, b.y);
+                if (d < bd) { bd = d; best = b; }
+              }
+              target = { x: best.x, y: best.y };
+            } else if (n._home && typeof n._home.x === "number" && typeof n._home.y === "number") {
+              target = { x: n._home.x, y: n._home.y };
+            }
+          } catch (_) {}
+
+          // Already at target or adjacent to a bed: go to sleep
+          if (target) {
+            const atTarget = (n.x === target.x && n.y === target.y);
+            let nearBed = false;
+            try {
+              const bedList = bedsFor(ctx, home);
+              for (let i = 0; i < bedList.length && !nearBed; i++) {
+                const b = bedList[i];
+                if (manhattan(n.x, n.y, b.x, b.y) <= 1) nearBed = true;
+              }
+            } catch (_) {}
+            if (atTarget || nearBed) {
+              n._sleeping = true;
+              continue;
+            }
+          }
+
+          if (target && routeIntoBuilding(ctx, occ, n, home, target)) {
+            continue;
+          }
+          if (target) {
+            stepTowards(ctx, occ, n, target.x, target.y, { urgent: true });
+            continue;
+          }
+          // If we somehow have no usable target, fall through to patrol logic.
+        }
+
+        // On-duty behavior (or no barracks): patrol as before
         const sizeKey = ctx.townSize || "big";
         let patrolRadius = 8;
         if (sizeKey === "small") patrolRadius = 6;
