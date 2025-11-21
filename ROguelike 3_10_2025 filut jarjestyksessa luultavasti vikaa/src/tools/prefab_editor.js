@@ -23,6 +23,8 @@ const state = {
   // upstairs
   upstairsEnabled: false,
   up: { offset: {x:1,y:1}, w:9, h:7, tiles: [] },
+  // loaded prefabs from data/worldgen/prefabs.json
+  prefabs: { houses: [], shops: [], inns: [], plazas: [] },
   // palettes
   jcdocs: { tiles: [], embeddedPropCodes: [] },
   // assets lookup (glyphs/colors) loaded from data/world/world_assets.json
@@ -38,15 +40,17 @@ function init() {
   bindEls();
   initGrid();
   initUpGrid();
-  // Load palettes and glyph/color assets
+  // Load palettes, prefabs and glyph/color assets
   Promise.all([loadJCDocs(), loadAssets()]).then(() => {
     renderPalettes();
+    populatePrefabLoadList();
     drawGrid();
     drawUpGrid();
     updateModeVisibility();
     lint();
   }).catch(() => {
     renderPalettes();
+    populatePrefabLoadList();
     drawGrid();
     drawUpGrid();
     updateModeVisibility();
@@ -66,6 +70,9 @@ function bindEls() {
   els.propPalette = document.getElementById("prop-palette");
   els.eraseBtn = document.getElementById("erase-brush-btn");
   els.grid = document.getElementById("grid");
+
+  els.prefabLoad = document.getElementById("prefab-load");
+  els.prefabLoadBtn = document.getElementById("prefab-load-btn");
 
   // Floating hover hint
   els.hint = document.createElement("div");
@@ -132,11 +139,131 @@ async function loadJCDocs() {
     const jd = (json && json.jcdocs) ? json.jcdocs : {};
     state.jcdocs.tiles = Array.isArray(jd.tiles) ? jd.tiles.map(String) : ["WALL","FLOOR","DOOR","WINDOW","STAIRS"];
     state.jcdocs.embeddedPropCodes = Array.isArray(jd.embeddedPropCodes) ? jd.embeddedPropCodes.map(String) : ["BED","TABLE","CHAIR"];
+
+    // Cache existing prefabs for loading into the editor
+    state.prefabs = {
+      houses: Array.isArray(json.houses) ? json.houses : [],
+      shops: Array.isArray(json.shops) ? json.shops : [],
+      inns: Array.isArray(json.inns) ? json.inns : [],
+      plazas: Array.isArray(json.plazas) ? json.plazas : [],
+    };
   } catch (e) {
     // Fallback palette
     state.jcdocs.tiles = ["WALL","FLOOR","DOOR","WINDOW","STAIRS"];
     state.jcdocs.embeddedPropCodes = ["BED","TABLE","CHAIR","SHELF","COUNTER","FIREPLACE","CHEST","CRATE","BARREL","PLANT","RUG","QUEST_BOARD","STALL","LAMP","WELL"];
+    state.prefabs = { houses: [], shops: [], inns: [], plazas: [] };
   }
+}
+
+function populatePrefabLoadList() {
+  if (!els.prefabLoad) return;
+  const sel = els.prefabLoad;
+  sel.innerHTML = "";
+  const optNone = document.createElement("option");
+  optNone.value = "";
+  optNone.textContent = "(none)";
+  sel.appendChild(optNone);
+
+  const pf = state.prefabs || {};
+  const cat = state.category || (els.category ? els.category.value : "house");
+  let list = [];
+  if (cat === "house") list = pf.houses || [];
+  else if (cat === "shop") list = pf.shops || [];
+  else if (cat === "inn") list = pf.inns || [];
+  else if (cat === "plaza") list = pf.plazas || [];
+
+  list.forEach(p => {
+    if (!p || !p.id) return;
+    const opt = document.createElement("option");
+    opt.value = String(p.id);
+    opt.textContent = p.name ? `${p.id} — ${p.name}` : String(p.id);
+    sel.appendChild(opt);
+  });
+}
+
+function loadPrefabIntoState(prefab) {
+  if (!prefab || !prefab.size || !Array.isArray(prefab.tiles)) return;
+  const cat = String(prefab.category || state.category || "house");
+  state.category = cat;
+  if (els.category) els.category.value = cat;
+
+  state.id = String(prefab.id || state.id || "");
+  state.name = String(prefab.name || state.name || "");
+  state.tags = Array.isArray(prefab.tags) ? prefab.tags.slice() : [];
+
+  state.w = prefab.size.w | 0;
+  state.h = prefab.size.h | 0;
+  if (els.gridW) els.gridW.value = String(state.w);
+  if (els.gridH) els.gridH.value = String(state.h);
+
+  initGrid();
+  for (let y = 0; y < state.h; y++) {
+    const row = Array.isArray(prefab.tiles[y]) ? prefab.tiles[y] : [];
+    state.tiles[y] = row.slice(0, state.w).map(s => String(s).toUpperCase());
+  }
+
+  // Shop / inn metadata if present
+  if (prefab.shop && (cat === "shop" || cat === "inn")) {
+    const s = prefab.shop || {};
+    const sched = s.schedule || {};
+    const open = typeof sched.open === "string" ? sched.open : "08:00";
+    const close = typeof sched.close === "string" ? sched.close : "17:00";
+    const alwaysOpen = !!sched.alwaysOpen;
+    state.shop = {
+      type: s.type || (cat === "inn" ? "inn" : "shop"),
+      schedule: { open, close, alwaysOpen },
+      signText: s.signText || (s.type || ""),
+      sign: (typeof s.sign === "boolean") ? s.sign : true
+    };
+  }
+
+  // Upstairs overlay for inns
+  state.upstairsEnabled = false;
+  if (cat === "inn" && prefab.upstairsOverlay && Array.isArray(prefab.upstairsOverlay.tiles)) {
+    const ov = prefab.upstairsOverlay;
+    const off = ov.offset || {};
+    state.upstairsEnabled = true;
+    state.up.offset.x = clampInt((off.x != null ? off.x : off.ox) ?? 0, 0, 64);
+    state.up.offset.y = clampInt((off.y != null ? off.y : off.oy) ?? 0, 0, 64);
+    state.up.w = (ov.w | 0) || (ov.tiles[0] ? ov.tiles[0].length : state.up.w);
+    state.up.h = (ov.h | 0) || ov.tiles.length;
+    initUpGrid();
+    state.up.tiles = ov.tiles.map(row => (Array.isArray(row) ? row.slice() : []));
+  }
+
+  syncMetadataFields();
+  updateModeVisibility();
+  drawGrid();
+  drawUpGrid();
+  lint();
+  setStatus(`Loaded prefab: ${state.id}`);
+}
+
+function loadSelectedPrefab() {
+  if (!els.prefabLoad) return;
+  const id = els.prefabLoad.value;
+  if (!id) {
+    setStatus("Select a prefab to load.");
+    return;
+  }
+  const pf = state.prefabs || {};
+  let list = [];
+  if (state.category === "house") list = pf.houses || [];
+  else if (state.category === "shop") list = pf.shops || [];
+  else if (state.category === "inn") list = pf.inns || [];
+  else if (state.category === "plaza") list = pf.plazas || [];
+
+  let prefab = list.find(p => p && String(p.id) === id);
+  if (!prefab) {
+    const all = []
+      .concat(pf.houses || [], pf.shops || [], pf.inns || [], pf.plazas || []);
+    prefab = all.find(p => p && String(p.id) === id);
+  }
+  if (!prefab) {
+    setStatus(`Prefab '${id}' not found.`);
+    return;
+  }
+  loadPrefabIntoState(prefab);
 }
 
 function renderPalettes() {
@@ -266,6 +393,7 @@ function bindUI() {
     }
     syncMetadataFields();
     updateModeVisibility();
+    populatePrefabLoadList();
     lint();
   });
   els.gridW.addEventListener("input", () => {});
@@ -299,7 +427,11 @@ function bindUI() {
   els.prefabName.addEventListener("input", () => state.name = (els.prefabName.value || "").trim());
   els.prefabTags.addEventListener("input", () => state.tags = (els.prefabTags.value || "").split(",").map(s => s.trim()).filter(Boolean));
 
-  
+  if (els.prefabLoadBtn) {
+    els.prefabLoadBtn.addEventListener("click", () => {
+      loadSelectedPrefab();
+    });
+  }
 
   // Shop
   els.shopType.addEventListener("change", () => state.shop.type = els.shopType.value);
