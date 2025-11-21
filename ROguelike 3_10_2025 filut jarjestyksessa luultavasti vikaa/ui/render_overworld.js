@@ -26,7 +26,7 @@ import { drawShoreline } from "./render/overworld_shoreline.js";
 import { drawCoastOutline } from "./render/overworld_coast_outline.js";
 import { drawFog } from "./render/overworld_fog.js";
 import { drawPOIs } from "./render/overworld_poi.js";
-import { drawRoads, drawBridges } from "./render/overworld_roads_bridges.js";
+import { drawBridges } from "./render/overworld_roads_bridges.js";
 import { drawGlyphOverlay } from "./render/overworld_glyph_overlay.js";
 import { drawBiomeClockLabel } from "./render/overworld_hud.js";
 import { drawMinimap } from "./render/overworld_minimap.js";
@@ -180,8 +180,7 @@ export function draw(ctx, view) {
     }
   } catch (_) {}
 
-  // Roads and bridges
-  try { drawRoads(ctx, view); } catch (_) {}
+  // Bridges only (overworld roads removed)
   try { drawBridges(ctx, view); } catch (_) {}
 
   // Main-map POI icons: towns and dungeons — moved to draw AFTER fog-of-war so markers are visible even on undiscovered tiles

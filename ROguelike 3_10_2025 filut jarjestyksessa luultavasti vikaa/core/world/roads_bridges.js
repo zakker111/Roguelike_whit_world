@@ -3,81 +3,10 @@
  * Extracted from core/world_runtime.js without behavior changes.
  */
 
-// Build roads between nearby towns in current window and mark bridge points where crossing water/river
+// Build roads between nearby towns in current window and mark bridge points where crossing water/river.
+// Overworld roads have been removed; keep this as a no-op for back-compat.
 export function ensureRoads(ctx) {
-  const WT = (ctx.World && ctx.World.TILES) || { WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3 };
-  const world = ctx.world;
-  if (!world) return;
-  world.roads = Array.isArray(world.roads) ? world.roads : [];
-  world.bridges = Array.isArray(world.bridges) ? world.bridges : [];
-  const roadSet = world._roadSet || (world._roadSet = new Set());
-  const bridgeSet = world._bridgeSet || (world._bridgeSet = new Set());
-
-  const ox = world.originX | 0, oy = world.originY | 0;
-  const cols = ctx.map[0] ? ctx.map[0].length : 0;
-  const rows = ctx.map.length;
-
-  function inWin(x, y) {
-    const lx = x - ox, ly = y - oy;
-    return lx >= 0 && ly >= 0 && lx < cols && ly < rows;
-  }
-
-  function addRoadPoint(x, y) {
-    const key = `${x},${y}`;
-    if (!roadSet.has(key)) {
-      roadSet.add(key);
-      world.roads.push({ x, y });
-    }
-  }
-  function addBridgePoint(x, y) {
-    const key = `${x},${y}`;
-    if (!bridgeSet.has(key)) {
-      bridgeSet.add(key);
-      world.bridges.push({ x, y });
-    }
-  }
-
-  function carveRoad(x0, y0, x1, y1) {
-    let x = x0, y = y0;
-    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
-    const sx = x0 < x1 ? 1 : -1;
-    const sy = y0 < y1 ? 1 : -1;
-    let err = dx - dy;
-    while (true) {
-      if (inWin(x, y)) {
-        const lx = x - ox, ly = y - oy;
-        const t = ctx.map[ly][lx];
-        // Across water/river: carve to BEACH and mark bridge overlay
-        if (t === WT.WATER || t === WT.RIVER) {
-          ctx.map[ly][lx] = WT.BEACH;
-          addBridgePoint(x, y);
-        }
-        addRoadPoint(x, y);
-      }
-      if (x === x1 && y === y1) break;
-      const e2 = 2 * err;
-      if (e2 > -dy) { err -= dy; x += sx; }
-      if (e2 < dx) { err += dx; y += sy; }
-    }
-  }
-
-  const towns = Array.isArray(world.towns) ? world.towns.slice(0) : [];
-  // Connect each town to its nearest neighbor within a reasonable distance, but only if BOTH endpoints are within the current window
-  for (let i = 0; i < towns.length; i++) {
-    const a = towns[i];
-    if (!inWin(a.x, a.y)) continue;
-    let best = null, bd = Infinity;
-    for (let j = 0; j < towns.length; j++) {
-      if (i === j) continue;
-      const b = towns[j];
-      if (!inWin(b.x, b.y)) continue; // avoid dangling roads that lead off-window
-      const d = Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-      if (d < bd) { bd = d; best = b; }
-    }
-    if (best && bd <= 100) {
-      carveRoad(a.x, a.y, best.x, best.y);
-    }
-  }
+  return;
 }
 
 // Add extra bridges so players can always find at least one crossing point over rivers in the current window.
