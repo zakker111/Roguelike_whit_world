@@ -178,7 +178,8 @@ function populatePrefabLoadList() {
       const opt = document.createElement("option");
       opt.value = String(p.id);
       const base = p.name ? `${p.id} — ${p.name}` : String(p.id);
-      opt.textContent = `${g.label}: ${base}`;
+      const catLabel = (p.category && String(p.category)) || g.label;
+      opt.textContent = `${catLabel}: ${base}`;
       sel.appendChild(opt);
     });
   });
@@ -379,6 +380,11 @@ function bindUI() {
     if (state.category === "house") {
       state.id = "house_small_custom_1"; state.name = "Custom Small House";
       state.tags = ["residential","single_story"];
+    } else if (state.category === "barracks") {
+      state.id = "guard_barracks_custom_1"; state.name = "Guard Barracks (Custom)";
+      state.tags = ["residential","guard_barracks","barracks"];
+      // Barracks behave like residential buildings; no shop metadata
+      state.upstairsEnabled = false;
     } else if (state.category === "shop") {
       state.id = "shop_blacksmith_custom_1"; state.name = "Blacksmith (Custom)";
       state.tags = ["shop","blacksmith"];

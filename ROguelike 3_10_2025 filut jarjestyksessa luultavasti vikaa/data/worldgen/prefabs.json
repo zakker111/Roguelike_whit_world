@@ -101,8 +101,8 @@
     {
       "id": "guard_barracks_small_1",
       "name": "Guard Barracks",
-      "category": "house",
-      "tags": ["residential", "guard_barracks"],
+      "category": "barracks",
+      "tags": ["residential", "guard_barracks", "barracks"],
       "size": { "w": 9, "h": 6 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
