@@ -198,23 +198,33 @@ export function maybeTryEncounter(ctx) {
     const biome = biomeFromTile(tile);
 
     // Base chance and pity scaled by GOD panel Encounter Rate (0..100).
-    // rate 50 -> baseline; 0 -> no encounters; 100 -> ~2x baseline with higher cap.
+    // rate scaleBase -> baseline; 0 -> no encounters; 100 -> up to 2x baseline depending on config caps.
     const rate = getEncounterRate();
     if (rate <= 0) { STATE.movesSinceLast += 1; return false; }
-    const scale = rate / 50; // 0..2
-    const baseP0 = 0.03; // baseline 3%
-    const pityStep0 = 0.006; // +0.6% per 8 moves after ~18
+
+    // Configurable coefficients (data/encounters/config.json), with sane defaults
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const EC = GD && GD.encountersConfig && GD.encountersConfig.chance ? GD.encountersConfig.chance : null;
+    const baseP0 = EC && typeof EC.base === "number" ? EC.base : 0.03;
+    const scaleBase = EC && typeof EC.scaleBase === "number" ? EC.scaleBase : 50;
+    const pityStartMoves = EC && typeof EC.pityStartMoves === "number" ? EC.pityStartMoves : 18;
+    const pityIntervalMoves = EC && typeof EC.pityIntervalMoves === "number" ? EC.pityIntervalMoves : 8;
+    const pityStep0 = EC && typeof EC.pityStep === "number" ? EC.pityStep : 0.006;
+    const capBase = EC && typeof EC.capBase === "number" ? EC.capBase : 0.18;
+    const capMax = EC && typeof EC.capMax === "number" ? EC.capMax : 0.35;
+
+    const scale = rate / (scaleBase || 50); // 0..2 (default baseline at 50)
     const baseP = baseP0 * scale;
-    const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - 18) / 8));
+    const pitySteps = Math.max(0, Math.floor((STATE.movesSinceLast - pityStartMoves) / (pityIntervalMoves || 1)));
     const pityBoost = pitySteps * (pityStep0 * scale);
-    const cap = Math.min(0.35, 0.18 * scale); // raise cap modestly with scale (max 35%)
+    const cap = Math.min(capMax, capBase * scale); // raise cap with scale subject to capMax
     const chance = Math.min(cap, baseP + pityBoost);
     (function logChance() {
       const _trace = (() => { try { if (typeof window !== "undefined" && window.DEV) return true; const v = localStorage.getItem("LOG_TRACE_ENCOUNTERS"); return String(v).toLowerCase() === "1"; } catch (_) { return false; } })();
       if (_trace) {
         try {
           if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
-            window.Logger.log("[Encounter] chance computed", "info", { category: "Encounter", biome, rate, scale, baseP, pityBoost, cap, chance, movesSinceLast: STATE.movesSinceLast });
+            window.Logger.log("[Encounter] chance computed", "info", { category: "Encounter", biome, rate, scale, baseP, pityBoost, cap, chance, movesSinceLast: STATE.movesSinceLast, config: EC || "defaults" });
           }
         } catch (_) {}
       }
@@ -246,7 +256,7 @@ export function maybeTryEncounter(ctx) {
       return false;
     }
 
-    // Special pick: Night Raid goblins vs bandits (3% of all encounters, night-only, once per in-game week)
+    // Special pick: Night Raid goblins vs bandits (configurable share, night-only, cooldown in days)
     (function maybeNightRaid() {
       try {
         const reg = registry(ctx);
@@ -257,17 +267,23 @@ export function maybeTryEncounter(ctx) {
         if (phase !== "night") return;
         const tc = (typeof clock.turnCounter === "number") ? (clock.turnCounter | 0) : 0;
         if (tc < (STATE.nightRaidCooldownUntilTurn | 0)) return;
-        // 3% share among all rolled encounters
+
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const NRC = GD && GD.encountersConfig && GD.encountersConfig.nightRaid ? GD.encountersConfig.nightRaid : null;
+        const share = NRC && typeof NRC.share === "number" ? NRC.share : 0.03;
+        const cooldownDays = NRC && typeof NRC.cooldownDays === "number" ? NRC.cooldownDays : 7;
+
+        // Global share among all rolled encounters
         const r = rngFor(ctx)();
-        if (r >= 0.03) return;
+        if (r >= share) return;
         const tmpl = findTemplateById(ctx, "night_raid_goblins");
         if (!tmpl) return;
         const diff = computeDifficulty(ctx, biome);
         if (tryEnter(ctx, tmpl, biome, diff)) {
-          // Set cooldown for one in-game week
+          // Set cooldown for configured days
           const minsPerTurn = (clock.minutesPerTurn || 4);
-          const oneWeekTurns = Math.ceil((7 * 24 * 60) / minsPerTurn);
-          STATE.nightRaidCooldownUntilTurn = tc + oneWeekTurns;
+          const turns = Math.ceil(((cooldownDays * 24 * 60) || (7 * 24 * 60)) / minsPerTurn);
+          STATE.nightRaidCooldownUntilTurn = tc + turns;
           STATE.movesSinceLast = 0;
           STATE.cooldownMoves = 10;
           throw { _earlyExit: true };

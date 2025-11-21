@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "chance": {
+    "base": 0.03,
+    "scaleBase": 50,
+    "pityStartMoves": 18,
+    "pityIntervalMoves": 8,
+    "pityStep": 0.006,
+    "capBase": 0.18,
+    "capMax": 0.35
+  },
+  "nightRaid": {
+    "share": 0.03,
+    "cooldownDays": 7
+  }
+}
