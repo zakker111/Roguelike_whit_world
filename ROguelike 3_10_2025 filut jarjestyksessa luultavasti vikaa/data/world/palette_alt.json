@@ -54,6 +54,7 @@
     "playerBackdropStroke": "rgba(255,255,255,0.35)",
     "regionAnimal": "#e9d5a1",
     "shopkeeper": "#ffd166",
+    "guard": "#60a5fa",
     "regionAnimalsCleared": "#86efac",
     "regionAnimalsKnown": "#f0abfc",
 

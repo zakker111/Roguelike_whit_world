@@ -2022,7 +2022,7 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Roaming villagers near plaza
+  // Roaming villagers near plaza (some promoted to town guards)
   const GD8 = getGameData(ctx);
   const ND = (GD8 && GD8.npcs) ? GD8.npcs : null;
   const baseLines = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length)
@@ -2038,9 +2038,23 @@ function generate(ctx) {
     `Welcome to ${ctx.townName || "our town"}.`,
     ...baseLines
   ];
+  const guardLines = (ND && Array.isArray(ND.guardLines) && ND.guardLines.length)
+    ? ND.guardLines
+    : [
+        "Stay out of trouble.",
+        "We keep the town safe.",
+        "Eyes open, blade sharp.",
+        "The gate is watched day and night."
+      ];
   const tbCount = Array.isArray(ctx.townBuildings) ? ctx.townBuildings.length : 12;
   const roamTarget = Math.min(14, Math.max(6, Math.floor(tbCount / 2)));
-  let placed = 0, tries = 0;
+  let guardTarget = 0;
+  if (townSize === "small") guardTarget = 2;
+  else if (townSize === "city") guardTarget = 4;
+  else guardTarget = 3;
+  guardTarget = Math.min(guardTarget, roamTarget);
+
+  let placed = 0, placedGuards = 0, tries = 0;
   while (placed < roamTarget && tries++ < 800) {
     const onRoad = ctx.rng() < 0.4;
     let x, y;
@@ -2058,7 +2072,7 @@ function generate(ctx) {
     if (_manhattan(ctx, ctx.player.x, ctx.player.y, x, y) <= 1) continue;
     if (ctx.npcs.some(n => n.x === x && n.y === y)) continue;
     if (ctx.townProps.some(p => p.x === x && p.y === y)) continue;
-    // Assign a home immediately to avoid "no-home" diagnostics for roamers
+    // Assign a home immediately to avoid "no-home" diagnostics for roamers/guards
     let homeRef = null;
     try {
       const tbs = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
@@ -2070,7 +2084,36 @@ function generate(ctx) {
         homeRef = { building: b, x: hx, y: hy, door };
       }
     } catch (_) {}
-    ctx.npcs.push({ x, y, name: `Villager ${placed + 1}`, lines, _likesInn: rng() < 0.45, _home: homeRef });
+
+    // Prefer to turn road/near-gate roamers into guards, up to guardTarget
+    const nearGate = _manhattan(ctx, x, y, gate.x, gate.y) <= 6;
+    const canBeGuard = placedGuards < guardTarget && (onRoad || nearGate || ctx.rng() < 0.25);
+
+    const likesInn = rng() < 0.45;
+    if (canBeGuard) {
+      const guardIndex = placedGuards + 1;
+      ctx.npcs.push({
+        x,
+        y,
+        name: `Guard ${guardIndex}`,
+        lines: guardLines,
+        isGuard: true,
+        guard: true,
+        _guardPost: { x, y },
+        _likesInn: likesInn,
+        _home: homeRef
+      });
+      placedGuards++;
+    } else {
+      ctx.npcs.push({
+        x,
+        y,
+        name: `Villager ${placed + 1}`,
+        lines,
+        _likesInn: likesInn,
+        _home: homeRef
+      });
+    }
     placed++;
   }
 

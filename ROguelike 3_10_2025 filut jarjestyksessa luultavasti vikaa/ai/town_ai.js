@@ -932,7 +932,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       try {
         if (ctx._debugUpstairsRoamerAssigned) return;
         for (const n of npcs) {
-          if (n && !n.isResident && !n.isShopkeeper && !n.isPet && !n.greeter) {
+          if (n && !n.isResident && !n.isShopkeeper && !n.isPet && !n.greeter && !n.isGuard) {
             n._forceInnSleepUpstairs = true;
             // Ensure the roamer acts every tick for reliable routing
             n._stride = 1;
@@ -1079,6 +1079,9 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     // Defaults: residents/shopkeepers every 2 ticks, pets every 3 ticks, generic 2.
     const tickMod = ((t && typeof t.turnCounter === "number") ? t.turnCounter : 0) | 0;
     function shouldSkipThisTick(n, idx) {
+      // Guards: always act every tick to keep patrols visible.
+      if (n.isGuard) return false;
+
       // Shopkeepers: during arrive-to-leave window, act every tick (no stride skip)
       if (n.isShopkeeper && n._shopRef) {
         const o = (typeof n._shopRef.openMin === "number") ? n._shopRef.openMin : 8 * 60;
@@ -1413,6 +1416,98 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       if (n.isPet) {
         if (ctx.rng() < 0.6) continue;
         stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+        continue;
+      }
+
+      // Town guards: patrol towns/cities at all hours, never fully retiring for the night.
+      if (n.isGuard) {
+        n._sleeping = false;
+
+        const sizeKey = ctx.townSize || "big";
+        let patrolRadius = 8;
+        if (sizeKey === "small") patrolRadius = 6;
+        else if (sizeKey === "city") patrolRadius = 10;
+
+        // Stable guard post as patrol center
+        if (!n._guardPost || typeof n._guardPost.x !== "number" || typeof n._guardPost.y !== "number") {
+          n._guardPost = { x: n.x, y: n.y };
+        }
+        const post = n._guardPost;
+        const distFromPost = manhattan(n.x, n.y, post.x, post.y);
+
+        // If somehow very far from post (e.g. teleported), head back first
+        if (distFromPost > patrolRadius + 2) {
+          stepTowards(ctx, occ, n, post.x, post.y, { urgent: true });
+          continue;
+        }
+
+        // Reached current patrol goal: linger briefly, then pick a new one
+        if (n._guardPatrolGoal && n.x === n._guardPatrolGoal.x && n.y === n._guardPatrolGoal.y) {
+          n._guardPatrolWait = randInt(ctx, 4, 10);
+          n._guardPatrolGoal = null;
+        }
+
+        if (n._guardPatrolWait && n._guardPatrolWait > 0) {
+          n._guardPatrolWait--;
+          if (ctx.rng() < 0.10) {
+            stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          }
+          continue;
+        }
+
+        if (!n._guardPatrolGoal) {
+          const centerX = post.x;
+          const centerY = post.y;
+          const rows = ctx.map.length;
+          const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+          const roadTiles = [];
+          const floorTiles = [];
+
+          // Sample candidate patrol tiles around the post, preferring roads
+          for (let t = 0; t < 40; t++) {
+            const dx = randInt(ctx, -patrolRadius, patrolRadius);
+            const dy = randInt(ctx, -patrolRadius, patrolRadius);
+            const tx = centerX + dx;
+            const ty = centerY + dy;
+            if (tx < 1 || ty < 1 || ty >= rows - 1 || tx >= cols - 1) continue;
+            if (!isWalkTown(ctx, tx, ty)) continue;
+            if (ctx.player.x === tx && ctx.player.y === ty) continue;
+            const tile = ctx.map[ty][tx];
+            if (tile === ctx.TILES.ROAD) roadTiles.push({ x: tx, y: ty });
+            else floorTiles.push({ x: tx, y: ty });
+          }
+
+          let goal = null;
+          if (roadTiles.length) {
+            goal = roadTiles[randInt(ctx, 0, roadTiles.length - 1)];
+          } else if (floorTiles.length) {
+            goal = floorTiles[randInt(ctx, 0, floorTiles.length - 1)];
+          } else {
+            goal = { x: post.x, y: post.y };
+          }
+
+          // Occasionally bias guards toward watching the gate or plaza if nearby
+          try {
+            const gx = ctx.townExitAt ? ctx.townExitAt.x : null;
+            const gy = ctx.townExitAt ? ctx.townExitAt.y : null;
+            if (gx != null && gy != null && ctx.rng() < 0.35) {
+              const dGate = manhattan(post.x, post.y, gx, gy);
+              if (dGate <= patrolRadius * 2) {
+                goal = { x: gx, y: gy };
+              }
+            } else if (ctx.townPlaza && ctx.rng() < 0.35) {
+              goal = { x: ctx.townPlaza.x, y: ctx.townPlaza.y };
+            }
+          } catch (_) {}
+
+          n._guardPatrolGoal = goal;
+        }
+
+        if (n._guardPatrolGoal) {
+          stepTowards(ctx, occ, n, n._guardPatrolGoal.x, n._guardPatrolGoal.y, { urgent: true });
+        } else {
+          stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+        }
         continue;
       }
 
