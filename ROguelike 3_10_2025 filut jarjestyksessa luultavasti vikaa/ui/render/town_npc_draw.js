@@ -44,6 +44,13 @@ export function drawNPCs(ctx, view) {
     } else if (n.isSeppo || n.seppo) {
       glyph = "S";
       color = "#f6c177";
+    } else if (n.isGuard) {
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        color = pal && pal.guard ? pal.guard : "#60a5fa";
+      } catch (_) {
+        color = "#60a5fa";
+      }
     } else if (n.isShopkeeper || n._shopRef) {
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;

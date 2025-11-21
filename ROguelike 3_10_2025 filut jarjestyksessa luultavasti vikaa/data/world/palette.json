@@ -42,6 +42,7 @@
     "poiDungeonEasy": "#9ece6a",
     "poiDungeonMed": "#f4bf75",
     "poiDungeonHard": "#f7768e",
+    "poiDungeonMountain": "#38bdf8",
     "questMarker": "#fbbf24",
     "regionAnimalsCleared": "#86efac",
     "regionAnimalsKnown": "#f0abfc",
@@ -50,6 +51,7 @@
     "playerBackdropStroke": "rgba(255,255,255,0.35)",
     "regionAnimal": "#e9d5a1",
     "shopkeeper": "#ffd166",
+    "guard": "#2563eb",
     "blood": "#7a1717",
 
     "debugOverlayFill": "rgba(255, 215, 0, 0.22)",

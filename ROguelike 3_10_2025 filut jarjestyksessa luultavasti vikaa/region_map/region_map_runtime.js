@@ -1436,9 +1436,17 @@ function tryMove(ctx, dx, dy) {
   let walkable = true;
   try {
     const WT = World.TILES;
-    const isWalkableWorld = (typeof World.isWalkable === "function") ? World.isWalkable : null;
-    walkable = isWalkableWorld ? !!isWalkableWorld(tile) : (WT ? (tile !== WT.WATER && tile !== WT.RIVER && tile !== WT.MOUNTAIN) : true);
+    const def = getTileDef("region", tile);
+    if (def && def.properties && typeof def.properties.walkable === "boolean") {
+      walkable = !!def.properties.walkable;
+    } else {
+      const isWalkableWorld = (typeof World.isWalkable === "function") ? World.isWalkable : null;
+      walkable = isWalkableWorld ? !!isWalkableWorld(tile) : (WT ? (tile !== WT.WATER && tile !== WT.RIVER && tile !== WT.MOUNTAIN) : true);
+    }
   } catch (_) {}
+
+  // Non-walkable tiles (e.g., water/river/mountain) cannot be entered in region mode
+  if (!walkable) return false;
 
   // Allow bump attacks on any enemy occupying the target tile
   let enemy = null;
@@ -1516,24 +1524,78 @@ function onAction(ctx) {
   }
 
   // Context actions inside region:
-  // 1) Loot corpse/chest underfoot — use unified Loot.lootHere for consistent UI and behavior
+  // 1) Loot corpse/chest underfoot — mirror dungeon flavor (cause-of-death) while using shared Loot for items
   try {
     const list = Array.isArray(ctx.corpses) ? ctx.corpses : [];
-    const corpseHere = list.find(c => c && c.x === cursor.x && c.y === cursor.y);
-    if (corpseHere) {
-      // Delegate to Loot subsystem so the loot panel is shown, matching dungeon behavior
+    const underfoot = list.filter(c => c && c.x === cursor.x && c.y === cursor.y);
+    if (underfoot.length) {
+      // Show corpse flavor consistently (victim, wound, killer, weapon/likely cause) before looting.
+      try {
+        const FS = (typeof window !== "undefined" ? window.FlavorService : null);
+        if (FS && typeof FS.describeCorpse === "function") {
+          for (const c of underfoot) {
+            const meta = c && c.meta;
+            if (meta && (meta.killedBy || meta.wound || meta.via || meta.likely)) {
+              const line = FS.describeCorpse(meta);
+              if (line) ctx.log && ctx.log(line, "flavor", { category: "Combat", side: "enemy", tone: "injury" });
+            }
+          }
+        }
+      } catch (_) {}
+
+      // Determine whether there is any remaining loot underfoot
+      const containersWithLoot = underfoot.filter(c => Array.isArray(c.loot) && c.loot.length > 0);
+
+      if (containersWithLoot.length === 0) {
+        // No items left: behave like dungeon lootHere for empty corpses/chests, but persist via Region state.
+        let newlyExamined = 0;
+        let examinedChestCount = 0;
+        let examinedCorpseCount = 0;
+        for (const c of underfoot) {
+          c.looted = true;
+          if (!c._examined) {
+            c._examined = true;
+            newlyExamined++;
+            if (String(c.kind || "").toLowerCase() === "chest") examinedChestCount++;
+            else examinedCorpseCount++;
+          }
+        }
+        if (newlyExamined > 0) {
+          let line = "";
+          if (examinedChestCount > 0 && examinedCorpseCount === 0) {
+            line = examinedChestCount === 1
+              ? "You search the chest but find nothing."
+              : "You search the chests but find nothing.";
+          } else if (examinedCorpseCount > 0 && examinedChestCount === 0) {
+            line = examinedCorpseCount === 1
+              ? "You search the corpse but find nothing."
+              : "You search the corpses but find nothing.";
+          } else {
+            line = "You search the area but find nothing.";
+          }
+          ctx.log && ctx.log(line);
+        }
+        // Persist emptied containers in Region Map state and advance time
+        try { saveRegionState(ctx); } catch (_) {}
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+        if (typeof ctx.turn === "function") ctx.turn();
+        return true;
+      }
+
+      // There is real loot underfoot: delegate to Loot subsystem for transfer/UI.
+      let handledLoot = false;
       try {
         const L = ctx.Loot || getMod(ctx, "Loot");
         if (L && typeof L.lootHere === "function") {
           L.lootHere(ctx);
-          // Persist region state immediately so looted containers remain emptied on reopen
-          try { saveRegionState(ctx); } catch (_) {}
-        } else {
-          // Minimal fallback: keep previous inline summary logging if Loot subsystem unavailable
-          ctx.log && ctx.log("Loot system not available.", "warn");
+          handledLoot = true;
         }
-      } catch (_) {
-        ctx.log && ctx.log("Loot failed.", "warn");
+      } catch (_) { handledLoot = false; }
+      if (!handledLoot) {
+        ctx.log && ctx.log("Loot system not available.", "warn");
+      } else {
+        // Persist region state immediately so looted containers remain emptied on reopen
+        try { saveRegionState(ctx); } catch (_) {}
       }
       return true;
     }
@@ -1716,7 +1778,6 @@ function tick(ctx) {
           const pos = ctx.region && ctx.region.enterWorldPos ? ctx.region.enterWorldPos : null;
           if (pos) markAnimalsCleared(pos.x | 0, pos.y | 0);
         } catch (_) {}
-        return true;
       }
     } catch (_) {}
   } else {
@@ -1785,6 +1846,20 @@ function tick(ctx) {
       }
     } catch (_) {}
   }
+
+  // Visual: fade blood decals over time in Region Map (ruins/forest encounters)
+  try {
+    const DC = ctx.Decals || getMod(ctx, "Decals");
+    if (DC && typeof DC.tick === "function") {
+      DC.tick(ctx);
+    } else if (Array.isArray(ctx.decals) && ctx.decals.length) {
+      for (let i = 0; i < ctx.decals.length; i++) {
+        ctx.decals[i].a *= 0.92;
+      }
+      ctx.decals = ctx.decals.filter(d => d.a > 0.04);
+    }
+  } catch (_) {}
+
   return true;
 }
 

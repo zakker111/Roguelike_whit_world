@@ -22,6 +22,16 @@
     "Heading to the plaza.",
     "I might visit the shop later."
   ],
+  "guardLines": [
+    "Stay out of trouble.",
+    "We keep the town safe.",
+    "Eyes open, blade sharp.",
+    "The gate is watched day and night.",
+    "If you're headed to the dungeon, be prepared.",
+    "Seen anything suspicious?",
+    "Night watch is the quiet kind of dangerous.",
+    "Steel on my belt, stone under my feet. Just another shift."
+  ],
   "shopkeeperNames": [
     "Shopkeeper",
     "Trader",

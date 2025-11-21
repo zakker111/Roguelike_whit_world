@@ -25,6 +25,8 @@
  * }
  */
 
+import { getTileDef } from "../data/tile_lookup.js";
+
 // Reusable direction arrays to avoid per-tick allocations
 const ALT_DIRS = Object.freeze([{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }]);
 const WANDER_DIRS = ALT_DIRS;
@@ -74,7 +76,7 @@ export function enemiesAct(ctx) {
 
   const senseRange = 8;
 
-  // Walkability that respects Region Map tiles (overworld semantics) as well as dungeon
+  // Walkability that respects Region Map tiles (using tiles.json for region) as well as dungeon
   function walkableAt(x, y) {
     try {
       if (!ctx.inBounds || !ctx.inBounds(x, y)) return false;
@@ -84,11 +86,15 @@ export function enemiesAct(ctx) {
       const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
       if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
     }
-    // In region mode, prefer World.isWalkable for overworld tile ids
+    // In region mode, prefer tiles.json properties for the "region" mode (honors RUIN_WALL, BERRY_BUSH, etc.).
     try {
       if (ctx.mode === "region") {
-        const WT = (typeof window !== "undefined" && window.World) ? window.World : (ctx.World || null);
         const tile = ctx.map[y][x];
+        const def = getTileDef("region", tile);
+        if (def && def.properties && typeof def.properties.walkable === "boolean") {
+          return !!def.properties.walkable;
+        }
+        const WT = (typeof window !== "undefined" && window.World) ? window.World : (ctx.World || null);
         if (WT && typeof WT.isWalkable === "function") return !!WT.isWalkable(tile);
         // Fallback: treat water/river/mountain as blocked
         const WTTiles = WT && WT.TILES ? WT.TILES : null;

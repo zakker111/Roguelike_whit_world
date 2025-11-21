@@ -692,6 +692,13 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     (function spawnResidents() {
       if (!Array.isArray(townBuildings) || townBuildings.length === 0) return;
 
+      // Exclude dedicated guard barracks buildings from generic resident assignment (guards use them as their home).
+      const buildingsForResidents = townBuildings.filter(b => {
+        const id = (b && b.prefabId) ? String(b.prefabId).toLowerCase() : "";
+        return !id.includes("guard_barracks");
+      });
+      if (!buildingsForResidents.length) return;
+
       // Helper to find any free interior spot deterministically
       function firstFreeInteriorSpot(ctx, b) {
         for (let y = b.y + 1; y < b.y + b.h - 1; y++) {
@@ -728,8 +735,8 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         return adj ? { x: adj.x, y: adj.y } : { x: s.x, y: s.y };
       };
 
-      // Ensure every building has occupants (at least one), scaled by area
-      for (const b of townBuildings) {
+      // Ensure every building (except guard barracks) has occupants (at least one), scaled by area
+      for (const b of buildingsForResidents) {
         const area = b.w * b.h;
         const baseCount = Math.max(1, Math.min(3, Math.floor(area / 30)));
         const residentCount = baseCount + (rng() < 0.4 ? 1 : 0);
@@ -932,7 +939,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       try {
         if (ctx._debugUpstairsRoamerAssigned) return;
         for (const n of npcs) {
-          if (n && !n.isResident && !n.isShopkeeper && !n.isPet && !n.greeter) {
+          if (n && !n.isResident && !n.isShopkeeper && !n.isPet && !n.greeter && !n.isGuard) {
             n._forceInnSleepUpstairs = true;
             // Ensure the roamer acts every tick for reliable routing
             n._stride = 1;
@@ -1079,6 +1086,9 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     // Defaults: residents/shopkeepers every 2 ticks, pets every 3 ticks, generic 2.
     const tickMod = ((t && typeof t.turnCounter === "number") ? t.turnCounter : 0) | 0;
     function shouldSkipThisTick(n, idx) {
+      // Guards: always act every tick to keep patrols visible.
+      if (n.isGuard) return false;
+
       // Shopkeepers: during arrive-to-leave window, act every tick (no stride skip)
       if (n.isShopkeeper && n._shopRef) {
         const o = (typeof n._shopRef.openMin === "number") ? n._shopRef.openMin : 8 * 60;
@@ -1413,6 +1423,168 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       if (n.isPet) {
         if (ctx.rng() < 0.6) continue;
         stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+        continue;
+      }
+
+      // Town guards: patrol towns/cities, but use the guard barracks as their home for sleep/off-duty rest.
+      if (n.isGuard) {
+        const home = n._home && n._home.building ? n._home.building : null;
+        const isBarracks = !!(home && home.prefabId && String(home.prefabId).toLowerCase().includes("guard_barracks"));
+
+        // Night rest window (22:00–06:00 local time)
+        const GUARD_REST_START = 22 * 60;
+        const GUARD_REST_END = 6 * 60;
+        const wantsRest = isBarracks && inWindow(GUARD_REST_START, GUARD_REST_END, minutes, 1440);
+
+        // Wake sleeping guards outside rest window or in the morning
+        if (n._sleeping) {
+          if (!wantsRest || phase === "morning") {
+            n._sleeping = false;
+          } else {
+            // Stay asleep during the rest window
+            continue;
+          }
+        }
+
+        // Assign a stable rest/duty role per guard so some stay on duty while others use the barracks.
+        if (typeof n._guardRestRole !== "string") {
+          // Roughly half of guards rest at night; others stay on duty
+          n._guardRestRole = (ctx.rng() < 0.5) ? "rest" : "duty";
+        }
+
+        // Off-duty behavior: go to barracks and sleep on a bed during rest window
+        if (wantsRest && n._guardRestRole === "rest" && home) {
+          // Choose a bed inside the barracks, nearest to this guard if possible
+          let target = null;
+          try {
+            const bedList = bedsFor(ctx, home);
+            if (bedList.length) {
+              let best = bedList[0];
+              let bd = manhattan(n.x, n.y, best.x, best.y);
+              for (let i = 1; i < bedList.length; i++) {
+                const b = bedList[i];
+                const d = manhattan(n.x, n.y, b.x, b.y);
+                if (d < bd) { bd = d; best = b; }
+              }
+              target = { x: best.x, y: best.y };
+            } else if (n._home && typeof n._home.x === "number" && typeof n._home.y === "number") {
+              target = { x: n._home.x, y: n._home.y };
+            }
+          } catch (_) {}
+
+          // Already at target or adjacent to a bed: go to sleep
+          if (target) {
+            const atTarget = (n.x === target.x && n.y === target.y);
+            let nearBed = false;
+            try {
+              const bedList = bedsFor(ctx, home);
+              for (let i = 0; i < bedList.length && !nearBed; i++) {
+                const b = bedList[i];
+                if (manhattan(n.x, n.y, b.x, b.y) <= 1) nearBed = true;
+              }
+            } catch (_) {}
+            if (atTarget || nearBed) {
+              n._sleeping = true;
+              continue;
+            }
+          }
+
+          if (target && routeIntoBuilding(ctx, occ, n, home, target)) {
+            continue;
+          }
+          if (target) {
+            stepTowards(ctx, occ, n, target.x, target.y, { urgent: true });
+            continue;
+          }
+          // If we somehow have no usable target, fall through to patrol logic.
+        }
+
+        // On-duty behavior (or no barracks): patrol as before
+        const sizeKey = ctx.townSize || "big";
+        let patrolRadius = 8;
+        if (sizeKey === "small") patrolRadius = 6;
+        else if (sizeKey === "city") patrolRadius = 10;
+
+        // Stable guard post as patrol center
+        if (!n._guardPost || typeof n._guardPost.x !== "number" || typeof n._guardPost.y !== "number") {
+          n._guardPost = { x: n.x, y: n.y };
+        }
+        const post = n._guardPost;
+        const distFromPost = manhattan(n.x, n.y, post.x, post.y);
+
+        // If somehow very far from post (e.g. teleported), head back first
+        if (distFromPost > patrolRadius + 2) {
+          stepTowards(ctx, occ, n, post.x, post.y, { urgent: true });
+          continue;
+        }
+
+        // Reached current patrol goal: linger briefly, then pick a new one
+        if (n._guardPatrolGoal && n.x === n._guardPatrolGoal.x && n.y === n._guardPatrolGoal.y) {
+          n._guardPatrolWait = randInt(ctx, 4, 10);
+          n._guardPatrolGoal = null;
+        }
+
+        if (n._guardPatrolWait && n._guardPatrolWait > 0) {
+          n._guardPatrolWait--;
+          if (ctx.rng() < 0.10) {
+            stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          }
+          continue;
+        }
+
+        if (!n._guardPatrolGoal) {
+          const centerX = post.x;
+          const centerY = post.y;
+          const rows = ctx.map.length;
+          const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+          const roadTiles = [];
+          const floorTiles = [];
+
+          // Sample candidate patrol tiles around the post, preferring roads
+          for (let t = 0; t < 40; t++) {
+            const dx = randInt(ctx, -patrolRadius, patrolRadius);
+            const dy = randInt(ctx, -patrolRadius, patrolRadius);
+            const tx = centerX + dx;
+            const ty = centerY + dy;
+            if (tx < 1 || ty < 1 || ty >= rows - 1 || tx >= cols - 1) continue;
+            if (!isWalkTown(ctx, tx, ty)) continue;
+            if (ctx.player.x === tx && ctx.player.y === ty) continue;
+            const tile = ctx.map[ty][tx];
+            if (tile === ctx.TILES.ROAD) roadTiles.push({ x: tx, y: ty });
+            else floorTiles.push({ x: tx, y: ty });
+          }
+
+          let goal = null;
+          if (roadTiles.length) {
+            goal = roadTiles[randInt(ctx, 0, roadTiles.length - 1)];
+          } else if (floorTiles.length) {
+            goal = floorTiles[randInt(ctx, 0, floorTiles.length - 1)];
+          } else {
+            goal = { x: post.x, y: post.y };
+          }
+
+          // Occasionally bias guards toward watching the gate or plaza if nearby
+          try {
+            const gx = ctx.townExitAt ? ctx.townExitAt.x : null;
+            const gy = ctx.townExitAt ? ctx.townExitAt.y : null;
+            if (gx != null && gy != null && ctx.rng() < 0.35) {
+              const dGate = manhattan(post.x, post.y, gx, gy);
+              if (dGate <= patrolRadius * 2) {
+                goal = { x: gx, y: gy };
+              }
+            } else if (ctx.townPlaza && ctx.rng() < 0.35) {
+              goal = { x: ctx.townPlaza.x, y: ctx.townPlaza.y };
+            }
+          } catch (_) {}
+
+          n._guardPatrolGoal = goal;
+        }
+
+        if (n._guardPatrolGoal) {
+          stepTowards(ctx, occ, n, n._guardPatrolGoal.x, n._guardPatrolGoal.y, { urgent: true });
+        } else {
+          stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+        }
         continue;
       }
 
@@ -1922,7 +2094,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
     // Track resident presence and type counts
     let residentsTotal = 0, residentsAtHome = 0, residentsAtTavern = 0;
-    let shopkeepersTotal = 0, greetersTotal = 0, petsTotal = 0;
+    let shopkeepersTotal = 0, greetersTotal = 0, petsTotal = 0, guardsTotal = 0;
     const tavernB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
 
     // Inn/tavern occupancy across all NPCs (not just residents)
@@ -1999,6 +2171,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       if (n.isShopkeeper || n._shopRef) shopkeepersTotal++;
       if (n.greeter) greetersTotal++;
       if (n.isPet) petsTotal++;
+      if (n.isGuard) guardsTotal++;
 
       // Inn/tavern occupancy across all NPCs
       const atTavernNowAny = tavernB && insideBuilding(tavernB, n.x, n.y);
@@ -2075,7 +2248,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     res.sleepersAtTavern = sleepersAtTavern;
 
     // Type breakdown (for GOD panel diagnostics)
-    const roamersTotal = Math.max(0, res.total - residentsTotal - shopkeepersTotal - greetersTotal);
+    const roamersTotal = Math.max(0, res.total - residentsTotal - shopkeepersTotal - greetersTotal - guardsTotal);
     res.counts = {
       npcTotal: npcs.length,
       checkedTotal: res.total,
@@ -2083,6 +2256,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       residentsTotal,
       shopkeepersTotal,
       greetersTotal,
+      guardsTotal,
       roamersTotal
     };
 
