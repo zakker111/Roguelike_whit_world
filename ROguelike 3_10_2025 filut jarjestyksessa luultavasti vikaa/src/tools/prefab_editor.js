@@ -165,19 +165,22 @@ function populatePrefabLoadList() {
   sel.appendChild(optNone);
 
   const pf = state.prefabs || {};
-  const cat = state.category || (els.category ? els.category.value : "house");
-  let list = [];
-  if (cat === "house") list = pf.houses || [];
-  else if (cat === "shop") list = pf.shops || [];
-  else if (cat === "inn") list = pf.inns || [];
-  else if (cat === "plaza") list = pf.plazas || [];
+  const groups = [
+    { label: "house", list: pf.houses || [] },
+    { label: "shop", list: pf.shops || [] },
+    { label: "inn", list: pf.inns || [] },
+    { label: "plaza", list: pf.plazas || [] },
+  ];
 
-  list.forEach(p => {
-    if (!p || !p.id) return;
-    const opt = document.createElement("option");
-    opt.value = String(p.id);
-    opt.textContent = p.name ? `${p.id} — ${p.name}` : String(p.id);
-    sel.appendChild(opt);
+  groups.forEach(g => {
+    g.list.forEach(p => {
+      if (!p || !p.id) return;
+      const opt = document.createElement("option");
+      opt.value = String(p.id);
+      const base = p.name ? `${p.id} — ${p.name}` : String(p.id);
+      opt.textContent = `${g.label}: ${base}`;
+      sel.appendChild(opt);
+    });
   });
 }
 
