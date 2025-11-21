@@ -59,7 +59,28 @@ export function scanPOIs(ctx, x0, y0, w, h) {
       } else if (t === WT.DUNGEON) {
         const wx = world.originX + xx;
         const wy = world.originY + yy;
-        addDungeon(world, wx, wy);
+
+        // Detect mountain-adjacent dungeons at scan time so UI can highlight them reliably.
+        let isMountainDungeon = false;
+        try {
+          const rows = ctx.map.length;
+          const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+          if (yy >= 0 && yy < rows && xx >= 0 && xx < cols) {
+            for (let dy = -1; dy <= 1 && !isMountainDungeon; dy++) {
+              for (let dx = -1; dx <= 1 && !isMountainDungeon; dx++) {
+                if (!dx && !dy) continue;
+                const ny = yy + dy;
+                const nx = xx + dx;
+                if (ny < 0 || nx < 0 || ny >= rows || nx >= cols) continue;
+                if (ctx.map[ny][nx] === WT.MOUNTAIN) {
+                  isMountainDungeon = true;
+                }
+              }
+            }
+          }
+        } catch (_) {}
+
+        addDungeon(world, wx, wy, isMountainDungeon ? { isMountainDungeon: true } : undefined);
       } else if (t === WT.RUINS) {
         const wx = world.originX + xx;
         const wy = world.originY + yy;

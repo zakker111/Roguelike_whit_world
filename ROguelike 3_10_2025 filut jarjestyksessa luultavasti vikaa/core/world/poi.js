@@ -71,8 +71,9 @@ export function addTown(world, x, y) {
   world._poiSet.add(key);
 }
 
-// Add a dungeon at world coords if not present; derive level/size deterministically
-export function addDungeon(world, x, y) {
+// Add a dungeon at world coords if not present; derive level/size deterministically.
+// Optional extra metadata (e.g. { isMountainDungeon: true }) can be passed via the opts object.
+export function addDungeon(world, x, y, opts) {
   ensurePOIState(world);
   const key = `${x},${y}`;
   if (world._poiSet.has(key)) return;
@@ -80,7 +81,13 @@ export function addDungeon(world, x, y) {
   const level = 1 + Math.floor(r1 * 5); // 1..5
   const r2 = h2(x + 29, y + 3);
   const size = (r2 < 0.45) ? "small" : (r2 < 0.85 ? "medium" : "large");
-  world.dungeons.push({ x, y, level, size });
+  const dungeon = { x, y, level, size };
+  if (opts && typeof opts === "object") {
+    try {
+      Object.assign(dungeon, opts);
+    } catch (_) {}
+  }
+  world.dungeons.push(dungeon);
   world._poiSet.add(key);
 }
 

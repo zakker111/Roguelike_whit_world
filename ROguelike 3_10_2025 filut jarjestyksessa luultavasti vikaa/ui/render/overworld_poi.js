@@ -39,29 +39,31 @@ export function drawPOIs(ctx, view) {
       const s = Math.max(4, Math.floor(TILE * 0.48));
       const lvl = Math.max(1, (d.level | 0) || 1);
 
-      // Detect mountain-adjacent dungeon entrances so we can color them differently (mountain passes).
-      let isMountainDungeon = false;
-      try {
-        const WT = ctx.World && ctx.World.TILES;
-        const mapRef = Array.isArray(map) ? map : null;
-        if (WT && mapRef && mapRef.length) {
-          const rows = mapRef.length;
-          const cols = mapRef[0] ? mapRef[0].length : 0;
-          if (ly >= 0 && ly < rows && lx >= 0 && lx < cols) {
-            for (let dy = -1; dy <= 1 && !isMountainDungeon; dy++) {
-              for (let dx = -1; dx <= 1 && !isMountainDungeon; dx++) {
-                if (!dx && !dy) continue;
-                const ny = ly + dy;
-                const nx = lx + dx;
-                if (ny < 0 || nx < 0 || ny >= rows || nx >= cols) continue;
-                if (mapRef[ny][nx] === WT.MOUNTAIN) {
-                  isMountainDungeon = true;
+      // Prefer explicit mountain flag from scan_pois/addDungeon; fall back to map-based detection.
+      let isMountainDungeon = !!d.isMountainDungeon;
+      if (!isMountainDungeon) {
+        try {
+          const WT = ctx.World && ctx.World.TILES;
+          const mapRef = Array.isArray(map) ? map : null;
+          if (WT && mapRef && mapRef.length) {
+            const rows = mapRef.length;
+            const cols = mapRef[0] ? mapRef[0].length : 0;
+            if (ly >= 0 && ly < rows && lx >= 0 && lx < cols) {
+              for (let dy = -1; dy <= 1 && !isMountainDungeon; dy++) {
+                for (let dx = -1; dx <= 1 && !isMountainDungeon; dx++) {
+                  if (!dx && !dy) continue;
+                  const ny = ly + dy;
+                  const nx = lx + dx;
+                  if (ny < 0 || nx < 0 || ny >= rows || nx >= cols) continue;
+                  if (mapRef[ny][nx] === WT.MOUNTAIN) {
+                    isMountainDungeon = true;
+                  }
                 }
               }
             }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
 
       let fill = "#ef4444";
       let stroke = "rgba(239, 68, 68, 0.7)";
