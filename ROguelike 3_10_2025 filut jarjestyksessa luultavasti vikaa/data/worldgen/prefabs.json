@@ -24,7 +24,7 @@
       "tiles": [
         ["WALL","WALL","WALL","WINDOW","WALL","WALL","WALL"],
         ["WALL","RUG","BED","FLOOR","FLOOR","FLOOR","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","CHAIR","TABLE","WALL"],
+        ["WALL","CHEST","FLOOR","FLOOR","CHAIR","TABLE","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","TABLE","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
@@ -82,7 +82,7 @@
   ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
   ["WALL","FIREPLACE","FLOOR","BARREL","SHELF","SHELF","WALL"],
   ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
-  ["WALL","BED","FLOOR","RUG","FLOOR","CHAIR","WALL"],
+  ["WALL","BED","FLOOR","RUG","FLOOR","CHAIR","CHEST"],
   ["WALL","BED","FLOOR","RUG","FLOOR","TABLE","WALL"],
   ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL"]
    ],
@@ -109,7 +109,7 @@
         ["WALL","BED","FLOOR","BED","FLOOR","BED","FLOOR","BED","WALL"],
         ["WALL","SHELF","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","SHELF","WALL"],
         ["WALL","CRATE","FLOOR","BED","FLOOR","FLOOR","BED","BARREL","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","CHEST","FLOOR","FLOOR","WALL"],
         ["WALL","WALL","WALL","DOOR","DOOR","WALL","WALL","WALL","WALL"]
       ],
       "doors": [
@@ -133,7 +133,7 @@
       "size": { "w": 8, "h": 6 },
       "tiles": [
         ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-        ["WALL","BARREL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","BARREL","FLOOR","FLOOR","FLOOR","FLOOR","CHEST","WALL"],
         ["WALL","CRATE","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FIREPLACE","WALL"],
@@ -151,7 +151,7 @@
       "size": { "w": 8, "h": 6 },
       "tiles": [
         ["WALL","WALL","WINDOW","WALL","WALL","WALL","WALL","WALL"],
-        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","CHEST","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FLOOR","COUNTER","FLOOR","FLOOR","SHELF","FLOOR","WALL"],
         ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
         ["WALL","FIREPLACE","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","WALL"],
@@ -177,7 +177,7 @@
         ["WALL","FLOOR","CHAIR","FLOOR","LAMP","WALL"],
         ["WALL","STALL","STALL","COUNTER","FLOOR","WALL"],
         ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
-        ["WALL","SHELF","SHELF","FLOOR","PLANT","WALL"],
+        ["WALL","CHEST","SHELF","FLOOR","PLANT","WALL"],
         ["WALL","WALL","WALL","DOOR","WALL","WALL"]
     ],
     "constraints": {
@@ -212,7 +212,7 @@
       "size": { "w": 11, "h": 9 },
       "tiles": [
         ["WALL","WALL","WALL","WINDOW","DOOR","DOOR","WINDOW","WALL","WALL","WALL","WALL"],
-        ["WALL","QUEST_BOARD","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","QUEST_BOARD","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","CHEST","FLOOR","WALL"],
         ["WINDOW","FLOOR","COUNTER","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
         ["WALL","BED","CHAIR","CHAIR","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","BED","WALL"],
         ["WALL","BED","TABLE","TABLE","STAIRS","STAIRS","FLOOR","FLOOR","FLOOR","BED","WALL"],
@@ -230,9 +230,9 @@
         "h": 7,
         "tiles": [
           ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
-          ["WINDOW","FLOOR","BED","FLOOR","BED","FLOOR","BED","FLOOR","WINDOW"],
+          ["WINDOW","FLOOR","BED","CHEST","BED","FLOOR","BED","CHEST","WINDOW"],
           ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
-          ["WALL","BED","FLOOR","STAIRS","STAIRS","FLOOR","FLOOR","BED","WALL"],
+          ["WALL","BED","CHEST","STAIRS","STAIRS","FLOOR","FLOOR","BED","CHEST"],
           ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
           ["WINDOW","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WINDOW"],
           ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
