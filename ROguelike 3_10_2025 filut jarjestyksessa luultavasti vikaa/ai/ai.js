@@ -502,10 +502,16 @@ export function enemiesAct(ctx) {
         }
         continue;
       } else if (target.kind === "enemy" && target.ref) {
-        // Enemy vs enemy attack (no defense reduction for simplicity; allow block base)
+        // Enemy vs enemy attack (no defense reduction for simplicity; allow block + crits + logs)
         const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(target.ref, loc) : 0;
         if (rv() < blockChance) {
-          try { ctx.log && ctx.log(`${Cap(target.ref.type)} blocks ${Cap(e.type)}'s attack.`, "block"); } catch (_) {}
+          try {
+            ctx.log && ctx.log(
+              `${Cap(target.ref.type)} blocks ${Cap(e.type)}'s attack to the ${loc.part}.`,
+              "block",
+              { category: "Combat", side: "enemy" }
+            );
+          } catch (_) {}
         } else {
           let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
           const isCrit = rv() < Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
@@ -595,7 +601,19 @@ export function enemiesAct(ctx) {
             }
           } catch (_) {}
           try {
-            ctx.log(`${Cap(e.type)} hits ${Cap(target.ref.type)} for ${dmg}.`, isCrit ? "crit" : "info", { category: "Combat", side: "enemy" });
+            if (isCrit) {
+              ctx.log(
+                `Critical! ${Cap(e.type)} hits ${Cap(target.ref.type)}'s ${loc.part} for ${dmg}.`,
+                "crit",
+                { category: "Combat", side: "enemy" }
+              );
+            } else {
+              ctx.log(
+                `${Cap(e.type)} hits ${Cap(target.ref.type)}'s ${loc.part} for ${dmg}.`,
+                "info",
+                { category: "Combat", side: "enemy" }
+              );
+            }
           } catch (_) {}
           if (target.ref.hp <= 0 && typeof ctx.onEnemyDied === "function") {
             ctx.onEnemyDied(target.ref);
