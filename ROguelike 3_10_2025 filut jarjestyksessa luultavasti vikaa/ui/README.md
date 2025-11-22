@@ -15,7 +15,9 @@ Key modules
 - decals.js — decorative decals and subtle glow overlays (lighting, props).
 - logger.js — in-game HUD logger, perf banner and panels.
 - ui.js — UI panel composition (Inventory, GOD, Loot, Shop, Smoke, Help).
-- components/fishing_modal.js — example modal component inclusion.
+- components/fishing_modal.js — fishing mini-game modal.
+- components/lockpick_modal.js — lockpicking mini-game modal used for locked chests.
+- components/confirm_modal.js — generic confirm dialog used for encounter prompts (e.g., attacking neutral guards).
 - input_mouse.js — mouse interactions, clicks, hover helpers.
 - style.css — visual styles for HUD and panels.
 

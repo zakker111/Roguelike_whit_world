@@ -13,3 +13,4 @@ Key modules
 Notes
 - GOD panel exposes testing toggles (Always Crit, spawn enemy nearby).
 - Equipment supports two-handed occupancy and hand-specific equipping via entities/player_equip.js.
+- Enemy-vs-enemy combat (e.g., between guards and bandits) shares the same block/crit logic and detailed hit logs as player combat (location, crit, and damage).

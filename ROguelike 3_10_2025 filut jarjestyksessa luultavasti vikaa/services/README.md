@@ -7,7 +7,7 @@ Key modules
 - time_service.js — in-game clock and schedules (shop hours, NPC routines).
 - shop_service.js — shop inventory, bump-shop interactions, pricing and gold ops.
 - props_service.js — decorative/functional props (lamps, fireplaces) and emitted light.
-- encounter_service.js — random encounter orchestration, biome-themed maps, exits.
+- encounter_service.js — random encounter orchestration, difficulty scaling, special multi-faction templates (night raids, Guards vs Bandits), biome-themed maps, and entry/exit wiring.
 - messages.js — logging and contextual messages.
 - flavor_service.js — flavor strings and narrative snippets.
 - quest_service.js — basic quest board and hooks.

@@ -1,6 +1,47 @@
 s 
 # Game Version History
-Last updated: 2025-11-21 00:00 UTC
+Last updated: 2025-11-22 00:00 UTC
+
+v1.48.0 — Castles, snowy forests, lockpicking sources, and Guards vs Bandits battle
+- Overworld and castles
+  - Added a CASTLE overworld tile and castle settlements in world/infinite_gen.js and world/world.js. Castles are extremely rare POIs that prefer coasts/rivers and are treated as large towns (kind: "castle").
+  - POI scanning (core/world/scan_pois.js, core/world/poi.js) now tracks world.castles in addition to world.towns; castles are mirrored into world.towns for compatibility with existing town flows.
+  - Overworld rendering (ui/render/overworld_poi.js, ui/render/overworld_minimap.js) draws castles with a distinct 'C' glyph and castle palette color (poiCastle) on both the main map and minimap.
+  - WorldRuntime includes a DEV helper to spawn a castle near the starting position for quick layout/NPC inspection.
+- Biomes: snowy forests
+  - Added a SNOW_FOREST biome in world/infinite_gen.js and data/world/world_assets.json. It behaves like a dense snowy forest (snow tiles with trees) and is rendered with its own tint in overworld/region/town base layers.
+  - Town generation treats SNOW_FOREST as a snowy biome for size/tint heuristics.
+- Castle towns and keep
+  - Town generation (worldgen/town_gen.js) now reads settlement kind from overworld metadata. For castle settlements, townSize is forced to city-scale and the name gains a "Castle" prefix when not already labeled.
+  - Castle towns reserve a central "keep" building (prefabId "castle_keep", prefabCategory "castle") in the middle of the map and skip plaza prefabs to keep the central area clear for the keep.
+  - Castle settlements receive a few extra guard NPCs on top of normal town-size rules, reinforcing the fortified feel.
+- Lockpicking sources and fine lockpicks
+  - Player defaults now include a basic lockpick tool in starting inventory (entities/player.js).
+  - Bandits and goblins have a small chance to drop a lockpick tool in their loot pools (entities/loot.js), providing mid-game sources beyond shops.
+  - Tools registry and shop pools gained a fine lockpick tool (data/entities/tools.json, data/shops/shop_pools.json); fine lockpicks decay more slowly and are priced as premium tools.
+  - Encounter huts in camps now have a tiny chance for chests to contain a fine lockpick (core/encounter/enter.js), giving rare early access to a high-quality lockpick for players who explore bandit camps.
+- Guards vs Bandits encounter (open-field battle)
+  - Added/extended the guards_vs_bandits encounter template in data/encounters/encounters.json:
+    - Biome: GRASS only.
+    - Map: new "battlefield" generator (core/encounter/generators.js) — an open tactical field with no obstacles.
+    - Groups: 6–10 guards (faction: guard) vs 7–11 bandits (faction: bandit), scaled further by encounter difficulty.
+  - Encounter layout (core/encounter/enter.js):
+    - Guards and bandits spawn in wide lines near the top and bottom of the map, far apart so you can clearly watch both sides begin their charge before the clash.
+    - The player spawns on the flank (left/right edge) instead of between the lines, with an intro log: "you see guards against bandits in field of battle".
+  - Guard neutrality and hostility:
+    - Guards start neutral toward the player in this encounter and ignore you unless provoked.
+    - Bumping a neutral guard in encounter mode shows a centered confirm dialog: "Do you want to attack the guard? This will make all guards hostile to you." Confirming attacks that guard and flips all guards hostile; cancelling leaves them neutral.
+  - Victory and flavor:
+    - EncounterRuntime.tick now special-cases guards_vs_bandits: when all bandits are dead and only neutral guards remain, the encounter is treated as cleared.
+    - In that case, a one-time flavor line is logged: 'The surviving guards cheer: "For the kingdom!"', followed by the usual "Area clear. Step onto an exit (>) to leave when ready." message.
+    - QuestService integration still receives an enemiesRemaining: 0 notification when the encounter is resolved.
+  - Enemy-vs-enemy combat logs:
+    - AI combat (ai/ai.js) now logs enemy-vs-enemy hits with full crit and hit-location detail, e.g. "Critical! Guard hits Bandit’s head for X" or "Bandit hits Guard’s torso for Y".
+    - Blocks between enemies are logged with their hit location ("Guard blocks Bandit's attack to the torso.") and use the same crit/block probability logic as player combat.
+- UI/Confirm modal
+  - Guard attack confirmation now calls UIOrchestration.showConfirm with a null position so the ConfirmModal centers itself on the screen using its existing 50%/translate(-50%, -50%) styling (ui/components/confirm_modal.js).
+
+Deployment: https://y6zqt7mf9vsm.cosine.page
 
 v1.47.5 — Town chests and lockpicking mini‑game
 - Added: Locked town chests
