@@ -73,7 +73,7 @@ function cloneForStorage(st) {
         }))
       : [],
     townProps: Array.isArray(st.townProps)
-      ? st.townProps.map(p =&gt; ({ x: p.x, y: p.y, type: p.type, name: p.name, opened: !!p.opened }))
+      ? st.townProps.map(p => ({ x: p.x, y: p.y, type: p.type, name: p.name, opened: !!p.opened }))
       : [],
     townBuildings: Array.isArray(st.townBuildings)
       ? st.townBuildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: b.door ? { x: b.door.x, y: b.door.y } : undefined }))
@@ -198,7 +198,7 @@ function applyState(ctx, st, x, y) {
       const before = Array.isArray(ctx.townProps) ? ctx.townProps.length : 0;
       const filtered = [];
       const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
-      for (let i = 0; i &lt; props.length; i++) {
+      for (let i = 0; i < props.length; i++) {
         const p = props[i];
         if (!p) continue;
         const x0 = p.x | 0, y0 = p.y | 0;
@@ -209,10 +209,10 @@ function applyState(ctx, st, x, y) {
         // Bounds and tile check
         if (!inB(x0, y0)) continue;
         const t = ctx.map[y0][x0];
-        if (t !== ctx.TILES.FLOOR &amp;&amp; t !== ctx.TILES.STAIRS &amp;&amp; t !== ctx.TILES.ROAD) continue;
+        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.TILES.ROAD) continue;
         // Interior-only filtering
         const typ = String(p.type || "").toLowerCase();
-        if (interiorOnly.has(typ) &amp;&amp; !insideAnyBuilding(x0, y0)) continue;
+        if (interiorOnly.has(typ) && !insideAnyBuilding(x0, y0)) continue;
         // Keep (preserve opened flag so lockpicked chests stay open across visits)
         filtered.push({ x: x0, y: y0, type: p.type, name: p.name, opened: !!p.opened });
       }
