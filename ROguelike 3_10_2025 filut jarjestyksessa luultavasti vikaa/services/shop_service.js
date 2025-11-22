@@ -439,6 +439,27 @@ export function restockIfNeeded(ctx, shop) {
       });
     }
 
+    // Simple fallback inventory for travelling caravans if no JSON pools are defined.
+    if ((!pools || !pools.categories) && String(shop.type || "").toLowerCase() === "caravan") {
+      try {
+        var basicEntries = [
+          { kind: "potion", id: "healing_minor", heal: 10 },
+          { kind: "potion", id: "healing", heal: 20 },
+          { kind: "food", id: "trail_rations", name: "trail rations", heal: 4 },
+          { kind: "drink", id: "water_skin", name: "water skin", heal: 3 },
+          { kind: "material", id: "wood_planks", material: "wood", name: "planks" }
+        ];
+        for (var bi = 0; bi < basicEntries.length; bi++) {
+          var ent = basicEntries[bi];
+          var it = _materializeItem(ctx, ent);
+          if (!it) continue;
+          var q = (it.kind === "potion" || it.kind === "drink" || it.kind === "food") ? 3 : 5;
+          var p = calculatePrice(shop.type, it, phase, null);
+          rows.push({ item: it, price: p, qty: q });
+        }
+      } catch (_) {}
+    }
+
     // Stack identical consumables across all shops for cleaner lists (potions by heal, drinks by name)
     try { rows = _stackRows(rows); } catch (_) {}
 
