@@ -556,24 +556,27 @@ function orientSampleByCardinals(sample, cardinals, edgeFrac = 0.33, diagonals =
   }
 }
 
-// Sprinkle sparse TREE tiles inside FOREST tiles for region map visualization.
-// Avoid placing trees adjacent to each other to keep them sparse.
-// Uses deterministic rng() to keep region map stable per world tile.
+// Sprinkle sparse TREE tiles inside FOREST-like tiles for region map visualization.
+// Treat both FOREST and SNOW_FOREST as wooded ground, and avoid placing trees adjacent
+// to each other to keep them sparse. Uses deterministic rng() to keep region map stable
+// per world tile.
 function addSparseTreesInForests(sample, density = 0.08, rng) {
   const WT = World.TILES;
   const h = sample.length, w = sample[0] ? sample[0].length : 0;
   if (!w || !h) return;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (sample[y][x] !== WT.FOREST) continue;
-      if (rng() >= density) continue;
+  for (let y = 0; y &lt; h; y++) {
+    for (let x = 0; x &lt; w; x++) {
+      const t = sample[y][x];
+      // Consider both regular forest and snowy forest as tree-capable ground.
+      if (!(t === WT.FOREST || t === WT.SNOW_FOREST)) continue;
+      if (rng() &gt;= density) continue;
       // avoid adjacent trees to keep sparsity
       let nearTree = false;
-      for (let dy = -1; dy <= 1 && !nearTree; dy++) {
-        for (let dx = -1; dx <= 1 && !nearTree; dx++) {
-          if (!dx && !dy) continue;
+      for (let dy = -1; dy &lt;= 1 &amp;&amp; !nearTree; dy++) {
+        for (let dx = -1; dx &lt;= 1 &amp;&amp; !nearTree; dx++) {
+          if (!dx &amp;&amp; !dy) continue;
           const nx = x + dx, ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          if (nx &lt; 0 || ny &lt; 0 || nx &gt;= w || ny &gt;= h) continue;
           if (sample[ny][nx] === WT.TREE) nearTree = true;
         }
       }
