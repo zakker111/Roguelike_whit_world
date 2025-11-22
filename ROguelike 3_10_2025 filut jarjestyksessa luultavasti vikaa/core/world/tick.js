@@ -141,20 +141,32 @@ function spawnCaravansIfNeeded(ctx) {
   const townCount = towns.length;
   const existing = Array.isArray(caravans) ? caravans.length : 0;
 
-  // Desired caravans grows slowly with town count (e.g. 1 at start, up to ~6–8 in large worlds)
-  const desired = Math.min(8, Math.max(2, Math.floor(townCount / 4)));
+  // Desired caravans grows with town count (e.g. 2 at start, up to ~8–10 in large worlds)
+  const desired = Math.min(10, Math.max(2, Math.floor(townCount / 3)));
+
+  // Guarantee at least one caravan if there are at least 2 towns.
+  if (existing === 0 && townCount >= 2) {
+    spawnSingleCaravan(ctx, towns, caravans, r);
+    return;
+  }
 
   // Soft cap: if we already have enough caravans, only rarely add new ones.
   if (existing >= desired) {
-    // Small chance to top up if player has revealed many towns but caravans were lost somehow.
+    // Allow a very small chance to top up if caravans were lost somehow.
     if (existing >= desired + 2) return;
     if (r() > 0.01) return;
   } else {
-    // When under capacity, higher chance to spawn as time goes on.
-    if (r() > 0.05) return;
+    // When under capacity, fairly frequent chance to spawn.
+    if (r() > 0.12) return;
   }
 
-  // Pick a random town as origin
+  spawnSingleCaravan(ctx, towns, caravans, r);
+}
+
+// Helper: spawn a single caravan between two towns using the provided RNG.
+function spawnSingleCaravan(ctx, towns, caravans, r) {
+  if (!Array.isArray(towns) || towns.length < 2) return;
+
   const fromIdx = (r() * towns.length) | 0;
   const from = towns[fromIdx];
   if (!from) return;
@@ -177,6 +189,8 @@ function spawnCaravansIfNeeded(ctx) {
   }
   if (!best) return;
 
+  const now = getTurn(ctx);
+  const days = turnsPerDay(ctx);
   let idCounter = caravans.length ? caravans.length : 0;
   caravans.push({
     id: ++idCounter,
@@ -185,7 +199,7 @@ function spawnCaravansIfNeeded(ctx) {
     from: { x: from.x | 0, y: from.y | 0 },
     dest: { x: best.x | 0, y: best.y | 0 },
     atTown: true,
-    dwellUntil: getTurn(ctx) + 2 * turnsPerDay(ctx) // start as parked for 2 days at origin
+    dwellUntil: now + 2 * days // start as parked for 2 days at origin
   });
 }
 
