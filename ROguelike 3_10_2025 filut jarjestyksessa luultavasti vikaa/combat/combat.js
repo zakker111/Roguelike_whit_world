@@ -54,7 +54,11 @@ export function getPlayerBlockChance(ctx, loc) {
 
 export function getEnemyBlockChance(ctx, enemy, loc) {
   const type = enemy && enemy.type ? String(enemy.type) : "";
-  const base = type === "ogre" ? 0.10 : (type === "troll" ? 0.08 : 0.06);
+  let base;
+  if (type === "ogre") base = 0.10;
+  else if (type === "troll") base = 0.08;
+  else if (type === "guard") base = 0.13;
+  else base = 0.06;
   const mod = (loc && typeof loc.blockMod === "number") ? loc.blockMod : 1.0;
   return Math.max(0, Math.min(0.35, base * mod));
 }
