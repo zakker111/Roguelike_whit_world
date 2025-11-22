@@ -880,6 +880,119 @@ function generate(ctx) {
     }
     buildings.push({ x: bx, y: by, w: bw, h: bh });
   };
+
+  // For castle settlements, reserve a central \"keep\" tower building with a luxurious interior.
+  // This is a large rectangular building near the plaza center, furnished with rugs, fireplaces,
+  // beds and tables to make the castle feel distinct from regular towns.
+  if (townKind === "castle") {
+    (function placeCastleKeep() {
+      try {
+        // Scale keep size from plaza size, with bounds tied to town size.
+        let keepW = Math.max(14, Math.floor(plazaW * 0.9));
+        let keepH = Math.max(12, Math.floor(plazaH * 0.9));
+        if (townSize === "small") {
+          keepW = Math.max(12, Math.floor(plazaW * 0.8));
+          keepH = Math.max(10, Math.floor(plazaH * 0.8));
+        } else if (townSize === "city") {
+          keepW = Math.max(18, Math.floor(plazaW * 1.1));
+          keepH = Math.max(14, Math.floor(plazaH * 1.1));
+        }
+        // Clamp to map with a safety margin from outer walls.
+        keepW = Math.min(keepW, W - 6);
+        keepH = Math.min(keepH, H - 6);
+        if (keepW < 10 || keepH < 8) return;
+
+        // Center on the plaza.
+        const kx = Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0));
+        const ky = Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0));
+
+        // Do not overwrite the gate tile.
+        if (kx <= gate.x && gate.x <= kx + keepW - 1 && ky <= gate.y && gate.y <= ky + keepH - 1) {
+          return;
+        }
+
+        // Ensure the area is mostly floor before carving (avoid overlapping existing prefab buildings).
+        let blocked = false;
+        for (let y = ky; y < ky + keepH && !blocked; y++) {
+          for (let x = kx; x < kx + keepW; x++) {
+            if (y <= 0 || x <= 0 || y >= H - 1 || x >= W - 1) { blocked = true; break; }
+            const t = ctx.map[y][x];
+            if (t !== ctx.TILES.FLOOR) { blocked = true; break; }
+          }
+        }
+        if (blocked) return;
+
+        // Carve the keep shell.
+        placeBuilding(kx, ky, keepW, keepH);
+
+        // Annotate the most recently added building as the castle keep for diagnostics.
+        const keep = buildings[buildings.length - 1];
+        if (keep) {
+          keep.prefabId = "castle_keep";
+          keep.prefabCategory = "castle";
+        }
+
+        // Luxurious interior furnishing: central hall rug, throne area, side chambers with beds/chests.
+        const innerX0 = kx + 1;
+        const innerY0 = ky + 1;
+        const innerX1 = kx + keepW - 2;
+        const innerY1 = ky + keepH - 2;
+        const midX = (innerX0 + innerX1) >> 1;
+        const midY = (innerY0 + innerY1) >> 1;
+
+        function safeAddProp(x, y, type, name) {
+          try {
+            if (x <= innerX0 || y <= innerY0 || x >= innerX1 || y >= innerY1) return;
+            if (ctx.map[y][x] !== ctx.TILES.FLOOR) return;
+            if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return;
+            ctx.townProps.push({ x, y, type, name });
+          } catch (_) {}
+        }
+
+        // Long rug down the central hall.
+        for (let y = innerY0 + 1; y <= innerY1 - 1; y++) {
+          safeAddProp(midX, y, "rug");
+        }
+
+        // Throne area at the far end from the gate: decide orientation by comparing to gate position.
+        let throneY = innerY0 + 1;
+        let tableY = throneY + 1;
+        if (gate.y < ky) {
+          // Gate is above keep -> throne at south end.
+          throneY = innerY1 - 1;
+          tableY = throneY - 1;
+        }
+        safeAddProp(midX, throneY, "chair", "Throne");
+        safeAddProp(midX - 1, throneY, "plant");
+        safeAddProp(midX + 1, throneY, "plant");
+        // High table in front of throne.
+        safeAddProp(midX, tableY, "table");
+
+        // Grand fireplaces on the side walls.
+        safeAddProp(innerX0 + 1, midY, "fireplace");
+        safeAddProp(innerX1 - 1, midY, "fireplace");
+
+        // Side chambers with beds and chests.
+        safeAddProp(innerX0 + 2, innerY0 + 2, "bed");
+        safeAddProp(innerX0 + 3, innerY0 + 2, "chest");
+        safeAddProp(innerX1 - 3, innerY0 + 2, "bed");
+        safeAddProp(innerX1 - 2, innerY0 + 2, "chest");
+
+        safeAddProp(innerX0 + 2, innerY1 - 2, "bed");
+        safeAddProp(innerX0 + 3, innerY1 - 2, "table");
+        safeAddProp(innerX1 - 3, innerY1 - 2, "bed");
+        safeAddProp(innerX1 - 2, innerY1 - 2, "table");
+
+        // Decorative plants and barrels along the walls.
+        for (let x = innerX0 + 2; x <= innerX1 - 2; x += 3) {
+          safeAddProp(x, innerY0 + 1, "plant");
+          safeAddProp(x, innerY1 - 1, "plant");
+        }
+        safeAddProp(innerX0 + 1, innerY0 + 1, "barrel");
+        safeAddProp(innerX1 - 1, innerY0 + 1, "barrel");
+      } catch (_) {}
+    })();
+  }
   const cfgB = (TOWNCFG && TOWNCFG.buildings) || {};
   const maxBuildings = Math.max(1, (cfgB.max | 0) || 18);
   const blockW = Math.max(4, (cfgB.blockW | 0) || 8);
@@ -1989,9 +2102,11 @@ function generate(ctx) {
     }
   })();
 
-  // Plaza fixtures via prefab only (no fallbacks)
+  // Plaza fixtures via prefab only (no fallbacks). For castle settlements, keep the central area
+  // clear for the castle keep and skip plaza prefabs.
   (function placePlazaPrefabStrict() {
     try {
+      if (townKind === "castle") return;
       // Guard: if a plaza prefab was already stamped in this generation cycle, skip
       try {
         if (ctx.townPrefabUsage && Array.isArray(ctx.townPrefabUsage.plazas) && ctx.townPrefabUsage.plazas.length > 0) return;
