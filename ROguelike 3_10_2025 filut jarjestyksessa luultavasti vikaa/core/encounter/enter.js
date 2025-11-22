@@ -280,8 +280,8 @@ export function enter(ctx, info) {
 
       function linePositions(y) {
         const out = [];
-        const minX = Math.max(1, cx - 4);
-        const maxX = Math.min(W - 2, cx + 4);
+        const minX = Math.max(1, cx - 6);
+        const maxX = Math.min(W - 2, cx + 6);
         for (let x = minX; x <= maxX; x++) {
           if (x === ctx.player.x && y === ctx.player.y) continue;
           if (chestSpots.has(keyFor(x, y))) continue;
