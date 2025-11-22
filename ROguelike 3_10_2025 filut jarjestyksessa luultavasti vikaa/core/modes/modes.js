@@ -213,6 +213,8 @@ export function enterTownIfOnTile(ctx) {
             } catch (_) {}
             // Ensure player spawns on gate interior tile on entry
             movePlayerToTownGateInterior(ctx);
+            // If a travelling caravan is parked at this town, spawn its merchant inside.
+            try { spawnCaravanMerchantIfPresent(ctx, enterWX, enterWY); } catch (_) {}
             const kindLabel = settlementKind === "castle" ? "castle" : "town";
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
@@ -234,6 +236,8 @@ export function enterTownIfOnTile(ctx) {
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
+            // If a travelling caravan is parked at this town, spawn its merchant inside.
+            try { spawnCaravanMerchantIfPresent(ctx, enterWX, enterWY); } catch (_) {}
             const kindLabel = settlementKind === "castle" ? "castle" : "town";
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
             if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
@@ -396,6 +400,111 @@ export function returnToWorldIfAtExit(ctx) {
   // Minimal fallback: guide the player
   if (ctx.log) ctx.log("Return to the dungeon entrance to go back to the overworld.", "info");
   return false;
+}
+
+/**
+ * Spawn a temporary caravan merchant inside the town if a travelling caravan is currently
+ * parked at this settlement in the overworld.
+ *
+ * The merchant behaves like a normal shopkeeper:
+ * - Creates an NPC with isShopkeeper=true
+ * - Attaches a shop record of type "caravan"
+ * - ShopService/Shop pools decide what items are available.
+ */
+function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
+  try {
+    const world = ctx.world;
+    if (!world || !Array.isArray(world.caravans) || !world.caravans.length) return;
+
+    // Is there any caravan currently dwelling at this town tile?
+    const parked = world.caravans.find(cv =>
+      cv &&
+      cv.atTown &&
+      (cv.x | 0) === (worldX | 0) &&
+      (cv.y | 0) === (worldY | 0)
+    );
+    if (!parked) return;
+
+    // Avoid spawning multiple caravan merchants for the same town visit
+    const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : (ctx.npcs = []);
+    const shops = Array.isArray(ctx.shops) ? ctx.shops : (ctx.shops = []);
+    const already = npcs.some(n => n && n.isCaravanMerchant);
+    if (already) return;
+
+    // Find a free town floor tile near the plaza, or near the gate as fallback.
+    const within = 5;
+    let spot = null;
+
+    function isFree(x, y) {
+      if (!ctx.inBounds || !ctx.inBounds(x, y)) return false;
+      const t = ctx.map[y][x];
+      if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
+      if (ctx.player && ctx.player.x === x && ctx.player.y === y) return false;
+      if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === x && n.y === y)) return false;
+      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && p.x === x && p.y === y)) return false;
+      return true;
+    }
+
+    try {
+      const rows = ctx.map.length;
+      const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+      const px = ctx.townPlaza && typeof ctx.townPlaza.x === "number" ? ctx.townPlaza.x | 0 : (cols >> 1);
+      const py = ctx.townPlaza && typeof ctx.townPlaza.y === "number" ? ctx.townPlaza.y | 0 : (rows >> 1);
+      for (let i = 0; i < 200 && !spot; i++) {
+        const ox = ((Math.random() * (within * 2 + 1)) | 0) - within;
+        const oy = ((Math.random() * (within * 2 + 1)) | 0) - within;
+        const x = px + ox;
+        const y = py + oy;
+        if (x <= 0 || y <= 0 || y >= rows - 1 || x >= cols - 1) continue;
+        if (isFree(x, y)) spot = { x, y };
+      }
+    } catch (_) {}
+
+    // Fallback: near the town gate
+    if (!spot && ctx.townExitAt) {
+      const cand = [
+        { x: ctx.townExitAt.x + 1, y: ctx.townExitAt.y },
+        { x: ctx.townExitAt.x - 1, y: ctx.townExitAt.y },
+        { x: ctx.townExitAt.x, y: ctx.townExitAt.y + 1 },
+        { x: ctx.townExitAt.x, y: ctx.townExitAt.y - 1 }
+      ];
+      for (const c of cand) {
+        if (isFree(c.x, c.y)) { spot = c; break; }
+      }
+    }
+    if (!spot) return;
+
+    const merchantName = "Caravan master";
+
+    const npc = {
+      x: spot.x,
+      y: spot.y,
+      name: merchantName,
+      lines: [
+        "Fresh goods from the road.",
+        "We stay in town for a few days, then move on."
+      ],
+      isShopkeeper: true,
+      isCaravanMerchant: true
+    };
+
+    // Temporary shop at caravan's stall (always open while caravan is parked here)
+    const shop = {
+      x: spot.x,
+      y: spot.y,
+      type: "caravan",
+      name: "Travelling Caravan",
+      alwaysOpen: true,
+      openMin: 0,
+      closeMin: 0,
+      building: null,
+      inside: { x: spot.x, y: spot.y }
+    };
+    npc._shopRef = shop;
+
+    npcs.push(npc);
+    shops.push(shop);
+  } catch (_) {}
 }
 
 import { attachGlobal } from "../../utils/global.js";

@@ -1,7 +1,7 @@
 /**
  * World tick (Phase 3 extraction): optional per-turn hook for overworld mode.
  * Currently:
- * - Advances travelling caravans on the overworld map.
+ * - Advances travelling caravans on the overworld map (with town dwell times).
  */
 export function tick(ctx) {
   if (!ctx || ctx.mode !== "world" || !ctx.world) return true;
@@ -19,6 +19,30 @@ export function tick(ctx) {
  */
 function ensureCaravanState(world) {
   if (!world.caravans) world.caravans = [];
+}
+
+/**
+ * Get current global turn counter (for dwell timers). Falls back to 0 if unavailable.
+ */
+function getTurn(ctx) {
+  try {
+    if (ctx && ctx.time && typeof ctx.time.turnCounter === "number") {
+      return ctx.time.turnCounter | 0;
+    }
+  } catch (_) {}
+  return 0;
+}
+
+/**
+ * Returns how many turns make up one in-game day. Defaults to 360 if not configured.
+ */
+function turnsPerDay(ctx) {
+  try {
+    if (ctx && ctx.time && typeof ctx.time.cycleTurns === "number") {
+      return Math.max(1, ctx.time.cycleTurns | 0);
+    }
+  } catch (_) {}
+  return 360;
 }
 
 /**
@@ -72,8 +96,21 @@ function isWalkableWorld(ctx, wx, wy) {
 }
 
 /**
+ * Returns true if the given world coordinate is exactly on a town (or castle) tile.
+ */
+function isOnTownTile(world, wx, wy) {
+  const towns = Array.isArray(world.towns) ? world.towns : [];
+  for (const t of towns) {
+    if (!t) continue;
+    if ((t.x | 0) === (wx | 0) && (t.y | 0) === (wy | 0)) return true;
+  }
+  return false;
+}
+
+/**
  * Advance all caravans one step toward their current destination town.
  * Caravans are stored in world.caravans with world-space coordinates.
+ * When they reach a town, they stay parked for a few in-game days (dwell) before moving on.
  */
 function advanceCaravans(ctx) {
   const world = ctx.world;
@@ -81,8 +118,29 @@ function advanceCaravans(ctx) {
   const caravans = world.caravans;
   if (!Array.isArray(caravans) || !caravans.length) return;
 
+  const nowTurn = getTurn(ctx);
+  const dayTurns = turnsPerDay(ctx);
+  const minDwellDays = 2;
+  const maxDwellDays = 4;
+
   for (const cv of caravans) {
     if (!cv) continue;
+
+    // Initialize dwell metadata if missing
+    if (typeof cv.dwellUntil !== "number") cv.dwellUntil = 0;
+    if (typeof cv.atTown !== "boolean") cv.atTown = false;
+
+    // If currently dwelling in a town, stay parked until the timer expires
+    if (cv.atTown && nowTurn < (cv.dwellUntil | 0)) {
+      continue;
+    }
+
+    // If dwell timer has expired or never set, clear atTown and choose next leg when at a town tile
+    if (cv.atTown && nowTurn >= (cv.dwellUntil | 0)) {
+      cv.atTown = false;
+      // Force picking a new destination from this town
+      cv.dest = pickNearestTown(world, cv.x | 0, cv.y | 0) || cv.dest;
+    }
 
     // If destination missing or invalid, retarget to nearest town
     if (!cv.dest || typeof cv.dest.x !== "number" || typeof cv.dest.y !== "number") {
@@ -99,12 +157,12 @@ function advanceCaravans(ctx) {
     const tx = cv.dest.x | 0;
     const ty = cv.dest.y | 0;
 
-    // Arrived: pick a new destination (nearest town from here)
-    if (cx === tx && cy === ty) {
-      const next = pickNearestTown(world, cx, cy);
-      if (next) {
-        cv.dest = next;
-      }
+    // Arrived at destination town: start a dwell period here
+    if (cx === tx && cy === ty && isOnTownTile(world, cx, cy)) {
+      cv.atTown = true;
+      // Dwell for 2–4 in-game days.
+      const dwellDays = Math.max(minDwellDays, Math.min(maxDwellDays, (2 + (cx + cy) % 3) | 0));
+      cv.dwellUntil = nowTurn + dwellDays * dayTurns;
       continue;
     }
 

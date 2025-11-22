@@ -127,6 +127,26 @@ export function drawPOIs(ctx, view) {
         const lx = (cv.x | 0) - ox;
         const ly = (cv.y | 0) - oy;
         if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+
+        // Do not render caravans that are currently parked in a town/castle; they live inside that settlement for now.
+        let skip = false;
+        try {
+          const WT = ctx.World && ctx.World.TILES;
+          const mapRef = Array.isArray(map) ? map : null;
+          if (WT && mapRef && mapRef.length) {
+            const rows = mapRef.length;
+            const cols = mapRef[0] ? mapRef[0].length : 0;
+            if (ly >= 0 && ly < rows && lx >= 0 && lx < cols) {
+              const tile = mapRef[ly][lx];
+              if (tile === WT.TOWN || (WT.CASTLE != null && tile === WT.CASTLE)) {
+                skip = true;
+              }
+            }
+          }
+          if (cv.atTown) skip = true;
+        } catch (_) {}
+        if (skip) continue;
+
         const sx = (lx - startX) * TILE - tileOffsetX;
         const sy = (ly - startY) * TILE - tileOffsetY;
         const glyph = "c";
