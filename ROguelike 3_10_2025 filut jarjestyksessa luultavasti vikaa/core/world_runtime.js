@@ -334,6 +334,63 @@ export function _ensureInBounds(ctx, nx, ny, CHUNK = 32) {
   return ensureInBounds(ctx, nx, ny, CHUNK);
 }
 
+// For debugging: force a castle POI to spawn close to the starting position so it's easy to inspect.
+// This is layered on top of the normal (very rare) castle placement in InfiniteGen.
+function spawnDebugCastleNearPlayer(ctx) {
+  try {
+    const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
+    const WT = W && W.TILES;
+    const world = ctx.world;
+    const map = ctx.map;
+    if (!WT || !world || !Array.isArray(map) || !map.length) return;
+    if (typeof WT.CASTLE !== "number") return;
+
+    const rows = map.length;
+    const cols = map[0] ? map[0].length : 0;
+    if (!cols) return;
+
+    const px = (ctx.player && typeof ctx.player.x === "number") ? (ctx.player.x | 0) : (cols >> 1);
+    const py = (ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : (rows >> 1);
+
+    const radius = 4;
+    const candidates = [];
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (!dx && !dy) continue;
+        const x = px + dx;
+        const y = py + dy;
+        if (x < 0 || y < 0 || y >= rows || x >= cols) continue;
+        candidates.push({ x, y });
+      }
+    }
+    if (!candidates.length) return;
+
+    function isPOITile(t) {
+      return t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS || (WT.CASTLE != null && t === WT.CASTLE);
+    }
+
+    function isReasonableSpot(x, y) {
+      const t = map[y][x];
+      if (isPOITile(t)) return false;
+      if (t === WT.WATER || t === WT.RIVER || t === WT.MOUNTAIN || t === WT.SWAMP) return false;
+      return true;
+    }
+
+    let chosen = null;
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      if (isReasonableSpot(c.x, c.y)) {
+        chosen = c;
+        break;
+      }
+    }
+    if (!chosen) return;
+
+    map[chosen.y][chosen.x] = WT.CASTLE;
+    world.map = map;
+  } catch (_) {}
+}
+
 export function generate(ctx, opts = {}) {
   // Prefer infinite generator; fall back to finite world if module missing or disabled
   const IG = (typeof window !== "undefined" ? window.InfiniteGen : null);
@@ -404,6 +461,9 @@ export function generate(ctx, opts = {}) {
     // Keep references on world so we can restore them after visiting towns/dungeons
     ctx.world.seenRef = ctx.seen;
     ctx.world.visibleRef = ctx.visible;
+
+    // For debugging: always spawn a castle very close to the starting position so layout/NPCs are easy to test.
+    try { spawnDebugCastleNearPlayer(ctx); } catch (_) {}
 
     // Register POIs present in the initial window (sparse anchors only) and lay initial roads/bridges
     try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch (_) {}

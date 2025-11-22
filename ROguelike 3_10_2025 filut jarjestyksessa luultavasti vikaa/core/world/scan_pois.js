@@ -1,7 +1,7 @@
 /**
  * World scanPOIs helper (Phase 3 extraction):
  * Registers towns/dungeons/ruins in the current window and triggers roads/bridges when enabled.
- */
+ */\nimport { addTown, addCastle, addDungeon, addRuins } from './poi.js';\nimport { ensureRoads, ensureExtraBridges } from './roads_bridges.js';\n
 import { addTown, addDungeon, addRuins } from './poi.js';
 import { ensureRoads, ensureExtraBridges } from './roads_bridges.js';
 
@@ -44,7 +44,7 @@ function featureEnabled(name, defaultVal) {
 
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 export function scanPOIs(ctx, x0, y0, w, h) {
-  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, TOWNK: 4, DUNGEONK: 5 };
+  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, CASTLE: 15, TOWNK: 4, DUNGEONK: 5 };
   const world = ctx.world;
   for (let yy = y0; yy < y0 + h; yy++) {
     if (yy < 0 || yy >= ctx.map.length) continue;
@@ -56,6 +56,10 @@ export function scanPOIs(ctx, x0, y0, w, h) {
         const wx = world.originX + xx;
         const wy = world.originY + yy;
         addTown(world, wx, wy);
+      } else if (WT.CASTLE != null && t === WT.CASTLE) {
+        const wx = world.originX + xx;
+        const wy = world.originY + yy;
+        addCastle(world, wx, wy);
       } else if (t === WT.DUNGEON) {
         const wx = world.originX + xx;
         const wy = world.originY + yy;
@@ -86,6 +90,8 @@ export function scanPOIs(ctx, x0, y0, w, h) {
         const wy = world.originY + yy;
         addRuins(world, wx, wy);
       }
+    }
+  }
     }
   }
   // After registering POIs in this strip/window, connect nearby towns with roads and mark bridges (feature-gated).

@@ -25,6 +25,7 @@ const TILES = {
   DESERT: 9,
   SNOW: 10,
   RUINS: 12,
+  CASTLE: 15,
 };
 
 function mulberry32(a) {
@@ -215,8 +216,14 @@ function create(seed, opts = {}) {
       || classify(x + 1, y) === TILES.RIVER || classify(x - 1, y) === TILES.RIVER
       || classify(x, y + 1) === TILES.RIVER || classify(x, y - 1) === TILES.RIVER) ? 0.08 : 0.0;
 
-    // Town roll (only at the town anchor of the cell)
+    // Town / castle roll (only at the town anchor of the cell)
     if (atTownAnchor) {
+      // First, rare castle placement, preferring coasts/rivers
+      const rCastle = hash2(s ^ 0x1010, cellTownX, cellTownY);
+      let castleChance = 0.01; // very rare by default
+      if (coastBias > 0) castleChance += 0.04; // slightly more common near water
+      if (rCastle < castleChance) return TILES.CASTLE;
+
       const rTown = hash2(s ^ 0x1111, cellTownX, cellTownY);
       if (rTown < (cfg.townChance + coastBias)) return TILES.TOWN;
     }

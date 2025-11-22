@@ -57,6 +57,7 @@ export function ensurePOIState(world) {
   if (!world.towns) world.towns = [];
   if (!world.dungeons) world.dungeons = [];
   if (!world.ruins) world.ruins = [];
+  if (!world.castles) world.castles = [];
   if (!world._poiSet) world._poiSet = new Set();
 }
 
@@ -67,7 +68,20 @@ export function addTown(world, x, y) {
   if (world._poiSet.has(key)) return;
   const r = h2(x + 11, y - 7);
   const size = (r < 0.60) ? "small" : (r < 0.90 ? "big" : "city");
-  world.towns.push({ x, y, size });
+  world.towns.push({ x, y, size, kind: "town" });
+  world._poiSet.add(key);
+}
+
+// Add a castle at world coords if not present. Castles are treated as large towns with kind=\"castle\".
+// They are kept in both world.castles and world.towns for compatibility with existing town-based systems.
+export function addCastle(world, x, y) {
+  ensurePOIState(world);
+  const key = `${x},${y}`;
+  if (world._poiSet.has(key)) return;
+  const size = "city";
+  const rec = { x, y, size, kind: "castle" };
+  world.towns.push(rec);
+  world.castles.push(rec);
   world._poiSet.add(key);
 }
 

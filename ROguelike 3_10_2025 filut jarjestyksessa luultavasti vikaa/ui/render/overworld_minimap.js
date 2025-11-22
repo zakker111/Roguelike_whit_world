@@ -97,10 +97,14 @@ export function drawMinimap(ctx, view) {
         const lx = (t.x | 0) - ox;
         const ly = (t.y | 0) - oy;
         if (lx < 0 || ly < 0 || lx >= mw || ly >= mh) continue;
-        let townColor = "#f6c177";
+        const isCastle = String(t.kind || "").toLowerCase() === "castle";
+        let townColor = isCastle ? "#fde68a" : "#f6c177";
         try {
           const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-          if (pal && pal.poiTown) townColor = pal.poiTown || townColor;
+          if (pal) {
+            if (isCastle && pal.poiCastle) townColor = pal.poiCastle || townColor;
+            else if (!isCastle && pal.poiTown) townColor = pal.poiTown || townColor;
+          }
         } catch (_) {}
         ctx2d.fillStyle = townColor;
         ctx2d.fillRect(bx + lx * scale, by + ly * scale, Math.max(1, scale), Math.max(1, scale));

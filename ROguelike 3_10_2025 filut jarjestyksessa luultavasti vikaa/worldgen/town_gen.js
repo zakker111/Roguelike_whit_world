@@ -272,6 +272,16 @@ function generate(ctx) {
     }
   } catch (_) { info = null; }
 
+  // Determine town kind (e.g. regular town vs castle) from overworld metadata
+  let townKind = "town";
+  try {
+    if (info && typeof info.kind === "string" && info.kind) {
+      townKind = info.kind;
+    }
+  } catch (_) {}
+  ctx.townKind = townKind;
+  if (townKind === "castle" && townSize !== "city") townSize = "city";
+
   // Size the town map from data/town.json (fallback to previous values)
   const GD = getGameData(ctx);
   const TOWNCFG = (GD && GD.town) || null;
@@ -344,6 +354,15 @@ function generate(ctx) {
     const s = suffixes[Math.floor(rng() * suffixes.length) % suffixes.length];
     townName = [p, m, s].filter(Boolean).join("");
     try { if (info) info.name = townName; } catch (_) {}
+  }
+  // Castle settlements get a castle-style name prefix if not already labeled as such.
+  if (townKind === "castle" && townName) {
+    try {
+      if (!/castle/i.test(townName)) {
+        townName = `Castle ${townName}`;
+        if (info) info.name = townName;
+      }
+    } catch (_) {}
   }
   ctx.townName = townName;
   // Expose size to other modules (AI, UI)
@@ -2121,6 +2140,10 @@ function generate(ctx) {
   if (townSize === "small") guardTarget = 2;
   else if (townSize === "city") guardTarget = 4;
   else guardTarget = 3;
+  // Castles are fortified settlements: add a few extra guards on top of the normal town size rules.
+  if (townKind === "castle") {
+    guardTarget += 2;
+  }
   guardTarget = Math.min(guardTarget, roamTarget);
 
   let placed = 0, placedGuards = 0, tries = 0;
