@@ -193,9 +193,9 @@ export function tryMove(ctx, dx, dy) {
           const C = mod("Combat");
           if (UIO && typeof UIO.showConfirm === "function" && C && typeof C.playerAttackEnemy === "function") {
             const text = "Do you want to attack the guard? This will make all guards hostile to you.";
-            const pos = { x: nx, y: ny };
             const enemyRef = enemy;
-            UIO.showConfirm(ctx, text, pos,
+            // Pass null for position so the confirm dialog is centered on the game.
+            UIO.showConfirm(ctx, text, null,
               () => {
                 try {
                   C.playerAttackEnemy(ctx, enemyRef);
