@@ -1472,18 +1472,18 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
             }
           } catch (_) {}
 
-          // Already at target or adjacent to a bed: go to sleep
+          // Already at target or exactly on a bed tile: go to sleep
           if (target) {
             const atTarget = (n.x === target.x && n.y === target.y);
-            let nearBed = false;
+            let onBed = false;
             try {
               const bedList = bedsFor(ctx, home);
-              for (let i = 0; i < bedList.length && !nearBed; i++) {
+              for (let i = 0; i < bedList.length && !onBed; i++) {
                 const b = bedList[i];
-                if (manhattan(n.x, n.y, b.x, b.y) <= 1) nearBed = true;
+                if (n.x === b.x && n.y === b.y) onBed = true;
               }
             } catch (_) {}
-            if (atTarget || nearBed) {
+            if (atTarget || onBed) {
               n._sleeping = true;
               continue;
             }
@@ -1801,8 +1801,8 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
               }
             }
             const atExact = (sleepTarget && n.x === sleepTarget.x && n.y === sleepTarget.y);
-            const nearBed = bedSpot ? (manhattan(n.x, n.y, bedSpot.x, bedSpot.y) === 1) : false;
-            if (atExact || nearBed) {
+            // Sleep only when exactly on the chosen sleep target (bed or fallback spot)
+            if (atExact) {
               n._sleeping = true;
               continue;
             }
@@ -1811,7 +1811,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
               const bedsUp = innUpstairsBeds(ctx);
               for (let i = 0; i < bedsUp.length; i++) {
                 const b = bedsUp[i];
-                if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+                if (manhattan(n.x, n.y, b.x, b.y) === 0) { n._sleeping = true; break; }
               }
               if (n._sleeping) continue;
             }
@@ -1963,12 +1963,12 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
       // Debug: force one roamer to go sleep in Inn upstairs during late night
       if (n._forceInnSleepUpstairs && inLateWindow && ctx.tavern && ctx.innUpstairs && !n._sleeping) {
-        // If already upstairs and adjacent to a bed, sleep
+        // If already upstairs and exactly on a bed tile, sleep
         if (n._floor === "upstairs" && inUpstairsInterior(ctx, n.x, n.y)) {
           const bedsUpList = innUpstairsBeds(ctx);
           for (let i = 0; i < bedsUpList.length; i++) {
             const b = bedsUpList[i];
-            if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+            if (manhattan(n.x, n.y, b.x, b.y) === 0) { n._sleeping = true; break; }
           }
           if (n._sleeping) continue;
         }
@@ -2062,9 +2062,9 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
           const bedsUpList = innUpstairsBeds(ctx);
           for (let i = 0; i < bedsUpList.length; i++) {
             const b = bedsUpList[i];
-            if (manhattan(n.x, n.y, b.x, b.y) <= 1) { n._sleeping = true; break; }
+            if (manhattan(n.x, n.y, b.x, b.y) === 0) { n._sleeping = true; break; }
           }
-          // If no bed nearby, allow sleeping on a chair upstairs
+          // If no bed directly underfoot, allow sleeping on a chair upstairs
           if (!n._sleeping) {
             try {
               const up = ctx.innUpstairs;
@@ -2076,7 +2076,6 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
             } catch (_) {}
           }
         }
-      }
 
       if (!target) {
         stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
