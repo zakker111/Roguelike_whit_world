@@ -122,8 +122,32 @@ export function enter(ctx, info) {
     }
   } catch (_) {}
 
-  // Spawn player: near center by default
+  // Spawn player
   (function placePlayer() {
+    const tplId = String(template.id || "").toLowerCase();
+
+    // Special case: in guards_vs_bandits, place player at the side of the battle,
+    // so they first see the fight rather than starting between the lines.
+    if (tplId === "guards_vs_bandits") {
+      const midY = (H / 2) | 0;
+      const candidates = [
+        { x: 1, y: midY },
+        { x: 1, y: midY - 1 },
+        { x: 1, y: midY + 1 },
+        { x: 2, y: midY },
+        { x: W - 2, y: midY },
+        { x: W - 2, y: midY - 1 },
+        { x: W - 2, y: midY + 1 },
+      ];
+      for (const c of candidates) {
+        if (c.x > 0 && c.y > 0 && c.x < W - 1 && c.y < H - 1 && map[c.y][c.x] !== T.WALL) {
+          ctx.player.x = c.x; ctx.player.y = c.y;
+          return;
+        }
+      }
+      // Fallback to default behavior if no candidate worked.
+    }
+
     const hint = (template && (template.playerSpawn || template.spawn || template.player)) ? (template.playerSpawn || template.spawn || template.player) : null;
     if (typeof hint === "string" && hint.toLowerCase() === "edge") {
       const edges = [
@@ -244,8 +268,8 @@ export function enter(ctx, info) {
   let usedCustomSpawn = false;
   if (tplId === "guards_vs_bandits" && groups.length) {
     try {
-      const px = (ctx.player.x | 0);
-      const py = (ctx.player.y | 0);
+      const cx = (W / 2) | 0;
+      const cy = (H / 2) | 0;
 
       const guardGroup = groups.find(g =>
         g && (String(g.faction || "").toLowerCase() === "guard"
@@ -256,8 +280,8 @@ export function enter(ctx, info) {
 
       function linePositions(y) {
         const out = [];
-        const minX = Math.max(1, px - 4);
-        const maxX = Math.min(W - 2, px + 4);
+        const minX = Math.max(1, cx - 4);
+        const maxX = Math.min(W - 2, cx + 4);
         for (let x = minX; x <= maxX; x++) {
           if (x === ctx.player.x && y === ctx.player.y) continue;
           if (chestSpots.has(keyFor(x, y))) continue;
@@ -333,8 +357,8 @@ export function enter(ctx, info) {
         ctx.enemies.push(e);
       }
 
-      const guardRowY = Math.max(1, Math.min(H - 2, py - 3));
-      const banditRowY = Math.max(1, Math.min(H - 2, py + 3));
+      const guardRowY = Math.max(1, Math.min(H - 2, cy - 3));
+      const banditRowY = Math.max(1, Math.min(H - 2, cy + 3));
 
       let guardPlaced = 0;
       let banditPlaced = 0;
@@ -476,7 +500,7 @@ export function enter(ctx, info) {
     if (hasMerchant && !hasEnemies) {
       ctx.log && ctx.log(`${template.name || "Encounter"}: A wild Seppo appears! Press G on him to trade.`, "notice");
     } else if (tplIdLog === "guards_vs_bandits") {
-      ctx.log && ctx.log("Guards vs Bandits: a skirmish is underway. You may help either side or stand back and watch.", "notice");
+      ctx.log && ctx.log("you see guards against bandits in field of battle", "notice");
     } else {
       ctx.log && ctx.log(`${template.name || "Encounter"} begins: eliminate the hostiles.`, "notice");
     }
