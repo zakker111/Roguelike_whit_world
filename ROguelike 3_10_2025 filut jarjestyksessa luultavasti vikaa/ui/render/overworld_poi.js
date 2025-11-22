@@ -1,5 +1,5 @@
 /**
- * Overworld POI markers: towns, dungeons, and quest markers.
+ * Overworld POI markers: towns, dungeons, travelling caravans, and quest markers.
  */
 import * as RenderCore from "../render_core.js";
 import { rgba as _rgba, parseHex as _parseHex } from "../color_utils.js";
@@ -9,6 +9,7 @@ export function drawPOIs(ctx, view) {
   try {
     const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
     const dungeons = (ctx.world && Array.isArray(ctx.world.dungeons)) ? ctx.world.dungeons : [];
+    const caravans = (ctx.world && Array.isArray(ctx.world.caravans)) ? ctx.world.caravans : [];
     const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
     const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
 
@@ -111,6 +112,27 @@ export function drawPOIs(ctx, view) {
       ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
     }
     ctx2d.restore();
+
+    // Travelling caravans
+    if (caravans.length) {
+      let caravanColor = "#f97316"; // warm orange
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays)
+          ? window.GameData.palette.overlays
+          : null;
+        if (pal && pal.poiCaravan) caravanColor = pal.poiCaravan || caravanColor;
+      } catch (_) {}
+      for (const cv of caravans) {
+        if (!cv) continue;
+        const lx = (cv.x | 0) - ox;
+        const ly = (cv.y | 0) - oy;
+        if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+        const sx = (lx - startX) * TILE - tileOffsetX;
+        const sy = (ly - startY) * TILE - tileOffsetY;
+        const glyph = "c";
+        RenderCore.drawGlyph(ctx2d, sx, sy, glyph, caravanColor, TILE);
+      }
+    }
 
     // Quest markers
     const qms = (ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
