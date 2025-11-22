@@ -439,8 +439,13 @@ export function interact(ctx, prop) {
   }
   if (eff && eff.type === "lockpick") {
     // Town chest lockpicking mini-game (LockpickModal).
-    // If UI wiring is unavailable, fall back to the plain log message.
+    // If the chest has already been opened, just report it as empty.
     try {
+      if (prop && prop.opened) {
+        _log(ctx, "The chest stands open. It is empty.", "info");
+        return true;
+      }
+      // If UI wiring is unavailable, fall back to the plain log message.
       const UIO = getUIOrchestration(ctx);
       const wasOpen = UIO && typeof UIO.isLockpickOpen === "function" ? !!UIO.isLockpickOpen(ctx) : false;
       _log(ctx, variant.message || "The chest is locked.", variant.style || "warn");

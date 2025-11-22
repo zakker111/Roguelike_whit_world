@@ -447,18 +447,18 @@ function awardChestLoot(ctx) {
   return result;
 }
 
-function removeChest(ctx) {
+function markChestOpened(ctx) {
   if (!ctx || !Array.isArray(ctx.townProps)) return;
   try {
     const keyType = String(_chestType || "").toLowerCase();
-    const idx = ctx.townProps.findIndex(p =>
+    const chest = ctx.townProps.find(p =>
       p &&
       p.x === _chestX &&
       p.y === _chestY &&
       String(p.type || "").toLowerCase() === keyType
     );
-    if (idx !== -1) {
-      ctx.townProps.splice(idx, 1);
+    if (chest) {
+      chest.opened = true;
     }
   } catch (_) {}
 }
@@ -482,7 +482,7 @@ function finish(success) {
 
     if (success) {
       const loot = awardChestLoot(ctx);
-      removeChest(ctx);
+      markChestOpened(ctx);
       try {
         const parts = [];
         if (loot && loot.gold > 0) parts.push(`${loot.gold} gold`);
