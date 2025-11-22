@@ -112,10 +112,15 @@ function ensureOverlay() {
   // Keyboard controls
   const onKey = (e) => {
     if (!_running) return;
-    // Swallow gameplay keys while the modal is open
-    e.stopPropagation();
+    // Swallow all keyboard input from reaching the main game while the lockpicking modal is active.
+    try {
+      if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+      else e.stopPropagation();
+    } catch (_) {
+      try { e.stopPropagation(); } catch (_) {}
+    }
+    try { e.preventDefault(); } catch (_) {}
     if (e.key === "Escape" || e.key === "Esc") {
-      e.preventDefault();
       hide();
       return;
     }
