@@ -4,6 +4,7 @@
 import * as RenderCore from "../render_core.js";
 import { getTileDef } from "../../data/tile_lookup.js";
 import { fillTownFor, tilesRef, fallbackFillTown } from "./town_tile_cache.js";
+import { mix as mixColor } from "../color_utils.js";
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
 const TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null, _palRef: null };
@@ -209,6 +210,7 @@ export function drawTownBase(ctx, view) {
           oc.textBaseline = "middle";
         } catch (_) {}
         ensureOutdoorMask(ctx, map);
+        const biomeFill = resolvedTownBiomeFill(ctx);
         TOWN._maskRef = ctx.townOutdoorMask;
 
         for (let yy = 0; yy < mapRows; yy++) {
@@ -216,8 +218,16 @@ export function drawTownBase(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            // Use JSON / fallback colors directly; do not override with biome tint for towns.
-            const fill = fillTownFor(TILES, type, COLORS);
+            let fill = fillTownFor(TILES, type, COLORS);
+            try {
+              const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
+              const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, xx, yy);
+              if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
+                // Blend base tile color with biome tint instead of fully overwriting it.
+                const t = isOutdoorRoad ? 0.5 : 0.35;
+                fill = mixColor(fill, biomeFill, t);
+              }
+            } catch (_) {}
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -237,6 +247,7 @@ export function drawTownBase(ctx, view) {
   // Fallback: draw base tiles in viewport using JSON colors or robust fallback
   ensureTownBiome(ctx);
   ensureOutdoorMask(ctx, map);
+  const biomeFill = resolvedTownBiomeFill(ctx);
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowMap = yIn ? map[y] : null;
@@ -250,7 +261,15 @@ export function drawTownBase(ctx, view) {
       }
       const type = rowMap[x];
       const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-      const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+      let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
+      try {
+        const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
+        const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, x, y);
+        if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
+          const t = isOutdoorRoad ? 0.5 : 0.35;
+          fill = mixColor(fill, biomeFill, t);
+        }
+      } catch (_) {}
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(screenX, screenY, TILE, TILE);
     }
