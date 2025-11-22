@@ -176,6 +176,41 @@ export function tryMove(ctx, dx, dy) {
 
   // ENCOUNTER MODE
   if (ctx.mode === "encounter") {
+    const nx = ctx.player.x + dx;
+    const ny = ctx.player.y + dy;
+
+    // If bumping a neutral guard (e.g., guards in a skirmish), ask for confirmation before attacking.
+    try {
+      let enemy = null;
+      const enemies = Array.isArray(ctx.enemies) ? ctx.enemies : [];
+      enemy = enemies.find(e => e && e.x === nx && e.y === ny) || null;
+      if (enemy) {
+        const fac = String(enemy.faction || "").toLowerCase();
+        const isGuard = fac === "guard" || String(enemy.type || "").toLowerCase() === "guard";
+        const neutralGuard = isGuard && enemy._ignorePlayer;
+        if (neutralGuard) {
+          const UIO = mod("UIOrchestration");
+          const C = mod("Combat");
+          if (UIO && typeof UIO.showConfirm === "function" && C && typeof C.playerAttackEnemy === "function") {
+            const text = "Do you want to attack the guard? This will make all guards hostile to you.";
+            const pos = { x: nx, y: ny };
+            const enemyRef = enemy;
+            UIO.showConfirm(ctx, text, pos,
+              () => {
+                try {
+                  C.playerAttackEnemy(ctx, enemyRef);
+                  applyRefresh(ctx);
+                  if (typeof ctx.turn === "function") ctx.turn();
+                } catch (_) {}
+              },
+              () => {}
+            );
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+
     try {
       const DR = mod("DungeonRuntime");
       if (DR && typeof DR.tryMoveDungeon === "function") {
@@ -201,8 +236,6 @@ export function tryMove(ctx, dx, dy) {
         }
       }
     } catch (_) {}
-    const nx = ctx.player.x + dx;
-    const ny = ctx.player.y + dy;
     if (!ctx.inBounds(nx, ny)) return false;
     const blockedByEnemy = (ctx.occupancy && typeof ctx.occupancy.hasEnemy === "function")
       ? ctx.occupancy.hasEnemy(nx, ny)
