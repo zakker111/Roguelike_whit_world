@@ -358,8 +358,9 @@ export function enter(ctx, info) {
         ctx.enemies.push(e);
       }
 
-      const guardRowY = Math.max(1, Math.min(H - 2, cy - 2));
-      const banditRowY = Math.max(1, Math.min(H - 2, cy + 2));
+      // Place lines with a wide gap so the clash happens after a few steps, not immediately.
+      const guardRowY = Math.max(1, Math.min(H - 2, cy - 4));
+      const banditRowY = Math.max(1, Math.min(H - 2, cy + 4));
 
       let guardPlaced = 0;
       let banditPlaced = 0;
