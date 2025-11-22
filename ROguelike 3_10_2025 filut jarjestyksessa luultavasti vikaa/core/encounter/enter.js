@@ -2,7 +2,7 @@
  * Encounter enter (Phase 4 extraction): switches to encounter mode and generates tactical map.
  */
 import { getMod } from "../../utils/access.js";
-import { genEmpty, genAmbushForest, genCamp, genRuins, genArena } from "./generators.js";
+import { genEmpty, genAmbushForest, genCamp, genRuins, genArena, genBattlefield } from "./generators.js";
 import { resetSessionFlags, setCurrentQuestInstanceId } from "./session_state.js";
 
 export function enter(ctx, info) {
@@ -62,6 +62,7 @@ export function enter(ctx, info) {
   else if (id === "camp" || id === "bandit_camp" || id === "camp_small") map = genCamp(ctx, r, W, H, T, hutCenters, [], encProps);
   else if (id === "ruins" || id === "ruin") map = genRuins(ctx, r, W, H, T);
   else if (id === "arena" || id === "cross") map = genArena(ctx, r, W, H, T);
+  else if (id === "battlefield" || id === "open_field") map = genBattlefield(ctx, r, W, H, T);
   else map = genEmpty(ctx, W, H, T);
 
   ctx.map = map;
@@ -76,12 +77,23 @@ export function enter(ctx, info) {
   // Place chests inside huts (center tile). Fill with simple loot.
   try {
     const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+    const RUenc = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+    const rEnc = (RUenc && typeof RUenc.getRng === "function")
+      ? RUenc.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+      : ((typeof ctx.rng === "function") ? ctx.rng : (() => 0.5));
     for (let i = 0; i < hutCenters.length; i++) {
       const c = hutCenters[i];
       if (c.x <= 0 || c.y <= 0 || c.x >= W - 1 || c.y >= H - 1) continue;
       if (map[c.y][c.x] !== T.FLOOR) continue;
       if (c.x === ctx.player.x && c.y === ctx.player.y) continue;
       const loot = (L && typeof L.generate === "function") ? (L.generate(ctx, { type: "bandit", xp: 10 }) || []) : [{ name: "5 gold", kind: "gold", amount: 5 }];
+      // Tiny chance for an encounter chest to contain a fine lockpick (Seppo-quality).
+      try {
+        const rollFine = rEnc();
+        if (rollFine < 0.03) { // ~3% per chest
+          loot.push({ kind: "tool", type: "lockpick_fine", name: "fine lockpick", decay: 0 });
+        }
+      } catch (_) {}
       ctx.corpses.push({ kind: "chest", x: c.x, y: c.y, loot, looted: loot.length === 0 });
       chestSpots.add(keyFor(c.x, c.y));
     }
@@ -111,8 +123,32 @@ export function enter(ctx, info) {
     }
   } catch (_) {}
 
-  // Spawn player: near center by default
+  // Spawn player
   (function placePlayer() {
+    const tplId = String(template.id || "").toLowerCase();
+
+    // Special case: in guards_vs_bandits, place player at the side of the battle,
+    // so they first see the fight rather than starting between the lines.
+    if (tplId === "guards_vs_bandits") {
+      const midY = (H / 2) | 0;
+      const candidates = [
+        { x: 1, y: midY },
+        { x: 1, y: midY - 1 },
+        { x: 1, y: midY + 1 },
+        { x: 2, y: midY },
+        { x: W - 2, y: midY },
+        { x: W - 2, y: midY - 1 },
+        { x: W - 2, y: midY + 1 },
+      ];
+      for (const c of candidates) {
+        if (c.x > 0 && c.y > 0 && c.x < W - 1 && c.y < H - 1 && map[c.y][c.x] !== T.WALL) {
+          ctx.player.x = c.x; ctx.player.y = c.y;
+          return;
+        }
+      }
+      // Fallback to default behavior if no candidate worked.
+    }
+
     const hint = (template && (template.playerSpawn || template.spawn || template.player)) ? (template.playerSpawn || template.spawn || template.player) : null;
     if (typeof hint === "string" && hint.toLowerCase() === "edge") {
       const edges = [
@@ -189,61 +225,6 @@ export function enter(ctx, info) {
 
   // Spawn enemies per template groups (counts only)
   const groups = Array.isArray(template.groups) ? template.groups : [];
-  const totalWanted = groups.reduce((acc, g) => {
-    const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
-    const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    const n = (RU && typeof RU.int === "function")
-      ? RU.int(min, max, ctx.rng)
-      : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
-    return acc + n;
-  }, 0);
-
-  const placements = [];
-  function free(x, y) {
-    if (x <= 0 || y <= 0 || x >= W - 1) return false;
-    if (y >= H - 1) return false;
-    if (x === ctx.player.x && y === ctx.player.y) return false;
-    if (placements.some(p => p.x === x && p.y === y)) return false;
-    if (chestSpots.has(keyFor(x, y))) return false;
-    return map[y][x] === T.FLOOR;
-  }
-
-  (function seedNearPlayer() {
-    try {
-      const px = (ctx.player.x | 0), py = (ctx.player.y | 0);
-      const maxR = Math.max(3, Math.min(6, ((ctx.fovRadius | 0) || 8) - 1));
-      outer:
-      for (let r = 2; r <= maxR; r++) {
-        const dirs = [
-          [ r,  0], [ 0,  r], [-r,  0], [ 0, -r],
-          [ r,  1], [ 1,  r], [-1,  r], [-r,  1],
-          [-r, -1], [-1, -r], [ 1, -r], [ r, -1],
-          [ r,  2], [ 2,  r], [-2,  r], [-r,  2],
-        ];
-        for (const d of dirs) {
-          const x = px + d[0], y = py + d[1];
-          if (free(x, y)) { placements.push({ x, y }); break outer; }
-        }
-      }
-    } catch (_) {}
-  })();
-
-  let ring = 0, placed = placements.length | 0;
-  while (placed < totalWanted && ring < Math.max(W, H)) {
-    for (let x = 1 + ring; x < W - 1 - ring && placed < totalWanted; x++) {
-      const y1 = 1 + ring, y2 = H - 2 - ring;
-      if (free(x, y1)) { placements.push({ x, y: y1 }); placed++; }
-      if (placed >= totalWanted) break;
-      if (free(x, y2)) { placements.push({ x, y: y2 }); placed++; }
-    }
-    for (let y = 2 + ring; y < H - 2 - ring && placed < totalWanted; y++) {
-      const x1 = 1 + ring, x2 = W - 2 - ring;
-      if (free(x1, y)) { placements.push({ x: x1, y }); placed++; }
-      if (placed >= totalWanted) break;
-      if (free(x2, y)) { placements.push({ x: x2, y }); placed++; }
-    }
-    ring++;
-  }
 
   function createDungeonEnemyAt(ctxLocal, x, y, depth) {
     try {
@@ -282,29 +263,225 @@ export function enter(ctx, info) {
     if (s.includes("orc")) return "orc";
     return "monster";
   };
-  let pIdx = 0;
-  for (const g of groups) {
-    const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
-    const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
-    let n = (RU && typeof RU.int === "function")
-      ? RU.int(min, max, ctx.rng)
-      : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
-    n = Math.max(min, Math.min(placements.length - pIdx, n + Math.max(0, ctx.encounterDifficulty - 1)));
-    for (let i = 0; i < n && pIdx < placements.length; i++) {
-      const p = placements[pIdx++];
-      const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
-      let e = type ? createDungeonEnemyAt(ctx, p.x, p.y, depth) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
-      if (!e) continue;
+
+  // Special-case formation: Guards vs Bandits skirmish in lines facing each other.
+  const tplId = String(template.id || "").toLowerCase();
+  let usedCustomSpawn = false;
+  if (tplId === "guards_vs_bandits" && groups.length) {
+    try {
+      const cx = (W / 2) | 0;
+      const cy = (H / 2) | 0;
+
+      const guardGroup = groups.find(g =>
+        g && (String(g.faction || "").toLowerCase() === "guard"
+          || String(g.type || "").toLowerCase().includes("guard")));
+      const banditGroup = groups.find(g =>
+        g && (String(g.faction || "").toLowerCase() === "bandit"
+          || String(g.type || "").toLowerCase() === "bandit"));
+
+      function linePositions(y) {
+        const out = [];
+        const minX = Math.max(1, cx - 6);
+        const maxX = Math.min(W - 2, cx + 6);
+        for (let x = minX; x <= maxX; x++) {
+          if (x === ctx.player.x && y === ctx.player.y) continue;
+          if (chestSpots.has(keyFor(x, y))) continue;
+          if (map[y][x] === T.FLOOR) out.push({ x, y });
+        }
+        return out;
+      }
+
+      function shuffle(arr) {
+        try {
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = (RU && typeof RU.int === "function")
+              ? RU.int(0, i, ctx.rng)
+              : Math.floor(r() * (i + 1));
+            const tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+          }
+        } catch (_) {}
+      }
+
+      function countForGroup(g, maxSlots) {
+        const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
+        const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
+        let n = (RU && typeof RU.int === "function")
+          ? RU.int(min, max, ctx.rng)
+          : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
+        n = Math.max(min, Math.min(maxSlots, n + Math.max(0, ctx.encounterDifficulty - 1)));
+        return n;
+      }
+
+      function spawnEnemyForGroupAt(g, pos, preferredType) {
+        const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
+        let e = null;
+        const type = (g && typeof g.type === "string" && g.type) ? g.type : preferredType;
+        try {
+          if (EM && typeof EM.getTypeDef === "function" && type) {
+            const td = EM.getTypeDef(type);
+            if (td) {
+              const lvl = (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(type, depth, ctx.rng) : depth;
+              e = {
+                x: pos.x,
+                y: pos.y,
+                type,
+                glyph: (td.glyph && td.glyph.length) ? td.glyph : ((type && type.length) ? type.charAt(0) : "?"),
+                hp: td.hp(depth),
+                atk: td.atk(depth),
+                xp: td.xp(depth),
+                level: lvl,
+                announced: false
+              };
+            }
+          }
+        } catch (_) {}
+        if (!e) {
+          e = createDungeonEnemyAt(ctx, pos.x, pos.y, depth);
+        }
+        if (!e) return;
+
+        try {
+          const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
+          e.level = Math.max(1, (e.level | 0) + (d - 1));
+          const hpMult = 1 + 0.25 * (d - 1);
+          const atkMult = 1 + 0.20 * (d - 1);
+          e.hp = Math.max(1, Math.round(e.hp * hpMult));
+          e.atk = Math.max(0.1, Math.round(e.atk * atkMult * 10) / 10);
+        } catch (_) {}
+        try { e.faction = (g && g.faction) ? String(g.faction) : deriveFaction(e.type); } catch (_) {}
+        if (e.faction === "guard") {
+          // Guards start neutral to the player in this encounter until attacked.
+          e._ignorePlayer = true;
+        }
+        ctx.enemies.push(e);
+      }
+
+      // Place lines far apart so you clearly see both sides begin their charge.
+      // Guards start near the top, bandits near the bottom.
+      const guardRowY = 2;
+      const banditRowY = Math.max(guardRowY + 4, Math.min(H - 3, H - 3));
+
+      let guardPlaced = 0;
+      let banditPlaced = 0;
+
+      if (guardGroup) {
+        const slots = linePositions(guardRowY);
+        if (slots.length) {
+          shuffle(slots);
+          const nG = countForGroup(guardGroup, slots.length);
+          for (let i = 0; i < nG && i < slots.length; i++) {
+            spawnEnemyForGroupAt(guardGroup, slots[i], "guard");
+            guardPlaced++;
+          }
+        }
+      }
+
+      if (banditGroup) {
+        const slots = linePositions(banditRowY);
+        if (slots.length) {
+          shuffle(slots);
+          const nB = countForGroup(banditGroup, slots.length);
+          for (let i = 0; i < nB && i < slots.length; i++) {
+            spawnEnemyForGroupAt(banditGroup, slots[i], "bandit");
+            banditPlaced++;
+          }
+        }
+      }
+
+      if (guardPlaced > 0 || banditPlaced > 0) {
+        usedCustomSpawn = true;
+      }
+    } catch (_) {
+      usedCustomSpawn = false;
+    }
+  }
+
+  if (!usedCustomSpawn) {
+    const totalWanted = groups.reduce((acc, g) => {
+      const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
+      const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
+      const n = (RU && typeof RU.int === "function")
+        ? RU.int(min, max, ctx.rng)
+        : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
+      return acc + n;
+    }, 0);
+
+    const placements = [];
+    function free(x, y) {
+      if (x <= 0 || y <= 0 || x >= W - 1) return false;
+      if (y >= H - 1) return false;
+      if (x === ctx.player.x && y === ctx.player.y) return false;
+      if (placements.some(p => p.x === x && p.y === y)) return false;
+      if (chestSpots.has(keyFor(x, y))) return false;
+      return map[y][x] === T.FLOOR;
+    }
+
+    (function seedNearPlayer() {
       try {
-        const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
-        e.level = Math.max(1, (e.level | 0) + (d - 1));
-        const hpMult = 1 + 0.25 * (d - 1);
-        const atkMult = 1 + 0.20 * (d - 1);
-        e.hp = Math.max(1, Math.round(e.hp * hpMult));
-        e.atk = Math.max(0.1, Math.round(e.atk * atkMult * 10) / 10);
+        const px = (ctx.player.x | 0), py = (ctx.player.y | 0);
+        const maxR = Math.max(3, Math.min(6, ((ctx.fovRadius | 0) || 8) - 1));
+        outer:
+        for (let r = 2; r <= maxR; r++) {
+          const dirs = [
+            [ r,  0], [ 0,  r], [-r,  0], [ 0, -r],
+            [ r,  1], [ 1,  r], [-1,  r], [-r,  1],
+            [-r, -1], [-1, -r], [ 1, -r], [ r, -1],
+            [ r,  2], [ 2,  r], [-2,  r], [-r,  2],
+          ];
+          for (const d of dirs) {
+            const x = px + d[0], y = py + d[1];
+            if (free(x, y)) { placements.push({ x, y }); break outer; }
+          }
+        }
       } catch (_) {}
-      try { e.faction = (g && g.faction) ? String(g.faction) : deriveFaction(e.type); } catch (_) {}
-      ctx.enemies.push(e);
+    })();
+
+    let ring = 0, placed = placements.length | 0;
+    while (placed < totalWanted && ring < Math.max(W, H)) {
+      for (let x = 1 + ring; x < W - 1 - ring && placed < totalWanted; x++) {
+        const y1 = 1 + ring, y2 = H - 2 - ring;
+        if (free(x, y1)) { placements.push({ x, y: y1 }); placed++; }
+        if (placed >= totalWanted) break;
+        if (free(x, y2)) { placements.push({ x, y: y2 }); placed++; }
+      }
+      for (let y = 2 + ring; y < H - 2 - ring && placed < totalWanted; y++) {
+        const x1 = 1 + ring, x2 = W - 2 - ring;
+        if (free(x1, y)) { placements.push({ x: x1, y }); placed++; }
+        if (placed >= totalWanted) break;
+        if (free(x2, y)) { placements.push({ x: x2, y }); placed++; }
+      }
+      ring++;
+    }
+
+    let pIdx = 0;
+    for (const g of groups) {
+      const min = (g && g.count && typeof g.count.min === "number") ? g.count.min : 1;
+      const max = (g && g.count && typeof g.count.max === "number") ? g.count.max : Math.max(1, min + 2);
+      let n = (RU && typeof RU.int === "function")
+        ? RU.int(min, max, ctx.rng)
+        : Math.max(min, Math.min(max, min + Math.floor((r() * (max - min + 1)))));
+      n = Math.max(min, Math.min(placements.length - pIdx, n + Math.max(0, ctx.encounterDifficulty - 1)));
+      for (let i = 0; i < n && pIdx < placements.length; i++) {
+        const p = placements[pIdx++];
+        const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
+        let e = type ? createDungeonEnemyAt(ctx, p.x, p.y, depth) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+        if (!e) continue;
+        try {
+          const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
+          e.level = Math.max(1, (e.level | 0) + (d - 1));
+          const hpMult = 1 + 0.25 * (d - 1);
+          const atkMult = 1 + 0.20 * (d - 1);
+          e.hp = Math.max(1, Math.round(e.hp * hpMult));
+          e.atk = Math.max(0.1, Math.round(e.atk * atkMult * 10) / 10);
+        } catch (_) {}
+        try { e.faction = (g && g.faction) ? String(g.faction) : deriveFaction(e.type); } catch (_) {}
+        if (e.faction === "guard") {
+          e._ignorePlayer = true;
+        }
+        ctx.enemies.push(e);
+      }
     }
   }
 
@@ -322,8 +499,11 @@ export function enter(ctx, info) {
   try {
     const hasMerchant = Array.isArray(encProps) && encProps.some(p => p && (p.type === "merchant"));
     const hasEnemies = Array.isArray(ctx.enemies) && ctx.enemies.length > 0;
+    const tplIdLog = String(template.id || "").toLowerCase();
     if (hasMerchant && !hasEnemies) {
       ctx.log && ctx.log(`${template.name || "Encounter"}: A wild Seppo appears! Press G on him to trade.`, "notice");
+    } else if (tplIdLog === "guards_vs_bandits") {
+      ctx.log && ctx.log("you see guards against bandits in field of battle", "notice");
     } else {
       ctx.log && ctx.log(`${template.name || "Encounter"} begins: eliminate the hostiles.`, "notice");
     }

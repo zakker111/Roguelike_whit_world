@@ -95,6 +95,16 @@
         "tags": ["cold"]
       },
       {
+        "id": 16,
+        "key": "SNOW_FOREST",
+        "name": "Forested Snow",
+        "glyph": " ",
+        "colors": { "fill": "#8298aa", "fg": "#0b0f16" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["overworld", "region"],
+        "tags": ["cold", "woods"]
+      },
+      {
         "id": 4,
         "key": "TOWN",
         "name": "Town",
@@ -153,6 +163,16 @@
         "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
         "appearsIn": ["region"],
         "tags": ["decor", "forage", "bush"]
+      },
+      {
+        "id": 15,
+        "key": "CASTLE",
+        "name": "Castle",
+        "glyph": "C",
+        "colors": { "fill": "#1f2937", "fg": "#facc15" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["overworld", "region"],
+        "tags": ["settlement", "castle"]
       },
 
       {
@@ -381,7 +401,7 @@
         "appearsIn": ["town"],
         "tags": ["decor", "container"],
         "variants": [
-          { "message": "The chest is locked.", "style": "warn" }
+          { "message": "The chest is locked.", "style": "warn", "effect": { "type": "lockpick" } }
         ]
       },
       {

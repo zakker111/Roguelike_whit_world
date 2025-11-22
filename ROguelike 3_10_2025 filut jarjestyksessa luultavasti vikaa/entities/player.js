@@ -32,7 +32,8 @@ export const defaults = {
     { kind: "gold", amount: 50, name: "gold" },
     { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" },
     // Starter tool for early testing — traders will sell this later.
-    { kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 }
+    { kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 },
+    { kind: "tool", type: "lockpick", name: "lockpick", decay: 0 }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
   injuries: [],
@@ -46,7 +47,8 @@ export const defaults = {
     // Non-combat
     foraging: 0,
     cooking: 0,
-    survivalism: 0
+    survivalism: 0,
+    lockpicking: 0
   }
 };
 
@@ -98,6 +100,7 @@ export function normalize(p) {
       foraging: Math.max(0, (s.foraging | 0)),
       cooking: Math.max(0, (s.cooking | 0)),
       survivalism: Math.max(0, (s.survivalism | 0)),
+      lockpicking: Math.max(0, (s.lockpicking | 0)),
     };
   } catch (_) {}
   return p;

@@ -107,10 +107,12 @@ function buildContent(ctx) {
       const foragingPct = clamp(Math.floor((s.foraging || 0) / 25) * 0.01, 0, 0.05);
       const cookingPct = clamp(Math.floor((s.cooking || 0) / 25) * 0.01, 0, 0.05);
       const survivalPct = clamp(Math.floor((s.survivalism || 0) / 25) * 0.01, 0, 0.05);
+      const lockpickPct = clamp(Math.floor((s.lockpicking || 0) / 25) * 0.01, 0, 0.05);
       const nonCombatLines = [
         `<li>Foraging: uses ${Math.floor(s.foraging || 0)} (proficiency ${pct(foragingPct)})</li>`,
         `<li>Cooking: uses ${Math.floor(s.cooking || 0)} (proficiency ${pct(cookingPct)})</li>`,
         `<li>Survivalism: uses ${Math.floor(s.survivalism || 0)} (effect +${pct(survivalPct)})</li>`,
+        `<li>Lockpicking: uses ${Math.floor(s.lockpicking || 0)} (effect +${pct(lockpickPct)})</li>`,
       ].join("");
       return "<div style='margin-top:6px;'>Skills (passive damage buffs):</div>" +
              `<ul style='margin:4px 0 0 14px;'>${combatLines}</ul>` +

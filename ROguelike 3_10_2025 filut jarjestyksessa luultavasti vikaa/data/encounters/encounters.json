@@ -75,6 +75,17 @@
         { "type": "bandit", "count": { "min": 5, "max": 7 }, "faction": "bandit" },
         { "type": "goblin", "count": { "min": 5, "max": 10 }, "faction": "goblin" }
       ]
+    },
+    {
+      "id": "guards_vs_bandits",
+      "name": "Guards vs Bandits",
+      "baseWeight": 0.5,
+      "allowedBiomes": ["GRASS"],
+      "map": { "generator": "battlefield", "w": 28, "h": 18 },
+      "groups": [
+        { "type": "guard",  "count": { "min": 6, "max": 10 }, "faction": "guard" },
+        { "type": "bandit", "count": { "min": 7, "max": 11 }, "faction": "bandit" }
+      ]
     }
   ]
 }

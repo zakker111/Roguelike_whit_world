@@ -12,18 +12,22 @@ export function drawPOIs(ctx, view) {
     const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
     const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
 
-    // Town markers
+    // Town markers (towns and castles share the same list; castles get a distinct glyph/color)
     for (const t of towns) {
       const lx = (t.x | 0) - ox;
       const ly = (t.y | 0) - oy;
       if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
       const sx = (lx - startX) * TILE - tileOffsetX;
       const sy = (ly - startY) * TILE - tileOffsetY;
-      const glyph = (t.size === "city") ? "T" : "t";
-      let townColor = "#ffd166";
+      const isCastle = String(t.kind || "").toLowerCase() === "castle";
+      const glyph = isCastle ? "C" : (t.size === "city" ? "T" : "t");
+      let townColor = isCastle ? "#fbbf24" : "#ffd166";
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-        if (pal && pal.poiTown) townColor = pal.poiTown || townColor;
+        if (pal) {
+          if (isCastle && pal.poiCastle) townColor = pal.poiCastle || townColor;
+          else if (!isCastle && pal.poiTown) townColor = pal.poiTown || townColor;
+        }
       } catch (_) {}
       RenderCore.drawGlyph(ctx2d, sx, sy, glyph, townColor, TILE);
     }

@@ -1,6 +1,93 @@
 s 
 # Game Version History
-Last updated: 2025-11-21 00:00 UTC
+Last updated: 2025-11-22 00:00 UTC
+
+v1.48.0 — Castles, snowy forests, lockpicking sources, and Guards vs Bandits battle
+- Overworld and castles
+  - Added a CASTLE overworld tile and castle settlements in world/infinite_gen.js and world/world.js. Castles are extremely rare POIs that prefer coasts/rivers and are treated as large towns (kind: "castle").
+  - POI scanning (core/world/scan_pois.js, core/world/poi.js) now tracks world.castles in addition to world.towns; castles are mirrored into world.towns for compatibility with existing town flows.
+  - Overworld rendering (ui/render/overworld_poi.js, ui/render/overworld_minimap.js) draws castles with a distinct 'C' glyph and castle palette color (poiCastle) on both the main map and minimap.
+  - WorldRuntime includes a DEV helper to spawn a castle near the starting position for quick layout/NPC inspection.
+- Biomes: snowy forests
+  - Added a SNOW_FOREST biome in world/infinite_gen.js and data/world/world_assets.json. It behaves like a dense snowy forest (snow tiles with trees) and is rendered with its own tint in overworld/region/town base layers.
+  - Town generation treats SNOW_FOREST as a snowy biome for size/tint heuristics.
+- Castle towns and keep
+  - Town generation (worldgen/town_gen.js) now reads settlement kind from overworld metadata. For castle settlements, townSize is forced to city-scale and the name gains a "Castle" prefix when not already labeled.
+  - Castle towns reserve a central "keep" building (prefabId "castle_keep", prefabCategory "castle") in the middle of the map and skip plaza prefabs to keep the central area clear for the keep.
+  - Castle settlements receive a few extra guard NPCs on top of normal town-size rules, reinforcing the fortified feel.
+- Lockpicking sources and fine lockpicks
+  - Player defaults now include a basic lockpick tool in starting inventory (entities/player.js).
+  - Bandits and goblins have a small chance to drop a lockpick tool in their loot pools (entities/loot.js), providing mid-game sources beyond shops.
+  - Tools registry and shop pools gained a fine lockpick tool (data/entities/tools.json, data/shops/shop_pools.json); fine lockpicks decay more slowly and are priced as premium tools.
+  - Encounter huts in camps now have a tiny chance for chests to contain a fine lockpick (core/encounter/enter.js), giving rare early access to a high-quality lockpick for players who explore bandit camps.
+- Guards vs Bandits encounter (open-field battle)
+  - Added/extended the guards_vs_bandits encounter template in data/encounters/encounters.json:
+    - Biome: GRASS only.
+    - Map: new "battlefield" generator (core/encounter/generators.js) — an open tactical field with no obstacles.
+    - Groups: 6–10 guards (faction: guard) vs 7–11 bandits (faction: bandit), scaled further by encounter difficulty.
+  - Encounter layout (core/encounter/enter.js):
+    - Guards and bandits spawn in wide lines near the top and bottom of the map, far apart so you can clearly watch both sides begin their charge before the clash.
+    - The player spawns on the flank (left/right edge) instead of between the lines, with an intro log: "you see guards against bandits in field of battle".
+  - Guard neutrality and hostility:
+    - Guards start neutral toward the player in this encounter and ignore you unless provoked.
+    - Bumping a neutral guard in encounter mode shows a centered confirm dialog: "Do you want to attack the guard? This will make all guards hostile to you." Confirming attacks that guard and flips all guards hostile; cancelling leaves them neutral.
+  - Victory and flavor:
+    - EncounterRuntime.tick now special-cases guards_vs_bandits: when all bandits are dead and only neutral guards remain, the encounter is treated as cleared.
+    - In that case, a one-time flavor line is logged: 'The surviving guards cheer: "For the kingdom!"', followed by the usual "Area clear. Step onto an exit (>) to leave when ready." message.
+    - QuestService integration still receives an enemiesRemaining: 0 notification when the encounter is resolved.
+  - Enemy-vs-enemy combat logs:
+    - AI combat (ai/ai.js) now logs enemy-vs-enemy hits with full crit and hit-location detail, e.g. "Critical! Guard hits Bandit’s head for X" or "Bandit hits Guard’s torso for Y".
+    - Blocks between enemies are logged with their hit location ("Guard blocks Bandit's attack to the torso.") and use the same crit/block probability logic as player combat.
+- UI/Confirm modal
+  - Guard attack confirmation now calls UIOrchestration.showConfirm with a null position so the ConfirmModal centers itself on the screen using its existing 50%/translate(-50%, -50%) styling (ui/components/confirm_modal.js).
+
+Deployment: https://y6zqt7mf9vsm.cosine.page
+
+v1.47.5 — Town chests and lockpicking mini‑game
+- Added: Locked town chests
+  - data/world/world_assets.json CHEST prop now uses an effect { type: "lockpick" } instead of being pure flavor text.
+  - Interacting with a chest in town opens a lockpicking mini‑game when the player carries a lockpick tool.
+  - Without a lockpick tool, interaction logs “You will need a lockpick to work this lock.” and does not start the mini‑game.
+- Added: Lockpicking mini‑game (UI + bridge wiring)
+  - New UI component ui/components/lockpick_modal.js implements a deterministic pin‑grid lockpicking game:
+    - 4 vertical pins, each with a notch; all notches must align to a shear line.
+    - Controls: Left/Right or A/D to change selected pin; Space/Enter for a normal nudge (moves selected pin and its neighbors); Shift+Space/Enter for a fine nudge (moves only the selected pin). Esc cancels.
+    - Limited move budget per attempt; starting budget increases gradually with lockpicking skill (uses).
+  - UIBridge exposes isLockpickOpen/showLockpick/hideLockpick(), aggregated into isAnyModalOpen() so game input is gated while the mini‑game is open.
+  - UIOrchestration exposes showLockpick/hideLockpick/isLockpickOpen on its global object, mirroring other panels.
+  - src/main.js now imports /ui/components/lockpick_modal.js so the component is available on every boot.
+- Added: Lockpicking skill
+  - Player.skills now includes lockpicking: 0 by default and is normalized on load (entities/player.js).
+  - Character Sheet (ui/components/character_modal.js) shows Lockpicking in the Non‑combat section with uses and a coarse 0–5% effect readout, matching foraging/cooking/survivalism presentation.
+  - Each lockpicking attempt increments the skill:
+    - +2 uses on success (lock opened).
+    - +1 use on failed attempts.
+  - The mini‑game uses lockpicking skill to grant a small bonus move budget (up to +6 moves at high usage).
+- Added: Chest loot and persistence
+  - On a successful lockpick:
+    - The chest is removed from ctx.townProps (and thus from the town map) to reflect that it has been opened.
+    - awardChestLoot(ctx) grants:
+      - 12–35 gold, added to the existing gold stack (or creating one if absent).
+      - A small chance to roll an equipment item via Items.createEquipment(tier 1–2); description uses ctx.describeItem when available.
+    - A log entry summarizes the result: “You pick the lock and open the chest. Inside you find X gold and Y.”
+  - On failure:
+    - Logs: “The tumblers slip out of place. You fail to pick the lock this time.”
+    - The chest remains; the player can try again on a later turn.
+- Added: Lockpick tool usage and decay
+  - LockpickModal locates the first lockpick tool in inventory (kind: "tool" and type/name matching "lockpick") and uses it for the attempt.
+  - Each attempt decays the lockpick tool:
+    - Success: +1 decay.
+    - Failure: +2 decay.
+  - Legacy durability is normalized to decay if present (similar to the fishing pole behavior).
+  - At 100% decay, the lockpick breaks and is removed from inventory with a log: “Your lockpick snaps.”
+- Changed: Chest interaction wiring
+  - services/props_service.js now interprets CHEST variants with effect.type === "lockpick":
+    - Logs the chest’s flavor message (e.g., “The chest is locked.”).
+    - Uses UIOrchestration.showLockpick(ctx, { x: prop.x, y: prop.y, type: prop.type }) to open the mini‑game when available.
+    - Falls back to the flavor log only when UIOrchestration or UIBridge lockpicking hooks are unavailable.
+- Modal gating and ESC behavior
+  - UIBridge.isAnyModalOpen() now includes isLockpickOpen() so mouse clicks and keyboard input are ignored by the main game while the lockpicking UI is active.
+  - The lockpicking modal swallows relevant keys (movement/space/enter) while running and closes on Esc or clicking the dim background, without disturbing other UI panels.
 
 v1.47.4 — Ruins/Region Map cohesion, guards + barracks, roads-off overworld, mountain dungeon visibility
 - Region Map / Ruins

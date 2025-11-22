@@ -192,6 +192,10 @@
             "phaseWeights": { "morning": 2, "midday": 3, "afternoon": 3, "dusk": 2 },
             "maxPerRestock": 1
           },
+          { "id": "lockpick_fine", "kind": "tool",
+            "phaseWeights": { "midday": 3, "afternoon": 4, "dusk": 3 },
+            "maxPerRestock": 1
+          },
           { "id": "curio_odd_stone", "kind": "curio",
             "phaseWeights": { "dusk": 2 },
             "maxPerRestock": 1

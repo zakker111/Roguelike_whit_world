@@ -73,7 +73,7 @@ function cloneForStorage(st) {
         }))
       : [],
     townProps: Array.isArray(st.townProps)
-      ? st.townProps.map(p => ({ x: p.x, y: p.y, type: p.type, name: p.name }))
+      ? st.townProps.map(p => ({ x: p.x, y: p.y, type: p.type, name: p.name, opened: !!p.opened }))
       : [],
     townBuildings: Array.isArray(st.townBuildings)
       ? st.townBuildings.map(b => ({ x: b.x, y: b.y, w: b.w, h: b.h, door: b.door ? { x: b.door.x, y: b.door.y } : undefined }))
@@ -213,8 +213,8 @@ function applyState(ctx, st, x, y) {
         // Interior-only filtering
         const typ = String(p.type || "").toLowerCase();
         if (interiorOnly.has(typ) && !insideAnyBuilding(x0, y0)) continue;
-        // Keep
-        filtered.push({ x: x0, y: y0, type: p.type, name: p.name });
+        // Keep (preserve opened flag so lockpicked chests stay open across visits)
+        filtered.push({ x: x0, y: y0, type: p.type, name: p.name, opened: !!p.opened });
       }
       ctx.townProps = filtered;
       try {
@@ -317,62 +317,58 @@ function applyState(ctx, st, x, y) {
     } catch (_) {}
   })();
 
-  // Ensure town biome is set on load (use persisted world.towns biome or infer from surrounding world tiles)
+  // Ensure town biome is set on load by sampling surrounding world tiles.
+  // This always re-derives the biome so stale persisted values cannot linger.
   try {
     // Clear any stale outdoor mask from a previous town; it will be rebuilt for this map
     try { ctx.townOutdoorMask = undefined; } catch (_) {}
 
-    // Prefer persisted record
     const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === x && t.y === y) : null;
-    if (rec && rec.biome) {
-      ctx.townBiome = rec.biome;
-    } else {
-      const WMOD = (typeof window !== "undefined" ? window.World : null);
-      const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
-      const world = ctx.world || {};
-      function worldTileAtAbs(ax, ay) {
-        const wmap = world.map || null;
-        const ox = world.originX | 0, oy = world.originY | 0;
-        const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
-        if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
-          return wmap[ly][lx];
-        }
-        if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
-        return null;
+    const WMOD = (typeof window !== "undefined" ? window.World : null);
+    const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
+    const world = ctx.world || {};
+    function worldTileAtAbs(ax, ay) {
+      const wmap = world.map || null;
+      const ox = world.originX | 0, oy = world.originY | 0;
+      const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
+      if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+        return wmap[ly][lx];
       }
-      let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
-      function bump(tile) {
-        if (!WT) return;
-        if (tile === WT.DESERT) counts.DESERT++;
-        else if (tile === WT.SNOW) counts.SNOW++;
-        else if (tile === WT.BEACH) counts.BEACH++;
-        else if (tile === WT.SWAMP) counts.SWAMP++;
-        else if (tile === WT.FOREST) counts.FOREST++;
-        else if (tile === WT.GRASS) counts.GRASS++;
-      }
-      const MAX_R = 6;
-      for (let r = 1; r <= MAX_R; r++) {
-        let any = false;
-        for (let dy = -r; dy <= r; dy++) {
-          for (let dx = -r; dx <= r; dx++) {
-            if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-            const t = worldTileAtAbs(x + dx, y + dy);
-            if (t == null) continue;
-            if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
-            bump(t);
-            any = true;
-          }
-        }
-        const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
-        if (any && total > 0) break;
-      }
-      const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
-      let best = "GRASS", bestV = -1;
-      for (const k2 of order) { const v = counts[k2] | 0; if (v > bestV) { bestV = v; best = k2; } }
-      ctx.townBiome = best || "GRASS";
-      // Persist for next load
-      try { if (rec && typeof rec === "object") rec.biome = ctx.townBiome; } catch (_) {}
+      if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
+      return null;
     }
+    let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
+    function bump(tile) {
+      if (!WT) return;
+      if (tile === WT.DESERT) counts.DESERT++;
+      else if (tile === WT.SNOW) counts.SNOW++;
+      else if (tile === WT.BEACH) counts.BEACH++;
+      else if (tile === WT.SWAMP) counts.SWAMP++;
+      else if (tile === WT.FOREST) counts.FOREST++;
+      else if (tile === WT.GRASS) counts.GRASS++;
+    }
+    const MAX_R = 6;
+    for (let r = 1; r <= MAX_R; r++) {
+      let any = false;
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const t = worldTileAtAbs(x + dx, y + dy);
+          if (t == null) continue;
+          if (WT && (t === WT.TOWN || t === WT.DUNGEON || t === WT.RUINS)) continue;
+          bump(t);
+          any = true;
+        }
+      }
+      const total = counts.DESERT + counts.SNOW + counts.BEACH + counts.SWAMP + counts.FOREST + counts.GRASS;
+      if (any && total > 0) break;
+    }
+    const order = ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"];
+    let best = "GRASS", bestV = -1;
+    for (const k2 of order) { const v = counts[k2] | 0; if (v > bestV) { bestV = v; best = k2; } }
+    ctx.townBiome = best || "GRASS";
+    // Persist for next load
+    try { if (rec && typeof rec === "object") rec.biome = ctx.townBiome; } catch (_) {}
   } catch (_) {}
 
   // Place player at the town gate (exit tile) if available

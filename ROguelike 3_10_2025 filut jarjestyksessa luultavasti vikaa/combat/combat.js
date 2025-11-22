@@ -54,7 +54,11 @@ export function getPlayerBlockChance(ctx, loc) {
 
 export function getEnemyBlockChance(ctx, enemy, loc) {
   const type = enemy && enemy.type ? String(enemy.type) : "";
-  const base = type === "ogre" ? 0.10 : (type === "troll" ? 0.08 : 0.06);
+  let base;
+  if (type === "ogre") base = 0.10;
+  else if (type === "troll") base = 0.08;
+  else if (type === "guard") base = 0.13;
+  else base = 0.06;
   const mod = (loc && typeof loc.blockMod === "number") ? loc.blockMod : 1.0;
   return Math.max(0, Math.min(0.35, base * mod));
 }
@@ -225,6 +229,16 @@ export function playerAttackEnemy(ctx, enemy) {
       const eq = ctx.player && ctx.player.equipment ? ctx.player.equipment : {};
       const weaponName = (eq.right && eq.right.name) ? eq.right.name : (eq.left && eq.left.name) ? eq.left.name : null;
       enemy._lastHit = { by: "player", part: loc.part, crit: isCrit, dmg, weapon: weaponName, via: weaponName ? `with ${weaponName}` : "melee" };
+      // If the player attacks a guard, all guards in the encounter become hostile to the player.
+      try {
+        if (enemy && String(enemy.faction || "").toLowerCase() === "guard" && Array.isArray(ctx.enemies)) {
+          for (const other of ctx.enemies) {
+            if (other && String(other.faction || "").toLowerCase() === "guard") {
+              other._ignorePlayer = false;
+            }
+          }
+        }
+      } catch (_) {}
     } catch (_) {}
   } catch (_) {}
 

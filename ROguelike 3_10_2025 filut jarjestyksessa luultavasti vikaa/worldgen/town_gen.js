@@ -272,6 +272,16 @@ function generate(ctx) {
     }
   } catch (_) { info = null; }
 
+  // Determine town kind (e.g. regular town vs castle) from overworld metadata
+  let townKind = "town";
+  try {
+    if (info && typeof info.kind === "string" && info.kind) {
+      townKind = info.kind;
+    }
+  } catch (_) {}
+  ctx.townKind = townKind;
+  if (townKind === "castle" && townSize !== "city") townSize = "city";
+
   // Size the town map from data/town.json (fallback to previous values)
   const GD = getGameData(ctx);
   const TOWNCFG = (GD && GD.town) || null;
@@ -345,6 +355,15 @@ function generate(ctx) {
     townName = [p, m, s].filter(Boolean).join("");
     try { if (info) info.name = townName; } catch (_) {}
   }
+  // Castle settlements get a castle-style name prefix if not already labeled as such.
+  if (townKind === "castle" && townName) {
+    try {
+      if (!/castle/i.test(townName)) {
+        townName = `Castle ${townName}`;
+        if (info) info.name = townName;
+      }
+    } catch (_) {}
+  }
   ctx.townName = townName;
   // Expose size to other modules (AI, UI)
   ctx.townSize = townSize;
@@ -378,14 +397,8 @@ function generate(ctx) {
       const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
       const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
 
-      // If world.towns entry already has a biome, trust it
-      try {
-        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-        if (rec && rec.biome) {
-          ctx.townBiome = rec.biome;
-          return;
-        }
-      } catch (_) {}
+      // Always derive town biome from current world tiles to avoid stale persisted values.
+      // (Any computed biome is persisted back onto ctx.world.towns below.)
 
       // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
       let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
@@ -861,6 +874,119 @@ function generate(ctx) {
     }
     buildings.push({ x: bx, y: by, w: bw, h: bh });
   };
+
+  // For castle settlements, reserve a central \"keep\" tower building with a luxurious interior.
+  // This is a large rectangular building near the plaza center, furnished with rugs, fireplaces,
+  // beds and tables to make the castle feel distinct from regular towns.
+  if (townKind === "castle") {
+    (function placeCastleKeep() {
+      try {
+        // Scale keep size from plaza size, with bounds tied to town size.
+        let keepW = Math.max(14, Math.floor(plazaW * 0.9));
+        let keepH = Math.max(12, Math.floor(plazaH * 0.9));
+        if (townSize === "small") {
+          keepW = Math.max(12, Math.floor(plazaW * 0.8));
+          keepH = Math.max(10, Math.floor(plazaH * 0.8));
+        } else if (townSize === "city") {
+          keepW = Math.max(18, Math.floor(plazaW * 1.1));
+          keepH = Math.max(14, Math.floor(plazaH * 1.1));
+        }
+        // Clamp to map with a safety margin from outer walls.
+        keepW = Math.min(keepW, W - 6);
+        keepH = Math.min(keepH, H - 6);
+        if (keepW < 10 || keepH < 8) return;
+
+        // Center on the plaza.
+        const kx = Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0));
+        const ky = Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0));
+
+        // Do not overwrite the gate tile.
+        if (kx <= gate.x && gate.x <= kx + keepW - 1 && ky <= gate.y && gate.y <= ky + keepH - 1) {
+          return;
+        }
+
+        // Ensure the area is mostly floor before carving (avoid overlapping existing prefab buildings).
+        let blocked = false;
+        for (let y = ky; y < ky + keepH && !blocked; y++) {
+          for (let x = kx; x < kx + keepW; x++) {
+            if (y <= 0 || x <= 0 || y >= H - 1 || x >= W - 1) { blocked = true; break; }
+            const t = ctx.map[y][x];
+            if (t !== ctx.TILES.FLOOR) { blocked = true; break; }
+          }
+        }
+        if (blocked) return;
+
+        // Carve the keep shell.
+        placeBuilding(kx, ky, keepW, keepH);
+
+        // Annotate the most recently added building as the castle keep for diagnostics.
+        const keep = buildings[buildings.length - 1];
+        if (keep) {
+          keep.prefabId = "castle_keep";
+          keep.prefabCategory = "castle";
+        }
+
+        // Luxurious interior furnishing: central hall rug, throne area, side chambers with beds/chests.
+        const innerX0 = kx + 1;
+        const innerY0 = ky + 1;
+        const innerX1 = kx + keepW - 2;
+        const innerY1 = ky + keepH - 2;
+        const midX = (innerX0 + innerX1) >> 1;
+        const midY = (innerY0 + innerY1) >> 1;
+
+        function safeAddProp(x, y, type, name) {
+          try {
+            if (x <= innerX0 || y <= innerY0 || x >= innerX1 || y >= innerY1) return;
+            if (ctx.map[y][x] !== ctx.TILES.FLOOR) return;
+            if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p.x === x && p.y === y)) return;
+            ctx.townProps.push({ x, y, type, name });
+          } catch (_) {}
+        }
+
+        // Long rug down the central hall.
+        for (let y = innerY0 + 1; y <= innerY1 - 1; y++) {
+          safeAddProp(midX, y, "rug");
+        }
+
+        // Throne area at the far end from the gate: decide orientation by comparing to gate position.
+        let throneY = innerY0 + 1;
+        let tableY = throneY + 1;
+        if (gate.y < ky) {
+          // Gate is above keep -> throne at south end.
+          throneY = innerY1 - 1;
+          tableY = throneY - 1;
+        }
+        safeAddProp(midX, throneY, "chair", "Throne");
+        safeAddProp(midX - 1, throneY, "plant");
+        safeAddProp(midX + 1, throneY, "plant");
+        // High table in front of throne.
+        safeAddProp(midX, tableY, "table");
+
+        // Grand fireplaces on the side walls.
+        safeAddProp(innerX0 + 1, midY, "fireplace");
+        safeAddProp(innerX1 - 1, midY, "fireplace");
+
+        // Side chambers with beds and chests.
+        safeAddProp(innerX0 + 2, innerY0 + 2, "bed");
+        safeAddProp(innerX0 + 3, innerY0 + 2, "chest");
+        safeAddProp(innerX1 - 3, innerY0 + 2, "bed");
+        safeAddProp(innerX1 - 2, innerY0 + 2, "chest");
+
+        safeAddProp(innerX0 + 2, innerY1 - 2, "bed");
+        safeAddProp(innerX0 + 3, innerY1 - 2, "table");
+        safeAddProp(innerX1 - 3, innerY1 - 2, "bed");
+        safeAddProp(innerX1 - 2, innerY1 - 2, "table");
+
+        // Decorative plants and barrels along the walls.
+        for (let x = innerX0 + 2; x <= innerX1 - 2; x += 3) {
+          safeAddProp(x, innerY0 + 1, "plant");
+          safeAddProp(x, innerY1 - 1, "plant");
+        }
+        safeAddProp(innerX0 + 1, innerY0 + 1, "barrel");
+        safeAddProp(innerX1 - 1, innerY0 + 1, "barrel");
+      } catch (_) {}
+    })();
+  }
   const cfgB = (TOWNCFG && TOWNCFG.buildings) || {};
   const maxBuildings = Math.max(1, (cfgB.max | 0) || 18);
   const blockW = Math.max(4, (cfgB.blockW | 0) || 8);
@@ -1970,9 +2096,11 @@ function generate(ctx) {
     }
   })();
 
-  // Plaza fixtures via prefab only (no fallbacks)
+  // Plaza fixtures via prefab only (no fallbacks). For castle settlements, keep the central area
+  // clear for the castle keep and skip plaza prefabs.
   (function placePlazaPrefabStrict() {
     try {
+      if (townKind === "castle") return;
       // Guard: if a plaza prefab was already stamped in this generation cycle, skip
       try {
         if (ctx.townPrefabUsage && Array.isArray(ctx.townPrefabUsage.plazas) && ctx.townPrefabUsage.plazas.length > 0) return;
@@ -2121,6 +2249,10 @@ function generate(ctx) {
   if (townSize === "small") guardTarget = 2;
   else if (townSize === "city") guardTarget = 4;
   else guardTarget = 3;
+  // Castles are fortified settlements: add a few extra guards on top of the normal town size rules.
+  if (townKind === "castle") {
+    guardTarget += 2;
+  }
   guardTarget = Math.min(guardTarget, roamTarget);
 
   let placed = 0, placedGuards = 0, tries = 0;
