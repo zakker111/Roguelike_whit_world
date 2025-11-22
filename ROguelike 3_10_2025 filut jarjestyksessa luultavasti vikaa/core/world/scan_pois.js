@@ -1,9 +1,9 @@
 /**
  * World scanPOIs helper (Phase 3 extraction):
  * Registers towns/dungeons/ruins in the current window and triggers roads/bridges when enabled.
- */\nimport { addTown, addCastle, addDungeon, addRuins } from './poi.js';\nimport { ensureRoads, ensureExtraBridges } from './roads_bridges.js';\n
-import { addTown, addDungeon, addRuins } from './poi.js';
-import { ensureRoads, ensureExtraBridges } from './roads_bridges.js';
+ */
+import { addTown, addCastle, addDungeon, addRuins } from "./poi.js";
+import { ensureRoads, ensureExtraBridges } from "./roads_bridges.js";
 
 // Config helpers (duplicated from world_runtime for now; will be centralized later)
 function _getConfig() {
@@ -90,8 +90,6 @@ export function scanPOIs(ctx, x0, y0, w, h) {
         const wy = world.originY + yy;
         addRuins(world, wx, wy);
       }
-    }
-  }
     }
   }
   // After registering POIs in this strip/window, connect nearby towns with roads and mark bridges (feature-gated).
