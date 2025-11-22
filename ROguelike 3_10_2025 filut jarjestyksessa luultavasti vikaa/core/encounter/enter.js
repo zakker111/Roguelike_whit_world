@@ -76,12 +76,23 @@ export function enter(ctx, info) {
   // Place chests inside huts (center tile). Fill with simple loot.
   try {
     const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+    const RUenc = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+    const rEnc = (RUenc && typeof RUenc.getRng === "function")
+      ? RUenc.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+      : ((typeof ctx.rng === "function") ? ctx.rng : (() => 0.5));
     for (let i = 0; i < hutCenters.length; i++) {
       const c = hutCenters[i];
       if (c.x <= 0 || c.y <= 0 || c.x >= W - 1 || c.y >= H - 1) continue;
       if (map[c.y][c.x] !== T.FLOOR) continue;
       if (c.x === ctx.player.x && c.y === ctx.player.y) continue;
       const loot = (L && typeof L.generate === "function") ? (L.generate(ctx, { type: "bandit", xp: 10 }) || []) : [{ name: "5 gold", kind: "gold", amount: 5 }];
+      // Tiny chance for an encounter chest to contain a fine lockpick (Seppo-quality).
+      try {
+        const rollFine = rEnc();
+        if (rollFine < 0.03) { // ~3% per chest
+          loot.push({ kind: "tool", type: "lockpick_fine", name: "fine lockpick", decay: 0 });
+        }
+      } catch (_) {}
       ctx.corpses.push({ kind: "chest", x: c.x, y: c.y, loot, looted: loot.length === 0 });
       chestSpots.add(keyFor(c.x, c.y));
     }
