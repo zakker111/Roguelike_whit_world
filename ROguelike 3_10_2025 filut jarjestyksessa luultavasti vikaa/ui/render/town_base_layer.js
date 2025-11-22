@@ -59,7 +59,7 @@ function ensureTownBiome(ctx) {
     function bump(tile) {
       if (!WT) return;
       if (tile === WT.DESERT) counts.DESERT++;
-      else if (tile === WT.SNOW) counts.SNOW++;
+      else if (tile === WT.SNOW || tile === WT.SNOW_FOREST) counts.SNOW++;
       else if (tile === WT.BEACH) counts.BEACH++;
       else if (tile === WT.SWAMP) counts.SWAMP++;
       else if (tile === WT.FOREST) counts.FOREST++;

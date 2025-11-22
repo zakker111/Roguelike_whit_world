@@ -23,6 +23,7 @@ export function fallbackFillRegion(WT, id) {
     if (id === WT.MOUNTAIN) return "#2f2f34";
     if (id === WT.DESERT) return "#c2a36b";
     if (id === WT.SNOW) return "#b9c7d3";
+    if (id === WT.SNOW_FOREST) return "#8298aa";
     if (id === WT.TOWN) return "#3a2f1b";
     if (id === WT.DUNGEON) return "#2a1b2a";
     if (id === WT.TREE) return "#0f3b1e";

@@ -25,8 +25,9 @@ export const TILES = {
   SNOW: 10,
   TREE: 11, // region-only decorative tree tile; walkable but blocks FOV in region
   RUINS: 12, // overworld ruins POI; opens a themed Region Map
-  CASTLE: 15, // overworld castle POI; uses town-mode layout but marked as castle
   BERRY_BUSH: 14, // region-only forage bush; walkable, does not block FOV
+  CASTLE: 15, // overworld castle POI; uses town-mode layout but marked as castle
+  SNOW_FOREST: 16, // snowy forest biome (snow with dense trees)
 };
 
 function clamp(v, lo, hi) {
@@ -67,6 +68,8 @@ export function biomeName(tile) {
     case TILES.MOUNTAIN: return "Mountain";
     case TILES.DESERT: return "Desert";
     case TILES.SNOW: return "Snow";
+    // Forested snow uses its own tile id but is treated as "Snow" for biome logic.
+    case TILES.SNOW_FOREST: return "Snow";
     case TILES.GRASS: return "Plains";
     case TILES.TOWN: return "Town";
     case TILES.CASTLE: return "Castle";
@@ -222,7 +225,12 @@ export function generate(ctx, opts = {}) {
       if (temperature > 0.65 && moisture < 0.15 && rng() < 0.9) {
         map[y][x] = TILES.DESERT;
       } else if (temperature < 0.25 && moisture < 0.6 && rng() < 0.9) {
-        map[y][x] = TILES.SNOW;
+        // Split cold plains into open snow vs forested snow based on moisture.
+        if (moisture > 0.4 && rng() < 0.6) {
+          map[y][x] = TILES.SNOW_FOREST;
+        } else {
+          map[y][x] = TILES.SNOW;
+        }
       }
     }
   }
@@ -266,8 +274,8 @@ export function generate(ctx, opts = {}) {
     wantTowns,
     (x, y) => {
       const t = map[y][x];
-      // allow GRASS/BEACH and occasionally DESERT/SNOW towns
-      if (!(t === TILES.GRASS || t === TILES.BEACH || t === TILES.DESERT || t === TILES.SNOW)) return false;
+      // allow GRASS/BEACH and occasionally DESERT/SNOW towns (including forested snow)
+      if (!(t === TILES.GRASS || t === TILES.BEACH || t === TILES.DESERT || t === TILES.SNOW || t === TILES.SNOW_FOREST)) return false;
       // prefer near water or river
       for (let dy = -5; dy <= 5; dy++) {
         for (let dx = -5; dx <= 5; dx++) {
@@ -311,7 +319,7 @@ if (towns.length) {
     else if (tile === TILES.GRASS) { wSmall += 0.10; wMed += 0.05; wLarge -= 0.15; }
     else if (tile === TILES.SWAMP) { wMed += 0.10; wSmall += 0.05; wLarge -= 0.15; }
     else if (tile === TILES.DESERT) { wMed += 0.10; wLarge += 0.05; wSmall -= 0.15; }
-    else if (tile === TILES.SNOW) { wMed += 0.10; wSmall += 0.05; wLarge -= 0.15; }
+    else if (tile === TILES.SNOW || tile === TILES.SNOW_FOREST) { wMed += 0.10; wSmall += 0.05; wLarge -= 0.15; }
     // normalize
     const sum = Math.max(0.001, wSmall + wMed + wLarge);
     const ps = [wSmall / sum, wMed / sum, wLarge / sum];
@@ -327,8 +335,8 @@ if (towns.length) {
       const t = map[y][x];
       if (t === TILES.FOREST || t === TILES.MOUNTAIN) return true;
       if (t === TILES.GRASS) return rng() < 0.16; // more likely on plains
-      // Allow a small chance in DESERT and SNOW to diversify placement
-      if (t === TILES.DESERT || t === TILES.SNOW) return rng() < 0.06;
+      // Allow a small chance in DESERT and SNOW (including forested snow) to diversify placement
+      if (t === TILES.DESERT || t === TILES.SNOW || t === TILES.SNOW_FOREST) return rng() < 0.06;
       // avoid water/river/beach/swamp for entrances; bias to solid terrain
       return false;
     },
@@ -351,7 +359,7 @@ if (towns.length) {
       const t = map[y][x];
       if (t === TILES.WATER || t === TILES.RIVER || t === TILES.SWAMP) return false;
       if (t === TILES.GRASS || t === TILES.FOREST) return rng() < 0.25;
-      if (t === TILES.DESERT || t === TILES.SNOW) return rng() < 0.12;
+      if (t === TILES.DESERT || t === TILES.SNOW || t === TILES.SNOW_FOREST) return rng() < 0.12;
       if (t === TILES.BEACH) return rng() < 0.05;
       return false;
     },

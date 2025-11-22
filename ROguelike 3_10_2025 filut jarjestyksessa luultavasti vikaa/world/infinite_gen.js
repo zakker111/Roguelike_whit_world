@@ -26,6 +26,7 @@ const TILES = {
   SNOW: 10,
   RUINS: 12,
   CASTLE: 15,
+  SNOW_FOREST: 16, // snowy forest biome (snow with dense trees)
 };
 
 function mulberry32(a) {
@@ -156,7 +157,12 @@ function create(seed, opts = {}) {
 
     // Land biomes by moisture and temperature
     if (temp > 0.7 && moist < 0.25) return TILES.DESERT;
-    if (temp < 0.25 && moist < 0.7) return TILES.SNOW;
+    if (temp < 0.25 && moist < 0.7) {
+      // Split cold land into open snow vs forested snow based on moisture.
+      // Drier cold -> open SNOW, more moist cold -> SNOW_FOREST.
+      if (moist > 0.45) return TILES.SNOW_FOREST;
+      return TILES.SNOW;
+    }
 
     // Mountains at high elevation
     if (elevation > 0.78) return TILES.MOUNTAIN;
