@@ -218,10 +218,11 @@ function create(seed, opts = {}) {
 
     // Town / castle roll (only at the town anchor of the cell)
     if (atTownAnchor) {
-      // First, rare castle placement, preferring coasts/rivers
+      // First, extremely rare castle placement, preferring coasts/rivers
       const rCastle = hash2(s ^ 0x1010, cellTownX, cellTownY);
-      let castleChance = 0.01; // very rare by default
-      if (coastBias > 0) castleChance += 0.04; // slightly more common near water
+      // Base: 0.2% per town cell; up to 0.5% when near water/river
+      let castleChance = 0.002;
+      if (coastBias > 0) castleChance += 0.003;
       if (rCastle < castleChance) return TILES.CASTLE;
 
       const rTown = hash2(s ^ 0x1111, cellTownX, cellTownY);
