@@ -255,9 +255,11 @@ export function enemiesAct(ctx) {
 
     // Choose a target among player and hostile factions
     // Neutral animals do not target or pursue the player unless made hostile.
+    // Guards in special encounters can start neutral to the player via e._ignorePlayer.
     let target = null;
     let bestDist = Infinity;
-    if (eFac !== "animal") {
+    const considerPlayer = (eFac !== "animal") && !e._ignorePlayer;
+    if (considerPlayer) {
       target = { kind: "player", x: player.x, y: player.y, ref: null, faction: "player" };
       bestDist = Math.abs(player.x - e.x) + Math.abs(player.y - e.y);
     }
