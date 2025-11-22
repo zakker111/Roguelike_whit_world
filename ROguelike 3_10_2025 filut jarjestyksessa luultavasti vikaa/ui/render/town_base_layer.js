@@ -4,7 +4,6 @@
 import * as RenderCore from "../render_core.js";
 import { getTileDef } from "../../data/tile_lookup.js";
 import { fillTownFor, tilesRef, fallbackFillTown } from "./town_tile_cache.js";
-import { mix as mixColor } from "../color_utils.js";
 
 // Base layer offscreen cache for town (tiles only; overlays drawn per frame)
 const TOWN = { mapRef: null, canvas: null, wpx: 0, hpx: 0, TILE: 0, _tilesRef: null, _biomeKey: null, _townKey: null, _maskRef: null, _palRef: null };
@@ -223,9 +222,7 @@ export function drawTownBase(ctx, view) {
               const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
               const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, xx, yy);
               if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
-                // Blend base tile color with biome tint instead of fully overwriting it.
-                const t = isOutdoorRoad ? 0.5 : 0.35;
-                fill = mixColor(fill, biomeFill, t);
+                fill = biomeFill;
               }
             } catch (_) {}
             oc.fillStyle = fill;
@@ -266,8 +263,7 @@ export function drawTownBase(ctx, view) {
         const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
         const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, x, y);
         if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
-          const t = isOutdoorRoad ? 0.5 : 0.35;
-          fill = mixColor(fill, biomeFill, t);
+          fill = biomeFill;
         }
       } catch (_) {}
       ctx2d.fillStyle = fill;
