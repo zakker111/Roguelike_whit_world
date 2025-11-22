@@ -2152,6 +2152,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
             } catch (_) {}
           }
         }
+      }
 
       if (!target) {
         stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
