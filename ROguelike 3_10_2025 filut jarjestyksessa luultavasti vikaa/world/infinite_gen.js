@@ -170,6 +170,21 @@ function create(seed, opts = {}) {
     return TILES.GRASS;
   }
 
+  function hasNonBlockingWithinRadius(x, y, maxR = 2) {
+    const block = new Set([TILES.WATER, TILES.RIVER, TILES.MOUNTAIN]);
+    for (let r = 1; r <= maxR; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const t = classify(x + dx, y + dy);
+          if (!block.has(t)) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function placePOI(x, y) {
     // Deterministic per-cell anchor so at most ONE tile in a coarse cell becomes a POI.
     const cellTownX = Math.floor(x / cfg.townGrid), cellTownY = Math.floor(y / cfg.townGrid);
@@ -210,6 +225,10 @@ function create(seed, opts = {}) {
     const tHere = classify(x, y);
     if (tHere === TILES.WATER || tHere === TILES.RIVER || tHere === TILES.SWAMP) return null;
 
+    // Quick accessibility check: require some non-blocking ground (not water/river/mountain)
+    // within a small radius so POIs are not buried deep inside mountain ranges.
+    const hasExit = hasNonBlockingWithinRadius(x, y, 2);
+
     // Towns near coasts/rivers preferred
     const coastBias = (classify(x + 1, y) === TILES.WATER || classify(x - 1, y) === TILES.WATER
       || classify(x, y + 1) === TILES.WATER || classify(x, y - 1) === TILES.WATER
@@ -218,6 +237,9 @@ function create(seed, opts = {}) {
 
     // Town / castle roll (only at the town anchor of the cell)
     if (atTownAnchor) {
+      // Disallow towns/castles placed deep inside mountain clusters with no nearby open ground.
+      if (tHere === TILES.MOUNTAIN || !hasExit) return null;
+
       // First, extremely rare castle placement, preferring coasts/rivers
       const rCastle = hash2(s ^ 0x1010, cellTownX, cellTownY);
       // Base: 0.2% per town cell; up to 0.5% when near water/river
@@ -231,6 +253,9 @@ function create(seed, opts = {}) {
 
     // Dungeon roll (only at the dungeon anchor of the cell)
     if (atDungAnchor) {
+      // Skip dungeon anchors that are fully buried in mountains with no nearby open ground.
+      if (!hasExit) return null;
+
       const rDung = hash2(s ^ 0x2222, cellDungX, cellDungY);
 
       // Prefer dungeon entrances on or near mountain edges to support mountain-pass dungeons.
@@ -263,6 +288,8 @@ function create(seed, opts = {}) {
 
     // Ruins roll (only at the ruins anchor of the cell)
     if (atRuinsAnchor) {
+      // Avoid spawning ruins deep inside inaccessible mountain pockets.
+      if (!hasExit) return null;
       const rRuins = hash2(s ^ 0x9999, cellRuinsX, cellRuinsY);
       if (rRuins < cfg.ruinsChance) return TILES.RUINS;
     }
