@@ -141,24 +141,19 @@ function spawnCaravansIfNeeded(ctx) {
   const townCount = towns.length;
   const existing = Array.isArray(caravans) ? caravans.length : 0;
 
-  // Desired caravans grows with town count (e.g. 2 at start, up to ~8–10 in large worlds)
-  const desired = Math.min(10, Math.max(2, Math.floor(townCount / 3)));
+  // Hard cap so the world doesn't fill with caravans, but never fully disables spawning.
+  const maxCaravans = Math.max(6, Math.min(15, Math.floor(townCount / 2)));
+  if (existing >= maxCaravans) return;
 
-  // Guarantee at least one caravan if there are at least 2 towns.
-  if (existing === 0 && townCount >= 2) {
-    spawnSingleCaravan(ctx, towns, caravans, r);
-    return;
-  }
+  // Always have a chance to spawn a caravan whenever there are at least 2 towns.
+  if (townCount < 2) return;
 
-  // Soft cap: if we already have enough caravans, only rarely add new ones.
-  if (existing >= desired) {
-    // Allow a very small chance to top up if caravans were lost somehow.
-    if (existing >= desired + 2) return;
-    if (r() > 0.01) return;
-  } else {
-    // When under capacity, fairly frequent chance to spawn.
-    if (r() > 0.12) return;
-  }
+  // Base spawn probability per world tick (slightly scaled by town count).
+  const baseP = 0.08; // 8% per tick
+  const scale = Math.min(2.0, 0.5 + townCount / 10); // more towns -> slightly more frequent spawns
+  const p = Math.min(0.25, baseP * scale); // clamp to 25% max
+
+  if (r() > p) return;
 
   spawnSingleCaravan(ctx, towns, caravans, r);
 }
