@@ -843,9 +843,87 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     }
   }
 
+  // Ensure that at most one NPC per building uses a given bed tile.
+  // If there are more NPCs than beds, extra NPCs will have no bed assigned
+  // and will fall back to chairs or floor via existing home logic.
+  function dedupeHomeBeds(ctx) {
+    const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+    const townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : [];
+    const townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+    if (!npcs.length || !townBuildings.length || !townProps.some(p => p.type === "bed")) return;
+
+    const bedsByBuilding = new Map();
+    const usedByBuilding = new Map();
+    const bKey = (b) => `${b.x},${b.y},${b.w},${b.h}`;
+
+    function bedsForBuilding(b) {
+      const key = bKey(b);
+      if (bedsByBuilding.has(key)) return bedsByBuilding.get(key);
+      const list = bedsFor(ctx, b) || [];
+      bedsByBuilding.set(key, list);
+      return list;
+    }
+
+    // First pass: record existing bed usage and drop assignments to non-existent or already-used beds.
+    for (const n of npcs) {
+      if (!n || !n._home || !n._home.building) continue;
+      const B = n._home.building;
+      const key = bKey(B);
+      let used = usedByBuilding.get(key);
+      if (!used) {
+        used = new Set();
+        usedByBuilding.set(key, used);
+      }
+      if (n._home.bed) {
+        const bed = n._home.bed;
+        const beds = bedsForBuilding(B);
+        const exists = beds.some(p => p.x === bed.x && p.y === bed.y);
+        if (!exists) {
+          // Bed no longer exists inside building (layout changed); clear assignment.
+          n._home.bed = null;
+          continue;
+        }
+        const kBed = `${bed.x},${bed.y}`;
+        if (used.has(kBed)) {
+          // Another NPC already owns this bed; drop this one so they can fall back to chair/floor.
+          n._home.bed = null;
+        } else {
+          used.add(kBed);
+        }
+      }
+    }
+
+    // Second pass: assign free beds to NPCs without one, per building.
+    for (const n of npcs) {
+      if (!n || !n._home || !n._home.building) continue;
+      const B = n._home.building;
+      if (n._home.bed) continue;
+      const beds = bedsForBuilding(B);
+      if (!beds.length) continue;
+      const key = bKey(B);
+      let used = usedByBuilding.get(key);
+      if (!used) {
+        used = new Set();
+        usedByBuilding.set(key, used);
+      }
+      const candidates = [];
+      for (const bd of beds) {
+        const kBed = `${bd.x},${bd.y}`;
+        if (!used.has(kBed)) candidates.push(bd);
+      }
+      if (!candidates.length) continue;
+      const pick = candidates[randInt(ctx, 0, candidates.length - 1)];
+      n._home.bed = { x: pick.x, y: pick.y };
+      used.add(`${pick.x},${pick.y}`);
+    }
+  }
+
   function townNPCsAct(ctx) {
     const { npcs, player, townProps } = ctx;
     if (!Array.isArray(npcs) || npcs.length === 0) return;
+
+    // Ensure home bed assignments are unique per building before acting.
+    dedupeHomeBeds(ctx);
 
     // Runtime occupancy (used for actual movement)
     const occ = new Set();
@@ -1454,21 +1532,19 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
         // Off-duty behavior: go to barracks and sleep on a bed during rest window
         if (wantsRest && n._guardRestRole === "rest" && home) {
-          // Choose a bed inside the barracks, nearest to this guard if possible
+          // Preferred rest target: guard's assigned home bed (unique per building), else home coords, else any barracks bed.
           let target = null;
           try {
-            const bedList = bedsFor(ctx, home);
-            if (bedList.length) {
-              let best = bedList[0];
-              let bd = manhattan(n.x, n.y, best.x, best.y);
-              for (let i = 1; i < bedList.length; i++) {
-                const b = bedList[i];
-                const d = manhattan(n.x, n.y, b.x, b.y);
-                if (d < bd) { bd = d; best = b; }
-              }
-              target = { x: best.x, y: best.y };
+            if (n._home && n._home.bed) {
+              target = { x: n._home.bed.x, y: n._home.bed.y };
             } else if (n._home && typeof n._home.x === "number" && typeof n._home.y === "number") {
               target = { x: n._home.x, y: n._home.y };
+            } else {
+              const bedList = bedsFor(ctx, home);
+              if (bedList.length) {
+                const b0 = bedList[0];
+                target = { x: b0.x, y: b0.y };
+              }
             }
           } catch (_) {}
 
