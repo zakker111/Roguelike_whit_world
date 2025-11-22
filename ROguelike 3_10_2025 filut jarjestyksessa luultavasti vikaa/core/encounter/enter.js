@@ -2,7 +2,7 @@
  * Encounter enter (Phase 4 extraction): switches to encounter mode and generates tactical map.
  */
 import { getMod } from "../../utils/access.js";
-import { genEmpty, genAmbushForest, genCamp, genRuins, genArena } from "./generators.js";
+import { genEmpty, genAmbushForest, genCamp, genRuins, genArena, genBattlefield } from "./generators.js";
 import { resetSessionFlags, setCurrentQuestInstanceId } from "./session_state.js";
 
 export function enter(ctx, info) {
@@ -62,6 +62,7 @@ export function enter(ctx, info) {
   else if (id === "camp" || id === "bandit_camp" || id === "camp_small") map = genCamp(ctx, r, W, H, T, hutCenters, [], encProps);
   else if (id === "ruins" || id === "ruin") map = genRuins(ctx, r, W, H, T);
   else if (id === "arena" || id === "cross") map = genArena(ctx, r, W, H, T);
+  else if (id === "battlefield" || id === "open_field") map = genBattlefield(ctx, r, W, H, T);
   else map = genEmpty(ctx, W, H, T);
 
   ctx.map = map;
@@ -357,8 +358,8 @@ export function enter(ctx, info) {
         ctx.enemies.push(e);
       }
 
-      const guardRowY = Math.max(1, Math.min(H - 2, cy - 3));
-      const banditRowY = Math.max(1, Math.min(H - 2, cy + 3));
+      const guardRowY = Math.max(1, Math.min(H - 2, cy - 2));
+      const banditRowY = Math.max(1, Math.min(H - 2, cy + 2));
 
       let guardPlaced = 0;
       let banditPlaced = 0;

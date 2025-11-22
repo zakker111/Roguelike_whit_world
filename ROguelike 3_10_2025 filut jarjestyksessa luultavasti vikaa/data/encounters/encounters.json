@@ -81,7 +81,7 @@
       "name": "Guards vs Bandits",
       "baseWeight": 0.5,
       "allowedBiomes": ["GRASS"],
-      "map": { "generator": "arena", "w": 28, "h": 18 },
+      "map": { "generator": "battlefield", "w": 28, "h": 18 },
       "groups": [
         { "type": "guard",  "count": { "min": 6, "max": 10 }, "faction": "guard" },
         { "type": "bandit", "count": { "min": 7, "max": 11 }, "faction": "bandit" }
