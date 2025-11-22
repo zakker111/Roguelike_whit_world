@@ -209,7 +209,6 @@ export function drawTownBase(ctx, view) {
           oc.textBaseline = "middle";
         } catch (_) {}
         ensureOutdoorMask(ctx, map);
-        const biomeFill = townBiomeFill(ctx);
         TOWN._maskRef = ctx.townOutdoorMask;
 
         for (let yy = 0; yy < mapRows; yy++) {
@@ -217,14 +216,8 @@ export function drawTownBase(ctx, view) {
           for (let xx = 0; xx < mapCols; xx++) {
             const type = rowMap[xx];
             const sx = xx * TILE, sy = yy * TILE;
-            let fill = fillTownFor(TILES, type, COLORS);
-            try {
-              const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
-              const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, xx, yy);
-              if ((isOutdoorFloor || isOutdoorRoad) && biomeFill) {
-                fill = biomeFill;
-              }
-            } catch (_) {}
+            // Use JSON / fallback colors directly; do not override with biome tint for towns.
+            const fill = fillTownFor(TILES, type, COLORS);
             oc.fillStyle = fill;
             oc.fillRect(sx, sy, TILE, TILE);
           }
@@ -244,7 +237,6 @@ export function drawTownBase(ctx, view) {
   // Fallback: draw base tiles in viewport using JSON colors or robust fallback
   ensureTownBiome(ctx);
   ensureOutdoorMask(ctx, map);
-  const biomeFill = resolvedTownBiomeFill(ctx);
   for (let y = startY; y <= endY; y++) {
     const yIn = y >= 0 && y < mapRows;
     const rowMap = yIn ? map[y] : null;
@@ -258,14 +250,7 @@ export function drawTownBase(ctx, view) {
       }
       const type = rowMap[x];
       const td = getTileDef("town", type) || getTileDef("dungeon", type) || null;
-      let fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
-      try {
-        const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
-        const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, x, y);
-        if ((isOutdoorFloor || isOutdoorRoad) && biomeFill) {
-          fill = biomeFill;
-        }
-      } catch (_) {}
+      const fill = (td && td.colors && td.colors.fill) ? td.colors.fill : fallbackFillTown(TILES, type, COLORS);
       ctx2d.fillStyle = fill;
       ctx2d.fillRect(screenX, screenY, TILE, TILE);
     }
