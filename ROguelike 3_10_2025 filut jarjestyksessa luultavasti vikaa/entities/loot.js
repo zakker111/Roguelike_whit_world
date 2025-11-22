@@ -350,17 +350,27 @@ export function generate(ctx, source) {
     }
   }
 
-  // Rare special-case drop: bandits can very rarely carry a fishing pole (tool)
-  if (type === "bandit") {
+  // Rare special-case drops: some enemies can very rarely carry tools (fishing pole, lockpick)
+  if (type === "bandit" || type === "goblin") {
     try {
       const RU = getRNGUtils(ctx);
       const rfn = (RU && typeof RU.getRng === "function")
         ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
         : ((typeof ctx.rng === "function") ? ctx.rng : null);
-      const roll = (typeof rfn === "function") ? rfn() : 1.0; // deterministic: no drop if no RNG
-      // ~1% chance
-      if (roll < 0.01) {
-        drops.push({ kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 });
+      if (typeof rfn === "function") {
+        // Bandits: ~1% chance to carry a fishing pole
+        if (type === "bandit") {
+          const rollPole = rfn();
+          if (rollPole < 0.01) {
+            drops.push({ kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 });
+          }
+        }
+        // Tiny chance for bandits and goblins to carry a basic lockpick
+        const rollLock = rfn();
+        const pLock = type === "bandit" ? 0.02 : 0.01; // ~2% for bandits, ~1% for goblins
+        if (rollLock < pLock) {
+          drops.push({ kind: "tool", type: "lockpick", name: "lockpick", decay: 0 });
+        }
       }
     } catch (_) {}
   }

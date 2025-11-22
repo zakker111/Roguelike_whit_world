@@ -23,6 +23,14 @@
       "tags": ["tool", "utility"],
       "decay": { "start": 0, "perUse": 1 },
       "price": { "base": 120, "shops": { "trader": 120, "seppo": 100 } }
+    },
+    {
+      "id": "lockpick_fine",
+      "name": "fine lockpick",
+      "stackLimit": 10,
+      "tags": ["tool", "utility"],
+      "decay": { "start": 0, "perUse": 1 },
+      "price": { "base": 220, "shops": { "seppo": 180 } }
     }
   ]
 }
