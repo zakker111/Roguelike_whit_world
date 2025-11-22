@@ -7,6 +7,10 @@ export function tick(ctx) {
   if (!ctx || ctx.mode !== "world" || !ctx.world) return true;
 
   try {
+    spawnCaravansIfNeeded(ctx);
+  } catch (_) {}
+
+  try {
     advanceCaravans(ctx);
   } catch (_) {}
 
@@ -43,6 +47,21 @@ function turnsPerDay(ctx) {
     }
   } catch (_) {}
   return 360;
+}
+
+/**
+ * Get a RNG function suitable for world-level ambient systems (caravans etc.).
+ * Prefers RNGUtils.getRng so behavior is deterministic per seed.
+ */
+function worldRng(ctx) {
+  try {
+    if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+      const base = (typeof ctx.rng === "function") ? ctx.rng : undefined;
+      return window.RNGUtils.getRng(base);
+    }
+  } catch (_) {}
+  if (ctx && typeof ctx.rng === "function") return ctx.rng;
+  return function () { return Math.random(); };
 }
 
 /**
@@ -105,6 +124,69 @@ function isOnTownTile(world, wx, wy) {
     if ((t.x | 0) === (wx | 0) && (t.y | 0) === (wy | 0)) return true;
   }
   return false;
+}
+
+/**
+ * Dynamically spawn caravans over time as the player reveals more of the world.
+ * Keeps at least a baseline number of caravans relative to discovered towns.
+ */
+function spawnCaravansIfNeeded(ctx) {
+  const world = ctx.world;
+  ensureCaravanState(world);
+  const caravans = world.caravans;
+  const towns = Array.isArray(world.towns) ? world.towns : [];
+  if (!towns.length) return;
+
+  const r = worldRng(ctx);
+  const townCount = towns.length;
+  const existing = Array.isArray(caravans) ? caravans.length : 0;
+
+  // Desired caravans grows slowly with town count (e.g. 1 at start, up to ~6–8 in large worlds)
+  const desired = Math.min(8, Math.max(2, Math.floor(townCount / 4)));
+
+  // Soft cap: if we already have enough caravans, only rarely add new ones.
+  if (existing >= desired) {
+    // Small chance to top up if player has revealed many towns but caravans were lost somehow.
+    if (existing >= desired + 2) return;
+    if (r() > 0.01) return;
+  } else {
+    // When under capacity, higher chance to spawn as time goes on.
+    if (r() > 0.05) return;
+  }
+
+  // Pick a random town as origin
+  const fromIdx = (r() * towns.length) | 0;
+  const from = towns[fromIdx];
+  if (!from) return;
+
+  // Find nearest other town as destination
+  let best = null;
+  let bestDist = Infinity;
+  for (let i = 0; i < towns.length; i++) {
+    if (i === fromIdx) continue;
+    const t = towns[i];
+    if (!t) continue;
+    const dx = (t.x | 0) - (from.x | 0);
+    const dy = (t.y | 0) - (from.y | 0);
+    const dist = Math.abs(dx) + Math.abs(dy);
+    if (dist === 0) continue;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = t;
+    }
+  }
+  if (!best) return;
+
+  let idCounter = caravans.length ? caravans.length : 0;
+  caravans.push({
+    id: ++idCounter,
+    x: from.x | 0,
+    y: from.y | 0,
+    from: { x: from.x | 0, y: from.y | 0 },
+    dest: { x: best.x | 0, y: best.y | 0 },
+    atTown: true,
+    dwellUntil: getTurn(ctx) + 2 * turnsPerDay(ctx) // start as parked for 2 days at origin
+  });
 }
 
 /**
