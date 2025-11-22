@@ -2,6 +2,52 @@ s
 # Game Version History
 Last updated: 2025-11-21 00:00 UTC
 
+v1.47.5 — Town chests and lockpicking mini‑game
+- Added: Locked town chests
+  - data/world/world_assets.json CHEST prop now uses an effect { type: "lockpick" } instead of being pure flavor text.
+  - Interacting with a chest in town opens a lockpicking mini‑game when the player carries a lockpick tool.
+  - Without a lockpick tool, interaction logs “You will need a lockpick to work this lock.” and does not start the mini‑game.
+- Added: Lockpicking mini‑game (UI + bridge wiring)
+  - New UI component ui/components/lockpick_modal.js implements a deterministic pin‑grid lockpicking game:
+    - 4 vertical pins, each with a notch; all notches must align to a shear line.
+    - Controls: Left/Right or A/D to change selected pin; Space/Enter for a normal nudge (moves selected pin and its neighbors); Shift+Space/Enter for a fine nudge (moves only the selected pin). Esc cancels.
+    - Limited move budget per attempt; starting budget increases gradually with lockpicking skill (uses).
+  - UIBridge exposes isLockpickOpen/showLockpick/hideLockpick(), aggregated into isAnyModalOpen() so game input is gated while the mini‑game is open.
+  - UIOrchestration exposes showLockpick/hideLockpick/isLockpickOpen on its global object, mirroring other panels.
+  - src/main.js now imports /ui/components/lockpick_modal.js so the component is available on every boot.
+- Added: Lockpicking skill
+  - Player.skills now includes lockpicking: 0 by default and is normalized on load (entities/player.js).
+  - Character Sheet (ui/components/character_modal.js) shows Lockpicking in the Non‑combat section with uses and a coarse 0–5% effect readout, matching foraging/cooking/survivalism presentation.
+  - Each lockpicking attempt increments the skill:
+    - +2 uses on success (lock opened).
+    - +1 use on failed attempts.
+  - The mini‑game uses lockpicking skill to grant a small bonus move budget (up to +6 moves at high usage).
+- Added: Chest loot and persistence
+  - On a successful lockpick:
+    - The chest is removed from ctx.townProps (and thus from the town map) to reflect that it has been opened.
+    - awardChestLoot(ctx) grants:
+      - 12–35 gold, added to the existing gold stack (or creating one if absent).
+      - A small chance to roll an equipment item via Items.createEquipment(tier 1–2); description uses ctx.describeItem when available.
+    - A log entry summarizes the result: “You pick the lock and open the chest. Inside you find X gold and Y.”
+  - On failure:
+    - Logs: “The tumblers slip out of place. You fail to pick the lock this time.”
+    - The chest remains; the player can try again on a later turn.
+- Added: Lockpick tool usage and decay
+  - LockpickModal locates the first lockpick tool in inventory (kind: "tool" and type/name matching "lockpick") and uses it for the attempt.
+  - Each attempt decays the lockpick tool:
+    - Success: +1 decay.
+    - Failure: +2 decay.
+  - Legacy durability is normalized to decay if present (similar to the fishing pole behavior).
+  - At 100% decay, the lockpick breaks and is removed from inventory with a log: “Your lockpick snaps.”
+- Changed: Chest interaction wiring
+  - services/props_service.js now interprets CHEST variants with effect.type === "lockpick":
+    - Logs the chest’s flavor message (e.g., “The chest is locked.”).
+    - Uses UIOrchestration.showLockpick(ctx, { x: prop.x, y: prop.y, type: prop.type }) to open the mini‑game when available.
+    - Falls back to the flavor log only when UIOrchestration or UIBridge lockpicking hooks are unavailable.
+- Modal gating and ESC behavior
+  - UIBridge.isAnyModalOpen() now includes isLockpickOpen() so mouse clicks and keyboard input are ignored by the main game while the lockpicking UI is active.
+  - The lockpicking modal swallows relevant keys (movement/space/enter) while running and closes on Esc or clicking the dim background, without disturbing other UI panels.
+
 v1.47.4 — Ruins/Region Map cohesion, guards + barracks, roads-off overworld, mountain dungeon visibility
 - Region Map / Ruins
   - Ruins Region Map now uses the same corpse flavor and loot flow as dungeons/encounters:

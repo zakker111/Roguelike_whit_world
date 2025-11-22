@@ -6,6 +6,12 @@ export function genEmpty(ctx, W, H, T) {
   return m;
 }
 
+// Open battlefield: mostly flat floor, intended for large skirmishes like Guards vs Bandits.
+export function genBattlefield(ctx, rng, W, H, T) {
+  // For now, this is a plain open field; use genEmpty so lines can clash without obstacles.
+  return genEmpty(ctx, W, H, T);
+}
+
 export function genAmbushForest(ctx, rng, W, H, T) {
   const m = genEmpty(ctx, W, H, T);
   const clusters = Math.max(3, Math.floor((W * H) / 80));

@@ -260,6 +260,27 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     return Math.max(1, Math.floor(baseV + slope * delta));
   }
 
+  // Ensure dungeon enemies remain roughly at the player's level by buffing under-leveled spawns.
+  function scaleEnemyForDungeonDifficulty(enemy) {
+    try {
+      if (!ctx || !enemy) return;
+      const pl = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
+      const eLevel = (typeof enemy.level === "number" ? (enemy.level | 0) : ((depth | 0) || 1));
+      const diff = pl - eLevel;
+      if (diff <= 1) return;
+      const boost = Math.min(3, Math.max(1, diff - 1));
+      const hpMult = 1 + 0.20 * boost;
+      const atkMult = 1 + 0.15 * boost;
+      enemy.level = Math.max(1, eLevel + boost);
+      if (typeof enemy.hp === "number") {
+        enemy.hp = Math.max(1, Math.round(enemy.hp * hpMult));
+      }
+      if (typeof enemy.atk === "number") {
+        enemy.atk = Math.max(0.1, Math.round(enemy.atk * atkMult * 10) / 10);
+      }
+    } catch (_) {}
+  }
+
   for (let i = 0; i < enemyCount; i++) {
     const p = randomFloor(ctx, rooms, ri);
     const pl = (ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
@@ -293,9 +314,12 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
       }
     }
     if (enemy && typeof enemy.x === "number" && typeof enemy.y === "number") {
+      scaleEnemyForDungeonDifficulty(enemy);
       ctx.enemies.push(enemy);
     } else {
-      ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
+      const fb = { x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+      scaleEnemyForDungeonDifficulty(fb);
+      ctx.enemies.push(fb);
     }
   }
 
@@ -324,9 +348,12 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
         const ed2 = Math.max(1, (depth | 0) + Math.floor(Math.max(0, pl2) / 2) + 1);
         let e = makeEnemy(p.x, p.y, ed2, drng);
         if (e && typeof e.x === "number" && typeof e.y === "number") {
+          scaleEnemyForDungeonDifficulty(e);
           ctx.enemies.push(e);
         } else {
-          ctx.enemies.push({ x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false });
+          const fb = { x: p.x, y: p.y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, announced: false };
+          scaleEnemyForDungeonDifficulty(fb);
+          ctx.enemies.push(fb);
         }
       }
       placed++;

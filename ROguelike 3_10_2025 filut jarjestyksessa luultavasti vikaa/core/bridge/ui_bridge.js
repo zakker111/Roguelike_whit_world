@@ -510,6 +510,27 @@ export function hideFishing(ctx) {
   } catch (_) {}
 }
 
+// Lockpicking modal wrappers (pin-grid lock mini-game)
+export function isLockpickOpen() {
+  try {
+    return !!(typeof window !== 'undefined' && window.LockpickModal && typeof window.LockpickModal.isOpen === 'function' && window.LockpickModal.isOpen());
+  } catch (_) { return false; }
+}
+export function showLockpick(ctx, opts) {
+  try {
+    if (typeof window !== 'undefined' && window.LockpickModal && typeof window.LockpickModal.show === 'function') {
+      window.LockpickModal.show(ctx, opts || {});
+    }
+  } catch (_) {}
+}
+export function hideLockpick(ctx) {
+  try {
+    if (typeof window !== 'undefined' && window.LockpickModal && typeof window.LockpickModal.hide === 'function') {
+      window.LockpickModal.hide();
+    }
+  } catch (_) {}
+}
+
 // Aggregate modal state for simple gating
 export function isAnyModalOpen() {
   try {
@@ -524,7 +545,8 @@ export function isAnyModalOpen() {
       isCharacterOpen() ||
       isSleepOpen() ||
       isQuestBoardOpen() ||
-      isFishingOpen()
+      isFishingOpen() ||
+      isLockpickOpen()
     );
   } catch (_) { return false; }
 }
@@ -605,6 +627,10 @@ if (typeof window !== "undefined") {
     isFishingOpen,
     showFishing,
     hideFishing,
+    // Lockpicking mini-game
+    isLockpickOpen,
+    showLockpick,
+    hideLockpick,
     // Confirm modal
     isConfirmOpen,
     cancelConfirm,

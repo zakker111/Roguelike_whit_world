@@ -149,9 +149,40 @@ export function tick(ctx) {
   // Announce clear state only once per encounter session (guarded by a module-level flag).
   // Also, proactively notify QuestService of victory so the Quest Board can show "Claim" on re-entry even if exit is delayed.
   try {
-    if (Array.isArray(ctx.enemies) && ctx.enemies.length === 0) {
+    const hasEnemies = Array.isArray(ctx.enemies) && ctx.enemies.length > 0;
+    const info = ctx.encounterInfo || {};
+    const tplId = (info.id || "").toLowerCase();
+
+    let treatAsClear = false;
+    let guardsWon = false;
+
+    if (!hasEnemies) {
+      treatAsClear = true;
+    } else if (tplId === "guards_vs_bandits") {
+      let anyBandit = false;
+      let anyGuard = false;
+      let allGuardsNeutral = true;
+      for (const e of ctx.enemies) {
+        if (!e) continue;
+        const fac = String(e.faction || "").toLowerCase();
+        if (fac === "bandit") anyBandit = true;
+        if (fac === "guard") {
+          anyGuard = true;
+          if (!e._ignorePlayer) allGuardsNeutral = false;
+        }
+      }
+      if (!anyBandit && anyGuard && allGuardsNeutral) {
+        treatAsClear = true;
+        guardsWon = true;
+      }
+    }
+
+    if (treatAsClear) {
       if (!_clearAnnounced) {
         _clearAnnounced = true;
+        if (guardsWon) {
+          try { ctx.log && ctx.log('The surviving guards cheer: "For the kingdom!"', "good"); } catch (_) {}
+        }
         try { ctx.log && ctx.log("Area clear. Step onto an exit (>) to leave when ready.", "notice"); } catch (_) {}
       }
       // Proactive quest victory notification (only once per encounter session)

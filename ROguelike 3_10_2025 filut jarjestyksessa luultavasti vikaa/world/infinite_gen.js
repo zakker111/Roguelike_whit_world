@@ -25,6 +25,8 @@ const TILES = {
   DESERT: 9,
   SNOW: 10,
   RUINS: 12,
+  CASTLE: 15,
+  SNOW_FOREST: 16, // snowy forest biome (snow with dense trees)
 };
 
 function mulberry32(a) {
@@ -155,7 +157,12 @@ function create(seed, opts = {}) {
 
     // Land biomes by moisture and temperature
     if (temp > 0.7 && moist < 0.25) return TILES.DESERT;
-    if (temp < 0.25 && moist < 0.7) return TILES.SNOW;
+    if (temp < 0.25 && moist < 0.7) {
+      // Split cold land into open snow vs forested snow based on moisture.
+      // Drier cold -> open SNOW, more moist cold -> SNOW_FOREST.
+      if (moist > 0.45) return TILES.SNOW_FOREST;
+      return TILES.SNOW;
+    }
 
     // Mountains at high elevation
     if (elevation > 0.78) return TILES.MOUNTAIN;
@@ -167,6 +174,21 @@ function create(seed, opts = {}) {
     if (moist > 0.55) return TILES.FOREST;
 
     return TILES.GRASS;
+  }
+
+  function hasNonBlockingWithinRadius(x, y, maxR = 2) {
+    const block = new Set([TILES.WATER, TILES.RIVER, TILES.MOUNTAIN]);
+    for (let r = 1; r <= maxR; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const t = classify(x + dx, y + dy);
+          if (!block.has(t)) return true;
+        }
+      }
+    }
+    return false;
   }
 
   function placePOI(x, y) {
@@ -209,20 +231,37 @@ function create(seed, opts = {}) {
     const tHere = classify(x, y);
     if (tHere === TILES.WATER || tHere === TILES.RIVER || tHere === TILES.SWAMP) return null;
 
+    // Quick accessibility check: require some non-blocking ground (not water/river/mountain)
+    // within a small radius so POIs are not buried deep inside mountain ranges.
+    const hasExit = hasNonBlockingWithinRadius(x, y, 2);
+
     // Towns near coasts/rivers preferred
     const coastBias = (classify(x + 1, y) === TILES.WATER || classify(x - 1, y) === TILES.WATER
       || classify(x, y + 1) === TILES.WATER || classify(x, y - 1) === TILES.WATER
       || classify(x + 1, y) === TILES.RIVER || classify(x - 1, y) === TILES.RIVER
       || classify(x, y + 1) === TILES.RIVER || classify(x, y - 1) === TILES.RIVER) ? 0.08 : 0.0;
 
-    // Town roll (only at the town anchor of the cell)
+    // Town / castle roll (only at the town anchor of the cell)
     if (atTownAnchor) {
+      // Disallow towns/castles placed deep inside mountain clusters with no nearby open ground.
+      if (tHere === TILES.MOUNTAIN || !hasExit) return null;
+
+      // First, extremely rare castle placement, preferring coasts/rivers
+      const rCastle = hash2(s ^ 0x1010, cellTownX, cellTownY);
+      // Base: 0.2% per town cell; up to 0.5% when near water/river
+      let castleChance = 0.002;
+      if (coastBias > 0) castleChance += 0.003;
+      if (rCastle < castleChance) return TILES.CASTLE;
+
       const rTown = hash2(s ^ 0x1111, cellTownX, cellTownY);
       if (rTown < (cfg.townChance + coastBias)) return TILES.TOWN;
     }
 
     // Dungeon roll (only at the dungeon anchor of the cell)
     if (atDungAnchor) {
+      // Skip dungeon anchors that are fully buried in mountains with no nearby open ground.
+      if (!hasExit) return null;
+
       const rDung = hash2(s ^ 0x2222, cellDungX, cellDungY);
 
       // Prefer dungeon entrances on or near mountain edges to support mountain-pass dungeons.
@@ -255,6 +294,8 @@ function create(seed, opts = {}) {
 
     // Ruins roll (only at the ruins anchor of the cell)
     if (atRuinsAnchor) {
+      // Avoid spawning ruins deep inside inaccessible mountain pockets.
+      if (!hasExit) return null;
       const rRuins = hash2(s ^ 0x9999, cellRuinsX, cellRuinsY);
       if (rRuins < cfg.ruinsChance) return TILES.RUINS;
     }

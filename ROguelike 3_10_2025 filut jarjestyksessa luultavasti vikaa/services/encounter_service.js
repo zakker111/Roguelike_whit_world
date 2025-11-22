@@ -109,12 +109,18 @@ function pickTemplate(ctx, biome) {
 
 // Compute a simple difficulty level (1..5) based on player level and biome.
 // You can later swap this to use region threats, time-of-day, or config.
-function computeDifficulty(ctx, biome) {
+export function computeDifficulty(ctx, biome) {
   try {
     const pLv = (ctx && ctx.player && typeof ctx.player.level === "number") ? ctx.player.level : 1;
-    // Base on player level: every 3 levels increases difficulty by 1, clamp 1..5
-    let diff = Math.max(1, Math.min(5, 1 + Math.floor((pLv - 1) / 3)));
-    // Biome slight modifiers (optional, conservative)
+    // Base difficulty grows faster with player level so encounters stay challenging.
+    let diff;
+    if (pLv <= 2) diff = 1;
+    else if (pLv <= 4) diff = 2;
+    else if (pLv <= 6) diff = 3;
+    else if (pLv <= 8) diff = 4;
+    else diff = 5;
+
+    // Harder biomes get a small bump, capped at 5.
     const b = String(biome || "").toUpperCase();
     if (b === "DESERT" || b === "MOUNTAIN" || b === "SWAMP" || b === "SNOW") diff = Math.min(5, diff + 1);
     return diff;
@@ -346,5 +352,5 @@ export function maybeTryEncounter(ctx) {
 
 // Back-compat
 if (typeof window !== "undefined") {
-  window.EncounterService = { maybeTryEncounter };
+  window.EncounterService = { maybeTryEncounter, computeDifficulty };
 }

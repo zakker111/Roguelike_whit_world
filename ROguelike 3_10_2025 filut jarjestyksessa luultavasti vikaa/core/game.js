@@ -1856,7 +1856,18 @@ import {
             const ctx = getCtx();
             const ER = modHandle("EncounterRuntime");
             if (ER && typeof ER.enterRegion === "function") {
-              const ok = !!ER.enterRegion(ctx, { template, biome });
+              let difficulty = 1;
+              try {
+                const ES = modHandle("EncounterService");
+                if (ES && typeof ES.computeDifficulty === "function") {
+                  difficulty = ES.computeDifficulty(ctx, biome);
+                } else {
+                  const p = ctx.player || {};
+                  const pl = (typeof p.level === "number") ? p.level : 1;
+                  difficulty = Math.max(1, Math.min(5, 1 + Math.floor((pl - 1) / 2)));
+                }
+              } catch (_) {}
+              const ok = !!ER.enterRegion(ctx, { template, biome, difficulty });
               if (ok) {
                 applyCtxSyncAndRefresh(ctx);
               }

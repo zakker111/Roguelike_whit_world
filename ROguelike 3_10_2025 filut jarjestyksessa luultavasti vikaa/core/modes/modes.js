@@ -160,10 +160,10 @@ export function enterTownIfOnTile(ctx) {
   if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
   const t = mapRef[py][px];
 
-  // Strict entry: require standing exactly on the town tile (no adjacency allowed)
+  // Strict entry: require standing exactly on the town (or castle) tile (no adjacency allowed)
   let townPx = px, townPy = py;
   let approachedDir = "";
-  const onTownTile = !!(WT && t === ctx.World.TILES.TOWN);
+  const onTownTile = !!(WT && (t === WT.TOWN || (WT.CASTLE != null && t === WT.CASTLE)));
 
   // Record approach direction (used by Town generation to pick gate side). Empty string when stepping directly on tile.
   if (onTownTile) {
@@ -192,6 +192,15 @@ export function enterTownIfOnTile(ctx) {
       // Reset town biome on entry so each town derives or loads its own biome correctly
       try { ctx.townBiome = undefined; } catch (_) {}
 
+      // Determine settlement kind (town vs castle) from overworld metadata for messaging.
+      let settlementKind = "town";
+      try {
+        if (ctx.world && Array.isArray(ctx.world.towns)) {
+          const rec = ctx.world.towns.find(t => t && t.x === enterWX && t.y === enterWY);
+          if (rec && rec.kind) settlementKind = String(rec.kind);
+        }
+      } catch (_) {}
+
       // First, try to load a persisted town state for this overworld tile
       try {
         const TS = ctx.TownState || (typeof window !== "undefined" ? window.TownState : null);
@@ -204,7 +213,9 @@ export function enterTownIfOnTile(ctx) {
             } catch (_) {}
             // Ensure player spawns on gate interior tile on entry
             movePlayerToTownGateInterior(ctx);
-            if (ctx.log) ctx.log(`You re-enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            const kindLabel = settlementKind === "castle" ? "castle" : "town";
+            const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
+            if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
             syncAfterMutation(ctx);
             return true;
           }
@@ -223,7 +234,9 @@ export function enterTownIfOnTile(ctx) {
             try {
               if (ctx.TownRuntime && typeof ctx.TownRuntime.rebuildOccupancy === "function") ctx.TownRuntime.rebuildOccupancy(ctx);
             } catch (_) {}
-            if (ctx.log) ctx.log(`You enter ${ctx.townName ? "the town of " + ctx.townName : "the town"}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            const kindLabel = settlementKind === "castle" ? "castle" : "town";
+            const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
+            if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
             syncAfterMutation(ctx);
             return true;
           }

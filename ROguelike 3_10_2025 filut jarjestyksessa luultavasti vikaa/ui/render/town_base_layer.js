@@ -59,7 +59,7 @@ function ensureTownBiome(ctx) {
     function bump(tile) {
       if (!WT) return;
       if (tile === WT.DESERT) counts.DESERT++;
-      else if (tile === WT.SNOW) counts.SNOW++;
+      else if (tile === WT.SNOW || tile === WT.SNOW_FOREST) counts.SNOW++;
       else if (tile === WT.BEACH) counts.BEACH++;
       else if (tile === WT.SWAMP) counts.SWAMP++;
       else if (tile === WT.FOREST) counts.FOREST++;
@@ -209,7 +209,7 @@ export function drawTownBase(ctx, view) {
           oc.textBaseline = "middle";
         } catch (_) {}
         ensureOutdoorMask(ctx, map);
-        const biomeFill = townBiomeFill(ctx);
+        const biomeFill = resolvedTownBiomeFill(ctx);
         TOWN._maskRef = ctx.townOutdoorMask;
 
         for (let yy = 0; yy < mapRows; yy++) {
@@ -221,7 +221,7 @@ export function drawTownBase(ctx, view) {
             try {
               const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[yy] && ctx.townOutdoorMask[yy][xx]);
               const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, xx, yy);
-              if ((isOutdoorFloor || isOutdoorRoad) && biomeFill) {
+              if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
                 fill = biomeFill;
               }
             } catch (_) {}
@@ -262,7 +262,7 @@ export function drawTownBase(ctx, view) {
       try {
         const isOutdoorFloor = (type === TILES.FLOOR) && !!(ctx.townOutdoorMask && ctx.townOutdoorMask[y] && ctx.townOutdoorMask[y][x]);
         const isOutdoorRoad = (type === TILES.ROAD) && !insideAnyBuildingAt(ctx, x, y);
-        if ((isOutdoorFloor || isOutdoorRoad) && biomeFill) {
+        if (biomeFill && (isOutdoorFloor || isOutdoorRoad)) {
           fill = biomeFill;
         }
       } catch (_) {}

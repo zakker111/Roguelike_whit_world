@@ -6,7 +6,7 @@
 import * as WorldRuntime from '../world_runtime.js';
 
 // POI helpers (extracted)
-export { ensurePOIState, addTown, addDungeon, addRuins } from './poi.js';
+export { ensurePOIState, addTown, addCastle, addDungeon, addRuins } from './poi.js';
 
 // Extracted modules (Phase 3)
 export { ensureInBounds, expandMap } from './expand.js';
