@@ -246,11 +246,11 @@ function create(seed, opts = {}) {
       // Disallow towns/castles placed deep inside mountain clusters with no nearby open ground.
       if (tHere === TILES.MOUNTAIN || !hasExit) return null;
 
-      // First, extremely rare castle placement, preferring coasts/rivers
+      // Castle placement, preferring coasts/rivers (slightly more common than before)
       const rCastle = hash2(s ^ 0x1010, cellTownX, cellTownY);
-      // Base: 0.2% per town cell; up to 0.5% when near water/river
-      let castleChance = 0.002;
-      if (coastBias > 0) castleChance += 0.003;
+      // Base: 0.8% per town cell; up to 2.0% when near water/river
+      let castleChance = 0.008;
+      if (coastBias > 0) castleChance += 0.012;
       if (rCastle < castleChance) return TILES.CASTLE;
 
       const rTown = hash2(s ^ 0x1111, cellTownX, cellTownY);
