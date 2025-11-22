@@ -397,14 +397,8 @@ function generate(ctx) {
       const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number") ? (ctx.worldReturnPos.x | 0) : ((world.originX | 0) + (ctx.player.x | 0));
       const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number") ? (ctx.worldReturnPos.y | 0) : ((world.originY | 0) + (ctx.player.y | 0));
 
-      // If world.towns entry already has a biome, trust it
-      try {
-        const rec = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns.find(t => t && t.x === wx && t.y === wy) : null;
-        if (rec && rec.biome) {
-          ctx.townBiome = rec.biome;
-          return;
-        }
-      } catch (_) {}
+      // Always derive town biome from current world tiles to avoid stale persisted values.
+      // (Any computed biome is persisted back onto ctx.world.towns below.)
 
       // Neighborhood sampling around the town tile to find surrounding biome (skip TOWN/DUNGEON/RUINS)
       let counts = { DESERT:0, SNOW:0, BEACH:0, SWAMP:0, FOREST:0, GRASS:0 };
