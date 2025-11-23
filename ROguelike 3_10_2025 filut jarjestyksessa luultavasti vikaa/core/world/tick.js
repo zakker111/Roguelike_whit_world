@@ -141,30 +141,49 @@ function spawnCaravansIfNeeded(ctx) {
   const townCount = towns.length;
   const existing = Array.isArray(caravans) ? caravans.length : 0;
 
-  // Hard cap so the world doesn't fill with caravans, but never fully disables spawning.
-  const maxCaravans = Math.max(6, Math.min(15, Math.floor(townCount / 2)));
+  // Hard cap so the world doesn't fill with caravans.
+  const maxCaravans = Math.max(6, Math.min(20, Math.floor(townCount * 0.75)));
   if (existing >= maxCaravans) return;
-
-  // Always have a chance to spawn a caravan whenever there are at least 2 towns.
   if (townCount < 2) return;
 
-  // Base spawn probability per world tick (slightly scaled by town count).
-  const baseP = 0.08; // 8% per tick
-  const scale = Math.min(2.0, 0.5 + townCount / 10); // more towns -> slightly more frequent spawns
-  const p = Math.min(0.25, baseP * scale); // clamp to 25% max
+  // Per-town spawn chance: every town gets an independent roll each world tick.
+  // This makes caravans feel more evenly distributed across the map.
+  const baseP = 0.04; // ~4% per town per tick
+  const scale = Math.min(2.0, 0.5 + townCount / 12);
+  const pTown = Math.min(0.2, baseP * scale);
 
-  if (r() > p) return;
+  // Helper: check if there is already a caravan currently parked at this town.
+  function hasParkedCaravanAt(town) {
+    if (!Array.isArray(caravans) || !caravans.length) return false;
+    for (const cv of caravans) {
+      if (!cv) continue;
+      if (!cv.atTown) continue;
+      if ((cv.x | 0) === (town.x | 0) && (cv.y | 0) === (town.y | 0)) return true;
+    }
+    return false;
+  }
 
-  spawnSingleCaravan(ctx, towns, caravans, r);
+  let remaining = maxCaravans - existing;
+  for (let i = 0; i < towns.length && remaining > 0; i++) {
+    const from = towns[i];
+    if (!from) continue;
+
+    // Skip if a caravan is already parked at this town.
+    if (hasParkedCaravanAt(from)) continue;
+
+    if (r() > pTown) continue;
+
+    if (spawnSingleCaravan(ctx, towns, caravans, i, r)) {
+      remaining--;
+    }
+  }
 }
 
-// Helper: spawn a single caravan between two towns using the provided RNG.
-function spawnSingleCaravan(ctx, towns, caravans, r) {
-  if (!Array.isArray(towns) || towns.length < 2) return;
-
-  const fromIdx = (r() * towns.length) | 0;
+// Helper: spawn a single caravan from a specific town index toward its nearest neighbour.
+function spawnSingleCaravan(ctx, towns, caravans, fromIdx, r) {
+  if (!Array.isArray(towns) || towns.length < 2) return false;
   const from = towns[fromIdx];
-  if (!from) return;
+  if (!from) return false;
 
   // Find nearest other town as destination
   let best = null;
@@ -182,7 +201,7 @@ function spawnSingleCaravan(ctx, towns, caravans, r) {
       best = t;
     }
   }
-  if (!best) return;
+  if (!best) return false;
 
   const now = getTurn(ctx);
   const days = turnsPerDay(ctx);
@@ -196,6 +215,7 @@ function spawnSingleCaravan(ctx, towns, caravans, r) {
     atTown: true,
     dwellUntil: now + 2 * days // start as parked for 2 days at origin
   });
+  return true;
 }
 
 /**
