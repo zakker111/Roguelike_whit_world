@@ -421,20 +421,7 @@ function spawnInitialCaravans(ctx) {
     let idCounter = (world.caravans.length ? world.caravans.length : 0);
     const existing = world.caravans.length;
 
-    // Derive a simple \"now\" and \"turns per day\" so initial caravans start parked
-    // for a couple of in-game days at their origin towns.
-    let nowTurn = 0;
-    let dayTurns = 360;
-    try {
-      if (ctx.time && typeof ctx.time.turnCounter === "number") {
-        nowTurn = ctx.time.turnCounter | 0;
-      }
-      if (ctx.time && typeof ctx.time.cycleTurns === "number") {
-        dayTurns = Math.max(1, ctx.time.cycleTurns | 0);
-      }
-    } catch (_) {}
-
-    for (let i = existing; i < desired; i++) {
+    for (let i = existing; i &lt; desired; i++) {
       const fromIndex = (r() * towns.length) | 0;
       const from = towns[fromIndex];
       if (!from) continue;
@@ -444,7 +431,7 @@ function spawnInitialCaravans(ctx) {
       let nearestDist = Infinity;
       let farthest = null;
       let farthestDist = -Infinity;
-      for (let j = 0; j < towns.length; j++) {
+      for (let j = 0; j &lt; towns.length; j++) {
         if (j === fromIndex) continue;
         const t = towns[j];
         if (!t) continue;
@@ -452,11 +439,11 @@ function spawnInitialCaravans(ctx) {
         const dy = (t.y | 0) - (from.y | 0);
         const dist = Math.abs(dx) + Math.abs(dy);
         if (dist === 0) continue;
-        if (dist < nearestDist) {
+        if (dist &lt; nearestDist) {
           nearestDist = dist;
           nearest = t;
         }
-        if (dist > farthestDist) {
+        if (dist &gt; farthestDist) {
           farthestDist = dist;
           farthest = t;
         }
@@ -467,14 +454,11 @@ function spawnInitialCaravans(ctx) {
       // caravans run longer routes across the world.
       let destTown = nearest;
       try {
-        const roll = typeof r === "function" ? r() : Math.random();
-        if (towns.length >= 4 && roll < 0.35 && farthest) {
+        const roll = typeof r === \"function\" ? r() : Math.random();
+        if (towns.length &gt;= 4 &amp;&amp; roll &lt; 0.35 &amp;&amp; farthest) {
           destTown = farthest;
         }
       } catch (_) {}
-
-      const dwellDays = 2;
-      const dwellUntil = nowTurn + dwellDays * dayTurns;
 
       world.caravans.push({
         id: ++idCounter,
@@ -483,13 +467,11 @@ function spawnInitialCaravans(ctx) {
         from: { x: from.x | 0, y: from.y | 0 },
         dest: { x: destTown.x | 0, y: destTown.y | 0 },
         atTown: true,
-        dwellUntil
+        dwellUntil: 0
       });
     }
   } catch (_) {}
-}
-
-export function generate(ctx, opts = {}) {
+}) {
   // Prefer infinite generator; fall back to finite world if module missing or disabled
   const IG = (typeof window !== "undefined" ? window.InfiniteGen : null);
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
