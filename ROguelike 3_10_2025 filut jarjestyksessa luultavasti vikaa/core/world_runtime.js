@@ -417,7 +417,7 @@ function spawnInitialCaravans(ctx) {
       r = function () { return Math.random(); };
     }
 
-    const desired = Math.min(4, Math.max(1, Math.floor(towns.length / 3)));
+    const desired = Math.min(8, Math.max(2, Math.floor(towns.length / 2)));
     let idCounter = (world.caravans.length ? world.caravans.length : 0);
     const existing = world.caravans.length;
 
@@ -450,6 +450,8 @@ function spawnInitialCaravans(ctx) {
         y: from.y | 0,
         from: { x: from.x | 0, y: from.y | 0 },
         dest: { x: best.x | 0, y: best.y | 0 },
+        atTown: true,
+        dwellUntil: 0
       });
     }
   } catch (_) {}
