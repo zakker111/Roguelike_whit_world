@@ -483,10 +483,11 @@ function startCaravanAmbushEncounter(ctx, npc) {
       name: "Caravan Ambush",
       map: { w: 26, h: 16, generator: "caravan_road" },
       groups: [
-        { faction: "guard", count: { min: 2, max: 3 } },
-        { faction: "guard", count: { min: 1, max: 2 } }
+        { faction: "guard", count: { min: 3, max: 4 }, type: "guard" },
+        { faction: "guard", count: { min: 2, max: 3 }, type: "guard_elite" }
       ],
-      objective: { type: "reachExit" }
+      objective: { type: "reachExit" },
+      difficulty: 4
     };
 
     const biome = "GRASS";

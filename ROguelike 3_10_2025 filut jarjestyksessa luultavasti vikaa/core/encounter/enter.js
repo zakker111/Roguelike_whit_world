@@ -99,7 +99,7 @@ export function enter(ctx, info) {
       chestSpots.add(keyFor(c.x, c.y));
     }
 
-    // Special-case: caravan ambush road may mark a caravan chest prop; convert it to a real chest with loot.
+    // Special-case: caravan ambush road may mark a caravan chest prop; convert it to a real chest with strong loot.
     try {
       const tplId = String(template.id || "").toLowerCase();
       if (tplId === "caravan_ambush" && Array.isArray(ctx.encounterProps)) {
@@ -115,14 +115,20 @@ export function enter(ctx, info) {
           const cx2 = caravChest.x | 0;
           const cy2 = caravChest.y | 0;
           if (cx2 > 0 && cy2 > 0 && cx2 < W - 1 && cy2 < H - 1 && map[cy2][cx2] !== T.WALL) {
-            // Generate caravan-themed loot; fall back to bandit loot
+            // Generate caravan-themed loot; use higher XP budget so items are strong.
             let loot2 = [];
             if (L && typeof L.generate === "function") {
-              loot2 = L.generate(ctx, { type: "caravan", xp: 15 }) || [];
+              loot2 = L.generate(ctx, { type: "caravan", xp: 40 }) || [];
             }
+            // Fallback to high-value bandit loot if caravan table missing/empty
             if (!Array.isArray(loot2) || !loot2.length) {
-              loot2 = (L && typeof L.generate === "function") ? (L.generate(ctx, { type: "bandit", xp: 12 }) || []) : [{ name: "10 gold", kind: "gold", amount: 10 }];
+              loot2 = (L && typeof L.generate === "function") ? (L.generate(ctx, { type: "bandit", xp: 35 }) || []) : [];
             }
+            // Always add a good pile of gold on top
+            try {
+              loot2 = Array.isArray(loot2) ? loot2.slice() : [];
+              loot2.push({ name: "caravan spoils", kind: "gold", amount: 80 });
+            } catch (_) {}
             ctx.corpses.push({ kind: "chest", x: cx2, y: cy2, loot: loot2, looted: loot2.length === 0 });
             chestSpots.add(keyFor(cx2, cy2));
           }
