@@ -470,6 +470,20 @@ export function enemiesAct(ctx) {
           continue;
         }
         let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
+
+        // Caravan ambush guards: slightly lower base damage, then scale a bit with player level.
+        try {
+          const isCaravanAmbush = ctx.mode === "encounter"
+            && ctx.encounterInfo
+            && String(ctx.encounterInfo.id || "").toLowerCase() === "caravan_ambush";
+          const eFac2 = factionOf(e);
+          if (isCaravanAmbush && eFac2 === "guard") {
+            const pLv = (player && typeof player.level === "number") ? player.level : 1;
+            const lvlScale = Math.min(1.25, 0.6 + (pLv / 12)); // ~0.6 at low level, up to ~1.25
+            raw *= 0.7 * lvlScale; // reduce base damage a bit, then scale with player level
+          }
+        } catch (_) {}
+
         let isCrit = false;
         const critChance = Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
         if (rv() < critChance) {
