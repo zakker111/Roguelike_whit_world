@@ -40,13 +40,14 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   const wx = ox + (nx | 0);
   const wy = oy + (ny | 0);
 
-  // If the target tile has a travelling caravan, block movement and offer an ambush option.
+  // If the target tile has a travelling caravan (not one parked in a town), block movement
+  // and offer an ambush/encounter option. Caravans that are currently atTown are considered
+  // \"inside\" the settlement and should not block or prompt on the overworld tile.
   try {
     const caravans = Array.isArray(ctx.world.caravans) ? ctx.world.caravans : [];
     if (caravans.length) {
-      const cv = caravans.find(c => c && (c.x | 0) === wx && (c.y | 0) === wy);
+      const cv = caravans.find(c => c && !c.atTown && (c.x | 0) === wx && (c.y | 0) === wy);
       if (cv) {
-        // Show confirmation to attack; caravans are not walkable.
         const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
         const prompt = "Do you want to encounter this caravan?";
         const onOk = () => { try { startCaravanAmbushEncounterWorld(ctx, cv); } catch (_) {} };
@@ -58,7 +59,7 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
         } else {
           onOk();
         }
-        // Do not move onto the caravan tile
+        // Do not move onto the travelling caravan tile
         return true;
       }
     }
