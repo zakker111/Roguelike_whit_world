@@ -332,10 +332,37 @@ function advanceCaravans(ctx) {
     const tx = cv.dest.x | 0;
     const ty = cv.dest.y | 0;
 
-    // Arrived at destination town: start a dwell period here
-    if (cx === tx && cy === ty && isOnTownTile(world, cx, cy)) {
+    // Arrived at destination town: start a dwell period here and, if this is the
+    // escorted caravan, pay the player and end the escort job.
+    const arrivedNow = (cx === tx && cy === ty && isOnTownTile(world, cx, cy));
+    if (arrivedNow) {
       cv.atTown = true;
-      // Dwell for 2–4 in-game days.
+
+      // If this caravan is being escorted, pay out the agreed reward once on arrival.
+      try {
+        if (escort && escort.active && escort.id === cv.id) {
+          const reward = Math.max(1, (escort.reward | 0) || 0);
+          if (reward > 0) {
+            try {
+              const GA = ctx.GameAPI || (typeof window !== "undefined" ? window.GameAPI : null);
+              if (GA && typeof GA.addGold === "function") {
+                GA.addGold(reward);
+              } else if (ctx.player) {
+                // Minimal fallback: push a gold item into player inventory.
+                ctx.player.inventory = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : [];
+                ctx.player.inventory.push({ kind: "gold", amount: reward, name: `${reward} gold coins` });
+              }
+            } catch (_) {}
+            try {
+              ctx.log && ctx.log(`You safely escort the caravan to its destination and receive ${reward} gold.`, "good");
+            } catch (_) {}
+          }
+          // Mark escort job as finished so auto-travel stops and future legs are independent.
+          world.caravanEscort = { id: cv.id, reward: reward, active: false };
+        }
+      } catch (_) {}
+
+      // Dwell for 2–4 in-game days at the destination town.
       const dwellDays = Math.max(minDwellDays, Math.min(maxDwellDays, (2 + (cx + cy) % 3) | 0));
       cv.dwellUntil = nowTurn + dwellDays * dayTurns;
       continue;
@@ -405,28 +432,5 @@ function advanceCaravans(ctx) {
         }
       } catch (_) {}
     }
-
-    // If this caravan is being escorted and has just arrived at its destination town, pay the player and end the job.
-    try {
-      if (escort && escort.active && escort.id === cv.id && cv.atTown && cx === tx && cy === ty && isOnTownTile(world, cx, cy)) {
-        const reward = Math.max(1, (escort.reward | 0) || 0);
-        if (reward > 0) {
-          try {
-            const GA = ctx.GameAPI || (typeof window !== "undefined" ? window.GameAPI : null);
-            if (GA && typeof GA.addGold === "function") {
-              GA.addGold(reward);
-            } else if (ctx.player) {
-              // Minimal fallback: push a gold item into player inventory.
-              ctx.player.inventory = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : [];
-              ctx.player.inventory.push({ kind: "gold", amount: reward, name: `${reward} gold coins` });
-            }
-          } catch (_) {}
-          try {
-            ctx.log && ctx.log(`You safely escort the caravan to its destination and receive ${reward} gold.`, "good");
-          } catch (_) {}
-        }
-        world.caravanEscort = { id: cv.id, reward: reward, active: false };
-      }
-    } catch (_) {}
   }
 }
