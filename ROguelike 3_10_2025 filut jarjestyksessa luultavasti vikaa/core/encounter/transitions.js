@@ -41,7 +41,21 @@ function startEscortAutoTravel(ctx) {
       setTimeout(step, delayMs);
     }
 
-    setTimeout(step, delayMs);
+    // Do one immediate step so the player sees the caravan start moving as soon as
+    // they return to the overworld, then continue with a timed loop.
+    try {
+      const escort = world.caravanEscort;
+      if (escort && escort.active && typeof ctx.turn === "function" && ctx.mode === "world") {
+        ctx.turn();
+        steps++;
+      }
+    } catch (_) {}
+
+    if (steps < maxSteps) {
+      setTimeout(step, delayMs);
+    } else {
+      state.running = false;
+    }
   } catch (_) {}
 }
 
