@@ -421,7 +421,7 @@ function spawnInitialCaravans(ctx) {
     let idCounter = (world.caravans.length ? world.caravans.length : 0);
     const existing = world.caravans.length;
 
-    for (let i = existing; i &lt; desired; i++) {
+    for (let i = existing; i < desired; i++) {
       const fromIndex = (r() * towns.length) | 0;
       const from = towns[fromIndex];
       if (!from) continue;
@@ -431,7 +431,7 @@ function spawnInitialCaravans(ctx) {
       let nearestDist = Infinity;
       let farthest = null;
       let farthestDist = -Infinity;
-      for (let j = 0; j &lt; towns.length; j++) {
+      for (let j = 0; j < towns.length; j++) {
         if (j === fromIndex) continue;
         const t = towns[j];
         if (!t) continue;
@@ -439,11 +439,11 @@ function spawnInitialCaravans(ctx) {
         const dy = (t.y | 0) - (from.y | 0);
         const dist = Math.abs(dx) + Math.abs(dy);
         if (dist === 0) continue;
-        if (dist &lt; nearestDist) {
+        if (dist < nearestDist) {
           nearestDist = dist;
           nearest = t;
         }
-        if (dist &gt; farthestDist) {
+        if (dist > farthestDist) {
           farthestDist = dist;
           farthest = t;
         }
@@ -454,8 +454,8 @@ function spawnInitialCaravans(ctx) {
       // caravans run longer routes across the world.
       let destTown = nearest;
       try {
-        const roll = typeof r === \"function\" ? r() : Math.random();
-        if (towns.length &gt;= 4 &amp;&amp; roll &lt; 0.35 &amp;&amp; farthest) {
+        const roll = typeof r === "function" ? r() : Math.random();
+        if (towns.length >= 4 && roll < 0.35 && farthest) {
           destTown = farthest;
         }
       } catch (_) {}
@@ -471,7 +471,9 @@ function spawnInitialCaravans(ctx) {
       });
     }
   } catch (_) {}
-}) {
+}
+
+export function generate(ctx, opts = {}) {
   // Prefer infinite generator; fall back to finite world if module missing or disabled
   const IG = (typeof window !== "undefined" ? window.InfiniteGen : null);
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
