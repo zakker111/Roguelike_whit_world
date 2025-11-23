@@ -295,7 +295,6 @@ export function enter(ctx, info) {
   }
 
   let depth = Math.max(1, (ctx.floor | 0) || 1);
-  const depth = Math.max(1, (ctx.floor | 0) || 1);
   const deriveFaction = (t) => {
     const s = String(t || "").toLowerCase();
     if (s.includes("bandit")) return "bandit";
