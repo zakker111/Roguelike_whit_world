@@ -48,7 +48,7 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
       if (cv) {
         // Show confirmation to attack; caravans are not walkable.
         const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
-        const prompt = "Do you want to attack this caravan?";
+        const prompt = "Do you want to encounter this caravan?";
         const onOk = () => { try { startCaravanAmbushEncounterWorld(ctx, cv); } catch (_) {} };
         const onCancel = () => {
           try { ctx.log && ctx.log("You decide to leave the caravan alone.", "info"); } catch (_) {}

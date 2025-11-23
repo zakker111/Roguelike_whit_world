@@ -295,10 +295,12 @@ export function enter(ctx, info) {
   }
 
   let depth = Math.max(1, (ctx.floor | 0) || 1);
+  const depth = Math.max(1, (ctx.floor | 0) || 1);
   const deriveFaction = (t) => {
     const s = String(t || "").toLowerCase();
     if (s.includes("bandit")) return "bandit";
     if (s.includes("orc")) return "orc";
+    if (s.includes("guard")) return "guard";
     return "monster";
   };
 
