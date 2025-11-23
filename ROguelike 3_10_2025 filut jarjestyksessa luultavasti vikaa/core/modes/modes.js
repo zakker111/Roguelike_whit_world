@@ -403,18 +403,15 @@ export function returnToWorldIfAtExit(ctx) {
 }
 
 /**
- * Spawn a temporary caravan merchant inside the town if a travelling caravan is currently
- * parked at this settlement in the overworld.
+ * Spawn a caravan merchant and camp inside the town.
  *
- * The merchant behaves like a normal shopkeeper:
- * - Creates an NPC with isShopkeeper=true
- * - Attaches a shop record of type "caravan"
- * - Spawns a small stall with crates, barrels and a sign near the town gate (within ~10 tiles)
- * - When no caravan is parked here anymore, the merchant and his props are removed.
+ * Simplified behavior:
+ * - Always spawns a caravan master near the town plaza (or center) when entering a town.
+ * - No longer depends on overworld caravans being parked at this settlement.
+ * - Clears any previous caravan camp props/NPCs before spawning a fresh one.
  */
 function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
   try {
-    const world = ctx.world;
     const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : (ctx.npcs = []);
     const shops = Array.isArray(ctx.shops) ? ctx.shops : (ctx.shops = []);
     ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
@@ -438,50 +435,18 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       } catch (_) {}
     }
 
-    if (!world || !Array.isArray(world.caravans) || !world.caravans.length) {
-      // No caravans anywhere: ensure any leftover caravan camp is cleaned up.
-      clearCaravanCamp();
-      return;
-    }
-
-    // Prefer a caravan that is actually parked at this settlement's overworld tile.
-    let parked = world.caravans.find(cv =>
-      cv &&
-      cv.atTown &&
-      (cv.x | 0) === (worldX | 0) &&
-      (cv.y | 0) === (worldY | 0)
-    );
-
-    // Fallback: if none is parked exactly here but at least one caravan is atTown somewhere,
-    // treat that one as the active caravan for this town so the player still sees a caravan camp.
-    if (!parked) {
-      parked = world.caravans.find(cv => cv && cv.atTown);
-    }
-
-    // Final fallback: if no caravan is currently marked as parked at any town,
-    // still pick any existing caravan so towns can show a caravan camp even while
-    // caravans are travelling on the overworld.
-    if (!parked) {
-      parked = world.caravans.find(cv => cv) || null;
-    }
-
-    if (!parked) {
-      clearCaravanCamp();
-      return;
-    }
-
-    // When there is a parked caravan we want a fresh camp; clear any stale camp from
-    // previous visits (e.g. if the gate location changed or layout was regenerated).
+    // Always clear any existing caravan camp so we don't accumulate duplicates.
     clearCaravanCamp();
 
-    // Find a free town floor tile near the gate (within ~30 tiles). If no gate is known,
-    // fall back to a smaller search around the plaza.
-    let spot = null;
+    const map = ctx.map;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    if (!rows || !cols) return;
 
     function isFree(x, y) {
-      if (!ctx.inBounds || !ctx.inBounds(x, y)) return false;
+      if (!inBounds(ctx, x, y)) return false;
       const t = ctx.map[y][x];
-      // Prefer FLOOR/DOOR, but allow any walkable town tile if isWalkable says so.
+      // Prefer FLOOR/DOOR, but allow any walkable town tile if ctx.isWalkable says so.
       if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) {
         try {
           if (typeof ctx.isWalkable === "function" && !ctx.isWalkable(x, y)) return false;
@@ -489,61 +454,42 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       }
       if (ctx.player && ctx.player.x === x && ctx.player.y === y) return false;
       if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === x && n.y === y)) return false;
-      // Allow overlapping existing decorative props (benches, lamps, rugs, etc.) so
-      // the caravan can still appear even in dense town layouts.
+      // Allow overlapping decorative props so the camp can appear even in dense layouts.
       return true;
     }
 
-    try {
-      const rows = ctx.map.length;
-      const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+    // Choose a base position: town plaza if available, otherwise map center.
+    let baseX, baseY;
+    if (ctx.townPlaza && typeof ctx.townPlaza.x === "number" && typeof ctx.townPlaza.y === "number") {
+      baseX = ctx.townPlaza.x | 0;
+      baseY = ctx.townPlaza.y | 0;
+    } else {
+      baseX = (cols >> 1);
+      baseY = (rows >> 1);
+    }
 
-      // Primary: deterministic scan around town gate within a radius of ~30 tiles
-      if (ctx.townExitAt) {
-        const gx = ctx.townExitAt.x | 0;
-        const gy = ctx.townExitAt.y | 0;
-        const radius = 30;
-
-        // Search in expanding squares around the gate: nearest tiles checked first,
-        // but we allow placement up to the full radius.
-        for (let r = 1; r <= radius && !spot; r++) {
-          const minX = Math.max(1, gx - r);
-          const maxX = Math.min(cols - 2, gx + r);
-          const minY = Math.max(1, gy - r);
-          const maxY = Math.min(rows - 2, gy + r);
-          for (let y = minY; y <= maxY && !spot; y++) {
-            for (let x = minX; x <= maxX && !spot; x++) {
-              // Skip the exact gate tile; we'll only use it as an absolute last resort.
-              if (x === gx && y === gy) continue;
-              if (isFree(x, y)) {
-                spot = { x, y };
-                break;
-              }
-            }
+    // Find a free tile near the base position (plaza), within a modest radius.
+    let spot = null;
+    const radius = 6;
+    for (let r = 0; r <= radius && !spot; r++) {
+      const minX = Math.max(1, baseX - r);
+      const maxX = Math.min(cols - 2, baseX + r);
+      const minY = Math.max(1, baseY - r);
+      const maxY = Math.min(rows - 2, baseY + r);
+      for (let y = minY; y <= maxY && !spot; y++) {
+        for (let x = minX; x <= maxX && !spot; x++) {
+          if (isFree(x, y)) {
+            spot = { x, y };
+            break;
           }
         }
-
-        // Absolute last resort: use the gate tile itself if nothing else free was found.
-        if (!spot && isFree(gx, gy)) {
-          spot = { x: gx, y: gy };
-        }
       }
+    }
 
-      // Fallback: near the plaza if no gate-based spot was found or no gate exists
-      if (!spot) {
-        const within = 5;
-        const px = ctx.townPlaza && typeof ctx.townPlaza.x === "number" ? ctx.townPlaza.x | 0 : (cols >> 1);
-        const py = ctx.townPlaza && typeof ctx.townPlaza.y === "number" ? ctx.townPlaza.y | 0 : (rows >> 1);
-        for (let i = 0; i < 400 && !spot; i++) {
-          const ox = ((Math.random() * (within * 2 + 1)) | 0) - within;
-          const oy = ((Math.random() * (within * 2 + 1)) | 0) - within;
-          const x = px + ox;
-          const y = py + oy;
-          if (x <= 0 || y <= 0 || y >= rows - 1 || x >= cols - 1) continue;
-          if (isFree(x, y)) spot = { x, y };
-        }
-      }
-    } catch (_) {}
+    // As a very last resort, try the plaza tile itself.
+    if (!spot && isFree(baseX, baseY)) {
+      spot = { x: baseX, y: baseY };
+    }
 
     if (!spot) return;
 
@@ -555,13 +501,13 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       name: merchantName,
       lines: [
         "Fresh goods from the road.",
-        "We stay in town for a few days, then move on."
+        "We set up in the plaza wherever we travel."
       ],
       isShopkeeper: true,
       isCaravanMerchant: true
     };
 
-    // Temporary shop at caravan's stall (always open while caravan is parked here)
+    // Caravan shop: always open while you are in town.
     const shop = {
       x: spot.x,
       y: spot.y,
@@ -579,10 +525,10 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
     npcs.push(npc);
     shops.push(shop);
 
-    // Add a small "caravan camp" of props near the merchant: a cart (market stall),
+    // Add a small \"caravan camp\" of props near the merchant: a cart (stall),
     // a sign, and a few crates/barrels.
     try {
-      // Cart: represented as a market stall on the merchant's tile, if still free for props.
+      // Cart on the merchant's tile if no prop there yet.
       const hasPropHere = props.some(p => p && p.x === spot.x && p.y === spot.y);
       if (!hasPropHere) {
         props.push({
@@ -590,37 +536,33 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
           y: spot.y,
           type: "stall",
           name: "Caravan cart",
-          isCaravanProp: true,
-          caravanId: parked.id
+          isCaravanProp: true
         });
       }
 
-      // Sign: ideally adjacent to the cart so interacting shows "Caravan".
+      // Sign adjacent to the cart if possible.
       const signOffsets = [
         { dx: 0, dy: -1 },
         { dx: 0, dy: 1 },
         { dx: -1, dy: 0 },
         { dx: 1, dy: 0 }
       ];
-      let signPlaced = false;
       for (const o of signOffsets) {
         const sx = spot.x + o.dx;
         const sy = spot.y + o.dy;
-        if (!ctx.inBounds || !ctx.inBounds(sx, sy)) continue;
+        if (!inBounds(ctx, sx, sy)) continue;
         if (!isFree(sx, sy)) continue;
         props.push({
           x: sx,
           y: sy,
           type: "sign",
           name: "Caravan",
-          isCaravanProp: true,
-          caravanId: parked.id
+          isCaravanProp: true
         });
-        signPlaced = true;
         break;
       }
 
-      // Crates and barrels around the cart, preferring adjacent/diagonal tiles.
+      // A few crates/barrels around the cart.
       const offsets = [
         { dx: 1, dy: 0 },
         { dx: -1, dy: 0 },
@@ -636,17 +578,15 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
         if (added >= 3) break;
         const x = spot.x + o.dx;
         const y = spot.y + o.dy;
-        if (!ctx.inBounds || !ctx.inBounds(x, y)) continue;
+        if (!inBounds(ctx, x, y)) continue;
         if (!isFree(x, y)) continue;
-        // Alternate between crates and barrels
         const type = (added % 2 === 0) ? "crate" : "barrel";
         props.push({
           x,
           y,
           type,
           name: type === "crate" ? "Crate" : "Barrel",
-          isCaravanProp: true,
-          caravanId: parked.id
+          isCaravanProp: true
         });
         added++;
       }
