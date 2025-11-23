@@ -461,6 +461,8 @@ export function enter(ctx, info) {
       if (x === ctx.player.x && y === ctx.player.y) return false;
       if (placements.some(p => p.x === x && p.y === y)) return false;
       if (chestSpots.has(keyFor(x, y))) return false;
+      // Do not spawn enemies on top of encounter props (e.g., caravan master merchant).
+      if (encProps.some(p => p && p.x === x && p.y === y)) return false;
       return map[y][x] === T.FLOOR;
     }
 
