@@ -421,6 +421,19 @@ function spawnInitialCaravans(ctx) {
     let idCounter = (world.caravans.length ? world.caravans.length : 0);
     const existing = world.caravans.length;
 
+    // Derive a simple \"now\" and \"turns per day\" so initial caravans start parked
+    // for a couple of in-game days at their origin towns.
+    let nowTurn = 0;
+    let dayTurns = 360;
+    try {
+      if (ctx.time && typeof ctx.time.turnCounter === "number") {
+        nowTurn = ctx.time.turnCounter | 0;
+      }
+      if (ctx.time && typeof ctx.time.cycleTurns === "number") {
+        dayTurns = Math.max(1, ctx.time.cycleTurns | 0);
+      }
+    } catch (_) {}
+
     for (let i = existing; i < desired; i++) {
       const fromIndex = (r() * towns.length) | 0;
       const from = towns[fromIndex];
@@ -460,6 +473,9 @@ function spawnInitialCaravans(ctx) {
         }
       } catch (_) {}
 
+      const dwellDays = 2;
+      const dwellUntil = nowTurn + dwellDays * dayTurns;
+
       world.caravans.push({
         id: ++idCounter,
         x: from.x | 0,
@@ -467,13 +483,11 @@ function spawnInitialCaravans(ctx) {
         from: { x: from.x | 0, y: from.y | 0 },
         dest: { x: destTown.x | 0, y: destTown.y | 0 },
         atTown: true,
-        dwellUntil: 0
+        dwellUntil
       });
     }
   } catch (_) {}
-}
-
-export function generate(ctx, opts = {}) {
+}) {
   // Prefer infinite generator; fall back to finite world if module missing or disabled
   const IG = (typeof window !== "undefined" ? window.InfiniteGen : null);
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);

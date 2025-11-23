@@ -475,10 +475,16 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
     function isFree(x, y) {
       if (!ctx.inBounds || !ctx.inBounds(x, y)) return false;
       const t = ctx.map[y][x];
-      if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
+      // Prefer FLOOR/DOOR, but allow any walkable town tile if isWalkable says so.
+      if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) {
+        try {
+          if (typeof ctx.isWalkable === "function" && !ctx.isWalkable(x, y)) return false;
+        } catch (_) {}
+      }
       if (ctx.player && ctx.player.x === x && ctx.player.y === y) return false;
       if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === x && n.y === y)) return false;
-      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && p.x === x && p.y === y)) return false;
+      // Allow overlapping existing decorative props (benches, lamps, rugs, etc.) so
+      // the caravan can still appear even in dense town layouts.
       return true;
     }
 
