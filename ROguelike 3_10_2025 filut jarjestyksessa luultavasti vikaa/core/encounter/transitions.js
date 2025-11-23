@@ -55,6 +55,68 @@ export function complete(ctx, outcome = "victory") {
       }
     }
   } catch (_) {}
+
+  // If the player chose to travel with a caravan (escort.active), snap them onto that caravan
+  // on returning to the overworld so following starts immediately.
+  try {
+    const world = ctx.world || null;
+    const escort = world && world.caravanEscort;
+    if (world && escort && escort.active && Array.isArray(world.caravans) && world.caravans.length) {
+      const caravans = world.caravans;
+      let cv = null;
+
+      // Prefer the caravan whose id matches escort.id
+      if (typeof escort.id !== "undefined" && escort.id !== null) {
+        cv = caravans.find(c => c && c.id === escort.id) || null;
+      }
+
+      // Fallback: if no id match, attach to the closest caravan to the player
+      if (!cv) {
+        const baseWx = (world.originX | 0) + (ctx.player.x | 0);
+        const baseWy = (world.originY | 0) + (ctx.player.y | 0);
+        let best = null;
+        let bestDist = Infinity;
+        for (const c of caravans) {
+          if (!c) continue;
+          const dx = (c.x | 0) - baseWx;
+          const dy = (c.y | 0) - baseWy;
+          const dist = Math.abs(dx) + Math.abs(dy);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = c;
+          }
+        }
+        cv = best;
+        if (cv && typeof cv.id !== "undefined") {
+          escort.id = cv.id;
+        }
+      }
+
+      if (cv) {
+        const WR = ctx.WorldRuntime || (typeof window !== "undefined" ? window.WorldRuntime : null);
+        const wx = cv.x | 0;
+        const wy = cv.y | 0;
+        if (WR && typeof WR.ensureInBounds === "function") {
+          ctx._suspendExpandShift = true;
+          try {
+            let lx = wx - (world.originX | 0);
+            let ly = wy - (world.originY | 0);
+            WR.ensureInBounds(ctx, lx, ly, 32);
+          } finally {
+            ctx._suspendExpandShift = false;
+          }
+        }
+        const lx2 = wx - (world.originX | 0);
+        const ly2 = wy - (world.originY | 0);
+        const rows2 = Array.isArray(ctx.map) ? ctx.map.length : 0;
+        const cols2 = rows2 && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+        if (lx2 >= 0 && ly2 >= 0 && lx2 < cols2 && ly2 < rows2) {
+          ctx.player.x = lx2;
+          ctx.player.y = ly2;
+        }
+      }
+    }
+  } catch (_) {}
   try {
     if (outcome === "victory") ctx.log && ctx.log("You prevail and return to the overworld.", "good");
     else ctx.log && ctx.log("You withdraw and return to the overworld.", "info");
