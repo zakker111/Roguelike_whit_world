@@ -14,6 +14,11 @@ export function tick(ctx) {
     advanceCaravans(ctx);
   } catch (_) {}
 
+  // Escort ambush events: small chance each world tick while escorting
+  try {
+    maybeEscortAmbush(ctx);
+  } catch (_) {}
+
   // Future: day/night effects or ambient overlays in world mode
   return true;
 }
@@ -223,6 +228,63 @@ function spawnSingleCaravan(ctx, towns, caravans, fromIdx, r) {
  * Caravans are stored in world.caravans with world-space coordinates.
  * When they reach a town, they stay parked for a few in-game days (dwell) before moving on.
  */
+function maybeEscortAmbush(ctx) {
+  if (!ctx || ctx.mode !== "world" || !ctx.world) return;
+  const world = ctx.world;
+  const escort = world.caravanEscort || null;
+  if (!escort || !escort.active || !Array.isArray(world.caravans) || !world.caravans.length) return;
+
+  const cv = world.caravans.find(c => c && c.id === escort.id);
+  if (!cv || !cv.atTown) {
+    // Only trigger ambushes while the caravan is travelling between towns
+  } else {
+    return;
+  }
+
+  // Basic chance per world tick to trigger an ambush while escorting
+  const r = worldRng(ctx);
+  if (r() > 0.04) return; // ~4% per world tick
+
+  // Start a caravan ambush encounter on the road
+  try {
+    const template = {
+      id: "caravan_ambush",
+      name: "Caravan Ambush",
+      map: { w: 26, h: 16, generator: "caravan_road" },
+      groups: [
+        { faction: "guard", count: { min: 3, max: 4 }, type: "guard" },
+        { faction: "guard", count: { min: 2, max: 3 }, type: "guard_elite" }
+      ],
+      objective: { type: "reachExit" },
+      difficulty: ctx.encounterDifficulty || 4
+    };
+    const biome = "GRASS";
+
+    let ok = false;
+    // Preferred: GameAPI
+    try {
+      const GA = ctx.GameAPI || (typeof window !== "undefined" ? window.GameAPI : null);
+      if (GA && typeof GA.enterEncounter === "function") {
+        ok = !!GA.enterEncounter(template, biome, template.difficulty || 4);
+      }
+    } catch (_) {}
+
+    // Fallback: EncounterRuntime directly
+    if (!ok) {
+      try {
+        const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime");
+        if (ER && typeof ER.enter === "function") {
+          ok = !!ER.enter(ctx, { template, biome, difficulty: template.difficulty || 4 });
+        }
+      } catch (_) {}
+    }
+
+    if (ok && ctx.log) {
+      ctx.log("Bandits strike the caravan on the road!", "notice");
+    }
+  } catch (_) {}
+}
+
 function advanceCaravans(ctx) {
   const world = ctx.world;
   ensureCaravanState(world);
