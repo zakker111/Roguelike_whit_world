@@ -133,7 +133,8 @@ function isOnTownTile(world, wx, wy) {
 
 /**
  * Dynamically spawn caravans over time as the player reveals more of the world.
- * Keeps at least a baseline number of caravans relative to discovered towns.
+ * On every world turn there is a small global chance to spawn a caravan, as long
+ * as there are at least two towns and the hard cap is not exceeded.
  */
 function spawnCaravansIfNeeded(ctx) {
   const world = ctx.world;
@@ -149,18 +150,31 @@ function spawnCaravansIfNeeded(ctx) {
   // Hard cap so the world doesn't fill with caravans, but allow more caravans
   // when there are many towns so remote regions still see traffic.
   const maxCaravans = Math.max(8, Math.min(60, Math.floor(townCount * 1.2)));
-  if (existing >= maxCaravans) return;
   if (townCount < 2) return;
+  if (existing >= maxCaravans) return;
 
-  // Per-town spawn chance: every town gets an independent roll each world tick.
-  // This makes caravans feel more evenly distributed across the map.
-  const baseP = 0.04; // ~4% per town per tick (before local bias)
-  const scale = Math.min(2.0, 0.5 + townCount / 12);
-  const pTownBase = Math.min(0.2, baseP * scale);
+  // Target density we would like to roughly maintain.
+  const desired = Math.min(maxCaravans, Math.max(4, Math.floor(townCount * 0.8)));
+
+  // Global per-turn spawn chance:
+  // - Very high when there are no caravans yet, so the world doesn't feel empty.
+  // - Higher while under desired density.
+  // - Lower but non-zero when at/above desired density (up to the cap).
+  let spawnChance;
+  if (existing === 0) {
+    spawnChance = 0.4;   // 40% chance each turn until first caravan appears
+  } else if (existing < desired) {
+    spawnChance = 0.14;  // 14% per world turn while under target
+  } else {
+    spawnChance = 0.04;  // 4% per world turn when at/above target but under cap
+  }
+
+  if (r() >= spawnChance) return;
 
   // Bias spawning toward towns near the player so cities you actually visit
   // are much more likely to see caravans.
-  let px = null, py = null;
+  let px = null;
+  let py = null;
   try {
     if (ctx.player && ctx.world && typeof ctx.player.x === "number" && typeof ctx.player.y === "number") {
       px = (ctx.world.originX | 0) + (ctx.player.x | 0);
@@ -179,35 +193,37 @@ function spawnCaravansIfNeeded(ctx) {
     return false;
   }
 
-  let remaining = maxCaravans - existing;
-  for (let i = 0; i < towns.length && remaining > 0; i++) {
-    const from = towns[i];
-    if (!from) continue;
+  // Try a few times to pick a suitable origin town (no parked caravan there,
+  // and preferably close to the player if we know their world coords).
+  let fromIdx = -1;
+  let bestIdx = -1;
+  let bestDist = Infinity;
+  const attempts = Math.min(8, towns.length);
 
-    // Skip if a caravan is already parked at this town.
-    if (hasParkedCaravanAt(from)) continue;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const idx = (r() * towns.length) | 0;
+    const t = towns[idx];
+    if (!t) continue;
+    if (hasParkedCaravanAt(t)) continue;
 
-    // Local spawn probability for this town, biased by distance to player.
-    let pTown = pTownBase;
-    if (px != null && py != null) {
-      const dxp = (from.x | 0) - px;
-      const dyp = (from.y | 0) - py;
-      const distP = Math.abs(dxp) + Math.abs(dyp);
-      if (distP <= 40) {
-        // Towns within ~40 tiles of the player get a much higher spawn chance.
-        pTown = Math.min(0.5, pTownBase * 3);
-      } else if (distP > 120) {
-        // Far-away towns spawn less often to keep density reasonable.
-        pTown = pTownBase * 0.5;
-      }
+    if (px == null || py == null) {
+      fromIdx = idx;
+      break;
     }
 
-    if (r() > pTown) continue;
-
-    if (spawnSingleCaravan(ctx, towns, caravans, i, r)) {
-      remaining--;
+    const dxp = (t.x | 0) - px;
+    const dyp = (t.y | 0) - py;
+    const distP = Math.abs(dxp) + Math.abs(dyp);
+    if (distP < bestDist) {
+      bestDist = distP;
+      bestIdx = idx;
     }
   }
+
+  if (fromIdx === -1) fromIdx = bestIdx;
+  if (fromIdx === -1) return;
+
+  spawnSingleCaravan(ctx, towns, caravans, fromIdx, r);
 }
 
 // Helper: spawn a single caravan from a specific town index toward its nearest neighbour.
