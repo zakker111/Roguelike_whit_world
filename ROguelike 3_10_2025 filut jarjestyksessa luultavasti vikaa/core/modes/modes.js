@@ -472,7 +472,8 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
       if (ctx.player && ctx.player.x === x && ctx.player.y === y) return false;
       if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === x && n.y === y)) return false;
-      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && p.x === x && p.y === y)) return false;
+      // Allow placing caravan props on top of existing decorative props if needed;
+      // drawing will simply layer them, which is fine visually.
       return true;
     }
 
@@ -521,6 +522,12 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
           if (x <= 0 || y <= 0 || y >= rows - 1 || x >= cols - 1) continue;
           if (isFree(x, y)) spot = { x, y };
         }
+      }
+
+      // Last-resort: if we still haven't found a free spot, use the gate tile itself so the
+      // caravan is always visible somewhere near the entrance.
+      if (!spot && ctx.townExitAt) {
+        spot = { x: ctx.townExitAt.x | 0, y: ctx.townExitAt.y | 0 };
       }
     } catch (_) {}
 
