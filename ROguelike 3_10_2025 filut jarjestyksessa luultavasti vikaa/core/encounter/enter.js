@@ -294,7 +294,7 @@ export function enter(ctx, info) {
     return { x, y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, faction: "monster", announced: false };
   }
 
-  const depth = Math.max(1, (ctx.floor | 0) || 1);
+  let depth = Math.max(1, (ctx.floor | 0) || 1);
   const deriveFaction = (t) => {
     const s = String(t || "").toLowerCase();
     if (s.includes("bandit")) return "bandit";
@@ -302,8 +302,15 @@ export function enter(ctx, info) {
     return "monster";
   };
 
-  // Special-case formation: Guards vs Bandits skirmish in lines facing each other.
+  // Special-case tweaks for specific templates
   const tplId = String(template.id || "").toLowerCase();
+  if (tplId === "caravan_ambush") {
+    // Treat caravan ambush as a higher-depth encounter so guards are tougher.
+    depth = Math.max(depth, 5);
+    ctx.encounterDifficulty = Math.max(ctx.encounterDifficulty || 1, 5);
+  }
+
+  // Special-case formation: Guards vs Bandits skirmish in lines facing each other.
   let usedCustomSpawn = false;
   if (tplId === "guards_vs_bandits" && groups.length) {
     try {

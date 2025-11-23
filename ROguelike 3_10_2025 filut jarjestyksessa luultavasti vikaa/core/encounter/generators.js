@@ -76,6 +76,13 @@ export function genCaravanRoad(ctx, rng, W, H, T, encProps) {
     used.add(`${s.x},${s.y}`);
   }
 
+  // Peaceful caravan master prop near the road (for flavor / possible future trade).
+  const masterSpot = { x: Math.max(2, cx - 4), y: cy };
+  if (canPlace(masterSpot.x, masterSpot.y)) {
+    encProps.push({ x: masterSpot.x, y: masterSpot.y, type: "merchant", name: "Caravan master", vendor: "caravan" });
+    used.add(`${masterSpot.x},${masterSpot.y}`);
+  }
+
   return m;
 }
 
