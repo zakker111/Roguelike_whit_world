@@ -468,7 +468,7 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
     // previous visits (e.g. if the gate location changed or layout was regenerated).
     clearCaravanCamp();
 
-    // Find a free town floor tile near the gate (about 10 tiles radius). If no gate is known,
+    // Find a free town floor tile near the gate (within ~30 tiles). If no gate is known,
     // fall back to a smaller search around the plaza.
     let spot = null;
 
@@ -478,8 +478,7 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.DOOR) return false;
       if (ctx.player && ctx.player.x === x && ctx.player.y === y) return false;
       if (Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === x && n.y === y)) return false;
-      // Allow placing caravan props on top of existing decorative props if needed;
-      // drawing will simply layer them, which is fine visually.
+      if (Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && p.x === x && p.y === y)) return false;
       return true;
     }
 
@@ -487,40 +486,43 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       const rows = ctx.map.length;
       const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
 
-      // Primary: near town gate
+      // Primary: deterministic scan around town gate within a radius of ~30 tiles
       if (ctx.townExitAt) {
         const gx = ctx.townExitAt.x | 0;
         const gy = ctx.townExitAt.y | 0;
-        const radius = 10;
-        for (let i = 0; i < 200 && !spot; i++) {
-          const ox = (((Math.random() * (radius * 2 + 1)) | 0) - radius);
-          const oy = (((Math.random() * (radius * 2 + 1)) | 0) - radius);
-          const x = gx + ox;
-          const y = gy + oy;
-          if (x <= 0 || y <= 0 || y >= rows - 1 || x >= cols - 1) continue;
-          if (isFree(x, y)) spot = { x, y };
+        const radius = 30;
+
+        // Search in expanding squares around the gate: nearest tiles checked first,
+        // but we allow placement up to the full radius.
+        for (let r = 1; r <= radius && !spot; r++) {
+          const minX = Math.max(1, gx - r);
+          const maxX = Math.min(cols - 2, gx + r);
+          const minY = Math.max(1, gy - r);
+          const maxY = Math.min(rows - 2, gy + r);
+          for (let y = minY; y <= maxY && !spot; y++) {
+            for (let x = minX; x <= maxX && !spot; x++) {
+              // Skip the exact gate tile; we'll only use it as an absolute last resort.
+              if (x === gx && y === gy) continue;
+              if (isFree(x, y)) {
+                spot = { x, y };
+                break;
+              }
+            }
+          }
         }
 
-        // If random sampling failed, try a small ring right next to the gate
-        if (!spot) {
-          const cand = [
-            { x: gx + 1, y: gy },
-            { x: gx - 1, y: gy },
-            { x: gx,     y: gy + 1 },
-            { x: gx,     y: gy - 1 }
-          ];
-          for (const c of cand) {
-            if (isFree(c.x, c.y)) { spot = c; break; }
-          }
+        // Absolute last resort: use the gate tile itself if nothing else free was found.
+        if (!spot && isFree(gx, gy)) {
+          spot = { x: gx, y: gy };
         }
       }
 
-      // Fallback: near the plaza if no gate-based spot was found
+      // Fallback: near the plaza if no gate-based spot was found or no gate exists
       if (!spot) {
         const within = 5;
         const px = ctx.townPlaza && typeof ctx.townPlaza.x === "number" ? ctx.townPlaza.x | 0 : (cols >> 1);
         const py = ctx.townPlaza && typeof ctx.townPlaza.y === "number" ? ctx.townPlaza.y | 0 : (rows >> 1);
-        for (let i = 0; i < 200 && !spot; i++) {
+        for (let i = 0; i < 400 && !spot; i++) {
           const ox = ((Math.random() * (within * 2 + 1)) | 0) - within;
           const oy = ((Math.random() * (within * 2 + 1)) | 0) - within;
           const x = px + ox;
@@ -528,12 +530,6 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
           if (x <= 0 || y <= 0 || y >= rows - 1 || x >= cols - 1) continue;
           if (isFree(x, y)) spot = { x, y };
         }
-      }
-
-      // Last-resort: if we still haven't found a free spot, use the gate tile itself so the
-      // caravan is always visible somewhere near the entrance.
-      if (!spot && ctx.townExitAt) {
-        spot = { x: ctx.townExitAt.x | 0, y: ctx.townExitAt.y | 0 };
       }
     } catch (_) {}
 
