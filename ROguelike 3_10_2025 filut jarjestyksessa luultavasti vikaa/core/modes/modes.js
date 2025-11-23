@@ -409,6 +409,7 @@ export function returnToWorldIfAtExit(ctx) {
  * The merchant behaves like a normal shopkeeper:
  * - Creates an NPC with isShopkeeper=true
  * - Attaches a shop record of type "caravan"
+ * - Spawns a small stall with crates near the town gate (within ~10 tiles)
  * - ShopService/Shop pools decide what items are available.
  */
 function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
@@ -431,8 +432,8 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
     const already = npcs.some(n => n && n.isCaravanMerchant);
     if (already) return;
 
-    // Find a free town floor tile near the plaza, or near the gate as fallback.
-    const within = 5;
+    // Find a free town floor tile near the gate (about 10 tiles radius). If no gate is known,
+    // fall back to a smaller search around the plaza.
     let spot = null;
 
     function isFree(x, y) {
@@ -448,30 +449,51 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
     try {
       const rows = ctx.map.length;
       const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
-      const px = ctx.townPlaza && typeof ctx.townPlaza.x === "number" ? ctx.townPlaza.x | 0 : (cols >> 1);
-      const py = ctx.townPlaza && typeof ctx.townPlaza.y === "number" ? ctx.townPlaza.y | 0 : (rows >> 1);
-      for (let i = 0; i < 200 && !spot; i++) {
-        const ox = ((Math.random() * (within * 2 + 1)) | 0) - within;
-        const oy = ((Math.random() * (within * 2 + 1)) | 0) - within;
-        const x = px + ox;
-        const y = py + oy;
-        if (x <= 0 || y <= 0 || y >= rows - 1 || x >= cols - 1) continue;
-        if (isFree(x, y)) spot = { x, y };
+
+      // Primary: near town gate
+      if (ctx.townExitAt) {
+        const gx = ctx.townExitAt.x | 0;
+        const gy = ctx.townExitAt.y | 0;
+        const radius = 10;
+        for (let i = 0; i < 200 && !spot; i++) {
+          const ox = (((Math.random() * (radius * 2 + 1)) | 0) - radius);
+          const oy = (((Math.random() * (radius * 2 + 1)) | 0) - radius);
+          const x = gx + ox;
+          const y = gy + oy;
+          if (x <= 0 || y <= 0 || y >= rows - 1 || x >= cols - 1) continue;
+          if (isFree(x, y)) spot = { x, y };
+        }
+
+        // If random sampling failed, try a small ring right next to the gate
+        if (!spot) {
+          const cand = [
+            { x: gx + 1, y: gy },
+            { x: gx - 1, y: gy },
+            { x: gx,     y: gy + 1 },
+            { x: gx,     y: gy - 1 }
+          ];
+          for (const c of cand) {
+            if (isFree(c.x, c.y)) { spot = c; break; }
+          }
+        }
+      }
+
+      // Fallback: near the plaza if no gate-based spot was found
+      if (!spot) {
+        const within = 5;
+        const px = ctx.townPlaza && typeof ctx.townPlaza.x === "number" ? ctx.townPlaza.x | 0 : (cols >> 1);
+        const py = ctx.townPlaza && typeof ctx.townPlaza.y === "number" ? ctx.townPlaza.y | 0 : (rows >> 1);
+        for (let i = 0; i < 200 && !spot; i++) {
+          const ox = ((Math.random() * (within * 2 + 1)) | 0) - within;
+          const oy = ((Math.random() * (within * 2 + 1)) | 0) - within;
+          const x = px + ox;
+          const y = py + oy;
+          if (x <= 0 || y <= 0 || y >= rows - 1 || x >= cols - 1) continue;
+          if (isFree(x, y)) spot = { x, y };
+        }
       }
     } catch (_) {}
 
-    // Fallback: near the town gate
-    if (!spot && ctx.townExitAt) {
-      const cand = [
-        { x: ctx.townExitAt.x + 1, y: ctx.townExitAt.y },
-        { x: ctx.townExitAt.x - 1, y: ctx.townExitAt.y },
-        { x: ctx.townExitAt.x, y: ctx.townExitAt.y + 1 },
-        { x: ctx.townExitAt.x, y: ctx.townExitAt.y - 1 }
-      ];
-      for (const c of cand) {
-        if (isFree(c.x, c.y)) { spot = c; break; }
-      }
-    }
     if (!spot) return;
 
     const merchantName = "Caravan master";
@@ -504,6 +526,42 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
 
     npcs.push(npc);
     shops.push(shop);
+
+    // Add a small \"caravan camp\" of props near the merchant: a cart (market stall) and a few crates/barrels.
+    try {
+      ctx.townProps = Array.isArray(ctx.townProps) ? ctx.townProps : [];
+      const props = ctx.townProps;
+
+      // Cart: represented as a market stall on the merchant's tile, if still free for props.
+      const hasPropHere = props.some(p => p && p.x === spot.x && p.y === spot.y);
+      if (!hasPropHere) {
+        props.push({ x: spot.x, y: spot.y, type: "stall", name: "Caravan cart" });
+      }
+
+      // Crates and barrels around the cart, preferring adjacent tiles.
+      const offsets = [
+        { dx: 1, dy: 0 },
+        { dx: -1, dy: 0 },
+        { dx: 0, dy: 1 },
+        { dx: 0, dy: -1 },
+        { dx: 1, dy: 1 },
+        { dx: -1, dy: 1 },
+        { dx: 1, dy: -1 },
+        { dx: -1, dy: -1 }
+      ];
+      let added = 0;
+      for (const o of offsets) {
+        if (added >= 3) break;
+        const x = spot.x + o.dx;
+        const y = spot.y + o.dy;
+        if (!ctx.inBounds || !ctx.inBounds(x, y)) continue;
+        if (!isFree(x, y)) continue;
+        // Alternate between crates and barrels
+        const type = (added % 2 === 0) ? "crate" : "barrel";
+        props.push({ x, y, type, name: type === "crate" ? "Crate" : "Barrel" });
+        added++;
+      }
+    } catch (_) {}
   } catch (_) {}
 }
 
