@@ -2,7 +2,7 @@
  * Encounter enter (Phase 4 extraction): switches to encounter mode and generates tactical map.
  */
 import { getMod } from "../../utils/access.js";
-import { genEmpty, genAmbushForest, genCamp, genRuins, genArena, genBattlefield } from "./generators.js";
+import { genEmpty, genAmbushForest, genCamp, genRuins, genArena, genBattlefield, genCaravanRoad } from "./generators.js";
 import { resetSessionFlags, setCurrentQuestInstanceId } from "./session_state.js";
 
 export function enter(ctx, info) {
@@ -63,6 +63,7 @@ export function enter(ctx, info) {
   else if (id === "ruins" || id === "ruin") map = genRuins(ctx, r, W, H, T);
   else if (id === "arena" || id === "cross") map = genArena(ctx, r, W, H, T);
   else if (id === "battlefield" || id === "open_field") map = genBattlefield(ctx, r, W, H, T);
+  else if (id === "caravan_road") map = genCaravanRoad(ctx, r, W, H, T, encProps);
   else map = genEmpty(ctx, W, H, T);
 
   ctx.map = map;
@@ -97,6 +98,37 @@ export function enter(ctx, info) {
       ctx.corpses.push({ kind: "chest", x: c.x, y: c.y, loot, looted: loot.length === 0 });
       chestSpots.add(keyFor(c.x, c.y));
     }
+
+    // Special-case: caravan ambush road may mark a caravan chest prop; convert it to a real chest with loot.
+    try {
+      const tplId = String(template.id || "").toLowerCase();
+      if (tplId === "caravan_ambush" && Array.isArray(ctx.encounterProps)) {
+        const centerX = (W / 2) | 0;
+        const centerY = (H / 2) | 0;
+        const caravChest = ctx.encounterProps.find(p =>
+          p &&
+          String(p.type || "").toLowerCase() === "caravan_chest" &&
+          Math.abs(p.x - centerX) <= 2 &&
+          Math.abs(p.y - centerY) <= 1
+        );
+        if (caravChest) {
+          const cx2 = caravChest.x | 0;
+          const cy2 = caravChest.y | 0;
+          if (cx2 > 0 && cy2 > 0 && cx2 < W - 1 && cy2 < H - 1 && map[cy2][cx2] !== T.WALL) {
+            // Generate caravan-themed loot; fall back to bandit loot
+            let loot2 = [];
+            if (L && typeof L.generate === "function") {
+              loot2 = L.generate(ctx, { type: "caravan", xp: 15 }) || [];
+            }
+            if (!Array.isArray(loot2) || !loot2.length) {
+              loot2 = (L && typeof L.generate === "function") ? (L.generate(ctx, { type: "bandit", xp: 12 }) || []) : [{ name: "10 gold", kind: "gold", amount: 10 }];
+            }
+            ctx.corpses.push({ kind: "chest", x: cx2, y: cy2, loot: loot2, looted: loot2.length === 0 });
+            chestSpots.add(keyFor(cx2, cy2));
+          }
+        }
+      }
+    } catch (_) {}
   } catch (_) {}
 
   // Add simple exit tiles near each edge so the player can always walk out.

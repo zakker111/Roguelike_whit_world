@@ -226,6 +226,29 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
         }
       }
 
+      // Special interaction for caravan merchants: allow attacking their caravan instead of trading.
+      const isCaravanMerchant = !!(npc && npc.isCaravanMerchant);
+      if (isCaravanMerchant && ctx.mode === "town") {
+        try {
+          const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+          const prompt = "Do you want to attack this caravan?";
+          const onOk = () => {
+            try { startCaravanAmbushEncounter(ctx, npc); } catch (_) {}
+          };
+          const onCancel = () => {
+            if (shopRef) {
+              try { tryOpenShopRef(shopRef, npc); } catch (_) {}
+            }
+          };
+          if (UIO && typeof UIO.showConfirm === "function") {
+            UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+          } else {
+            onOk();
+          }
+        } catch (_) {}
+        return true;
+      }
+
       if (shopRef) {
         // Inn: always open and interactable anywhere inside — open immediately on bump
         const isInn = String(shopRef.type || "").toLowerCase() === "inn";
@@ -425,6 +448,74 @@ export function rebuildOccupancy(ctx) {
     }
   } catch (_) {}
   return false;
+}
+
+/**
+ * Start a special caravan ambush encounter when the player chooses to attack a caravan
+ * from inside town. The caravan master and their guards are represented as enemies,
+ * and a broken caravan with a lootable chest appears on a small road map.
+ */
+function startCaravanAmbushEncounter(ctx, npc) {
+  try {
+    // Close any confirm dialog before switching modes
+    try {
+      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(ctx);
+    } catch (_) {}
+
+    // Remove the caravan merchant and their shop from town so they don't persist after the attack.
+    try {
+      if (Array.isArray(ctx.npcs)) {
+        const idx = ctx.npcs.indexOf(npc);
+        if (idx !== -1) ctx.npcs.splice(idx, 1);
+      }
+      if (Array.isArray(ctx.shops)) {
+        for (let i = ctx.shops.length - 1; i >= 0; i--) {
+          const s = ctx.shops[i];
+          if (s && s.type === "caravan") ctx.shops.splice(i, 1);
+        }
+      }
+      // Mark any parked caravan at this town as no longer atTown so the overworld logic can move/retire it.
+      try {
+        const world = ctx.world;
+        if (world && Array.isArray(world.caravans) && ctx.worldReturnPos) {
+          const wx = ctx.worldReturnPos.x | 0;
+          const wy = ctx.worldReturnPos.y | 0;
+          for (const cv of world.caravans) {
+            if (!cv) continue;
+            if ((cv.x | 0) === wx && (cv.y | 0) === wy && cv.atTown) {
+              cv.atTown = false;
+              cv.dwellUntil = 0;
+              cv.ambushed = true;
+            }
+          }
+        }
+      } catch (_) {}
+      try { rebuildOccupancy(ctx); } catch (_) {}
+    } catch (_) {}
+
+    const template = {
+      id: "caravan_ambush",
+      name: "Caravan Ambush",
+      map: { w: 26, h: 16, generator: "caravan_road" },
+      groups: [
+        { faction: "guard", count: { min: 2, max: 3 } },
+        { faction: "guard", count: { min: 1, max: 2 } }
+      ],
+      objective: { type: "reachExit" }
+    };
+
+    const biome = "GRASS";
+    const ok = (typeof ctx.enterEncounter === "function")
+      ? !!ctx.enterEncounter(template, biome)
+      : false;
+
+    if (!ok && ctx.log) {
+      ctx.log("Failed to start caravan ambush encounter.", "warn");
+    } else if (ok && ctx.log) {
+      ctx.log("You ambush the caravan outside the town!", "notice");
+    }
+  } catch (_) {}
 }
 
 if (typeof window !== "undefined") {
