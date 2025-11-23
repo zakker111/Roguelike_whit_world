@@ -458,8 +458,14 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       parked = world.caravans.find(cv => cv && cv.atTown);
     }
 
+    // Final fallback: if no caravan is currently marked as parked at any town,
+    // still pick any existing caravan so towns can show a caravan camp even while
+    // caravans are travelling on the overworld.
     if (!parked) {
-      // No parked caravans at all: remove any existing camp.
+      parked = world.caravans.find(cv => cv) || null;
+    }
+
+    if (!parked) {
       clearCaravanCamp();
       return;
     }
