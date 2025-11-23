@@ -438,6 +438,25 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
     // Always clear any existing caravan camp so we don't accumulate duplicates.
     clearCaravanCamp();
 
+    // Only spawn a caravan master if there is a caravan currently parked
+    // at this town's overworld tile (worldX, worldY).
+    const world = ctx.world;
+    if (!world || !Array.isArray(world.caravans) || !world.caravans.length) {
+      return;
+    }
+    const caravans = world.caravans;
+    const wx = worldX | 0;
+    const wy = worldY | 0;
+    const parked = caravans.find(cv =>
+      cv &&
+      cv.atTown &&
+      (cv.x | 0) === wx &&
+      (cv.y | 0) === wy
+    );
+    if (!parked) {
+      return;
+    }
+
     const map = ctx.map;
     const rows = Array.isArray(map) ? map.length : 0;
     const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
