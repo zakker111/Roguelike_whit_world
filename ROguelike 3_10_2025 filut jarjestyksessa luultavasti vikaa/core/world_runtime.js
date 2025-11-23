@@ -487,7 +487,9 @@ function spawnInitialCaravans(ctx) {
       });
     }
   } catch (_) {}
-}) {
+}
+
+export function generate(ctx, opts = {}) {
   // Prefer infinite generator; fall back to finite world if module missing or disabled
   const IG = (typeof window !== "undefined" ? window.InfiniteGen : null);
   const W = (ctx && ctx.World) || (typeof window !== "undefined" ? window.World : null);
