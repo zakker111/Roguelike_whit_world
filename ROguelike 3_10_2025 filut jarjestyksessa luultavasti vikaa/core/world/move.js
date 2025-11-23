@@ -154,6 +154,17 @@ function startCaravanAmbushEncounterWorld(ctx, caravan) {
       }
     } catch (_) {}
 
+    // Link this encounter to an escortable caravan so the player can choose to travel with it afterwards.
+    try {
+      const world = ctx.world;
+      if (world && caravan && typeof caravan.id !== "undefined") {
+        world.caravanEscort = world.caravanEscort || { id: null, reward: 0, active: false };
+        world.caravanEscort.id = caravan.id;
+        // Do not set active yet; the Caravan master dialog inside the encounter decides
+        // whether the player actually chooses to travel with this caravan.
+      }
+    } catch (_) {}
+
     const template = {
       id: "caravan_ambush",
       name: "Caravan Ambush",
