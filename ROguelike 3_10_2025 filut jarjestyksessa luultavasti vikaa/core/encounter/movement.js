@@ -9,6 +9,21 @@ export function tryMoveEncounter(ctx, dx, dy) {
   const ny = ctx.player.y + (dy | 0);
   if (!(ctx.inBounds && ctx.inBounds(nx, ny))) return false;
 
+  // If bumping into a caravan master (merchant prop), open the escort dialog instead of moving/attacking.
+  try {
+    const props = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : [];
+    if (props.length) {
+      const p = props.find(pr => pr && pr.x === nx && pr.y === ny && String(pr.type || "").toLowerCase() === "merchant");
+      if (p) {
+        const EI = ctx.EncounterInteractions || (typeof window !== "undefined" ? window.EncounterInteractions : null);
+        if (EI && typeof EI.interactHere === "function") {
+          EI.interactHere(ctx);
+          return true;
+        }
+      }
+    }
+  } catch (_) {}
+
   // Prefer to reuse DungeonRuntime movement/attack so encounters behave exactly like dungeon
   const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
   if (DR && typeof DR.tryMoveDungeon === "function") {
