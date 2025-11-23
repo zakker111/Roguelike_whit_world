@@ -512,8 +512,11 @@ export function enter(ctx, info) {
         const p = placements[pIdx++];
         const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
 
-        // Prefer explicit enemy type from template groups (guards, bandits, etc.).
+        // For caravan ambush, enforce guard-only enemies: if type is missing or unknown, skip spawn.
+        const isCaravanAmbush = tplId === "caravan_ambush";
         let e = null;
+
+        // Prefer explicit enemy type from template groups (guards, bandits, etc.).
         if (type) {
           try {
             const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
@@ -536,7 +539,12 @@ export function enter(ctx, info) {
             }
           } catch (_) {}
         }
+
         if (!e) {
+          if (isCaravanAmbush) {
+            // In caravan ambush, never fall back to random enemy types; skip this slot.
+            continue;
+          }
           e = createDungeonEnemyAt(ctx, p.x, p.y, depth);
         }
         if (!e) continue;
