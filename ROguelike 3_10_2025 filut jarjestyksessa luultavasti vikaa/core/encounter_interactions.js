@@ -194,11 +194,16 @@ function interactProp(ctx, p) {
 
             // If this is a caravan ambush encounter, immediately return to the overworld
             try {
-              const tplId = String(ctx.encounterInfo && ctx.encounterInfo.id || "").toLowerCase();
-              if (tplId === "caravan_ambush") {
-                const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime") || (typeof window !== "undefined" ? window.EncounterRuntime : null);
-                if (ER && typeof ER.complete === "function") {
-                  ER.complete(ctx, "victory");
+              const tplIdNow = String(ctx.encounterInfo && ctx.encounterInfo.id || "").toLowerCase();
+              if (tplIdNow === "caravan_ambush") {
+                const GA = ctx.GameAPI || getMod(ctx, "GameAPI") || (typeof window !== "undefined" ? window.GameAPI : null);
+                if (GA && typeof GA.completeEncounter === "function") {
+                  GA.completeEncounter("victory");
+                } else {
+                  const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime") || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+                  if (ER && typeof ER.complete === "function") {
+                    ER.complete(ctx, "victory");
+                  }
                 }
               }
             } catch (_) {}

@@ -1875,6 +1875,19 @@ import {
             }
             return false;
           },
+          // Complete the active encounter immediately and sync back to orchestrator state.
+          // Used by special flows like caravan encounters to return to the overworld without
+          // requiring the player to walk to an exit tile.
+          completeEncounter: (outcome = "victory") => {
+            const ER = modHandle("EncounterRuntime");
+            if (ER && typeof ER.complete === "function") {
+              const ctx = getCtx();
+              ER.complete(ctx, outcome);
+              applyCtxSyncAndRefresh(ctx);
+              return true;
+            }
+            return false;
+          },
           // GOD/helpers
           setAlwaysCrit: (v) => setAlwaysCrit(v),
           setCritPart: (part) => setCritPart(part),
