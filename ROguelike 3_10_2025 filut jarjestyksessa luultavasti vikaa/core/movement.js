@@ -179,7 +179,7 @@ export function tryMove(ctx, dx, dy) {
     const nx = ctx.player.x + dx;
     const ny = ctx.player.y + dy;
 
-    // If bumping into the caravan master (caravan merchant prop), treat it as an interaction instead of an attack.
+    // If bumping into the caravan master (caravan merchant prop), open the escort dialog instead of attacking.
     try {
       const props = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : [];
       if (props.length) {
@@ -195,14 +195,43 @@ export function tryMove(ctx, dx, dy) {
           ctx.player.x = nx;
           ctx.player.y = ny;
           applyRefresh(ctx);
-          // Trigger generic encounter interaction (will show escort/continue dialog for caravan masters)
+
+          // Show escort continue/stop dialog directly via UIOrchestration
           try {
-            const EI = mod("EncounterInteractions");
-            if (EI && typeof EI.interactHere === "function") {
-              EI.interactHere(ctx);
-              applyRefresh(ctx);
+            const UIO = mod("UIOrchestration");
+            const world = ctx.world || null;
+            const esc = world && world.caravanEscort;
+            const stillActive = !!(esc && esc.active);
+            const prompt = stillActive
+              ? "Caravan master: \"Do you want to continue guarding the caravan?\""
+              : "Caravan master: \"Thank you for your help. Do you want to resume your journey with us?\"";
+
+            const onOk = () => {
+              try {
+                if (world) {
+                  world.caravanEscort = world.caravanEscort || { id: null, reward: 0, active: false };
+                  world.caravanEscort.active = true;
+                }
+                if (ctx.log) ctx.log("You agree to continue guarding the caravan.", "notice");
+              } catch (_) {}
+            };
+            const onCancel = () => {
+              try {
+                if (world && world.caravanEscort) {
+                  world.caravanEscort.active = false;
+                }
+                if (ctx.log) ctx.log("You decide to stop guarding the caravan.", "info");
+              } catch (_) {}
+            };
+
+            if (UIO && typeof UIO.showConfirm === "function") {
+              UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+            } else {
+              // Fallback: just toggle escort state without a dialog
+              onOk();
             }
           } catch (_) {}
+
           try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
           return true;
         }
