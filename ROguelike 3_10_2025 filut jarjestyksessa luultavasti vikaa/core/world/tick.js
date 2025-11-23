@@ -146,16 +146,27 @@ function spawnCaravansIfNeeded(ctx) {
   const townCount = towns.length;
   const existing = Array.isArray(caravans) ? caravans.length : 0;
 
-  // Hard cap so the world doesn't fill with caravans.
-  const maxCaravans = Math.max(6, Math.min(20, Math.floor(townCount * 0.75)));
+  // Hard cap so the world doesn't fill with caravans, but allow more caravans
+  // when there are many towns so remote regions still see traffic.
+  const maxCaravans = Math.max(8, Math.min(60, Math.floor(townCount * 1.2)));
   if (existing >= maxCaravans) return;
-  if (townCount < 2) return;
+  if (townCount &lt; 2) return;
 
   // Per-town spawn chance: every town gets an independent roll each world tick.
   // This makes caravans feel more evenly distributed across the map.
-  const baseP = 0.04; // ~4% per town per tick
+  const baseP = 0.04; // ~4% per town per tick (before local bias)
   const scale = Math.min(2.0, 0.5 + townCount / 12);
-  const pTown = Math.min(0.2, baseP * scale);
+  const pTownBase = Math.min(0.2, baseP * scale);
+
+  // Bias spawning toward towns near the player so cities you actually visit
+  // are much more likely to see caravans.
+  let px = null, py = null;
+  try {
+    if (ctx.player &amp;&amp; ctx.world &amp;&amp; typeof ctx.player.x === "number" &amp;&amp; typeof ctx.player.y === "number") {
+      px = (ctx.world.originX | 0) + (ctx.player.x | 0);
+      py = (ctx.world.originY | 0) + (ctx.player.y | 0);
+    }
+  } catch (_) {}
 
   // Helper: check if there is already a caravan currently parked at this town.
   function hasParkedCaravanAt(town) {
@@ -163,20 +174,35 @@ function spawnCaravansIfNeeded(ctx) {
     for (const cv of caravans) {
       if (!cv) continue;
       if (!cv.atTown) continue;
-      if ((cv.x | 0) === (town.x | 0) && (cv.y | 0) === (town.y | 0)) return true;
+      if ((cv.x | 0) === (town.x | 0) &amp;&amp; (cv.y | 0) === (town.y | 0)) return true;
     }
     return false;
   }
 
   let remaining = maxCaravans - existing;
-  for (let i = 0; i < towns.length && remaining > 0; i++) {
+  for (let i = 0; i &lt; towns.length &amp;&amp; remaining &gt; 0; i++) {
     const from = towns[i];
     if (!from) continue;
 
     // Skip if a caravan is already parked at this town.
     if (hasParkedCaravanAt(from)) continue;
 
-    if (r() > pTown) continue;
+    // Local spawn probability for this town, biased by distance to player.
+    let pTown = pTownBase;
+    if (px != null &amp;&amp; py != null) {
+      const dxp = (from.x | 0) - px;
+      const dyp = (from.y | 0) - py;
+      const distP = Math.abs(dxp) + Math.abs(dyp);
+      if (distP &lt;= 40) {
+        // Towns within ~40 tiles of the player get a much higher spawn chance.
+        pTown = Math.min(0.5, pTownBase * 3);
+      } else if (distP &gt; 120) {
+        // Far-away towns spawn less often to keep density reasonable.
+        pTown = pTownBase * 0.5;
+      }
+    }
+
+    if (r() &gt; pTown) continue;
 
     if (spawnSingleCaravan(ctx, towns, caravans, i, r)) {
       remaining--;

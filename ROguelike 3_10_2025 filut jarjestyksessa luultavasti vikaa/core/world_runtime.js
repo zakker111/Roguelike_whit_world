@@ -417,7 +417,7 @@ function spawnInitialCaravans(ctx) {
       r = function () { return Math.random(); };
     }
 
-    const desired = Math.min(8, Math.max(2, Math.floor(towns.length / 2)));
+    const desired = Math.min(16, Math.max(4, Math.floor(towns.length * 0.8)));
     let idCounter = (world.caravans.length ? world.caravans.length : 0);
     const existing = world.caravans.length;
 
