@@ -882,6 +882,62 @@ import {
     } catch (_) {}
   }
 
+  /**
+   * Auto-escort travel: after resolving a caravan ambush encounter and choosing to continue
+   * guarding the caravan, automatically advance overworld turns with a small delay so the
+   * caravan (and player) visibly travel toward their destination.
+   */
+  function startEscortAutoTravel() {
+    try {
+      const ctx0 = getCtx();
+      if (!ctx0 || !ctx0.world) return;
+      const world = ctx0.world;
+      world._escortAutoTravel = world._escortAutoTravel || { running: false };
+      const state = world._escortAutoTravel;
+      if (state.running) return;
+      state.running = true;
+
+      let steps = 0;
+      const maxSteps = 2000; // safety cap
+      const delayMs = 140;
+
+      function step() {
+        try {
+          const ctx = getCtx();
+          if (!ctx || !ctx.world) { state.running = false; return; }
+          const w = ctx.world;
+          const escort = w.caravanEscort;
+          if (!escort || !escort.active || ctx.mode !== "world") {
+            state.running = false;
+            return;
+          }
+          if (typeof ctx.turn === "function") ctx.turn();
+        } catch (_) {}
+        steps++;
+        if (steps >= maxSteps) { state.running = false; return; }
+        setTimeout(step, delayMs);
+      }
+
+      // Do one immediate step so the player sees the caravan start moving as soon
+      // as they return to the overworld, then continue with a timed loop.
+      try {
+        const ctx = getCtx();
+        const w = ctx.world;
+        const escort = w && w.caravanEscort;
+        if (escort && escort.active && ctx.mode === "world" && typeof ctx.turn === "function") {
+          ctx.turn();
+          steps++;
+        }
+      } catch (_) {}
+
+      if (steps < maxSteps) {
+        setTimeout(step, delayMs);
+      } else {
+        state.running = false;
+      }
+    } catch (_) {}
+  }
+
   
 
   function enterTownIfOnTile() {
@@ -1882,8 +1938,17 @@ import {
             const ER = modHandle("EncounterRuntime");
             if (ER && typeof ER.complete === "function") {
               const ctx = getCtx();
+              const encounterId = String(ctx.encounterInfo && ctx.encounterInfo.id || "").toLowerCase();
+              const wasCaravanAmbush = encounterId === "caravan_ambush";
               ER.complete(ctx, outcome);
               applyCtxSyncAndRefresh(ctx);
+              try {
+                const w = ctx.getWorld ? ctx.getWorld() : ctx.world;
+                const escort = w && w.caravanEscort;
+                if (wasCaravanAmbush && escort && escort.active && window.GameAPI && window.GameAPI.getMode && window.GameAPI.getMode() === "world") {
+                  startEscortAutoTravel();
+                }
+              } catch (_) {}
               return true;
             }
             return false;

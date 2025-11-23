@@ -4,61 +4,6 @@
 import { getMod } from "../../utils/access.js";
 import { getCurrentQuestInstanceId, resetSessionFlags, getClearAnnounced, setClearAnnounced, getVictoryNotified, setVictoryNotified } from "./session_state.js";
 
-/**
- * Auto-escort travel: after resolving a caravan ambush encounter and choosing to continue
- * guarding the caravan, automatically advance overworld turns with a small delay so the
- * caravan (and player) visibly travel toward their destination.
- */
-function startEscortAutoTravel(ctx) {
-  try {
-    if (!ctx || !ctx.world) return;
-    const world = ctx.world;
-    // Guard against multiple concurrent auto-travel loops.
-    world._escortAutoTravel = world._escortAutoTravel || { running: false };
-    const state = world._escortAutoTravel;
-    if (state.running) return;
-    state.running = true;
-
-    let steps = 0;
-    const maxSteps = 2000; // safety cap
-    const delayMs = 140;
-
-    function step() {
-      try {
-        const w = ctx.world;
-        if (!w) { state.running = false; return; }
-        const escort = w.caravanEscort;
-        // Stop if escort job ended or mode changed away from world.
-        if (!escort || !escort.active || ctx.mode !== "world") {
-          state.running = false;
-          return;
-        }
-        // Advance one global turn (WorldRuntime.tick will move caravans and player with them).
-        if (typeof ctx.turn === "function") ctx.turn();
-      } catch (_) {}
-      steps++;
-      if (steps >= maxSteps) { state.running = false; return; }
-      setTimeout(step, delayMs);
-    }
-
-    // Do one immediate step so the player sees the caravan start moving as soon as
-    // they return to the overworld, then continue with a timed loop.
-    try {
-      const escort = world.caravanEscort;
-      if (escort && escort.active && typeof ctx.turn === "function" && ctx.mode === "world") {
-        ctx.turn();
-        steps++;
-      }
-    } catch (_) {}
-
-    if (steps < maxSteps) {
-      setTimeout(step, delayMs);
-    } else {
-      state.running = false;
-    }
-  } catch (_) {}
-}
-
 export function complete(ctx, outcome = "victory") {
   if (!ctx || ctx.mode !== "encounter") return false;
   // Reset guard for next encounter session
@@ -191,16 +136,6 @@ export function complete(ctx, outcome = "victory") {
     const SS = ctx.StateSync || getMod(ctx, "StateSync");
     if (SS && typeof SS.applyAndRefresh === "function") {
       SS.applyAndRefresh(ctx, {});
-    }
-  } catch (_) {}
-
-  // If we just resolved a caravan ambush and an escort job is active, auto-run
-  // overworld turns so the caravan visibly travels with the player.
-  try {
-    const world = ctx.world || null;
-    const escort = world && world.caravanEscort;
-    if (encounterId === "caravan_ambush" && world && escort && escort.active) {
-      startEscortAutoTravel(ctx);
     }
   } catch (_) {}
 
