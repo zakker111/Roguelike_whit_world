@@ -24,6 +24,10 @@ export function create(ctx) {
     enterEncounter: (template, biome) => {
       try { return !!(ctx.enterEncounter && ctx.enterEncounter(template, biome)); } catch (_) { return false; }
     },
+    // Complete the active encounter (used by flows like caravan escort/ambush)
+    completeEncounter: (outcome = "victory") => {
+      try { return !!(ctx.completeEncounter && ctx.completeEncounter(outcome)); } catch (_) { return false; }
+    },
     // Region Map helpers (exposed so services can transition cleanly)
     openRegionMap: () => {
       try { return !!(ctx.openRegionMap && ctx.openRegionMap()); } catch (_) { return false; }
