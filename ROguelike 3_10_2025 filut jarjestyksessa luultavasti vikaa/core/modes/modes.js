@@ -444,22 +444,28 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       return;
     }
 
-    // Is there any caravan currently dwelling at this town tile?
-    const parked = world.caravans.find(cv =>
+    // Prefer a caravan that is actually parked at this settlement's overworld tile.
+    let parked = world.caravans.find(cv =>
       cv &&
       cv.atTown &&
       (cv.x | 0) === (worldX | 0) &&
       (cv.y | 0) === (worldY | 0)
     );
 
+    // Fallback: if none is parked exactly here but at least one caravan is atTown somewhere,
+    // treat that one as the active caravan for this town so the player still sees a caravan camp.
     if (!parked) {
-      // Caravan has left this settlement; remove any previous caravan merchant and props.
+      parked = world.caravans.find(cv => cv && cv.atTown);
+    }
+
+    if (!parked) {
+      // No parked caravans at all: remove any existing camp.
       clearCaravanCamp();
       return;
     }
 
-    // When a caravan is parked here, first clear any stale camp from previous visits
-    // (e.g. if the gate location changed or layout was regenerated).
+    // When there is a parked caravan we want a fresh camp; clear any stale camp from
+    // previous visits (e.g. if the gate location changed or layout was regenerated).
     clearCaravanCamp();
 
     // Find a free town floor tile near the gate (about 10 tiles radius). If no gate is known,
