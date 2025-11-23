@@ -229,6 +229,8 @@ function advanceCaravans(ctx) {
   const caravans = world.caravans;
   if (!Array.isArray(caravans) || !caravans.length) return;
 
+  const escort = world.caravanEscort || null;
+
   const nowTurn = getTurn(ctx);
   const dayTurns = turnsPerDay(ctx);
   const minDwellDays = 2;
@@ -324,6 +326,45 @@ function advanceCaravans(ctx) {
     if (moved) {
       cv.x = nx;
       cv.y = ny;
+
+      // If the player is escorting this caravan and it is within the current window, move the player with it.
+      try {
+        if (escort && escort.active && escort.id === cv.id && Array.isArray(ctx.map) && ctx.map.length) {
+          const ox = (world.originX | 0) || 0;
+          const oy = (world.originY | 0) || 0;
+          const lx = nx - ox;
+          const ly = ny - oy;
+          const rows = ctx.map.length;
+          const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+          if (lx >= 0 && ly >= 0 && lx < cols && ly < rows) {
+            ctx.player.x = lx;
+            ctx.player.y = ly;
+          }
+        }
+      } catch (_) {}
     }
+
+    // If this caravan is being escorted and has just arrived at its destination town, pay the player and end the job.
+    try {
+      if (escort && escort.active && escort.id === cv.id && cv.atTown && cx === tx && cy === ty && isOnTownTile(world, cx, cy)) {
+        const reward = Math.max(1, (escort.reward | 0) || 0);
+        if (reward > 0) {
+          try {
+            const GA = ctx.GameAPI || (typeof window !== "undefined" ? window.GameAPI : null);
+            if (GA && typeof GA.addGold === "function") {
+              GA.addGold(reward);
+            } else if (ctx.player) {
+              // Minimal fallback: push a gold item into player inventory.
+              ctx.player.inventory = Array.isArray(ctx.player.inventory) ? ctx.player.inventory : [];
+              ctx.player.inventory.push({ kind: "gold", amount: reward, name: `${reward} gold coins` });
+            }
+          } catch (_) {}
+          try {
+            ctx.log && ctx.log(`You safely escort the caravan to its destination and receive ${reward} gold.`, "good");
+          } catch (_) {}
+        }
+        world.caravanEscort = { id: cv.id, reward: reward, active: false };
+      }
+    } catch (_) {}
   }
 }

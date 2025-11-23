@@ -7,6 +7,15 @@ import { ensureInBounds as ensureInBoundsExt } from "./expand.js";
 export function tryMovePlayerWorld(ctx, dx, dy) {
   if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.map) return false;
 
+  // If escorting a caravan, the player cannot wander off; movement is blocked.
+  try {
+    const esc = ctx.world && ctx.world.caravanEscort;
+    if (esc && esc.active) {
+      try { ctx.log && ctx.log("You are escorting a caravan and must stay with it.", "info"); } catch (_) {}
+      return false;
+    }
+  } catch (_) {}
+
   // Compute intended target
   let nx = ctx.player.x + (dx | 0);
   let ny = ctx.player.y + (dy | 0);

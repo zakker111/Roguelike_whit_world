@@ -226,11 +226,55 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
         }
       }
 
-      // Special interaction for caravan merchants (ambush) is disabled in town.
-      // In town, caravan masters behave as normal shopkeepers.
+      // Special interaction for caravan merchants in town: offer an escort job instead of ambush.
       const isCaravanMerchant = !!(npc && npc.isCaravanMerchant);
       if (isCaravanMerchant && ctx.mode === "town") {
-        // Fall through to normal shop-opening logic below.
+        try {
+          const world = ctx.world;
+          const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (!world || !UIO || typeof UIO.showConfirm !== "function") {
+            // If we cannot offer an escort job, fall back to normal shop logic below.
+          } else {
+            // Try to find a caravan parked at this town's overworld gate position.
+            let cv = null;
+            try {
+              const wp = ctx.worldReturnPos;
+              const wx = wp && typeof wp.x === "number" ? (wp.x | 0) : null;
+              const wy = wp && typeof wp.y === "number" ? (wp.y | 0) : null;
+              const caravans = Array.isArray(world.caravans) ? world.caravans : [];
+              if (wx != null && wy != null && caravans.length) {
+                cv = caravans.find(c => c && c.atTown && (c.x | 0) === wx && (c.y | 0) === wy) || null;
+              }
+            } catch (_) {}
+            if (!cv) {
+              // No caravan entity associated with this town; just treat as a normal caravan shop.
+            } else {
+              // Compute a simple gold reward based on distance to destination.
+              const dx = (cv.dest && typeof cv.dest.x === "number" ? (cv.dest.x | 0) : cv.x) - (cv.x | 0);
+              const dy = (cv.dest && typeof cv.dest.y === "number" ? (cv.dest.y | 0) : cv.y) - (cv.y | 0);
+              const dist = Math.max(4, Math.abs(dx) + Math.abs(dy));
+              const reward = 10 + dist * 2;
+              const text = `Caravan master: "We need an escort to our destination.\nGuard us all the way there for ${reward} gold."\n\nAccept the job?`;
+
+              const onOk = () => {
+                try {
+                  world.caravanEscort = {
+                    id: cv.id,
+                    reward,
+                    active: true
+                  };
+                  ctx.log && ctx.log(`You agree to escort the caravan for ${reward} gold. Leave town to begin the journey.`, "notice");
+                } catch (_) {}
+              };
+              const onCancel = () => {
+                try { ctx.log && ctx.log("You decline to guard the caravan.", "info"); } catch (_) {}
+              };
+              UIO.showConfirm(ctx, text, null, onOk, onCancel);
+              return true;
+            }
+          }
+        } catch (_) {}
+        // Fall through to normal shop-opening logic below if no escort job was offered.
       }
 
       if (shopRef) {
