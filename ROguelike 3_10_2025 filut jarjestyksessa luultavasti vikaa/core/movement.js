@@ -213,18 +213,15 @@ export function tryMove(ctx, dx, dy) {
                   world.caravanEscort.active = true;
                 }
                 if (ctx.log) ctx.log("You agree to continue guarding the caravan.", "notice");
-                // If this is a caravan ambush encounter, immediately return to the overworld
+                // Immediately return to the overworld after accepting, so travel can resume.
                 try {
-                  const tplIdNow = String(ctx.encounterInfo && ctx.encounterInfo.id || "").toLowerCase();
-                  if (tplIdNow === "caravan_ambush") {
-                    const GA = ctx.GameAPI || mod("GameAPI");
-                    if (GA && typeof GA.completeEncounter === "function") {
-                      GA.completeEncounter("victory");
-                    } else {
-                      const ER = ctx.EncounterRuntime || mod("EncounterRuntime");
-                      if (ER && typeof ER.complete === "function") {
-                        ER.complete(ctx, "victory");
-                      }
+                  const GA = ctx.GameAPI || mod("GameAPI");
+                  if (GA && typeof GA.completeEncounter === "function") {
+                    GA.completeEncounter("victory");
+                  } else {
+                    const ER = ctx.EncounterRuntime || mod("EncounterRuntime");
+                    if (ER && typeof ER.complete === "function") {
+                      ER.complete(ctx, "victory");
                     }
                   }
                 } catch (_) {}
