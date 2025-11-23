@@ -151,6 +151,21 @@ function startCaravanAmbushEncounterWorld(ctx, caravan) {
       if (world && caravan && typeof caravan.id !== "undefined") {
         world.caravanEscort = world.caravanEscort || { id: null, reward: 0, active: false };
         world.caravanEscort.id = caravan.id;
+
+        // If no reward has been set yet for this escort, derive a simple gold reward
+        // from the remaining distance to the caravan's destination town.
+        if (!world.caravanEscort.reward || world.caravanEscort.reward <= 0) {
+          try {
+            const cx = caravan.x | 0;
+            const cy = caravan.y | 0;
+            const tx = (caravan.dest && typeof caravan.dest.x === "number") ? (caravan.dest.x | 0) : cx;
+            const ty = (caravan.dest && typeof caravan.dest.y === "number") ? (caravan.dest.y | 0) : cy;
+            const dx = tx - cx;
+            const dy = ty - cy;
+            const dist = Math.max(4, Math.abs(dx) + Math.abs(dy));
+            world.caravanEscort.reward = 10 + dist * 2;
+          } catch (_) {}
+        }
         // Do not set active yet; the Caravan master dialog inside the encounter decides
         // whether the player actually chooses to travel with this caravan.
       }

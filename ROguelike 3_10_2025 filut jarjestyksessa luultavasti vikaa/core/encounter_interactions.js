@@ -191,6 +191,17 @@ function interactProp(ctx, p) {
               world.caravanEscort.active = true;
             }
             log(ctx, "You agree to continue guarding the caravan.", "notice");
+
+            // If this is a caravan ambush encounter, immediately return to the overworld
+            try {
+              const tplId = String(ctx.encounterInfo && ctx.encounterInfo.id || "").toLowerCase();
+              if (tplId === "caravan_ambush") {
+                const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime") || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+                if (ER && typeof ER.complete === "function") {
+                  ER.complete(ctx, "victory");
+                }
+              }
+            } catch (_) {}
           } catch (_) {}
         };
         const onCancel = () => {

@@ -213,6 +213,16 @@ export function tryMove(ctx, dx, dy) {
                   world.caravanEscort.active = true;
                 }
                 if (ctx.log) ctx.log("You agree to continue guarding the caravan.", "notice");
+                // If this is a caravan ambush encounter, immediately return to the overworld
+                try {
+                  const tplId = String(ctx.encounterInfo && ctx.encounterInfo.id || "").toLowerCase();
+                  if (tplId === "caravan_ambush") {
+                    const ER = ctx.EncounterRuntime || mod("EncounterRuntime");
+                    if (ER && typeof ER.complete === "function") {
+                      ER.complete(ctx, "victory");
+                    }
+                  }
+                } catch (_) {}
               } catch (_) {}
             };
             const onCancel = () => {
@@ -227,12 +237,12 @@ export function tryMove(ctx, dx, dy) {
             if (UIO && typeof UIO.showConfirm === "function") {
               UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
             } else {
-              // Fallback: just toggle escort state without a dialog
+              // Fallback: just toggle escort state and complete immediately without a dialog
               onOk();
             }
           } catch (_) {}
 
-          try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
+          // Do not consume a turn here; the confirm result decides next steps (including leaving the encounter).
           return true;
         }
       }
