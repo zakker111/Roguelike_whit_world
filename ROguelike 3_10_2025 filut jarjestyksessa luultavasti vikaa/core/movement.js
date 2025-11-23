@@ -179,6 +179,36 @@ export function tryMove(ctx, dx, dy) {
     const nx = ctx.player.x + dx;
     const ny = ctx.player.y + dy;
 
+    // If bumping into the caravan master (caravan merchant prop), treat it as an interaction instead of an attack.
+    try {
+      const props = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : [];
+      if (props.length) {
+        const p = props.find(pr =>
+          pr &&
+          pr.x === nx &&
+          pr.y === ny &&
+          String(pr.type || "").toLowerCase() === "merchant" &&
+          String(pr.vendor || "").toLowerCase() === "caravan"
+        );
+        if (p) {
+          // Step onto the Caravan master tile
+          ctx.player.x = nx;
+          ctx.player.y = ny;
+          applyRefresh(ctx);
+          // Trigger generic encounter interaction (will show escort/continue dialog for caravan masters)
+          try {
+            const EI = mod("EncounterInteractions");
+            if (EI && typeof EI.interactHere === "function") {
+              EI.interactHere(ctx);
+              applyRefresh(ctx);
+            }
+          } catch (_) {}
+          try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
+          return true;
+        }
+      }
+    } catch (_) {}
+
     // If bumping a neutral guard (e.g., guards in a skirmish), ask for confirmation before attacking.
     try {
       let enemy = null;
