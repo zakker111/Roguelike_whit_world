@@ -426,9 +426,11 @@ function spawnInitialCaravans(ctx) {
       const from = towns[fromIndex];
       if (!from) continue;
 
-      // Pick nearest other town as initial destination.
-      let best = null;
-      let bestDist = Infinity;
+      // Find nearest and farthest other towns from this origin.
+      let nearest = null;
+      let nearestDist = Infinity;
+      let farthest = null;
+      let farthestDist = -Infinity;
       for (let j = 0; j < towns.length; j++) {
         if (j === fromIndex) continue;
         const t = towns[j];
@@ -437,19 +439,33 @@ function spawnInitialCaravans(ctx) {
         const dy = (t.y | 0) - (from.y | 0);
         const dist = Math.abs(dx) + Math.abs(dy);
         if (dist === 0) continue;
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = t;
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = t;
+        }
+        if (dist > farthestDist) {
+          farthestDist = dist;
+          farthest = t;
         }
       }
-      if (!best) continue;
+      if (!nearest) continue;
+
+      // Default to nearest, but sometimes choose a far destination so some initial
+      // caravans run longer routes across the world.
+      let destTown = nearest;
+      try {
+        const roll = typeof r === "function" ? r() : Math.random();
+        if (towns.length >= 4 && roll < 0.35 && farthest) {
+          destTown = farthest;
+        }
+      } catch (_) {}
 
       world.caravans.push({
         id: ++idCounter,
         x: from.x | 0,
         y: from.y | 0,
         from: { x: from.x | 0, y: from.y | 0 },
-        dest: { x: best.x | 0, y: best.y | 0 },
+        dest: { x: destTown.x | 0, y: destTown.y | 0 },
         atTown: true,
         dwellUntil: 0
       });

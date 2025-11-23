@@ -226,15 +226,20 @@ function spawnCaravansIfNeeded(ctx) {
   spawnSingleCaravan(ctx, towns, caravans, fromIdx, r);
 }
 
-// Helper: spawn a single caravan from a specific town index toward its nearest neighbour.
+// Helper: spawn a single caravan from a specific town index toward another town.
+// Usually chooses the nearest neighbour, but sometimes picks a far town so a few
+// caravans travel longer routes across the map.
 function spawnSingleCaravan(ctx, towns, caravans, fromIdx, r) {
   if (!Array.isArray(towns) || towns.length < 2) return false;
   const from = towns[fromIdx];
   if (!from) return false;
 
-  // Find nearest other town as destination
-  let best = null;
-  let bestDist = Infinity;
+  // Find nearest and farthest other towns, based on Manhattan distance
+  let nearest = null;
+  let nearestDist = Infinity;
+  let farthest = null;
+  let farthestDist = -Infinity;
+
   for (let i = 0; i < towns.length; i++) {
     if (i === fromIdx) continue;
     const t = towns[i];
@@ -243,12 +248,27 @@ function spawnSingleCaravan(ctx, towns, caravans, fromIdx, r) {
     const dy = (t.y | 0) - (from.y | 0);
     const dist = Math.abs(dx) + Math.abs(dy);
     if (dist === 0) continue;
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = t;
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = t;
+    }
+    if (dist > farthestDist) {
+      farthestDist = dist;
+      farthest = t;
     }
   }
-  if (!best) return false;
+
+  if (!nearest) return false;
+
+  // Default: nearest neighbour. With some chance, pick a far town so a subset
+  // of caravans run long-haul routes.
+  let destTown = nearest;
+  try {
+    const roll = (typeof r === "function") ? r() : Math.random();
+    if (towns.length >= 4 && roll < 0.35 && farthest) {
+      destTown = farthest;
+    }
+  } catch (_) {}
 
   const now = getTurn(ctx);
   const days = turnsPerDay(ctx);
@@ -258,7 +278,7 @@ function spawnSingleCaravan(ctx, towns, caravans, fromIdx, r) {
     x: from.x | 0,
     y: from.y | 0,
     from: { x: from.x | 0, y: from.y | 0 },
-    dest: { x: best.x | 0, y: best.y | 0 },
+    dest: { x: destTown.x | 0, y: destTown.y | 0 },
     atTown: true,
     dwellUntil: now + 2 * days // start as parked for 2 days at origin
   });
