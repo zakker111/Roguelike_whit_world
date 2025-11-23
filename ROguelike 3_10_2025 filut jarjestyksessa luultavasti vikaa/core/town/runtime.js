@@ -226,27 +226,11 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
         }
       }
 
-      // Special interaction for caravan merchants: allow attacking their caravan instead of trading.
+      // Special interaction for caravan merchants (ambush) is disabled in town.
+      // In town, caravan masters behave as normal shopkeepers.
       const isCaravanMerchant = !!(npc && npc.isCaravanMerchant);
       if (isCaravanMerchant && ctx.mode === "town") {
-        try {
-          const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
-          const prompt = "Do you want to attack this caravan?";
-          const onOk = () => {
-            try { startCaravanAmbushEncounter(ctx, npc); } catch (_) {}
-          };
-          const onCancel = () => {
-            if (shopRef) {
-              try { tryOpenShopRef(shopRef, npc); } catch (_) {}
-            }
-          };
-          if (UIO && typeof UIO.showConfirm === "function") {
-            UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
-          } else {
-            onOk();
-          }
-        } catch (_) {}
-        return true;
+        // Fall through to normal shop-opening logic below.
       }
 
       if (shopRef) {
