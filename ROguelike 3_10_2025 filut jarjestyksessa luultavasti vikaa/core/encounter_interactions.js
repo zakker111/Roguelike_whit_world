@@ -173,9 +173,10 @@ function interactProp(ctx, p) {
       const tplId = String(ctx.encounterInfo && ctx.encounterInfo.id || "").toLowerCase();
       const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
       const isCaravanEncounter = tplId === "caravan_ambush";
+      const isCaravanMaster = isCaravanEncounter || String(p.vendor || "").toLowerCase() === "caravan";
 
-      if (isCaravanEncounter && UIO && typeof UIO.showConfirm === "function") {
-        // After a caravan ambush event, allow choosing whether to continue escorting.
+      if (isCaravanMaster && UIO && typeof UIO.showConfirm === "function") {
+        // After a caravan ambush event (or any caravan-road encounter), allow choosing whether to continue escorting.
         const world = ctx.world;
         const esc = world && world.caravanEscort;
         const stillActive = esc && esc.active;
@@ -187,7 +188,6 @@ function interactProp(ctx, p) {
           try {
             if (world) {
               world.caravanEscort = world.caravanEscort || { id: null, reward: 0, active: false };
-              // Keep existing escort info if present, just mark active; otherwise mark generic continuation.
               world.caravanEscort.active = true;
             }
             log(ctx, "You agree to continue guarding the caravan.", "notice");
