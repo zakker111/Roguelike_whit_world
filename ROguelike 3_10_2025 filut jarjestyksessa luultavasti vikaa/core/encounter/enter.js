@@ -511,7 +511,34 @@ export function enter(ctx, info) {
       for (let i = 0; i < n && pIdx < placements.length; i++) {
         const p = placements[pIdx++];
         const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
-        let e = type ? createDungeonEnemyAt(ctx, p.x, p.y, depth) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+
+        // Prefer explicit enemy type from template groups (guards, bandits, etc.).
+        let e = null;
+        if (type) {
+          try {
+            const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
+            if (EM && typeof EM.getTypeDef === "function") {
+              const td = EM.getTypeDef(type);
+              if (td) {
+                const lvl = (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(type, depth, ctx.rng) : depth;
+                e = {
+                  x: p.x,
+                  y: p.y,
+                  type,
+                  glyph: (td.glyph && td.glyph.length) ? td.glyph : ((type && type.length) ? type.charAt(0) : "?"),
+                  hp: td.hp(depth),
+                  atk: td.atk(depth),
+                  xp: td.xp(depth),
+                  level: lvl,
+                  announced: false
+                };
+              }
+            }
+          } catch (_) {}
+        }
+        if (!e) {
+          e = createDungeonEnemyAt(ctx, p.x, p.y, depth);
+        }
         if (!e) continue;
         try {
           const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));
