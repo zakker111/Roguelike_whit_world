@@ -403,12 +403,15 @@ export function returnToWorldIfAtExit(ctx) {
 }
 
 /**
- * Spawn a caravan merchant and camp inside the town.
+ * Spawn a caravan merchant and camp inside the town, if a caravan is currently
+ * on this settlement's overworld tile.
  *
- * Simplified behavior:
- * - Always spawns a caravan master near the town plaza (or center) when entering a town.
- * - No longer depends on overworld caravans being parked at this settlement.
- * - Clears any previous caravan camp props/NPCs before spawning a fresh one.
+ * Behavior:
+ * - On each town entry, clears any previous caravan camp NPCs/shops/props.
+ * - Looks in world.caravans for a caravan whose (x,y) matches (worldX,worldY).
+ * - If such a caravan exists, spawns a Caravan master + caravan shop + small camp
+ *   near the town plaza (or map center as a fallback).
+ * - If no caravan is on this town tile, nothing is spawned.
  */
 function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
   try {
@@ -453,6 +456,17 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       (cv.x | 0) === wx &&
       (cv.y | 0) === wy
     );
+
+    // Debug: log basic caravan presence info for this town tile.
+    try {
+      if (ctx.log) {
+        ctx.log(
+          `[Caravan] Town entry at ${wx},${wy}: caravans=${caravans.length}, caravanOnTile=${!!parked}`,
+          "info"
+        );
+      }
+    } catch (_) {}
+
     if (!parked) {
       return;
     }
