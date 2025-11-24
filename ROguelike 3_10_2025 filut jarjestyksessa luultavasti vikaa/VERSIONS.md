@@ -2305,26 +2305,5 @@ Things to chek
 - some files are realy big it would be fine to start cut em to portions if it makes sens
 - in smoketest runner remove nudge for dungeon entry town entry dungeon exit and town exit make it exact in tiles nudge only in npc interaction or enemy interaction
 
-BUGS
-- npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
-- some times in towns some extra signs and fire places inside walls
-- some npc dont sleep in theid beds
-- some work needed for smoketestrunner
-- multirun in smoketest skips first multirun 
-- itseems eguibed items go to inventory when re going to dungeon/town <-very fy this
-- creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
--creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
-- Vild seppo S does not have inventory in encounter
-- in dungeons when enemies fight each other they are logged(wich is good for now for debugging purpoces) but they give player xp when they kill each other
-- some bloodstanes seem to be generated from ruins/animal(creatures)/encounters in another regional map
-- in dungeons enemies seems to show behind walls(not line of sight)
-- in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters
-- VERIFY this happens Dungeon markers color-coded by level on main map and minimap: green (1–2), amber (3), red (4–5). 
-- i dont see what killed enemy in ruins chek encounters too
-- there is something wierd when creature spawns same map in region_map and so one some blood stanes are followed by next region map from ruins or animals(creatures) creatures dont move in map when spawning them
-- minimap shows all chunks when going in ruins, dungeons, towns etc and re entering
-- minimap shows dungeons and towns
-- dungeons sometimes carry over some wierd stuff like camp fires and some other shit from encounters 
-- Make coherent way out like in ruins and region_map encounters there is only > and not clearly visible ab coherent
--caravan master does not seem to spawn in towns cities etc. when caravan enters it
+
 
