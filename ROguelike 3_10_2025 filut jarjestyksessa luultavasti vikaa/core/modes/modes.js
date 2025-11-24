@@ -451,8 +451,14 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
     const caravans = world.caravans;
     const wx = worldX | 0;
     const wy = worldY | 0;
+
+    // Only treat caravans that are actually parked in this town (atTown = true).
+    // This lets caravans arrive at a town while the player is elsewhere; as long
+    // as the caravan remains in its dwell period (atTown true), entering the town
+    // later will still spawn the caravan camp.
     const parked = caravans.find(cv =>
       cv &&
+      cv.atTown &&
       (cv.x | 0) === wx &&
       (cv.y | 0) === wy
     );
