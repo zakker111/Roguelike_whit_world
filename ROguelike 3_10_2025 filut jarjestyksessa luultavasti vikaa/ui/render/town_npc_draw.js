@@ -7,19 +7,6 @@ export function drawNPCs(ctx, view) {
   const { ctx2d, TILE, COLORS, player, startX, startY, endX, endY, tileOffsetX, tileOffsetY } = Object.assign({}, view, ctx);
 
   if (!Array.isArray(ctx.npcs)) return;
-
-  // One-time debug summary per town entry: how many Caravan masters exist and where.
-  try {
-    if (!ctx._caravanNpcDebugLogged) {
-      const cm = ctx.npcs.filter(n => n && n.isCaravanMerchant);
-      if (cm.length && ctx.log) {
-        const list = cm.map(n => `(${n.x},${n.y})`).join(", ");
-        ctx.log(`[Caravan] Town draw: caravan masters=${cm.length} at ${list}`, "notice");
-      }
-      ctx._caravanNpcDebugLogged = true;
-    }
-  } catch (_) {}
-
   for (const n of ctx.npcs) {
     if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
 
@@ -30,14 +17,8 @@ export function drawNPCs(ctx, view) {
       }
     }
 
-    let everSeen = !!(ctx.seen[n.y] && ctx.seen[n.y][n.x]);
-
-    // Always show Caravan master NPCs inside town, even if their tile hasn't been in FOV yet.
-    // This makes parked caravans clearly visible as soon as you enter the settlement.
-    if (n.isCaravanMerchant) {
-      everSeen = true;
-    }
-    if (!everSeen) continue;
+    // In town mode, draw NPCs whenever they are on screen; do not gate by fog-of-war.
+    // This keeps things simple and ensures special NPCs (like caravan masters) are always visible.
 
     const isVisible = !!(ctx.visible[n.y] && ctx.visible[n.y][n.x]);
 
