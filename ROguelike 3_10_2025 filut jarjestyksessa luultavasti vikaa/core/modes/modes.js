@@ -571,6 +571,16 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
     npcs.push(npc);
     shops.push(shop);
 
+    // Debug: log spawn position for caravan master inside town.
+    try {
+      if (ctx.log) {
+        ctx.log(
+          `[Caravan] Spawned Caravan master at town tile (${spot.x},${spot.y}) in local town coords.`,
+          "info"
+        );
+      }
+    } catch (_) {}
+
     // Add a small \"caravan camp\" of props near the merchant: a cart (stall),
     // a sign, and a few crates/barrels.
     try {
