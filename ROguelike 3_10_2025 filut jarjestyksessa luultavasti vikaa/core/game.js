@@ -120,11 +120,18 @@ import {
   // Visual weather (non-gameplay), driven by services/weather_service.js
   let weatherState = { type: "clear", turnsLeft: 0 };
   let WeatherSvc = null;
-  try {
-    if (typeof window !== "undefined" && window.WeatherService && typeof window.WeatherService.create === "function") {
-      WeatherSvc = window.WeatherService.create({});
-    }
-  } catch (_) {}
+  let lastWeatherType = null;
+
+  function ensureWeatherService() {
+    try {
+      if (!WeatherSvc && typeof window !== "undefined" && window.WeatherService && typeof window.WeatherService.create === "function") {
+        WeatherSvc = window.WeatherService.create({});
+      }
+    } catch (_) {}
+  }
+
+  // Initialize once at boot if available; will be re-attempted lazily later if needed.
+  ensureWeatherService();
 
   // Compute in-game clock and phase from turnCounter (delegates to TimeService)
   function getClock() {
@@ -133,6 +140,7 @@ import {
 
   function getWeatherSnapshot(time) {
     try {
+      ensureWeatherService();
       if (!WeatherSvc) return null;
       const t = time || getClock();
       return WeatherSvc.describe(weatherState, t);
@@ -794,10 +802,17 @@ import {
       turnCounter = TS.tick(turnCounter);
       // Advance visual weather state in lockstep with time
       try {
+        ensureWeatherService();
         if (WeatherSvc) {
           const timeNow = getClock();
           const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
           weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
+          const snap = WeatherSvc.describe(weatherState, timeNow);
+          const curType = snap && snap.type ? String(snap.type) : null;
+          if (curType && curType !== lastWeatherType) {
+            lastWeatherType = curType;
+            try { log(`Weather now: ${snap.label || curType}.`, "info"); } catch (_) {}
+          }
         }
       } catch (_) {}
     }
@@ -1650,10 +1665,17 @@ import {
 
     // Advance visual weather state (non-gameplay)
     try {
+      ensureWeatherService();
       if (WeatherSvc) {
         const timeNow = getClock();
         const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
         weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
+        const snap = WeatherSvc.describe(weatherState, timeNow);
+        const curType = snap && snap.type ? String(snap.type) : null;
+        if (curType && curType !== lastWeatherType) {
+          lastWeatherType = curType;
+          try { log(`Weather now: ${snap.label || curType}.`, "info"); } catch (_) {}
+        }
       }
     } catch (_) {}
 

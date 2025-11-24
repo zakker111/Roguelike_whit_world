@@ -24,17 +24,17 @@ function _getConfig() {
   } catch (_) {}
   return {
     types: {
-      clear:      { label: "Clear",      baseWeight: 5,   intensity: 0.0 },
-      cloudy:     { label: "Cloudy",     baseWeight: 3,   intensity: 0.3 },
-      foggy:      { label: "Foggy",      baseWeight: 1,   intensity: 0.7 },
-      light_rain: { label: "Light rain", baseWeight: 1,   intensity: 0.5 },
-      heavy_rain: { label: "Heavy rain", baseWeight: 0.3, intensity: 1.0 }
+      clear:      { label: "Clear",      baseWeight: 1.5, intensity: 0.0 },
+      cloudy:     { label: "Cloudy",     baseWeight: 2.0, intensity: 0.25 },
+      foggy:      { label: "Foggy",      baseWeight: 2.0, intensity: 0.7 },
+      light_rain: { label: "Light rain", baseWeight: 2.0, intensity: 0.5 },
+      heavy_rain: { label: "Heavy rain", baseWeight: 1.0, intensity: 1.0 }
     },
     phaseWeights: {
-      night: { foggy: 1.5, heavy_rain: 0.7 },
-      dawn:  { foggy: 1.3 }
+      night: { foggy: 1.6, heavy_rain: 0.7 },
+      dawn:  { foggy: 1.4 }
     },
-    durationTurns: { min: 40, max: 140 }
+    durationTurns: { min: 15, max: 45 }
   };
 }
 
