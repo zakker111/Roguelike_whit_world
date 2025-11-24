@@ -85,7 +85,6 @@ export function update(player, floor, time, perf, perfOn) {
       _lastFloorText = floorStr;
     }
   }
-  }
 }
 
 import { attachGlobal } from "/utils/global.js";
