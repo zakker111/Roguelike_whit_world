@@ -589,6 +589,29 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       }
     } catch (_) {}
 
+    // Optional dev helper: if CARAVAN_TP flag is enabled, teleport the player directly
+    // to the Caravan master spawn tile for quick inspection.
+    try {
+      let tpEnabled = false;
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          const v = window.localStorage.getItem("CARAVAN_TP");
+          if (typeof v === "string") {
+            const s = v.toLowerCase();
+            tpEnabled = (s === "1" || s === "true" || s === "yes" || s === "on");
+          }
+        }
+      } catch (_) {}
+
+      if (tpEnabled && ctx.player) {
+        ctx.player.x = spot.x;
+        ctx.player.y = spot.y;
+        try {
+          if (ctx.log) ctx.log("[Caravan] Teleported to Caravan master (dev helper CARAVAN_TP).", "info");
+        } catch (_) {}
+      }
+    } catch (_) {}
+
     // Add a small \"caravan camp\" of props near the merchant: a cart (stall),
     // a sign, and a few crates/barrels.
     try {
