@@ -589,18 +589,6 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       }
     } catch (_) {}
 
-    // Dev helper: teleport the player directly to the Caravan master spawn tile
-    // when a caravan camp is created, so you can immediately see and interact with it.
-    try {
-      if (ctx.player) {
-        ctx.player.x = spot.x;
-        ctx.player.y = spot.y;
-        try {
-          if (ctx.log) ctx.log("[Caravan] Teleported to Caravan master for inspection.", "info");
-        } catch (_) {}
-      }
-    } catch (_) {}
-
     // Add a small \"caravan camp\" of props near the merchant: a cart (stall),
     // a sign, and a few crates/barrels.
     try {
