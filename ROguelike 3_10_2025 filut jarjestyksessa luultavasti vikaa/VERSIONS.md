@@ -8,12 +8,9 @@ v1.49.0 — Travelling caravans, caravan ambushes, and escort jobs
   - Caravans spawn over time as towns are discovered; initial caravans are also created at world generation based on town count.
   - Caravans travel tile-by-tile along mostly short routes to the nearest town, with some longer “long-haul” routes between distant towns.
   - On the overworld, caravans render as warm-orange "c" glyphs; glyphs are hidden when a caravan is parked on a town/castle tile or flagged as atTown.
-- Town caravan masters
-  - On entering a town or castle, Modes.spawnCaravanMerchantIfPresent(ctx, worldX, worldY) clears any prior caravan camp and checks world.caravans for a caravan at that settlement’s world coordinates.
-  - If a caravan is currently on that town tile, a Caravan master NPC (isCaravanMerchant, isShopkeeper) and a caravan shop (type "caravan", alwaysOpen) are spawned near the town plaza (or map center as fallback).
-  - A small caravan camp is created around the merchant: stall/cart, "Caravan" sign, and up to three crates/barrels props flagged isCaravanProp.
-  - When no caravan matches that town tile, any existing caravan camp is removed on entry so towns only show caravan camps while a caravan is actually present.
-  - Town entry logs an info-level line like "[Caravan] Town entry at X,Y: caravans=N, caravanOnTile=true|false" to aid debugging.
+- Town caravan masters (removed for now)
+  - Earlier iterations attempted to spawn a special Caravan master + camp inside towns whenever a caravan was parked on that town tile.
+  - That feature has been removed: caravans now only exist on the overworld and in caravan ambush/road encounters, not as special town-plaza merchants.
 - Caravan shops and inventory
   - Caravan shops use shop type "caravan" and integrate with ShopService.
   - When no JSON shop pool is defined for "caravan", ShopService.restockIfNeeded now creates a small fallback inventory so caravan masters always offer basic goods:
