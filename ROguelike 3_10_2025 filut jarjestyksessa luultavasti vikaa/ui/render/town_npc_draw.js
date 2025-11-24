@@ -7,6 +7,19 @@ export function drawNPCs(ctx, view) {
   const { ctx2d, TILE, COLORS, player, startX, startY, endX, endY, tileOffsetX, tileOffsetY } = Object.assign({}, view, ctx);
 
   if (!Array.isArray(ctx.npcs)) return;
+
+  // One-time debug summary per town entry: how many Caravan masters exist and where.
+  try {
+    if (!ctx._caravanNpcDebugLogged) {
+      const cm = ctx.npcs.filter(n => n && n.isCaravanMerchant);
+      if (cm.length && ctx.log) {
+        const list = cm.map(n => `(${n.x},${n.y})`).join(", ");
+        ctx.log(`[Caravan] Town draw: caravan masters=${cm.length} at ${list}`, "notice");
+      }
+      ctx._caravanNpcDebugLogged = true;
+    }
+  } catch (_) {}
+
   for (const n of ctx.npcs) {
     if (n.x < startX || n.x > endX || n.y < startY || n.y > endY) continue;
 
