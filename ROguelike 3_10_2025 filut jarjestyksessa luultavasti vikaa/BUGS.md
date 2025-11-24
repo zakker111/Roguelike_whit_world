@@ -21,3 +21,4 @@
 - dungeons sometimes carry over some wierd stuff like camp fires and some other shit from encounters 
 - Make coherent way out like in ruins and region_map encounters there is only &gt; and not clearly visible ab coherent
 - caravan master does not seem to spawn in towns cities etc. when caravan enters it
+- caravans in towns need verification: prefab caravan stalls/shops vs actual parked caravans and town presence behavior
