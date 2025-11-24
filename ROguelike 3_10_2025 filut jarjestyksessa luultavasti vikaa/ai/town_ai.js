@@ -1420,10 +1420,10 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     }
 
     // Shuffle iteration
-    const order = npcs.map((_, i) =&gt; i);
+    const order = npcs.map((_, i) => i);
     {
       const rnd = rngFor(ctx);
-      for (let i = order.length - 1; i &gt; 0; i--) {
+      for (let i = order.length - 1; i > 0; i--) {
         const j = Math.floor(rnd() * (i + 1));
         const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
       }
