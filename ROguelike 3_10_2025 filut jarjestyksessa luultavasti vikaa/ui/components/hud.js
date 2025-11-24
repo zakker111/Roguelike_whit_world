@@ -39,12 +39,21 @@ export function update(player, floor, time, perf, perfOn) {
     }
   }
 
-  // Floor + level + XP + time + perf
+  // Floor + level + XP + time + perf (+ weather label)
   if (floorEl && player) {
     const t = time || {};
     const hhmm = t.hhmm || "";
     const phase = t.phase ? t.phase : "";
     const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
+    let weatherStr = "";
+    try {
+      const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
+      const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
+      const label = w && w.label ? String(w.label) : "";
+      if (label) {
+        weatherStr = `  Weather: ${label}`;
+      }
+    } catch (_) {}
     let turnStr = "";
     try {
       if (perf && typeof perf.lastTurnMs === "number") {
@@ -57,7 +66,7 @@ export function update(player, floor, time, perf, perfOn) {
         drawStr = `  Draw: ${perf.lastDrawMs.toFixed(1)}ms`;
       }
     } catch (_) {}
-    const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${turnStr}${drawStr}`;
+    const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${weatherStr}${turnStr}${drawStr}`;
     if (floorStr !== _lastFloorText) {
       floorEl.textContent = floorStr;
       _lastFloorText = floorStr;
