@@ -623,12 +623,18 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       const ND = GD && GD.npcs ? GD.npcs : null;
       const keeperLines = (ND && Array.isArray(ND.shopkeeperLines) && ND.shopkeeperLines.length) ? ND.shopkeeperLines : ["We open on schedule.","Welcome in!","Back soon."];
       const keeperNames = (ND && Array.isArray(ND.shopkeeperNames) && ND.shopkeeperNames.length) ? ND.shopkeeperNames : ["Shopkeeper","Trader","Smith"];
+      const caravanLines = [
+        "Fresh goods from the road.",
+        "We stay only while the caravan is in town.",
+        "Have a look before we move on."
+      ];
       for (const s of shops) {
         // Shop signs are placed during town generation (worldgen/town_gen.js) with outward placement.
         // Avoid duplicating signs here to prevent incorrect sign placement inside buildings like the Inn.
         // choose spawn location:
         // Inn: always spawn inside to keep entrance clear and ensure availability
         const isInn = String(s.type || "").toLowerCase() === "inn";
+        const isCaravanShop = String(s.type || "").toLowerCase() === "caravan";
         let spot = null;
         if (isInn && s.inside) {
           spot = { x: s.inside.x, y: s.inside.y };
@@ -670,12 +676,18 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         }
 
         const shopBase = s.name ? `${s.name} ` : "";
-        const keeperName = shopBase ? `${shopBase}Keeper` : (keeperNames[Math.floor(rng() * keeperNames.length)] || "Shopkeeper");
+        let keeperName;
+        if (isCaravanShop) {
+          keeperName = "Caravan master";
+        } else {
+          keeperName = shopBase ? `${shopBase}Keeper` : (keeperNames[Math.floor(rng() * keeperNames.length)] || "Shopkeeper");
+        }
+        const linesForKeeper = isCaravanShop ? caravanLines : keeperLines;
 
         npcs.push({
           x: spot.x, y: spot.y,
           name: keeperName,
-          lines: keeperLines,
+          lines: linesForKeeper,
           isShopkeeper: true,
           _work: { x: s.x, y: s.y },
           _workInside: s.inside || { x: s.x, y: s.y },

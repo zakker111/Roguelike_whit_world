@@ -71,6 +71,7 @@ export function stampPrefab(ctx, prefab, bx, by, buildings) {
   // Bounds and clear margin check
   const x0 = bx, y0 = by, x1 = bx + w - 1, y1 = by + h - 1;
   if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return null;
+  const cat = String(prefab.category || "").toLowerCase();
   for (let yy = y0; yy <= y1; yy++) {
     for (let xx = x0; xx <= x1; xx++) {
       if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return null;
@@ -145,13 +146,16 @@ export function stampPrefab(ctx, prefab, bx, by, buildings) {
   }
 
   // Ensure a solid perimeter: convert any non-door/window on the boundary to WALL.
-  for (let yy = y0; yy <= y1; yy++) {
-    for (let xx = x0; xx <= x1; xx++) {
-      const isBorder = (yy === y0 || yy === y1 || xx === x0 || xx === x1);
-      if (!isBorder) continue;
-      const cur = ctx.map[yy][xx];
-      if (cur !== ctx.TILES.DOOR && cur !== ctx.TILES.WINDOW) {
-        ctx.map[yy][xx] = ctx.TILES.WALL;
+  // Skip this for special open-air prefabs like caravans, which should not gain walls.
+  if (cat !== "caravan") {
+    for (let yy = y0; yy <= y1; yy++) {
+      for (let xx = x0; xx <= x1; xx++) {
+        const isBorder = (yy === y0 || yy === y1 || xx === x0 || xx === x1);
+        if (!isBorder) continue;
+        const cur = ctx.map[yy][xx];
+        if (cur !== ctx.TILES.DOOR && cur !== ctx.TILES.WINDOW) {
+          ctx.map[yy][xx] = ctx.TILES.WALL;
+        }
       }
     }
   }
@@ -169,7 +173,8 @@ export function stampPrefab(ctx, prefab, bx, by, buildings) {
   } catch (_) {}
 
   // For inns, rely solely on prefab DOOR tiles; do not auto-carve doors.
-  if (String(prefab.category || "").toLowerCase() !== "inn") {
+  // For caravans (open-air stalls), never auto-carve doors either.
+  if (cat !== "inn" && cat !== "caravan") {
     (function ensurePerimeterDoor() {
       let hasDoor = false;
       for (let xx = x0; xx <= x1 && !hasDoor; xx++) {
@@ -202,20 +207,20 @@ export function stampPrefab(ctx, prefab, bx, by, buildings) {
     }
   } catch (_) {}
 
-  // Record building rect
-  const rect = { x: x0, y: y0, w, h, prefabId: (prefab && prefab.id) ? String(prefab.id) : null, prefabCategory: String(prefab.category || "").toLowerCase() || null };
-  if (Array.isArray(buildings)) buildings.push(rect);
+  // Record building rect (skip adding a building record for open-air caravan stalls)
+  const rect = { x: x0, y: y0, w, h, prefabId: (prefab && prefab.id) ? String(prefab.id) : null, prefabCategory: cat || null };
+  if (Array.isArray(buildings) && cat !== "caravan") buildings.push(rect);
 
   // Track prefab usage for diagnostics (per category)
   try {
-    const cat = String(prefab.category || "").toLowerCase();
     const id = String(prefab.id || "");
     if (id) {
-      ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [] };
+      ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [], caravans: [] };
       if (cat === "house") ctx.townPrefabUsage.houses.push(id);
       else if (cat === "shop") ctx.townPrefabUsage.shops.push(id);
       else if (cat === "inn") ctx.townPrefabUsage.inns.push(id);
       else if (cat === "plaza") ctx.townPrefabUsage.plazas.push(id);
+      else if (cat === "caravan") ctx.townPrefabUsage.caravans.push(id);
     }
   } catch (_) {}
 
@@ -409,7 +414,9 @@ export function stampPlazaPrefab(ctx, prefab, bx, by) {
   try {
     const id = String(prefab.id || "");
     if (id) {
-      ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [] };
+      ctx.townPrefabUsage = ctx.townPrefabUsage || { houses: [], shops: [], inns: [], plazas: [], caravans: [] };
+      if (!Array.isArray(ctx.townPrefabUsage.plazas)) ctx.townPrefabUsage.plazas = [];
+      if (!Array.isArray(ctx.townPrefabUsage.caravans)) ctx.townPrefabUsage.caravans = [];
       ctx.townPrefabUsage.plazas.push(id);
     }
   } catch (_) {}

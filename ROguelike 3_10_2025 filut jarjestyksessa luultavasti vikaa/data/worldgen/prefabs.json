@@ -292,5 +292,19 @@
       ],
       "constraints": { "rotations": [0,90,180,270], "mirror": true }
     }
+  ],
+  "caravans": [
+    {
+      "id": "caravan_stall_1",
+      "name": "Caravan Stall",
+      "category": "caravan",
+      "tags": ["caravan", "stall"],
+      "size": { "w": 4, "h": 3 },
+      "tiles": [
+        ["FLOOR","STALL","FLOOR","CRATE"],
+        ["FLOOR","FLOOR","FLOOR","BARREL"],
+        ["FLOOR","FLOOR","SIGN","FLOOR"]
+      ]
+    }
   ]
 }
