@@ -786,7 +786,21 @@ import {
     return TS.minutesUntil(turnCounter, hourTarget, minuteTarget);
   }
   function advanceTimeMinutes(mins) {
-    turnCounter = TS.advanceMinutes(turnCounter, mins);
+    const total = Math.max(0, (Number(mins) || 0) | 0);
+    if (total <= 0) return;
+    const turns = Math.max(1, Math.ceil(total / MINUTES_PER_TURN));
+    for (let i = 0; i < turns; i++) {
+      // Advance global time
+      turnCounter = TS.tick(turnCounter);
+      // Advance visual weather state in lockstep with time
+      try {
+        if (WeatherSvc) {
+          const timeNow = getClock();
+          const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
+          weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
+        }
+      } catch (_) {}
+    }
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
