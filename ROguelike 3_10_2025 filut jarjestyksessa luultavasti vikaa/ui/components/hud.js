@@ -23,7 +23,7 @@ export function update(player, floor, time, perf, perfOn) {
   const hpEl = _hpEl || byId("health");
   const floorEl = _floorEl || byId("floor");
 
-  // HP + statuses
+  // HP + statuses + weather
   if (hpEl && player) {
     const parts = [`HP: ${Number(player.hp || 0).toFixed(1)}/${Number(player.maxHp || 0).toFixed(1)}`];
     const statuses = [];
@@ -31,29 +31,31 @@ export function update(player, floor, time, perf, perfOn) {
       if (player.bleedTurns && player.bleedTurns > 0) statuses.push(`Bleeding (${player.bleedTurns})`);
       if (player.dazedTurns && player.dazedTurns > 0) statuses.push(`Dazed (${player.dazedTurns})`);
     } catch (_) {}
-    parts.push(`  Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`);
-    const hpStr = parts.join("");
+    const statusText = `Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`;
+
+    let weatherText = "";
+    try {
+      const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
+      const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
+      const label = w && w.label ? String(w.label) : "";
+      if (label) {
+        weatherText = `  Weather: ${label}`;
+      }
+    } catch (_) {}
+
+    const hpStr = `${parts[0]}  ${statusText}${weatherText}`;
     if (hpStr !== _lastHpText) {
       hpEl.textContent = hpStr;
       _lastHpText = hpStr;
     }
   }
 
-  // Floor + level + XP + time + perf (+ weather label)
+  // Floor + level + XP + time + perf
   if (floorEl && player) {
     const t = time || {};
     const hhmm = t.hhmm || "";
     const phase = t.phase ? t.phase : "";
     const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
-    let weatherStr = "";
-    try {
-      const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
-      const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
-      const label = w && w.label ? String(w.label) : "";
-      if (label) {
-        weatherStr = `  Weather: ${label}`;
-      }
-    } catch (_) {}
     let turnStr = "";
     try {
       if (perf && typeof perf.lastTurnMs === "number") {
@@ -66,7 +68,7 @@ export function update(player, floor, time, perf, perfOn) {
         drawStr = `  Draw: ${perf.lastDrawMs.toFixed(1)}ms`;
       }
     } catch (_) {}
-    const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${weatherStr}${turnStr}${drawStr}`;
+    const floorStr = `F: ${floor}  Lv: ${player.level}  XP: ${player.xp}/${player.xpNext}${timeStr}${turnStr}${drawStr}`;
     if (floorStr !== _lastFloorText) {
       floorEl.textContent = floorStr;
       _lastFloorText = floorStr;
