@@ -17,7 +17,13 @@ export function drawNPCs(ctx, view) {
       }
     }
 
-    const everSeen = !!(ctx.seen[n.y] && ctx.seen[n.y][n.x]);
+    let everSeen = !!(ctx.seen[n.y] && ctx.seen[n.y][n.x]);
+
+    // Always show Caravan master NPCs inside town, even if their tile hasn't been in FOV yet.
+    // This makes parked caravans clearly visible as soon as you enter the settlement.
+    if (n.isCaravanMerchant) {
+      everSeen = true;
+    }
     if (!everSeen) continue;
 
     const isVisible = !!(ctx.visible[n.y] && ctx.visible[n.y][n.x]);
