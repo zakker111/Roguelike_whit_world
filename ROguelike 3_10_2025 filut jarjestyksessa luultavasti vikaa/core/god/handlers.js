@@ -459,6 +459,85 @@ export function install(getCtx) {
       } catch (_) {}
     },
 
+    onGodCheckPrefabs: () => {
+      const c = getCtx();
+      if (c.mode !== "town") {
+        c.log("Prefab check is available in town mode only.", "warn");
+        c.requestDraw && c.requestDraw();
+        return;
+      }
+
+      const GD = (typeof window !== "undefined" ? window.GameData : null);
+      const PFB = GD && GD.prefabs ? GD.prefabs : null;
+      const usage = c.townPrefabUsage || {};
+
+      const categories = ["houses", "shops", "inns", "plazas", "caravans"];
+      const lines = [];
+
+      let header;
+      if (!PFB) {
+        header = "Prefabs: GameData.prefabs not available (no prefab registry loaded).";
+      } else {
+        const totalCats = categories.reduce((acc, cat) => {
+          const list = Array.isArray(PFB[cat]) ? PFB[cat] : [];
+          return acc + (list.length ? 1 : 0);
+        }, 0);
+        header = `Prefabs: registry loaded for ${totalCats} category(ies).`;
+      }
+
+      for (const cat of categories) {
+        const list = PFB && Array.isArray(PFB[cat]) ? PFB[cat] : [];
+        const loadedIds = list
+          .map(p => (p && p.id != null ? String(p.id) : ""))
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b));
+
+        const usedRaw = Array.isArray(usage[cat]) ? usage[cat] : [];
+        const usedSet = new Set(usedRaw.map(id => String(id || "")));
+        const usedIds = Array.from(usedSet).filter(Boolean).sort((a, b) => a.localeCompare(b));
+
+        const loadedCount = loadedIds.length;
+        const usedCount = usedIds.length;
+
+        // Derived sets
+        const loadedSet = new Set(loadedIds);
+        const unusedLoaded = loadedIds.filter(id => !usedSet.has(id));
+        const usedUnknown = usedIds.filter(id => !loadedSet.has(id));
+
+        const label = cat.charAt(0).toUpperCase() + cat.slice(1);
+
+        const usedStr = usedIds.length ? usedIds.join(", ") : "(none)";
+        const unusedStr = unusedLoaded.length ? unusedLoaded.join(", ") : "(none)";
+
+        lines.push(
+          `${label}: loaded=${loadedCount}, used=${usedCount}; used IDs: ${usedStr}; unused loaded IDs: ${unusedStr}`
+        );
+
+        if (usedUnknown.length) {
+          lines.push(
+            `  Warning: category '${cat}' has used prefab IDs not in registry: ${usedUnknown.join(", ")}`
+          );
+        }
+      }
+
+      try {
+        const el = document.getElementById("god-check-output");
+        if (el) {
+          const html = [header].concat(lines).map(s => `<div>${s}</div>`).join("");
+          el.innerHTML = html;
+        }
+      } catch (_) {}
+
+      c.log(header, PFB ? "info" : "warn");
+      lines.forEach(l => c.log(l, "info"));
+      try {
+        const UIO = (typeof window !== "undefined" ? window.UIOrchestration : null);
+        if (UIO && typeof UIO.requestDraw === "function") {
+          UIO.requestDraw(c);
+        }
+      } catch (_) {}
+    },
+
     onGodDiagnostics: () => {
       const c = getCtx();
       const mods = {
