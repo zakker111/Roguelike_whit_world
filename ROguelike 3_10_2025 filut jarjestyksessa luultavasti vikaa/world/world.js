@@ -79,6 +79,18 @@ export function biomeName(tile) {
   }
 }
 
+function getOverworldConfig() {
+  try {
+    const GD = (typeof window !== "undefined" ? window.GameData : null);
+    const cfg = GD && GD.worldgenOverworld && typeof GD.worldgenOverworld === "object"
+      ? GD.worldgenOverworld
+      : null;
+    return cfg || null;
+  } catch (_) {
+    return null;
+  }
+}
+
 export function generate(ctx, opts = {}) {
   const rng = (function () {
     try {
@@ -88,12 +100,25 @@ export function generate(ctx, opts = {}) {
     } catch (_) {}
     return (ctx && typeof ctx.rng === "function") ? ctx.rng : null;
   })();
-  const width = clamp((opts.width | 0) || 120, 48, 512);
-  const height = clamp((opts.height | 0) || 80, 48, 512);
+
+  const cfg = getOverworldConfig();
+  const defaultWidth = (cfg && cfg.size && typeof cfg.size.defaultWidth === "number") ? cfg.size.defaultWidth : 120;
+  const defaultHeight = (cfg && cfg.size && typeof cfg.size.defaultHeight === "number") ? cfg.size.defaultHeight : 80;
+  const minWidth = (cfg && cfg.size && typeof cfg.size.minWidth === "number") ? cfg.size.minWidth : 48;
+  const maxWidth = (cfg && cfg.size && typeof cfg.size.maxWidth === "number") ? cfg.size.maxWidth : 512;
+  const minHeight = (cfg && cfg.size && typeof cfg.size.minHeight === "number") ? cfg.size.minHeight : 48;
+  const maxHeight = (cfg && cfg.size && typeof cfg.size.maxHeight === "number") ? cfg.size.maxHeight : 512;
+
+  const width = clamp((opts.width | 0) || defaultWidth, minWidth, maxWidth);
+  const height = clamp((opts.height | 0) || defaultHeight, minHeight, maxHeight);
   const map = Array.from({ length: height }, () => Array(width).fill(TILES.GRASS));
 
   // Scatter noise: lakes, forests, mountains
-  const blobs = Math.floor((width * height) / 450);
+  const area = width * height;
+  const baseBlobDensity = (cfg && cfg.scatter && typeof cfg.scatter.baseBlobDensity === "number")
+    ? cfg.scatter.baseBlobDensity
+    : (1 / 450);
+  const blobs = Math.floor(area * baseBlobDensity);
   function scatter(kind, count, radius) {
     for (let i = 0; i < count; i++) {
       const cx = (rng() * width) | 0;
@@ -110,9 +135,28 @@ export function generate(ctx, opts = {}) {
     }
   }
 
-  scatter(TILES.WATER, Math.max(3, blobs | 0), 6);
-  scatter(TILES.FOREST, Math.max(4, (blobs * 2) | 0), 5);
-  scatter(TILES.MOUNTAIN, Math.max(3, blobs | 0), 4);
+  const waterCfg = cfg && cfg.scatter && cfg.scatter.water ? cfg.scatter.water : null;
+  const forestCfg = cfg && cfg.scatter && cfg.scatter.forest ? cfg.scatter.forest : null;
+  const mountainCfg = cfg && cfg.scatter && cfg.scatter.mountain ? cfg.scatter.mountain : null;
+
+  const waterCount = waterCfg && typeof waterCfg.countPerTile === "number"
+    ? Math.max(waterCfg.minCount | 0, Math.floor(area * waterCfg.countPerTile))
+    : Math.max(3, blobs | 0);
+  const waterRadius = waterCfg && typeof waterCfg.radius === "number" ? waterCfg.radius : 6;
+
+  const forestCount = forestCfg && typeof forestCfg.countPerTile === "number"
+    ? Math.max(forestCfg.minCount | 0, Math.floor(area * forestCfg.countPerTile))
+    : Math.max(4, (blobs * 2) | 0);
+  const forestRadius = forestCfg && typeof forestCfg.radius === "number" ? forestCfg.radius : 5;
+
+  const mountainCount = mountainCfg && typeof mountainCfg.countPerTile === "number"
+    ? Math.max(mountainCfg.minCount | 0, Math.floor(area * mountainCfg.countPerTile))
+    : Math.max(3, blobs | 0);
+  const mountainRadius = mountainCfg && typeof mountainCfg.radius === "number" ? mountainCfg.radius : 4;
+
+  scatter(TILES.WATER, waterCount, waterRadius);
+  scatter(TILES.FOREST, forestCount, forestRadius);
+  scatter(TILES.MOUNTAIN, mountainCount, mountainRadius);
 
   // Mountain ridges (simple random walks)
   const ridges = 2 + ((rng() * 3) | 0);
@@ -136,7 +180,11 @@ export function generate(ctx, opts = {}) {
   scatter(TILES.FOREST, Math.max(6, (blobs * 2) | 0), 2);
 
   // Carve rivers: meandering paths from one edge to another
-  const riverCount = 2 + ((rng() * 3) | 0);
+  const riversCfg = cfg && cfg.rivers ? cfg.rivers : null;
+  const riverMin = riversCfg && typeof riversCfg.minCount === "number" ? riversCfg.minCount : 2;
+  const riverMax = riversCfg && typeof riversCfg.maxCount === "number" ? riversCfg.maxCount : 4;
+  const riverSpan = Math.max(0, (riverMax | 0) - (riverMin | 0));
+  const riverCount = (riverMin | 0) + (riverSpan > 0 ? ((rng() * (riverSpan + 1)) | 0) : 0);
   for (let r = 0; r < riverCount; r++) {
     // pick start at a random edge
     let x, y, dir;
@@ -239,22 +287,47 @@ export function generate(ctx, opts = {}) {
   const towns = [];
   const dungeons = [];
   const ruins = [];
-  // Increase town density and scale by area for richer worlds
-  const area = width * height;
-  const baseTowns = Math.max(14, Math.floor(area / 700)); // ~14 for 120x80; grows with area
-  const wantTowns = baseTowns + ((rng() * Math.max(6, Math.floor(baseTowns * 0.4))) | 0);
-  // Scale dungeon count with map area and increase baseline density
-  const baseDungeons = Math.max(22, Math.floor(area / 500)); // ~22 for 120x80; grows with area
-  const wantDungeons = baseDungeons + ((rng() * Math.max(10, Math.floor(baseDungeons * 0.5))) | 0);
-  // Ruins density: between towns and dungeons; scale with area
-  const baseRuins = Math.max(18, Math.floor(area / 600)); // ~18 for 120x80; grows with area
-  const wantRuins = baseRuins + ((rng() * Math.max(8, Math.floor(baseRuins * 0.5))) | 0);
 
-  // Decide town size distribution: small ~60%, big ~30%, city ~10%
+  // Increase town density and scale by area for richer worlds, using config when available
+  const townsCfg = cfg && cfg.towns ? cfg.towns : null;
+  const dungeonsCfg = cfg && cfg.dungeons ? cfg.dungeons : null;
+  const ruinsCfg = cfg && cfg.ruins ? cfg.ruins : null;
+
+  const baseTowns = townsCfg && typeof townsCfg.perTile === "number"
+    ? Math.max((townsCfg.minCount | 0) || 0, Math.floor(area * townsCfg.perTile))
+    : Math.max(14, Math.floor(area / 700)); // ~14 for 120x80; grows with area
+  const townsJitterFrac = townsCfg && typeof townsCfg.jitterFraction === "number" ? townsCfg.jitterFraction : 0.4;
+  const townsJitterBase = Math.max(1, Math.floor(baseTowns * Math.max(0, townsJitterFrac)));
+  const wantTowns = baseTowns + ((rng() * townsJitterBase) | 0);
+
+  // Scale dungeon count with map area and increase baseline density
+  const baseDungeons = dungeonsCfg && typeof dungeonsCfg.perTile === "number"
+    ? Math.max((dungeonsCfg.minCount | 0) || 0, Math.floor(area * dungeonsCfg.perTile))
+    : Math.max(22, Math.floor(area / 500)); // ~22 for 120x80; grows with area
+  const dungeonsJitterFrac = dungeonsCfg && typeof dungeonsCfg.jitterFraction === "number" ? dungeonsCfg.jitterFraction : 0.5;
+  const dungeonsJitterBase = Math.max(1, Math.floor(baseDungeons * Math.max(0, dungeonsJitterFrac)));
+  const wantDungeons = baseDungeons + ((rng() * dungeonsJitterBase) | 0);
+
+  // Ruins density: between towns and dungeons; scale with area
+  const baseRuins = ruinsCfg && typeof ruinsCfg.perTile === "number"
+    ? Math.max((ruinsCfg.minCount | 0) || 0, Math.floor(area * ruinsCfg.perTile))
+    : Math.max(18, Math.floor(area / 600)); // ~18 for 120x80; grows with area
+  const ruinsJitterFrac = ruinsCfg && typeof ruinsCfg.jitterFraction === "number" ? ruinsCfg.jitterFraction : 0.5;
+  const ruinsJitterBase = Math.max(1, Math.floor(baseRuins * Math.max(0, ruinsJitterFrac)));
+  const wantRuins = baseRuins + ((rng() * ruinsJitterBase) | 0);
+
+  // Decide town size distribution: configurable; default small ~60%, big ~30%, city ~10%
+  const townSizeWeights = (cfg && cfg.townSizeWeights && typeof cfg.townSizeWeights === "object") ? cfg.townSizeWeights : null;
   function pickTownSize() {
+    const smallW = townSizeWeights && typeof townSizeWeights.small === "number" ? townSizeWeights.small : 0.6;
+    const bigW = townSizeWeights && typeof townSizeWeights.big === "number" ? townSizeWeights.big : 0.3;
+    const cityW = townSizeWeights && typeof townSizeWeights.city === "number" ? townSizeWeights.city : 0.1;
+    const sum = Math.max(0.0001, smallW + bigW + cityW);
+    const s = smallW / sum;
+    const b = bigW / sum;
     const r = rng();
-    if (r < 0.60) return "small";
-    if (r < 0.90) return "big";
+    if (r < s) return "small";
+    if (r < s + b) return "big";
     return "city";
   }
 
