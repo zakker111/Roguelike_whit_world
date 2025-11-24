@@ -475,7 +475,7 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
         }).join(" | ");
         ctx.log(
           `[Caravan] Town entry at ${wx},${wy}: caravans=${caravans.length}, parkedHere=${!!parked} (${parkedStr}); sample=${sample}`,
-          "info"
+          "notice"
         );
       }
     } catch (_) {}
