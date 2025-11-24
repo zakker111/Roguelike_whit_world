@@ -14,6 +14,9 @@ Behavior
 - Movement:
   - Movement uses region tile definitions plus World.isWalkable to decide where you can stand.
   - WATER, RIVER, MOUNTAIN and non-walkable RUIN_WALL tiles cannot be entered.
+- Weather overlays:
+  - Region renderer reuses the same visual weather overlays as the overworld/towns (fog, rain streaks, cloudy tint) by reading ctx.weather from core/game.js.
+  - Weather is cosmetic only and follows the global day/night cycle and weather_service.js state.
 - Looting and corpses:
   - Pressing G on a corpse or chest opens the same loot panel used in dungeons; multiple containers underfoot are consolidated.
   - Dead animals show exactly what you looted via the panel.

@@ -1,6 +1,35 @@
 s 
 # Game Version History
-Last updated: 2025-11-24 00:00 UTC
+Last updated: 2025-11-24 12:00 UTC
+
+v1.49.2 — Visual weather system, HUD weather, castle tuning
+- Added: Non-gameplay visual weather system
+  - services/weather_service.js maintains a lightweight weather state (type/label/intensity) driven by data/config/weather.json.
+  - Supports clear, cloudy, foggy, light rain, and heavy rain types with phase-weighted probabilities (night/dawn bias toward fog).
+  - Weather phases now last 45–120 turns (~3–8 in-game hours) instead of 15–45, so conditions change less frequently.
+- Added: Weather overlays and HUD display
+  - ui/render/overworld_weather.js draws palette-driven overlays:
+    - cloudy: subtle overcast tint
+    - foggy: soft full-screen fog wash
+    - light/heavy rain: diagonal rain streaks with intensity scaling.
+  - Overlays are applied in all outdoor renderers (overworld, towns, Region Map) before day/night tints.
+  - HUD time line shows “Time: hh:mm (phase: label)” (e.g., “Time: 02:24 (night: foggy)”) using GameAPI.getClock() and GameAPI.getWeather().
+  - Weather logs (e.g., “Weather now: Foggy.”) use notice level in the logging system.
+- Changed: Weather initialization and determinism
+  - core/game.js lazily initializes WeatherService via ensureWeatherService() so module load order cannot leave weather disabled.
+  - Both per-turn and bulk time advances (sleep/rest/fishing) tick WeatherService so weather changes while time advances, not only on manual steps.
+  - Weather HUD reads ctx.weather from getCtx() each update via UI/RenderOrchestration so display stays in sync with core state.
+- Changed: Castle spawn odds in infinite world
+  - world/infinite_gen.js castleChance per town cell increased from 0.8%→1.0% base.
+  - Coastal/river-adjacent town cells get an extra +1.5% (was +1.2%), for a total of ~2.5% near water.
+  - Result: castles remain rare but appear slightly more often, especially along coasts and rivers.
+- Docs: Updated READMEs for weather and config
+  - README.md (root): documented time-of-day + visual weather overlays for overworld/town/Region Map.
+  - world/README.md: noted visual weather as part of world systems (ctx.weather used by renderers).
+  - ui/README.md: added render/overworld_weather.js as the shared weather overlay module.
+  - services/README.md: documented weather_service.js and its config source (data/config/weather.json).
+  - data/docs/README.md: listed config/ (config.json, weather.json) as part of the JSON registry layout.
+  - region_map/README.md: called out Region Map weather overlays mirroring overworld/town visuals.
 
 v1.49.1 — Town caravan stalls via prefabs, GOD Prefabs check, and BUGS split
 - Town caravan presence
