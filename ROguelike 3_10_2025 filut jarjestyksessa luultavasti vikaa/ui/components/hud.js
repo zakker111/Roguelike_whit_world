@@ -37,11 +37,16 @@ export function update(player, floor, time, perf, perfOn) {
     try {
       const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
       const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
-      const label = w && w.label ? String(w.label) : "";
-      if (label) {
-        weatherText = `  Weather: ${label}`;
+      let label = w && w.label ? String(w.label) : "";
+      // Always show some weather text; default to a pleasant \"Sunny\" label if none provided.
+      if (!label) {
+        label = "Sunny";
       }
-    } catch (_) {}
+      weatherText = `  Weather: ${label}`;
+    } catch (_) {
+      // On error, still show a default so HUD layout is stable.
+      weatherText = "  Weather: Sunny";
+    }
 
     const hpStr = `${parts[0]}  ${statusText}${weatherText}`;
     if (hpStr !== _lastHpText) {
