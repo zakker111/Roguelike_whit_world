@@ -8,7 +8,8 @@ export function drawRoads(ctx, view) {
   try {
     const roads = (ctx.world && Array.isArray(ctx.world.roads)) ? ctx.world.roads : [];
     if (roads.length) {
-      let roadColor = "#b0a58a";
+      // Default to a warmer, dirt-road style color; can be overridden by tile defs.
+      let roadColor = "#8b5a2b";
       try {
         const tdRoad = getTileDefByKey("overworld", "ROAD");
         if (tdRoad && tdRoad.colors && tdRoad.colors.fill) roadColor = tdRoad.colors.fill || roadColor;

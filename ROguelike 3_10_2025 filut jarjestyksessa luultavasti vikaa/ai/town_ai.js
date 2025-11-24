@@ -623,12 +623,18 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       const ND = GD && GD.npcs ? GD.npcs : null;
       const keeperLines = (ND && Array.isArray(ND.shopkeeperLines) && ND.shopkeeperLines.length) ? ND.shopkeeperLines : ["We open on schedule.","Welcome in!","Back soon."];
       const keeperNames = (ND && Array.isArray(ND.shopkeeperNames) && ND.shopkeeperNames.length) ? ND.shopkeeperNames : ["Shopkeeper","Trader","Smith"];
+      const caravanLines = [
+        "Fresh goods from the road.",
+        "We stay only while the caravan is in town.",
+        "Have a look before we move on."
+      ];
       for (const s of shops) {
         // Shop signs are placed during town generation (worldgen/town_gen.js) with outward placement.
         // Avoid duplicating signs here to prevent incorrect sign placement inside buildings like the Inn.
         // choose spawn location:
         // Inn: always spawn inside to keep entrance clear and ensure availability
         const isInn = String(s.type || "").toLowerCase() === "inn";
+        const isCaravanShop = String(s.type || "").toLowerCase() === "caravan";
         let spot = null;
         if (isInn && s.inside) {
           spot = { x: s.inside.x, y: s.inside.y };
@@ -670,12 +676,18 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         }
 
         const shopBase = s.name ? `${s.name} ` : "";
-        const keeperName = shopBase ? `${shopBase}Keeper` : (keeperNames[Math.floor(rng() * keeperNames.length)] || "Shopkeeper");
+        let keeperName;
+        if (isCaravanShop) {
+          keeperName = "Caravan master";
+        } else {
+          keeperName = shopBase ? `${shopBase}Keeper` : (keeperNames[Math.floor(rng() * keeperNames.length)] || "Shopkeeper");
+        }
+        const linesForKeeper = isCaravanShop ? caravanLines : keeperLines;
 
         npcs.push({
           x: spot.x, y: spot.y,
           name: keeperName,
-          lines: keeperLines,
+          lines: linesForKeeper,
           isShopkeeper: true,
           _work: { x: s.x, y: s.y },
           _workInside: s.inside || { x: s.x, y: s.y },
@@ -1429,6 +1441,14 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       }
     }
 
+    // Global per-tick cap: only let a subset of NPCs run full behavior each town tick.
+    // This keeps pathfinding and scheduling from blowing up in large towns.
+    const npcCount = npcs.length;
+    const maxActiveThisTick = (typeof ctx.townMaxActiveNPCs === "number")
+      ? Math.max(8, ctx.townMaxActiveNPCs | 0)
+      : Math.max(12, Math.floor(npcCount * 0.6));
+    let activeSoFar = 0;
+
     function routeIntoBuilding(ctx, occ, n, building, targetInside) {
       // Adjust unreachable interior targets (like beds) to a free adjacent tile
       const adjTarget = targetInside ? adjustInteriorTarget(ctx, building, targetInside) : null;
@@ -1477,6 +1497,10 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
       // Per-NPC tick rate limiting (skip some NPCs this tick to reduce CPU)
       if (shouldSkipThisTick(n, idx)) continue;
+
+      // Global cap: once we've let enough NPCs act this tick, stop processing.
+      if (activeSoFar >= maxActiveThisTick) break;
+      activeSoFar++;
 
       // Daily scheduling: reset stagger assignment at dawn, assign in morning if missing
       if (t && t.phase === "dawn") {

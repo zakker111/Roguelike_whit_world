@@ -372,7 +372,7 @@ function generate(ctx) {
   ctx.townProps = [];
   ctx.shops = [];
   ctx.townBuildings = [];
-  ctx.townPrefabUsage = { houses: [], shops: [], inns: [], plazas: [] };
+  ctx.townPrefabUsage = { houses: [], shops: [], inns: [], plazas: [], caravans: [] };
 
   // Derive and persist the town biome from the overworld around this town's location
   (function deriveTownBiome() {
@@ -1942,6 +1942,137 @@ function generate(ctx) {
       Roads.build(ctx);
     } catch (_) {}
   })();
+
+  // Open-air caravan stall near the plaza when a caravan is parked at this town.
+  (function placeCaravanStallIfCaravanPresent() {
+    try {
+      const world = ctx.world;
+      if (!world || !Array.isArray(world.caravans) || !world.caravans.length) return;
+
+      // Determine this town's world coordinates.
+      let townWX = null, townWY = null;
+      try {
+        if (info && typeof info.x === "number" && typeof info.y === "number") {
+          townWX = info.x | 0;
+          townWY = info.y | 0;
+        } else if (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number" && typeof ctx.worldReturnPos.y === "number") {
+          townWX = ctx.worldReturnPos.x | 0;
+          townWY = ctx.worldReturnPos.y | 0;
+        }
+      } catch (_) {}
+      if (townWX == null || townWY == null) return;
+
+      const caravans = world.caravans;
+      const parked = caravans.find(function (cv) {
+        return cv && cv.atTown && (cv.x | 0) === townWX && (cv.y | 0) === townWY;
+      });
+      if (!parked) return;
+
+      const GDp = getGameData(ctx);
+      const PFB = (GDp && GDp.prefabs) ? GDp.prefabs : null;
+      const caravanPrefabs = (PFB && Array.isArray(PFB.caravans)) ? PFB.caravans : null;
+      if (!caravanPrefabs || !caravanPrefabs.length) return;
+
+      // Use the first caravan prefab for now.
+      const pref = caravanPrefabs[0];
+      if (!pref || !pref.size || !Array.isArray(pref.tiles)) return;
+      const pw = pref.size.w | 0;
+      const ph = pref.size.h | 0;
+      if (pw <= 0 || ph <= 0) return;
+
+      // Need plaza rect to anchor around.
+      const pr = ctx.townPlazaRect;
+      if (!pr || typeof pr.x0 !== "number" || typeof pr.y0 !== "number" || typeof pr.x1 !== "number" || typeof pr.y1 !== "number") return;
+      const px0 = pr.x0, px1 = pr.x1, py0 = pr.y0, py1 = pr.y1;
+      const plazaCX = ctx.townPlaza ? ctx.townPlaza.x : (((px0 + px1) / 2) | 0);
+      const plazaCY = ctx.townPlaza ? ctx.townPlaza.y : (((py0 + py1) / 2) | 0);
+
+      // Candidate top-left anchors just outside each side of plaza.
+      const anchors = [];
+      // Below plaza
+      anchors.push({
+        x: Math.max(1, Math.min(W - pw - 2, (plazaCX - ((pw / 2) | 0)))),
+        y: Math.min(H - ph - 2, py1 + 2)
+      });
+      // Above plaza
+      anchors.push({
+        x: Math.max(1, Math.min(W - pw - 2, (plazaCX - ((pw / 2) | 0)))),
+        y: Math.max(1, py0 - ph - 2)
+      });
+      // Left of plaza
+      anchors.push({
+        x: Math.max(1, px0 - pw - 2),
+        y: Math.max(1, Math.min(H - ph - 2, (plazaCY - ((ph / 2) | 0))))
+      });
+      // Right of plaza
+      anchors.push({
+        x: Math.min(W - pw - 2, px1 + 2),
+        y: Math.max(1, Math.min(H - ph - 2, (plazaCY - ((ph / 2) | 0))))
+      });
+
+      let rect = null;
+      for (let i = 0; i < anchors.length; i++) {
+        const a = anchors[i];
+        const res = Prefabs.stampPrefab(ctx, pref, a.x, a.y, null);
+        if (res && res.ok && res.rect) {
+          rect = res.rect;
+          break;
+        }
+      }
+      if (!rect) return;
+
+      // Upgrade any sign inside the caravan prefab area to say "Caravan".
+      try {
+        if (Array.isArray(ctx.townProps) && ctx.townProps.length) {
+          const x0 = rect.x, y0 = rect.y, x1 = rect.x + rect.w - 1, y1 = rect.y + rect.h - 1;
+          for (let i = 0; i < ctx.townProps.length; i++) {
+            const p = ctx.townProps[i];
+            if (!p) continue;
+            if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && String(p.type || "").toLowerCase() === "sign") {
+              p.name = "Caravan";
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+
+      // Create a caravan shop at a reasonable tile inside the prefab.
+      // Prefer a stall prop tile inside the rect; otherwise center of rect.
+      let stallX = null, stallY = null;
+      try {
+        if (Array.isArray(ctx.townProps) && ctx.townProps.length) {
+          const x0 = rect.x, y0 = rect.y, x1 = rect.x + rect.w - 1, y1 = rect.y + rect.h - 1;
+          for (let i = 0; i < ctx.townProps.length; i++) {
+            const p = ctx.townProps[i];
+            if (!p) continue;
+            if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && String(p.type || "").toLowerCase() === "stall") {
+              stallX = p.x;
+              stallY = p.y;
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+      const sx = (stallX != null ? stallX : (rect.x + ((rect.w / 2) | 0)));
+      const sy = (stallY != null ? stallY : (rect.y + ((rect.h / 2) | 0)));
+
+      // Shop entry: open-air caravan shop, always open while you are in town.
+      const shop = {
+        x: sx,
+        y: sy,
+        type: "caravan",
+        name: "Travelling Caravan",
+        openMin: 0,
+        closeMin: 0,
+        alwaysOpen: true,
+        signWanted: false,
+        building: null,
+        inside: { x: sx, y: sy }
+      };
+      ctx.shops.push(shop);
+    } catch (_) {}
+  })();
+
   function addProp(x, y, type, name) {
     if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
     if (ctx.map[y][x] !== ctx.TILES.FLOOR && ctx.map[y][x] !== ctx.TILES.ROAD) return false;

@@ -2,18 +2,42 @@ s
 # Game Version History
 Last updated: 2025-11-24 00:00 UTC
 
+v1.49.1 — Town caravan stalls via prefabs, GOD Prefabs check, and BUGS split
+- Town caravan presence
+  - Removed the direct \"spawn caravan merchant inside town on entry\" hook in core/modes/modes.js and the town-specific Caravan master escort dialog in core/town/runtime.js. This keeps town entry logic focused on TownRuntime/TownAI and avoids fragile one-off spawn paths.
+  - Town caravans are now purely prefab-driven:
+    - data/worldgen/prefabs.json gained a \"caravans\" category with caravan_stall_1 (open-air stall with cart, crates/barrels, sign).
+    - worldgen/prefabs.js treats category \"caravan\" as an open stall (no perimeter walls or auto-carved doors) and tracks usage via ctx.townPrefabUsage.caravans.
+    - worldgen/town_gen.js adds placeCaravanStallIfCaravanPresent(ctx) which:
+      - Checks world.caravans for a caravan with atTown=true at this settlement's world coordinates.
+      - Stamps caravan_stall_1 near the plaza on walkable FLOOR tiles.
+      - Records usage in ctx.townPrefabUsage.caravans.
+      - Creates a shop entry of type \"caravan\" at the stall location; the shop is alwaysOpen and signWanted=false so prefab props supply the signage.
+    - ai/town_ai.js spawnShopkeepers() recognises shops of type \"caravan\" and spawns a normal shopkeeper NPC named \"Caravan master\" at the stall, with caravan-specific flavor lines.
+  - Result: when a caravan is parked on a town/castle overworld tile, new generations of that town can show a prefab caravan stall plus a Caravan master shopkeeper near the plaza. The older ad‑hoc in-town spawn/escort job logic in modes/town runtime remains removed.
+
+- GOD \"Check Prefabs\" wiring and caravans category
+  - core/god/handlers.js gained onGodCheckPrefabs, wired from ui/components/god_panel.js and ui/ui.js, so the \"Check Prefabs\" button in the GOD panel now:
+    - Works in town mode and writes to both the GOD output area and the log.
+    - Reports, per category, how many prefabs are loaded vs used in the current town and lists their IDs.
+  - Diagnostics cover five categories: houses, shops, inns, plazas, caravans.
+  - Town generation populates ctx.townPrefabUsage = { houses: [], shops: [], inns: [], plazas: [], caravans: [] }; prefab stamping (including caravan stalls) pushes prefab ids into the appropriate arrays so \"used\" counts reflect actual usage in this town.
+  - Interpretation notes:
+    - loaded > 0 and used = 0 for a category means the prefabs exist in the registry but none of them were used when this town was generated (for example: older saved towns built before prefab-based generation for that category, or no parked caravan for the caravans category).
+
+- BUGS list split into BUGS.md
+  - Created a top-level BUGS.md file and moved the BUGS section out of VERSIONS.md so the changelog remains focused on features/changes/fixes.
+  - BUGS.md is now the single living list of open issues, including inn/upstairs sleeping behavior, extra interior props/signs in walls, smoketest runner quirks, Region Map wildlife spawning/decals, minimap behavior, dungeon carry-over props, and caravan presence in towns.
+
 v1.49.0 — Travelling caravans, caravan ambushes, and escort jobs
 - Overworld caravans
   - Overworld tick and world runtime maintain a world.caravans array of travelling caravans moving between towns and castles.
   - Caravans spawn over time as towns are discovered; initial caravans are also created at world generation based on town count.
   - Caravans travel tile-by-tile along mostly short routes to the nearest town, with some longer “long-haul” routes between distant towns.
   - On the overworld, caravans render as warm-orange "c" glyphs; glyphs are hidden when a caravan is parked on a town/castle tile or flagged as atTown.
-- Town caravan masters
-  - On entering a town or castle, Modes.spawnCaravanMerchantIfPresent(ctx, worldX, worldY) clears any prior caravan camp and checks world.caravans for a caravan at that settlement’s world coordinates.
-  - If a caravan is currently on that town tile, a Caravan master NPC (isCaravanMerchant, isShopkeeper) and a caravan shop (type "caravan", alwaysOpen) are spawned near the town plaza (or map center as fallback).
-  - A small caravan camp is created around the merchant: stall/cart, "Caravan" sign, and up to three crates/barrels props flagged isCaravanProp.
-  - When no caravan matches that town tile, any existing caravan camp is removed on entry so towns only show caravan camps while a caravan is actually present.
-  - Town entry logs an info-level line like "[Caravan] Town entry at X,Y: caravans=N, caravanOnTile=true|false" to aid debugging.
+- Town caravan masters (removed for now)
+  - Earlier iterations attempted to spawn a special Caravan master + camp inside towns whenever a caravan was parked on that town tile.
+  - That feature has been removed: caravans now only exist on the overworld and in caravan ambush/road encounters, not as special town-plaza merchants.
 - Caravan shops and inventory
   - Caravan shops use shop type "caravan" and integrate with ShopService.
   - When no JSON shop pool is defined for "caravan", ShopService.restockIfNeeded now creates a small fallback inventory so caravan masters always offer basic goods:
@@ -2308,26 +2332,5 @@ Things to chek
 - some files are realy big it would be fine to start cut em to portions if it makes sens
 - in smoketest runner remove nudge for dungeon entry town entry dungeon exit and town exit make it exact in tiles nudge only in npc interaction or enemy interaction
 
-BUGS
-- npc are not going in inns bed or upstairs of inn (investigate stairs congestion, upstairs routing, bed‑adjacent tile availability)
-- some times in towns some extra signs and fire places inside walls
-- some npc dont sleep in theid beds
-- some work needed for smoketestrunner
-- multirun in smoketest skips first multirun 
-- itseems eguibed items go to inventory when re going to dungeon/town <-very fy this
-- creatures don't spawn reliably in Region Map (wildlife) — verify GameData.animals loaded, spawn gating/probabilities, and per‑tile cleared state
--creatures spawn sometetimes too often atleast in fotest and same place when entering regional map they dont move but they do flee 
-- Vild seppo S does not have inventory in encounter
-- in dungeons when enemies fight each other they are logged(wich is good for now for debugging purpoces) but they give player xp when they kill each other
-- some bloodstanes seem to be generated from ruins/animal(creatures)/encounters in another regional map
-- in dungeons enemies seems to show behind walls(not line of sight)
-- in encounters ui says in left counter all creatures something it should not say anything in ruins or encounters
-- VERIFY this happens Dungeon markers color-coded by level on main map and minimap: green (1–2), amber (3), red (4–5). 
-- i dont see what killed enemy in ruins chek encounters too
-- there is something wierd when creature spawns same map in region_map and so one some blood stanes are followed by next region map from ruins or animals(creatures) creatures dont move in map when spawning them
-- minimap shows all chunks when going in ruins, dungeons, towns etc and re entering
-- minimap shows dungeons and towns
-- dungeons sometimes carry over some wierd stuff like camp fires and some other shit from encounters 
-- Make coherent way out like in ruins and region_map encounters there is only > and not clearly visible ab coherent
--caravan master does not seem to spawn in towns cities etc. when caravan enters it
+
 

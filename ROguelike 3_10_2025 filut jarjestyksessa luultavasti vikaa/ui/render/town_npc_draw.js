@@ -17,8 +17,8 @@ export function drawNPCs(ctx, view) {
       }
     }
 
-    const everSeen = !!(ctx.seen[n.y] && ctx.seen[n.y][n.x]);
-    if (!everSeen) continue;
+    // In town mode, draw NPCs whenever they are on screen; do not gate by fog-of-war.
+    // This keeps things simple and ensures special NPCs (like caravan masters) are always visible.
 
     const isVisible = !!(ctx.visible[n.y] && ctx.visible[n.y][n.x]);
 
