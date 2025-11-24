@@ -39,6 +39,7 @@ import '/dungeon/dungeon.js';
 
 // Services
 import '/services/time_service.js';
+import '/services/weather_service.js';
 import '/services/shop_service.js';
 import '/services/props_service.js';
 import '/services/encounter_service.js';

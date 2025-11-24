@@ -11,6 +11,7 @@ Key modules
 
 JSON registries (by folder)
 - data/world_assets.json — combined assets file (strict mode). Required for full visuals: tiles (structural/terrain) and props (furniture/decor).
+- config/ — game-level config (e.g., config.json, weather.json, encounter/seed defaults).
 - balance/, crafting/, encounters/, entities/, loot/, quests/, shops/, world/, worldgen/, i18n/ — domain registries consumed by entities/, services/, and worldgen/.
 
 Notes

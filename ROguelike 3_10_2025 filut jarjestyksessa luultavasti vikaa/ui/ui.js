@@ -310,9 +310,13 @@ export const UI = {
     if (typeof onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove = onGodArmEncounterNextMove;
   },
 
-  updateStats(player, floor, getAtk, getDef, time, perf) {
-    // Delegate HUD (HP/Floor/Time/Perf) to component
-    try { if (Hud && typeof Hud.update === "function") Hud.update(player, floor, time, perf, this.getPerfState()); } catch (_) {}
+  updateStats(player, floor, getAtk, getDef, time, perf, weather) {
+    // Delegate HUD (HP/Floor/Time/Perf/Weather) to component
+    try {
+      if (Hud && typeof Hud.update === "function") {
+        Hud.update(player, floor, time, perf, this.getPerfState(), weather);
+      }
+    } catch (_) {}
 
     // Inventory stats summary
     if (this.els.invStatsEl && typeof getAtk === "function" && typeof getDef === "function") {

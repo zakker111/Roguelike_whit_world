@@ -117,9 +117,36 @@ import {
   const MINUTES_PER_TURN = TS.MINUTES_PER_TURN;
   let turnCounter = 0;            // total turns elapsed since start
 
+  // Visual weather (non-gameplay), driven by services/weather_service.js
+  let weatherState = { type: "clear", turnsLeft: 0 };
+  let WeatherSvc = null;
+  let lastWeatherType = null;
+
+  function ensureWeatherService() {
+    try {
+      if (!WeatherSvc && typeof window !== "undefined" && window.WeatherService && typeof window.WeatherService.create === "function") {
+        WeatherSvc = window.WeatherService.create({});
+      }
+    } catch (_) {}
+  }
+
+  // Initialize once at boot if available; will be re-attempted lazily later if needed.
+  ensureWeatherService();
+
   // Compute in-game clock and phase from turnCounter (delegates to TimeService)
   function getClock() {
     return TS.getClock(turnCounter);
+  }
+
+  function getWeatherSnapshot(time) {
+    try {
+      ensureWeatherService();
+      if (!WeatherSvc) return null;
+      const t = time || getClock();
+      return WeatherSvc.describe(weatherState, t);
+    } catch (_) {
+      return null;
+    }
   }
 
   
@@ -223,6 +250,7 @@ import {
       // persistence (in-memory)
       _dungeonStates: dungeonStates,
       time: getClock(),
+      weather: getWeatherSnapshot(),
       // Perf stats for HUD overlay (smoothed via EMA when available)
       getPerfStats: () => perfGetPerfStats(),
       requestDraw,
@@ -766,7 +794,28 @@ import {
     return TS.minutesUntil(turnCounter, hourTarget, minuteTarget);
   }
   function advanceTimeMinutes(mins) {
-    turnCounter = TS.advanceMinutes(turnCounter, mins);
+    const total = Math.max(0, (Number(mins) || 0) | 0);
+    if (total <= 0) return;
+    const turns = Math.max(1, Math.ceil(total / MINUTES_PER_TURN));
+    for (let i = 0; i < turns; i++) {
+      // Advance global time
+      turnCounter = TS.tick(turnCounter);
+      // Advance visual weather state in lockstep with time
+      try {
+        ensureWeatherService();
+        if (WeatherSvc) {
+          const timeNow = getClock();
+          const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
+          weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
+          const snap = WeatherSvc.describe(weatherState, timeNow);
+          const curType = snap && snap.type ? String(snap.type) : null;
+          if (curType && curType !== lastWeatherType) {
+            lastWeatherType = curType;
+            try { log(`Weather now: ${snap.label || curType}.`, "notice"); } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    }
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
@@ -1614,6 +1663,22 @@ import {
     // Advance global time (centralized via TimeService)
     turnCounter = TS.tick(turnCounter);
 
+    // Advance visual weather state (non-gameplay)
+    try {
+      ensureWeatherService();
+      if (WeatherSvc) {
+        const timeNow = getClock();
+        const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
+        weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
+        const snap = WeatherSvc.describe(weatherState, timeNow);
+        const curType = snap && snap.type ? String(snap.type) : null;
+        if (curType && curType !== lastWeatherType) {
+          lastWeatherType = curType;
+          try { log(`Weather now: ${snap.label || curType}.`, "notice"); } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
     // Prefer centralized TurnLoop when available
     try {
       const TL = modHandle("TurnLoop");
@@ -1879,6 +1944,7 @@ import {
           isShopOpenNow: (shop) => isShopOpenNow(shop),
           shopScheduleStr: (shop) => shopScheduleStr(shop),
           advanceTimeMinutes: (mins) => advanceTimeMinutes(mins),
+          getWeather: () => getWeatherSnapshot(),
           // Mode transitions
           returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
           returnToWorldFromTown: () => returnToWorldFromTown(),

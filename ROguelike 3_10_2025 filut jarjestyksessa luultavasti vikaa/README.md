@@ -32,6 +32,10 @@ Overworld and exploration (infinite world)
   - Caravans spawn over time and move between towns and castles, shown as small orange "c" markers on the overworld.
   - When a caravan moves onto a town/castle tile its marker disappears; entering that settlement while a caravan is present spawns a Caravan master merchant and caravan camp inside the town.
   - Caravans dwell in towns for a few in‑game days before resuming travel to another settlement.
+- Time-of-day and visual weather:
+  - Global day/night cycle shared across all modes; HUD shows hh:mm and phase (dawn/day/dusk/night).
+  - Visual-only weather state (clear, cloudy, foggy, light rain, heavy rain) driven by services/weather_service.js and data/config/weather.json.
+  - Weather overlays (fog, rain streaks, cloudy tint) render in overworld, towns, and Region Map; individual weather phases last ~45–120 turns (~3–8 in‑game hours).
 - Biome variety includes a snowy forest variant (SNOW_FOREST) on top of plains/forest/desert/snow; snow forests share snow behavior but have their own tint in overworld/region/town views.
 - Dungeon markers:
   - Color-coded by dungeon level on the main map and minimap:

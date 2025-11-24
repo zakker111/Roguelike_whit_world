@@ -50,7 +50,13 @@ const DATA_FILES = {
   animals: "data/entities/animals.json",
   
   // New: prefab registry for town buildings (houses/shops/inns)
-  prefabs: "data/worldgen/prefabs.json"
+  prefabs: "data/worldgen/prefabs.json",
+
+  // Overworld generation config (densities, size weights, etc.)
+  overworldGen: "data/worldgen/overworld.json",
+
+  // Visual weather configuration (non-gameplay)
+  weatherConfig: "data/config/weather.json"
 };
 
 function fetchJson(url) {
@@ -234,7 +240,8 @@ GameData.ready = (async function loadAll() {
       items, enemies, npcs, consumables, tools,
       materials, craftingRecipes, materialPools, foragingPools,
       town, flavor, encounters, quests, config, palette, palettesManifest, messages,
-      shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs
+      shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs,
+      overworldGen, weatherConfig
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -263,7 +270,8 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.progression).catch(() => null),
       fetchJson(DATA_FILES.animals).catch(() => null),
       
-      fetchJson(DATA_FILES.prefabs).catch(() => null)
+      fetchJson(DATA_FILES.prefabs).catch(() => null),
+      fetchJson(DATA_FILES.overworldGen).catch(() => null)
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -306,6 +314,12 @@ GameData.ready = (async function loadAll() {
 
     // Prefabs registry grouped by category
     GameData.prefabs = (prefabs && typeof prefabs === "object") ? prefabs : null;
+
+    // Overworld generation config
+    GameData.worldgenOverworld = (overworldGen && typeof overworldGen === "object") ? overworldGen : null;
+
+    // Visual weather configuration
+    GameData.weatherConfig = (weatherConfig && typeof weatherConfig === "object") ? weatherConfig : null;
 
     // Strict: require combined assets file (tiles + props)
     try {

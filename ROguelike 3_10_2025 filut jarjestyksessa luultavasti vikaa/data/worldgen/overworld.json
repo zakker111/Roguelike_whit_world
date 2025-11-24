@@ -1,0 +1,66 @@
+{
+  "jcdocs": {
+    "title": "Overworld generation config",
+    "schemaVersion": 1,
+    "usage": [
+      "This file controls high-level density and sizing for the overworld map.",
+      "Tuning these values changes how many towns, dungeons, and ruins are generated without touching code.",
+      "All values are soft hints; world.js still applies randomness and safety clamping."
+    ]
+  },
+
+  "size": {
+    "defaultWidth": 120,
+    "defaultHeight": 80,
+    "minWidth": 48,
+    "maxWidth": 512,
+    "minHeight": 48,
+    "maxHeight": 512
+  },
+
+  "scatter": {
+    "baseBlobDensity": 0.0022222,
+    "water": {
+      "minCount": 3,
+      "countPerTile": 0.0022222,
+      "radius": 6
+    },
+    "forest": {
+      "minCount": 4,
+      "countPerTile": 0.0044444,
+      "radius": 5
+    },
+    "mountain": {
+      "minCount": 3,
+      "countPerTile": 0.0022222,
+      "radius": 4
+    }
+  },
+
+  "rivers": {
+    "minCount": 2,
+    "maxCount": 4
+  },
+
+  "towns": {
+    "minCount": 14,
+    "perTile": 0.0014286,
+    "jitterFraction": 0.4
+  },
+  "dungeons": {
+    "minCount": 22,
+    "perTile": 0.002,
+    "jitterFraction": 0.5
+  },
+  "ruins": {
+    "minCount": 18,
+    "perTile": 0.0016667,
+    "jitterFraction": 0.5
+  },
+
+  "townSizeWeights": {
+    "small": 0.6,
+    "big": 0.3,
+    "city": 0.1
+  }
+}

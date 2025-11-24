@@ -13,6 +13,8 @@ import * as RenderCore from "./render_core.js";
 import { getTileDef, getTileDefByKey } from "../data/tile_lookup.js";
 import { attachGlobal } from "../utils/global.js";
 import { propColor as _propColor } from "./prop_palette.js";
+// Reuse overworld weather overlays (fog/rain/cloudy) for towns (outdoors) as well.
+import { drawWeather } from "./render/overworld_weather.js";
 
 // Modularized helpers
 import { drawTownBase } from "./render/town_base_layer.js";
@@ -220,6 +222,9 @@ export function draw(ctx, view) {
       ctx2d.restore();
     }
   }
+
+  // Weather overlays (fog/rain/cloudy) on top of town + player, before global tints
+  try { drawWeather(ctx, view); } catch (_) {}
 
   // Day/night tint
   try { drawTownDayNightTint(ctx, view); } catch (_) {}

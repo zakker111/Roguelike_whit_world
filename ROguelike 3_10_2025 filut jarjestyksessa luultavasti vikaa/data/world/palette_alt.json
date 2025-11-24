@@ -79,7 +79,11 @@
     "debugOverlayStroke": "rgba(139,92,246,0.90)",
     "debugLabelBg": "rgba(13,16,24,0.65)",
     "debugLabelStroke": "rgba(139,92,246,0.85)",
-    "debugLabelText": "#ffd166"
+    "debugLabelText": "#ffd166",
+
+    "weatherFog": "rgba(129,140,248,0.40)",
+    "weatherRainLight": "rgba(129,140,248,0.45)",
+    "weatherRainHeavy": "rgba(30,64,175,0.70)"
   },
   "encounterBiome": {
     "FOREST": "#143520",

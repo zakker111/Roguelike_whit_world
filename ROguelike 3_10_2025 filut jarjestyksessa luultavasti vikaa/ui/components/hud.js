@@ -9,6 +9,7 @@ let _hpEl = null;
 let _floorEl = null;
 let _lastHpText = "";
 let _lastFloorText = "";
+let _lastHudWeatherLabel = "";
 
 function byId(id) {
   try { return document.getElementById(id); } catch (_) { return null; }
@@ -19,7 +20,7 @@ export function init() {
   _floorEl = byId("floor");
 }
 
-export function update(player, floor, time, perf, perfOn) {
+export function update(player, floor, time, perf, perfOn, weather) {
   const hpEl = _hpEl || byId("health");
   const floorEl = _floorEl || byId("floor");
 
@@ -31,20 +32,78 @@ export function update(player, floor, time, perf, perfOn) {
       if (player.bleedTurns && player.bleedTurns > 0) statuses.push(`Bleeding (${player.bleedTurns})`);
       if (player.dazedTurns && player.dazedTurns > 0) statuses.push(`Dazed (${player.dazedTurns})`);
     } catch (_) {}
-    parts.push(`  Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`);
-    const hpStr = parts.join("");
+    const statusText = `Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`;
+    const hpStr = `${parts[0]}  ${statusText}`;
     if (hpStr !== _lastHpText) {
       hpEl.textContent = hpStr;
       _lastHpText = hpStr;
     }
   }
 
-  // Floor + level + XP + time + perf
+  // Floor + level + XP + time + perf (+ weather in time parentheses)
   if (floorEl && player) {
-    const t = time || {};
-    const hhmm = t.hhmm || "";
-    const phase = t.phase ? t.phase : "";
-    const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
+    // Always recompute time from GameAPI so HUD reflects the latest turn,
+    // even if the passed-in time object is stale.
+    let hhmm = "";
+    let phase = "";
+    try {
+      const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
+      if (GAPI && typeof GAPI.getClock === "function") {
+        const t2 = GAPI.getClock();
+        if (t2 && typeof t2 === "object") {
+          hhmm = t2.hhmm || "";
+          phase = t2.phase ? String(t2.phase) : "";
+        }
+      }
+    } catch (_) {}
+
+    // Fallback to provided time if GameAPI clock is unavailable
+    if (!hhmm || !phase) {
+      const t = time || {};
+      if (!hhmm) hhmm = t.hhmm || "";
+      if (!phase && t.phase) phase = t.phase;
+    }
+
+    let phaseWeatherPart = "";
+    try {
+      // Prefer explicit weather passed from ctx; fall back to GameAPI when unavailable.
+      let label = "";
+      if (weather && typeof weather === "object") {
+        label = weather.label ? String(weather.label) : "";
+        if (!label && weather.type) label = String(weather.type);
+      }
+      if (!label) {
+        const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
+        const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
+        label = w && w.label ? String(w.label) : "";
+      }
+      if (!label) label = "clear";
+
+      if (label !== _lastHudWeatherLabel) {
+        _lastHudWeatherLabel = label;
+        try {
+          if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+            window.Logger.log(`[HUD] Weather label now: ${label}`, "notice");
+          }
+        } catch (_) {}
+      }
+
+      if (phase && label) {
+        phaseWeatherPart = ` (${phase}: ${label})`;
+      } else if (phase) {
+        phaseWeatherPart = ` (${phase})`;
+      } else if (label) {
+        phaseWeatherPart = ` (${label})`;
+      }
+    } catch (_) {
+      if (phase) {
+        phaseWeatherPart = ` (${phase}: clear)`;
+      } else {
+        phaseWeatherPart = ` (clear)`;
+      }
+    }
+
+    const timeStr = hhmm ? `  Time: ${hhmm}${phaseWeatherPart}` : "";
     let turnStr = "";
     try {
       if (perf && typeof perf.lastTurnMs === "number") {
