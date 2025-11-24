@@ -514,27 +514,25 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       baseY = (rows >> 1);
     }
 
-    // Find a free tile near the base position (plaza), within a modest radius.
-    let spot = null;
-    const radius = 6;
-    for (let r = 0; r <= radius && !spot; r++) {
-      const minX = Math.max(1, baseX - r);
-      const maxX = Math.min(cols - 2, baseX + r);
-      const minY = Math.max(1, baseY - r);
-      const maxY = Math.min(rows - 2, baseY + r);
-      for (let y = minY; y <= maxY && !spot; y++) {
-        for (let x = minX; x <= maxX && !spot; x++) {
-          if (isFree(x, y)) {
-            spot = { x, y };
-            break;
-          }
-        }
-      }
-    }
+    // Simple placement: prefer the plaza tile, then a small ring of nearby tiles.
+    // This avoids wide scanning and keeps the caravan camp clearly near the plaza.
+    const candidates = [
+      { dx: 0, dy: 0 },   // plaza center
+      { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
+      { dx: 1, dy: 1 }, { dx: -1, dy: 1 },
+      { dx: 1, dy: -1 }, { dx: -1, dy: -1 }
+    ];
 
-    // As a very last resort, try the plaza tile itself.
-    if (!spot && isFree(baseX, baseY)) {
-      spot = { x: baseX, y: baseY };
+    let spot = null;
+    for (const c of candidates) {
+      const x = baseX + c.dx;
+      const y = baseY + c.dy;
+      if (!inBounds(ctx, x, y)) continue;
+      if (isFree(x, y)) {
+        spot = { x, y };
+        break;
+      }
     }
 
     if (!spot) return;
