@@ -88,7 +88,9 @@ export function getRenderCtx(ctx) {
     encounterBiome: ctx.encounterBiome,
     dungeonProps: ctx.dungeonProps,
     enemyColor: enemyColorFn,
+    // Time + weather snapshots come from core/game.js (ctx.time / ctx.weather)
     time: ctx.time,
+    weather: ctx.weather,
     // onDrawMeasured to be set by orchestrator (game.js) for PERF capture
     onDrawMeasured: null
   };
