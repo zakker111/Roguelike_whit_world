@@ -463,11 +463,18 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
       (cv.y | 0) === wy
     );
 
-    // Debug: log basic caravan presence info for this town tile.
+    // Debug: log basic caravan presence info for this town tile, and why we might not spawn.
     try {
       if (ctx.log) {
+        const parkedStr = parked
+          ? `id=${parked.id}, atTown=${!!parked.atTown}, pos=(${parked.x|0},${parked.y|0})`
+          : "none";
+        const sample = caravans.slice(0, 4).map(cv => {
+          if (!cv) return "null";
+          return `id=${cv.id}, atTown=${!!cv.atTown}, pos=(${cv.x|0},${cv.y|0}), dest=${cv.dest ? (cv.dest.x|0)+","+(cv.dest.y|0) : "none"}`;
+        }).join(" | ");
         ctx.log(
-          `[Caravan] Town entry at ${wx},${wy}: caravans=${caravans.length}, caravanOnTile=${!!parked}`,
+          `[Caravan] Town entry at ${wx},${wy}: caravans=${caravans.length}, parkedHere=${!!parked} (${parkedStr}); sample=${sample}`,
           "info"
         );
       }
