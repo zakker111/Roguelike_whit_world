@@ -23,7 +23,7 @@ export function update(player, floor, time, perf, perfOn) {
   const hpEl = _hpEl || byId("health");
   const floorEl = _floorEl || byId("floor");
 
-  // HP + statuses + weather
+  // HP + statuses
   if (hpEl && player) {
     const parts = [`HP: ${Number(player.hp || 0).toFixed(1)}/${Number(player.maxHp || 0).toFixed(1)}`];
     const statuses = [];
@@ -32,35 +32,41 @@ export function update(player, floor, time, perf, perfOn) {
       if (player.dazedTurns && player.dazedTurns > 0) statuses.push(`Dazed (${player.dazedTurns})`);
     } catch (_) {}
     const statusText = `Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`;
-
-    let weatherText = "";
-    try {
-      const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
-      const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
-      let label = w && w.label ? String(w.label) : "";
-      // Always show some weather text; default to a pleasant \"Sunny\" label if none provided.
-      if (!label) {
-        label = "Sunny";
-      }
-      weatherText = `  Weather: ${label}`;
-    } catch (_) {
-      // On error, still show a default so HUD layout is stable.
-      weatherText = "  Weather: Sunny";
-    }
-
-    const hpStr = `${parts[0]}  ${statusText}${weatherText}`;
+    const hpStr = `${parts[0]}  ${statusText}`;
     if (hpStr !== _lastHpText) {
       hpEl.textContent = hpStr;
       _lastHpText = hpStr;
     }
   }
 
-  // Floor + level + XP + time + perf
+  // Floor + level + XP + time + perf (+ weather in time parentheses)
   if (floorEl && player) {
     const t = time || {};
     const hhmm = t.hhmm || "";
     const phase = t.phase ? t.phase : "";
-    const timeStr = hhmm ? `  Time: ${hhmm}${phase ? ` (${phase})` : ""}` : "";
+
+    let phaseWeatherPart = "";
+    try {
+      const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
+      const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
+      let label = w && w.label ? String(w.label) : "";
+      if (!label) label = "clear";
+      if (phase && label) {
+        phaseWeatherPart = ` (${phase}: ${label})`;
+      } else if (phase) {
+        phaseWeatherPart = ` (${phase})`;
+      } else if (label) {
+        phaseWeatherPart = ` (${label})`;
+      }
+    } catch (_) {
+      if (phase) {
+        phaseWeatherPart = ` (${phase}: clear)`;
+      } else {
+        phaseWeatherPart = ` (clear)`;
+      }
+    }
+
+    const timeStr = hhmm ? `  Time: ${hhmm}${phaseWeatherPart}` : "";
     let turnStr = "";
     try {
       if (perf && typeof perf.lastTurnMs === "number") {
@@ -78,6 +84,7 @@ export function update(player, floor, time, perf, perfOn) {
       floorEl.textContent = floorStr;
       _lastFloorText = floorStr;
     }
+  }
   }
 }
 
