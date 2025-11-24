@@ -38,6 +38,17 @@ import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/vis
 import { log as logFacade } from "./facades/log.js";
 import { getRng as rngGetRng, int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
 import {
+  getPlayerAttack as combatGetPlayerAttack,
+  getPlayerDefense as combatGetPlayerDefense,
+  rollHitLocation as combatRollHitLocation,
+  critMultiplier as combatCritMultiplier,
+  getEnemyBlockChance as combatGetEnemyBlockChance,
+  getPlayerBlockChance as combatGetPlayerBlockChance,
+  enemyDamageAfterDefense as combatEnemyDamageAfterDefense,
+  enemyDamageMultiplier as combatEnemyDamageMultiplier,
+  enemyThreatLabel as combatEnemyThreatLabel
+} from "./facades/combat.js";
+import {
   renderInventoryPanel as renderInventoryPanelFacade,
   showInventoryPanel as showInventoryPanelFacade,
   hideInventoryPanel as hideInventoryPanelFacade,
@@ -406,48 +417,12 @@ import {
 
   
   function getPlayerAttack() {
-    // Phase 1: centralize via Stats (which prefers Player under the hood)
-    const S = modHandle("Stats");
-    if (S && typeof S.getPlayerAttack === "function") {
-      return S.getPlayerAttack(getCtx());
-    }
-    // Fallback: prefer Player module if Stats unavailable
-    const P = modHandle("Player");
-    if (P && typeof P.getAttack === "function") {
-      return P.getAttack(player);
-    }
-    // Last-resort minimal fallback
-    let bonus = 0;
-    const eq = player.equipment || {};
-    if (eq.left && typeof eq.left.atk === "number") bonus += eq.left.atk;
-    if (eq.right && typeof eq.right.atk === "number") bonus += eq.right.atk;
-    if (eq.hands && typeof eq.hands.atk === "number") bonus += eq.hands.atk;
-    const levelBonus = Math.floor((player.level - 1) / 2);
-    return round1(player.atk + bonus + levelBonus);
+    return combatGetPlayerAttack(getCtx());
   }
 
   
   function getPlayerDefense() {
-    // Phase 1: centralize via Stats (which prefers Player under the hood)
-    const S = modHandle("Stats");
-    if (S && typeof S.getPlayerDefense === "function") {
-      return S.getPlayerDefense(getCtx());
-    }
-    // Fallback: prefer Player module if Stats unavailable
-    const P = modHandle("Player");
-    if (P && typeof P.getDefense === "function") {
-      return P.getDefense(player);
-    }
-    // Last-resort minimal fallback
-    let def = 0;
-    const eq = player.equipment || {};
-    if (eq.left && typeof eq.left.def === "number") def += eq.left.def;
-    if (eq.right && typeof eq.right.def === "number") def += eq.right.def;
-    if (eq.head && typeof eq.head.def === "number") def += eq.head.def;
-    if (eq.torso && typeof eq.torso.def === "number") def += eq.torso.def;
-    if (eq.legs && typeof eq.legs.def === "number") def += eq.legs.def;
-    if (eq.hands && typeof eq.hands.def === "number") def += eq.hands.def;
-    return round1(def);
+    return combatGetPlayerDefense(getCtx());
   }
 
   function describeItem(item) {
@@ -467,97 +442,36 @@ import {
 
   
   function rollHitLocation() {
-    const C = modHandle("Combat");
-    if (C && typeof C.rollHitLocation === "function") {
-      return C.rollHitLocation(rng);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.rollHitLocation === "function") {
-      return FB.rollHitLocation(rng);
-    }
-    log("Combat system not available: using default hit location.", "warn");
-    return { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
+    return combatRollHitLocation(getCtx());
   }
 
   function critMultiplier() {
-    const C = modHandle("Combat");
-    if (C && typeof C.critMultiplier === "function") {
-      return C.critMultiplier(rng);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.critMultiplier === "function") {
-      return FB.critMultiplier(rng);
-    }
-    log("Combat system not available: using default crit multiplier.", "warn");
-    return 1.5;
+    return combatCritMultiplier(getCtx());
   }
 
   function getEnemyBlockChance(enemy, loc) {
-    const C = modHandle("Combat");
-    if (C && typeof C.getEnemyBlockChance === "function") {
-      return C.getEnemyBlockChance(getCtx(), enemy, loc);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.enemyBlockChance === "function") {
-      return FB.enemyBlockChance(getCtx(), enemy, loc);
-    }
-    log("Combat system not available: enemy block chance defaulting to 0.", "warn");
-    return 0;
+    return combatGetEnemyBlockChance(getCtx(), enemy, loc);
   }
 
   function getPlayerBlockChance(loc) {
-    const C = modHandle("Combat");
-    if (C && typeof C.getPlayerBlockChance === "function") {
-      return C.getPlayerBlockChance(getCtx(), loc);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.getPlayerBlockChance === "function") {
-      return FB.getPlayerBlockChance(getCtx(), loc);
-    }
-    log("Combat system not available: player block chance defaulting to 0.", "warn");
-    return 0;
+    return combatGetPlayerBlockChance(getCtx(), loc);
   }
 
   // Enemy damage after applying player's defense
   function enemyDamageAfterDefense(raw) {
-    const C = modHandle("Combat");
-    if (C && typeof C.enemyDamageAfterDefense === "function") {
-      return C.enemyDamageAfterDefense(getCtx(), raw);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.enemyDamageAfterDefense === "function") {
-      return FB.enemyDamageAfterDefense(getCtx(), raw);
-    }
-    log("Combat system not available: using raw damage.", "warn");
-    return raw;
+    return combatEnemyDamageAfterDefense(getCtx(), raw);
   }
 
   
   
 
   function enemyDamageMultiplier(level) {
-    const C = modHandle("Combat");
-    if (C && typeof C.enemyDamageMultiplier === "function") {
-      return C.enemyDamageMultiplier(level);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.enemyDamageMultiplier === "function") {
-      return FB.enemyDamageMultiplier(level);
-    }
-    return 1 + 0.15 * Math.max(0, (level || 1) - 1);
+    return combatEnemyDamageMultiplier(getCtx(), level);
   }
 
   // Classify enemy danger based on level difference vs player
   function enemyThreatLabel(enemy) {
-    const diff = (enemy.level || 1) - (player.level || 1);
-    let label = "moderate";
-    let tone = "info";
-    if (diff <= -2) { label = "weak"; tone = "good"; }
-    else if (diff === -1) { label = "weak"; tone = "good"; }
-    else if (diff === 0) { label = "moderate"; tone = "info"; }
-    else if (diff === 1) { label = "strong"; tone = "warn"; }
-    else if (diff >= 2) { label = "deadly"; tone = "warn"; }
-    return { label, tone, diff };
+    return combatEnemyThreatLabel(getCtx(), enemy);
   }
 
   
