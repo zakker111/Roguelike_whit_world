@@ -9,6 +9,7 @@ let _hpEl = null;
 let _floorEl = null;
 let _lastHpText = "";
 let _lastFloorText = "";
+let _lastHudWeatherLabel = "";
 
 function byId(id) {
   try { return document.getElementById(id); } catch (_) { return null; }
@@ -51,6 +52,17 @@ export function update(player, floor, time, perf, perfOn) {
       const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
       let label = w && w.label ? String(w.label) : "";
       if (!label) label = "clear";
+
+      // Debug: log when HUD sees a different weather label than last time.
+      if (label !== _lastHudWeatherLabel) {
+        _lastHudWeatherLabel = label;
+        try {
+          if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") {
+            window.Logger.log(`[HUD] Weather label now: ${label}`, "notice");
+          }
+        } catch (_) {}
+      }
+
       if (phase && label) {
         phaseWeatherPart = ` (${phase}: ${label})`;
       } else if (phase) {
