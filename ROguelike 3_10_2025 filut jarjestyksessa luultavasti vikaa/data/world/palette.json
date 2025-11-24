@@ -70,7 +70,11 @@
 
     "propGreen": "#65a30d",
     "propLamp": "#ffd166",
-    "propFire": "#ff6d00"
+    "propFire": "#ff6d00",
+
+    "weatherFog": "rgba(148,163,184,0.35)",
+    "weatherRainLight": "rgba(148,163,184,0.40)",
+    "weatherRainHeavy": "rgba(75,85,99,0.60)"
   },
   "encounterBiome": {
     "FOREST": "#163a22",

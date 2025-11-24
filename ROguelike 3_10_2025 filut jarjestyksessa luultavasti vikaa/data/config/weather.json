@@ -1,0 +1,51 @@
+{
+  "jcdocs": {
+    "title": "Weather configuration",
+    "schemaVersion": 1,
+    "usage": [
+      "Controls non-gameplay visual weather on the overworld (and optionally towns/regions).",
+      "Types are chosen based on time-of-day phase and weighted randomness.",
+      "You can safely tweak labels, baseWeight, phaseWeights, and durationTurns without changing code."
+    ]
+  },
+  "types": {
+    "clear": {
+      "label": "Clear",
+      "baseWeight": 5,
+      "intensity": 0.0
+    },
+    "cloudy": {
+      "label": "Cloudy",
+      "baseWeight": 3,
+      "intensity": 0.3
+    },
+    "foggy": {
+      "label": "Foggy",
+      "baseWeight": 1,
+      "intensity": 0.7
+    },
+    "light_rain": {
+      "label": "Light rain",
+      "baseWeight": 1,
+      "intensity": 0.5
+    },
+    "heavy_rain": {
+      "label": "Heavy rain",
+      "baseWeight": 0.3,
+      "intensity": 1.0
+    }
+  },
+  "phaseWeights": {
+    "night": {
+      "foggy": 1.5,
+      "heavy_rain": 0.7
+    },
+    "dawn": {
+      "foggy": 1.3
+    }
+  },
+  "durationTurns": {
+    "min": 40,
+    "max": 140
+  }
+}

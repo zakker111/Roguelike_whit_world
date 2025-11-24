@@ -32,6 +32,7 @@ import { drawBiomeClockLabel } from "./render/overworld_hud.js";
 import { drawMinimap } from "./render/overworld_minimap.js";
 import { drawPlayerMarker, drawPlayerTopOutline } from "./render/overworld_player.js";
 import { drawDayNightTint, drawVignette } from "./render/overworld_tints.js";
+import { drawWeather } from "./render/overworld_weather.js";
 
 // Color helpers moved to ./color_utils.js (imported above)
 
@@ -199,6 +200,9 @@ export function draw(ctx, view) {
 
   // Player marker
   try { drawPlayerMarker(ctx, view); } catch (_) {}
+
+  // Weather overlays (fog/rain) on top of world + player, before global tints
+  try { drawWeather(ctx, view); } catch (_) {}
 
   // Day/night tint
   try { drawDayNightTint(ctx, view); } catch (_) {}

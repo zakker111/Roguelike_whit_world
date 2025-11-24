@@ -117,9 +117,28 @@ import {
   const MINUTES_PER_TURN = TS.MINUTES_PER_TURN;
   let turnCounter = 0;            // total turns elapsed since start
 
+  // Visual weather (non-gameplay), driven by services/weather_service.js
+  let weatherState = { type: "clear", turnsLeft: 0 };
+  let WeatherSvc = null;
+  try {
+    if (typeof window !== "undefined" && window.WeatherService && typeof window.WeatherService.create === "function") {
+      WeatherSvc = window.WeatherService.create({});
+    }
+  } catch (_) {}
+
   // Compute in-game clock and phase from turnCounter (delegates to TimeService)
   function getClock() {
     return TS.getClock(turnCounter);
+  }
+
+  function getWeatherSnapshot(time) {
+    try {
+      if (!WeatherSvc) return null;
+      const t = time || getClock();
+      return WeatherSvc.describe(weatherState, t);
+    } catch (_) {
+      return null;
+    }
   }
 
   
@@ -223,6 +242,7 @@ import {
       // persistence (in-memory)
       _dungeonStates: dungeonStates,
       time: getClock(),
+      weather: getWeatherSnapshot(),
       // Perf stats for HUD overlay (smoothed via EMA when available)
       getPerfStats: () => perfGetPerfStats(),
       requestDraw,
@@ -1614,6 +1634,15 @@ import {
     // Advance global time (centralized via TimeService)
     turnCounter = TS.tick(turnCounter);
 
+    // Advance visual weather state (non-gameplay)
+    try {
+      if (WeatherSvc) {
+        const timeNow = getClock();
+        const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
+        weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
+      }
+    } catch (_) {}
+
     // Prefer centralized TurnLoop when available
     try {
       const TL = modHandle("TurnLoop");
@@ -1879,6 +1908,7 @@ import {
           isShopOpenNow: (shop) => isShopOpenNow(shop),
           shopScheduleStr: (shop) => shopScheduleStr(shop),
           advanceTimeMinutes: (mins) => advanceTimeMinutes(mins),
+          getWeather: () => getWeatherSnapshot(),
           // Mode transitions
           returnToWorldIfAtExit: () => returnToWorldIfAtExit(),
           returnToWorldFromTown: () => returnToWorldFromTown(),

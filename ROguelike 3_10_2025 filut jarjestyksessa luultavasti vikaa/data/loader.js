@@ -53,7 +53,10 @@ const DATA_FILES = {
   prefabs: "data/worldgen/prefabs.json",
 
   // Overworld generation config (densities, size weights, etc.)
-  overworldGen: "data/worldgen/overworld.json"
+  overworldGen: "data/worldgen/overworld.json",
+
+  // Visual weather configuration (non-gameplay)
+  weatherConfig: "data/config/weather.json"
 };
 
 function fetchJson(url) {
@@ -238,7 +241,7 @@ GameData.ready = (async function loadAll() {
       materials, craftingRecipes, materialPools, foragingPools,
       town, flavor, encounters, quests, config, palette, palettesManifest, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs,
-      overworldGen
+      overworldGen, weatherConfig
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -314,6 +317,9 @@ GameData.ready = (async function loadAll() {
 
     // Overworld generation config
     GameData.worldgenOverworld = (overworldGen && typeof overworldGen === "object") ? overworldGen : null;
+
+    // Visual weather configuration
+    GameData.weatherConfig = (weatherConfig && typeof weatherConfig === "object") ? weatherConfig : null;
 
     // Strict: require combined assets file (tiles + props)
     try {

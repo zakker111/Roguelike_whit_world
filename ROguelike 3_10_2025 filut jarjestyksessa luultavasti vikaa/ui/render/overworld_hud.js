@@ -16,8 +16,15 @@ export function drawBiomeClockLabel(ctx, view) {
     } catch (_) {}
     const time = ctx.time || null;
     const clock = time ? time.hhmm : null;
+    const weather = ctx.weather || null;
+    const weatherLabel = weather && weather.label ? String(weather.label) : null;
 
-    const text = `Biome: ${biomeName}${clock ? "   |   Time: " + clock : ""}`;
+    const parts = [];
+    parts.push(`Biome: ${biomeName}`);
+    if (clock) parts.push(`Time: ${clock}`);
+    if (weatherLabel) parts.push(`Weather: ${weatherLabel}`);
+
+    const text = parts.join("   |   ");
     labelWidth = Math.max(260, 16 * (text.length / 2));
     const bx = 8, by = 8, bh = 26, bw = labelWidth;
     ctx2d.save();
