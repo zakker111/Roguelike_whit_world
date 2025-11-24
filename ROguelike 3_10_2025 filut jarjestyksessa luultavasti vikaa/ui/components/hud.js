@@ -20,7 +20,7 @@ export function init() {
   _floorEl = byId("floor");
 }
 
-export function update(player, floor, time, perf, perfOn) {
+export function update(player, floor, time, perf, perfOn, weather) {
   const hpEl = _hpEl || byId("health");
   const floorEl = _floorEl || byId("floor");
 
@@ -66,9 +66,17 @@ export function update(player, floor, time, perf, perfOn) {
 
     let phaseWeatherPart = "";
     try {
-      const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
-      const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
-      let label = w && w.label ? String(w.label) : "";
+      // Prefer explicit weather passed from ctx; fall back to GameAPI when unavailable.
+      let label = "";
+      if (weather && typeof weather === "object") {
+        label = weather.label ? String(weather.label) : "";
+        if (!label && weather.type) label = String(weather.type);
+      }
+      if (!label) {
+        const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
+        const w = GAPI && typeof GAPI.getWeather === "function" ? GAPI.getWeather() : null;
+        label = w && w.label ? String(w.label) : "";
+      }
       if (!label) label = "clear";
 
       if (label !== _lastHudWeatherLabel) {

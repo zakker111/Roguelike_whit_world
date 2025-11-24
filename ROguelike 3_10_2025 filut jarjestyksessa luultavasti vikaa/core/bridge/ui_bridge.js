@@ -55,8 +55,9 @@ export function updateStats(ctx) {
     catch (_) { return 0; }
   };
   const perf = (typeof ctx.getPerfStats === "function") ? ctx.getPerfStats() : null;
+  const weather = (ctx && ctx.weather) ? ctx.weather : null;
   try {
-    window.UI.updateStats(ctx.player, ctx.floor, atk, def, ctx.time, perf);
+    window.UI.updateStats(ctx.player, ctx.floor, atk, def, ctx.time, perf, weather);
   } catch (_) {}
 }
 
