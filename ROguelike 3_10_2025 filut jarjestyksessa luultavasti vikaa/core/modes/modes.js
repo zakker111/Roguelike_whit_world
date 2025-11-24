@@ -571,12 +571,20 @@ function spawnCaravanMerchantIfPresent(ctx, worldX, worldY) {
     npcs.push(npc);
     shops.push(shop);
 
+    // Ensure the caravan camp tile is considered seen so the Caravan master glyph is visible
+    // even if the plaza area was not yet in FOV when entering town.
+    try {
+      if (Array.isArray(ctx.seen) && ctx.seen[spot.y] && typeof ctx.seen[spot.y][spot.x] !== "undefined") {
+        ctx.seen[spot.y][spot.x] = true;
+      }
+    } catch (_) {}
+
     // Debug: log spawn position for caravan master inside town.
     try {
       if (ctx.log) {
         ctx.log(
           `[Caravan] Spawned Caravan master at town tile (${spot.x},${spot.y}) in local town coords.`,
-          "info"
+          "notice"
         );
       }
     } catch (_) {}
