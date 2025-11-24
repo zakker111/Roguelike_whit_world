@@ -44,6 +44,15 @@ export function drawNPCs(ctx, view) {
     } else if (n.isSeppo || n.seppo) {
       glyph = "S";
       color = "#f6c177";
+    } else if (n.isCaravanMerchant) {
+      // Caravan master in towns: distinct glyph/color from generic shopkeepers.
+      glyph = "S";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        color = pal && pal.poiCaravan ? pal.poiCaravan : "#fb923c"; // warm orange
+      } catch (_) {
+        color = "#fb923c";
+      }
     } else if (n.isGuard) {
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
