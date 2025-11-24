@@ -34,6 +34,37 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   const rows = ctx.map.length, cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
   if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return false;
 
+  // Convert target to absolute world coordinates
+  const ox = (ctx.world.originX | 0) || 0;
+  const oy = (ctx.world.originY | 0) || 0;
+  const wx = ox + (nx | 0);
+  const wy = oy + (ny | 0);
+
+  // If the target tile has a travelling caravan (not one parked in a town), block movement
+  // and offer an ambush/encounter option. Caravans that are currently atTown are considered
+  // \"inside\" the settlement and should not block or prompt on the overworld tile.
+  try {
+    const caravans = Array.isArray(ctx.world.caravans) ? ctx.world.caravans : [];
+    if (caravans.length) {
+      const cv = caravans.find(c => c && !c.atTown && (c.x | 0) === wx && (c.y | 0) === wy);
+      if (cv) {
+        const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+        const prompt = "Do you want to encounter this caravan?";
+        const onOk = () => { try { startCaravanAmbushEncounterWorld(ctx, cv); } catch (_) {} };
+        const onCancel = () => {
+          try { ctx.log && ctx.log("You decide to leave the caravan alone.", "info"); } catch (_) {}
+        };
+        if (UIO && typeof UIO.showConfirm === "function") {
+          UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+        } else {
+          onOk();
+        }
+        // Do not move onto the travelling caravan tile
+        return true;
+      }
+    }
+  } catch (_) {}
+
   let walkable = true;
   try {
     // Prefer World.isWalkable for compatibility with tiles.json overrides
@@ -93,4 +124,91 @@ export function tryMovePlayerWorld(ctx, dx, dy) {
   } catch (_) {}
   try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
   return true;
+}
+
+/**
+ * Start a special caravan ambush encounter when the player bumps into a caravan on the overworld.
+ */
+function startCaravanAmbushEncounterWorld(ctx, caravan) {
+  try {
+    // Close any confirm dialog before switching modes
+    try {
+      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(ctx);
+    } catch (_) {}
+
+    // Mark the caravan as ambushed so it no longer moves or spawns merchants.
+    try {
+      if (caravan) {
+        caravan.atTown = false;
+        caravan.dwellUntil = 0;
+        caravan.ambushed = true;
+      }
+    } catch (_) {}
+
+    // Link this encounter to an escortable caravan so the player can choose to travel with it afterwards.
+    try {
+      const world = ctx.world;
+      if (world && caravan && typeof caravan.id !== "undefined") {
+        world.caravanEscort = world.caravanEscort || { id: null, reward: 0, active: false };
+        world.caravanEscort.id = caravan.id;
+
+        // If no reward has been set yet for this escort, derive a simple gold reward
+        // from the remaining distance to the caravan's destination town.
+        if (!world.caravanEscort.reward || world.caravanEscort.reward <= 0) {
+          try {
+            const cx = caravan.x | 0;
+            const cy = caravan.y | 0;
+            const tx = (caravan.dest && typeof caravan.dest.x === "number") ? (caravan.dest.x | 0) : cx;
+            const ty = (caravan.dest && typeof caravan.dest.y === "number") ? (caravan.dest.y | 0) : cy;
+            const dx = tx - cx;
+            const dy = ty - cy;
+            const dist = Math.max(4, Math.abs(dx) + Math.abs(dy));
+            world.caravanEscort.reward = 10 + dist * 2;
+          } catch (_) {}
+        }
+        // Do not set active yet; the Caravan master dialog inside the encounter decides
+        // whether the player actually chooses to travel with this caravan.
+      }
+    } catch (_) {}
+
+    const template = {
+      id: "caravan_ambush",
+      name: "Caravan Ambush",
+      map: { w: 26, h: 16, generator: "caravan_road" },
+      groups: [
+        { faction: "guard", count: { min: 3, max: 4 }, type: "guard" },
+        { faction: "guard", count: { min: 2, max: 3 }, type: "guard_elite" }
+      ],
+      objective: { type: "reachExit" },
+      difficulty: 4
+    };
+
+    const biome = "GRASS";
+    let ok = false;
+
+    // Preferred path: GameAPI (same as EncounterService uses)
+    try {
+      const GA = ctx.GameAPI || getMod(ctx, "GameAPI");
+      if (GA && typeof GA.enterEncounter === "function") {
+        ok = !!GA.enterEncounter(template, biome, template.difficulty || 4);
+      }
+    } catch (_) {}
+
+    // Fallback: direct EncounterRuntime entry
+    if (!ok) {
+      try {
+        const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime");
+        if (ER && typeof ER.enter === "function") {
+          ok = !!ER.enter(ctx, { template, biome, difficulty: template.difficulty || 4 });
+        }
+      } catch (_) {}
+    }
+
+    if (!ok && ctx.log) {
+      ctx.log("Failed to start caravan ambush encounter.", "warn");
+    } else if (ok && ctx.log) {
+      ctx.log("You ambush the caravan on the road!", "notice");
+    }
+  } catch (_) {}
 }

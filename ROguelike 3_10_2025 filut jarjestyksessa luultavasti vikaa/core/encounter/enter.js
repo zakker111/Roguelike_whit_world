@@ -2,7 +2,7 @@
  * Encounter enter (Phase 4 extraction): switches to encounter mode and generates tactical map.
  */
 import { getMod } from "../../utils/access.js";
-import { genEmpty, genAmbushForest, genCamp, genRuins, genArena, genBattlefield } from "./generators.js";
+import { genEmpty, genAmbushForest, genCamp, genRuins, genArena, genBattlefield, genCaravanRoad } from "./generators.js";
 import { resetSessionFlags, setCurrentQuestInstanceId } from "./session_state.js";
 
 export function enter(ctx, info) {
@@ -63,6 +63,7 @@ export function enter(ctx, info) {
   else if (id === "ruins" || id === "ruin") map = genRuins(ctx, r, W, H, T);
   else if (id === "arena" || id === "cross") map = genArena(ctx, r, W, H, T);
   else if (id === "battlefield" || id === "open_field") map = genBattlefield(ctx, r, W, H, T);
+  else if (id === "caravan_road") map = genCaravanRoad(ctx, r, W, H, T, encProps);
   else map = genEmpty(ctx, W, H, T);
 
   ctx.map = map;
@@ -97,6 +98,43 @@ export function enter(ctx, info) {
       ctx.corpses.push({ kind: "chest", x: c.x, y: c.y, loot, looted: loot.length === 0 });
       chestSpots.add(keyFor(c.x, c.y));
     }
+
+    // Special-case: caravan ambush road may mark a caravan chest prop; convert it to a real chest with strong loot.
+    try {
+      const tplId = String(template.id || "").toLowerCase();
+      if (tplId === "caravan_ambush" && Array.isArray(ctx.encounterProps)) {
+        const centerX = (W / 2) | 0;
+        const centerY = (H / 2) | 0;
+        const caravChest = ctx.encounterProps.find(p =>
+          p &&
+          String(p.type || "").toLowerCase() === "caravan_chest" &&
+          Math.abs(p.x - centerX) <= 2 &&
+          Math.abs(p.y - centerY) <= 1
+        );
+        if (caravChest) {
+          const cx2 = caravChest.x | 0;
+          const cy2 = caravChest.y | 0;
+          if (cx2 > 0 && cy2 > 0 && cx2 < W - 1 && cy2 < H - 1 && map[cy2][cx2] !== T.WALL) {
+            // Generate caravan-themed loot; use higher XP budget so items are strong.
+            let loot2 = [];
+            if (L && typeof L.generate === "function") {
+              loot2 = L.generate(ctx, { type: "caravan", xp: 40 }) || [];
+            }
+            // Fallback to high-value bandit loot if caravan table missing/empty
+            if (!Array.isArray(loot2) || !loot2.length) {
+              loot2 = (L && typeof L.generate === "function") ? (L.generate(ctx, { type: "bandit", xp: 35 }) || []) : [];
+            }
+            // Always add a good pile of gold on top
+            try {
+              loot2 = Array.isArray(loot2) ? loot2.slice() : [];
+              loot2.push({ name: "caravan spoils", kind: "gold", amount: 80 });
+            } catch (_) {}
+            ctx.corpses.push({ kind: "chest", x: cx2, y: cy2, loot: loot2, looted: loot2.length === 0 });
+            chestSpots.add(keyFor(cx2, cy2));
+          }
+        }
+      }
+    } catch (_) {}
   } catch (_) {}
 
   // Add simple exit tiles near each edge so the player can always walk out.
@@ -256,16 +294,24 @@ export function enter(ctx, info) {
     return { x, y, type: "fallback_enemy", glyph: "?", hp: 3, atk: 1, xp: 5, level: depth, faction: "monster", announced: false };
   }
 
-  const depth = Math.max(1, (ctx.floor | 0) || 1);
+  let depth = Math.max(1, (ctx.floor | 0) || 1);
   const deriveFaction = (t) => {
     const s = String(t || "").toLowerCase();
     if (s.includes("bandit")) return "bandit";
     if (s.includes("orc")) return "orc";
+    if (s.includes("guard")) return "guard";
     return "monster";
   };
 
-  // Special-case formation: Guards vs Bandits skirmish in lines facing each other.
+  // Special-case tweaks for specific templates
   const tplId = String(template.id || "").toLowerCase();
+  if (tplId === "caravan_ambush") {
+    // Treat caravan ambush as a higher-depth encounter so guards are tougher.
+    depth = Math.max(depth, 5);
+    ctx.encounterDifficulty = Math.max(ctx.encounterDifficulty || 1, 5);
+  }
+
+  // Special-case formation: Guards vs Bandits skirmish in lines facing each other.
   let usedCustomSpawn = false;
   if (tplId === "guards_vs_bandits" && groups.length) {
     try {
@@ -415,6 +461,8 @@ export function enter(ctx, info) {
       if (x === ctx.player.x && y === ctx.player.y) return false;
       if (placements.some(p => p.x === x && p.y === y)) return false;
       if (chestSpots.has(keyFor(x, y))) return false;
+      // Do not spawn enemies on top of encounter props (e.g., caravan master merchant).
+      if (encProps.some(p => p && p.x === x && p.y === y)) return false;
       return map[y][x] === T.FLOOR;
     }
 
@@ -466,7 +514,42 @@ export function enter(ctx, info) {
       for (let i = 0; i < n && pIdx < placements.length; i++) {
         const p = placements[pIdx++];
         const type = (g && typeof g.type === "string" && g.type) ? g.type : null;
-        let e = type ? createDungeonEnemyAt(ctx, p.x, p.y, depth) : createDungeonEnemyAt(ctx, p.x, p.y, depth);
+
+        // For caravan ambush, enforce guard-only enemies: if type is missing or unknown, skip spawn.
+        const isCaravanAmbush = tplId === "caravan_ambush";
+        let e = null;
+
+        // Prefer explicit enemy type from template groups (guards, bandits, etc.).
+        if (type) {
+          try {
+            const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
+            if (EM && typeof EM.getTypeDef === "function") {
+              const td = EM.getTypeDef(type);
+              if (td) {
+                const lvl = (EM.levelFor && typeof EM.levelFor === "function") ? EM.levelFor(type, depth, ctx.rng) : depth;
+                e = {
+                  x: p.x,
+                  y: p.y,
+                  type,
+                  glyph: (td.glyph && td.glyph.length) ? td.glyph : ((type && type.length) ? type.charAt(0) : "?"),
+                  hp: td.hp(depth),
+                  atk: td.atk(depth),
+                  xp: td.xp(depth),
+                  level: lvl,
+                  announced: false
+                };
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (!e) {
+          if (isCaravanAmbush) {
+            // In caravan ambush, never fall back to random enemy types; skip this slot.
+            continue;
+          }
+          e = createDungeonEnemyAt(ctx, p.x, p.y, depth);
+        }
         if (!e) continue;
         try {
           const d = Math.max(1, Math.min(5, ctx.encounterDifficulty || 1));

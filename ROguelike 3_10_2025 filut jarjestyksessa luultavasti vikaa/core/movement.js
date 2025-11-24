@@ -179,6 +179,77 @@ export function tryMove(ctx, dx, dy) {
     const nx = ctx.player.x + dx;
     const ny = ctx.player.y + dy;
 
+    // If bumping into the caravan master (caravan merchant prop), open the escort dialog instead of attacking.
+    try {
+      const props = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : [];
+      if (props.length) {
+        const p = props.find(pr =>
+          pr &&
+          pr.x === nx &&
+          pr.y === ny &&
+          String(pr.type || "").toLowerCase() === "merchant" &&
+          String(pr.vendor || "").toLowerCase() === "caravan"
+        );
+        if (p) {
+          // Step onto the Caravan master tile
+          ctx.player.x = nx;
+          ctx.player.y = ny;
+          applyRefresh(ctx);
+
+          // Show escort continue/stop dialog directly via UIOrchestration
+          try {
+            const UIO = mod("UIOrchestration");
+            const world = ctx.world || null;
+            const esc = world && world.caravanEscort;
+            const stillActive = !!(esc && esc.active);
+            const prompt = stillActive
+              ? "Caravan master: \"Do you want to continue guarding the caravan?\""
+              : "Caravan master: \"Thank you for your help. Do you want to resume your journey with us?\"";
+
+            const onOk = () => {
+              try {
+                if (world) {
+                  world.caravanEscort = world.caravanEscort || { id: null, reward: 0, active: false };
+                  world.caravanEscort.active = true;
+                }
+                if (ctx.log) ctx.log("You agree to continue guarding the caravan.", "notice");
+                // Immediately return to the overworld after accepting, so travel can resume.
+                try {
+                  const GA = ctx.GameAPI || mod("GameAPI");
+                  if (GA && typeof GA.completeEncounter === "function") {
+                    GA.completeEncounter("victory");
+                  } else {
+                    const ER = ctx.EncounterRuntime || mod("EncounterRuntime");
+                    if (ER && typeof ER.complete === "function") {
+                      ER.complete(ctx, "victory");
+                    }
+                  }
+                } catch (_) {}
+              } catch (_) {}
+            };
+            const onCancel = () => {
+              try {
+                if (world && world.caravanEscort) {
+                  world.caravanEscort.active = false;
+                }
+                if (ctx.log) ctx.log("You decide to stop guarding the caravan.", "info");
+              } catch (_) {}
+            };
+
+            if (UIO && typeof UIO.showConfirm === "function") {
+              UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+            } else {
+              // Fallback: just toggle escort state and complete immediately without a dialog
+              onOk();
+            }
+          } catch (_) {}
+
+          // Do not consume a turn here; the confirm result decides next steps (including leaving the encounter).
+          return true;
+        }
+      }
+    } catch (_) {}
+
     // If bumping a neutral guard (e.g., guards in a skirmish), ask for confirmation before attacking.
     try {
       let enemy = null;

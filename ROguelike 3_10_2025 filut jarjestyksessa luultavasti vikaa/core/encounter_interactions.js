@@ -170,8 +170,52 @@ function interactProp(ctx, p) {
   if (type === "campfire") return interactCampfire(ctx);
   if (type === "merchant") {
     try {
+      const tplId = String(ctx.encounterInfo && ctx.encounterInfo.id || "").toLowerCase();
       const UIO = (typeof window !== "undefined" ? window.UIOrchestration : (ctx.UIOrchestration || null));
-      if (UIO && typeof UIO.showShop === "function") {
+      const isCaravanEncounter = tplId === "caravan_ambush";
+      const isCaravanMaster = isCaravanEncounter || String(p.vendor || "").toLowerCase() === "caravan";
+
+      if (isCaravanMaster && UIO && typeof UIO.showConfirm === "function") {
+        // After a caravan ambush event (or any caravan-road encounter), allow choosing whether to continue escorting.
+        const world = ctx.world;
+        const esc = world && world.caravanEscort;
+        const stillActive = esc && esc.active;
+        const prompt = stillActive
+          ? "Caravan master: \"Do you want to continue guarding the caravan?\""
+          : "Caravan master: \"Thank you for your help. Do you want to resume your journey with us?\"";
+
+        const onOk = () => {
+          try {
+            if (world) {
+              world.caravanEscort = world.caravanEscort || { id: null, reward: 0, active: false };
+              world.caravanEscort.active = true;
+            }
+            log(ctx, "You agree to continue guarding the caravan.", "notice");
+
+            // Immediately return to the overworld after accepting, so travel can resume.
+            try {
+              const GA = ctx.GameAPI || getMod(ctx, "GameAPI") || (typeof window !== "undefined" ? window.GameAPI : null);
+              if (GA && typeof GA.completeEncounter === "function") {
+                GA.completeEncounter("victory");
+              } else {
+                const ER = ctx.EncounterRuntime || getMod(ctx, "EncounterRuntime") || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+                if (ER && typeof ER.complete === "function") {
+                  ER.complete(ctx, "victory");
+                }
+              }
+            } catch (_) {}
+          } catch (_) {}
+        };
+        const onCancel = () => {
+          try {
+            if (world && world.caravanEscort) {
+              world.caravanEscort.active = false;
+            }
+            log(ctx, "You decide to stop guarding the caravan.", "info");
+          } catch (_) {}
+        };
+        UIO.showConfirm(ctx, prompt, null, onOk, onCancel);
+      } else if (UIO && typeof UIO.showShop === "function") {
         UIO.showShop(ctx, { name: p.name || "Merchant", vendor: p.vendor || "merchant" });
       } else {
         log(ctx, "The merchant nods. (Trading UI not available)", "warn");

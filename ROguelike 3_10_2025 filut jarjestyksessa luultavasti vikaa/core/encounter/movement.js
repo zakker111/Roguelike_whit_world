@@ -9,6 +9,33 @@ export function tryMoveEncounter(ctx, dx, dy) {
   const ny = ctx.player.y + (dy | 0);
   if (!(ctx.inBounds && ctx.inBounds(nx, ny))) return false;
 
+  // If bumping into a caravan master (merchant prop), step onto them and open the escort dialog instead of attacking.
+  try {
+    const props = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : [];
+    if (props.length) {
+      const p = props.find(pr => pr && pr.x === nx && pr.y === ny && String(pr.type || "").toLowerCase() === "merchant");
+      if (p && String(p.vendor || "").toLowerCase() === "caravan") {
+        // Move player onto the Caravan master tile
+        ctx.player.x = nx;
+        ctx.player.y = ny;
+        try {
+          const SS = ctx.StateSync || getMod(ctx, "StateSync");
+          if (SS && typeof SS.applyAndRefresh === "function") {
+            SS.applyAndRefresh(ctx, {});
+          }
+        } catch (_) {}
+        // Trigger the generic encounter interaction (will show escort/continue dialog for caravan masters)
+        try {
+          const EI = ctx.EncounterInteractions || (typeof window !== "undefined" ? window.EncounterInteractions : null);
+          if (EI && typeof EI.interactHere === "function") {
+            EI.interactHere(ctx);
+          }
+        } catch (_) {}
+        return true;
+      }
+    }
+  } catch (_) {}
+
   // Prefer to reuse DungeonRuntime movement/attack so encounters behave exactly like dungeon
   const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
   if (DR && typeof DR.tryMoveDungeon === "function") {

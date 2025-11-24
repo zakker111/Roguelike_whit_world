@@ -391,6 +391,88 @@ function spawnDebugCastleNearPlayer(ctx) {
   } catch (_) {}
 }
 
+/**
+ * Spawn initial travelling caravans after the first POIs are registered.
+ * Caravans are stored in world.caravans with world-space coordinates and a destination town.
+ */
+function spawnInitialCaravans(ctx) {
+  try {
+    const world = ctx.world;
+    if (!world) return;
+    const towns = Array.isArray(world.towns) ? world.towns : [];
+    if (!towns.length) return;
+
+    if (!Array.isArray(world.caravans)) world.caravans = [];
+
+    // Use RNGUtils when available so caravans are deterministic per seed.
+    let r = null;
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        r = window.RNGUtils.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined);
+      } else if (typeof ctx.rng === "function") {
+        r = ctx.rng;
+      }
+    } catch (_) {}
+    if (typeof r !== "function") {
+      r = function () { return Math.random(); };
+    }
+
+    const desired = Math.min(16, Math.max(4, Math.floor(towns.length * 0.8)));
+    let idCounter = (world.caravans.length ? world.caravans.length : 0);
+    const existing = world.caravans.length;
+
+    for (let i = existing; i < desired; i++) {
+      const fromIndex = (r() * towns.length) | 0;
+      const from = towns[fromIndex];
+      if (!from) continue;
+
+      // Find nearest and farthest other towns from this origin.
+      let nearest = null;
+      let nearestDist = Infinity;
+      let farthest = null;
+      let farthestDist = -Infinity;
+      for (let j = 0; j < towns.length; j++) {
+        if (j === fromIndex) continue;
+        const t = towns[j];
+        if (!t) continue;
+        const dx = (t.x | 0) - (from.x | 0);
+        const dy = (t.y | 0) - (from.y | 0);
+        const dist = Math.abs(dx) + Math.abs(dy);
+        if (dist === 0) continue;
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = t;
+        }
+        if (dist > farthestDist) {
+          farthestDist = dist;
+          farthest = t;
+        }
+      }
+      if (!nearest) continue;
+
+      // Default to nearest, but sometimes choose a far destination so some initial
+      // caravans run longer routes across the world.
+      let destTown = nearest;
+      try {
+        const roll = typeof r === "function" ? r() : Math.random();
+        if (towns.length >= 4 && roll < 0.35 && farthest) {
+          destTown = farthest;
+        }
+      } catch (_) {}
+
+      world.caravans.push({
+        id: ++idCounter,
+        x: from.x | 0,
+        y: from.y | 0,
+        from: { x: from.x | 0, y: from.y | 0 },
+        dest: { x: destTown.x | 0, y: destTown.y | 0 },
+        atTown: true,
+        dwellUntil: 0
+      });
+    }
+  } catch (_) {}
+}
+
 export function generate(ctx, opts = {}) {
   // Prefer infinite generator; fall back to finite world if module missing or disabled
   const IG = (typeof window !== "undefined" ? window.InfiniteGen : null);
@@ -442,8 +524,10 @@ export function generate(ctx, opts = {}) {
       map,            // note: will be kept in sync on expansion
       towns: [],       // optional: can be populated lazily if we scan tiles
       dungeons: [],
+      ruins: [],
       roads: [],
       bridges: [],
+      caravans: [],
     };
 
     // Place player at the center of the initial window
@@ -467,6 +551,9 @@ export function generate(ctx, opts = {}) {
 
     // Register POIs present in the initial window (sparse anchors only) and lay initial roads/bridges
     try { scanPOIs(ctx, 0, 0, ctx.world.width, ctx.world.height); } catch (_) {}
+
+    // Spawn a few travelling caravans that wander between the known towns.
+    try { spawnInitialCaravans(ctx); } catch (_) {}
 
     // Camera/FOV/UI via StateSync
     try {

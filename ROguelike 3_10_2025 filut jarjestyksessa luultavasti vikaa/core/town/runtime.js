@@ -226,6 +226,57 @@ export function talk(ctx, bumpAtX = null, bumpAtY = null) {
         }
       }
 
+      // Special interaction for caravan merchants in town: offer an escort job instead of ambush.
+      const isCaravanMerchant = !!(npc && npc.isCaravanMerchant);
+      if (isCaravanMerchant && ctx.mode === "town") {
+        try {
+          const world = ctx.world;
+          const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+          if (!world || !UIO || typeof UIO.showConfirm !== "function") {
+            // If we cannot offer an escort job, fall back to normal shop logic below.
+          } else {
+            // Try to find a caravan parked at this town's overworld gate position.
+            let cv = null;
+            try {
+              const wp = ctx.worldReturnPos;
+              const wx = wp && typeof wp.x === "number" ? (wp.x | 0) : null;
+              const wy = wp && typeof wp.y === "number" ? (wp.y | 0) : null;
+              const caravans = Array.isArray(world.caravans) ? world.caravans : [];
+              if (wx != null && wy != null && caravans.length) {
+                cv = caravans.find(c => c && c.atTown && (c.x | 0) === wx && (c.y | 0) === wy) || null;
+              }
+            } catch (_) {}
+            if (!cv) {
+              // No caravan entity associated with this town; just treat as a normal caravan shop.
+            } else {
+              // Compute a simple gold reward based on distance to destination.
+              const dx = (cv.dest && typeof cv.dest.x === "number" ? (cv.dest.x | 0) : cv.x) - (cv.x | 0);
+              const dy = (cv.dest && typeof cv.dest.y === "number" ? (cv.dest.y | 0) : cv.y) - (cv.y | 0);
+              const dist = Math.max(4, Math.abs(dx) + Math.abs(dy));
+              const reward = 10 + dist * 2;
+              const text = `Caravan master: "We need an escort to our destination.\nGuard us all the way there for ${reward} gold."\n\nAccept the job?`;
+
+              const onOk = () => {
+                try {
+                  world.caravanEscort = {
+                    id: cv.id,
+                    reward,
+                    active: true
+                  };
+                  ctx.log && ctx.log(`You agree to escort the caravan for ${reward} gold. Leave town to begin the journey.`, "notice");
+                } catch (_) {}
+              };
+              const onCancel = () => {
+                try { ctx.log && ctx.log("You decline to guard the caravan.", "info"); } catch (_) {}
+              };
+              UIO.showConfirm(ctx, text, null, onOk, onCancel);
+              return true;
+            }
+          }
+        } catch (_) {}
+        // Fall through to normal shop-opening logic below if no escort job was offered.
+      }
+
       if (shopRef) {
         // Inn: always open and interactable anywhere inside — open immediately on bump
         const isInn = String(shopRef.type || "").toLowerCase() === "inn";
@@ -425,6 +476,75 @@ export function rebuildOccupancy(ctx) {
     }
   } catch (_) {}
   return false;
+}
+
+/**
+ * Start a special caravan ambush encounter when the player chooses to attack a caravan
+ * from inside town. The caravan master and their guards are represented as enemies,
+ * and a broken caravan with a lootable chest appears on a small road map.
+ */
+function startCaravanAmbushEncounter(ctx, npc) {
+  try {
+    // Close any confirm dialog before switching modes
+    try {
+      const UIO = ctx.UIOrchestration || (typeof window !== "undefined" ? window.UIOrchestration : null);
+      if (UIO && typeof UIO.cancelConfirm === "function") UIO.cancelConfirm(ctx);
+    } catch (_) {}
+
+    // Remove the caravan merchant and their shop from town so they don't persist after the attack.
+    try {
+      if (Array.isArray(ctx.npcs)) {
+        const idx = ctx.npcs.indexOf(npc);
+        if (idx !== -1) ctx.npcs.splice(idx, 1);
+      }
+      if (Array.isArray(ctx.shops)) {
+        for (let i = ctx.shops.length - 1; i >= 0; i--) {
+          const s = ctx.shops[i];
+          if (s && s.type === "caravan") ctx.shops.splice(i, 1);
+        }
+      }
+      // Mark any parked caravan at this town as no longer atTown so the overworld logic can move/retire it.
+      try {
+        const world = ctx.world;
+        if (world && Array.isArray(world.caravans) && ctx.worldReturnPos) {
+          const wx = ctx.worldReturnPos.x | 0;
+          const wy = ctx.worldReturnPos.y | 0;
+          for (const cv of world.caravans) {
+            if (!cv) continue;
+            if ((cv.x | 0) === wx && (cv.y | 0) === wy && cv.atTown) {
+              cv.atTown = false;
+              cv.dwellUntil = 0;
+              cv.ambushed = true;
+            }
+          }
+        }
+      } catch (_) {}
+      try { rebuildOccupancy(ctx); } catch (_) {}
+    } catch (_) {}
+
+    const template = {
+      id: "caravan_ambush",
+      name: "Caravan Ambush",
+      map: { w: 26, h: 16, generator: "caravan_road" },
+      groups: [
+        { faction: "guard", count: { min: 3, max: 4 }, type: "guard" },
+        { faction: "guard", count: { min: 2, max: 3 }, type: "guard_elite" }
+      ],
+      objective: { type: "reachExit" },
+      difficulty: 4
+    };
+
+    const biome = "GRASS";
+    const ok = (typeof ctx.enterEncounter === "function")
+      ? !!ctx.enterEncounter(template, biome)
+      : false;
+
+    if (!ok && ctx.log) {
+      ctx.log("Failed to start caravan ambush encounter.", "warn");
+    } else if (ok && ctx.log) {
+      ctx.log("You ambush the caravan outside the town!", "notice");
+    }
+  } catch (_) {}
 }
 
 if (typeof window !== "undefined") {

@@ -1,6 +1,58 @@
 s 
 # Game Version History
-Last updated: 2025-11-22 00:00 UTC
+Last updated: 2025-11-24 00:00 UTC
+
+v1.49.0 — Travelling caravans, caravan ambushes, and escort jobs
+- Overworld caravans
+  - Overworld tick and world runtime maintain a world.caravans array of travelling caravans moving between towns and castles.
+  - Caravans spawn over time as towns are discovered; initial caravans are also created at world generation based on town count.
+  - Caravans travel tile-by-tile along mostly short routes to the nearest town, with some longer “long-haul” routes between distant towns.
+  - On the overworld, caravans render as warm-orange "c" glyphs; glyphs are hidden when a caravan is parked on a town/castle tile or flagged as atTown.
+- Town caravan masters
+  - On entering a town or castle, Modes.spawnCaravanMerchantIfPresent(ctx, worldX, worldY) clears any prior caravan camp and checks world.caravans for a caravan at that settlement’s world coordinates.
+  - If a caravan is currently on that town tile, a Caravan master NPC (isCaravanMerchant, isShopkeeper) and a caravan shop (type "caravan", alwaysOpen) are spawned near the town plaza (or map center as fallback).
+  - A small caravan camp is created around the merchant: stall/cart, "Caravan" sign, and up to three crates/barrels props flagged isCaravanProp.
+  - When no caravan matches that town tile, any existing caravan camp is removed on entry so towns only show caravan camps while a caravan is actually present.
+  - Town entry logs an info-level line like "[Caravan] Town entry at X,Y: caravans=N, caravanOnTile=true|false" to aid debugging.
+- Caravan shops and inventory
+  - Caravan shops use shop type "caravan" and integrate with ShopService.
+  - When no JSON shop pool is defined for "caravan", ShopService.restockIfNeeded now creates a small fallback inventory so caravan masters always offer basic goods:
+    - Healing potions (several strengths), trail rations, water skins, and simple materials (e.g., wood planks), each priced via ShopService.calculatePrice for shop type "caravan".
+- Caravan ambush encounters
+  - Overworld caravans are treated as solid tiles; trying to move onto a caravan "c" prompts "Do you want to encounter this caravan?".
+  - Confirming starts a special caravan_ambush encounter on a small road map with:
+    - A Caravan master merchant prop (glyph "S") with vendor "caravan".
+    - Guard-only enemy groups (guard and guard_elite factions) split into two squads; no other factions spawn.
+  - Guards initially start peaceful/neutral and ignore the player while a guard-specific ignore flag is true.
+    - Attacking any guard flips all guards hostile: a single attack removes the ignore flag from all guard-faction enemies in the encounter.
+  - Guard difficulty and AI:
+    - Caravan ambush encounters use a higher base depth/difficulty; guards have increased HP and attack compared to ordinary guards.
+    - Guard damage is scaled by player level (approx. 0.7× base at low level up to ~1.25× at high level) so low-level players are not instantly deleted but encounters remain challenging later.
+    - Guards may spawn with 0–2 healing potions each; at low HP they can drink a potion (log: "Guard drinks a healing potion and recovers X HP.") and end their turn without moving or attacking.
+- Caravan chest loot
+  - The caravan_ambush road map includes a special caravan chest prop at the center of the road; on encounter entry, EncounterRuntime converts this prop into a real chest.
+  - Caravan chest loot uses the "caravan" loot table when present; otherwise falls back to a strong bandit-type loot budget with increased XP.
+  - A guaranteed gold stack (e.g., "caravan spoils", ~80+ gold) is added to make caravan ambushes notably more rewarding than ordinary encounters.
+- Escort jobs and auto-travel
+  - A world.caravanEscort object tracks escort jobs: { id, reward, active }.
+  - When starting a caravan ambush from the overworld and later talking to the Caravan master in the encounter:
+    - Confirming "Thank you for your help. Do you want to resume your journey with us?" activates escort mode (world.caravanEscort.active = true) and associates escort.id with the specific caravan.
+    - GameAPI.completeEncounter("victory") is called behind the dialog; EncounterRuntime.complete and orchestrator sync return you to world mode.
+  - On returning to the overworld after accepting escort:
+    - The player is snapped onto the escorted caravan’s overworld tile; the camera centers on this position.
+    - An auto-escort travel loop in core/game.js uses world-mode turns (ctx.turn()) with a short delay to advance the overworld while the caravan moves one tile per turn toward its destination.
+    - While escort is active and the caravan remains visible, the player’s overworld position is kept on the caravan tile so you visually travel with it.
+  - Arrival and reward:
+    - When the escorted caravan reaches its destination town, advanceCaravans in core/world/tick.js detects arrival and, if escort is active for that caravan ID, pays out the reward:
+      - Reward is computed from route length (e.g., base 10 gold plus 2 gold per tile of Manhattan distance, with a minimum distance so very short hops still pay something).
+      - Payment uses GameAPI.addGold when available, or adds a gold item to inventory as a fallback.
+    - After paying, world.caravanEscort.active is set to false and escort mode ends; the player is "released" at the destination town.
+- Misc and reliability
+  - WorldRuntime and world tick wiring ensure caravans continue to spawn and travel between towns and castles over time, with caps based on town count.
+  - Town entry now logs basic caravan presence info (count and whether one is on this tile), which can be filtered or muted via the logging system.
+  - Multiple SyntaxErrors and HTML-entity regressions from earlier caravan iterations (core/world/move.js, core/world_runtime.js, core/world/tick.js) were fixed by restoring proper JS operators (<, >, &&, =>) and closing braces around world generators.
+
+Deployment: https://va9r0mgjto18.cosine.page
 
 v1.48.0 — Castles, snowy forests, lockpicking sources, and Guards vs Bandits battle
 - Overworld and castles
@@ -2277,4 +2329,5 @@ BUGS
 - minimap shows dungeons and towns
 - dungeons sometimes carry over some wierd stuff like camp fires and some other shit from encounters 
 - Make coherent way out like in ruins and region_map encounters there is only > and not clearly visible ab coherent
+-caravan master does not seem to spawn in towns cities etc. when caravan enters it
 

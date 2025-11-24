@@ -253,6 +253,43 @@ export function enemiesAct(ctx) {
   for (const e of enemies) {
     const eFac = factionOf(e);
 
+    // Ensure enemies have a maxHp baseline for healing logic.
+    if (typeof e.maxHp !== "number" || e.maxHp <= 0) {
+      e.maxHp = typeof e.hp === "number" ? e.hp : 1;
+    }
+
+    // Caravan ambush guards: give them a small stash of healing potions and let them use them at low HP.
+    try {
+      const isCaravanAmbush = ctx.mode === "encounter"
+        && ctx.encounterInfo
+        && String(ctx.encounterInfo.id || "").toLowerCase() === "caravan_ambush";
+      const isGuard = (eFac === "guard");
+      if (isCaravanAmbush && isGuard) {
+        // Initialize potion count once per enemy: 0–2 potions that heal 6 HP each.
+        if (!e._guardPotionsInit) {
+          e._guardPotionsInit = true;
+          e.guardPotions = randInt(0, 2);
+        }
+        // Use a potion when low on health, if any left.
+        if (e.guardPotions > 0 && typeof e.hp === "number" && typeof e.maxHp === "number") {
+          const lowThreshold = Math.max(3, Math.floor(e.maxHp * 0.4));
+          if (e.hp > 0 && e.hp <= lowThreshold) {
+            const before = e.hp;
+            e.hp = Math.min(e.maxHp, e.hp + 6);
+            e.guardPotions -= 1;
+            const healed = e.hp - before;
+            if (healed > 0) {
+              try {
+                ctx.log && ctx.log(`Guard drinks a healing potion and recovers ${healed} HP.`, "info");
+              } catch (_) {}
+            }
+            // After drinking a potion, the guard spends their turn.
+            continue;
+          }
+        }
+      }
+    } catch (_) {}
+
     // Choose a target among player and hostile factions
     // Neutral animals do not target or pursue the player unless made hostile.
     // Guards in special encounters can start neutral to the player via e._ignorePlayer.
@@ -433,6 +470,20 @@ export function enemiesAct(ctx) {
           continue;
         }
         let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
+
+        // Caravan ambush guards: slightly lower base damage, then scale a bit with player level.
+        try {
+          const isCaravanAmbush = ctx.mode === "encounter"
+            && ctx.encounterInfo
+            && String(ctx.encounterInfo.id || "").toLowerCase() === "caravan_ambush";
+          const eFac2 = factionOf(e);
+          if (isCaravanAmbush && eFac2 === "guard") {
+            const pLv = (player && typeof player.level === "number") ? player.level : 1;
+            const lvlScale = Math.min(1.25, 0.6 + (pLv / 12)); // ~0.6 at low level, up to ~1.25
+            raw *= 0.7 * lvlScale; // reduce base damage a bit, then scale with player level
+          }
+        } catch (_) {}
+
         let isCrit = false;
         const critChance = Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
         if (rv() < critChance) {

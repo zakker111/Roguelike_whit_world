@@ -12,6 +12,81 @@ export function genBattlefield(ctx, rng, W, H, T) {
   return genEmpty(ctx, W, H, T);
 }
 
+/**
+ * Simple caravan ambush road: a horizontal road with a broken caravan in the middle
+ * and a few crates/barrels scattered around.
+ */
+export function genCaravanRoad(ctx, rng, W, H, T, encProps) {
+  const m = genEmpty(ctx, W, H, T);
+  const rows = H;
+  const cols = W;
+  const cy = (rows / 2) | 0;
+
+  const roadTile = (T.ROAD != null ? T.ROAD : T.FLOOR);
+
+  // Draw a 3-tile-wide horizontal road across the map
+  for (let y = cy - 1; y <= cy + 1; y++) {
+    if (y <= 0 || y >= rows - 1) continue;
+    for (let x = 1; x < cols - 1; x++) {
+      m[y][x] = roadTile;
+    }
+  }
+
+  // Scatter a few decorative rocks/trees near edges to frame the road a bit
+  for (let i = 0; i < 10; i++) {
+    const x = 2 + (rng() * (cols - 4)) | 0;
+    const y = 2 + (rng() * (rows - 4)) | 0;
+    if (Math.abs(y - cy) <= 1) continue; // keep road clear
+    if (m[y][x] !== T.FLOOR) continue;
+    if (rng() < 0.5) {
+      m[y][x] = T.WALL;
+    }
+  }
+
+  // Helper to check a free tile for props
+  const used = new Set(encProps.map(p => `${p.x},${p.y}`));
+  function canPlace(x, y) {
+    if (x <= 0 || y <= 0 || x >= cols - 1 || y >= rows - 1) return false;
+    if (m[y][x] !== T.FLOOR && m[y][x] !== roadTile) return false;
+    if (x === (cols / 2 | 0) && y === cy) return false;
+    const k = `${x},${y}`;
+    if (used.has(k)) return false;
+    return true;
+  }
+
+  const cx = (cols / 2) | 0;
+
+  // Props near road center: caravan chest spot and a couple of barrels/crates
+  const chestSpot = { x: cx, y: cy };
+  if (canPlace(chestSpot.x, chestSpot.y)) {
+    encProps.push({ x: chestSpot.x, y: chestSpot.y, type: "caravan_chest" });
+    used.add(`${chestSpot.x},${chestSpot.y}`);
+  }
+
+  const sideSpots = [
+    { x: cx - 2, y: cy - 1 },
+    { x: cx - 1, y: cy + 1 },
+    { x: cx + 1, y: cy - 1 },
+    { x: cx + 2, y: cy + 1 },
+  ];
+  for (const s of sideSpots) {
+    if (!canPlace(s.x, s.y)) continue;
+    const kind = rng() < 0.5 ? "barrel" : "crate";
+    encProps.push({ x: s.x, y: s.y, type: kind });
+    used.add(`${s.x},${s.y}`);
+  }
+
+  // Peaceful caravan master prop near the road (for flavor / future escort/quest).
+  // Place slightly off the main guard line so the player can walk next to them.
+  const masterSpot = { x: Math.max(2, cx - 4), y: Math.min(rows - 2, cy + 1) };
+  if (canPlace(masterSpot.x, masterSpot.y)) {
+    encProps.push({ x: masterSpot.x, y: masterSpot.y, type: "merchant", name: "Caravan master", vendor: "caravan" });
+    used.add(`${masterSpot.x},${masterSpot.y}`);
+  }
+
+  return m;
+}
+
 export function genAmbushForest(ctx, rng, W, H, T) {
   const m = genEmpty(ctx, W, H, T);
   const clusters = Math.max(3, Math.floor((W * H) / 80));

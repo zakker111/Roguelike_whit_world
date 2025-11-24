@@ -1,5 +1,5 @@
 /**
- * Overworld POI markers: towns, dungeons, and quest markers.
+ * Overworld POI markers: towns, dungeons, travelling caravans, and quest markers.
  */
 import * as RenderCore from "../render_core.js";
 import { rgba as _rgba, parseHex as _parseHex } from "../color_utils.js";
@@ -9,6 +9,7 @@ export function drawPOIs(ctx, view) {
   try {
     const towns = (ctx.world && Array.isArray(ctx.world.towns)) ? ctx.world.towns : [];
     const dungeons = (ctx.world && Array.isArray(ctx.world.dungeons)) ? ctx.world.dungeons : [];
+    const caravans = (ctx.world && Array.isArray(ctx.world.caravans)) ? ctx.world.caravans : [];
     const ox = (ctx.world && typeof ctx.world.originX === "number") ? ctx.world.originX : 0;
     const oy = (ctx.world && typeof ctx.world.originY === "number") ? ctx.world.originY : 0;
 
@@ -111,6 +112,47 @@ export function drawPOIs(ctx, view) {
       ctx2d.strokeRect(sx + (TILE - s) / 2 + 0.5, sy + (TILE - s) / 2 + 0.5, s - 1, s - 1);
     }
     ctx2d.restore();
+
+    // Travelling caravans
+    if (caravans.length) {
+      let caravanColor = "#f97316"; // warm orange
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays)
+          ? window.GameData.palette.overlays
+          : null;
+        if (pal && pal.poiCaravan) caravanColor = pal.poiCaravan || caravanColor;
+      } catch (_) {}
+      for (const cv of caravans) {
+        if (!cv) continue;
+        const lx = (cv.x | 0) - ox;
+        const ly = (cv.y | 0) - oy;
+        if (lx < startX || lx > endX || ly < startY || ly > endY) continue;
+
+        // Do not render caravans that are currently parked in a town/castle; they live inside that settlement for now.
+        let skip = false;
+        try {
+          const WT = ctx.World && ctx.World.TILES;
+          const mapRef = Array.isArray(map) ? map : null;
+          if (WT && mapRef && mapRef.length) {
+            const rows = mapRef.length;
+            const cols = mapRef[0] ? mapRef[0].length : 0;
+            if (ly >= 0 && ly < rows && lx >= 0 && lx < cols) {
+              const tile = mapRef[ly][lx];
+              if (tile === WT.TOWN || (WT.CASTLE != null && tile === WT.CASTLE)) {
+                skip = true;
+              }
+            }
+          }
+          if (cv.atTown) skip = true;
+        } catch (_) {}
+        if (skip) continue;
+
+        const sx = (lx - startX) * TILE - tileOffsetX;
+        const sy = (ly - startY) * TILE - tileOffsetY;
+        const glyph = "c";
+        RenderCore.drawGlyph(ctx2d, sx, sy, glyph, caravanColor, TILE);
+      }
+    }
 
     // Quest markers
     const qms = (ctx.world && Array.isArray(ctx.world.questMarkers)) ? ctx.world.questMarkers : [];
