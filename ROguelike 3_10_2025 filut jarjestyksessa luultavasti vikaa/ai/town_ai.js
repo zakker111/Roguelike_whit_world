@@ -1420,14 +1420,22 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     }
 
     // Shuffle iteration
-    const order = npcs.map((_, i) => i);
+    const order = npcs.map((_, i) =&gt; i);
     {
       const rnd = rngFor(ctx);
-      for (let i = order.length - 1; i > 0; i--) {
+      for (let i = order.length - 1; i &gt; 0; i--) {
         const j = Math.floor(rnd() * (i + 1));
         const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
       }
     }
+
+    // Global per-tick cap: only let a subset of NPCs run full behavior each town tick.
+    // This keeps pathfinding and scheduling from blowing up in large towns.
+    const npcCount = npcs.length;
+    const maxActiveThisTick = (typeof ctx.townMaxActiveNPCs === "number")
+      ? Math.max(8, ctx.townMaxActiveNPCs | 0)
+      : Math.max(12, Math.floor(npcCount * 0.6));
+    let activeSoFar = 0;
 
     function routeIntoBuilding(ctx, occ, n, building, targetInside) {
       // Adjust unreachable interior targets (like beds) to a free adjacent tile
@@ -1477,6 +1485,10 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
       // Per-NPC tick rate limiting (skip some NPCs this tick to reduce CPU)
       if (shouldSkipThisTick(n, idx)) continue;
+
+      // Global cap: once we've let enough NPCs act this tick, stop processing.
+      if (activeSoFar >= maxActiveThisTick) break;
+      activeSoFar++;
 
       // Daily scheduling: reset stagger assignment at dawn, assign in morning if missing
       if (t && t.phase === "dawn") {
