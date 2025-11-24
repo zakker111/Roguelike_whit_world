@@ -2,6 +2,33 @@ s
 # Game Version History
 Last updated: 2025-11-24 00:00 UTC
 
+v1.49.1 — Town caravan stalls via prefabs, GOD Prefabs check, and BUGS split
+- Town caravan presence
+  - Removed the direct \"spawn caravan merchant inside town on entry\" hook in core/modes/modes.js and the town-specific Caravan master escort dialog in core/town/runtime.js. This keeps town entry logic focused on TownRuntime/TownAI and avoids fragile one-off spawn paths.
+  - Town caravans are now purely prefab-driven:
+    - data/worldgen/prefabs.json gained a \"caravans\" category with caravan_stall_1 (open-air stall with cart, crates/barrels, sign).
+    - worldgen/prefabs.js treats category \"caravan\" as an open stall (no perimeter walls or auto-carved doors) and tracks usage via ctx.townPrefabUsage.caravans.
+    - worldgen/town_gen.js adds placeCaravanStallIfCaravanPresent(ctx) which:
+      - Checks world.caravans for a caravan with atTown=true at this settlement's world coordinates.
+      - Stamps caravan_stall_1 near the plaza on walkable FLOOR tiles.
+      - Records usage in ctx.townPrefabUsage.caravans.
+      - Creates a shop entry of type \"caravan\" at the stall location; the shop is alwaysOpen and signWanted=false so prefab props supply the signage.
+    - ai/town_ai.js spawnShopkeepers() recognises shops of type \"caravan\" and spawns a normal shopkeeper NPC named \"Caravan master\" at the stall, with caravan-specific flavor lines.
+  - Result: when a caravan is parked on a town/castle overworld tile, new generations of that town can show a prefab caravan stall plus a Caravan master shopkeeper near the plaza. The older ad‑hoc in-town spawn/escort job logic in modes/town runtime remains removed.
+
+- GOD \"Check Prefabs\" wiring and caravans category
+  - core/god/handlers.js gained onGodCheckPrefabs, wired from ui/components/god_panel.js and ui/ui.js, so the \"Check Prefabs\" button in the GOD panel now:
+    - Works in town mode and writes to both the GOD output area and the log.
+    - Reports, per category, how many prefabs are loaded vs used in the current town and lists their IDs.
+  - Diagnostics cover five categories: houses, shops, inns, plazas, caravans.
+  - Town generation populates ctx.townPrefabUsage = { houses: [], shops: [], inns: [], plazas: [], caravans: [] }; prefab stamping (including caravan stalls) pushes prefab ids into the appropriate arrays so \"used\" counts reflect actual usage in this town.
+  - Interpretation notes:
+    - loaded > 0 and used = 0 for a category means the prefabs exist in the registry but none of them were used when this town was generated (for example: older saved towns built before prefab-based generation for that category, or no parked caravan for the caravans category).
+
+- BUGS list split into BUGS.md
+  - Created a top-level BUGS.md file and moved the BUGS section out of VERSIONS.md so the changelog remains focused on features/changes/fixes.
+  - BUGS.md is now the single living list of open issues, including inn/upstairs sleeping behavior, extra interior props/signs in walls, smoketest runner quirks, Region Map wildlife spawning/decals, minimap behavior, dungeon carry-over props, and caravan presence in towns.
+
 v1.49.0 — Travelling caravans, caravan ambushes, and escort jobs
 - Overworld caravans
   - Overworld tick and world runtime maintain a world.caravans array of travelling caravans moving between towns and castles.
