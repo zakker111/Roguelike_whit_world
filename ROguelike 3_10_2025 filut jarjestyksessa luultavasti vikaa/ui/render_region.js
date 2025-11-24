@@ -18,6 +18,8 @@ import { drawRegionCorpses } from "./render/region_corpses.js";
 import { drawRegionPlayer } from "./render/region_player.js";
 import { drawRegionHUD } from "./render/region_hud.js";
 import { drawRegionTints } from "./render/region_tints.js";
+// Reuse overworld weather overlays (fog/rain/cloudy) for region map as well.
+import { drawWeather } from "./render/overworld_weather.js";
 
 export function draw(ctx, view) {
   if (!ctx || ctx.mode !== "region" || !ctx.region) return;
@@ -48,6 +50,9 @@ export function draw(ctx, view) {
 
   // HUD
   try { drawRegionHUD(ctx, view); } catch (_) {}
+
+  // Weather overlays (fog/rain/cloudy) on top of region + player, before global tints
+  try { drawWeather(ctx, view); } catch (_) {}
 
   // Day/night tint
   try { drawRegionTints(ctx, view); } catch (_) {}
