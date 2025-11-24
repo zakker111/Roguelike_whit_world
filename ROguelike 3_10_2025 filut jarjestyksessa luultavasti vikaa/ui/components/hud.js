@@ -42,9 +42,27 @@ export function update(player, floor, time, perf, perfOn) {
 
   // Floor + level + XP + time + perf (+ weather in time parentheses)
   if (floorEl && player) {
-    const t = time || {};
-    const hhmm = t.hhmm || "";
-    const phase = t.phase ? t.phase : "";
+    // Always recompute time from GameAPI so HUD reflects the latest turn,
+    // even if the passed-in time object is stale.
+    let hhmm = "";
+    let phase = "";
+    try {
+      const GAPI = (typeof window !== "undefined" && window.GameAPI) ? window.GameAPI : null;
+      if (GAPI && typeof GAPI.getClock === "function") {
+        const t2 = GAPI.getClock();
+        if (t2 && typeof t2 === "object") {
+          hhmm = t2.hhmm || "";
+          phase = t2.phase ? String(t2.phase) : "";
+        }
+      }
+    } catch (_) {}
+
+    // Fallback to provided time if GameAPI clock is unavailable
+    if (!hhmm || !phase) {
+      const t = time || {};
+      if (!hhmm) hhmm = t.hhmm || "";
+      if (!phase && t.phase) phase = t.phase;
+    }
 
     let phaseWeatherPart = "";
     try {
@@ -53,7 +71,6 @@ export function update(player, floor, time, perf, perfOn) {
       let label = w && w.label ? String(w.label) : "";
       if (!label) label = "clear";
 
-      // Debug: log when HUD sees a different weather label than last time.
       if (label !== _lastHudWeatherLabel) {
         _lastHudWeatherLabel = label;
         try {
