@@ -251,11 +251,6 @@ function create(seed, opts = {}) {
       // Base: ~1.0% per town cell; up to ~2.5% when near water/river
       let castleChance = 0.01;
       if (coastBias > 0) castleChance += 0.015;
-      if (rCastle &lt; castleChance) return TILES.CASTLE;stle placement, preferring coasts/rivers (slightly more common than before)
-      const rCastle = hash2(s ^ 0x1010, cellTownX, cellTownY);
-      // Base: 0.8% per town cell; up to 2.0% when near water/river
-      let castleChance = 0.008;
-      if (coastBias > 0) castleChance += 0.012;
       if (rCastle < castleChance) return TILES.CASTLE;
 
       const rTown = hash2(s ^ 0x1111, cellTownX, cellTownY);
