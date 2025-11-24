@@ -30,6 +30,19 @@ export function drawWeather(ctx, view) {
     }
   } catch (_) {}
 
+  if (type === "cloudy") {
+    // Subtle overcast tint over the whole screen; lighter than full fog.
+    ctx2d.save();
+    try {
+      ctx2d.fillStyle = fogColor;
+      // Keep cloudy quite gentle but still visible; scale by intensity.
+      ctx2d.globalAlpha = 0.22 * (0.4 + 0.6 * intensity);
+      ctx2d.fillRect(0, 0, cam.width, cam.height);
+    } catch (_) {}
+    ctx2d.restore();
+    return;
+  }
+
   if (type === "foggy") {
     // Soft full-screen fog overlay; strength scales with intensity.
     ctx2d.save();

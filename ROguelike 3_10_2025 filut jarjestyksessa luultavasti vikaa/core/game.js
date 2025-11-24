@@ -811,7 +811,7 @@ import {
           const curType = snap && snap.type ? String(snap.type) : null;
           if (curType && curType !== lastWeatherType) {
             lastWeatherType = curType;
-            try { log(`Weather now: ${snap.label || curType}.`, "info"); } catch (_) {}
+            try { log(`Weather now: ${snap.label || curType}.`, "notice"); } catch (_) {}
           }
         }
       } catch (_) {}
@@ -1674,7 +1674,7 @@ import {
         const curType = snap && snap.type ? String(snap.type) : null;
         if (curType && curType !== lastWeatherType) {
           lastWeatherType = curType;
-          try { log(`Weather now: ${snap.label || curType}.`, "info"); } catch (_) {}
+          try { log(`Weather now: ${snap.label || curType}.`, "notice"); } catch (_) {}
         }
       }
     } catch (_) {}
