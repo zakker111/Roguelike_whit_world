@@ -1,6 +1,20 @@
-s 
 # Game Version History
-Last updated: 2025-11-24 12:00 UTC
+Last updated: 2025-11-25 12:00 UTC
+
+v1.49.3 — Core runtime hardening, Wild Seppo encounter merchant, and loot/encounter tightening
+- Added: Hard errors for missing required core modules instead of silent "system not available" logs in several paths:
+  - core/game.js: WorldRuntime.generate, DungeonRuntime.generate, and Player.gainXP are now treated as mandatory; initWorld(), generateLevel(), and gainXP() throw descriptive errors if these are missing instead of quietly logging.
+  - core/inventory_controller.js and core/facades/inventory_decay.js: equip/unequip helpers and equipIfBetter now require Player.equipItemByIndex/unequipSlot/equipIfBetter and throw if they are missing.
+  - core/inventory_flow.js: equipItemByIndex/equipItemByIndexHand/unequipSlot still fall back to Player when InventoryController is absent, but now throw when both layers are missing instead of logging "Equip system not available.".
+  - region_map/region_map_runtime.js: Region Map actions now require Loot.lootHere for container looting; missing Loot.lootHere results in a clear error.
+  - core/encounter/runtime.js: encounters now require DungeonRuntime.tick; the previous minimal AI fallback has been removed so encounter ticks stay in sync with dungeon behavior.
+- Fixed: Wild Seppo encounter missing merchant
+  - core/encounter/enter.js now reads template.merchant (e.g., merchant: { vendor: "seppo" } in data/encounters/encounters.json) and spawns a matching merchant encounter prop near the map center.
+  - This ensures the "Wild Seppo" encounter actually includes a Wild Seppo merchant (type: "merchant", vendor: "seppo"), so pressing G on him opens the Seppo shop with the expected inventory.
+- Behavioral notes:
+  - These changes are no-op when all modules are loaded via src/main.js (WorldRuntime, DungeonRuntime, Player, InventoryController, Loot, etc.); gameplay should be unchanged.
+  - When wiring is broken or a required module is missing, the game now fails fast with explicit errors instead of hiding issues behind "system not available" warnings.
+- Deployment: https://f8j45aeuou6n.cosine.page
 
 v1.49.2 — Visual weather system, HUD weather, castle tuning
 - Added: Non-gameplay visual weather system
