@@ -570,8 +570,6 @@ import {
 
   // Simple perf counters (DEV-only visible in console) + EMA smoothing
   const PERF = { lastTurnMs: 0, lastDrawMs: 0, avgTurnMs: 0, avgDrawMs: 0 };
-  // Hint cooldown to avoid spamming animal proximity logs
-  let lastAnimalHintTurn = -100;
 
   function requestDraw() {
     if (_suppressDraw) return;
@@ -1363,7 +1361,6 @@ import {
 
   
   // Lightweight hint: delegated to core/world_hints.js
-  let _wildNoHintTurns = 0;
   function maybeEmitOverworldAnimalHint() {
     try {
       const ctx = getCtx();
