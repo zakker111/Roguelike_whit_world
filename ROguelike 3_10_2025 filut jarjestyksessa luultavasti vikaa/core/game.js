@@ -69,6 +69,16 @@ import {
   eatFoodByIndex as eatFoodByIndexFacade
 } from "./facades/inventory.js";
 import {
+  initialDecay as invInitialDecay,
+  rerenderInventoryIfOpen as invRerenderInventoryIfOpen,
+  decayEquipped as invDecayEquipped,
+  usingTwoHanded as invUsingTwoHanded,
+  decayAttackHands as invDecayAttackHands,
+  decayBlockingHands as invDecayBlockingHands,
+  describeItem as invDescribeItem,
+  equipIfBetter as invEquipIfBetter
+} from "./facades/inventory_decay.js";
+import {
   setAlwaysCrit as setAlwaysCritFacade,
   setCritPart as setCritPartFacade,
   godSpawnEnemyNearby as godSpawnEnemyNearbyFacade,
@@ -340,57 +350,17 @@ import {
   const randFloat = (min, max, decimals = 1) => rngFloat(min, max, decimals, rng);
   const round1 = (n) => Math.round(n * 10) / 10;
 
-  // Decay helpers
+  // Decay helpers delegated to inventory_decay facade
   function initialDecay(tier) {
-    const IH = modHandle("Items");
-    if (IH && typeof IH.initialDecay === "function") {
-      return IH.initialDecay(tier);
-    }
-    
-    if (tier <= 1) return randFloat(10, 35, 0);
-    if (tier === 2) return randFloat(5, 20, 0);
-    return randFloat(0, 10, 0);
+    return invInitialDecay(getCtx(), tier);
   }
 
   function rerenderInventoryIfOpen() {
-    const UIO = modHandle("UIOrchestration");
-    let open = false;
-    try {
-      if (UIO && typeof UIO.isInventoryOpen === "function") open = !!UIO.isInventoryOpen(getCtx());
-    } catch (_) {}
-    if (open) renderInventoryPanel();
+    invRerenderInventoryIfOpen(getCtx());
   }
 
   function decayEquipped(slot, amount) {
-    const P = modHandle("Player");
-    if (P && typeof P.decayEquipped === "function") {
-      P.decayEquipped(player, slot, amount, {
-        log,
-        updateUI,
-        onInventoryChange: () => rerenderInventoryIfOpen(),
-      });
-      return;
-    }
-    
-    const it = player.equipment?.[slot];
-    if (!it) return;
-    const before = it.decay || 0;
-    it.decay = Math.min(100, round1(before + amount));
-    if (it.decay >= 100) {
-      log(`${capitalize(it.name)} breaks and is destroyed.`, "info");
-      // Optional flavor for breakage
-      try {
-        const F = modHandle("Flavor");
-        if (F && typeof F.onBreak === "function") {
-          F.onBreak(getCtx(), { side: "player", slot, item: it });
-        }
-      } catch (_) {}
-      player.equipment[slot] = null;
-      updateUI();
-      rerenderInventoryIfOpen();
-    } else if (Math.floor(before) !== Math.floor(it.decay)) {
-      rerenderInventoryIfOpen();
-    }
+    invDecayEquipped(getCtx(), slot, amount);
   }
 
   
@@ -404,18 +374,7 @@ import {
   }
 
   function describeItem(item) {
-    // Single source of truth: prefer Player.describeItem, then Items.describe
-    const P = modHandle("Player");
-    if (P && typeof P.describeItem === "function") {
-      return P.describeItem(item);
-    }
-    const IH = modHandle("Items");
-    if (IH && typeof IH.describe === "function") {
-      return IH.describe(item);
-    }
-    // Minimal fallback
-    if (!item) return "";
-    return item.name || "item";
+    return invDescribeItem(getCtx(), item);
   }
 
   
@@ -485,18 +444,7 @@ import {
 
   
   function equipIfBetter(item) {
-    // Delegate via ctx-first handle
-    const P = modHandle("Player");
-    if (P && typeof P.equipIfBetter === "function") {
-      return P.equipIfBetter(player, item, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-        describeItem: (it) => describeItem(it),
-      });
-    }
-    log("Equip system not available.", "warn");
-    return false;
+    return invEquipIfBetter(getCtx(), item);
   }
 
   
@@ -1671,36 +1619,17 @@ import {
     }
   }
 
-  // Hand decay helpers
+  // Hand decay helpers delegated to inventory_decay facade
   function usingTwoHanded() {
-    const eq = player.equipment || {};
-    return eq.left && eq.right && eq.left === eq.right && eq.left.twoHanded;
+    return invUsingTwoHanded(getCtx());
   }
 
   function decayAttackHands(light = false) {
-    const ED = modHandle("EquipmentDecay");
-    if (ED && typeof ED.decayAttackHands === "function") {
-      ED.decayAttackHands(player, rng, { twoHanded: usingTwoHanded(), light }, {
-        log,
-        updateUI,
-        onInventoryChange: () => rerenderInventoryIfOpen(),
-      });
-      return;
-    }
-    log("Equipment decay system not available.", "warn");
+    invDecayAttackHands(getCtx(), light);
   }
 
   function decayBlockingHands() {
-    const ED = modHandle("EquipmentDecay");
-    if (ED && typeof ED.decayBlockingHands === "function") {
-      ED.decayBlockingHands(player, rng, { twoHanded: usingTwoHanded() }, {
-        log,
-        updateUI,
-        onInventoryChange: () => rerenderInventoryIfOpen(),
-      });
-      return;
-    }
-    log("Equipment decay system not available.", "warn");
+    invDecayBlockingHands(getCtx());
   }
 
   
