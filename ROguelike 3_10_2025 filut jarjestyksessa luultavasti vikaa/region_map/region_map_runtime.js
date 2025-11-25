@@ -1586,20 +1586,13 @@ function onAction(ctx) {
       }
 
       // There is real loot underfoot: delegate to Loot subsystem for transfer/UI.
-      let handledLoot = false;
-      try {
-        const L = ctx.Loot || getMod(ctx, "Loot");
-        if (L && typeof L.lootHere === "function") {
-          L.lootHere(ctx);
-          handledLoot = true;
-        }
-      } catch (_) { handledLoot = false; }
-      if (!handledLoot) {
-        ctx.log && ctx.log("Loot system not available.", "warn");
-      } else {
-        // Persist region state immediately so looted containers remain emptied on reopen
-        try { saveRegionState(ctx); } catch (_) {}
+      const L = ctx.Loot || getMod(ctx, "Loot");
+      if (!L || typeof L.lootHere !== "function") {
+        throw new Error("Loot.lootHere missing; loot system cannot proceed in Region Map");
       }
+      L.lootHere(ctx);
+      // Persist region state immediately so looted containers remain emptied on reopen
+      try { saveRegionState(ctx); } catch (_) {}
       return true;
     }
   } catch (_) {}

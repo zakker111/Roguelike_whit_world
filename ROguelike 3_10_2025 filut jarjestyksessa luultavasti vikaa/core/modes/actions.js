@@ -163,8 +163,30 @@ export function doAction(ctx) {
         if (okRuins) return true;
       }
     } catch (_) {}
-    // Unhandled tile in world: allow fallback movement handlers to proceed
-    return false;
+
+    // Quest marker start: pressing G on an 'E' tile starts the quest encounter
+    try {
+      const QS = getMod(ctx, "QuestService");
+      if (QS && typeof QS.triggerAtMarkerIfHere === "function") {
+        const started = !!QS.triggerAtMarkerIfHere(ctx);
+        if (started) return true;
+      }
+    } catch (_) {}
+
+    // Open Region map when pressing G on a walkable overworld tile (no overlay panel)
+    try {
+      const RM = getMod(ctx, "RegionMapRuntime");
+      if (RM && typeof RM.open === "function") {
+        const ok = !!RM.open(ctx);
+        if (!ok && ctx.log) ctx.log("Region Map cannot be opened here.", "warn");
+      } else if (ctx.log) {
+        ctx.log("Region map module not available.", "warn");
+      }
+    } catch (_) {
+      try { ctx.log && ctx.log("Region map module not available.", "warn"); } catch (_) {}
+    }
+    // World action has been fully handled (entered mode, quest, or region map/log)
+    return true;
   }
 
   if (ctx.mode === "town") {
@@ -230,6 +252,68 @@ export function doAction(ctx) {
     }
     // Nothing else: allow fallback
     return false;
+  }
+
+  if (ctx.mode === "region") {
+    try {
+      const RM = getMod(ctx, "RegionMapRuntime");
+      if (RM && typeof RM.onAction === "function") {
+        const handled = !!RM.onAction(ctx);
+        return handled;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  if (ctx.mode === "encounter") {
+    // Loot/flavor when standing on any corpse/chest (even if already looted)
+    try {
+      const list = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+      const corpseHere = list.find(c => c && c.x === ctx.player.x && c.y === ctx.player.y);
+      if (corpseHere) {
+        const DR = getMod(ctx, "DungeonRuntime");
+        if (DR && typeof DR.lootHere === "function") {
+          DR.lootHere(ctx);
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    // No lootable container underfoot: only allow withdraw if standing on exit (stairs) tile
+    try {
+      if (inBounds(ctx, ctx.player.x, ctx.player.y)) {
+        const here = ctx.map[ctx.player.y][ctx.player.x];
+        if (here === ctx.TILES.STAIRS) {
+          const ER = getMod(ctx, "EncounterRuntime");
+          if (ER && typeof ER.complete === "function") {
+            ER.complete(ctx, "withdraw");
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Delegate prop interactions to EncounterInteractions
+    try {
+      const EI = getMod(ctx, "EncounterInteractions") || (typeof window !== "undefined" ? window.EncounterInteractions : null);
+      if (EI && typeof EI.interactHere === "function") {
+        const handled = !!EI.interactHere(ctx);
+        if (handled) return true;
+      }
+    } catch (_) {}
+
+    // Otherwise, nothing to do here
+    try {
+      const MZ = getMod(ctx, "Messages");
+      if (MZ && typeof MZ.log === "function") {
+        MZ.log(ctx, "encounter.exitHint");
+      } else if (ctx.log) {
+        ctx.log("Return to the exit (>) to leave this encounter.", "info");
+      }
+    } catch (_) {
+      try { ctx.log && ctx.log("Return to the exit (>) to leave this encounter.", "info"); } catch (_) {}
+    }
+    return true;
   }
 
   if (ctx.mode === "dungeon") {

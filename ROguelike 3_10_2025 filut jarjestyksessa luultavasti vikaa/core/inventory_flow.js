@@ -116,7 +116,7 @@ export function equipItemByIndex(ctx, idx) {
     P.equipItemByIndex(ctx.player, idx, { log: ctx.log, updateUI: ctx.updateUI, renderInventory, describeItem });
     return;
   }
-  try { ctx.log && ctx.log("Equip system not available.", "warn"); } catch (_) {}
+  throw new Error("Equip system missing; InventoryController.equipByIndex and Player.equipItemByIndex not found");
 }
 
 export function equipItemByIndexHand(ctx, idx, hand) {
@@ -142,7 +142,7 @@ export function equipItemByIndexHand(ctx, idx, hand) {
     P.equipItemByIndex(ctx.player, idx, { log: ctx.log, updateUI: ctx.updateUI, renderInventory, describeItem, preferredHand: hand });
     return;
   }
-  try { ctx.log && ctx.log("Equip system not available.", "warn"); } catch (_) {}
+  throw new Error("Equip system missing; InventoryController.equipByIndexHand and Player.equipItemByIndex not found");
 }
 
 export function unequipSlot(ctx, slot) {
@@ -159,7 +159,7 @@ export function unequipSlot(ctx, slot) {
     P.unequipSlot(ctx.player, slot, { log: ctx.log, updateUI: ctx.updateUI, renderInventory });
     return;
   }
-  try { ctx.log && ctx.log("Equip system not available.", "warn"); } catch (_) {}
+  throw new Error("Equip system missing; InventoryController.unequipSlot and Player.unequipSlot not found");
 }
 
 export function drinkPotionByIndex(ctx, idx) {

@@ -99,17 +99,12 @@ export function complete(ctx, outcome = "victory") {
 
 export function tick(ctx) {
   if (!ctx || ctx.mode !== "encounter") return false;
-  // Reuse DungeonRuntime.tick so AI/status/decals behave exactly like dungeon mode
-  try {
-    const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
-    if (DR && typeof DR.tick === "function") {
-      DR.tick(ctx);
-    } else {
-      // Fallback to local minimal tick (should rarely happen)
-      const AIH = ctx.AI || (typeof window !== "undefined" ? window.AI : null);
-      if (AIH && typeof AIH.enemiesAct === "function") AIH.enemiesAct(ctx);
-    }
-  } catch (_) {}
+  // Reuse DungeonRuntime.tick so AI/status/decals behave exactly like dungeon mode; required for encounters.
+  const DR = ctx.DungeonRuntime || (typeof window !== "undefined" ? window.DungeonRuntime : null);
+  if (!DR || typeof DR.tick !== "function") {
+    throw new Error("DungeonRuntime.tick missing; encounter tick cannot proceed");
+  }
+  DR.tick(ctx);
 
   // Objectives processing (non-blocking; does not auto-exit)
   try {

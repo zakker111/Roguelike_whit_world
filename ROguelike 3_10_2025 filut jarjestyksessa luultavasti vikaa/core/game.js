@@ -31,12 +31,32 @@
   
   import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
 import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./state/persistence.js";
-import { createTimeFacade } from "./facades/time.js";
+import {
+  initTimeWeather,
+  getClock as timeGetClock,
+  getWeatherSnapshot as timeGetWeatherSnapshot,
+  minutesUntil as timeMinutesUntil,
+  advanceTimeMinutes as timeAdvanceTimeMinutes,
+  tickTimeAndWeather,
+  getMinutesPerTurn,
+  getTurnCounter
+} from "./facades/time_weather.js";
 import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./facades/perf.js";
 import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./facades/config.js";
 import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
 import { log as logFacade } from "./facades/log.js";
 import { getRng as rngGetRng, int as rngInt, chance as rngChance, float as rngFloat } from "./facades/rng.js";
+import {
+  getPlayerAttack as combatGetPlayerAttack,
+  getPlayerDefense as combatGetPlayerDefense,
+  rollHitLocation as combatRollHitLocation,
+  critMultiplier as combatCritMultiplier,
+  getEnemyBlockChance as combatGetEnemyBlockChance,
+  getPlayerBlockChance as combatGetPlayerBlockChance,
+  enemyDamageAfterDefense as combatEnemyDamageAfterDefense,
+  enemyDamageMultiplier as combatEnemyDamageMultiplier,
+  enemyThreatLabel as combatEnemyThreatLabel
+} from "./facades/combat.js";
 import {
   renderInventoryPanel as renderInventoryPanelFacade,
   showInventoryPanel as showInventoryPanelFacade,
@@ -48,6 +68,16 @@ import {
   drinkPotionByIndex as drinkPotionByIndexFacade,
   eatFoodByIndex as eatFoodByIndexFacade
 } from "./facades/inventory.js";
+import {
+  initialDecay as invInitialDecay,
+  rerenderInventoryIfOpen as invRerenderInventoryIfOpen,
+  decayEquipped as invDecayEquipped,
+  usingTwoHanded as invUsingTwoHanded,
+  decayAttackHands as invDecayAttackHands,
+  decayBlockingHands as invDecayBlockingHands,
+  describeItem as invDescribeItem,
+  equipIfBetter as invEquipIfBetter
+} from "./facades/inventory_decay.js";
 import {
   setAlwaysCrit as setAlwaysCritFacade,
   setCritPart as setCritPartFacade,
@@ -78,6 +108,9 @@ import {
   const { FOV_DEFAULT, FOV_MIN, FOV_MAX } = getFovDefaults(CFG);
   let fovRadius = FOV_DEFAULT;
 
+  // Initialize global time and weather runtime (shared across modes)
+  initTimeWeather(CFG);
+
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
   let mode = "world";
   let world = null;          // { map, width, height, towns, dungeons }
@@ -94,7 +127,7 @@ import {
   let innUpstairsActive = false;
   let innStairsGround = [];  // [{x,y},{x,y}] two ground-floor stairs tiles inside inn hall
   
-  let townName = null;       // current town's generated name
+  
 
   // World/town/dungeon transition anchors
   let townExitAt = null;     // gate position inside town used to exit back to overworld
@@ -105,48 +138,14 @@ import {
   // Persist dungeon states by overworld entrance coordinate "x,y"
   const dungeonStates = Object.create(null);
 
-  // Global time-of-day cycle (shared across modes)
-  // Centralized via TimeService to avoid duplication and keep math consistent.
-  // Time configuration from JSON when available
-  const _CFG_DAY_MINUTES = (CFG && CFG.time && typeof CFG.time.dayMinutes === "number") ? CFG.time.dayMinutes : (24 * 60);
-  const _CFG_CYCLE_TURNS = (CFG && CFG.time && typeof CFG.time.cycleTurns === "number") ? CFG.time.cycleTurns : 360;
-
-  const TS = createTimeFacade({ dayMinutes: _CFG_DAY_MINUTES, cycleTurns: _CFG_CYCLE_TURNS });
-  const DAY_MINUTES = TS.DAY_MINUTES;
-  const CYCLE_TURNS = TS.CYCLE_TURNS;
-  const MINUTES_PER_TURN = TS.MINUTES_PER_TURN;
-  let turnCounter = 0;            // total turns elapsed since start
-
-  // Visual weather (non-gameplay), driven by services/weather_service.js
-  let weatherState = { type: "clear", turnsLeft: 0 };
-  let WeatherSvc = null;
-  let lastWeatherType = null;
-
-  function ensureWeatherService() {
-    try {
-      if (!WeatherSvc && typeof window !== "undefined" && window.WeatherService && typeof window.WeatherService.create === "function") {
-        WeatherSvc = window.WeatherService.create({});
-      }
-    } catch (_) {}
-  }
-
-  // Initialize once at boot if available; will be re-attempted lazily later if needed.
-  ensureWeatherService();
-
-  // Compute in-game clock and phase from turnCounter (delegates to TimeService)
+  // Global time-of-day cycle and visual weather (shared across modes) are managed via
+  // the time_weather facade. This keeps core/game.js focused on orchestration logic.
   function getClock() {
-    return TS.getClock(turnCounter);
+    return timeGetClock();
   }
 
   function getWeatherSnapshot(time) {
-    try {
-      ensureWeatherService();
-      if (!WeatherSvc) return null;
-      const t = time || getClock();
-      return WeatherSvc.describe(weatherState, t);
-    } catch (_) {
-      return null;
-    }
+    return timeGetWeatherSnapshot(time);
   }
 
   
@@ -351,213 +350,65 @@ import {
   const randFloat = (min, max, decimals = 1) => rngFloat(min, max, decimals, rng);
   const round1 = (n) => Math.round(n * 10) / 10;
 
-  // Decay helpers
+  // Decay helpers delegated to inventory_decay facade
   function initialDecay(tier) {
-    const IH = modHandle("Items");
-    if (IH && typeof IH.initialDecay === "function") {
-      return IH.initialDecay(tier);
-    }
-    
-    if (tier <= 1) return randFloat(10, 35, 0);
-    if (tier === 2) return randFloat(5, 20, 0);
-    return randFloat(0, 10, 0);
+    return invInitialDecay(getCtx(), tier);
   }
 
   function rerenderInventoryIfOpen() {
-    const UIO = modHandle("UIOrchestration");
-    let open = false;
-    try {
-      if (UIO && typeof UIO.isInventoryOpen === "function") open = !!UIO.isInventoryOpen(getCtx());
-    } catch (_) {}
-    if (open) renderInventoryPanel();
+    invRerenderInventoryIfOpen(getCtx());
   }
 
   function decayEquipped(slot, amount) {
-    const P = modHandle("Player");
-    if (P && typeof P.decayEquipped === "function") {
-      P.decayEquipped(player, slot, amount, {
-        log,
-        updateUI,
-        onInventoryChange: () => rerenderInventoryIfOpen(),
-      });
-      return;
-    }
-    
-    const it = player.equipment?.[slot];
-    if (!it) return;
-    const before = it.decay || 0;
-    it.decay = Math.min(100, round1(before + amount));
-    if (it.decay >= 100) {
-      log(`${capitalize(it.name)} breaks and is destroyed.`, "info");
-      // Optional flavor for breakage
-      try {
-        const F = modHandle("Flavor");
-        if (F && typeof F.onBreak === "function") {
-          F.onBreak(getCtx(), { side: "player", slot, item: it });
-        }
-      } catch (_) {}
-      player.equipment[slot] = null;
-      updateUI();
-      rerenderInventoryIfOpen();
-    } else if (Math.floor(before) !== Math.floor(it.decay)) {
-      rerenderInventoryIfOpen();
-    }
+    invDecayEquipped(getCtx(), slot, amount);
   }
 
   
   function getPlayerAttack() {
-    // Phase 1: centralize via Stats (which prefers Player under the hood)
-    const S = modHandle("Stats");
-    if (S && typeof S.getPlayerAttack === "function") {
-      return S.getPlayerAttack(getCtx());
-    }
-    // Fallback: prefer Player module if Stats unavailable
-    const P = modHandle("Player");
-    if (P && typeof P.getAttack === "function") {
-      return P.getAttack(player);
-    }
-    // Last-resort minimal fallback
-    let bonus = 0;
-    const eq = player.equipment || {};
-    if (eq.left && typeof eq.left.atk === "number") bonus += eq.left.atk;
-    if (eq.right && typeof eq.right.atk === "number") bonus += eq.right.atk;
-    if (eq.hands && typeof eq.hands.atk === "number") bonus += eq.hands.atk;
-    const levelBonus = Math.floor((player.level - 1) / 2);
-    return round1(player.atk + bonus + levelBonus);
+    return combatGetPlayerAttack(getCtx());
   }
 
   
   function getPlayerDefense() {
-    // Phase 1: centralize via Stats (which prefers Player under the hood)
-    const S = modHandle("Stats");
-    if (S && typeof S.getPlayerDefense === "function") {
-      return S.getPlayerDefense(getCtx());
-    }
-    // Fallback: prefer Player module if Stats unavailable
-    const P = modHandle("Player");
-    if (P && typeof P.getDefense === "function") {
-      return P.getDefense(player);
-    }
-    // Last-resort minimal fallback
-    let def = 0;
-    const eq = player.equipment || {};
-    if (eq.left && typeof eq.left.def === "number") def += eq.left.def;
-    if (eq.right && typeof eq.right.def === "number") def += eq.right.def;
-    if (eq.head && typeof eq.head.def === "number") def += eq.head.def;
-    if (eq.torso && typeof eq.torso.def === "number") def += eq.torso.def;
-    if (eq.legs && typeof eq.legs.def === "number") def += eq.legs.def;
-    if (eq.hands && typeof eq.hands.def === "number") def += eq.hands.def;
-    return round1(def);
+    return combatGetPlayerDefense(getCtx());
   }
 
   function describeItem(item) {
-    // Single source of truth: prefer Player.describeItem, then Items.describe
-    const P = modHandle("Player");
-    if (P && typeof P.describeItem === "function") {
-      return P.describeItem(item);
-    }
-    const IH = modHandle("Items");
-    if (IH && typeof IH.describe === "function") {
-      return IH.describe(item);
-    }
-    // Minimal fallback
-    if (!item) return "";
-    return item.name || "item";
+    return invDescribeItem(getCtx(), item);
   }
 
   
   function rollHitLocation() {
-    const C = modHandle("Combat");
-    if (C && typeof C.rollHitLocation === "function") {
-      return C.rollHitLocation(rng);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.rollHitLocation === "function") {
-      return FB.rollHitLocation(rng);
-    }
-    log("Combat system not available: using default hit location.", "warn");
-    return { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
+    return combatRollHitLocation(getCtx());
   }
 
   function critMultiplier() {
-    const C = modHandle("Combat");
-    if (C && typeof C.critMultiplier === "function") {
-      return C.critMultiplier(rng);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.critMultiplier === "function") {
-      return FB.critMultiplier(rng);
-    }
-    log("Combat system not available: using default crit multiplier.", "warn");
-    return 1.5;
+    return combatCritMultiplier(getCtx());
   }
 
   function getEnemyBlockChance(enemy, loc) {
-    const C = modHandle("Combat");
-    if (C && typeof C.getEnemyBlockChance === "function") {
-      return C.getEnemyBlockChance(getCtx(), enemy, loc);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.enemyBlockChance === "function") {
-      return FB.enemyBlockChance(getCtx(), enemy, loc);
-    }
-    log("Combat system not available: enemy block chance defaulting to 0.", "warn");
-    return 0;
+    return combatGetEnemyBlockChance(getCtx(), enemy, loc);
   }
 
   function getPlayerBlockChance(loc) {
-    const C = modHandle("Combat");
-    if (C && typeof C.getPlayerBlockChance === "function") {
-      return C.getPlayerBlockChance(getCtx(), loc);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.getPlayerBlockChance === "function") {
-      return FB.getPlayerBlockChance(getCtx(), loc);
-    }
-    log("Combat system not available: player block chance defaulting to 0.", "warn");
-    return 0;
+    return combatGetPlayerBlockChance(getCtx(), loc);
   }
 
   // Enemy damage after applying player's defense
   function enemyDamageAfterDefense(raw) {
-    const C = modHandle("Combat");
-    if (C && typeof C.enemyDamageAfterDefense === "function") {
-      return C.enemyDamageAfterDefense(getCtx(), raw);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.enemyDamageAfterDefense === "function") {
-      return FB.enemyDamageAfterDefense(getCtx(), raw);
-    }
-    log("Combat system not available: using raw damage.", "warn");
-    return raw;
+    return combatEnemyDamageAfterDefense(getCtx(), raw);
   }
 
   
   
 
   function enemyDamageMultiplier(level) {
-    const C = modHandle("Combat");
-    if (C && typeof C.enemyDamageMultiplier === "function") {
-      return C.enemyDamageMultiplier(level);
-    }
-    const FB = modHandle("Fallbacks");
-    if (FB && typeof FB.enemyDamageMultiplier === "function") {
-      return FB.enemyDamageMultiplier(level);
-    }
-    return 1 + 0.15 * Math.max(0, (level || 1) - 1);
+    return combatEnemyDamageMultiplier(getCtx(), level);
   }
 
   // Classify enemy danger based on level difference vs player
   function enemyThreatLabel(enemy) {
-    const diff = (enemy.level || 1) - (player.level || 1);
-    let label = "moderate";
-    let tone = "info";
-    if (diff <= -2) { label = "weak"; tone = "good"; }
-    else if (diff === -1) { label = "weak"; tone = "good"; }
-    else if (diff === 0) { label = "moderate"; tone = "info"; }
-    else if (diff === 1) { label = "strong"; tone = "warn"; }
-    else if (diff >= 2) { label = "deadly"; tone = "warn"; }
-    return { label, tone, diff };
+    return combatEnemyThreatLabel(getCtx(), enemy);
   }
 
   
@@ -576,35 +427,21 @@ import {
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    try { addPotionToInventoryFacade(getCtx(), heal, name); return; } catch (_) {}
-    log("Inventory system not available.", "warn");
+    addPotionToInventoryFacade(getCtx(), heal, name);
   }
 
   function drinkPotionByIndex(idx) {
-    try { drinkPotionByIndexFacade(getCtx(), idx); return; } catch (_) {}
-    log("Inventory system not available.", "warn");
+    drinkPotionByIndexFacade(getCtx(), idx);
   }
 
   // Eat edible materials using centralized inventory flow
   function eatFoodByIndex(idx) {
-    try { eatFoodByIndexFacade(getCtx(), idx); return; } catch (_) {}
-    log("Inventory system not available.", "warn");
+    eatFoodByIndexFacade(getCtx(), idx);
   }
 
   
   function equipIfBetter(item) {
-    // Delegate via ctx-first handle
-    const P = modHandle("Player");
-    if (P && typeof P.equipIfBetter === "function") {
-      return P.equipIfBetter(player, item, {
-        log,
-        updateUI,
-        renderInventory: () => renderInventoryPanel(),
-        describeItem: (it) => describeItem(it),
-      });
-    }
-    log("Equip system not available.", "warn");
-    return false;
+    return invEquipIfBetter(getCtx(), item);
   }
 
   
@@ -618,17 +455,15 @@ import {
   
   function generateLevel(depth = 1) {
     const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.generate === "function") {
-      const ctx = getCtx();
-      ctx.startRoomRect = startRoomRect;
-      DR.generate(ctx, depth);
-      // Sync back references mutated by the module
-      syncFromCtx(ctx);
-      startRoomRect = ctx.startRoomRect || startRoomRect;
-      return;
+    if (!DR || typeof DR.generate !== "function") {
+      throw new Error("DungeonRuntime.generate missing; dungeon generation cannot proceed");
     }
-    log("Error: Dungeon generation unavailable.", "bad");
-    throw new Error("Dungeon generation unavailable");
+    const ctx = getCtx();
+    ctx.startRoomRect = startRoomRect;
+    DR.generate(ctx, depth);
+    // Sync back references mutated by the module
+    syncFromCtx(ctx);
+    startRoomRect = ctx.startRoomRect || startRoomRect;
   }
 
   function inBounds(x, y) {
@@ -728,10 +563,7 @@ import {
   // Suppress draw flag used for fast-forward time (sleep/wait simulations)
   let _suppressDraw = false;
 
-  // Simple perf counters (DEV-only visible in console) + EMA smoothing
-  const PERF = { lastTurnMs: 0, lastDrawMs: 0, avgTurnMs: 0, avgDrawMs: 0 };
-  // Hint cooldown to avoid spamming animal proximity logs
-  let lastAnimalHintTurn = -100;
+  
 
   function requestDraw() {
     if (_suppressDraw) return;
@@ -746,29 +578,25 @@ import {
   
 
   function initWorld() {
-    // Prefer WorldRuntime.generate to centralize world setup
+    // WorldRuntime is required for overworld generation; fail fast if missing
     const WR = modHandle("WorldRuntime");
-    if (WR && typeof WR.generate === "function") {
-      const ctx = getCtx();
-      const ok = WR.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
-      if (ok) {
-        // Sync back any mutated references from ctx
-        syncFromCtx(ctx);
-        // Ensure the camera is centered on the player before the first render
-        try { updateCamera(); } catch (_) {}
-        // Ensure FOV reflects the spawn position right away
-        try { recomputeFOV(); } catch (_) {}
-        try { updateUI(); } catch (_) {}
-        // Orchestrator schedules a single draw after world init
-        requestDraw();
-        return;
-      }
-      // Fall through to legacy path if WorldRuntime signaled failure
+    if (!WR || typeof WR.generate !== "function") {
+      throw new Error("WorldRuntime.generate missing; overworld generation cannot proceed");
     }
-
-    // Hard error: infinite world not available or generation failed
-    log("Error: Infinite world generation failed or unavailable.", "bad");
-    throw new Error("Infinite world generation failed or unavailable");
+    const ctx = getCtx();
+    const ok = WR.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
+    if (!ok) {
+      throw new Error("WorldRuntime.generate returned falsy; overworld generation failed");
+    }
+    // Sync back any mutated references from ctx
+    syncFromCtx(ctx);
+    // Ensure the camera is centered on the player before the first render
+    try { updateCamera(); } catch (_) {}
+    // Ensure FOV reflects the spawn position right away
+    try { recomputeFOV(); } catch (_) {}
+    try { updateUI(); } catch (_) {}
+    // Orchestrator schedules a single draw after world init
+    requestDraw();
   }
 
   
@@ -791,31 +619,10 @@ import {
     return "";
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
-    return TS.minutesUntil(turnCounter, hourTarget, minuteTarget);
+    return timeMinutesUntil(hourTarget, minuteTarget);
   }
   function advanceTimeMinutes(mins) {
-    const total = Math.max(0, (Number(mins) || 0) | 0);
-    if (total <= 0) return;
-    const turns = Math.max(1, Math.ceil(total / MINUTES_PER_TURN));
-    for (let i = 0; i < turns; i++) {
-      // Advance global time
-      turnCounter = TS.tick(turnCounter);
-      // Advance visual weather state in lockstep with time
-      try {
-        ensureWeatherService();
-        if (WeatherSvc) {
-          const timeNow = getClock();
-          const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
-          weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
-          const snap = WeatherSvc.describe(weatherState, timeNow);
-          const curType = snap && snap.type ? String(snap.type) : null;
-          if (curType && curType !== lastWeatherType) {
-            lastWeatherType = curType;
-            try { log(`Weather now: ${snap.label || curType}.`, "notice"); } catch (_) {}
-          }
-        }
-      } catch (_) {}
-    }
+    timeAdvanceTimeMinutes(mins, (msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
@@ -828,7 +635,8 @@ import {
     } catch (_) {}
     const total = Math.max(0, (Number(mins) || 0) | 0);
     if (total <= 0) return 0;
-    const turns = Math.max(1, Math.ceil(total / MINUTES_PER_TURN));
+    const minutesPerTurn = getMinutesPerTurn();
+    const turns = Math.max(1, Math.ceil(total / (minutesPerTurn || 1)));
     _suppressDraw = true;
     for (let i = 0; i < turns; i++) {
       try { turn(); } catch (_) { break; }
@@ -1116,39 +924,7 @@ import {
       }
     }
 
-    if (mode === "world") {
-      if (!enterTownIfOnTile()) {
-        if (!enterDungeonIfOnEntrance()) {
-          // Quest marker start: pressing G on an 'E' tile starts the quest encounter
-          {
-            const QS = modHandle("QuestService");
-            if (QS && typeof QS.triggerAtMarkerIfHere === "function") {
-              const ctxQ = getCtx();
-              const started = !!QS.triggerAtMarkerIfHere(ctxQ);
-              if (started) {
-                applyCtxSyncAndRefresh(ctxQ);
-                return;
-              }
-            }
-          }
-
-          // Open Region map when pressing G on a walkable overworld tile (no overlay panel)
-          const ctxMod = getCtx();
-          const RM = modHandle("RegionMapRuntime");
-          if (RM && typeof RM.open === "function") {
-            const ok = !!RM.open(ctxMod);
-            if (ok) {
-              applyCtxSyncAndRefresh(ctxMod);
-            } else {
-              log("Region Map cannot be opened here.", "warn");
-            }
-          } else {
-            log("Region map module not available.", "warn");
-          }
-        }
-      }
-      return;
-    }
+    
 
     if (mode === "town") {
       // Prefer local interactions/logs first so guidance hint doesn't drown them out
@@ -1158,79 +934,7 @@ import {
       return;
     }
 
-    if (mode === "region") {
-      const ctxMod = getCtx();
-      const RM = modHandle("RegionMapRuntime");
-      if (RM && typeof RM.onAction === "function") {
-        const handled = !!RM.onAction(ctxMod);
-        if (handled) {
-          applyCtxSyncAndRefresh(ctxMod);
-          return;
-        }
-      }
-      return;
-    }
-
-    if (mode === "encounter") {
-      const ctxMod = getCtx();
-      // Loot/flavor when standing on any corpse/chest (even if already looted)
-      try {
-        const list = Array.isArray(ctxMod.corpses) ? ctxMod.corpses : [];
-        const corpseHere = list.find(c => c && c.x === ctxMod.player.x && c.y === ctxMod.player.y);
-        if (corpseHere) {
-          const DR = modHandle("DungeonRuntime");
-          if (DR && typeof DR.lootHere === "function") {
-            DR.lootHere(ctxMod);
-            applyCtxSyncAndRefresh(ctxMod);
-            return;
-          }
-        }
-      } catch (_) {}
-
-      // No lootable container underfoot: only allow withdraw if standing on exit (stairs) tile
-      try {
-        if (ctxMod.inBounds && ctxMod.inBounds(ctxMod.player.x, ctxMod.player.y)) {
-          const here = ctxMod.map[ctxMod.player.y][ctxMod.player.x];
-          if (here === ctxMod.TILES.STAIRS) {
-            const ER = modHandle("EncounterRuntime");
-            if (ER && typeof ER.complete === "function") {
-              ER.complete(ctxMod, "withdraw");
-              applyCtxSyncAndRefresh(ctxMod);
-              return;
-            }
-          }
-        }
-      } catch (_) {}
-
-      // Delegate prop interactions to EncounterInteractions
-      try {
-        const EI = modHandle("EncounterInteractions") || (typeof window !== "undefined" ? window.EncounterInteractions : null);
-        if (EI && typeof EI.interactHere === "function") {
-          const handled = !!EI.interactHere(ctxMod);
-          if (handled) {
-            applyCtxSyncAndRefresh(ctxMod);
-            return;
-          }
-        }
-      } catch (_) {}
-
-      // Otherwise, nothing to do here
-      {
-        const MZ = modHandle("Messages");
-        if (MZ && typeof MZ.log === "function") {
-          MZ.log(getCtx(), "encounter.exitHint");
-        } else {
-          log("Return to the exit (>) to leave this encounter.", "info");
-        }
-      }
-      return;
-    }
-
-    if (mode === "dungeon") {
-      lootCorpse();
-      return;
-    }
-
+    // Fallback for non-world modes when Actions.doAction did not handle:
     lootCorpse();
   }
 
@@ -1396,16 +1100,6 @@ import {
       LF.loot(getCtx());
       return;
     }
-    const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.lootHere === "function") {
-      DR.lootHere(getCtx());
-      return;
-    }
-    const L = modHandle("Loot");
-    if (L && typeof L.lootHere === "function") {
-      L.lootHere(getCtx());
-      return;
-    }
     log("Nothing to loot here.", "info");
   }
 
@@ -1473,18 +1167,15 @@ import {
   }
 
   function equipItemByIndex(idx) {
-    try { equipItemByIndexFacade(getCtx(), idx); return; } catch (_) {}
-    log("Equip system not available.", "warn");
+    equipItemByIndexFacade(getCtx(), idx);
   }
 
   function equipItemByIndexHand(idx, hand) {
-    try { equipItemByIndexHandFacade(getCtx(), idx, hand); return; } catch (_) {}
-    log("Equip system not available.", "warn");
+    equipItemByIndexHandFacade(getCtx(), idx, hand);
   }
 
   function unequipSlot(slot) {
-    try { unequipSlotFacade(getCtx(), slot); return; } catch (_) {}
-    log("Equip system not available.", "warn");
+    unequipSlotFacade(getCtx(), slot);
   }
 
   
@@ -1601,11 +1292,10 @@ import {
   
   function gainXP(amount) {
     const P = modHandle("Player");
-    if (P && typeof P.gainXP === "function") {
-      P.gainXP(player, amount, { log, updateUI });
-      return;
+    if (!P || typeof P.gainXP !== "function") {
+      throw new Error("Player.gainXP missing; XP system cannot proceed");
     }
-    log("XP system not available.", "warn");
+    P.gainXP(player, amount, { log, updateUI });
   }
 
   function killEnemy(enemy) {
@@ -1647,11 +1337,10 @@ import {
 
   
   // Lightweight hint: delegated to core/world_hints.js
-  let _wildNoHintTurns = 0;
   function maybeEmitOverworldAnimalHint() {
     try {
       const ctx = getCtx();
-      maybeEmitOverworldAnimalHintExt(ctx, turnCounter);
+      maybeEmitOverworldAnimalHintExt(ctx, getTurnCounter());
     } catch (_) {}
   }
 
@@ -1660,24 +1349,8 @@ import {
 
     const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
 
-    // Advance global time (centralized via TimeService)
-    turnCounter = TS.tick(turnCounter);
-
-    // Advance visual weather state (non-gameplay)
-    try {
-      ensureWeatherService();
-      if (WeatherSvc) {
-        const timeNow = getClock();
-        const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
-        weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
-        const snap = WeatherSvc.describe(weatherState, timeNow);
-        const curType = snap && snap.type ? String(snap.type) : null;
-        if (curType && curType !== lastWeatherType) {
-          lastWeatherType = curType;
-          try { log(`Weather now: ${snap.label || curType}.`, "notice"); } catch (_) {}
-        }
-      }
-    } catch (_) {}
+    // Advance global time and visual weather state (non-gameplay)
+    tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
 
     // Prefer centralized TurnLoop when available
     try {
@@ -1702,90 +1375,7 @@ import {
       }
     } catch (_) {}
 
-    // Fallback: inline turn processing (legacy path)
-    // Injury healing: healable injuries tick down and disappear when reaching 0
-    try {
-      if (player && Array.isArray(player.injuries) && player.injuries.length) {
-        let changed = false;
-        player.injuries = player.injuries.map((inj) => {
-          if (!inj) return null;
-          if (typeof inj === "string") {
-            // Convert legacy string format to object
-            const name = inj;
-            const permanent = /scar|missing finger/i.test(name);
-            return { name, healable: !permanent, durationTurns: permanent ? 0 : 40 };
-          }
-          if (inj.healable && (inj.durationTurns | 0) > 0) {
-            inj.durationTurns = (inj.durationTurns | 0) - 1;
-            changed = true;
-          }
-          return (inj.healable && inj.durationTurns <= 0) ? null : inj;
-        }).filter(Boolean);
-        if (changed) {
-          // Update HUD so Character Sheet reflects status sooner if open later
-          updateUI();
-        }
-      }
-    } catch (_) {}
-
-    if (mode === "dungeon") {
-      const DR = modHandle("DungeonRuntime");
-      if (DR && typeof DR.tick === "function") {
-        DR.tick(getCtx());
-      }
-    } else if (mode === "town") {
-      const TR = modHandle("TownRuntime");
-      if (TR && typeof TR.tick === "function") {
-        TR.tick(getCtx());
-      }
-    } else if (mode === "world") {
-      const WR = modHandle("WorldRuntime");
-      if (WR && typeof WR.tick === "function") {
-        WR.tick(getCtx());
-      }
-      // After world tick, maybe emit a wildlife hint
-      maybeEmitOverworldAnimalHint();
-    } else if (mode === "encounter") {
-      const ER = modHandle("EncounterRuntime");
-      if (ER && typeof ER.tick === "function") {
-        const ctxMod = getCtx();
-        ER.tick(ctxMod);
-        // Merge enemy/corpse/decals mutations that may have been synced via a different ctx inside callbacks
-        try {
-          ctxMod.enemies = Array.isArray(enemies) ? enemies : ctxMod.enemies;
-          ctxMod.corpses = Array.isArray(corpses) ? corpses : ctxMod.corpses;
-          ctxMod.decals = Array.isArray(decals) ? decals : ctxMod.decals;
-        } catch (_) {}
-        // Now push ctx state (including player position/mode changes) and refresh
-        applyCtxSyncAndRefresh(ctxMod);
-      }
-    } else if (mode === "region") {
-      const RM = modHandle("RegionMapRuntime");
-      if (RM && typeof RM.tick === "function") {
-        RM.tick(getCtx());
-      }
-    }
-
-    // Apply status effects globally each turn (bleed, dazed)
-    try {
-      const ST = modHandle("Status");
-      if (ST && typeof ST.tick === "function") {
-        ST.tick(getCtx());
-      }
-    } catch (_) {}
-
-    applyCtxSyncAndRefresh(getCtx());
-
-    // If external modules mutated ctx.mode/map (e.g., EncounterRuntime.complete), sync orchestrator state
-    try {
-      const cPost = getCtx();
-      if (cPost && cPost.mode !== mode) {
-        applyCtxSyncAndRefresh(cPost);
-      }
-    } catch (_) {}
-
-    const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
-    try { perfMeasureTurn(t1 - t0); } catch (_) {}
+    
   }
   
   
@@ -1815,36 +1405,17 @@ import {
     }
   }
 
-  // Hand decay helpers
+  // Hand decay helpers delegated to inventory_decay facade
   function usingTwoHanded() {
-    const eq = player.equipment || {};
-    return eq.left && eq.right && eq.left === eq.right && eq.left.twoHanded;
+    return invUsingTwoHanded(getCtx());
   }
 
   function decayAttackHands(light = false) {
-    const ED = modHandle("EquipmentDecay");
-    if (ED && typeof ED.decayAttackHands === "function") {
-      ED.decayAttackHands(player, rng, { twoHanded: usingTwoHanded(), light }, {
-        log,
-        updateUI,
-        onInventoryChange: () => rerenderInventoryIfOpen(),
-      });
-      return;
-    }
-    log("Equipment decay system not available.", "warn");
+    invDecayAttackHands(getCtx(), light);
   }
 
   function decayBlockingHands() {
-    const ED = modHandle("EquipmentDecay");
-    if (ED && typeof ED.decayBlockingHands === "function") {
-      ED.decayBlockingHands(player, rng, { twoHanded: usingTwoHanded() }, {
-        log,
-        updateUI,
-        onInventoryChange: () => rerenderInventoryIfOpen(),
-      });
-      return;
-    }
-    log("Equipment decay system not available.", "warn");
+    invDecayBlockingHands(getCtx());
   }
 
   

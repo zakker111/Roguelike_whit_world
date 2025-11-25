@@ -54,19 +54,14 @@ export function hide(ctx) {
 
 export function loot(ctx) {
   const A = mod("Actions");
-  if (A && typeof A.loot === "function") {
-    const handled = !!A.loot(ctx);
-    if (handled) return true;
-  }
-  if (ctx.mode === "dungeon") {
-    const DR = mod("DungeonRuntime");
-    if (DR && typeof DR.lootHere === "function") { DR.lootHere(ctx); return true; }
-    const L = mod("Loot");
-    if (L && typeof L.lootHere === "function") { L.lootHere(ctx); return true; }
-    try { ctx.log && ctx.log("Return to the entrance (the hole '>') and press G to leave.", "info"); } catch (_) {}
-    return true;
-  }
-  try { ctx.log && ctx.log("Nothing to do here."); } catch (_) {}
+  try {
+    if (A && typeof A.loot === "function") {
+      const handled = !!A.loot(ctx);
+      if (handled) return true;
+    }
+  } catch (_) {}
+  // Fallback: minimal guidance when Actions module is unavailable
+  try { ctx && ctx.log && ctx.log("Nothing to do here."); } catch (_) {}
   return false;
 }
 
