@@ -936,39 +936,7 @@ import {
       }
     }
 
-    if (mode === "world") {
-      if (!enterTownIfOnTile()) {
-        if (!enterDungeonIfOnEntrance()) {
-          // Quest marker start: pressing G on an 'E' tile starts the quest encounter
-          {
-            const QS = modHandle("QuestService");
-            if (QS && typeof QS.triggerAtMarkerIfHere === "function") {
-              const ctxQ = getCtx();
-              const started = !!QS.triggerAtMarkerIfHere(ctxQ);
-              if (started) {
-                applyCtxSyncAndRefresh(ctxQ);
-                return;
-              }
-            }
-          }
-
-          // Open Region map when pressing G on a walkable overworld tile (no overlay panel)
-          const ctxMod = getCtx();
-          const RM = modHandle("RegionMapRuntime");
-          if (RM && typeof RM.open === "function") {
-            const ok = !!RM.open(ctxMod);
-            if (ok) {
-              applyCtxSyncAndRefresh(ctxMod);
-            } else {
-              log("Region Map cannot be opened here.", "warn");
-            }
-          } else {
-            log("Region map module not available.", "warn");
-          }
-        }
-      }
-      return;
-    }
+    
 
     if (mode === "town") {
       // Prefer local interactions/logs first so guidance hint doesn't drown them out

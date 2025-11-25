@@ -163,8 +163,30 @@ export function doAction(ctx) {
         if (okRuins) return true;
       }
     } catch (_) {}
-    // Unhandled tile in world: allow fallback movement handlers to proceed
-    return false;
+
+    // Quest marker start: pressing G on an 'E' tile starts the quest encounter
+    try {
+      const QS = getMod(ctx, "QuestService");
+      if (QS && typeof QS.triggerAtMarkerIfHere === "function") {
+        const started = !!QS.triggerAtMarkerIfHere(ctx);
+        if (started) return true;
+      }
+    } catch (_) {}
+
+    // Open Region map when pressing G on a walkable overworld tile (no overlay panel)
+    try {
+      const RM = getMod(ctx, "RegionMapRuntime");
+      if (RM && typeof RM.open === "function") {
+        const ok = !!RM.open(ctx);
+        if (!ok && ctx.log) ctx.log("Region Map cannot be opened here.", "warn");
+      } else if (ctx.log) {
+        ctx.log("Region map module not available.", "warn");
+      }
+    } catch (_) {
+      try { ctx.log && ctx.log("Region map module not available.", "warn"); } catch (_) {}
+    }
+    // World action has been fully handled (entered mode, quest, or region map/log)
+    return true;
   }
 
   if (ctx.mode === "town") {
