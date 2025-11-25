@@ -31,7 +31,16 @@
   
   import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
 import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./state/persistence.js";
-import { createTimeFacade } from "./facades/time.js";
+import {
+  initTimeWeather,
+  getClock as timeGetClock,
+  getWeatherSnapshot as timeGetWeatherSnapshot,
+  minutesUntil as timeMinutesUntil,
+  advanceTimeMinutes as timeAdvanceTimeMinutes,
+  tickTimeAndWeather,
+  getMinutesPerTurn,
+  getTurnCounter
+} from "./facades/time_weather.js";
 import { measureDraw as perfMeasureDraw, measureTurn as perfMeasureTurn, getPerfStats as perfGetPerfStats } from "./facades/perf.js";
 import { getRawConfig, getViewportDefaults, getWorldDefaults, getFovDefaults, getDevDefaults } from "./facades/config.js";
 import { TILES as TILES_CONST, getColors as getColorsConst } from "./facades/visuals.js";
@@ -89,6 +98,9 @@ import {
   const { FOV_DEFAULT, FOV_MIN, FOV_MAX } = getFovDefaults(CFG);
   let fovRadius = FOV_DEFAULT;
 
+  // Initialize global time and weather runtime (shared across modes)
+  initTimeWeather(CFG);
+
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
   let mode = "world";
   let world = null;          // { map, width, height, towns, dungeons }
@@ -116,48 +128,14 @@ import {
   // Persist dungeon states by overworld entrance coordinate "x,y"
   const dungeonStates = Object.create(null);
 
-  // Global time-of-day cycle (shared across modes)
-  // Centralized via TimeService to avoid duplication and keep math consistent.
-  // Time configuration from JSON when available
-  const _CFG_DAY_MINUTES = (CFG && CFG.time && typeof CFG.time.dayMinutes === "number") ? CFG.time.dayMinutes : (24 * 60);
-  const _CFG_CYCLE_TURNS = (CFG && CFG.time && typeof CFG.time.cycleTurns === "number") ? CFG.time.cycleTurns : 360;
-
-  const TS = createTimeFacade({ dayMinutes: _CFG_DAY_MINUTES, cycleTurns: _CFG_CYCLE_TURNS });
-  const DAY_MINUTES = TS.DAY_MINUTES;
-  const CYCLE_TURNS = TS.CYCLE_TURNS;
-  const MINUTES_PER_TURN = TS.MINUTES_PER_TURN;
-  let turnCounter = 0;            // total turns elapsed since start
-
-  // Visual weather (non-gameplay), driven by services/weather_service.js
-  let weatherState = { type: "clear", turnsLeft: 0 };
-  let WeatherSvc = null;
-  let lastWeatherType = null;
-
-  function ensureWeatherService() {
-    try {
-      if (!WeatherSvc && typeof window !== "undefined" && window.WeatherService && typeof window.WeatherService.create === "function") {
-        WeatherSvc = window.WeatherService.create({});
-      }
-    } catch (_) {}
-  }
-
-  // Initialize once at boot if available; will be re-attempted lazily later if needed.
-  ensureWeatherService();
-
-  // Compute in-game clock and phase from turnCounter (delegates to TimeService)
+  // Global time-of-day cycle and visual weather (shared across modes) are managed via
+  // the time_weather facade. This keeps core/game.js focused on orchestration logic.
   function getClock() {
-    return TS.getClock(turnCounter);
+    return timeGetClock();
   }
 
   function getWeatherSnapshot(time) {
-    try {
-      ensureWeatherService();
-      if (!WeatherSvc) return null;
-      const t = time || getClock();
-      return WeatherSvc.describe(weatherState, t);
-    } catch (_) {
-      return null;
-    }
+    return timeGetWeatherSnapshot(time);
   }
 
   
@@ -705,31 +683,10 @@ import {
     return "";
   }
   function minutesUntil(hourTarget /*0-23*/, minuteTarget = 0) {
-    return TS.minutesUntil(turnCounter, hourTarget, minuteTarget);
+    return timeMinutesUntil(hourTarget, minuteTarget);
   }
   function advanceTimeMinutes(mins) {
-    const total = Math.max(0, (Number(mins) || 0) | 0);
-    if (total <= 0) return;
-    const turns = Math.max(1, Math.ceil(total / MINUTES_PER_TURN));
-    for (let i = 0; i < turns; i++) {
-      // Advance global time
-      turnCounter = TS.tick(turnCounter);
-      // Advance visual weather state in lockstep with time
-      try {
-        ensureWeatherService();
-        if (WeatherSvc) {
-          const timeNow = getClock();
-          const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
-          weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
-          const snap = WeatherSvc.describe(weatherState, timeNow);
-          const curType = snap && snap.type ? String(snap.type) : null;
-          if (curType && curType !== lastWeatherType) {
-            lastWeatherType = curType;
-            try { log(`Weather now: ${snap.label || curType}.`, "notice"); } catch (_) {}
-          }
-        }
-      } catch (_) {}
-    }
+    timeAdvanceTimeMinutes(mins, (msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
   }
   // Run a number of turns equivalent to the given minutes so NPCs/AI act during time passage.
   function fastForwardMinutes(mins) {
@@ -742,7 +699,8 @@ import {
     } catch (_) {}
     const total = Math.max(0, (Number(mins) || 0) | 0);
     if (total <= 0) return 0;
-    const turns = Math.max(1, Math.ceil(total / MINUTES_PER_TURN));
+    const minutesPerTurn = getMinutesPerTurn();
+    const turns = Math.max(1, Math.ceil(total / (minutesPerTurn || 1)));
     _suppressDraw = true;
     for (let i = 0; i < turns; i++) {
       try { turn(); } catch (_) { break; }
@@ -1565,7 +1523,7 @@ import {
   function maybeEmitOverworldAnimalHint() {
     try {
       const ctx = getCtx();
-      maybeEmitOverworldAnimalHintExt(ctx, turnCounter);
+      maybeEmitOverworldAnimalHintExt(ctx, getTurnCounter());
     } catch (_) {}
   }
 
@@ -1574,24 +1532,8 @@ import {
 
     const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
 
-    // Advance global time (centralized via TimeService)
-    turnCounter = TS.tick(turnCounter);
-
-    // Advance visual weather state (non-gameplay)
-    try {
-      ensureWeatherService();
-      if (WeatherSvc) {
-        const timeNow = getClock();
-        const rngFn = () => (typeof rng === "function" ? rng() : Math.random());
-        weatherState = WeatherSvc.tick(weatherState, timeNow, rngFn);
-        const snap = WeatherSvc.describe(weatherState, timeNow);
-        const curType = snap && snap.type ? String(snap.type) : null;
-        if (curType && curType !== lastWeatherType) {
-          lastWeatherType = curType;
-          try { log(`Weather now: ${snap.label || curType}.`, "notice"); } catch (_) {}
-        }
-      }
-    } catch (_) {}
+    // Advance global time and visual weather state (non-gameplay)
+    tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
 
     // Prefer centralized TurnLoop when available
     try {
