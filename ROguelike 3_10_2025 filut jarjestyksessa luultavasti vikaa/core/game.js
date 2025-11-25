@@ -127,7 +127,7 @@ import {
   let innUpstairsActive = false;
   let innStairsGround = [];  // [{x,y},{x,y}] two ground-floor stairs tiles inside inn hall
   
-  let townName = null;       // current town's generated name
+  
 
   // World/town/dungeon transition anchors
   let townExitAt = null;     // gate position inside town used to exit back to overworld
@@ -1107,16 +1107,6 @@ import {
     const LF = modHandle("LootFlow");
     if (LF && typeof LF.loot === "function") {
       LF.loot(getCtx());
-      return;
-    }
-    const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.lootHere === "function") {
-      DR.lootHere(getCtx());
-      return;
-    }
-    const L = modHandle("Loot");
-    if (L && typeof L.lootHere === "function") {
-      L.lootHere(getCtx());
       return;
     }
     log("Nothing to loot here.", "info");
