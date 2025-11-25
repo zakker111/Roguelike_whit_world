@@ -23,3 +23,4 @@
 - caravan master does not seem to spawn in towns cities etc. when caravan enters it
 - caravans in towns need verification: prefab caravan stalls/shops vs actual parked caravans and town presence behavior
 - dungeon mountain passes (dungeons biased to spawn near mountain edges) don’t seem to spawn in practice; investigate terrain bias and anchor selection in world/infinite_gen.js and world/world.js
+- town ground/overlay sometimes looks like uniform sand on first entering town, but fixes after moving: suspect early town biome/palette not ready when ui/render_town.js / ui/render/town_base_layer.js first build the cached base layer (TOWN.canvas); verify cache rebuild triggers correctly once ctx.townBiome and town palette are ready, and that fallback biome tint doesn’t blanket all outdoor tiles in the first frame
