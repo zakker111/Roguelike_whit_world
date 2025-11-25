@@ -96,47 +96,44 @@ export function drinkByIndex(ctx, idx, hooks) {
 
 export function equipByIndex(ctx, idx, hooks) {
   const P = (ctx && ctx.Player) || (typeof window !== "undefined" ? window.Player : null);
-  if (P && typeof P.equipItemByIndex === "function") {
-    P.equipItemByIndex(ctx.player, idx, {
-      log: ctx.log,
-      updateUI: ctx.updateUI,
-      renderInventory: () => render(ctx),
-      describeItem: (it) => ctx.describeItem(it),
-      ...(hooks || {})
-    });
-    return;
+  if (!P || typeof P.equipItemByIndex !== "function") {
+    throw new Error("Player.equipItemByIndex missing; equip system cannot proceed");
   }
-  ctx.log("Equip system not available.", "warn");
+  P.equipItemByIndex(ctx.player, idx, {
+    log: ctx.log,
+    updateUI: ctx.updateUI,
+    renderInventory: () => render(ctx),
+    describeItem: (it) => ctx.describeItem(it),
+    ...(hooks || {})
+  });
 }
 
 export function equipByIndexHand(ctx, idx, hand, hooks) {
   const P = (ctx && ctx.Player) || (typeof window !== "undefined" ? window.Player : null);
-  if (P && typeof P.equipItemByIndex === "function") {
-    P.equipItemByIndex(ctx.player, idx, {
-      log: ctx.log,
-      updateUI: ctx.updateUI,
-      renderInventory: () => render(ctx),
-      describeItem: (it) => ctx.describeItem(it),
-      preferredHand: hand,
-      ...(hooks || {})
-    });
-    return;
+  if (!P || typeof P.equipItemByIndex !== "function") {
+    throw new Error("Player.equipItemByIndex missing; equip system cannot proceed");
   }
-  ctx.log("Equip system not available.", "warn");
+  P.equipItemByIndex(ctx.player, idx, {
+    log: ctx.log,
+    updateUI: ctx.updateUI,
+    renderInventory: () => render(ctx),
+    describeItem: (it) => ctx.describeItem(it),
+    preferredHand: hand,
+    ...(hooks || {})
+  });
 }
 
 export function unequipSlot(ctx, slot, hooks) {
   const P = (ctx && ctx.Player) || (typeof window !== "undefined" ? window.Player : null);
-  if (P && typeof P.unequipSlot === "function") {
-    P.unequipSlot(ctx.player, slot, {
-      log: ctx.log,
-      updateUI: ctx.updateUI,
-      renderInventory: () => render(ctx),
-      ...(hooks || {})
-    });
-    return;
+  if (!P || typeof P.unequipSlot !== "function") {
+    throw new Error("Player.unequipSlot missing; equip system cannot proceed");
   }
-  ctx.log("Equip system not available.", "warn");
+  P.unequipSlot(ctx.player, slot, {
+    log: ctx.log,
+    updateUI: ctx.updateUI,
+    renderInventory: () => render(ctx),
+    ...(hooks || {})
+  });
 }
 
 // Back-compat: attach to window for classic scripts

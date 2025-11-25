@@ -233,33 +233,28 @@ export function describeItem(ctx, item) {
 // Equip item if it's strictly better than current gear; delegates to Player.equipIfBetter.
 export function equipIfBetter(ctx, item) {
   const P = getMod(ctx, "Player");
-  if (P && typeof P.equipIfBetter === "function") {
-    try {
-      const hooks = {
-        log: (msg, type) => {
-          try {
-            if (typeof ctx.log === "function") ctx.log(msg, type);
-          } catch (_) {}
-        },
-        updateUI: () => {
-          try {
-            if (typeof ctx.updateUI === "function") ctx.updateUI();
-          } catch (_) {}
-        },
-        renderInventory: () => {
-          try {
-            if (typeof ctx.renderInventory === "function") ctx.renderInventory();
-          } catch (_) {}
-        },
-        describeItem: (it) => describeItem(ctx, it),
-      };
-      return P.equipIfBetter(ctx.player, item, hooks);
-    } catch (_) {}
+  if (!P || typeof P.equipIfBetter !== "function") {
+    throw new Error("Player.equipIfBetter missing; equip system cannot proceed");
   }
-  if (typeof ctx.log === "function") {
-    try { ctx.log("Equip system not available.", "warn"); } catch (_) {}
-  }
-  return false;
+  const hooks = {
+    log: (msg, type) => {
+      try {
+        if (typeof ctx.log === "function") ctx.log(msg, type);
+      } catch (_) {}
+    },
+    updateUI: () => {
+      try {
+        if (typeof ctx.updateUI === "function") ctx.updateUI();
+      } catch (_) {}
+    },
+    renderInventory: () => {
+      try {
+        if (typeof ctx.renderInventory === "function") ctx.renderInventory();
+      } catch (_) {}
+    },
+    describeItem: (it) => describeItem(ctx, it),
+  };
+  return P.equipIfBetter(ctx.player, item, hooks);
 }
 
 // Optional back-compat: attach to window for diagnostics
