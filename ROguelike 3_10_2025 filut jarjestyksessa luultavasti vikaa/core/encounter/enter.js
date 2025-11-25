@@ -137,6 +137,42 @@ export function enter(ctx, info) {
     } catch (_) {}
   } catch (_) {}
 
+  // Template-driven merchant (e.g., Wild Seppo): spawn a merchant prop if template.merchant is defined.
+  (function placeTemplateMerchant() {
+    try {
+      const merch = template && template.merchant ? template.merchant : null;
+      if (!merch) return;
+      const vendor = merch.vendor || "merchant";
+      const name = merch.name || template.name || "Merchant";
+
+      const centerX = (W / 2) | 0;
+      const centerY = (H / 2) | 0;
+
+      const used = new Set(encProps.map(p => `${p.x},${p.y}`));
+      const canPlace = (x, y) => {
+        if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+        if (map[y][x] !== T.FLOOR) return false;
+        const k = keyFor(x, y);
+        if (used.has(k)) return false;
+        if (chestSpots.has(k)) return false;
+        return true;
+      };
+
+      const candidates = [
+        { x: centerX + 2, y: centerY },
+        { x: centerX - 2, y: centerY },
+        { x: centerX,     y: centerY + 2 },
+        { x: centerX,     y: centerY - 2 },
+      ];
+      for (const c of candidates) {
+        if (canPlace(c.x, c.y)) {
+          encProps.push({ x: c.x, y: c.y, type: "merchant", name, vendor });
+          break;
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Add simple exit tiles near each edge so the player can always walk out.
   try {
     const cx = (W / 2) | 0, cy = (H / 2) | 0;
