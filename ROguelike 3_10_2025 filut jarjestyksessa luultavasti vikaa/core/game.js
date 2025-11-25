@@ -1292,11 +1292,10 @@ import {
   
   function gainXP(amount) {
     const P = modHandle("Player");
-    if (P && typeof P.gainXP === "function") {
-      P.gainXP(player, amount, { log, updateUI });
-      return;
+    if (!P || typeof P.gainXP !== "function") {
+      throw new Error("Player.gainXP missing; XP system cannot proceed");
     }
-    log("XP system not available.", "warn");
+    P.gainXP(player, amount, { log, updateUI });
   }
 
   function killEnemy(enemy) {
