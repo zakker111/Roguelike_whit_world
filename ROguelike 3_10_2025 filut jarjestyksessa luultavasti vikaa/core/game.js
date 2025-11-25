@@ -568,8 +568,7 @@ import {
   // Suppress draw flag used for fast-forward time (sleep/wait simulations)
   let _suppressDraw = false;
 
-  // Simple perf counters (DEV-only visible in console) + EMA smoothing
-  const PERF = { lastTurnMs: 0, lastDrawMs: 0, avgTurnMs: 0, avgDrawMs: 0 };
+  
 
   function requestDraw() {
     if (_suppressDraw) return;
