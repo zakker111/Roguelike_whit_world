@@ -427,19 +427,16 @@ import {
 
   
   function addPotionToInventory(heal = 3, name = `potion (+${heal} HP)`) {
-    try { addPotionToInventoryFacade(getCtx(), heal, name); return; } catch (_) {}
-    log("Inventory system not available.", "warn");
+    addPotionToInventoryFacade(getCtx(), heal, name);
   }
 
   function drinkPotionByIndex(idx) {
-    try { drinkPotionByIndexFacade(getCtx(), idx); return; } catch (_) {}
-    log("Inventory system not available.", "warn");
+    drinkPotionByIndexFacade(getCtx(), idx);
   }
 
   // Eat edible materials using centralized inventory flow
   function eatFoodByIndex(idx) {
-    try { eatFoodByIndexFacade(getCtx(), idx); return; } catch (_) {}
-    log("Inventory system not available.", "warn");
+    eatFoodByIndexFacade(getCtx(), idx);
   }
 
   
@@ -458,17 +455,15 @@ import {
   
   function generateLevel(depth = 1) {
     const DR = modHandle("DungeonRuntime");
-    if (DR && typeof DR.generate === "function") {
-      const ctx = getCtx();
-      ctx.startRoomRect = startRoomRect;
-      DR.generate(ctx, depth);
-      // Sync back references mutated by the module
-      syncFromCtx(ctx);
-      startRoomRect = ctx.startRoomRect || startRoomRect;
-      return;
+    if (!DR || typeof DR.generate !== "function") {
+      throw new Error("DungeonRuntime.generate missing; dungeon generation cannot proceed");
     }
-    log("Error: Dungeon generation unavailable.", "bad");
-    throw new Error("Dungeon generation unavailable");
+    const ctx = getCtx();
+    ctx.startRoomRect = startRoomRect;
+    DR.generate(ctx, depth);
+    // Sync back references mutated by the module
+    syncFromCtx(ctx);
+    startRoomRect = ctx.startRoomRect || startRoomRect;
   }
 
   function inBounds(x, y) {
@@ -583,29 +578,25 @@ import {
   
 
   function initWorld() {
-    // Prefer WorldRuntime.generate to centralize world setup
+    // WorldRuntime is required for overworld generation; fail fast if missing
     const WR = modHandle("WorldRuntime");
-    if (WR && typeof WR.generate === "function") {
-      const ctx = getCtx();
-      const ok = WR.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
-      if (ok) {
-        // Sync back any mutated references from ctx
-        syncFromCtx(ctx);
-        // Ensure the camera is centered on the player before the first render
-        try { updateCamera(); } catch (_) {}
-        // Ensure FOV reflects the spawn position right away
-        try { recomputeFOV(); } catch (_) {}
-        try { updateUI(); } catch (_) {}
-        // Orchestrator schedules a single draw after world init
-        requestDraw();
-        return;
-      }
-      // Fall through to legacy path if WorldRuntime signaled failure
+    if (!WR || typeof WR.generate !== "function") {
+      throw new Error("WorldRuntime.generate missing; overworld generation cannot proceed");
     }
-
-    // Hard error: infinite world not available or generation failed
-    log("Error: Infinite world generation failed or unavailable.", "bad");
-    throw new Error("Infinite world generation failed or unavailable");
+    const ctx = getCtx();
+    const ok = WR.generate(ctx, { width: MAP_COLS, height: MAP_ROWS });
+    if (!ok) {
+      throw new Error("WorldRuntime.generate returned falsy; overworld generation failed");
+    }
+    // Sync back any mutated references from ctx
+    syncFromCtx(ctx);
+    // Ensure the camera is centered on the player before the first render
+    try { updateCamera(); } catch (_) {}
+    // Ensure FOV reflects the spawn position right away
+    try { recomputeFOV(); } catch (_) {}
+    try { updateUI(); } catch (_) {}
+    // Orchestrator schedules a single draw after world init
+    requestDraw();
   }
 
   
@@ -1176,18 +1167,15 @@ import {
   }
 
   function equipItemByIndex(idx) {
-    try { equipItemByIndexFacade(getCtx(), idx); return; } catch (_) {}
-    log("Equip system not available.", "warn");
+    equipItemByIndexFacade(getCtx(), idx);
   }
 
   function equipItemByIndexHand(idx, hand) {
-    try { equipItemByIndexHandFacade(getCtx(), idx, hand); return; } catch (_) {}
-    log("Equip system not available.", "warn");
+    equipItemByIndexHandFacade(getCtx(), idx, hand);
   }
 
   function unequipSlot(slot) {
-    try { unequipSlotFacade(getCtx(), slot); return; } catch (_) {}
-    log("Equip system not available.", "warn");
+    unequipSlotFacade(getCtx(), slot);
   }
 
   
