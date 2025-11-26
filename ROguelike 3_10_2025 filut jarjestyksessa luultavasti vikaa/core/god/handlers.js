@@ -178,6 +178,16 @@ export function install(getCtx) {
         c.log("Status effects cleared (Bleed, Dazed).", "info");
       }
     },
+
+    // Apply status effect: next player hit applies a chosen status to the target enemy.
+    // For now, this uses a simple toggle flag and always applies In Flames for 3 turns.
+    onGodApplyStatusEffect: () => {
+      const c = getCtx();
+      try {
+        c._godApplyStatusOnNextHit = true;
+        c.log("GOD: Next hit will apply a burning status effect to the target.", "notice");
+      } catch (_) {}
+    },
     // Town diagnostics
     onGodCheckHomes: () => {
       const c = getCtx();

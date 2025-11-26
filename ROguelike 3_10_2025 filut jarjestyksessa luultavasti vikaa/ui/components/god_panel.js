@@ -469,6 +469,16 @@ export function init(UI) {
     try { UI.updateAlwaysCritButton(); } catch (_) {}
   }
 
+  // Apply status effect to next hit on enemies
+  const applyStatusBtn = byId("god-apply-status-btn");
+  if (applyStatusBtn) {
+    applyStatusBtn.addEventListener("click", () => {
+      if (typeof UI.handlers.onGodApplyStatusEffect === "function") {
+        UI.handlers.onGodApplyStatusEffect();
+      }
+    });
+  }
+
   // Grid toggle
   const gridBtn = byId("god-toggle-grid-btn");
   if (gridBtn) {

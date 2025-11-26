@@ -274,6 +274,15 @@ export function playerAttackEnemy(ctx, enemy) {
           }
         }
       } catch (_) {}
+
+      // GOD panel: apply one-off status effect on first hit when armed.
+      try {
+        if (ctx._godApplyStatusOnNextHit && typeof ST.applyInFlamesToEnemy === "function" && enemy.hp > 0) {
+          ST.applyInFlamesToEnemy(ctx, enemy, 3);
+          ctx._godApplyStatusOnNextHit = false;
+          if (ctx.log) ctx.log("GOD: Applied burning status effect to target on hit.", "notice");
+        }
+      } catch (_) {}
     }
   } catch (_) {}
 
