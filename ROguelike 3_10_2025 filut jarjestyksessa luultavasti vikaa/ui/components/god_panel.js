@@ -469,6 +469,96 @@ export function init(UI) {
     try { UI.updateAlwaysCritButton(); } catch (_) {}
   }
 
+  // Apply status effect: show a small chooser and arm next hit with the selected effect.
+  const applyStatusBtn = byId("god-apply-status-btn");
+  if (applyStatusBtn) {
+    let statusMenuEl = null;
+
+    function closeStatusMenu() {
+      if (statusMenuEl && statusMenuEl.parentNode) {
+        statusMenuEl.parentNode.removeChild(statusMenuEl);
+      }
+      statusMenuEl = null;
+    }
+
+    function openStatusMenu() {
+      closeStatusMenu();
+      const rect = applyStatusBtn.getBoundingClientRect();
+      const menu = document.createElement("div");
+      menu.id = "god-status-menu";
+      menu.style.position = "fixed";
+      menu.style.left = `${Math.round(rect.left)}px`;
+      menu.style.top = `${Math.round(rect.bottom + 4)}px`;
+      menu.style.zIndex = "32000";
+      menu.style.background = "#020617";
+      menu.style.border = "1px solid #334155";
+      menu.style.borderRadius = "6px";
+      menu.style.padding = "6px 6px";
+      menu.style.minWidth = "210px";
+      menu.style.boxShadow = "0 10px 25px rgba(0,0,0,0.6)";
+
+      const effects = [
+        { id: "bleed", label: "Bleed (enemy bleeds 3 turns)" },
+        { id: "limp", label: "Limp (enemy can't move 2 turns)" },
+        { id: "fire", label: "In Flames (set enemy on fire)" },
+      ];
+
+      effects.forEach((e) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = e.label;
+        btn.style.display = "block";
+        btn.style.width = "100%";
+        btn.style.textAlign = "left";
+        btn.style.padding = "4px 8px";
+        btn.style.margin = "2px 0";
+        btn.style.fontSize = "12px";
+        btn.style.borderRadius = "4px";
+        btn.style.border = "1px solid #1e293b";
+        btn.style.background = "#0b1120";
+        btn.style.color = "#e5e7eb";
+        btn.style.cursor = "pointer";
+        btn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          closeStatusMenu();
+          if (typeof UI.handlers.onGodApplyStatusEffect === "function") {
+            UI.handlers.onGodApplyStatusEffect(e.id);
+          }
+        });
+        btn.addEventListener("mouseenter", () => {
+          btn.style.background = "#111827";
+        });
+        btn.addEventListener("mouseleave", () => {
+          btn.style.background = "#0b1120";
+        });
+        menu.appendChild(btn);
+      });
+
+      document.body.appendChild(menu);
+      statusMenuEl = menu;
+
+      // Close when clicking outside
+      setTimeout(() => {
+        function onDocClick(ev) {
+          if (!statusMenuEl) {
+            document.removeEventListener("click", onDocClick);
+            return;
+          }
+          if (ev.target === applyStatusBtn || statusMenuEl.contains(ev.target)) return;
+          closeStatusMenu();
+          document.removeEventListener("click", onDocClick);
+        }
+        document.addEventListener("click", onDocClick);
+      }, 0);
+    }
+
+    applyStatusBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (statusMenuEl) closeStatusMenu();
+      else openStatusMenu();
+    });
+  }
+
   // Grid toggle
   const gridBtn = byId("god-toggle-grid-btn");
   if (gridBtn) {

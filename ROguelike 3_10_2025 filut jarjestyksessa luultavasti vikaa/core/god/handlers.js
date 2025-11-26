@@ -178,6 +178,35 @@ export function install(getCtx) {
         c.log("Status effects cleared (Bleed, Dazed).", "info");
       }
     },
+
+    // Apply status effect: next player hit applies the chosen status to the target enemy.
+    // effectId is a short string from the GOD panel chooser, e.g. "bleed", "limp", "fire".
+    onGodApplyStatusEffect: (effectId) => {
+      const c = getCtx();
+      try {
+        let id = String(effectId || "").toLowerCase();
+        if (!id) id = "fire";
+        const valid = { bleed: "Bleeding", limp: "Limp", fire: "Burning" };
+        if (!Object.prototype.hasOwnProperty.call(valid, id)) {
+          c.log(`GOD: Unknown status effect '${effectId}', defaulting to Burning.`, "warn");
+          id = "fire";
+        }
+        // Store on context, player, and a global so it survives ctx wrapper churn.
+        c._godStatusOnNextHit = id;
+        if (c.player) {
+          try {
+            c.player.godNextStatusEffect = id;
+            c.player._godStatusOnNextHit = id;
+          } catch (_) {}
+        }
+        try {
+          if (typeof window !== "undefined") {
+            window.GOD_NEXT_STATUS_EFFECT = id;
+          }
+        } catch (_) {}
+        c.log(`GOD: Next hit will apply ${valid[id]} status to the target.`, "notice");
+      } catch (_) {}
+    },
     // Town diagnostics
     onGodCheckHomes: () => {
       const c = getCtx();

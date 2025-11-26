@@ -362,7 +362,7 @@ export function enterRuinsIfOnTile(ctx) {
       if (RMR && typeof RMR.open === "function") {
         const ok = !!RMR.open(ctx);
         if (ok) {
-          if (ctx.log) ctx.log("You enter the ancient ruins.", "notice");
+          if (ctx.log) ctx.log("You enter the ancient ruins.", "info");
           syncAfterMutation(ctx);
           return true;
         }

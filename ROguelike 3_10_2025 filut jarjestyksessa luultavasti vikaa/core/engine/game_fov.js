@@ -37,9 +37,28 @@ export function recomputeWithGuard(ctx) {
   if (!ctx || !Array.isArray(ctx.map)) return false;
   const rows = ctx.map.length;
   const cols = ctx.map[0] ? ctx.map[0].length : 0;
+
+  // Base radius from ctx; apply small equipment-based bonuses (e.g., torch in hand)
+  // in all modes except the overworld (world map).
+  const baseRadius = (ctx.fovRadius | 0) || 1;
+  let equipBonus = 0;
+  try {
+    if (ctx.mode !== "world") {
+      const p = ctx.player || null;
+      const eq = p && p.equipment ? p.equipment : null;
+      if (eq) {
+        const hasTorch = (it) => !!(it && typeof it.name === "string" && /torch/i.test(it.name));
+        if (hasTorch(eq.left) || hasTorch(eq.right)) {
+          equipBonus += 1;
+        }
+      }
+    }
+  } catch (_) {}
+  const effectiveRadius = Math.max(1, baseRadius + equipBonus);
+
   const cache = getCache(ctx);
   const moved = (ctx.player.x !== cache.lastX) || (ctx.player.y !== cache.lastY);
-  const fovChanged = (ctx.fovRadius !== cache.lastRadius);
+  const fovChanged = (effectiveRadius !== cache.lastRadius);
   const modeChanged = (ctx.mode !== cache.lastMode);
   const mapChanged = (rows !== cache.lastRows) || (cols !== cache.lastCols);
 
@@ -51,13 +70,19 @@ export function recomputeWithGuard(ctx) {
   try {
     const F = (typeof window !== "undefined" ? window.FOV : null);
     if (F && typeof F.recomputeFOV === "function") {
-      F.recomputeFOV(ctx);
+      const prevRadius = ctx.fovRadius;
+      ctx.fovRadius = effectiveRadius;
+      try {
+        F.recomputeFOV(ctx);
+      } finally {
+        ctx.fovRadius = prevRadius;
+      }
     }
   } catch (_) {}
 
   cache.lastX = ctx.player.x | 0;
   cache.lastY = ctx.player.y | 0;
-  cache.lastRadius = ctx.fovRadius | 0;
+  cache.lastRadius = effectiveRadius | 0;
   cache.lastMode = String(ctx.mode || "");
   cache.lastCols = cols | 0;
   cache.lastRows = rows | 0;

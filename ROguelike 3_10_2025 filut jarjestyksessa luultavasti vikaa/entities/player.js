@@ -31,9 +31,11 @@ export const defaults = {
   inventory: [
     { kind: "gold", amount: 50, name: "gold" },
     { kind: "potion", heal: 6, count: 1, name: "average potion (+6 HP)" },
-    // Starter tool for early testing — traders will sell this later.
+    // Starter tools for early testing — traders will sell these later.
     { kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 },
-    { kind: "tool", type: "lockpick", name: "lockpick", decay: 0 }
+    { kind: "tool", type: "lockpick", name: "lockpick", decay: 0 },
+    // Starter torch: partially worn so players see decay/breakage; 70% used.
+    { kind: "equip", slot: "hand", name: "torch", atk: 0.6, tier: 1, decay: 70 }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
   injuries: [],

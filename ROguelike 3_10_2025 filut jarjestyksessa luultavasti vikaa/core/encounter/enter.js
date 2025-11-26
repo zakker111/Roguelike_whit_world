@@ -622,7 +622,7 @@ export function enter(ctx, info) {
     if (hasMerchant && !hasEnemies) {
       ctx.log && ctx.log(`${template.name || "Encounter"}: A wild Seppo appears! Press G on him to trade.`, "notice");
     } else if (tplIdLog === "guards_vs_bandits") {
-      ctx.log && ctx.log("you see guards against bandits in field of battle", "notice");
+      ctx.log && ctx.log("you see guards against bandits in field of battle", "info");
     } else {
       ctx.log && ctx.log(`${template.name || "Encounter"} begins: eliminate the hostiles.`, "notice");
     }

@@ -16,11 +16,39 @@ export function drawEnemies(ctx, view) {
     const screenX = (e.x - startX) * TILE - tileOffsetX;
     const screenY = (e.y - startY) * TILE - tileOffsetY;
     const enemyKey = e.type ? `enemy.${e.type}` : null;
+
+    // Base enemy body
     if (enemyKey && tilesetReady && TS.draw && TS.draw(ctx2d, enemyKey, screenX, screenY, TILE)) {
       // drawn via tileset
     } else {
       RenderCore.drawGlyph(ctx2d, screenX, screenY, e.glyph || "e", RenderCore.enemyColor(ctx, e.type, COLORS), TILE);
     }
+
+    // Simple burning overlay when enemy is on fire (inFlamesTurns > 0)
+    try {
+      if (e.inFlamesTurns && e.inFlamesTurns > 0) {
+        ctx2d.save();
+        const half = TILE / 2;
+        ctx2d.textAlign = "center";
+        ctx2d.textBaseline = "middle";
+        // Subtle flicker using remaining turns to vary alpha slightly
+        const baseA = 0.9;
+        const flicker = ((e.inFlamesTurns * 37) % 10) / 100; // 0..0.09
+        ctx2d.globalAlpha = Math.max(0.6, Math.min(1.0, baseA - flicker));
+        // Fire color from palette if available, else fallback
+        let fireColor = "#f97316";
+        try {
+          const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays)
+            ? window.GameData.palette.overlays
+            : null;
+          if (pal && pal.fire) fireColor = pal.fire;
+        } catch (_) {}
+        ctx2d.fillStyle = fireColor;
+        ctx2d.font = `${Math.floor(TILE * 0.9)}px JetBrains Mono, monospace`;
+        ctx2d.fillText("✦", screenX + half, screenY + half);
+        ctx2d.restore();
+      }
+    } catch (_) {}
   }
 }
 

@@ -242,17 +242,81 @@ export function playerAttackEnemy(ctx, enemy) {
     } catch (_) {}
   } catch (_) {}
 
-  // Status effects on crit
+  // Status effects on hit
   try {
     const ST = (ctx.Status || getMod(ctx, "Status") || (typeof window !== "undefined" ? window.Status : null));
-    if (isCrit && loc.part === "legs" && enemy.hp > 0) {
-      if (ST && typeof ST.applyLimpToEnemy === "function") ST.applyLimpToEnemy(ctx, enemy, 2);
-      else { enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2); if (ctx.log) ctx.log(`${(enemy.type || "enemy")[0].toUpperCase()}${(enemy.type || "enemy").slice(1)} staggers; its legs are crippled and it can't move for 2 turns.`, "notice"); }
-    }
-    if (isCrit && enemy.hp > 0) {
-      const t = String(enemy.type || "");
-      const ethereal = /ghost|spirit|wraith|skeleton/i.test(t);
-      if (!ethereal && ST && typeof ST.applyBleedToEnemy === "function") ST.applyBleedToEnemy(ctx, enemy, 2);
+    if (ST && enemy.hp > 0) {
+      if (isCrit && loc.part === "legs") {
+        if (typeof ST.applyLimpToEnemy === "function") ST.applyLimpToEnemy(ctx, enemy, 2);
+        else { enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 2); if (ctx.log) ctx.log(`${(enemy.type || "enemy")[0].toUpperCase()}${(enemy.type || "enemy").slice(1)} staggers; its legs are crippled and it can't move for 2 turns.`, "notice"); }
+      }
+      if (isCrit) {
+        const t = String(enemy.type || "");
+        const ethereal = /ghost|spirit|wraith|skeleton/i.test(t);
+        if (!ethereal && typeof ST.applyBleedToEnemy === "function") ST.applyBleedToEnemy(ctx, enemy, 2);
+      }
+
+      // Torch: moderate chance to set enemies on fire when a torch is held in either hand.
+      try {
+        const p = ctx.player || null;
+        const eq = p && p.equipment ? p.equipment : null;
+        const hasTorch = (it) => !!(it && typeof it.name === "string" && /torch/i.test(it.name));
+        const holdingTorch = !!(eq && (hasTorch(eq.left) || hasTorch(eq.right)));
+        if (holdingTorch && enemy.hp > 0 && typeof ST.applyInFlamesToEnemy === "function") {
+          const RU = getRNGUtils(ctx);
+          const pTorch = 0.35;
+          let ignite = false;
+          if (RU && typeof RU.chance === "function") ignite = RU.chance(pTorch, rng);
+          else if (typeof rng === "function") ignite = rng() < pTorch;
+          else ignite = Math.random() < pTorch;
+          if (ignite) {
+            ST.applyInFlamesToEnemy(ctx, enemy, 3);
+          }
+        }
+      } catch (_) {}
+
+      // GOD panel: apply one-off status effect on first hit when armed.
+      try {
+        const p = ctx.player || {};
+        let eff = ctx._godStatusOnNextHit
+          || p.godNextStatusEffect
+          || p._godStatusOnNextHit
+          || null;
+        if (!eff) {
+          try {
+            if (typeof window !== "undefined" && window.GOD_NEXT_STATUS_EFFECT) {
+              eff = window.GOD_NEXT_STATUS_EFFECT;
+            }
+          } catch (_) {}
+        }
+        if (eff && enemy.hp > 0) {
+          const id = String(eff).toLowerCase();
+          let label = "";
+          if ((id === "fire" || id === "inflames") && typeof ST.applyInFlamesToEnemy === "function") {
+            ST.applyInFlamesToEnemy(ctx, enemy, 3);
+            label = "Burning";
+          } else if (id === "bleed" && typeof ST.applyBleedToEnemy === "function") {
+            ST.applyBleedToEnemy(ctx, enemy, 3);
+            label = "Bleeding";
+          } else if (id === "limp" && typeof ST.applyLimpToEnemy === "function") {
+            ST.applyLimpToEnemy(ctx, enemy, 2);
+            label = "Limp";
+          }
+          ctx._godStatusOnNextHit = null;
+          if (p) {
+            try {
+              p.godNextStatusEffect = null;
+              p._godStatusOnNextHit = null;
+            } catch (_) {}
+          }
+          try {
+            if (typeof window !== "undefined") {
+              window.GOD_NEXT_STATUS_EFFECT = null;
+            }
+          } catch (_) {}
+          if (label && ctx.log) ctx.log(`GOD: Applied ${label} status effect to target on hit.`, "notice");
+        }
+      } catch (_) {}
     }
   } catch (_) {}
 

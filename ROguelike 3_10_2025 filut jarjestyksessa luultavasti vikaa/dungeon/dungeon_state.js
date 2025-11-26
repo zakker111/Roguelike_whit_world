@@ -52,6 +52,7 @@ function cloneForStorage(st) {
           // optional runtime/status fields we want to preserve
           immobileTurns: e.immobileTurns,
           bleedTurns: e.bleedTurns,
+          inFlamesTurns: e.inFlamesTurns,
           announced: e.announced
         }))
       : [],

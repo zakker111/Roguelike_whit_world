@@ -216,6 +216,32 @@ function _materializeItem(ctx, entry) {
         }
       }
     } catch (_) {}
+
+    // Special-case: torches bought from shops should be equippable hand items,
+    // not inert tools. Materialize them as proper equipment so they can be
+    // equipped, decay, and grant FOV/status effects like the starter torch.
+    try {
+      const idLower = id.toLowerCase();
+      if (idLower === "torch") {
+        const ItemsMod = (typeof window !== "undefined" ? (window.Items || null) : null) || (typeof ctx !== "undefined" && ctx.Items ? ctx.Items : null);
+        let equipTorch = null;
+        try {
+          if (ItemsMod && typeof ItemsMod.createByKey === "function") {
+            equipTorch = ItemsMod.createByKey("torch_weapon", 1, _rng(ctx));
+          }
+        } catch (_) { equipTorch = null; }
+        try {
+          if (!equipTorch && ItemsMod && typeof ItemsMod.createNamed === "function") {
+            equipTorch = ItemsMod.createNamed({ slot: "hand", tier: 1, name: name || "torch", atk: 0.6, decay: startDecay });
+          }
+        } catch (_) { equipTorch = null; }
+        if (!equipTorch) {
+          equipTorch = { kind: "equip", slot: "hand", name: name || "torch", atk: 0.6, tier: 1, decay: startDecay };
+        }
+        return equipTorch;
+      }
+    } catch (_) {}
+
     return { kind: "tool", type: id, name, decay: startDecay };
   }
   if (kind === "material") {

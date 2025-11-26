@@ -308,8 +308,15 @@ export const UI = {
     if (typeof onGodClearEffects === "function") this.handlers.onGodClearEffects = onGodClearEffects;
     if (typeof onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow = onGodStartEncounterNow;
     if (typeof onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove = onGodArmEncounterNextMove;
+
+    // Extra handler (added later) for applying a status effect via GOD panel.
+    const extra = arguments[0] || {};
+    if (typeof extra.onGodApplyStatusEffect === "function") {
+      this.handlers.onGodApplyStatusEffect = extra.onGodApplyStatusEffect;
+    }
   },
 
+  // HUD + inventory stats
   updateStats(player, floor, getAtk, getDef, time, perf, weather) {
     // Delegate HUD (HP/Floor/Time/Perf/Weather) to component
     try {
@@ -318,9 +325,13 @@ export const UI = {
       }
     } catch (_) {}
 
-    // Inventory stats summary
+    // Inventory stats summary (Attack/Defense) in the inventory panel header
     if (this.els.invStatsEl && typeof getAtk === "function" && typeof getDef === "function") {
-      const invStr = `Attack: ${getAtk().toFixed(1)}   Defense: ${getDef().toFixed(1)}`;
+      let atkVal = 0;
+      let defVal = 0;
+      try { atkVal = Number(getAtk() || 0); } catch (_) {}
+      try { defVal = Number(getDef() || 0); } catch (_) {}
+      const invStr = `Attack: ${atkVal.toFixed(1)}   Defense: ${defVal.toFixed(1)}`;
       if (invStr !== this._lastInvStatsText) {
         this.els.invStatsEl.textContent = invStr;
         this._lastInvStatsText = invStr;
