@@ -107,7 +107,7 @@ export function update(player, floor, time, perf, perfOn, weather) {
     const timeStr = hhmm ? `  Time: ${hhmm}${phaseWeatherPart}` : "";
     let turnStr = "";
     try {
-      if (perf && typeof perf.lastTurnMs === "number") {
+      if (perfOn && perf && typeof perf.lastTurnMs === "number") {
         turnStr = `  Turn: ${perf.lastTurnMs.toFixed(1)}ms`;
       }
     } catch (_) {}
