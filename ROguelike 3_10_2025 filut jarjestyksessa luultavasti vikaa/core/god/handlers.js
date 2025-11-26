@@ -208,7 +208,7 @@ export function install(getCtx) {
       } catch (_) {}
     },
     // Town events
-    onGodTownBandits: () =&gt; {
+    onGodTownBandits: () => {
       const c = getCtx();
       try {
         c.log(`[GOD] Town event: Bandits at Gate pressed (mode=${c.mode}).`, "info");
@@ -217,7 +217,7 @@ export function install(getCtx) {
           return;
         }
         const TR = c.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
-        if (TR &amp;&amp; typeof TR.startBanditsAtGateEvent === "function") {
+        if (TR && typeof TR.startBanditsAtGateEvent === "function") {
           const ok = TR.startBanditsAtGateEvent(c);
           if (!ok) {
             // startBanditsAtGateEvent logs its own warnings.
