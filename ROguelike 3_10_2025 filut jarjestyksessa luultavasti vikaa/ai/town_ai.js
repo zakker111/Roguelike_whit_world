@@ -934,6 +934,85 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     const { npcs, player, townProps } = ctx;
     if (!Array.isArray(npcs) || npcs.length === 0) return;
 
+    // Lightweight town combat event: Bandits at the Gate
+    const banditEvent = ctx._townBanditEvent && ctx._townBanditEvent.active;
+    let anyBandit = false;
+    if (banditEvent) {
+      for (const n of npcs) {
+        if (n && n.isBandit && !n._dead) { anyBandit = true; break; }
+      }
+      if (!anyBandit) {
+        ctx._townBanditEvent.active = false;
+        try { ctx.log && ctx.log("The guards drive off the bandits at the gate.", "good"); } catch (_) {}
+      }
+    }
+
+    function dist1(ax, ay, bx, by) {
+      return Math.abs(ax - bx) + Math.abs(ay - by);
+    }
+
+    function nearestBandit(ctx, from) {
+      let best = null;
+      let bestD = Infinity;
+      const list = ctx.npcs || [];
+      for (const n of list) {
+        if (!n || !n.isBandit || n._dead) continue;
+        const d = dist1(from.x, from.y, n.x, n.y);
+        if (d < bestD) { bestD = d; best = n; }
+      }
+      return best;
+    }
+
+    function nearestCivilian(ctx, from) {
+      let best = null;
+      let bestD = Infinity;
+      const list = ctx.npcs || [];
+      for (const n of list) {
+        if (!n || n._dead) continue;
+        if (n.isGuard || n.isBandit || n.isPet) continue;
+        const d = dist1(from.x, from.y, n.x, n.y);
+        if (d < bestD) { bestD = d; best = n; }
+      }
+      return best;
+    }
+
+    function applyHit(attacker, defender, baseMin, baseMax) {
+      if (!defender) return;
+      const r = rngFor({ rng: (defender && defender.rng) || ctx.rng || (() => 0.5) });
+      const dmg = baseMin + Math.floor(r() * (baseMax - baseMin + 1));
+      const maxHp = typeof defender.maxHp === "number" ? defender.maxHp : 20;
+      if (typeof defender.hp !== "number") defender.hp = maxHp;
+      defender.hp -= dmg;
+      const nameA = attacker && attacker.name ? attacker.name : "Someone";
+      const nameD = defender && defender.name ? defender.name : "someone";
+      try {
+        if (defender.hp > 0) {
+          ctx.log && ctx.log(`${nameA} hits ${nameD} for ${dmg}. (${Math.max(0, defender.hp)} HP left)`, "combat");
+        } else {
+          defender._dead = true;
+          ctx.log && ctx.log(`${nameA} kills ${nameD}.`, "fatal");
+        }
+      } catch (_) {}
+    }
+
+    function removeDeadNPCs(ctx) {
+      if (!Array.isArray(ctx.npcs)) return;
+      let changed = false;
+      for (let i = ctx.npcs.length - 1; i >= 0; i--) {
+        const n = ctx.npcs[i];
+        if (n && n._dead) {
+          ctx.npcs.splice(i, 1);
+          changed = true;
+        }
+      }
+      if (changed) {
+        try {
+          const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+          if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
+        } catch (_) {}
+      }
+    }
+
     // Ensure home bed assignments are unique per building before acting.
     dedupeHomeBeds(ctx);
 
@@ -1435,6 +1514,10 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     const order = npcs.map((_, i) => i);
     {
       const rnd = rngFor(ctx);
+      for (let i = order.length - 1; i > 0; i--) {ffle iteration
+    const order = npcs.map((_, i) => i);
+    {
+      const rnd = rngFor(ctx);
       for (let i = order.length - 1; i > 0; i--) {
         const j = Math.floor(rnd() * (i + 1));
         const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
@@ -1530,6 +1613,20 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
       // Town guards: patrol towns/cities, but use the guard barracks as their home for sleep/off-duty rest.
       if (n.isGuard) {
+        // During a bandit event, guards prioritize fighting bandits near the gate.
+        if (banditEvent && anyBandit) {
+          const target = nearestBandit(ctx, n);
+          if (target) {
+            const d = dist1(n.x, n.y, target.x, target.y);
+            if (d === 1) {
+              applyHit(n, target, 4, 8);
+              continue;
+            }
+            stepTowards(ctx, occ, n, target.x, target.y, { urgent: true });
+            continue;
+          }
+        }
+
         const home = n._home && n._home.building ? n._home.building : null;
         const isBarracks = !!(home && home.prefabId && String(home.prefabId).toLowerCase().includes("guard_barracks"));
 
@@ -1837,6 +1934,37 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         if (ctx.rng() < 0.15) {
           stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
         }
+        continue;
+      }
+
+      // Bandits in town: simple combat AI during bandit event
+      if (n.isBandit && banditEvent) {
+        if (n._dead) { continue; }
+        // Attack adjacent guard or civilian if possible
+        let target = null;
+        const list = ctx.npcs || [];
+        for (const m of list) {
+          if (!m || m._dead) continue;
+          if (m === n) continue;
+          if (dist1(n.x, n.y, m.x, m.y) !== 1) continue;
+          if (m.isGuard || (!m.isPet && !m.isBandit)) {
+            target = m;
+            break;
+          }
+        }
+        if (target) {
+          applyHit(n, target, 3, 7);
+          continue;
+        }
+        // Otherwise move toward nearest civilian; fallback to nearest guard
+        let civ = nearestCivilian(ctx, n);
+        if (!civ) civ = nearestBandit(ctx, n); // will be another bandit; minimal fallback
+        if (civ) {
+          stepTowards(ctx, occ, n, civ.x, civ.y, { urgent: true });
+          continue;
+        }
+        // If no one found, jitter
+        stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
         continue;
       }
 

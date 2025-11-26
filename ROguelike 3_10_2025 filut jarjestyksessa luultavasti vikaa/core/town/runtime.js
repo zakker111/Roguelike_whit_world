@@ -8,6 +8,7 @@
  * - isFreeTownFloor(ctx, x, y)
  * - talk(ctx): bump-talk with nearby NPCs; returns true if handled
  * - returnToWorldIfAtGate(ctx): leaves town if the player stands on the gate tile; returns true if handled
+ * - startBanditsAtGateEvent(ctx): spawn a bandit group near the gate and mark a town combat event
  */
 
 import { getMod } from "../../utils/access.js";
@@ -496,8 +497,107 @@ function startCaravanAmbushEncounter(ctx, npc) {
   } catch (_) {}
 }
 
+/**
+ * Spawn a bandit group just inside the town gate and mark a lightweight town combat event.
+ * Guards will be steered towards bandits by TownAI; bandits may attack guards and other NPCs.
+ */
+export function startBanditsAtGateEvent(ctx) {
+  if (!ctx || ctx.mode !== "town" || !ctx.townExitAt) {
+    if (ctx && ctx.log) ctx.log("Bandits at the gate event requires town mode with a gate.", "warn");
+    return false;
+  }
+  try {
+    const gate = ctx.townExitAt;
+    const map = ctx.map;
+    const rows = map.length;
+    const cols = rows ? (map[0] ? map[0].length : 0) : 0;
+    const maxBandits = 10;
+    const minBandits = 5;
+    const rng = typeof ctx.rng === "function" ? ctx.rng : (() => 0.5);
+    const count = Math.max(minBandits, Math.min(maxBandits, Math.floor(minBandits + rng() * (maxBandits - minBandits + 1))));
+
+    const spots = [];
+    const radiusX = 4;
+    const radiusY = 3;
+    for (let dy = -radiusY; dy <= radiusY; dy++) {
+      for (let dx = -radiusX; dx <= radiusX; dx++) {
+        const x = gate.x + dx;
+        const y = gate.y + dy;
+        if (x < 1 || y < 1 || y >= rows - 1 || x >= cols - 1) continue;
+        if (!isFreeTownFloor(ctx, x, y)) continue;
+        // Prefer tiles just inside the gate (same row or slightly inward)
+        const inwardBias = (dy >= 0 ? 0 : Math.abs(dy));
+        spots.push({ x, y, score: Math.abs(dx) + inwardBias });
+      }
+    }
+    if (!spots.length) {
+      ctx.log && ctx.log("No free space near the gate to spawn bandits.", "warn");
+      return false;
+    }
+    spots.sort((a, b) => a.score - b.score);
+
+    const bandits = [];
+    const used = new Set();
+    function takeSpot() {
+      for (let i = 0; i < spots.length; i++) {
+        const k = spots[i].x + "," + spots[i].y;
+        if (!used.has(k)) {
+          used.add(k);
+          return { x: spots[i].x, y: spots[i].y };
+        }
+      }
+      return null;
+    }
+
+    ctx.npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+    for (let i = 0; i < count; i++) {
+      const pos = takeSpot();
+      if (!pos) break;
+      const hp = 18 + Math.floor(rng() * 8); // 18-25 hp
+      const name = (i === 0) ? "Bandit captain" : "Bandit";
+      const lines = i === 0
+        ? ["Take what you can!", "No one passes this gate!"]
+        : ["Grab the loot!", "For the gang!"];
+      const b = {
+        x: pos.x,
+        y: pos.y,
+        name,
+        lines,
+        isBandit: true,
+        hostile: true,
+        faction: "bandit",
+        hp,
+        maxHp: hp,
+        _banditEvent: true
+      };
+      ctx.npcs.push(b);
+      bandits.push(b);
+    }
+
+    if (!bandits.length) {
+      ctx.log && ctx.log("Failed to place any bandits near the gate.", "warn");
+      return false;
+    }
+
+    try { rebuildOccupancy(ctx); } catch (_) {}
+
+    const turn = (ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+    ctx._townBanditEvent = {
+      active: true,
+      startedTurn: turn,
+      totalBandits: bandits.length
+    };
+    ctx.log && ctx.log("Bandits rush the town gate! Guards shout and civilians scramble for safety.", "notice");
+    return true;
+  } catch (e) {
+    try { console.error(e); } catch (_) {}
+    if (ctx && ctx.log) ctx.log("Failed to start Bandits at the Gate event.", "warn");
+    return false;
+  }
+}
+
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, rebuildOccupancy };
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, rebuildOccupancy, startBanditsAtGateEvent };
 }
 
 // Back-compat: tick implementation (retained)
