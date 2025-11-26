@@ -40,17 +40,6 @@ export function tryMoveDungeon(ctx, dx, dy) {
     const C = (ctx && ctx.Combat) || (typeof window !== "undefined" ? window.Combat : null);
     if (C && typeof C.playerAttackEnemy === "function") {
       try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
-    } else {
-      // Fallback: minimal inline hit if Combat module is unavailable.
-      try {
-        const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
-        const round1 = (ctx.utils && typeof ctx.utils.round1 === "function") ? ctx.utils.round1 : ((n) => Math.round(n * 10) / 10);
-        const dmg = Math.max(0.1, round1(atk));
-        enemy.hp -= dmg;
-        const name = (enemy.type || "enemy");
-        ctx.log && ctx.log(`You hit the ${name}'s torso for ${dmg}.`, "info", { category: "Combat", side: "player" });
-        if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
-      } catch (_) {}
     }
     if (advanceTurn && ctx.turn) ctx.turn();
     return true;

@@ -1457,48 +1457,21 @@ function tryMove(ctx, dx, dy) {
     try { enemy = ctx.enemies.find(e => e && e.x === nx && e.y === ny) || null; } catch (_) { enemy = null; }
   }
   if (enemy) {
-      // If this is a neutral animal, make it hostile when attacked and mark region as an encounter
-      try {
-        if (String(enemy.faction || "") === "animal") {
-          enemy.faction = "animal_hostile";
-          ctx.region._isEncounter = true;
-          ctx.log && ctx.log(`The ${enemy.type} turns hostile!`, "warn");
-        }
-      } catch (_) {}
-      const C = ctx.Combat || getMod(ctx, "Combat");
-      if (C && typeof C.playerAttackEnemy === "function") {
-        try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
-        try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
-        return true;
+    // If this is a neutral animal, make it hostile when attacked and mark region as an encounter
+    try {
+      if (String(enemy.faction || "") === "animal") {
+        enemy.faction = "animal_hostile";
+        ctx.region._isEncounter = true;
+        ctx.log && ctx.log(`The ${enemy.type} turns hostile!`, "warn");
       }
-      // Minimal fallback
-      try {
-        const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
-        const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
-        // Prefer RNGUtils.chance for determinism; fallback to raw rng comparison
-        let didBlock = false;
-        if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.chance === "function") {
-          didBlock = window.RNGUtils.chance(blockChance, (typeof ctx.rng === "function" ? ctx.rng : undefined));
-        } else {
-          const RU = getRU(ctx);
-          const rfn = (RU && typeof RU.getRng === "function")
-            ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-            : ((typeof ctx.rng === "function") ? ctx.rng : null);
-          didBlock = ((typeof rfn === "function") ? rfn() : 0.5) < blockChance;
-        }
-        if (didBlock) {
-          ctx.log && ctx.log(`${(enemy.type || "enemy")[0].toUpperCase()}${(enemy.type || "enemy").slice(1)} blocks your attack to the ${loc.part}.`, "block", { category: "Combat", side: "player" });
-        } else {
-          const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
-          const dmg = Math.max(0.1, Math.round(atk * 10) / 10);
-          enemy.hp -= dmg;
-          ctx.log && ctx.log(`You hit the ${(enemy.type || "enemy")} for ${dmg}.`, "info", { category: "Combat", side: "player" });
-          if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
-        }
-      } catch (_) {}
-      try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
-      return true;
+    } catch (_) {}
+    const C = ctx.Combat || getMod(ctx, "Combat");
+    if (C && typeof C.playerAttackEnemy === "function") {
+      try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
     }
+    try { typeof ctx.turn === "function" && ctx.turn(); } catch (_) {}
+    return true;
+  }
   // Move cursor and player together in Region Map
   try {
     if (ctx.region && ctx.region.cursor) {

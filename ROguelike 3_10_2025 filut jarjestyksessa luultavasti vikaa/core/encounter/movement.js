@@ -47,25 +47,14 @@ export function tryMoveEncounter(ctx, dx, dy) {
     // If DR didn't handle, fall through to minimal fallback below
   }
 
-  // Fallback attack if enemy occupies target
+  // Fallback attack if enemy occupies target (shared combat pipeline only)
   let enemy = null;
   try { enemy = Array.isArray(ctx.enemies) ? ctx.enemies.find(e => e && e.x === nx && e.y === ny) : null; } catch (_) { enemy = null; }
   if (enemy) {
     const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
     if (C && typeof C.playerAttackEnemy === "function") {
       try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
-      return true;
     }
-    // Minimal inline fallback if Combat module is unavailable.
-    try {
-      const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
-      const round1 = (ctx.utils && typeof ctx.utils.round1 === "function") ? ctx.utils.round1 : ((n) => Math.round(n * 10) / 10);
-      const dmg = Math.max(0.1, round1(atk));
-      enemy.hp -= dmg;
-      const name = (enemy.type || "enemy");
-      ctx.log && ctx.log(`You hit the ${name}'s torso for ${dmg}.`, "info", { category: "Combat", side: "player" });
-      if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
-    } catch (_) {}
     return true;
   }
 
