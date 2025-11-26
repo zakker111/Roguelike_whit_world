@@ -54,6 +54,10 @@ export function tryMoveEncounter(ctx, dx, dy) {
     const C = ctx.Combat || (typeof window !== "undefined" ? window.Combat : null);
     if (C && typeof C.playerAttackEnemy === "function") {
       try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
+    } else {
+      const msg = "ERROR: Combat.playerAttackEnemy missing; combat fallback path would be used (encounter).";
+      try { ctx.log && ctx.log(msg, "bad"); } catch (_) {}
+      try { console.error(msg); } catch (_) {}
     }
     return true;
   }

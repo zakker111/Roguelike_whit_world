@@ -40,6 +40,11 @@ export function tryMoveDungeon(ctx, dx, dy) {
     const C = (ctx && ctx.Combat) || (typeof window !== "undefined" ? window.Combat : null);
     if (C && typeof C.playerAttackEnemy === "function") {
       try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
+    } else {
+      // Hard error: combat fallback no longer supported.
+      const msg = "ERROR: Combat.playerAttackEnemy missing; combat fallback path would be used.";
+      try { ctx.log && ctx.log(msg, "bad"); } catch (_) {}
+      try { console.error(msg); } catch (_) {}
     }
     if (advanceTurn && ctx.turn) ctx.turn();
     return true;
