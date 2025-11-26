@@ -131,30 +131,32 @@ export function tryMove(ctx, dx, dy) {
   if (!ctx || !ctx.player) return;
 
   // Torch decay on movement: when a torch is held in either hand, it slowly wears down
-  // as the player moves. This applies in all movement-capable modes.
+  // as the player moves in non-overworld modes (dungeon/town/encounter/region).
   try {
-    const eq = ctx.player.equipment || {};
-    const hasTorch = (it) => !!(it && typeof it.name === "string" && /torch/i.test(it.name));
-    const holdingTorch = hasTorch(eq.left) || hasTorch(eq.right);
-    if (holdingTorch && typeof ctx.decayEquipped === "function") {
-      // Small per-move decay so torches last for a while but not forever.
-      // Use the same facade the rest of the game uses for decay.
-      const RU = getMod(ctx, "RNGUtils") || mod("RNGUtils");
-      let amt = 0.15;
-      try {
-        if (RU && typeof RU.float === "function") {
-          const rfn = (typeof ctx.rng === "function") ? ctx.rng : undefined;
-          amt = RU.float(0.08, 0.22, 2, rfn);
-        } else if (typeof ctx.randFloat === "function") {
-          amt = ctx.randFloat(0.08, 0.22, 2);
-        } else if (typeof ctx.rng === "function") {
-          const r = ctx.rng();
-          amt = 0.08 + r * (0.22 - 0.08);
-        }
-      } catch (_) {}
-      // Apply decay symmetrically to both hands so either torch wears down appropriately.
-      try { ctx.decayEquipped("left", amt); } catch (_) {}
-      try { ctx.decayEquipped("right", amt); } catch (_) {}
+    if (ctx.mode && ctx.mode !== "world") {
+      const eq = ctx.player.equipment || {};
+      const hasTorch = (it) => !!(it && typeof it.name === "string" && /torch/i.test(it.name));
+      const holdingTorch = hasTorch(eq.left) || hasTorch(eq.right);
+      if (holdingTorch && typeof ctx.decayEquipped === "function") {
+        // Small per-move decay so torches last for a while but not forever.
+        // Use the same facade the rest of the game uses for decay.
+        const RU = getMod(ctx, "RNGUtils") || mod("RNGUtils");
+        let amt = 0.15;
+        try {
+          if (RU && typeof RU.float === "function") {
+            const rfn = (typeof ctx.rng === "function") ? ctx.rng : undefined;
+            amt = RU.float(0.08, 0.22, 2, rfn);
+          } else if (typeof ctx.randFloat === "function") {
+            amt = ctx.randFloat(0.08, 0.22, 2);
+          } else if (typeof ctx.rng === "function") {
+            const r = ctx.rng();
+            amt = 0.08 + r * (0.22 - 0.08);
+          }
+        } catch (_) {}
+        // Apply decay symmetrically to both hands so either torch wears down appropriately.
+        try { ctx.decayEquipped("left", amt); } catch (_) {}
+        try { ctx.decayEquipped("right", amt); } catch (_) {}
+      }
     }
   } catch (_) {}
 
