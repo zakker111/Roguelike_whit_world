@@ -38,16 +38,19 @@ export function recomputeWithGuard(ctx) {
   const rows = ctx.map.length;
   const cols = ctx.map[0] ? ctx.map[0].length : 0;
 
-  // Base radius from ctx plus small equipment-based bonuses (e.g., torch in hand).
+  // Base radius from ctx; apply small equipment-based bonuses (e.g., torch in hand)
+  // in all modes except the overworld (world map).
   const baseRadius = (ctx.fovRadius | 0) || 1;
   let equipBonus = 0;
   try {
-    const p = ctx.player || null;
-    const eq = p && p.equipment ? p.equipment : null;
-    if (eq) {
-      const hasTorch = (it) => !!(it && typeof it.name === "string" && /torch/i.test(it.name));
-      if (hasTorch(eq.left) || hasTorch(eq.right)) {
-        equipBonus += 1;
+    if (ctx.mode !== "world") {
+      const p = ctx.player || null;
+      const eq = p && p.equipment ? p.equipment : null;
+      if (eq) {
+        const hasTorch = (it) => !!(it && typeof it.name === "string" && /torch/i.test(it.name));
+        if (hasTorch(eq.left) || hasTorch(eq.right)) {
+          equipBonus += 1;
+        }
       }
     }
   } catch (_) {}
