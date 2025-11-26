@@ -316,6 +316,29 @@ export const UI = {
     }
   },
 
+  // HUD + inventory stats
+  updateStats(player, floor, getAtk, getDef, time, perf, weather) {
+    // Delegate HUD (HP/Floor/Time/Perf/Weather) to component
+    try {
+      if (Hud && typeof Hud.update === "function") {
+        Hud.update(player, floor, time, perf, this.getPerfState(), weather);
+      }
+    } catch (_) {}
+
+    // Inventory stats summary (Attack/Defense) in the inventory panel header
+    if (this.els.invStatsEl && typeof getAtk === "function" && typeof getDef === "function") {
+      let atkVal = 0;
+      let defVal = 0;
+      try { atkVal = Number(getAtk() || 0); } catch (_) {}
+      try { defVal = Number(getDef() || 0); } catch (_) {}
+      const invStr = `Attack: ${atkVal.toFixed(1)}   Defense: ${defVal.toFixed(1)}`;
+      if (invStr !== this._lastInvStatsText) {
+        this.els.invStatsEl.textContent = invStr;
+        this._lastInvStatsText = invStr;
+      }
+    }
+  },
+
   renderInventory(player, describeItem) {
     try { InventoryPanel.render(player, describeItem); } catch (_) {}
   },
