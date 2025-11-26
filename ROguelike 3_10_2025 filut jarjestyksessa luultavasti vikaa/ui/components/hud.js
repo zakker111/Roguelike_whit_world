@@ -31,6 +31,7 @@ export function update(player, floor, time, perf, perfOn, weather) {
     try {
       if (player.bleedTurns && player.bleedTurns > 0) statuses.push(`Bleeding (${player.bleedTurns})`);
       if (player.dazedTurns && player.dazedTurns > 0) statuses.push(`Dazed (${player.dazedTurns})`);
+      if (player.inFlamesTurns && player.inFlamesTurns > 0) statuses.push(`In Flames (${player.inFlamesTurns})`);
     } catch (_) {}
     const statusText = `Status Effect: ${statuses.length ? statuses.join(", ") : "None"}`;
     const hpStr = `${parts[0]}  ${statusText}`;

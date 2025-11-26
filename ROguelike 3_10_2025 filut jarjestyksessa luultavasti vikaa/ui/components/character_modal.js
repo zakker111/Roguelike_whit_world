@@ -68,6 +68,7 @@ function buildContent(ctx) {
   const statuses = [];
   if (p && p.bleedTurns && p.bleedTurns > 0) statuses.push(`Bleeding (${p.bleedTurns})`);
   if (p && p.dazedTurns && p.dazedTurns > 0) statuses.push(`Dazed (${p.dazedTurns})`);
+  if (p && p.inFlamesTurns && p.inFlamesTurns > 0) statuses.push(`In Flames (${p.inFlamesTurns})`);
 
   const injuries = (p && Array.isArray(p.injuries)) ? p.injuries : [];
   const injHTML = injuries.length ? injuries.slice(0, 16).map((inj) => {
