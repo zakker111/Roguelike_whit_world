@@ -42,6 +42,25 @@ export function drawRegionEntities(ctx, view) {
         ctx2d.fillStyle = "#0b0f16";
         ctx2d.fillText(String((e.glyph && String(e.glyph).trim()) ? e.glyph : (e.type ? e.type.charAt(0) : "?")), sx + half, sy + half);
       } catch (_) {}
+      // Simple burning marker in Region Map when enemy is on fire
+      try {
+        if (e.inFlamesTurns && e.inFlamesTurns > 0) {
+          const half = TILE / 2;
+          ctx2d.textAlign = "center";
+          ctx2d.textBaseline = "middle";
+          let fireColor = "#f97316";
+          try {
+            const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays)
+              ? window.GameData.palette.overlays
+              : null;
+            if (pal && pal.fire) fireColor = pal.fire;
+          } catch (_) {}
+          ctx2d.fillStyle = fireColor;
+          ctx2d.globalAlpha = 0.9;
+          ctx2d.font = `${Math.floor(TILE * 0.7)}px JetBrains Mono, monospace`;
+          ctx2d.fillText("✦", sx + half, sy + half);
+        }
+      } catch (_) {}
       ctx2d.restore();
     }
   } catch (_) {}
