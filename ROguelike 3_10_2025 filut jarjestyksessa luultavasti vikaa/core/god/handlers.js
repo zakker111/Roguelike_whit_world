@@ -179,13 +179,20 @@ export function install(getCtx) {
       }
     },
 
-    // Apply status effect: next player hit applies a chosen status to the target enemy.
-    // For now, this uses a simple toggle flag and always applies In Flames for 3 turns.
-    onGodApplyStatusEffect: () => {
+    // Apply status effect: next player hit applies the chosen status to the target enemy.
+    // effectId is a short string from the GOD panel chooser, e.g. "bleed", "limp", "fire".
+    onGodApplyStatusEffect: (effectId) => {
       const c = getCtx();
       try {
-        c._godApplyStatusOnNextHit = true;
-        c.log("GOD: Next hit will apply a burning status effect to the target.", "notice");
+        let id = String(effectId || "").toLowerCase();
+        if (!id) id = "fire";
+        const valid = { bleed: "Bleeding", limp: "Limp", fire: "Burning" };
+        if (!Object.prototype.hasOwnProperty.call(valid, id)) {
+          c.log(`GOD: Unknown status effect '${effectId}', defaulting to Burning.`, "warn");
+          id = "fire";
+        }
+        c._godStatusOnNextHit = id;
+        c.log(`GOD: Next hit will apply ${valid[id]} status to the target.`, "notice");
       } catch (_) {}
     },
     // Town diagnostics

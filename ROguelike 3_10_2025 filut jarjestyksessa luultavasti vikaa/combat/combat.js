@@ -277,10 +277,22 @@ export function playerAttackEnemy(ctx, enemy) {
 
       // GOD panel: apply one-off status effect on first hit when armed.
       try {
-        if (ctx._godApplyStatusOnNextHit && typeof ST.applyInFlamesToEnemy === "function" && enemy.hp > 0) {
-          ST.applyInFlamesToEnemy(ctx, enemy, 3);
-          ctx._godApplyStatusOnNextHit = false;
-          if (ctx.log) ctx.log("GOD: Applied burning status effect to target on hit.", "notice");
+        const eff = ctx._godStatusOnNextHit || null;
+        if (eff && enemy.hp > 0) {
+          const id = String(eff).toLowerCase();
+          let label = "";
+          if ((id === "fire" || id === "inflames") && typeof ST.applyInFlamesToEnemy === "function") {
+            ST.applyInFlamesToEnemy(ctx, enemy, 3);
+            label = "Burning";
+          } else if (id === "bleed" && typeof ST.applyBleedToEnemy === "function") {
+            ST.applyBleedToEnemy(ctx, enemy, 3);
+            label = "Bleeding";
+          } else if (id === "limp" && typeof ST.applyLimpToEnemy === "function") {
+            ST.applyLimpToEnemy(ctx, enemy, 2);
+            label = "Limp";
+          }
+          ctx._godStatusOnNextHit = null;
+          if (label && ctx.log) ctx.log(`GOD: Applied ${label} status effect to target on hit.`, "notice");
         }
       } catch (_) {}
     }
