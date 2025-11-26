@@ -360,14 +360,13 @@ export function enterRuinsIfOnTile(ctx) {
     try {
       const RMR = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
       if (RMR && typeof RMR.open === "function") {
-        const ok = !!RMR.open(ctx);
-        if (ok) {
-          if (ctx.log) ctx.log("You enter the ancient ruins.", "notice");
-          syncAfterMutation(ctx);
-          return true;
-        }
-      }
-    } catch (_) {}
+            const ok = !!RMR.open(ctx);
+            if (ok) {
+              if (ctx.log) ctx.log("You enter the ancient ruins.", "info");
+              syncAfterMutation(ctx);
+              return true;
+            }
+          }
     return false;
   }
   return false;

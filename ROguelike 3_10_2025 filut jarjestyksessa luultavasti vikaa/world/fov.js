@@ -206,11 +206,11 @@ export function recomputeFOV(ctx) {
     const toSolo = newly.slice(0, maxSolo);
     for (const e of toSolo) {
       const { label } = ctx.enemyThreatLabel(e);
-      ctx.log(`You spot a ${Cap(e.type || "enemy")} Lv ${e.level || 1} (${label}).`, "notice");
+      ctx.log(`You spot a ${Cap(e.type || "enemy")} Lv ${e.level || 1} (${label}).`, "info");
     }
     const rest = newly.length - toSolo.length;
     if (rest > 0) {
-      ctx.log(`You also spot ${rest} more ${rest === 1 ? "enemy" : "enemies"}.`, "notice");
+      ctx.log(`You also spot ${rest} more ${rest === 1 ? "enemy" : "enemies"}.`, "info");
     }
     // Mark all newly seen enemies as announced
     for (const e of newly) e.announced = true;

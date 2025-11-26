@@ -1126,7 +1126,7 @@ function open(ctx, size) {
 
       // Mark encounter-active for AI/tick and guidance
       ctx.region._isEncounter = true;
-      try { ctx.log && ctx.log("Hostiles lurk within the ruins!", "notice"); } catch (_) {}
+      try { ctx.log && ctx.log("Hostiles lurk within the ruins!", "info"); } catch (_) {}
     } catch (_) {}
   })();
 
@@ -1355,9 +1355,9 @@ function open(ctx, size) {
           } catch (_) {}
 
           if (visibleCount > 0) {
-            try { ctx.log && ctx.log(`Creatures spotted (${spawned}).`, "notice"); } catch (_) {}
+            try { ctx.log && ctx.log(`Creatures spotted (${spawned}).`, "info"); } catch (_) {}
           } else {
-            try { ctx.log && ctx.log("Creatures are present in this area, but not in sight.", "info"); } catch (_) {}
+            try { ctx.log && ctx.log("Creatures are present in this areaea, but not in sight.", "info"); } catch (_) {}
           }
         } else {
           try { ctx.log && ctx.log("No creatures spotted in this area.", "info"); } catch (_) {}
@@ -1593,7 +1593,7 @@ function onAction(ctx) {
         }
         // Foraging skill gain
         try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.foraging = (ctx.player.skills.foraging || 0) + 1; } catch (_) {}
-        if (ctx.log) ctx.log("You pick berries.", "good");
+        if (ctx.log) ctx.log("You pick berries.", "info");
         // Remove the bush so it can't be farmed repeatedly
         ctx.region.map[cursor.y][cursor.x] = World.TILES.FOREST;
         // Persist removal
@@ -1615,7 +1615,7 @@ function onAction(ctx) {
 
     if (t === WT.TREE) {
       // Log and convert this spot back to forest for visualization
-      if (ctx.log) ctx.log("You cut the tree.", "good");
+      if (ctx.log) ctx.log("You cut the tree.", "info");
       try {
         // Foraging skill gain
         try { ctx.player.skills = ctx.player.skills || {}; ctx.player.skills.foraging = (ctx.player.skills.foraging || 0) + 1; } catch (_) {}

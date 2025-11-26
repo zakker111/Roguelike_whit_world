@@ -76,7 +76,7 @@ export function brace(ctx) {
     return;
   }
   ctx.player.braceTurns = 1;
-  try { ctx.log && ctx.log("You brace behind your shield. Your block is increased this turn.", "notice"); } catch (_) {}
+  try { ctx.log && ctx.log("You brace behind your shield. Your block is increased this turn.", "info"); } catch (_) {}
   try { if (typeof ctx.turn === "function") ctx.turn(); } catch (_) {}
 }
 

@@ -322,7 +322,7 @@
         "variants": [
           {
             "message": "You cut the tree.",
-            "style": "notice",
+            "style": "info",
             "effect": { "type": "grantMaterial", "material": "wood", "name": "planks", "amount": 10, "removeProp": true }
           }
         ]
