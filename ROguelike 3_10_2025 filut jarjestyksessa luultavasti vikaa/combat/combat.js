@@ -278,10 +278,17 @@ export function playerAttackEnemy(ctx, enemy) {
       // GOD panel: apply one-off status effect on first hit when armed.
       try {
         const p = ctx.player || {};
-        const eff = ctx._godStatusOnNextHit
+        let eff = ctx._godStatusOnNextHit
           || p.godNextStatusEffect
           || p._godStatusOnNextHit
           || null;
+        if (!eff) {
+          try {
+            if (typeof window !== "undefined" && window.GOD_NEXT_STATUS_EFFECT) {
+              eff = window.GOD_NEXT_STATUS_EFFECT;
+            }
+          } catch (_) {}
+        }
         if (eff && enemy.hp > 0) {
           const id = String(eff).toLowerCase();
           let label = "";
@@ -302,6 +309,11 @@ export function playerAttackEnemy(ctx, enemy) {
               p._godStatusOnNextHit = null;
             } catch (_) {}
           }
+          try {
+            if (typeof window !== "undefined") {
+              window.GOD_NEXT_STATUS_EFFECT = null;
+            }
+          } catch (_) {}
           if (label && ctx.log) ctx.log(`GOD: Applied ${label} status effect to target on hit.`, "notice");
         }
       } catch (_) {}

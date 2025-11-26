@@ -191,7 +191,7 @@ export function install(getCtx) {
           c.log(`GOD: Unknown status effect '${effectId}', defaulting to Burning.`, "warn");
           id = "fire";
         }
-        // Store on both ctx and player so it survives new ctx wrappers.
+        // Store on context, player, and a global so it survives ctx wrapper churn.
         c._godStatusOnNextHit = id;
         if (c.player) {
           try {
@@ -199,6 +199,11 @@ export function install(getCtx) {
             c.player._godStatusOnNextHit = id;
           } catch (_) {}
         }
+        try {
+          if (typeof window !== "undefined") {
+            window.GOD_NEXT_STATUS_EFFECT = id;
+          }
+        } catch (_) {}
         c.log(`GOD: Next hit will apply ${valid[id]} status to the target.`, "notice");
       } catch (_) {}
     },
