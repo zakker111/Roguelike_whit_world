@@ -1,5 +1,109 @@
 # Game Version History
-Last updated: 2025-11-25 12:00 UTC
+Last updated: 2025-11-26 12:00 UTC
+
+v1.50.0 — Torch weapon & burning status, GOD status picker, unified combat, and log-level polish
+- Added: Equippable torch weapon with light and fire effects
+  - data/entities/items.json: added torch_weapon hand-slot equipment with low attack values per tier, used as the canonical “torch as a weapon” definition.
+  - entities/player.js: player now starts with a partially worn torch in inventory (kind: equip, slot: hand, atk ≈ 0.6, decay ≈ 70) so decay/breakage and burning can be experienced early.
+  - core/engine/game_fov.js: holding a torch in either hand grants +1 FOV radius in all non-overworld modes (dungeon, town, encounter, region). Overworld FOV remains unchanged.
+  - core/movement.js: torches decay on movement in non-overworld modes; when a torch is equipped in left/right hand, each move step applies a noticeable durability loss (≈0.8–1.6% per step) via the existing decayEquipped facade. Overworld mode does not consume torch durability on movement.
+
+- Added: Burning (“In Flames”) status effect and visuals
+  - combat/status_effects.js:
+    - Introduced In Flames status for enemies and player, ticking once per turn.
+    - Burning damage tuned to be light DoT: enemies and player take ~1–1.5 HP per tick while inFlamesTurns > 0 (down from prior 3–5 in early experiments).
+    - Burning is skipped for ethereal/undead types (ghost/spirit/wraith/skeleton) and cleans itself up when turns reach zero.
+  - combat/combat.js:
+    - When the player holds a torch in either hand, each hit has a moderate chance (~35%) to ignite the enemy for 3 turns (In Flames) in addition to existing crit/bleed/limp logic.
+    - GOD “next status effect” logic extended to include burning: armed status is honored on the next hit and then cleared.
+  - ui/render/dungeon_entities_draw.js and ui/render/region_entities_overlay.js:
+    - Burning enemies are marked with a small centered “✦” flame glyph overlay, tinted via GameData.palette.overlays.fire (or orange fallback) with subtle flicker.
+    - Effect appears in both dungeon/encounter view and Region Map, making burning status visually obvious.
+
+- Added: GOD “Apply Status Effect” menu and robust next-hit status handling
+  - index.html + ui/components/god_panel.js + ui/ui.js:
+    - GOD panel Combat section now has an “Apply Status Effect” button with a small popup menu to choose Bleed, Limp, or In Flames (burning).
+    - Selecting an effect arms it for the next successful hit only; the armed effect is visible via GOD logs.
+  - core/god/handlers.js:
+    - onGodApplyStatusEffect(effectId) normalizes effect IDs (bleed/limp/fire) and stores the choice in multiple places so it survives ctx churn:
+      - ctx._godStatusOnNextHit
+      - ctx.player.godNextStatusEffect and ctx.player._godStatusOnNextHit
+      - window.GOD_NEXT_STATUS_EFFECT (global)
+    - Logs a notice: “GOD: Next hit will apply {Bleeding|Limp|Burning} status to the target.”
+  - combat/combat.js (playerAttackEnemy):
+    - Reads the armed status from ctx/player/global flags and applies exactly one status on the next successful hit:
+      - “fire”/“inflames” → In Flames (burn) for 3 turns.
+      - “bleed” → Bleeding for 3 turns.
+      - “limp” → Limp (immobile) for 2 turns.
+    - Clears all flags after application so later hits are normal until re-armed.
+    - GOD-armed statuses now work consistently in dungeon, encounter, and region contexts.
+
+- Changed: Combat unified across dungeon, encounter, and Region Map
+  - core/dungeon/movement.js:
+    - Dungeon bump-attacks no longer contain their own inline combat implementation.
+    - When the player bumps into an enemy, the code now always calls Combat.playerAttackEnemy(ctx, enemy) (if present) and then advances the turn.
+    - If Combat.playerAttackEnemy is missing, logs an explicit error instead of silently doing minimal damage:
+      - “ERROR: Combat.playerAttackEnemy missing; combat fallback path would be used.”
+  - core/encounter/movement.js:
+    - Encounter movement delegates combat to DungeonRuntime.tryMoveDungeon first; if that doesn’t handle an attack, it now uses Combat.playerAttackEnemy(ctx, enemy) when an enemy occupies the target tile.
+    - Minimal inline damage fallback has been removed; if Combat.playerAttackEnemy is absent, the system logs:
+      - “ERROR: Combat.playerAttackEnemy missing; combat fallback path would be used (encounter).”
+  - region_map/region_map_runtime.js:
+    - Region Map bump-attacks against enemies likewise call Combat.playerAttackEnemy(ctx, enemy) in all cases.
+    - For neutral animals (faction: animal), bump-attacking flips them to animal_hostile and marks the region as an encounter before calling Combat.playerAttackEnemy.
+    - Minimal inline combat fallback removed; missing Combat.playerAttackEnemy logs:
+      - “ERROR: Combat.playerAttackEnemy missing; combat fallback path would be used (region).”
+  - Result: all player melee attacks (dungeon, encounters, ruins/Region Map) use the single shared Combat.playerAttackEnemy pipeline, keeping crits, limp/bleed, torch burning, GOD status effects, equipment decay, and passive skill gains consistent across modes.
+
+- Changed: HUD and status displays (including burning)
+  - ui/ui.js:
+    - Restored/implemented UI.updateStats, which now forwards HUD updates to Hud.update() using the latest player, floor, time, perf stats, and weather.
+    - HUD status line includes In Flames (N) alongside Bleeding and Dazed for the player when applicable.
+  - ui/components/hud.js:
+    - Perf timings (turn/draw ms) obey the Perf toggle; metrics are only shown when Perf is enabled via GOD panel.
+  - ui/components/character_modal.js:
+    - Character sheet lists active player statuses including In Flames (with remaining turn count), harmonizing with HUD.
+
+- Changed: Shop torches are now equippable hand items
+  - services/shop_service.js (_materializeItem):
+    - For tools in general, behavior is unchanged: kind: \"tool\" items are created using GameData.tools definitions and priced via id.
+    - Special-case for entry.id === \"torch\": instead of creating a generic tool, the shop now materializes a true hand-slot equip torch:
+      - Prefers Items.createByKey(\"torch_weapon\", 1, rng) using the registry definition.
+      - Falls back to Items.createNamed({ slot: \"hand\", tier: 1, name: \"torch\", atk: 0.6, decay: startDecay }) when registry is unavailable.
+      - Ultimate fallback: a hand-slot equip object { kind: \"equip\", slot: \"hand\", name: \"torch\", atk: 0.6, tier: 1, decay: startDecay }.
+    - Torches bought from traders/seppo can now be equipped in hands, gain durability, grant FOV bonuses, and ignite enemies exactly like the starter torch.
+
+- Changed: Ruins entry and corpse flavor log consistency
+  - core/modes/modes.js (enterRuinsIfOnTile):
+    - Fixed a malformed try block (“Missing catch or finally after try”) when checking RUINS tiles; added a proper try/catch around RegionMapRuntime.open(ctx).
+    - On successful open, logs “You enter the ancient ruins.” as info and syncs state via syncAfterMutation(ctx); returns false when Region Map cannot be opened.
+  - core/dungeon/loot.js:
+    - When looting in dungeon/encounter mode with no loot underfoot, corpse death flavor lines from FlavorService.describeCorpse(meta) are now logged with type \"flavor\" and details:
+      - ctx.log(line, \"flavor\", { category: \"Combat\", side: \"enemy\", tone: \"injury\" });
+    - This matches Region Map ruins behavior so corpse descriptions (e.g., “Skeleton corpse. Wound: bleeding cut in torso. Killed by bandit. (iron simple sword)”) use the same blue-ish flavor styling in dungeons, encounters, and ruins.
+
+- Changed: Log levels normalized for neutral gameplay hints
+  - core/modes/modes.js:
+    - “You enter the ancient ruins.” now logs as info (was notice).
+  - region_map/region_map_runtime.js:
+    - Ruins flavor and threat hints normalized:
+      - “Hostiles lurk within the ruins!” → info.
+      - “Creatures spotted (N).” → info.
+      - “Creatures are present in this area, but not in sight.” remains info.
+    - Region actions for chopping trees and picking berries:
+      - “You cut the tree.” and “You pick berries.” now log as info (were good/notice).
+  - core/encounter/enter.js:
+    - Guards-vs-bandits intro line “you see guards against bandits in field of battle” now logs as info (was notice).
+  - world/fov.js:
+    - Field-of-view spotting lines:
+      - “You spot a {EnemyType} Lv {level} ({threatLabel}).” and “You also spot {N} more enemy/enemies.” now log as info (were notice).
+  - core/movement.js:
+    - Brace stance message “You brace behind your shield. Your block is increased this turn.” logs as info (was notice).
+  - data/world/world_assets.json:
+    - Town prop “You cut the tree.” message now logs at info, aligning tree chopping feedback between town and Region Map.
+  - Result: neutral guidance and status hints (enter ruins, spot enemies, brace, light prop interactions) use info-level logs consistently; notice level is reserved for stronger events and GOD/debug actions.
+
+- Deployment: https://kh7dout6744i.cosine.page (latest build with torch weapon, burning status, unified combat, GOD status picker, and log-level updates)
 
 v1.49.3 — Core runtime hardening, Wild Seppo encounter merchant, and loot/encounter tightening
 - Added: Hard errors for missing required core modules instead of silent "system not available" logs in several paths:
