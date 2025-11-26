@@ -11,7 +11,7 @@
  * - brace(ctx) applies only in dungeon mode and is effective when the player has a defensive hand item; it increases block chance for this turn.
  */
 
-import { getMod } from "../utils/access.js";
+import { getMod, getRNGUtils } from "../utils/access.js";
 
 function mod(name) {
   try {
@@ -130,32 +130,37 @@ export function descendIfPossible(ctx) {
 export function tryMove(ctx, dx, dy) {
   if (!ctx || !ctx.player) return;
 
-  // Torch decay on movement: when a torch is held in either hand, it slowly wears down
+  // Torch decay on movement: when a torch is held in either hand, it wears down
   // as the player moves in non-overworld modes (dungeon/town/encounter/region).
   try {
     if (ctx.mode && ctx.mode !== "world") {
       const eq = ctx.player.equipment || {};
       const hasTorch = (it) => !!(it && typeof it.name === "string" && /torch/i.test(it.name));
-      const holdingTorch = hasTorch(eq.left) || hasTorch(eq.right);
-      if (holdingTorch && typeof ctx.decayEquipped === "function") {
-        // Small per-move decay so torches last for a while but not forever.
-        // Use the same facade the rest of the game uses for decay.
-        const RU = getMod(ctx, "RNGUtils") || mod("RNGUtils");
-        let amt = 0.15;
+      const leftHasTorch = hasTorch(eq.left);
+      const rightHasTorch = hasTorch(eq.right);
+      if ((leftHasTorch || rightHasTorch) && typeof ctx.decayEquipped === "function") {
+        // Per-move decay tuned so a 30% fresh torch breaks in roughly 20–40 steps.
+        // Uses shared RNGUtils when available so behavior is deterministic with the main RNG.
+        const RU = getRNGUtils(ctx);
+        let amt = 1.2;
         try {
+          const rfn = (typeof ctx.rng === "function") ? ctx.rng : undefined;
           if (RU && typeof RU.float === "function") {
-            const rfn = (typeof ctx.rng === "function") ? ctx.rng : undefined;
-            amt = RU.float(0.08, 0.22, 2, rfn);
+            amt = RU.float(0.8, 1.6, 1, rfn);
           } else if (typeof ctx.randFloat === "function") {
-            amt = ctx.randFloat(0.08, 0.22, 2);
+            amt = ctx.randFloat(0.8, 1.6, 1);
           } else if (typeof ctx.rng === "function") {
             const r = ctx.rng();
-            amt = 0.08 + r * (0.22 - 0.08);
+            amt = 0.8 + r * (1.6 - 0.8);
           }
         } catch (_) {}
-        // Apply decay symmetrically to both hands so either torch wears down appropriately.
-        try { ctx.decayEquipped("left", amt); } catch (_) {}
-        try { ctx.decayEquipped("right", amt); } catch (_) {}
+        // Only decay the hand(s) actually holding a torch.
+        if (leftHasTorch) {
+          try { ctx.decayEquipped("left", amt); } catch (_) {}
+        }
+        if (rightHasTorch) {
+          try { ctx.decayEquipped("right", amt); } catch (_) {}
+        }
       }
     }
   } catch (_) {}
