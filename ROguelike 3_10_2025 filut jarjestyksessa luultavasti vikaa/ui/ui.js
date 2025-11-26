@@ -308,7 +308,7 @@ export const UI = {
     if (typeof onGodClearEffects === "function") this.handlers.onGodClearEffects = onGodClearEffects;
     if (typeof onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow = onGodStartEncounterNow;
     if (typeof onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove = onGodArmEncounterNextMove;
-    if (typeof onGodApplyStatusEffect === "function") this.handlers.onGodApply,
+    if (typeof onGodApplyStatusEffect === "function") this.handlers.onGodApplyStatusEffect = onGodApplyStatusEffect;
 
   updateStats(player, floor, getAtk, getDef, time, perf, weather) {
     // Delegate HUD (HP/Floor/Time/Perf/Weather) to component
