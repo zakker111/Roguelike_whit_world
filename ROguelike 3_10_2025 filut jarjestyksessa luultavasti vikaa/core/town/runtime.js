@@ -515,6 +515,9 @@ export function startBanditsAtGateEvent(ctx) {
     const minBandits = 5;
     const rng = typeof ctx.rng === "function" ? ctx.rng : (() => 0.5);
     const count = Math.max(minBandits, Math.min(maxBandits, Math.floor(minBandits + rng() * (maxBandits - minBandits + 1))));
+    try {
+      ctx.log && ctx.log(`[TownRuntime] BanditsAtGate: gate at (${gate.x},${gate.y}), planning to spawn ${count} bandits.`, "info");
+    } catch (_) {}
 
     const spots = [];
     const radiusX = 4;
@@ -531,10 +534,13 @@ export function startBanditsAtGateEvent(ctx) {
       }
     }
     if (!spots.length) {
-      ctx.log && ctx.log("No free space near the gate to spawn bandits.", "warn");
+      ctx.log && ctx.log("[TownRuntime] BanditsAtGate: no free space near the gate to spawn bandits.", "warn");
       return false;
     }
     spots.sort((a, b) => a.score - b.score);
+    try {
+      ctx.log && ctx.log(`[TownRuntime] BanditsAtGate: found ${spots.length} candidate tiles for spawns.`, "info");
+    } catch (_) {}
 
     const bandits = [];
     const used = new Set();
@@ -575,7 +581,7 @@ export function startBanditsAtGateEvent(ctx) {
     }
 
     if (!bandits.length) {
-      ctx.log && ctx.log("Failed to place any bandits near the gate.", "warn");
+      ctx.log && ctx.log("[TownRuntime] BanditsAtGate: failed to place any bandits near the gate.", "warn");
       return false;
     }
 
@@ -587,6 +593,9 @@ export function startBanditsAtGateEvent(ctx) {
       startedTurn: turn,
       totalBandits: bandits.length
     };
+    try {
+      ctx.log && ctx.log(`[TownRuntime] BanditsAtGate: spawned ${bandits.length} bandits near gate at (${gate.x},${gate.y}).`, "info");
+    } catch (_) {}
     ctx.log && ctx.log("Bandits rush the town gate! Guards shout and civilians scramble for safety.", "notice");
     return true;
   } catch (e) {
