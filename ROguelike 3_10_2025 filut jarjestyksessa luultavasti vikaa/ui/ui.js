@@ -278,7 +278,7 @@ export const UI = {
 
   
 
-  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove, onGodApplyStatusEffect } = {}) {
+  setHandlers({ onEquip, onEquipHand, onUnequip, onDrink, onEat, onRestart, onWait, onGodHeal, onGodSpawn, onGodSetFov, onGodSetEncounterRate, onGodSpawnEnemy, onGodSpawnStairs, onGodSetAlwaysCrit, onGodSetCritPart, onGodApplySeed, onGodRerollSeed, onGodCheckHomes, onGodCheckInnTavern, onGodCheckSigns, onGodCheckPrefabs, onGodDiagnostics, onGodRunSmokeTest, onGodRunValidation, onGodToggleGrid, onGodApplyBleed, onGodApplyDazed, onGodClearEffects, onGodStartEncounterNow, onGodArmEncounterNextMove } = {}) {
     if (typeof onEquip === "function") this.handlers.onEquip = onEquip;
     if (typeof onEquipHand === "function") this.handlers.onEquipHand = onEquipHand;
     if (typeof onUnequip === "function") this.handlers.onUnequip = onUnequip;
@@ -308,23 +308,11 @@ export const UI = {
     if (typeof onGodClearEffects === "function") this.handlers.onGodClearEffects = onGodClearEffects;
     if (typeof onGodStartEncounterNow === "function") this.handlers.onGodStartEncounterNow = onGodStartEncounterNow;
     if (typeof onGodArmEncounterNextMove === "function") this.handlers.onGodArmEncounterNextMove = onGodArmEncounterNextMove;
-    if (typeof onGodApplyStatusEffect === "function") this.handlers.onGodApplyStatusEffect = onGodApplyStatusEffect;
 
-  updateStats(player, floor, getAtk, getDef, time, perf, weather) {
-    // Delegate HUD (HP/Floor/Time/Perf/Weather) to component
-    try {
-      if (Hud && typeof Hud.update === "function") {
-        Hud.update(player, floor, time, perf, this.getPerfState(), weather);
-      }
-    } catch (_) {}
-
-    // Inventory stats summary
-    if (this.els.invStatsEl && typeof getAtk === "function" && typeof getDef === "function") {
-      const invStr = `Attack: ${getAtk().toFixed(1)}   Defense: ${getDef().toFixed(1)}`;
-      if (invStr !== this._lastInvStatsText) {
-        this.els.invStatsEl.textContent = invStr;
-        this._lastInvStatsText = invStr;
-      }
+    // Extra handler (added later) for applying a status effect via GOD panel.
+    const extra = arguments[0] || {};
+    if (typeof extra.onGodApplyStatusEffect === "function") {
+      this.handlers.onGodApplyStatusEffect = extra.onGodApplyStatusEffect;
     }
   },
 
