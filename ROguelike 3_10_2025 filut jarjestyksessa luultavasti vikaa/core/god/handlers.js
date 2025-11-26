@@ -211,58 +211,19 @@ export function install(getCtx) {
     onGodTownBandits: () => {
       const c = getCtx();
       try {
-        if (c.mode === "town") {
-          const TR = c.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
-          if (TR && typeof TR.startBanditsAtGateEvent === "function") {
-            const ok = TR.startBanditsAtGateEvent(c);
-            if (!ok) {
-              // startBanditsAtGateEvent logs its own warnings.
-            }
-            return;
+        if (c.mode !== "town") {
+          c.log("Bandits at the gate event is available in town mode only. Enter a town first.", "warn");
+          return;
+        }
+        const TR = c.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
+        if (TR && typeof TR.startBanditsAtGateEvent === "function") {
+          const ok = TR.startBanditsAtGateEvent(c);
+          if (!ok) {
+            // startBanditsAtGateEvent logs its own warnings.
           }
-          c.log("GOD: TownRuntime.startBanditsAtGateEvent not available.", "warn");
           return;
         }
-
-        // Fallback: in overworld, trigger the existing Guards vs Bandits encounter.
-        if (c.mode !== "world") {
-          c.log("Bandits at the gate event is available in town or overworld mode only.", "warn");
-          return;
-        }
-        const GD = (typeof window !== "undefined" ? window.GameData : null);
-        const list = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
-        const tpl = list.find(t => String(t.id || "").toLowerCase() === "guards_vs_bandits") || null;
-        if (!tpl) {
-          c.log("GOD: guards_vs_bandits encounter template not found; cannot start bandits-at-gate event.", "warn");
-          return;
-        }
-
-        c.log("Alarm! Bandits attack the town gate. Guards rush out to meet them; townsfolk flee for safety.", "notice");
-
-        const tile = c.world && c.world.map ? c.world.map[c.player.y][c.player.x] : null;
-        const biome = (function () {
-          try {
-            const W = (typeof window !== "undefined" && window.World) ? window.World : null;
-            return (W && typeof W.biomeName === "function") ? (W.biomeName(tile) || "").toUpperCase() : "";
-          } catch (_) { return ""; }
-        })();
-        const diff = 3;
-
-        const ok = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function")
-          ? window.GameAPI.enterEncounter(tpl, biome, diff)
-          : false;
-
-        if (!ok) {
-          const ER = mod("EncounterRuntime");
-          if (ER && typeof ER.enter === "function") {
-            const ctxMod = getCtx();
-            if (ER.enter(ctxMod, { template: tpl, biome, difficulty: diff })) {
-              if (typeof ctxMod.requestDraw === "function") ctxMod.requestDraw();
-              return;
-            }
-          }
-          c.log("Failed to start Guards vs Bandits encounter.", "warn");
-        }
+        c.log("GOD: TownRuntime.startBanditsAtGateEvent not available.", "warn");
       } catch (_) {}
     },
 
