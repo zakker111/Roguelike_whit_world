@@ -567,6 +567,54 @@ export function install(getCtx) {
       } catch (_) {}
     },
 
+    // Town events: trigger a guards vs bandits battle from the GOD panel.
+    // For now this uses the existing 'guards_vs_bandits' encounter template and
+    // requires being in overworld mode to avoid surprising mode transitions.
+    onGodTownBandits: () => {
+      const c = getCtx();
+      try {
+        if (c.mode !== "world") {
+          c.log("Bandits at the gate event is available in overworld mode only (stand near a town or castle).", "warn");
+          return;
+        }
+        const GD = (typeof window !== "undefined" ? window.GameData : null);
+        const list = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
+        const tpl = list.find(t => String(t.id || "").toLowerCase() === "guards_vs_bandits") || null;
+        if (!tpl) {
+          c.log("GOD: guards_vs_bandits encounter template not found; cannot start bandits-at-gate event.", "warn");
+          return;
+        }
+
+        // Announce in the log; use notice so it stands out slightly.
+        c.log("Alarm! Bandits attack the town gate. Guards rush out to meet them; townsfolk flee for safety.", "notice");
+
+        const tile = c.world && c.world.map ? c.world.map[c.player.y][c.player.x] : null;
+        const biome = (function () {
+          try {
+            const W = (typeof window !== "undefined" && window.World) ? window.World : null;
+            return (W && typeof W.biomeName === "function") ? (W.biomeName(tile) || "").toUpperCase() : "";
+          } catch (_) { return ""; }
+        })();
+        const diff = 3;
+
+        const ok = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function")
+          ? window.GameAPI.enterEncounter(tpl, biome, diff)
+          : false;
+
+        if (!ok) {
+          const ER = mod("EncounterRuntime");
+          if (ER && typeof ER.enter === "function") {
+            const ctxMod = getCtx();
+            if (ER.enter(ctxMod, { template: tpl, biome, difficulty: diff })) {
+              if (typeof ctxMod.requestDraw === "function") ctxMod.requestDraw();
+              return;
+            }
+          }
+          c.log("Failed to start Guards vs Bandits encounter.", "warn");
+        }
+      } catch (_) {}
+    },
+
     onGodDiagnostics: () => {
       const c = getCtx();
       const mods = {

@@ -770,6 +770,14 @@ export function init(UI) {
   checkPrefabs?.addEventListener("click", () => {
     if (typeof UI.handlers.onGodCheckPrefabs === "function") UI.handlers.onGodCheckPrefabs();
   });
+
+  // Town events
+  const townBanditsBtn = byId("god-town-bandits-btn");
+  if (townBanditsBtn) {
+    townBanditsBtn.addEventListener("click", () => {
+      if (typeof UI.handlers.onGodTownBandits === "function") UI.handlers.onGodTownBandits();
+    });
+  }
 }
 
 export function show() {
