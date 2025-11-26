@@ -56,25 +56,15 @@ export function tryMoveEncounter(ctx, dx, dy) {
       try { C.playerAttackEnemy(ctx, enemy); } catch (_) {}
       return true;
     }
+    // Minimal inline fallback if Combat module is unavailable.
     try {
-      const loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
-      const blockChance = (typeof ctx.getEnemyBlockChance === "function") ? ctx.getEnemyBlockChance(enemy, loc) : 0;
-      const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
-      const rfn = (RU && typeof RU.getRng === "function")
-        ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
-        : ((typeof ctx.rng === "function") ? ctx.rng : null);
-      const didBlock = (RU && typeof RU.chance === "function" && typeof rfn === "function")
-        ? RU.chance(blockChance, rfn)
-        : ((typeof rfn === "function") ? (rfn() < blockChance) : (0.5 < blockChance));
-      if (didBlock) {
-        ctx.log && ctx.log(`${(enemy.type || "enemy")} blocks your attack.`, "block");
-      } else {
-        const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
-        const dmg = Math.max(0.1, Math.round(atk * 10) / 10);
-        enemy.hp -= dmg;
-        ctx.log && ctx.log(`You hit the ${(enemy.type || "enemy")} for ${dmg}.`);
-        if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
-      }
+      const atk = (typeof ctx.getPlayerAttack === "function") ? ctx.getPlayerAttack() : 1;
+      const round1 = (ctx.utils && typeof ctx.utils.round1 === "function") ? ctx.utils.round1 : ((n) => Math.round(n * 10) / 10);
+      const dmg = Math.max(0.1, round1(atk));
+      enemy.hp -= dmg;
+      const name = (enemy.type || "enemy");
+      ctx.log && ctx.log(`You hit the ${name}'s torso for ${dmg}.`, "info", { category: "Combat", side: "player" });
+      if (enemy.hp <= 0 && typeof ctx.onEnemyDied === "function") ctx.onEnemyDied(enemy);
     } catch (_) {}
     return true;
   }
