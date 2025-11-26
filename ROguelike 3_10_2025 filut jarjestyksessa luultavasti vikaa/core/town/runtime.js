@@ -502,21 +502,83 @@ function startCaravanAmbushEncounter(ctx, npc) {
  * Guards will be steered towards bandits by TownAI; bandits may attack guards and other NPCs.
  */
 export function startBanditsAtGateEvent(ctx) {
-  if (!ctx || ctx.mode !== "town" || !ctx.townExitAt) {
-    if (ctx && ctx.log) ctx.log("Bandits at the gate event requires town mode with a gate.", "warn");
+  if (!ctx || ctx.mode !== "town") {
+    if (ctx && ctx.log) ctx.log("Bandits at the gate event requires town mode.", "warn");
     return false;
   }
   try {
-    const gate = ctx.townExitAt;
+    // Ensure we have a gate anchor; older saved towns may not have townExitAt persisted.
+    let gate = ctx.townExitAt;
     const map = ctx.map;
-    const rows = map.length;
-    const cols = rows ? (map[0] ? map[0].length : 0) : 0;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+
+    if (!gate || typeof gate.x !== "number" || typeof gate.y !== "number") {
+      const T = ctx.TILES || {};
+      let gx = null;
+      let gy = null;
+
+      // Try to infer gate from a perimeter DOOR and pick the adjacent interior floor tile.
+      if (rows && cols && T.DOOR != null) {
+        // Top row
+        for (let x = 0; x < cols && gx == null; x++) {
+          if (map[0][x] === T.DOOR && rows > 1) { gx = x; gy = 1; }
+        }
+        // Bottom row
+        if (gx == null) {
+          for (let x = 0; x < cols && gx == null; x++) {
+            if (map[rows - 1][x] === T.DOOR && rows > 1) { gx = x; gy = rows - 2; }
+          }
+        }
+        // Left column
+        if (gx == null) {
+          for (let y = 0; y < rows && gx == null; y++) {
+            if (map[y][0] === T.DOOR && cols > 1) { gx = 1; gy = y; }
+          }
+        }
+        // Right column
+        if (gx == null) {
+          for (let y = 0; y < rows && gx == null; y++) {
+            if (map[y][cols - 1] === T.DOOR && cols > 1) { gx = cols - 2; gy = y; }
+          }
+        }
+      }
+
+      if (gx != null && gy != null) {
+        gate = { x: gx, y: gy };
+        ctx.townExitAt = gate;
+        try {
+          ctx.log && ctx.log(
+            `[TownRuntime] BanditsAtGate: reconstructed missing townExitAt at (${gate.x},${gate.y}).`,
+            "info"
+          );
+        } catch (_) {}
+      } else {
+        // Final fallback: treat the player's current tile as the \"gate\" anchor so the event still works.
+        gate = { x: ctx.player.x | 0, y: ctx.player.y | 0 };
+        ctx.townExitAt = gate;
+        try {
+          ctx.log && ctx.log(
+            "[TownRuntime] BanditsAtGate: could not find a gate; using player position as gate anchor.",
+            "warn"
+          );
+        } catch (_) {}
+      }
+    }
+
     const maxBandits = 10;
     const minBandits = 5;
     const rng = typeof ctx.rng === "function" ? ctx.rng : (() => 0.5);
-    const count = Math.max(minBandits, Math.min(maxBandits, Math.floor(minBandits + rng() * (maxBandits - minBandits + 1))));
+    const count = Math.max(
+      minBandits,
+      Math.min(maxBandits, Math.floor(minBandits + rng() * (maxBandits - minBandits + 1)))
+    );
     try {
-      ctx.log && ctx.log(`[TownRuntime] BanditsAtGate: gate at (${gate.x},${gate.y}), planning to spawn ${count} bandits.`, "info");
+      ctx.log &&
+        ctx.log(
+          `[TownRuntime] BanditsAtGate: gate at (${gate.x},${gate.y}), planning to spawn ${count} bandits.`,
+          "info"
+        );
     } catch (_) {}
 
     const spots = [];
@@ -529,17 +591,25 @@ export function startBanditsAtGateEvent(ctx) {
         if (x < 1 || y < 1 || y >= rows - 1 || x >= cols - 1) continue;
         if (!isFreeTownFloor(ctx, x, y)) continue;
         // Prefer tiles just inside the gate (same row or slightly inward)
-        const inwardBias = (dy >= 0 ? 0 : Math.abs(dy));
+        const inwardBias = dy >= 0 ? 0 : Math.abs(dy);
         spots.push({ x, y, score: Math.abs(dx) + inwardBias });
       }
     }
     if (!spots.length) {
-      ctx.log && ctx.log("[TownRuntime] BanditsAtGate: no free space near the gate to spawn bandits.", "warn");
+      ctx.log &&
+        ctx.log(
+          "[TownRuntime] BanditsAtGate: no free space near the gate to spawn bandits.",
+          "warn"
+        );
       return false;
     }
     spots.sort((a, b) => a.score - b.score);
     try {
-      ctx.log && ctx.log(`[TownRuntime] BanditsAtGate: found ${spots.length} candidate tiles for spawns.`, "info");
+      ctx.log &&
+        ctx.log(
+          `[TownRuntime] BanditsAtGate: found ${spots.length} candidate tiles for spawns.`,
+          "info"
+        );
     } catch (_) {}
 
     const bandits = [];
@@ -560,10 +630,11 @@ export function startBanditsAtGateEvent(ctx) {
       const pos = takeSpot();
       if (!pos) break;
       const hp = 18 + Math.floor(rng() * 8); // 18-25 hp
-      const name = (i === 0) ? "Bandit captain" : "Bandit";
-      const lines = i === 0
-        ? ["Take what you can!", "No one passes this gate!"]
-        : ["Grab the loot!", "For the gang!"];
+      const name = i === 0 ? "Bandit captain" : "Bandit";
+      const lines =
+        i === 0
+          ? ["Take what you can!", "No one passes this gate!"]
+          : ["Grab the loot!", "For the gang!"];
       const b = {
         x: pos.x,
         y: pos.y,
@@ -574,32 +645,51 @@ export function startBanditsAtGateEvent(ctx) {
         faction: "bandit",
         hp,
         maxHp: hp,
-        _banditEvent: true
+        _banditEvent: true,
       };
       ctx.npcs.push(b);
       bandits.push(b);
     }
 
     if (!bandits.length) {
-      ctx.log && ctx.log("[TownRuntime] BanditsAtGate: failed to place any bandits near the gate.", "warn");
+      ctx.log &&
+        ctx.log(
+          "[TownRuntime] BanditsAtGate: failed to place any bandits near the gate.",
+          "warn"
+        );
       return false;
     }
 
-    try { rebuildOccupancy(ctx); } catch (_) {}
+    try {
+      rebuildOccupancy(ctx);
+    } catch (_) {}
 
-    const turn = (ctx.time && typeof ctx.time.turnCounter === "number") ? (ctx.time.turnCounter | 0) : 0;
+    const turn =
+      ctx.time && typeof ctx.time.turnCounter === "number"
+        ? ctx.time.turnCounter | 0
+        : 0;
     ctx._townBanditEvent = {
       active: true,
       startedTurn: turn,
-      totalBandits: bandits.length
+      totalBandits: bandits.length,
     };
     try {
-      ctx.log && ctx.log(`[TownRuntime] BanditsAtGate: spawned ${bandits.length} bandits near gate at (${gate.x},${gate.y}).`, "info");
+      ctx.log &&
+        ctx.log(
+          `[TownRuntime] BanditsAtGate: spawned ${bandits.length} bandits near gate at (${gate.x},${gate.y}).`,
+          "info"
+        );
     } catch (_) {}
-    ctx.log && ctx.log("Bandits rush the town gate! Guards shout and civilians scramble for safety.", "notice");
+    ctx.log &&
+      ctx.log(
+        "Bandits rush the town gate! Guards shout and civilians scramble for safety.",
+        "notice"
+      );
     return true;
   } catch (e) {
-    try { console.error(e); } catch (_) {}
+    try {
+      console.error(e);
+    } catch (_) {}
     if (ctx && ctx.log) ctx.log("Failed to start Bandits at the Gate event.", "warn");
     return false;
   }
