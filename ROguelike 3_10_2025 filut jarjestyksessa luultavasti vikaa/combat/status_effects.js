@@ -78,7 +78,7 @@ export function applyBleedToPlayer(ctx, duration) {
   } catch (_) {}
 }
 
-// Moderate burning status: deals 3–5 damage per turn for the duration.
+// Moderate burning status: deals 1–1.5 damage per turn for the duration.
 // Currently used for enemies when hit while the player is holding a torch.
 export function applyInFlamesToEnemy(ctx, enemy, duration) {
   if (!ctx || !enemy) return;
@@ -119,7 +119,7 @@ export function tick(ctx) {
   if (ctx.player && ctx.player.inFlamesTurns && ctx.player.inFlamesTurns > 0) {
     ctx.player.inFlamesTurns -= 1;
     const r = getRng(ctx);
-    const dmg = 3 + (r() * 2); // 3–5, fractional is fine; UI rounds HP
+    const dmg = 1 + (r() * 0.5); // 1–1.5, fractional is fine; UI rounds HP
     ctx.player.hp -= dmg;
     if (addDecal) {
       try { addDecal(ctx.player.x, ctx.player.y, 1.0); } catch (_) {}
@@ -165,7 +165,7 @@ export function tick(ctx) {
 
       if (e.inFlamesTurns && e.inFlamesTurns > 0 && e.hp > 0) {
         e.inFlamesTurns -= 1;
-        const burn = 3 + (r() * 2); // 3–5
+        const burn = 1 + (r() * 0.5); // 1–1.5
         e.hp -= burn;
         dmgThisTick += burn;
         if (addDecal) {
