@@ -995,6 +995,132 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       } catch (_) {}
     }
 
+    // NPC vs NPC town combat: guards and bandits use a shared damage pipeline that mirrors
+    // dungeon/encounter enemy-vs-enemy attacks (hit locations, block, crits, scaling).
+    function townNpcAttack(attacker, defender) {
+      if (!attacker || !defender || defender._dead) return;
+      const rnd = rngFor(ctx);
+
+      // Hit location
+      let loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
+      try {
+        if (typeof ctx.rollHitLocation === "function") {
+          loc = ctx.rollHitLocation();
+        }
+      } catch (_) {}
+
+      // Block chance based on defender type/faction, same helper used by dungeon enemies.
+      let blockChance = 0;
+      try {
+        if (typeof ctx.getEnemyBlockChance === "function") {
+          blockChance = ctx.getEnemyBlockChance(defender, loc);
+        }
+      } catch (_) {}
+
+      try {
+        if (rnd() < blockChance) {
+          const nameA = attacker && (attacker.name || attacker.type) ? (attacker.name || attacker.type) : "Someone";
+          const nameD = defender && (defender.name || defender.type) ? (defender.name || defender.type) : "someone";
+          ctx.log &&
+            ctx.log(
+              `${nameD} blocks ${nameA}'s attack to the ${loc.part}.`,
+              "block",
+              { category: "Combat", side: "npc" }
+            );
+          return;
+        }
+      } catch (_) {}
+
+      // Damage calculation: atk * enemyDamageMultiplier(level) * hit-location multiplier.
+      const atk = (typeof attacker.atk === "number" && attacker.atk > 0) ? attacker.atk : 2;
+      const level = (typeof attacker.level === "number" && attacker.level > 0) ? attacker.level : 1;
+      let mult = 1.0;
+      try {
+        if (typeof ctx.enemyDamageMultiplier === "function") {
+          mult = ctx.enemyDamageMultiplier(level);
+        } else {
+          mult = 1 + 0.15 * Math.max(0, level - 1);
+        }
+      } catch (_) {
+        mult = 1 + 0.15 * Math.max(0, level - 1);
+      }
+      let raw = atk * mult * (loc.mult || 1.0);
+
+      // Crits
+      let isCrit = false;
+      try {
+        let critChance = 0.10 + (loc.critBonus || 0);
+        critChance = Math.max(0, Math.min(0.5, critChance));
+        if (rnd() < critChance) {
+          isCrit = true;
+          let cMult = 1.8;
+          if (typeof ctx.critMultiplier === "function") {
+            cMult = ctx.critMultiplier();
+          } else {
+            cMult = 1.6 + rnd() * 0.4;
+          }
+          raw *= cMult;
+        }
+      } catch (_) {}
+
+      // No DR for NPC vs NPC (mirrors dungeon enemy-vs-enemy combat).
+      let dmg = raw;
+      try {
+        if (ctx.utils && typeof ctx.utils.round1 === "function") {
+          dmg = ctx.utils.round1(dmg);
+        } else {
+          dmg = Math.round(dmg * 10) / 10;
+        }
+      } catch (_) {}
+      if (!(dmg > 0)) dmg = 0.1;
+
+      const maxHp = typeof defender.maxHp === "number"
+        ? defender.maxHp
+        : (typeof defender.hp === "number" ? Math.max(1, defender.hp) : 20);
+      if (typeof defender.hp !== "number") defender.hp = maxHp;
+      defender.hp -= dmg;
+
+      // Visual blood for non-ethereal targets
+      try {
+        const ttype = String(defender.type || defender.name || "");
+        const ethereal = /ghost|spirit|wraith|skeleton/i.test(ttype);
+        if (!ethereal && typeof ctx.addBloodDecal === "function" && dmg > 0) {
+          ctx.addBloodDecal(defender.x, defender.y, isCrit ? 1.2 : 0.9);
+        }
+      } catch (_) {}
+
+      // Logging
+      const nameA = attacker && (attacker.name || attacker.type) ? (attacker.name || attacker.type) : "Someone";
+      const nameD = defender && (defender.name || defender.type) ? (defender.name || defender.type) : "someone";
+      try {
+        if (defender.hp > 0) {
+          if (isCrit) {
+            ctx.log &&
+              ctx.log(
+                `Critical! ${nameA} hits ${nameD}'s ${loc.part} for ${dmg}.`,
+                "crit",
+                { category: "Combat", side: "npc" }
+              );
+          } else {
+            ctx.log &&
+              ctx.log(
+                `${nameA} hits ${nameD}'s ${loc.part} for ${dmg}.`,
+                "combat",
+                { category: "Combat", side: "npc" }
+              );
+          }
+        } else {
+          defender._dead = true;
+          ctx.log &&
+            ctx.log(
+              `${nameA} kills ${nameD}.`,
+              "fatal",
+              { category: "Combat", side: "npc" }
+            );
+        }
+      } catch (_) {}
+    }
+
     // Bandit attack against the player using the shared dungeon/encounter damage model.
     function banditAttackPlayer(attacker) {
       if (!ctx || !ctx.player || !attacker) return;
@@ -1752,7 +1878,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
           if (target) {
             const d = dist1(n.x, n.y, target.x, target.y);
             if (d === 1) {
-              applyHit(n, target, 4, 8);
+              townNpcAttack(n, target);
               continue;
             }
             stepTowards(ctx, occ, n, target.x, target.y, { urgent: true });
@@ -2093,7 +2219,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
           }
         }
         if (target) {
-          applyHit(n, target, 3, 7);
+          townNpcAttack(n, target);
           continue;
         }
 

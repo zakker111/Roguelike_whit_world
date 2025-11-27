@@ -308,11 +308,53 @@ export function tryMoveTown(ctx, dx, dy) {
     }
   } catch (_) {}
 
-  // If bumping a hostile town NPC (currently bandits) during a town combat event, perform a simple melee attack instead of talking.
+  // If bumping a hostile town NPC (currently bandits) during a town combat event, perform a full melee attack
+  // using the shared Combat.playerAttackEnemy logic instead of simple flat damage.
   const isBanditTarget = !!(occupant && occupant.isBandit && !occupant._dead);
   const banditEventActive = !!(ctx._townBanditEvent && ctx._townBanditEvent.active);
   if (npcBlocked && isBanditTarget && banditEventActive) {
-    // Simple town melee: use player's attack stat when available; fall back to a flat value.
+    const C =
+      (ctx && ctx.Combat) ||
+      getMod(ctx, "Combat") ||
+      (typeof window !== "undefined" ? window.Combat : null);
+
+    if (C && typeof C.playerAttackEnemy === "function") {
+      const enemyRef = occupant;
+      const oldOnEnemyDied = ctx.onEnemyDied;
+      try {
+        // In town combat, killing a bandit should remove the NPC instead of using DungeonRuntime.killEnemy.
+        ctx.onEnemyDied = function (enemy) {
+          try {
+            if (enemy === enemyRef) {
+              enemyRef._dead = true;
+            } else if (typeof oldOnEnemyDied === "function") {
+              oldOnEnemyDied(enemy);
+            }
+          } catch (_) {}
+        };
+      } catch (_) {}
+
+      try {
+        C.playerAttackEnemy(ctx, enemyRef);
+      } catch (_) {}
+
+      // Restore original handler
+      try {
+        ctx.onEnemyDied = oldOnEnemyDied;
+      } catch (_) {}
+
+      // Rebuild occupancy if the bandit died
+      try {
+        if (enemyRef._dead) {
+          rebuildOccupancy(ctx);
+        }
+      } catch (_) {}
+
+      try { ctx.turn && ctx.turn(); } catch (_) {}
+      return true;
+    }
+
+    // Fallback: simple town melee if Combat module is unavailable.
     let atk = 4;
     try {
       if (typeof ctx.getPlayerAttack === "function") {
