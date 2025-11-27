@@ -2310,6 +2310,10 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       }
       stepTowards(ctx, occ, n, target.x, target.y);
     }
+    // Remove any town NPCs marked as dead during this tick and rebuild occupancy once.
+    try {
+      removeDeadNPCs(ctx);
+    } catch (_) {}
     // Clear fast occupancy handle after processing to avoid leaking into other modules
     ctx._occ = null;
   }

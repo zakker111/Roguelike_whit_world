@@ -269,11 +269,15 @@ export function tryMoveTown(ctx, dx, dy) {
   if (!ctx.inBounds(nx, ny)) return false;
 
   let npcBlocked = false;
+  let occupant = null;
   try {
     if (ctx.occupancy && typeof ctx.occupancy.hasNPC === "function") {
       npcBlocked = !!ctx.occupancy.hasNPC(nx, ny);
     } else {
       npcBlocked = Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === nx && n.y === ny);
+    }
+    if (npcBlocked && Array.isArray(ctx.npcs)) {
+      occupant = ctx.npcs.find(n => n && n.x === nx && n.y === ny) || null;
     }
   } catch (_) {}
 
@@ -284,12 +288,12 @@ export function tryMoveTown(ctx, dx, dy) {
       const b = ctx.tavern.building;
       const insideInn = (nx > b.x && nx < b.x + b.w - 1 && ny > b.y && ny < b.y + b.h - 1);
       if (insideInn) {
-        // Find occupant NPC at destination tile
-        let occupant = null;
-        try {
-          const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
-          occupant = npcs.find(n => n && n.x === nx && n.y === ny) || null;
-        } catch (_) {}
+        const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+        if (!occupant) {
+          try {
+            occupant = npcs.find(n => n && n.x === nx && n.y === ny) || null;
+          } catch (_) {}
+        }
         const isInnKeeper = !!(occupant && occupant.isShopkeeper && occupant._shopRef && String(occupant._shopRef.type || "").toLowerCase() === "inn");
         if (isInnKeeper) {
           // Open shop UI via talk even when overlay is active
@@ -303,6 +307,44 @@ export function tryMoveTown(ctx, dx, dy) {
       }
     }
   } catch (_) {}
+
+  // If bumping a hostile town NPC (currently bandits) during a town combat event, perform a simple melee attack instead of talking.
+  const isBanditTarget = !!(occupant && occupant.isBandit && !occupant._dead);
+  const banditEventActive = !!(ctx._townBanditEvent && ctx._townBanditEvent.active);
+  if (npcBlocked && isBanditTarget && banditEventActive) {
+    // Simple town melee: use player's attack stat when available; fall back to a flat value.
+    let atk = 4;
+    try {
+      if (typeof ctx.getPlayerAttack === "function") {
+        const v = ctx.getPlayerAttack();
+        if (typeof v === "number" && v > 0) atk = v;
+      }
+    } catch (_) {}
+    let mult = 1.0;
+    try {
+      if (typeof ctx.rng === "function") {
+        mult = 0.8 + ctx.rng() * 0.7; // 0.8–1.5x
+      }
+    } catch (_) {}
+    const dmg = Math.max(1, Math.round(atk * mult));
+    const maxHp = typeof occupant.maxHp === "number" ? occupant.maxHp : 20;
+    if (typeof occupant.hp !== "number") occupant.hp = maxHp;
+    occupant.hp -= dmg;
+    const label = occupant.name || (occupant.isBandit ? "Bandit" : "target");
+    try {
+      if (occupant.hp > 0) {
+        ctx.log && ctx.log(`You hit ${label} for ${dmg}. (${Math.max(0, occupant.hp)} HP left)`, "combat");
+      } else {
+        occupant._dead = true;
+        ctx.log && ctx.log(`You kill ${label}.`, "fatal");
+      }
+      if (typeof ctx.addBloodDecal === "function" && dmg > 0) {
+        ctx.addBloodDecal(occupant.x, occupant.y, 1.2);
+      }
+    } catch (_) {}
+    try { ctx.turn && ctx.turn(); } catch (_) {}
+    return true;
+  }
 
   if (npcBlocked) {
     if (typeof talk === "function") {
