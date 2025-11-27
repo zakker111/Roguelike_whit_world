@@ -615,7 +615,7 @@ export function startBanditsAtGateEvent(ctx) {
     const bandits = [];
     const used = new Set();
     function takeSpot() {
-      for (let i = 0; i < spots.length; i++) {
+      for (let i = 0; i &lt; spots.length; i++) {
         const k = spots[i].x + "," + spots[i].y;
         if (!used.has(k)) {
           used.add(k);
@@ -626,7 +626,8 @@ export function startBanditsAtGateEvent(ctx) {
     }
 
     ctx.npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
-    for (let i = 0; i < count; i++) {
+    // Spawn bandits
+    for (let i = 0; i &lt; count; i++) {
       const pos = takeSpot();
       if (!pos) break;
       const hp = 18 + Math.floor(rng() * 8); // 18-25 hp
@@ -652,7 +653,7 @@ export function startBanditsAtGateEvent(ctx) {
     }
 
     if (!bandits.length) {
-      ctx.log &&
+      ctx.log &amp;&amp;
         ctx.log(
           "[TownRuntime] BanditsAtGate: failed to place any bandits near the gate.",
           "warn"
@@ -660,27 +661,55 @@ export function startBanditsAtGateEvent(ctx) {
       return false;
     }
 
+    // Spawn a few town guards near the gate to respond to the attack.
+    const guards = [];
+    const guardCount = Math.max(2, Math.min(4, Math.floor(bandits.length / 2)));
+    for (let i = 0; i &lt; guardCount; i++) {
+      const pos = takeSpot();
+      if (!pos) break;
+      const hp = 22 + Math.floor(rng() * 10); // 22-31 hp
+      const g = {
+        x: pos.x,
+        y: pos.y,
+        name: `Guard ${i + 1}`,
+        lines: [
+          "To arms!",
+          "Protect the townsfolk!",
+          "Hold the gate!"
+        ],
+        isGuard: true,
+        guard: true,
+        faction: "guard",
+        hp,
+        maxHp: hp,
+        _guardPost: { x: pos.x, y: pos.y }
+      };
+      ctx.npcs.push(g);
+      guards.push(g);
+    }
+
     try {
       rebuildOccupancy(ctx);
     } catch (_) {}
 
     const turn =
-      ctx.time && typeof ctx.time.turnCounter === "number"
+      ctx.time &amp;&amp; typeof ctx.time.turnCounter === "number"
         ? ctx.time.turnCounter | 0
         : 0;
     ctx._townBanditEvent = {
       active: true,
       startedTurn: turn,
       totalBandits: bandits.length,
+      guardsSpawned: guards.length,
     };
     try {
-      ctx.log &&
+      ctx.log &amp;&amp;
         ctx.log(
-          `[TownRuntime] BanditsAtGate: spawned ${bandits.length} bandits near gate at (${gate.x},${gate.y}).`,
+          `[TownRuntime] BanditsAtGate: spawned ${bandits.length} bandits and ${guards.length} guard(s) near gate at (${gate.x},${gate.y}).`,
           "info"
         );
     } catch (_) {}
-    ctx.log &&
+    ctx.log &amp;&amp;
       ctx.log(
         "Bandits rush the town gate! Guards shout and civilians scramble for safety.",
         "notice"

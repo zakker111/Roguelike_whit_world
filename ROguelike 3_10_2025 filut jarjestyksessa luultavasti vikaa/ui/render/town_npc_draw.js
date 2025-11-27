@@ -44,6 +44,15 @@ export function drawNPCs(ctx, view) {
     } else if (n.isSeppo || n.seppo) {
       glyph = "S";
       color = "#f6c177";
+    } else if (n.isBandit) {
+      glyph = "b";
+      try {
+        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
+        // Prefer a dedicated bandit/enemy color if present, else bright orange.
+        color = (pal && (pal.bandit || pal.enemy)) ? (pal.bandit || pal.enemy) : "#f97316";
+      } catch (_) {
+        color = "#f97316";
+      }
     } else if (n.isGuard) {
       try {
         const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
