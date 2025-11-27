@@ -627,7 +627,7 @@ export function startBanditsAtGateEvent(ctx) {
 
     ctx.npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
     // Spawn bandits
-    for (let i = 0; i &lt; count; i++) {
+    for (let i = 0; i < count; i++) {
       const pos = takeSpot();
       if (!pos) break;
       const hp = 18 + Math.floor(rng() * 8); // 18-25 hp
@@ -653,7 +653,7 @@ export function startBanditsAtGateEvent(ctx) {
     }
 
     if (!bandits.length) {
-      ctx.log &amp;&amp;
+      ctx.log &&
         ctx.log(
           "[TownRuntime] BanditsAtGate: failed to place any bandits near the gate.",
           "warn"
@@ -664,7 +664,7 @@ export function startBanditsAtGateEvent(ctx) {
     // Spawn a few town guards near the gate to respond to the attack.
     const guards = [];
     const guardCount = Math.max(2, Math.min(4, Math.floor(bandits.length / 2)));
-    for (let i = 0; i &lt; guardCount; i++) {
+    for (let i = 0; i < guardCount; i++) {
       const pos = takeSpot();
       if (!pos) break;
       const eliteChance = 0.3;
