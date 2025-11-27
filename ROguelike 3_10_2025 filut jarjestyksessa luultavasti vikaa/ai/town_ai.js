@@ -934,17 +934,19 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     const { npcs, player, townProps } = ctx;
     if (!Array.isArray(npcs) || npcs.length === 0) return;
 
-    // Lightweight town combat event: Bandits at the Gate
-    const banditEvent = ctx._townBanditEvent && ctx._townBanditEvent.active;
+    // Lightweight town combat event: Bandits at the Gate.
+    // Treat the event as active if either the global flag is set OR any NPC is marked with _banditEvent.
+    let banditEvent = !!(ctx._townBanditEvent &amp;&amp; ctx._townBanditEvent.active);
     let anyBandit = false;
-    if (banditEvent) {
-      for (const n of npcs) {
-        if (n && n.isBandit && !n._dead) { anyBandit = true; break; }
+    for (const n of npcs) {
+      if (n &amp;&amp; n.isBandit &amp;&amp; !n._dead) {
+        anyBandit = true;
+        if (n._banditEvent) banditEvent = true;
       }
-      if (!anyBandit) {
-        ctx._townBanditEvent.active = false;
-        try { ctx.log && ctx.log("The guards drive off the bandits at the gate.", "good"); } catch (_) {}
-      }
+    }
+    if (banditEvent &amp;&amp; !anyBandit) {
+      if (ctx._townBanditEvent) ctx._townBanditEvent.active = false;
+      try { ctx.log &amp;&amp; ctx.log("The guards drive off the bandits at the gate.", "good"); } catch (_) {}
     }
 
     function dist1(ax, ay, bx, by) {

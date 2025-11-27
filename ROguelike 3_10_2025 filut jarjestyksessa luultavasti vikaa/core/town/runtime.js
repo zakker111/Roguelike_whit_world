@@ -311,7 +311,10 @@ export function tryMoveTown(ctx, dx, dy) {
   // If bumping a hostile town NPC (currently bandits) during a town combat event, perform a full melee attack
   // using the shared Combat.playerAttackEnemy logic instead of simple flat damage.
   const isBanditTarget = !!(occupant && occupant.isBandit && !occupant._dead);
-  const banditEventActive = !!(ctx._townBanditEvent && ctx._townBanditEvent.active);
+  const banditEventActive = !!(
+    (ctx._townBanditEvent && ctx._townBanditEvent.active) ||
+    (occupant && occupant._banditEvent)
+  );
   if (npcBlocked && isBanditTarget && banditEventActive) {
     const C =
       (ctx && ctx.Combat) ||
