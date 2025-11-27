@@ -1012,5 +1012,29 @@ export function tick(ctx) {
       if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     }
   } catch (_) {}
+
+  // Visual: fade blood decals over time in town mode, matching dungeon/region behavior
+  try {
+    const DC =
+      (ctx && ctx.Decals) ||
+      getMod(ctx, "Decals") ||
+      (typeof window !== "undefined" ? window.Decals : null);
+    if (DC && typeof DC.tick === "function") {
+      DC.tick(ctx);
+    } else if (Array.isArray(ctx.decals) && ctx.decals.length) {
+      for (let i = 0; i < ctx.decals.length; i++) {
+        ctx.decals[i].a *= 0.92;
+      }
+      ctx.decals = ctx.decals.filter(d => d.a > 0.04);
+    }
+  } catch (_) {}
+
+  // Clamp corpse list length similar to dungeon tick so town combat can't grow it unbounded
+  try {
+    if (Array.isArray(ctx.corpses) && ctx.corpses.length > 50) {
+      ctx.corpses = ctx.corpses.slice(-50);
+    }
+  } catch (_) {}
+
   return true;
 }

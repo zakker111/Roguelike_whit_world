@@ -1272,8 +1272,9 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       for (let i = ctx.npcs.length - 1; i >= 0; i--) {
         const n = ctx.npcs[i];
         if (n && n._dead) {
-          // For town bandit events, leave a simple corpse marker and a stronger blood decal
-          // when bandits or guards die.
+          // For town bandit events, leave a simple corpse marker when bandits or guards die.
+          // Blood decals are handled at hit time by the shared combat helpers so visuals
+          // stay consistent with dungeon/region combat.
           try {
             if (ctx.mode === "town" && (n.isBandit || n.isGuard)) {
               ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
@@ -1287,9 +1288,6 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
                   looted: true,
                   meta: null,
                 });
-                if (typeof ctx.addBloodDecal === "function") {
-                  try { ctx.addBloodDecal(n.x, n.y, 1.4); } catch (_) {}
-                }
               }
             }
           } catch (_) {}
