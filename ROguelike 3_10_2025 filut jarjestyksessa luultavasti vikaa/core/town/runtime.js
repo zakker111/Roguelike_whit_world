@@ -615,9 +615,9 @@ export function startBanditsAtGateEvent(ctx) {
     const bandits = [];
     const used = new Set();
     function takeSpot() {
-      for (let i = 0;  <& spots.length; i++) {
+      for (let i = 0; i < spots.length; i++) {
         const k = spots[i].x + "," + spots[i].y;
-        if if (!used.has(k)) {
+        if (!used.has(k)) {
           used.add(k);
           return { x: spots[i].x, y: spots[i].y };
         }
@@ -699,7 +699,7 @@ export function startBanditsAtGateEvent(ctx) {
     } catch (_) {}
 
     const turn =
-      ctx.time &amp;&amp; typeof ctx.time.turnCounter === "number"
+      ctx.time && typeof ctx.time.turnCounter === "number"
         ? ctx.time.turnCounter | 0
         : 0;
     ctx._townBanditEvent = {
@@ -709,13 +709,13 @@ export function startBanditsAtGateEvent(ctx) {
       guardsSpawned: guards.length,
     };
     try {
-      ctx.log &amp;&amp;
+      ctx.log &&
         ctx.log(
           `[TownRuntime] BanditsAtGate: spawned ${bandits.length} bandits and ${guards.length} guard(s) near gate at (${gate.x},${gate.y}).`,
           "info"
         );
     } catch (_) {}
-    ctx.log &amp;&amp;
+    ctx.log &&
       ctx.log(
         "Bandits rush the town gate! Guards shout and civilians scramble for safety.",
         "notice"
