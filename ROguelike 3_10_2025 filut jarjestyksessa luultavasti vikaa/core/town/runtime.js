@@ -615,9 +615,9 @@ export function startBanditsAtGateEvent(ctx) {
     const bandits = [];
     const used = new Set();
     function takeSpot() {
-      for (let i = 0; i &lt; spots.length; i++) {
+      for (let i = 0;  <& spots.length; i++) {
         const k = spots[i].x + "," + spots[i].y;
-        if (!used.has(k)) {
+        if if (!used.has(k)) {
           used.add(k);
           return { x: spots[i].x, y: spots[i].y };
         }
