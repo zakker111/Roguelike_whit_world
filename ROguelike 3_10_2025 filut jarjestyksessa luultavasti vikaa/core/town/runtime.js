@@ -656,6 +656,10 @@ export function startBanditsAtGateEvent(ctx) {
 
     const bandits = [];
     const used = new Set();
+    // Approximate combat stats for town bandits/guards using the same damage model helpers
+    const playerLevel =
+      ctx.player && typeof ctx.player.level === "number" ? ctx.player.level : 1;
+
     function takeSpot() {
       for (let i = 0; i < spots.length; i++) {
         const k = spots[i].x + "," + spots[i].y;
@@ -678,6 +682,8 @@ export function startBanditsAtGateEvent(ctx) {
         i === 0
           ? ["Take what you can!", "No one passes this gate!"]
           : ["Grab the loot!", "For the gang!"];
+      const level = Math.max(1, playerLevel + (i === 0 ? 1 : 0));
+      const atk = i === 0 ? 3 : 2;
       const b = {
         x: pos.x,
         y: pos.y,
@@ -686,6 +692,9 @@ export function startBanditsAtGateEvent(ctx) {
         isBandit: true,
         hostile: true,
         faction: "bandit",
+        type: "bandit",
+        level,
+        atk,
         hp,
         maxHp: hp,
         _banditEvent: true,
@@ -715,6 +724,8 @@ export function startBanditsAtGateEvent(ctx) {
       const name = isEliteGuard ? `Guard captain ${i + 1}` : `Guard ${i + 1}`;
       const baseHp = isEliteGuard ? 28 : 22;
       const hp = baseHp + Math.floor(rng() * 6); // small jitter
+      const level = Math.max(1, playerLevel + (isEliteGuard ? 2 : 1));
+      const atk = isEliteGuard ? 4 : 3;
       const g = {
         x: pos.x,
         y: pos.y,
@@ -727,7 +738,10 @@ export function startBanditsAtGateEvent(ctx) {
         isGuard: true,
         guard: true,
         guardType,
+        type: guardType,
+        level,
         faction: "guard",
+        atk,
         hp,
         maxHp: hp,
         _guardPost: { x: pos.x, y: pos.y }

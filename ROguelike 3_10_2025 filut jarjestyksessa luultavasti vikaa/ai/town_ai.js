@@ -995,6 +995,141 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       } catch (_) {}
     }
 
+    // Bandit attack against the player using the shared dungeon/encounter damage model.
+    function banditAttackPlayer(attacker) {
+      if (!ctx || !ctx.player || !attacker) return;
+      const player = ctx.player;
+      const rnd = rngFor(ctx);
+
+      // Hit location and block
+      let loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
+      try {
+        if (typeof ctx.rollHitLocation === "function") {
+          loc = ctx.rollHitLocation();
+        }
+      } catch (_) {}
+
+      let blockChance = 0;
+      try {
+        if (typeof ctx.getPlayerBlockChance === "function") {
+          blockChance = ctx.getPlayerBlockChance(loc);
+        }
+      } catch (_) {}
+
+      try {
+        if (rnd() < blockChance) {
+          const name =
+            (attacker && attacker.name) ||
+            (attacker && attacker.type) ||
+            "bandit";
+          ctx.log &&
+            ctx.log(
+              `You block ${name}'s attack to your ${loc.part}.`,
+              "block",
+              { category: "Combat", side: "player" }
+            );
+          if (typeof ctx.decayBlockingHands === "function") {
+            ctx.decayBlockingHands();
+          }
+          if (typeof ctx.decayEquipped === "function") {
+            // Light wear on blocking hand gear
+            ctx.decayEquipped("hands", 0.5);
+          }
+          return;
+        }
+      } catch (_) {}
+
+      // Damage calculation (mirrors enemy AI in dungeon/encounter)
+      const atk =
+        typeof attacker.atk === "number" ? attacker.atk : 2;
+      const level =
+        typeof attacker.level === "number"
+          ? attacker.level
+          : (typeof player.level === "number" ? player.level : 1);
+      const mult =
+        typeof ctx.enemyDamageMultiplier === "function"
+          ? ctx.enemyDamageMultiplier(level)
+          : 1 + 0.15 * Math.max(0, level - 1);
+      let raw = atk * mult * (loc.mult || 1);
+
+      // Crits
+      let isCrit = false;
+      try {
+        const critChance = Math.max(
+          0,
+          Math.min(0.5, 0.10 + (loc.critBonus || 0))
+        );
+        if (rnd() < critChance) {
+          isCrit = true;
+          const cMult =
+            typeof ctx.critMultiplier === "function"
+              ? ctx.critMultiplier()
+              : 1.6 + rnd() * 0.4;
+          raw *= cMult;
+        }
+      } catch (_) {}
+
+      let dmg = raw;
+      try {
+        if (typeof ctx.enemyDamageAfterDefense === "function") {
+          dmg = ctx.enemyDamageAfterDefense(raw);
+        }
+      } catch (_) {}
+      if (typeof dmg !== "number" || !(dmg > 0)) dmg = raw;
+      // Clamp to one decimal place like other combat helpers
+      try {
+        if (ctx.utils && typeof ctx.utils.round1 === "function") {
+          dmg = ctx.utils.round1(dmg);
+        } else {
+          dmg = Math.round(dmg * 10) / 10;
+        }
+      } catch (_) {}
+
+      player.hp -= dmg;
+
+      try {
+        if (typeof ctx.addBloodDecal === "function") {
+          ctx.addBloodDecal(
+            player.x,
+            player.y,
+            isCrit ? 1.4 : 1.0
+          );
+        }
+      } catch (_) {}
+
+      try {
+        const name =
+          (attacker && attacker.name) ||
+          (attacker && attacker.type) ||
+          "bandit";
+        if (isCrit) {
+          ctx.log &&
+            ctx.log(
+              `Critical! ${name} hits your ${loc.part} for ${dmg}.`,
+              "crit",
+              { category: "Combat", side: "enemy" }
+            );
+        } else {
+          ctx.log &&
+            ctx.log(
+              `${name} hits your ${loc.part} for ${dmg}.`,
+              "info",
+              { category: "Combat", side: "enemy" }
+            );
+        }
+      } catch (_) {}
+
+      // Player death handling
+      if (player.hp <= 0) {
+        player.hp = 0;
+        try {
+          if (typeof ctx.onPlayerDied === "function") {
+            ctx.onPlayerDied();
+          }
+        } catch (_) {}
+      }
+    }
+
     function removeDeadNPCs(ctx) {
       if (!Array.isArray(ctx.npcs)) return;
       let changed = false;
@@ -1935,10 +2070,17 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         continue;
       }
 
-      // Bandits in town: simple combat AI during bandit event
+      // Bandits in town: combat AI during bandit event (can attack player and NPCs)
       if (n.isBandit && banditEvent) {
         if (n._dead) { continue; }
-        // Attack adjacent guard or civilian if possible
+
+        // Prefer to attack the player if adjacent
+        if (dist1(n.x, n.y, player.x, player.y) === 1) {
+          banditAttackPlayer(n);
+          continue;
+        }
+
+        // Otherwise attack adjacent guard or civilian if possible
         let target = null;
         const list = ctx.npcs || [];
         for (const m of list) {
@@ -1954,6 +2096,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
           applyHit(n, target, 3, 7);
           continue;
         }
+
         // Otherwise move toward nearest civilian; fallback to nearest guard
         let civ = nearestCivilian(ctx, n);
         if (!civ) civ = nearestBandit(ctx, n); // will be another bandit; minimal fallback
