@@ -667,11 +667,16 @@ export function startBanditsAtGateEvent(ctx) {
     for (let i = 0; i &lt; guardCount; i++) {
       const pos = takeSpot();
       if (!pos) break;
-      const hp = 22 + Math.floor(rng() * 10); // 22-31 hp
+      const eliteChance = 0.3;
+      const isEliteGuard = rng() < eliteChance;
+      const guardType = isEliteGuard ? "guard_elite" : "guard";
+      const name = isEliteGuard ? `Guard captain ${i + 1}` : `Guard ${i + 1}`;
+      const baseHp = isEliteGuard ? 28 : 22;
+      const hp = baseHp + Math.floor(rng() * 6); // small jitter
       const g = {
         x: pos.x,
         y: pos.y,
-        name: `Guard ${i + 1}`,
+        name,
         lines: [
           "To arms!",
           "Protect the townsfolk!",
@@ -679,6 +684,7 @@ export function startBanditsAtGateEvent(ctx) {
         ],
         isGuard: true,
         guard: true,
+        guardType,
         faction: "guard",
         hp,
         maxHp: hp,

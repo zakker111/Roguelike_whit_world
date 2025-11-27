@@ -56,11 +56,16 @@ export function drawNPCs(ctx, view) {
         color = "#c59d5f";
       }
     } else if (n.isGuard) {
+      // Use the same guard/elite-guard visuals as encounter/caravan guards.
       try {
-        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-        color = pal && pal.guard ? pal.guard : "#60a5fa";
+        const EM = (typeof window !== "undefined" ? window.Enemies : null);
+        const typeId = (n.guardType || n.type || "guard");
+        const td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef(typeId) : null;
+        glyph = (td && td.glyph) ? td.glyph : "G";
+        color = (td && td.color) ? td.color : "#2563eb";
       } catch (_) {
-        color = "#60a5fa";
+        glyph = "G";
+        color = "#2563eb";
       }
     } else if (n.isShopkeeper || n._shopRef) {
       try {
