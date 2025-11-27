@@ -45,13 +45,15 @@ export function drawNPCs(ctx, view) {
       glyph = "S";
       color = "#f6c177";
     } else if (n.isBandit) {
-      glyph = "b";
+      // Use the canonical bandit definition from data/entities/enemies.json for glyph/color.
       try {
-        const pal = (typeof window !== "undefined" && window.GameData && window.GameData.palette && window.GameData.palette.overlays) ? window.GameData.palette.overlays : null;
-        // Prefer a dedicated bandit/enemy color if present, else bright orange.
-        color = (pal && (pal.bandit || pal.enemy)) ? (pal.bandit || pal.enemy) : "#f97316";
+        const EM = (typeof window !== "undefined" ? window.Enemies : null);
+        const td = EM && typeof EM.getTypeDef === "function" ? EM.getTypeDef("bandit") : null;
+        glyph = (td && td.glyph) ? td.glyph : "b";
+        color = (td && td.color) ? td.color : "#c59d5f";
       } catch (_) {
-        color = "#f97316";
+        glyph = "b";
+        color = "#c59d5f";
       }
     } else if (n.isGuard) {
       try {
