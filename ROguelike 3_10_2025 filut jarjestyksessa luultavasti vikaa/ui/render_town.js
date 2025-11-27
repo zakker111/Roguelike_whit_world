@@ -21,6 +21,8 @@ import { drawTownBase } from "./render/town_base_layer.js";
 import { drawTownGlyphOverlay, drawStairsGlyphTop } from "./render/town_glyph_overlay.js";
 import { drawInnUpstairsTiles, drawInnUpstairsProps } from "./render/town_inn_upstairs_overlay.js";
 import { drawTownProps as drawTownPropsLayer } from "./render/town_props_draw.js";
+import { drawTownBloodDecals } from "./render/town_blood_decals.js";
+import { drawTownCorpses } from "./render/town_corpses.js";
 import { drawShopMarkers as drawShopMarkersLayer } from "./render/town_shop_markers.js";
 import { drawNPCs } from "./render/town_npc_draw.js";
 import { drawGateOverlay } from "./render/town_gate_overlay.js";
@@ -156,6 +158,10 @@ export function draw(ctx, view) {
 
   // Upstairs props overlay
   try { drawInnUpstairsProps(ctx, view); } catch (_) {}
+
+  // Blood decals and corpses from town combat (bandits/guards, etc.)
+  try { drawTownBloodDecals(ctx, view); } catch (_) {}
+  try { drawTownCorpses(ctx, view); } catch (_) {}
 
   // Shop markers
   try { drawShopMarkersLayer(ctx, view); } catch (_) {}

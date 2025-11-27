@@ -1261,9 +1261,39 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
     function removeDeadNPCs(ctx) {
       if (!Array.isArray(ctx.npcs)) return;
       let changed = false;
+
+      // Ensure corpses array exists so town deaths can leave bodies behind.
+      try {
+        if (ctx.mode === "town" && !Array.isArray(ctx.corpses)) {
+          ctx.corpses = [];
+        }
+      } catch (_) {}
+
       for (let i = ctx.npcs.length - 1; i >= 0; i--) {
         const n = ctx.npcs[i];
         if (n && n._dead) {
+          // For town bandit events, leave a simple corpse marker and a stronger blood decal
+          // when bandits or guards die.
+          try {
+            if (ctx.mode === "town" && (n.isBandit || n.isGuard)) {
+              ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+              const already = ctx.corpses.some(c => c && c.x === n.x && c.y === n.y);
+              if (!already) {
+                ctx.corpses.push({
+                  x: n.x,
+                  y: n.y,
+                  kind: "corpse",
+                  loot: [],
+                  looted: true,
+                  meta: null,
+                });
+                if (typeof ctx.addBloodDecal === "function") {
+                  try { ctx.addBloodDecal(n.x, n.y, 1.4); } catch (_) {}
+                }
+              }
+            }
+          } catch (_) {}
+
           ctx.npcs.splice(i, 1);
           changed = true;
         }
