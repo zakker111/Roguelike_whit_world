@@ -207,6 +207,34 @@ export function install(getCtx) {
         c.log(`GOD: Next hit will apply ${valid[id]} status to the target.`, "notice");
       } catch (_) {}
     },
+    // Town events
+    onGodTownBandits: () => {
+      const c = getCtx();
+      try {
+        c.log(`[GOD] Town event: Bandits at Gate pressed (mode=${c.mode}).`, "info");
+        if (c.mode !== "town") {
+          c.log("Bandits at the gate event is available in town mode only. Enter a town first.", "warn");
+          return;
+        }
+        const TR = c.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
+        if (TR && typeof TR.startBanditsAtGateEvent === "function") {
+          const ok = TR.startBanditsAtGateEvent(c);
+          if (!ok) {
+            // startBanditsAtGateEvent logs its own warnings.
+          } else {
+            c.log("[GOD] Town event: Bandits at Gate spawn requested successfully.", "info");
+          }
+          return;
+        }
+        c.log("GOD: TownRuntime.startBanditsAtGateEvent not available.", "warn");
+      } catch (e) {
+        try {
+          c.log("GOD: Bandits at Gate handler threw an error; see console.", "warn");
+          console.error(e);
+        } catch (_) {}
+      }
+    },
+
     // Town diagnostics
     onGodCheckHomes: () => {
       const c = getCtx();
@@ -566,6 +594,8 @@ export function install(getCtx) {
         }
       } catch (_) {}
     },
+
+    
 
     onGodDiagnostics: () => {
       const c = getCtx();

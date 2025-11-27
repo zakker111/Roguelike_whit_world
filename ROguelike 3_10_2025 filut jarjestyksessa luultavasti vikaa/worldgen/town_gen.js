@@ -2432,13 +2432,23 @@ function generate(ctx) {
     const likesInn = rng() < 0.45;
     if (canBeGuard) {
       const guardIndex = placedGuards + 1;
+      const eliteChance = 0.3;
+      const isEliteGuard = (ctx && typeof ctx.rng === "function") ? (ctx.rng() < eliteChance) : (Math.random() < eliteChance);
+      const guardType = isEliteGuard ? "guard_elite" : "guard";
+      const guardName = isEliteGuard ? `Guard captain ${guardIndex}` : `Guard ${guardIndex}`;
+      const baseHp = isEliteGuard ? 28 : 22;
+      const hpJitter = (ctx && typeof ctx.rng === "function") ? Math.floor(ctx.rng() * 6) : 0;
+      const hp = baseHp + hpJitter;
       ctx.npcs.push({
         x,
         y,
-        name: `Guard ${guardIndex}`,
+        name: guardName,
         lines: guardLines,
         isGuard: true,
         guard: true,
+        guardType,
+        hp,
+        maxHp: hp,
         _guardPost: { x, y },
         _likesInn: likesInn,
         _home: homeRef

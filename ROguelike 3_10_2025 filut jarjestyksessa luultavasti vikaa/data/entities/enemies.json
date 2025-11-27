@@ -106,5 +106,17 @@
       "armor":   { "shield": 0.35, "helmet": 0.25, "torso_armor": 0.25 },
       "potions": { "lesser": 0.50, "average": 0.35, "strong": 0.15 }
     }
+  },
+  { "id": "guard_elite", "glyph": "G", "color": "#1d4ed8", "tier": 4, "blockBase": 0.15, "faction": "guard",
+    "weightByDepth": [ [999, 0.08] ],
+    "hp": [ [0, 11, 1.4], [5, 15, 1.6] ],
+    "atk": [ [0, 4, 0.7], [5, 5, 0.8] ],
+    "xp":  [ [0, 16, 1.5], [5, 22, 1.7] ],
+    "equipChance": 0.85,
+    "lootPools": {
+      "weapons": { "sword_simple": 0.7, "mace": 0.4, "axe": 0.25 },
+      "armor":   { "shield": 0.45, "helmet": 0.35, "torso_armor": 0.35 },
+      "potions": { "lesser": 0.40, "average": 0.40, "strong": 0.20 }
+    }
   }
 ]
