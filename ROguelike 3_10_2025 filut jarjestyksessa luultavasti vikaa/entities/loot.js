@@ -449,7 +449,9 @@ export function lootHere(ctx) {
     try {
       if ((ctx.mode === "dungeon" || ctx.mode === "encounter") &&
           ctx.DungeonRuntime &&
-          typeof ctx.DungeonRuntime
+          typeof ctx.DungeonRuntime.save === "function") {
+        ctx.DungeonRuntime.save(ctx, false);
+      }
     } catch (_) {}
     if (typeof ctx.updateUI === "function") ctx.updateUI();
     if (typeof ctx.turn === "function") ctx.turn();
