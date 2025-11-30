@@ -19,7 +19,7 @@
  * - Runtime occupancy considers blocking props; relaxed occupancy is used only for debug visualization.
  */
 
-import { getGameData, getRNGUtils } from "../utils/access.js";
+import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
 
   function randInt(ctx, a, b) { return Math.floor(ctx.rng() * (b - a + 1)) + a; }
   function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
@@ -286,7 +286,6 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
   }
 
   // Pathfinding helpers (extracted to dedicated module)
-  import { computePath, computePathBudgeted } from "./pathfinding.js";
 
   // ---- Pathfinding budget/throttling ----
   // Limit the number of A* computations per tick to avoid CPU spikes in dense towns.
@@ -831,6 +830,47 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         ctx.npcs.push({ x: spot.x, y: spot.y, name: namesDog[i % namesDog.length], lines: ["Woof."], isPet: true, kind: "dog" });
       }
     })();
+
+    // Corpse cleaners: a small number of NPCs that remove bodies from town streets.
+    (function spawnCorpseCleaners() {
+      const maxCleaners = 2;
+      const GD = getGameData(ctx);
+      const ND = GD && GD.npcs ? GD.npcs : null;
+      const cleanerNames =
+        ND && Array.isArray(ND.cleanerNames) && ND.cleanerNames.length
+          ? ND.cleanerNames
+          : ["Caretaker", "Gravedigger"];
+      const cleanerLines =
+        ND && Array.isArray(ND.cleanerLines) && ND.cleanerLines.length
+          ? ND.cleanerLines
+          : [
+              "I'll see these bodies to rest.",
+              "Can't leave the dead in the streets.",
+            ];
+
+      function placeFree() {
+        for (let t = 0; t < 200; t++) {
+          const x = randInt(ctx, 2, ctx.map[0].length - 3);
+          const y = randInt(ctx, 2, ctx.map.length - 3);
+          if (isFreeTownFloor(ctx, x, y)) return { x, y };
+        }
+        return null;
+      }
+
+      for (let i = 0; i < maxCleaners; i++) {
+        const spot = placeFree();
+        if (!spot) break;
+        if (ctx.npcs.some(n => n && n.x === spot.x && n.y === spot.y)) continue;
+        const name = cleanerNames[i % cleanerNames.length] || "Caretaker";
+        ctx.npcs.push({
+          x: spot.x,
+          y: spot.y,
+          name,
+          lines: cleanerLines,
+          isCorpseCleaner: true,
+        });
+      }
+    })();
   }
 
   function ensureHome(ctx, n) {
@@ -933,6 +973,550 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
   function townNPCsAct(ctx) {
     const { npcs, player, townProps } = ctx;
     if (!Array.isArray(npcs) || npcs.length === 0) return;
+
+    // Lightweight town combat event: Bandits at the Gate.
+    // Treat the event as active if either the global flag is set OR any NPC is marked with _banditEvent.
+    let banditEvent = !!(ctx._townBanditEvent && ctx._townBanditEvent.active);
+    let anyBandit = false;
+    for (const n of npcs) {
+      if (n && n.isBandit && !n._dead) {
+        anyBandit = true;
+        if (n._banditEvent) banditEvent = true;
+      }
+    }
+    if (banditEvent && !anyBandit) {
+      if (ctx._townBanditEvent) ctx._townBanditEvent.active = false;
+      try { ctx.log && ctx.log("The guards drive off the bandits at the gate.", "good"); } catch (_) {}
+    }
+
+    function dist1(ax, ay, bx, by) {
+      return Math.abs(ax - bx) + Math.abs(ay - by);
+    }
+
+    function nearestBandit(ctx, from) {
+      let best = null;
+      let bestD = Infinity;
+      const list = ctx.npcs || [];
+      for (const n of list) {
+        if (!n || !n.isBandit || n._dead) continue;
+        const d = dist1(from.x, from.y, n.x, n.y);
+        if (d < bestD) { bestD = d; best = n; }
+      }
+      return best;
+    }
+
+    function nearestCivilian(ctx, from) {
+      let best = null;
+      let bestD = Infinity;
+      const list = ctx.npcs || [];
+      for (const n of list) {
+        if (!n || n._dead) continue;
+        if (n.isGuard || n.isBandit || n.isPet) continue;
+        const d = dist1(from.x, from.y, n.x, n.y);
+        if (d < bestD) { bestD = d; best = n; }
+      }
+      return best;
+    }
+
+    function applyHit(attacker, defender, baseMin, baseMax) {
+      if (!defender) return;
+      const r = rngFor({ rng: (defender && defender.rng) || ctx.rng || (() => 0.5) });
+      const dmg = baseMin + Math.floor(r() * (baseMax - baseMin + 1));
+      const maxHp = typeof defender.maxHp === "number" ? defender.maxHp : 20;
+      if (typeof defender.hp !== "number") defender.hp = maxHp;
+      defender.hp -= dmg;
+      const nameA = attacker && attacker.name ? attacker.name : "Someone";
+      const nameD = defender && defender.name ? defender.name : "someone";
+      try {
+        if (defender.hp > 0) {
+          ctx.log && ctx.log(`${nameA} hits ${nameD} for ${dmg}. (${Math.max(0, defender.hp)} HP left)`, "combat");
+        } else {
+          defender._dead = true;
+          ctx.log && ctx.log(`${nameA} kills ${nameD}.`, "fatal");
+        }
+      } catch (_) {}
+    }
+
+    // NPC vs NPC town combat: guards and bandits use a shared damage pipeline that mirrors
+    // dungeon/encounter enemy-vs-enemy attacks (hit locations, block, crits, scaling).
+    function townNpcAttack(attacker, defender) {
+      if (!attacker || !defender || defender._dead) return;
+      const rnd = rngFor(ctx);
+
+      // Hit location
+      let loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
+      try {
+        if (typeof ctx.rollHitLocation === "function") {
+          loc = ctx.rollHitLocation();
+        }
+      } catch (_) {}
+
+      // Block chance based on defender type/faction, same helper used by dungeon enemies.
+      let blockChance = 0;
+      try {
+        if (typeof ctx.getEnemyBlockChance === "function") {
+          blockChance = ctx.getEnemyBlockChance(defender, loc);
+        }
+      } catch (_) {}
+
+      try {
+        if (rnd() < blockChance) {
+          const nameA = attacker && (attacker.name || attacker.type) ? (attacker.name || attacker.type) : "Someone";
+          const nameD = defender && (defender.name || defender.type) ? (defender.name || defender.type) : "someone";
+          ctx.log &&
+            ctx.log(
+              `${nameD} blocks ${nameA}'s attack to the ${loc.part}.`,
+              "block",
+              { category: "Combat", side: "npc" }
+            );
+          return;
+        }
+      } catch (_) {}
+
+      // Damage calculation: atk * enemyDamageMultiplier(level) * hit-location multiplier.
+      const atk = (typeof attacker.atk === "number" && attacker.atk > 0) ? attacker.atk : 2;
+      const level = (typeof attacker.level === "number" && attacker.level > 0) ? attacker.level : 1;
+      let mult = 1.0;
+      try {
+        if (typeof ctx.enemyDamageMultiplier === "function") {
+          mult = ctx.enemyDamageMultiplier(level);
+        } else {
+          mult = 1 + 0.15 * Math.max(0, level - 1);
+        }
+      } catch (_) {
+        mult = 1 + 0.15 * Math.max(0, level - 1);
+      }
+      let raw = atk * mult * (loc.mult || 1.0);
+
+      // Crits
+      let isCrit = false;
+      try {
+        let critChance = 0.10 + (loc.critBonus || 0);
+        critChance = Math.max(0, Math.min(0.5, critChance));
+        if (rnd() < critChance) {
+          isCrit = true;
+          let cMult = 1.8;
+          if (typeof ctx.critMultiplier === "function") {
+            cMult = ctx.critMultiplier();
+          } else {
+            cMult = 1.6 + rnd() * 0.4;
+          }
+          raw *= cMult;
+        }
+      } catch (_) {}
+
+      // No DR for NPC vs NPC (mirrors dungeon enemy-vs-enemy combat).
+      let dmg = raw;
+      try {
+        if (ctx.utils && typeof ctx.utils.round1 === "function") {
+          dmg = ctx.utils.round1(dmg);
+        } else {
+          dmg = Math.round(dmg * 10) / 10;
+        }
+      } catch (_) {}
+      if (!(dmg > 0)) dmg = 0.1;
+
+      const maxHp = typeof defender.maxHp === "number"
+        ? defender.maxHp
+        : (typeof defender.hp === "number" ? Math.max(1, defender.hp) : 20);
+      if (typeof defender.hp !== "number") defender.hp = maxHp;
+      defender.hp -= dmg;
+
+      // Visual blood for non-ethereal targets
+      try {
+        const ttype = String(defender.type || defender.name || "");
+        const ethereal = /ghost|spirit|wraith|skeleton/i.test(ttype);
+        if (!ethereal && typeof ctx.addBloodDecal === "function" && dmg > 0) {
+          ctx.addBloodDecal(defender.x, defender.y, isCrit ? 1.2 : 0.9);
+        }
+      } catch (_) {}
+
+      // Logging
+      const nameA = attacker && (attacker.name || attacker.type) ? (attacker.name || attacker.type) : "Someone";
+      const nameD = defender && (defender.name || defender.type) ? (defender.name || defender.type) : "someone";
+      try {
+        if (defender.hp > 0) {
+          if (isCrit) {
+            ctx.log &&
+              ctx.log(
+                `Critical! ${nameA} hits ${nameD}'s ${loc.part} for ${dmg}.`,
+                "crit",
+                { category: "Combat", side: "npc" }
+              );
+          } else {
+            ctx.log &&
+              ctx.log(
+                `${nameA} hits ${nameD}'s ${loc.part} for ${dmg}.`,
+                "combat",
+                { category: "Combat", side: "npc" }
+              );
+          }
+        } else {
+          defender._dead = true;
+          ctx.log &&
+            ctx.log(
+              `${nameA} kills ${nameD}.`,
+              "fatal",
+              { category: "Combat", side: "npc" }
+            );
+        }
+      } catch (_) {}
+    }
+
+    // Bandit attack against the player using the same damage model as dungeon/encounter enemies.
+    function banditAttackPlayer(attacker) {
+      if (!ctx || !ctx.player || !attacker) return;
+      const player = ctx.player;
+      const rnd = rngFor(ctx);
+      const U = (ctx && ctx.utils) ? ctx.utils : null;
+
+      const randFloat = (min, max, dec = 1) => {
+        try {
+          if (U && typeof U.randFloat === "function") {
+            return U.randFloat(min, max, dec);
+          }
+        } catch (_) {}
+        const r = typeof rnd === "function" ? rnd() : 0.5;
+        const v = min + r * (max - min);
+        const p = Math.pow(10, dec);
+        return Math.round(v * p) / p;
+      };
+
+      // Hit location
+      let loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
+      try {
+        if (typeof ctx.rollHitLocation === "function") {
+          loc = ctx.rollHitLocation();
+        }
+      } catch (_) {}
+
+      // Block
+      let blockChance = 0;
+      try {
+        if (typeof ctx.getPlayerBlockChance === "function") {
+          blockChance = ctx.getPlayerBlockChance(loc);
+        }
+      } catch (_) {}
+
+      try {
+        if (rnd() < blockChance) {
+          const name =
+            (attacker && (attacker.name || attacker.type)) || "bandit";
+          ctx.log &&
+            ctx.log(
+              `You block ${name}'s attack to your ${loc.part}.`,
+              "block",
+              { category: "Combat", side: "player" }
+            );
+          try {
+            if (
+              ctx.Flavor &&
+              typeof ctx.Flavor.onBlock === "function"
+            ) {
+              ctx.Flavor.onBlock(ctx, {
+                side: "player",
+                attacker,
+                defender: player,
+                loc,
+              });
+            }
+          } catch (_) {}
+          try {
+            if (typeof ctx.decayBlockingHands === "function") {
+              ctx.decayBlockingHands();
+            }
+          } catch (_) {}
+          try {
+            if (typeof ctx.decayEquipped === "function") {
+              ctx.decayEquipped("hands", randFloat(0.3, 1.0, 1));
+            }
+          } catch (_) {}
+          return;
+        }
+      } catch (_) {}
+
+      // Damage calculation
+      const atk =
+        typeof attacker.atk === "number" ? attacker.atk : 2;
+      const level =
+        typeof attacker.level === "number"
+          ? attacker.level
+          : (typeof player.level === "number" ? player.level : 1);
+      let mult = 1 + 0.15 * Math.max(0, level - 1);
+      try {
+        if (typeof ctx.enemyDamageMultiplier === "function") {
+          mult = ctx.enemyDamageMultiplier(level);
+        }
+      } catch (_) {}
+      let raw = atk * mult * (loc.mult || 1);
+
+      // Crits
+      let isCrit = false;
+      try {
+        const critChance = Math.max(
+          0,
+          Math.min(0.5, 0.1 + (loc.critBonus || 0))
+        );
+        if (rnd() < critChance) {
+          isCrit = true;
+          let cMult = 1.8;
+          try {
+            if (typeof ctx.critMultiplier === "function") {
+              cMult = ctx.critMultiplier(rnd);
+            } else {
+              cMult = 1.6 + rnd() * 0.4;
+            }
+          } catch (_) {}
+          raw *= cMult;
+        }
+      } catch (_) {}
+
+      let dmg = raw;
+      try {
+        if (typeof ctx.enemyDamageAfterDefense === "function") {
+          dmg = ctx.enemyDamageAfterDefense(raw);
+        }
+      } catch (_) {}
+      if (typeof dmg !== "number" || !(dmg > 0)) dmg = raw;
+
+      // Clamp to one decimal place like other combat helpers
+      try {
+        if (U && typeof U.round1 === "function") {
+          dmg = U.round1(dmg);
+        } else {
+          dmg = Math.round(dmg * 10) / 10;
+        }
+      } catch (_) {}
+
+      player.hp -= dmg;
+
+      // Blood decal
+      try {
+        if (typeof ctx.addBloodDecal === "function" && dmg > 0) {
+          ctx.addBloodDecal(
+            player.x,
+            player.y,
+            isCrit ? 1.4 : 1.0
+          );
+        }
+      } catch (_) {}
+
+      // Log hit
+      try {
+        const name =
+          (attacker && (attacker.name || attacker.type)) || "bandit";
+        if (isCrit) {
+          ctx.log &&
+            ctx.log(
+              `Critical! ${name} hits your ${loc.part} for ${dmg}.`,
+              "crit",
+              { category: "Combat", side: "enemy" }
+            );
+        } else {
+          ctx.log &&
+            ctx.log(
+              `${name} hits your ${loc.part} for ${dmg}.`,
+              "info",
+              { category: "Combat", side: "enemy" }
+            );
+        }
+      } catch (_) {}
+
+      // Status effects (daze/bleed) and flavor hook, same as dungeon/encounter
+      try {
+        const ST =
+          ctx.Status ||
+          (typeof window !== "undefined" ? window.Status : null);
+        if (ST) {
+          if (
+            isCrit &&
+            loc.part === "head" &&
+            typeof ST.applyDazedToPlayer === "function"
+          ) {
+            const dur = 1 + Math.floor(rnd() * 2);
+            try {
+              ST.applyDazedToPlayer(ctx, dur);
+            } catch (_) {}
+          }
+          if (isCrit && typeof ST.applyBleedToPlayer === "function") {
+            try {
+              ST.applyBleedToPlayer(ctx, 2);
+            } catch (_) {}
+          }
+        }
+        if (
+          ctx.Flavor &&
+          typeof ctx.Flavor.logHit === "function"
+        ) {
+          ctx.Flavor.logHit(ctx, {
+            attacker,
+            loc,
+            crit: isCrit,
+            dmg,
+          });
+        }
+      } catch (_) {}
+
+      // Equipment decay by hit part
+      try {
+        if (typeof ctx.decayEquipped === "function") {
+          const critWear = isCrit ? 1.6 : 1.0;
+          let wear = 0.5;
+          if (loc.part === "torso")
+            wear = randFloat(0.8, 2.0, 1);
+          else if (loc.part === "head")
+            wear = randFloat(0.3, 1.0, 1);
+          else if (loc.part === "legs")
+            wear = randFloat(0.4, 1.3, 1);
+          else if (loc.part === "hands")
+            wear = randFloat(0.3, 1.0, 1);
+          ctx.decayEquipped(loc.part, wear * critWear);
+        }
+      } catch (_) {}
+
+      // Persistent injury tracking (cosmetic, as in dungeon/encounter)
+      try {
+        if (player) {
+          if (!Array.isArray(player.injuries)) player.injuries = [];
+          const injuries = player.injuries;
+          const addInjury = (name, opts) => {
+            if (!name) return;
+            const exists = injuries.some((it) =>
+              typeof it === "string"
+                ? it === name
+                : it && it.name === name
+            );
+            if (exists) return;
+            const healable =
+              !opts || opts.healable !== false;
+            const durationTurns = healable
+              ? Math.max(10, (opts && opts.durationTurns) | 0)
+              : 0;
+            injuries.push({ name, healable, durationTurns });
+            if (injuries.length > 24)
+              injuries.splice(0, injuries.length - 24);
+            try {
+              ctx.log &&
+                ctx.log(`You suffer ${name}.`, "warn");
+            } catch (_) {}
+          };
+          const rInj = rnd();
+          if (loc.part === "hands") {
+            if (isCrit && rInj < 0.08)
+              addInjury("missing finger", {
+                healable: false,
+                durationTurns: 0,
+              });
+            else if (rInj < 0.2)
+              addInjury("bruised knuckles", {
+                healable: true,
+                durationTurns: 30,
+              });
+          } else if (loc.part === "legs") {
+            if (isCrit && rInj < 0.1)
+              addInjury("sprained ankle", {
+                healable: true,
+                durationTurns: 80,
+              });
+            else if (rInj < 0.25)
+              addInjury("bruised leg", {
+                healable: true,
+                durationTurns: 40,
+              });
+          } else if (loc.part === "head") {
+            if (isCrit && rInj < 0.12)
+              addInjury("facial scar", {
+                healable: false,
+                durationTurns: 0,
+              });
+            else if (rInj < 0.2)
+              addInjury("black eye", {
+                healable: true,
+                durationTurns: 60,
+              });
+          } else if (loc.part === "torso") {
+            if (isCrit && rInj < 0.1)
+              addInjury("deep scar", {
+                healable: false,
+                durationTurns: 0,
+              });
+            else if (rInj < 0.22)
+              addInjury("rib bruise", {
+                healable: true,
+                durationTurns: 50,
+              });
+          }
+        }
+      } catch (_) {}
+
+      // Player death handling
+      if (player.hp <= 0) {
+        player.hp = 0;
+        try {
+          if (typeof ctx.onPlayerDied === "function") {
+            ctx.onPlayerDied();
+          }
+        } catch (_) {}
+      }
+    }
+
+    function removeDeadNPCs(ctx) {
+      if (!Array.isArray(ctx.npcs)) return;
+      let changed = false;
+
+      // Ensure corpses array exists so town deaths can leave bodies behind.
+      try {
+        if (!Array.isArray(ctx.corpses)) {
+          ctx.corpses = [];
+        }
+      } catch (_) {}
+
+      for (let i = ctx.npcs.length - 1; i >= 0; i--) {
+        const n = ctx.npcs[i];
+        if (n && n._dead) {
+          // For town bandit events, leave a corpse marker with real loot when bandits or guards die.
+          // Blood decals are handled at hit time by the shared combat helpers so visuals
+          // stay consistent with dungeon/region combat.
+          try {
+            if (ctx.mode === "town" && (n.isBandit || n.isGuard)) {
+              ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
+              const already = ctx.corpses.some(c => c && c.x === n.x && c.y === n.y);
+              if (!already) {
+                let loot = [];
+                try {
+                  const L =
+                    ctx.Loot ||
+                    getMod(ctx, "Loot") ||
+                    (typeof window !== "undefined" ? window.Loot : null);
+                  if (L && typeof L.generate === "function") {
+                    loot = L.generate(ctx, n) || [];
+                  }
+                } catch (_) {
+                  loot = [];
+                }
+                ctx.corpses.push({
+                  x: n.x,
+                  y: n.y,
+                  kind: n.isGuard ? "guard_corpse" : "corpse",
+                  loot,
+                  looted: loot.length === 0,
+                  meta: null,
+                });
+              }
+            }
+          } catch (_) {}
+
+          ctx.npcs.splice(i, 1);
+          changed = true;
+        }
+      }
+      if (changed) {
+        try {
+          const OF = ctx.OccupancyFacade || (typeof window !== "undefined" ? window.OccupancyFacade : null);
+          if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
+        } catch (_) {}
+      }
+    }
 
     // Ensure home bed assignments are unique per building before acting.
     dedupeHomeBeds(ctx);
@@ -1437,7 +2021,9 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       const rnd = rngFor(ctx);
       for (let i = order.length - 1; i > 0; i--) {
         const j = Math.floor(rnd() * (i + 1));
-        const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+        const tmp = order[i];
+        order[i] = order[j];
+        order[j] = tmp;
       }
     }
 
@@ -1530,6 +2116,21 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
       // Town guards: patrol towns/cities, but use the guard barracks as their home for sleep/off-duty rest.
       if (n.isGuard) {
+        // During a bandit event, guards prioritize fighting bandits near the gate.
+        if (banditEvent && anyBandit) {
+          const target = nearestBandit(ctx, n);
+          if (target) {
+            const d = dist1(n.x, n.y, target.x, target.y);
+            if (d === 1) {
+              // Use simpler town hit logic for guard vs bandit to keep deaths fast and reliable.
+              applyHit(n, target, 4, 8);
+              continue;
+            }
+            stepTowards(ctx, occ, n, target.x, target.y, { urgent: true });
+            continue;
+          }
+        }
+
         const home = n._home && n._home.building ? n._home.building : null;
         const isBarracks = !!(home && home.prefabId && String(home.prefabId).toLowerCase().includes("guard_barracks"));
 
@@ -1688,6 +2289,41 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         continue;
       }
 
+      // Corpse cleaners: remove corpses when present in town.
+      if (n.isCorpseCleaner && Array.isArray(ctx.corpses) && ctx.corpses.length) {
+        const corpses = ctx.corpses;
+        let best = null;
+        let bestD = Infinity;
+        for (const c of corpses) {
+          if (!c) continue;
+          const d = dist1(n.x, n.y, c.x, c.y);
+          if (d < bestD) {
+            bestD = d;
+            best = c;
+          }
+        }
+        if (best) {
+          if (bestD === 0) {
+            // Remove this corpse from town.
+            try {
+              ctx.corpses = corpses.filter(
+                c => !(c && c.x === best.x && c.y === best.y)
+              );
+              if (ctx.log) {
+                ctx.log(
+                  `${n.name || "Caretaker"} removes a body from the street.`,
+                  "info"
+                );
+              }
+            } catch (_) {}
+            continue;
+          } else {
+            stepTowards(ctx, occ, n, best.x, best.y, { urgent: true });
+            continue;
+          }
+        }
+      }
+
       // Shopkeepers with schedule
       if (n.isShopkeeper) {
         const shop = n._shopRef || null;
@@ -1837,6 +2473,46 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         if (ctx.rng() < 0.15) {
           stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
         }
+        continue;
+      }
+
+      // Bandits in town: combat AI during bandit event (can attack player and NPCs)
+      if (n.isBandit && banditEvent) {
+        if (n._dead) { continue; }
+
+        // Prefer to attack the player if adjacent
+        if (dist1(n.x, n.y, player.x, player.y) === 1) {
+          banditAttackPlayer(n);
+          continue;
+        }
+
+        // Otherwise attack adjacent guard or civilian if possible
+        let target = null;
+        const list = ctx.npcs || [];
+        for (const m of list) {
+          if (!m || m._dead) continue;
+          if (m === n) continue;
+          if (dist1(n.x, n.y, m.x, m.y) !== 1) continue;
+          if (m.isGuard || (!m.isPet && !m.isBandit)) {
+            target = m;
+            break;
+          }
+        }
+        if (target) {
+          // Use simpler town hit logic for bandit vs guard/civilian to ensure deaths resolve cleanly.
+          applyHit(n, target, 3, 7);
+          continue;
+        }
+
+        // Otherwise move toward nearest civilian; fallback to nearest guard
+        let civ = nearestCivilian(ctx, n);
+        if (!civ) civ = nearestBandit(ctx, n); // will be another bandit; minimal fallback
+        if (civ) {
+          stepTowards(ctx, occ, n, civ.x, civ.y, { urgent: true });
+          continue;
+        }
+        // If no one found, jitter
+        stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
         continue;
       }
 
@@ -2184,6 +2860,10 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       }
       stepTowards(ctx, occ, n, target.x, target.y);
     }
+    // Remove any town NPCs marked as dead during this tick and rebuild occupancy once.
+    try {
+      removeDeadNPCs(ctx);
+    } catch (_) {}
     // Clear fast occupancy handle after processing to avoid leaking into other modules
     ctx._occ = null;
   }

@@ -391,6 +391,21 @@ export function loot(ctx) {
       // Pure log; do not force a draw
       return true;
     }
+    // Corpses in town (e.g. bandits/guards at the gate): allow looting when standing on a corpse tile.
+    try {
+      if (Array.isArray(ctx.corpses)) {
+        const hereCorpse = ctx.corpses.find(
+          c => c && c.x === ctx.player.x && c.y === ctx.player.y
+        );
+        if (hereCorpse) {
+          const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+          if (L && typeof L.lootHere === "function") {
+            L.lootHere(ctx);
+            return true;
+          }
+        }
+      }
+    } catch (_) {}
     // If standing on a blood decal, describe it
     if (hasDecalAt(ctx, ctx.player.x, ctx.player.y)) {
       ctx.log("The floor here is stained with blood.", "info");

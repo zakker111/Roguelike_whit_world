@@ -8,6 +8,7 @@
  * - isFreeTownFloor(ctx, x, y)
  * - talk(ctx): bump-talk with nearby NPCs; returns true if handled
  * - returnToWorldIfAtGate(ctx): leaves town if the player stands on the gate tile; returns true if handled
+ * - startBanditsAtGateEvent(ctx): spawn a bandit group near the gate and mark a town combat event
  */
 
 import { getMod } from "../../utils/access.js";
@@ -268,11 +269,15 @@ export function tryMoveTown(ctx, dx, dy) {
   if (!ctx.inBounds(nx, ny)) return false;
 
   let npcBlocked = false;
+  let occupant = null;
   try {
     if (ctx.occupancy && typeof ctx.occupancy.hasNPC === "function") {
       npcBlocked = !!ctx.occupancy.hasNPC(nx, ny);
     } else {
       npcBlocked = Array.isArray(ctx.npcs) && ctx.npcs.some(n => n && n.x === nx && n.y === ny);
+    }
+    if (npcBlocked && Array.isArray(ctx.npcs)) {
+      occupant = ctx.npcs.find(n => n && n.x === nx && n.y === ny) || null;
     }
   } catch (_) {}
 
@@ -283,12 +288,12 @@ export function tryMoveTown(ctx, dx, dy) {
       const b = ctx.tavern.building;
       const insideInn = (nx > b.x && nx < b.x + b.w - 1 && ny > b.y && ny < b.y + b.h - 1);
       if (insideInn) {
-        // Find occupant NPC at destination tile
-        let occupant = null;
-        try {
-          const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
-          occupant = npcs.find(n => n && n.x === nx && n.y === ny) || null;
-        } catch (_) {}
+        const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+        if (!occupant) {
+          try {
+            occupant = npcs.find(n => n && n.x === nx && n.y === ny) || null;
+          } catch (_) {}
+        }
         const isInnKeeper = !!(occupant && occupant.isShopkeeper && occupant._shopRef && String(occupant._shopRef.type || "").toLowerCase() === "inn");
         if (isInnKeeper) {
           // Open shop UI via talk even when overlay is active
@@ -302,6 +307,89 @@ export function tryMoveTown(ctx, dx, dy) {
       }
     }
   } catch (_) {}
+
+  // If bumping a hostile town NPC (currently bandits) during a town combat event, perform a full melee attack
+  // using the shared Combat.playerAttackEnemy logic instead of simple flat damage.
+  const isBanditTarget = !!(occupant && occupant.isBandit && !occupant._dead);
+  const banditEventActive = !!(
+    (ctx._townBanditEvent && ctx._townBanditEvent.active) ||
+    (occupant && occupant._banditEvent)
+  );
+  if (npcBlocked && isBanditTarget && banditEventActive) {
+    const C =
+      (ctx && ctx.Combat) ||
+      getMod(ctx, "Combat") ||
+      (typeof window !== "undefined" ? window.Combat : null);
+
+    if (C && typeof C.playerAttackEnemy === "function") {
+      const enemyRef = occupant;
+      const oldOnEnemyDied = ctx.onEnemyDied;
+      try {
+        // In town combat, killing a bandit should remove the NPC instead of using DungeonRuntime.killEnemy.
+        ctx.onEnemyDied = function (enemy) {
+          try {
+            if (enemy === enemyRef) {
+              enemyRef._dead = true;
+            } else if (typeof oldOnEnemyDied === "function") {
+              oldOnEnemyDied(enemy);
+            }
+          } catch (_) {}
+        };
+      } catch (_) {}
+
+      try {
+        C.playerAttackEnemy(ctx, enemyRef);
+      } catch (_) {}
+
+      // Restore original handler
+      try {
+        ctx.onEnemyDied = oldOnEnemyDied;
+      } catch (_) {}
+
+      // Rebuild occupancy if the bandit died
+      try {
+        if (enemyRef._dead) {
+          rebuildOccupancy(ctx);
+        }
+      } catch (_) {}
+
+      try { ctx.turn && ctx.turn(); } catch (_) {}
+      return true;
+    }
+
+    // Fallback: simple town melee if Combat module is unavailable.
+    let atk = 4;
+    try {
+      if (typeof ctx.getPlayerAttack === "function") {
+        const v = ctx.getPlayerAttack();
+        if (typeof v === "number" && v > 0) atk = v;
+      }
+    } catch (_) {}
+    let mult = 1.0;
+    try {
+      if (typeof ctx.rng === "function") {
+        mult = 0.8 + ctx.rng() * 0.7; // 0.8–1.5x
+      }
+    } catch (_) {}
+    const dmg = Math.max(1, Math.round(atk * mult));
+    const maxHp = typeof occupant.maxHp === "number" ? occupant.maxHp : 20;
+    if (typeof occupant.hp !== "number") occupant.hp = maxHp;
+    occupant.hp -= dmg;
+    const label = occupant.name || (occupant.isBandit ? "Bandit" : "target");
+    try {
+      if (occupant.hp > 0) {
+        ctx.log && ctx.log(`You hit ${label} for ${dmg}. (${Math.max(0, occupant.hp)} HP left)`, "combat");
+      } else {
+        occupant._dead = true;
+        ctx.log && ctx.log(`You kill ${label}.`, "fatal");
+      }
+      if (typeof ctx.addBloodDecal === "function" && dmg > 0) {
+        ctx.addBloodDecal(occupant.x, occupant.y, 1.2);
+      }
+    } catch (_) {}
+    try { ctx.turn && ctx.turn(); } catch (_) {}
+    return true;
+  }
 
   if (npcBlocked) {
     if (typeof talk === "function") {
@@ -496,8 +584,256 @@ function startCaravanAmbushEncounter(ctx, npc) {
   } catch (_) {}
 }
 
+/**
+ * Spawn a bandit group just inside the town gate and mark a lightweight town combat event.
+ * Guards will be steered towards bandits by TownAI; bandits may attack guards and other NPCs.
+ */
+export function startBanditsAtGateEvent(ctx) {
+  if (!ctx || ctx.mode !== "town") {
+    if (ctx && ctx.log) ctx.log("Bandits at the gate event requires town mode.", "warn");
+    return false;
+  }
+  try {
+    // Ensure we have a gate anchor; older saved towns may not have townExitAt persisted.
+    let gate = ctx.townExitAt;
+    const map = ctx.map;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+
+    if (!gate || typeof gate.x !== "number" || typeof gate.y !== "number") {
+      const T = ctx.TILES || {};
+      let gx = null;
+      let gy = null;
+
+      // Try to infer gate from a perimeter DOOR and pick the adjacent interior floor tile.
+      if (rows && cols && T.DOOR != null) {
+        // Top row
+        for (let x = 0; x < cols && gx == null; x++) {
+          if (map[0][x] === T.DOOR && rows > 1) { gx = x; gy = 1; }
+        }
+        // Bottom row
+        if (gx == null) {
+          for (let x = 0; x < cols && gx == null; x++) {
+            if (map[rows - 1][x] === T.DOOR && rows > 1) { gx = x; gy = rows - 2; }
+          }
+        }
+        // Left column
+        if (gx == null) {
+          for (let y = 0; y < rows && gx == null; y++) {
+            if (map[y][0] === T.DOOR && cols > 1) { gx = 1; gy = y; }
+          }
+        }
+        // Right column
+        if (gx == null) {
+          for (let y = 0; y < rows && gx == null; y++) {
+            if (map[y][cols - 1] === T.DOOR && cols > 1) { gx = cols - 2; gy = y; }
+          }
+        }
+      }
+
+      if (gx != null && gy != null) {
+        gate = { x: gx, y: gy };
+        ctx.townExitAt = gate;
+        try {
+          ctx.log && ctx.log(
+            `[TownRuntime] BanditsAtGate: reconstructed missing townExitAt at (${gate.x},${gate.y}).`,
+            "info"
+          );
+        } catch (_) {}
+      } else {
+        // Final fallback: treat the player's current tile as the \"gate\" anchor so the event still works.
+        gate = { x: ctx.player.x | 0, y: ctx.player.y | 0 };
+        ctx.townExitAt = gate;
+        try {
+          ctx.log && ctx.log(
+            "[TownRuntime] BanditsAtGate: could not find a gate; using player position as gate anchor.",
+            "warn"
+          );
+        } catch (_) {}
+      }
+    }
+
+    const maxBandits = 10;
+    const minBandits = 5;
+    const rng = typeof ctx.rng === "function" ? ctx.rng : (() => 0.5);
+    const count = Math.max(
+      minBandits,
+      Math.min(maxBandits, Math.floor(minBandits + rng() * (maxBandits - minBandits + 1)))
+    );
+    try {
+      ctx.log &&
+        ctx.log(
+          `[TownRuntime] BanditsAtGate: gate at (${gate.x},${gate.y}), planning to spawn ${count} bandits.`,
+          "info"
+        );
+    } catch (_) {}
+
+    const spots = [];
+    const radiusX = 4;
+    const radiusY = 3;
+    for (let dy = -radiusY; dy <= radiusY; dy++) {
+      for (let dx = -radiusX; dx <= radiusX; dx++) {
+        const x = gate.x + dx;
+        const y = gate.y + dy;
+        if (x < 1 || y < 1 || y >= rows - 1 || x >= cols - 1) continue;
+        if (!isFreeTownFloor(ctx, x, y)) continue;
+        // Prefer tiles just inside the gate (same row or slightly inward)
+        const inwardBias = dy >= 0 ? 0 : Math.abs(dy);
+        spots.push({ x, y, score: Math.abs(dx) + inwardBias });
+      }
+    }
+    if (!spots.length) {
+      ctx.log &&
+        ctx.log(
+          "[TownRuntime] BanditsAtGate: no free space near the gate to spawn bandits.",
+          "warn"
+        );
+      return false;
+    }
+    spots.sort((a, b) => a.score - b.score);
+    try {
+      ctx.log &&
+        ctx.log(
+          `[TownRuntime] BanditsAtGate: found ${spots.length} candidate tiles for spawns.`,
+          "info"
+        );
+    } catch (_) {}
+
+    const bandits = [];
+    const used = new Set();
+    // Approximate combat stats for town bandits/guards using the same damage model helpers
+    const playerLevel =
+      ctx.player && typeof ctx.player.level === "number" ? ctx.player.level : 1;
+
+    function takeSpot() {
+      for (let i = 0; i < spots.length; i++) {
+        const k = spots[i].x + "," + spots[i].y;
+        if (!used.has(k)) {
+          used.add(k);
+          return { x: spots[i].x, y: spots[i].y };
+        }
+      }
+      return null;
+    }
+
+    ctx.npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
+    // Spawn bandits
+    for (let i = 0; i < count; i++) {
+      const pos = takeSpot();
+      if (!pos) break;
+      const hp = 18 + Math.floor(rng() * 8); // 18-25 hp
+      const name = i === 0 ? "Bandit captain" : "Bandit";
+      const lines =
+        i === 0
+          ? ["Take what you can!", "No one passes this gate!"]
+          : ["Grab the loot!", "For the gang!"];
+      const level = Math.max(1, playerLevel + (i === 0 ? 1 : 0));
+      const atk = i === 0 ? 3 : 2;
+      const b = {
+        x: pos.x,
+        y: pos.y,
+        name,
+        lines,
+        isBandit: true,
+        hostile: true,
+        faction: "bandit",
+        type: "bandit",
+        level,
+        atk,
+        hp,
+        maxHp: hp,
+        _banditEvent: true,
+      };
+      ctx.npcs.push(b);
+      bandits.push(b);
+    }
+
+    if (!bandits.length) {
+      ctx.log &&
+        ctx.log(
+          "[TownRuntime] BanditsAtGate: failed to place any bandits near the gate.",
+          "warn"
+        );
+      return false;
+    }
+
+    // Spawn a few town guards near the gate to respond to the attack.
+    const guards = [];
+    const guardCount = Math.max(2, Math.min(4, Math.floor(bandits.length / 2)));
+    for (let i = 0; i < guardCount; i++) {
+      const pos = takeSpot();
+      if (!pos) break;
+      const eliteChance = 0.3;
+      const isEliteGuard = rng() < eliteChance;
+      const guardType = isEliteGuard ? "guard_elite" : "guard";
+      const name = isEliteGuard ? `Guard captain ${i + 1}` : `Guard ${i + 1}`;
+      // Slightly weaker guards for town bandit event compared to dungeon/encounter guards
+      const baseHp = isEliteGuard ? 24 : 18;
+      const hp = baseHp + Math.floor(rng() * 6); // small jitter
+      const level = Math.max(1, playerLevel + (isEliteGuard ? 2 : 1));
+      const atk = isEliteGuard ? 3 : 2;
+      const g = {
+        x: pos.x,
+        y: pos.y,
+        name,
+        lines: [
+          "To arms!",
+          "Protect the townsfolk!",
+          "Hold the gate!"
+        ],
+        isGuard: true,
+        guard: true,
+        guardType,
+        type: guardType,
+        level,
+        faction: "guard",
+        atk,
+        hp,
+        maxHp: hp,
+        _guardPost: { x: pos.x, y: pos.y }
+      };
+      ctx.npcs.push(g);
+      guards.push(g);
+    }
+
+    try {
+      rebuildOccupancy(ctx);
+    } catch (_) {}
+
+    const turn =
+      ctx.time && typeof ctx.time.turnCounter === "number"
+        ? ctx.time.turnCounter | 0
+        : 0;
+    ctx._townBanditEvent = {
+      active: true,
+      startedTurn: turn,
+      totalBandits: bandits.length,
+      guardsSpawned: guards.length,
+    };
+    try {
+      ctx.log &&
+        ctx.log(
+          `[TownRuntime] BanditsAtGate: spawned ${bandits.length} bandits and ${guards.length} guard(s) near gate at (${gate.x},${gate.y}).`,
+          "info"
+        );
+    } catch (_) {}
+    ctx.log &&
+      ctx.log(
+        "Bandits rush the town gate! Guards shout and civilians scramble for safety.",
+        "notice"
+      );
+    return true;
+  } catch (e) {
+    try {
+      console.error(e);
+    } catch (_) {}
+    if (ctx && ctx.log) ctx.log("Failed to start Bandits at the Gate event.", "warn");
+    return false;
+  }
+}
+
 if (typeof window !== "undefined") {
-  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, rebuildOccupancy };
+  window.TownRuntime = { generate, ensureSpawnClear, spawnGateGreeters, isFreeTownFloor, talk, tryMoveTown, tick, returnToWorldIfAtGate, applyLeaveSync, rebuildOccupancy, startBanditsAtGateEvent };
 }
 
 // Back-compat: tick implementation (retained)
@@ -677,5 +1013,29 @@ export function tick(ctx) {
       if (OF && typeof OF.rebuild === "function") OF.rebuild(ctx);
     }
   } catch (_) {}
+
+  // Visual: fade blood decals over time in town mode, matching dungeon/region behavior
+  try {
+    const DC =
+      (ctx && ctx.Decals) ||
+      getMod(ctx, "Decals") ||
+      (typeof window !== "undefined" ? window.Decals : null);
+    if (DC && typeof DC.tick === "function") {
+      DC.tick(ctx);
+    } else if (Array.isArray(ctx.decals) && ctx.decals.length) {
+      for (let i = 0; i < ctx.decals.length; i++) {
+        ctx.decals[i].a *= 0.92;
+      }
+      ctx.decals = ctx.decals.filter(d => d.a > 0.04);
+    }
+  } catch (_) {}
+
+  // Clamp corpse list length similar to dungeon tick so town combat can't grow it unbounded
+  try {
+    if (Array.isArray(ctx.corpses) && ctx.corpses.length > 50) {
+      ctx.corpses = ctx.corpses.slice(-50);
+    }
+  } catch (_) {}
+
   return true;
 }
