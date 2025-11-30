@@ -2122,7 +2122,8 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
           if (target) {
             const d = dist1(n.x, n.y, target.x, target.y);
             if (d === 1) {
-              townNpcAttack(n, target);
+              // Use simpler town hit logic for guard vs bandit to keep deaths fast and reliable.
+              applyHit(n, target, 4, 8);
               continue;
             }
             stepTowards(ctx, occ, n, target.x, target.y, { urgent: true });
@@ -2498,7 +2499,8 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
           }
         }
         if (target) {
-          townNpcAttack(n, target);
+          // Use simpler town hit logic for bandit vs guard/civilian to ensure deaths resolve cleanly.
+          applyHit(n, target, 3, 7);
           continue;
         }
 
