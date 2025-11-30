@@ -286,7 +286,6 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
   }
 
   // Pathfinding helpers (extracted to dedicated module)
-  import { computePath, computePathBudgeted } from "./pathfinding.js";
 
   // ---- Pathfinding budget/throttling ----
   // Limit the number of A* computations per tick to avoid CPU spikes in dense towns.
@@ -815,18 +814,18 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
       const namesCat = (ND && Array.isArray(ND.petCats) && ND.petCats.length) ? ND.petCats : ["Cat","Mittens","Whiskers"];
       const namesDog = (ND && Array.isArray(ND.petDogs) && ND.petDogs.length) ? ND.petDogs : ["Dog","Rover","Buddy"];
       function placeFree() {
-        for (let t = 0; t &lt; 200; t++) {
+        for (let t = 0; t < 200; t++) {
           const x = randInt(ctx, 2, ctx.map[0].length - 3);
           const y = randInt(ctx, 2, ctx.map.length - 3);
           if (isFreeTownFloor(ctx, x, y)) return { x, y };
         }
         return null;
       }
-      for (let i = 0; i &lt; maxCats; i++) {
+      for (let i = 0; i < maxCats; i++) {
         const spot = placeFree(); if (!spot) break;
         ctx.npcs.push({ x: spot.x, y: spot.y, name: namesCat[i % namesCat.length], lines: ["Meow."], isPet: true, kind: "cat" });
       }
-      for (let i = 0; i &lt; maxDogs; i++) {
+      for (let i = 0; i < maxDogs; i++) {
         const spot = placeFree(); if (!spot) break;
         ctx.npcs.push({ x: spot.x, y: spot.y, name: namesDog[i % namesDog.length], lines: ["Woof."], isPet: true, kind: "dog" });
       }
@@ -850,7 +849,7 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
             ];
 
       function placeFree() {
-        for (let t = 0; t &lt; 200; t++) {
+        for (let t = 0; t < 200; t++) {
           const x = randInt(ctx, 2, ctx.map[0].length - 3);
           const y = randInt(ctx, 2, ctx.map.length - 3);
           if (isFreeTownFloor(ctx, x, y)) return { x, y };
@@ -858,7 +857,7 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
         return null;
       }
 
-      for (let i = 0; i &lt; maxCleaners; i++) {
+      for (let i = 0; i < maxCleaners; i++) {
         const spot = placeFree();
         if (!spot) break;
         if (ctx.npcs.some(n => n && n.x === spot.x && n.y === spot.y)) continue;
