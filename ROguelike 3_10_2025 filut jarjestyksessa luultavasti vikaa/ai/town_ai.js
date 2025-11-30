@@ -1123,13 +1123,26 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       } catch (_) {}
     }
 
-    // Bandit attack against the player using the shared dungeon/encounter damage model.
+    // Bandit attack against the player using the same damage model as dungeon/encounter enemies.
     function banditAttackPlayer(attacker) {
       if (!ctx || !ctx.player || !attacker) return;
       const player = ctx.player;
       const rnd = rngFor(ctx);
+      const U = (ctx && ctx.utils) ? ctx.utils : null;
 
-      // Hit location and block
+      const randFloat = (min, max, dec = 1) => {
+        try {
+          if (U && typeof U.randFloat === "function") {
+            return U.randFloat(min, max, dec);
+          }
+        } catch (_) {}
+        const r = typeof rnd === "function" ? rnd() : 0.5;
+        const v = min + r * (max - min);
+        const p = Math.pow(10, dec);
+        return Math.round(v * p) / p;
+      };
+
+      // Hit location
       let loc = { part: "torso", mult: 1.0, blockMod: 1.0, critBonus: 0.0 };
       try {
         if (typeof ctx.rollHitLocation === "function") {
@@ -1137,6 +1150,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         }
       } catch (_) {}
 
+      // Block
       let blockChance = 0;
       try {
         if (typeof ctx.getPlayerBlockChance === "function") {
@@ -1147,37 +1161,53 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       try {
         if (rnd() < blockChance) {
           const name =
-            (attacker && attacker.name) ||
-            (attacker && attacker.type) ||
-            "bandit";
+            (attacker && (attacker.name || attacker.type)) || "bandit";
           ctx.log &&
             ctx.log(
               `You block ${name}'s attack to your ${loc.part}.`,
               "block",
               { category: "Combat", side: "player" }
             );
-          if (typeof ctx.decayBlockingHands === "function") {
-            ctx.decayBlockingHands();
-          }
-          if (typeof ctx.decayEquipped === "function") {
-            // Light wear on blocking hand gear
-            ctx.decayEquipped("hands", 0.5);
-          }
+          try {
+            if (
+              ctx.Flavor &&
+              typeof ctx.Flavor.onBlock === "function"
+            ) {
+              ctx.Flavor.onBlock(ctx, {
+                side: "player",
+                attacker,
+                defender: player,
+                loc,
+              });
+            }
+          } catch (_) {}
+          try {
+            if (typeof ctx.decayBlockingHands === "function") {
+              ctx.decayBlockingHands();
+            }
+          } catch (_) {}
+          try {
+            if (typeof ctx.decayEquipped === "function") {
+              ctx.decayEquipped("hands", randFloat(0.3, 1.0, 1));
+            }
+          } catch (_) {}
           return;
         }
       } catch (_) {}
 
-      // Damage calculation (mirrors enemy AI in dungeon/encounter)
+      // Damage calculation
       const atk =
         typeof attacker.atk === "number" ? attacker.atk : 2;
       const level =
         typeof attacker.level === "number"
           ? attacker.level
           : (typeof player.level === "number" ? player.level : 1);
-      const mult =
-        typeof ctx.enemyDamageMultiplier === "function"
-          ? ctx.enemyDamageMultiplier(level)
-          : 1 + 0.15 * Math.max(0, level - 1);
+      let mult = 1 + 0.15 * Math.max(0, level - 1);
+      try {
+        if (typeof ctx.enemyDamageMultiplier === "function") {
+          mult = ctx.enemyDamageMultiplier(level);
+        }
+      } catch (_) {}
       let raw = atk * mult * (loc.mult || 1);
 
       // Crits
@@ -1185,14 +1215,18 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       try {
         const critChance = Math.max(
           0,
-          Math.min(0.5, 0.10 + (loc.critBonus || 0))
+          Math.min(0.5, 0.1 + (loc.critBonus || 0))
         );
         if (rnd() < critChance) {
           isCrit = true;
-          const cMult =
-            typeof ctx.critMultiplier === "function"
-              ? ctx.critMultiplier()
-              : 1.6 + rnd() * 0.4;
+          let cMult = 1.8;
+          try {
+            if (typeof ctx.critMultiplier === "function") {
+              cMult = ctx.critMultiplier(rnd);
+            } else {
+              cMult = 1.6 + rnd() * 0.4;
+            }
+          } catch (_) {}
           raw *= cMult;
         }
       } catch (_) {}
@@ -1204,10 +1238,11 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         }
       } catch (_) {}
       if (typeof dmg !== "number" || !(dmg > 0)) dmg = raw;
+
       // Clamp to one decimal place like other combat helpers
       try {
-        if (ctx.utils && typeof ctx.utils.round1 === "function") {
-          dmg = ctx.utils.round1(dmg);
+        if (U && typeof U.round1 === "function") {
+          dmg = U.round1(dmg);
         } else {
           dmg = Math.round(dmg * 10) / 10;
         }
@@ -1215,8 +1250,9 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
       player.hp -= dmg;
 
+      // Blood decal
       try {
-        if (typeof ctx.addBloodDecal === "function") {
+        if (typeof ctx.addBloodDecal === "function" && dmg > 0) {
           ctx.addBloodDecal(
             player.x,
             player.y,
@@ -1225,11 +1261,10 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
         }
       } catch (_) {}
 
+      // Log hit
       try {
         const name =
-          (attacker && attacker.name) ||
-          (attacker && attacker.type) ||
-          "bandit";
+          (attacker && (attacker.name || attacker.type)) || "bandit";
         if (isCrit) {
           ctx.log &&
             ctx.log(
@@ -1244,6 +1279,133 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
               "info",
               { category: "Combat", side: "enemy" }
             );
+        }
+      } catch (_) {}
+
+      // Status effects (daze/bleed) and flavor hook, same as dungeon/encounter
+      try {
+        const ST =
+          ctx.Status ||
+          (typeof window !== "undefined" ? window.Status : null);
+        if (ST) {
+          if (
+            isCrit &&
+            loc.part === "head" &&
+            typeof ST.applyDazedToPlayer === "function"
+          ) {
+            const dur = 1 + Math.floor(rnd() * 2);
+            try {
+              ST.applyDazedToPlayer(ctx, dur);
+            } catch (_) {}
+          }
+          if (isCrit && typeof ST.applyBleedToPlayer === "function") {
+            try {
+              ST.applyBleedToPlayer(ctx, 2);
+            } catch (_) {}
+          }
+        }
+        if (
+          ctx.Flavor &&
+          typeof ctx.Flavor.logHit === "function"
+        ) {
+          ctx.Flavor.logHit(ctx, {
+            attacker,
+            loc,
+            crit: isCrit,
+            dmg,
+          });
+        }
+      } catch (_) {}
+
+      // Equipment decay by hit part
+      try {
+        if (typeof ctx.decayEquipped === "function") {
+          const critWear = isCrit ? 1.6 : 1.0;
+          let wear = 0.5;
+          if (loc.part === "torso")
+            wear = randFloat(0.8, 2.0, 1);
+          else if (loc.part === "head")
+            wear = randFloat(0.3, 1.0, 1);
+          else if (loc.part === "legs")
+            wear = randFloat(0.4, 1.3, 1);
+          else if (loc.part === "hands")
+            wear = randFloat(0.3, 1.0, 1);
+          ctx.decayEquipped(loc.part, wear * critWear);
+        }
+      } catch (_) {}
+
+      // Persistent injury tracking (cosmetic, as in dungeon/encounter)
+      try {
+        if (player) {
+          if (!Array.isArray(player.injuries)) player.injuries = [];
+          const injuries = player.injuries;
+          const addInjury = (name, opts) => {
+            if (!name) return;
+            const exists = injuries.some((it) =>
+              typeof it === "string"
+                ? it === name
+                : it && it.name === name
+            );
+            if (exists) return;
+            const healable =
+              !opts || opts.healable !== false;
+            const durationTurns = healable
+              ? Math.max(10, (opts && opts.durationTurns) | 0)
+              : 0;
+            injuries.push({ name, healable, durationTurns });
+            if (injuries.length > 24)
+              injuries.splice(0, injuries.length - 24);
+            try {
+              ctx.log &&
+                ctx.log(`You suffer ${name}.`, "warn");
+            } catch (_) {}
+          };
+          const rInj = rnd();
+          if (loc.part === "hands") {
+            if (isCrit && rInj < 0.08)
+              addInjury("missing finger", {
+                healable: false,
+                durationTurns: 0,
+              });
+            else if (rInj < 0.2)
+              addInjury("bruised knuckles", {
+                healable: true,
+                durationTurns: 30,
+              });
+          } else if (loc.part === "legs") {
+            if (isCrit && rInj < 0.1)
+              addInjury("sprained ankle", {
+                healable: true,
+                durationTurns: 80,
+              });
+            else if (rInj < 0.25)
+              addInjury("bruised leg", {
+                healable: true,
+                durationTurns: 40,
+              });
+          } else if (loc.part === "head") {
+            if (isCrit && rInj < 0.12)
+              addInjury("facial scar", {
+                healable: false,
+                durationTurns: 0,
+              });
+            else if (rInj < 0.2)
+              addInjury("black eye", {
+                healable: true,
+                durationTurns: 60,
+              });
+          } else if (loc.part === "torso") {
+            if (isCrit && rInj < 0.1)
+              addInjury("deep scar", {
+                healable: false,
+                durationTurns: 0,
+              });
+            else if (rInj < 0.22)
+              addInjury("rib bruise", {
+                healable: true,
+                durationTurns: 50,
+              });
+          }
         }
       } catch (_) {}
 
