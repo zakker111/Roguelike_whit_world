@@ -815,20 +815,61 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
       const namesCat = (ND && Array.isArray(ND.petCats) && ND.petCats.length) ? ND.petCats : ["Cat","Mittens","Whiskers"];
       const namesDog = (ND && Array.isArray(ND.petDogs) && ND.petDogs.length) ? ND.petDogs : ["Dog","Rover","Buddy"];
       function placeFree() {
-        for (let t = 0; t < 200; t++) {
+        for (let t = 0; t &lt; 200; t++) {
           const x = randInt(ctx, 2, ctx.map[0].length - 3);
           const y = randInt(ctx, 2, ctx.map.length - 3);
           if (isFreeTownFloor(ctx, x, y)) return { x, y };
         }
         return null;
       }
-      for (let i = 0; i < maxCats; i++) {
+      for (let i = 0; i &lt; maxCats; i++) {
         const spot = placeFree(); if (!spot) break;
         ctx.npcs.push({ x: spot.x, y: spot.y, name: namesCat[i % namesCat.length], lines: ["Meow."], isPet: true, kind: "cat" });
       }
-      for (let i = 0; i < maxDogs; i++) {
+      for (let i = 0; i &lt; maxDogs; i++) {
         const spot = placeFree(); if (!spot) break;
         ctx.npcs.push({ x: spot.x, y: spot.y, name: namesDog[i % namesDog.length], lines: ["Woof."], isPet: true, kind: "dog" });
+      }
+    })();
+
+    // Corpse cleaners: a small number of NPCs that remove bodies from town streets.
+    (function spawnCorpseCleaners() {
+      const maxCleaners = 2;
+      const GD = getGameData(ctx);
+      const ND = GD && GD.npcs ? GD.npcs : null;
+      const cleanerNames =
+        ND && Array.isArray(ND.cleanerNames) && ND.cleanerNames.length
+          ? ND.cleanerNames
+          : ["Caretaker", "Gravedigger"];
+      const cleanerLines =
+        ND && Array.isArray(ND.cleanerLines) && ND.cleanerLines.length
+          ? ND.cleanerLines
+          : [
+              "I'll see these bodies to rest.",
+              "Can't leave the dead in the streets.",
+            ];
+
+      function placeFree() {
+        for (let t = 0; t &lt; 200; t++) {
+          const x = randInt(ctx, 2, ctx.map[0].length - 3);
+          const y = randInt(ctx, 2, ctx.map.length - 3);
+          if (isFreeTownFloor(ctx, x, y)) return { x, y };
+        }
+        return null;
+      }
+
+      for (let i = 0; i &lt; maxCleaners; i++) {
+        const spot = placeFree();
+        if (!spot) break;
+        if (ctx.npcs.some(n => n && n.x === spot.x && n.y === spot.y)) continue;
+        const name = cleanerNames[i % cleanerNames.length] || "Caretaker";
+        ctx.npcs.push({
+          x: spot.x,
+          y: spot.y,
+          name,
+          lines: cleanerLines,
+          isCorpseCleaner: true,
+        });
       }
     })();
   }
@@ -2246,6 +2287,41 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
           stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
         }
         continue;
+      }
+
+      // Corpse cleaners: remove corpses when present in town.
+      if (n.isCorpseCleaner && Array.isArray(ctx.corpses) && ctx.corpses.length) {
+        const corpses = ctx.corpses;
+        let best = null;
+        let bestD = Infinity;
+        for (const c of corpses) {
+          if (!c) continue;
+          const d = dist1(n.x, n.y, c.x, c.y);
+          if (d < bestD) {
+            bestD = d;
+            best = c;
+          }
+        }
+        if (best) {
+          if (bestD === 0) {
+            // Remove this corpse from town.
+            try {
+              ctx.corpses = corpses.filter(
+                c => !(c && c.x === best.x && c.y === best.y)
+              );
+              if (ctx.log) {
+                ctx.log(
+                  `${n.name || "Caretaker"} removes a body from the street.`,
+                  "info"
+                );
+              }
+            } catch (_) {}
+            continue;
+          } else {
+            stepTowards(ctx, occ, n, best.x, best.y, { urgent: true });
+            continue;
+          }
+        }
       }
 
       // Shopkeepers with schedule
