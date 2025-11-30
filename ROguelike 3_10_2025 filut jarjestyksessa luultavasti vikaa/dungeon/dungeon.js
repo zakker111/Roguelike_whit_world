@@ -196,6 +196,21 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
       ctx.map[passC.y][passC.x] = STAIRS;
       // Record portal location for runtime to detect
       ctx._mountainPassAt = { x: passC.x, y: passC.y };
+
+      // Log a notice so it's easy to see in the log overlay when a mountain-pass dungeon is created.
+      try {
+        if (ctx.log) {
+          const info = ctx.dungeonInfo || ctx.dungeon || dinfoAbs || {};
+          const wx = typeof info.x === "number" ? info.x : null;
+          const wy = typeof info.y === "number" ? info.y : null;
+          const lvl = typeof info.level === "number" ? info.level : depth;
+          ctx.log(
+            `Mountain pass dungeon created at overworld (${wx},${wy}), level ${lvl}`,
+            "notice",
+            { kind: "MountainPassDungeon", worldX: wx, worldY: wy, level: lvl }
+          );
+        }
+      } catch (_) {}
     }
   } catch (_) {}
 
