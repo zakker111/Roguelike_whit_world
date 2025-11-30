@@ -19,7 +19,7 @@
  * - Runtime occupancy considers blocking props; relaxed occupancy is used only for debug visualization.
  */
 
-import { getGameData, getRNGUtils } from "../utils/access.js";
+import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
 
   function randInt(ctx, a, b) { return Math.floor(ctx.rng() * (b - a + 1)) + a; }
   function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
@@ -1426,7 +1426,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
 
       // Ensure corpses array exists so town deaths can leave bodies behind.
       try {
-        if (ctx.mode === "town" && !Array.isArray(ctx.corpses)) {
+        if (!Array.isArray(ctx.corpses)) {
           ctx.corpses = [];
         }
       } catch (_) {}
@@ -1434,7 +1434,7 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
       for (let i = ctx.npcs.length - 1; i >= 0; i--) {
         const n = ctx.npcs[i];
         if (n && n._dead) {
-          // For town bandit events, leave a simple corpse marker when bandits or guards die.
+          // For town bandit events, leave a corpse marker with real loot when bandits or guards die.
           // Blood decals are handled at hit time by the shared combat helpers so visuals
           // stay consistent with dungeon/region combat.
           try {
@@ -1442,12 +1442,24 @@ import { getGameData, getRNGUtils } from "../utils/access.js";
               ctx.corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
               const already = ctx.corpses.some(c => c && c.x === n.x && c.y === n.y);
               if (!already) {
+                let loot = [];
+                try {
+                  const L =
+                    ctx.Loot ||
+                    getMod(ctx, "Loot") ||
+                    (typeof window !== "undefined" ? window.Loot : null);
+                  if (L && typeof L.generate === "function") {
+                    loot = L.generate(ctx, n) || [];
+                  }
+                } catch (_) {
+                  loot = [];
+                }
                 ctx.corpses.push({
                   x: n.x,
                   y: n.y,
-                  kind: "corpse",
-                  loot: [],
-                  looted: true,
+                  kind: n.isGuard ? "guard_corpse" : "corpse",
+                  loot,
+                  looted: loot.length === 0,
                   meta: null,
                 });
               }

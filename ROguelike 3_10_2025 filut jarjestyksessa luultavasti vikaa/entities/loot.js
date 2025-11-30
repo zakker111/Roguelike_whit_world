@@ -421,7 +421,8 @@ function hideLoot(ctx) {
  * - Rerenders inventory panel if open (to reflect auto-equip/stacking changes)
  */
 export function lootHere(ctx) {
-  const { player, corpses } = ctx;
+  const { player } = ctx;
+  const corpses = Array.isArray(ctx.corpses) ? ctx.corpses : [];
 
   // Loot only when the player is exactly on the corpse/chest tile
   const here = corpses.filter(c => c && c.x === player.x && c.y === player.y);
@@ -446,9 +447,9 @@ export function lootHere(ctx) {
     // Persist the looted state immediately and consume a turn,
     // so revisiting the dungeon remembers emptied chests/corpses.
     try {
-      if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
-        ctx.DungeonRuntime.save(ctx, false);
-      }
+      if ((ctx.mode === "dungeon" || ctx.mode === "encounter") &&
+          ctx.DungeonRuntime &&
+          typeof ctx.DungeonRuntime
     } catch (_) {}
     if (typeof ctx.updateUI === "function") ctx.updateUI();
     if (typeof ctx.turn === "function") ctx.turn();
@@ -514,7 +515,9 @@ export function lootHere(ctx) {
   ctx.updateUI();
   // Persist dungeon state immediately so revisits remember emptied chest/corpse
   try {
-    if (ctx.DungeonRuntime && typeof ctx.DungeonRuntime.save === "function") {
+    if ((ctx.mode === "dungeon" || ctx.mode === "encounter") &&
+        ctx.DungeonRuntime &&
+        typeof ctx.DungeonRuntime.save === "function") {
       ctx.DungeonRuntime.save(ctx, false);
     }
   } catch (_) {}

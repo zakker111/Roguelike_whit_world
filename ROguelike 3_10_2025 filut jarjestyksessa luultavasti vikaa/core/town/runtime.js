@@ -767,10 +767,11 @@ export function startBanditsAtGateEvent(ctx) {
       const isEliteGuard = rng() < eliteChance;
       const guardType = isEliteGuard ? "guard_elite" : "guard";
       const name = isEliteGuard ? `Guard captain ${i + 1}` : `Guard ${i + 1}`;
-      const baseHp = isEliteGuard ? 28 : 22;
+      // Slightly weaker guards for town bandit event compared to dungeon/encounter guards
+      const baseHp = isEliteGuard ? 24 : 18;
       const hp = baseHp + Math.floor(rng() * 6); // small jitter
       const level = Math.max(1, playerLevel + (isEliteGuard ? 2 : 1));
-      const atk = isEliteGuard ? 4 : 3;
+      const atk = isEliteGuard ? 3 : 2;
       const g = {
         x: pos.x,
         y: pos.y,
