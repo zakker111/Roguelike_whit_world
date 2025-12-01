@@ -1464,15 +1464,43 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
           ctx.Status ||
           (typeof window !== "undefined" ? window.Status : null);
         if (ST) {
-          if (
-            isCrit &&
-            loc.part === "head" &&
-            typeof ST.applyDazedToPlayer === "function"
-          ) {
-            const dur = 1 + Math.floor(rnd() * 2);
-            try {
-              ST.applyDazedToPlayer(ctx, dur);
-            } catch (_) {}
+          if (loc.part === "head" && typeof ST.applyDazedToPlayer === "function") {
+            if (isCrit) {
+              const dur = 1 + Math.floor(rnd() * 2);
+              try {
+                ST.applyDazedToPlayer(ctx, dur);
+              } catch (_) {}
+            } else {
+              let dazeChance = 0.06;
+              try {
+                const inj = player && Array.isArray(player.injuries) ? player.injuries : null;
+                let hasHeadInjury = false;
+                let hasEyeInjury = false;
+                if (inj && inj.length) {
+                  for (let i = 0; i < inj.length; i++) {
+                    const it = inj[i];
+                    const name = typeof it === "string" ? it : (it && it.name) || "";
+                    const n = String(name || "").toLowerCase();
+                    if (!n) continue;
+                    if (n.includes("missing eye") || n.includes("lost eye")) {
+                      hasHeadInjury = true;
+                      hasEyeInjury = true;
+                    } else if (n.includes("facial scar") || n.includes("brow scar") || n.includes("black eye") || n.includes("split lip")) {
+                      hasHeadInjury = true;
+                    }
+                  }
+                }
+                if (hasHeadInjury) dazeChance += 0.04;
+                if (hasEyeInjury) dazeChance += 0.03;
+              } catch (_) {}
+              if (dazeChance > 0.2) dazeChance = 0.2;
+              if (rnd() < dazeChance) {
+                const dur = 1 + Math.floor(rnd() * 2);
+                try {
+                  ST.applyDazedToPlayer(ctx, dur);
+                } catch (_) {}
+              }
+            }
           }
           if (isCrit && typeof ST.applyBleedToPlayer === "function") {
             try {
@@ -1603,8 +1631,13 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
                   healable: false,
                   durationTurns: 0,
                 });
-              else
+              else if (r2 < 0.9)
                 addInjury("brow scar", {
+                  healable: false,
+                  durationTurns: 0,
+                });
+              else
+                addInjury("missing eye", {
                   healable: false,
                   durationTurns: 0,
                 });

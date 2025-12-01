@@ -111,6 +111,54 @@ import {
   // Initialize global time and weather runtime (shared across modes)
   initTimeWeather(CFG);
 
+  // Injury helpers (lightweight, avoid cross-module dependencies)
+  function hasMajorLegInjury() {
+    try {
+      const p = player;
+      const list = p && Array.isArray(p.injuries) ? p.injuries : null;
+      if (!list || !list.length) return false;
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        const name = typeof it === "string" ? it : (it && it.name) || "";
+        const n = String(name || "").toLowerCase();
+        if (!n) continue;
+        if (n.includes("sprained ankle") || n.includes("twisted knee")) {
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function hasMissingEyeInjury() {
+    try {
+      const p = player;
+      const list = p && Array.isArray(p.injuries) ? p.injuries : null;
+      if (!list || !list.length) return false;
+      for (let i = 0; i < list.length; i++) {
+        const it = list[i];
+        const name = typeof it === "string" ? it : (it && it.name) || "";
+        const n = String(name || "").toLowerCase();
+        if (!n) continue;
+        if (n.includes("missing eye") || n.includes("lost eye")) {
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  // Effective FOV radius factoring in injuries (e.g., missing eye -> -1 FOV),
+  // without mutating the player's base preference (fovRadius).
+  function computeEffectiveFovRadius() {
+    let penalty = 0;
+    if (hasMissingEyeInjury()) penalty += 1;
+    const base = fovRadius;
+    const target = base - penalty;
+    const clamped = Math.max(FOV_MIN, Math.min(FOV_MAX, target));
+    return clamped;
+  }
+
   // Game modes: "world" (overworld) or "dungeon" (roguelike floor)
   let mode = "world";
   let world = null;          // { map, width, height, towns, dungeons }
@@ -222,7 +270,7 @@ import {
       encounterProps, encounterBiome, encounterObjective,
       dungeonProps,
       floor, depth: floor,
-      fovRadius,
+      fovRadius: computeEffectiveFovRadius(),
       // world/overworld
       mode,
       world,
@@ -1351,6 +1399,14 @@ import {
 
     // Advance global time and visual weather state (non-gameplay)
     tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
+    // Major leg injuries (sprained ankle, twisted knee) make each player turn
+    // cost extra in-world time: apply one additional time/weather tick so a turn
+    // effectively advances ~8 minutes instead of ~4, without adding an extra game turn.
+    try {
+      if (hasMajorLegInjury()) {
+        tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
+      }
+    } catch (_) {}
 
     // Prefer centralized TurnLoop when available
     try {

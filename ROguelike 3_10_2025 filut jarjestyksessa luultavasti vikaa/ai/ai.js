@@ -496,12 +496,46 @@ export function enemiesAct(ctx) {
         if (isCrit) ctx.log(`Critical! ${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "crit", { category: "Combat", side: "enemy" });
         else ctx.log(`${Cap(e.type)} hits your ${loc.part} for ${dmg}.`, "info", { category: "Combat", side: "enemy" });
         const ST = ctx.Status || (typeof window !== "undefined" ? window.Status : null);
-        if (isCrit && loc.part === "head" && ST && typeof ST.applyDazedToPlayer === "function") {
-          const dur = 1 + Math.floor(rv() * 2);
-          try { ST.applyDazedToPlayer(ctx, dur); } catch (_) {}
-        }
-        if (isCrit && ST && typeof ST.applyBleedToPlayer === "function") {
-          try { ST.applyBleedToPlayer(ctx, 2); } catch (_) {}
+        if (ST) {
+          // Dazed from head hits: crits always daze; non-crit head hits have a small chance,
+          // slightly higher if the player already has head/eye injuries.
+          if (loc.part === "head" && typeof ST.applyDazedToPlayer === "function") {
+            if (isCrit) {
+              const dur = 1 + Math.floor(rv() * 2);
+              try { ST.applyDazedToPlayer(ctx, dur); } catch (_) {}
+            } else {
+              let dazeChance = 0.06;
+              try {
+                const inj = player && Array.isArray(player.injuries) ? player.injuries : null;
+                let hasHeadInjury = false;
+                let hasEyeInjury = false;
+                if (inj && inj.length) {
+                  for (let i = 0; i < inj.length; i++) {
+                    const it = inj[i];
+                    const name = typeof it === "string" ? it : (it && it.name) || "";
+                    const n = String(name || "").toLowerCase();
+                    if (!n) continue;
+                    if (n.includes("missing eye") || n.includes("lost eye")) {
+                      hasHeadInjury = true;
+                      hasEyeInjury = true;
+                    } else if (n.includes("facial scar") || n.includes("brow scar") || n.includes("black eye") || n.includes("split lip")) {
+                      hasHeadInjury = true;
+                    }
+                  }
+                }
+                if (hasHeadInjury) dazeChance += 0.04;
+                if (hasEyeInjury) dazeChance += 0.03;
+              } catch (_) {}
+              if (dazeChance > 0.2) dazeChance = 0.2;
+              if (rv() < dazeChance) {
+                const dur = 1 + Math.floor(rv() * 2);
+                try { ST.applyDazedToPlayer(ctx, dur); } catch (_) {}
+              }
+            }
+          }
+          if (isCrit && typeof ST.applyBleedToPlayer === "function") {
+            try { ST.applyBleedToPlayer(ctx, 2); } catch (_) {}
+          }
         }
         if (ctx.Flavor && typeof ctx.Flavor.logHit === "function") {
           ctx.Flavor.logHit(ctx, { attacker: e, loc, crit: isCrit, dmg });
@@ -556,7 +590,8 @@ export function enemiesAct(ctx) {
             if (isCrit && r < 0.12) {
               const r2 = rv();
               if (r2 < 0.6) addInjury("facial scar", { healable: false, durationTurns: 0 });
-              else addInjury("brow scar", { healable: false, durationTurns: 0 });
+              else if (r2 < 0.9) addInjury("brow scar", { healable: false, durationTurns: 0 });
+              else addInjury("missing eye", { healable: false, durationTurns: 0 });
             } else if (r < 0.20) {
               const r2 = rv();
               if (r2 < 0.7) addInjury("black eye", { healable: true, durationTurns: 60 });

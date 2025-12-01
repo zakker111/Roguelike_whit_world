@@ -73,12 +73,12 @@ export function normalize(p) {
   if (!Array.isArray(p.injuries)) p.injuries = [];
   // Normalize injuries into objects: { name, healable, durationTurns }
   try {
-    p.injuries = p.injuries.map((inj) => {
+    p.injuries = p.injuries.map((inj) =&gt; {
       if (!inj) return null;
       if (typeof inj === "string") {
         // Assume healable bruises by default when provided as strings
         const name = inj;
-        const permanent = /scar|missing finger/i.test(name);
+        const permanent = /scar|missing finger|missing eye|lost eye/i.test(name);
         return {
           name,
           healable: !permanent,
@@ -87,7 +87,7 @@ export function normalize(p) {
       }
       // Already an object; ensure keys exist
       const name = inj.name || "injury";
-      const healable = typeof inj.healable === "boolean" ? inj.healable : !(/scar|missing finger/i.test(name));
+      const healable = typeof inj.healable === "boolean" ? inj.healable : !(/scar|missing finger|missing eye|lost eye/i.test(name));
       const durationTurns = healable ? Math.max(0, (inj.durationTurns | 0)) : 0;
       return { name, healable, durationTurns };
     }).filter(Boolean);
