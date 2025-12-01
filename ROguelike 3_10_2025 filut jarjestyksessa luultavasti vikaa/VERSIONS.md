@@ -1,5 +1,37 @@
 # Game Version History
-Last updated: 2025-11-26 12:00 UTC
+Last updated: 2025-12-01 12:00 UTC
+
+v1.51.0 — Weather-aware Town AI, performance tuning, and resident role config
+- Added: Weather-aware town NPC behavior
+  - ai/town_ai.js now reads weather snapshots from ctx.weather or TimeWeatherFacade.getWeatherSnapshot(ctx.time) and derives a normalized rain intensity for each town tick.
+  - Residents are more likely to visit the Inn or stay indoors on rainy days; heavy rain strongly biases them toward heading home instead of lingering in outdoor plazas or at shop doors.
+  - Generic roamers avoid outdoor bench sleeping in rain; night bench-sit chances are significantly reduced under rain and especially heavy rain, so towns feel quieter and more believable during storms.
+- Added: Town pathfinding performance tuning
+  - Introduced a global per-tick A* budget in TownAI with PATH_BUDGET_MIN = 6 and PATH_BUDGET_MAX = 32; the budget scales with NPC count and time of day but is clamped so heavy evening movements cannot stall turns.
+  - Enhanced per-NPC tick throttling: residents and generic town NPCs act frequently, shopkeepers act at a moderate stride, and pets act less often; deterministic per-NPC stride offsets keep updates staggered.
+  - Far-away NPCs (Manhattan distance > 24 from the player) are additionally rate-limited so that only half of them act on a given tick, reducing CPU cost while preserving smooth movement near the player.
+  - Guards and shopkeepers during their active work windows bypass some throttling so patrols and shop activity remain responsive and visually consistent.
+- Added: Configurable resident daytime roles via JSON
+  - data/config/config.json gained townAI.residentRoles with default weights:
+    - homebody: 0.3
+    - plazaShop: 0.3
+    - innGoer: 0.2
+    - wanderer: 0.2
+  - ai/town_ai.js spawnResidents now reads, validates, and normalizes these weights; invalid or negative values are ignored, and when the sum is non-positive it falls back to the defaults.
+  - Each resident’s day role (homebody, plaza/shop, inn-goer, wanderer) is selected using these weights, allowing plaza crowding, inn usage, and wandering behavior to be tuned from config without code changes.
+- Fixed: Town AI pathfinding regression where NPCs never moved
+  - Refactored pathfinding helpers out of TownAI into ai/pathfinding.js and restored the missing import in ai/town_ai.js:
+    - import { computePath, computePathBudgeted } from "./pathfinding.js";
+  - core/town_runtime.js wraps TownAI.townNPCsAct(ctx) in a try/catch; previously, the missing symbols triggered ReferenceError inside TownAI which was swallowed by the catch, silently disabling all town NPC actions when the player waited.
+  - With the import restored, town NPCs once again follow their schedules and paths whenever the player advances turns (walking or using the wait command).
+- Fixed: TownAI resident spawn syntax errors and duplicated logic
+  - Cleaned up a corrupted resident-spawn block in ai/town_ai.js where HTML entities (&lt;, &gt;) and stray fragments (for example, “= null;”, duplicated roleRoll branches) had been merged into the file, leading to SyntaxError: Unexpected token ';' / '}' at runtime.
+  - Replaced the broken block with a single, cohesive implementation that:
+    - Uses the config-driven role thresholds (homebody, plaza/shop, inn-goer, wanderer) to assign each resident’s daytime errand (home interior, plaza bench/shop door, inn entrance, or wander target).
+    - Assigns at most one bed per resident and chooses a deterministic interior fallback spot when beds or benches are unavailable.
+    - Guarantees at least one occupant per eligible building (excluding guard barracks) without duplicating or overwriting NPCs created earlier.
+  - Verified town_ai.js parses cleanly and that resident spawning, home/work assignments, and scheduling all operate without runtime syntax errors.
+- Deployment: https://xxvplahd6hxx.cosine.page (latest build with weather-aware Town AI, pathfinding tuning, and resident role configuration)
 
 v1.50.0 — Torch weapon & burning status, GOD status picker, unified combat, and log-level polish
 - Added: Equippable torch weapon with light and fire effects

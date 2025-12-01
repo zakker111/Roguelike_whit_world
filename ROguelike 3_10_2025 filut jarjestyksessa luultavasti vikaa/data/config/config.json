@@ -26,5 +26,13 @@
     "encounterRateDefault": 5,
     "alwaysCritDefault": false,
     "critPartDefault": ""
+  },
+  "townAI": {
+    "residentRoles": {
+      "homebody": 0.3,
+      "plazaShop": 0.3,
+      "innGoer": 0.2,
+      "wanderer": 0.2
+    }
   }
 }

@@ -20,6 +20,7 @@
  */
 
 import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
+import { computePath, computePathBudgeted } from "./pathfinding.js";
 
   function randInt(ctx, a, b) { return Math.floor(ctx.rng() * (b - a + 1)) + a; }
   function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
@@ -289,14 +290,26 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
 
   // ---- Pathfinding budget/throttling ----
   // Limit the number of A* computations per tick to avoid CPU spikes in dense towns.
+  // The budget scales with NPC count but is clamped so very large towns don't stall turns.
+  const PATH_BUDGET_MIN = 6;
+  const PATH_BUDGET_MAX = 32;
+
   function initPathBudget(ctx, npcCount) {
     const phaseNow = (ctx && ctx.time && ctx.time.phase) ? String(ctx.time.phase) : "day";
-    // Raise baseline during daytime to reduce reliance on greedy fallback
-    const baseFrac = (phaseNow === "day") ? 0.30 : 0.20;
-    const defaultBudget = Math.max(1, Math.floor(npcCount * baseFrac)); // 30% by day, 20% otherwise
-    ctx._townPathBudgetRemaining = (typeof ctx.townPathBudget === "number")
-      ? Math.max(0, ctx.townPathBudget)
-      : defaultBudget;
+    // Baseline fraction of NPCs allowed to request full A* per tick.
+    const baseFrac = (phaseNow === "day") ? 0.26 : 0.18;
+    const approx = Math.max(1, Math.floor(npcCount * baseFrac));
+    const defaultBudget = Math.max(
+      PATH_BUDGET_MIN,
+      Math.min(PATH_BUDGET_MAX, approx)
+    );
+    const configured = (typeof ctx.townPathBudget === "number")
+      ? Math.max(0, ctx.townPathBudget | 0)
+      : null;
+    ctx._townPathBudgetRemaining =
+      (configured != null)
+        ? Math.max(PATH_BUDGET_MIN, Math.min(PATH_BUDGET_MAX, configured))
+        : defaultBudget;
   }
 
   function stepTowards(ctx, occ, n, tx, ty, opts = {}) {
@@ -728,9 +741,43 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
       const linesHome = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length) ? ND.residentLines : ["Home sweet home.","A quiet day indoors.","Just tidying up."];
       const residentNames = (ND && Array.isArray(ND.residentNames) && ND.residentNames.length) ? ND.residentNames : ["Resident","Villager"];
 
+      // Config-driven resident daytime role weights so plaza crowding can be tuned from JSON.
+      let wHomebody = 0.30;
+      let wPlazaShop = 0.30;
+      let wInnGoer = 0.20;
+      let wWanderer = 0.20;
+      try {
+        const cfg = GD && GD.config && GD.config.townAI && GD.config.townAI.residentRoles;
+        if (cfg && typeof cfg === "object") {
+          const vH = Number(cfg.homebody);
+          const vP = Number(cfg.plazaShop);
+          const vI = Number(cfg.innGoer);
+          const vW = Number(cfg.wanderer);
+          if (Number.isFinite(vH)) wHomebody = Math.max(0, vH);
+          if (Number.isFinite(vP)) wPlazaShop = Math.max(0, vP);
+          if (Number.isFinite(vI)) wInnGoer = Math.max(0, vI);
+          if (Number.isFinite(vW)) wWanderer = Math.max(0, vW);
+        }
+      } catch (_) {}
+      let wSum = wHomebody + wPlazaShop + wInnGoer + wWanderer;
+      if (!(wSum > 0)) {
+        wHomebody = 0.30;
+        wPlazaShop = 0.30;
+        wInnGoer = 0.20;
+        wWanderer = 0.20;
+        wSum = 1.0;
+      }
+      wHomebody /= wSum;
+      wPlazaShop /= wSum;
+      wInnGoer /= wSum;
+      wWanderer /= wSum;
+      const roleThresholdHome = wHomebody;
+      const roleThresholdPlaza = wHomebody + wPlazaShop;
+      const roleThresholdInn = roleThresholdPlaza + wInnGoer;
+
       const benches = (ctx.townProps || []).filter(p => p.type === "bench");
       const pickBenchNearPlaza = () => {
-        if (!benches.length) return null;
+        if (!benches.length || !townPlaza) return null;
         const candidates = benches.slice().sort((a, b) =>
           manhattan(a.x, a.y, townPlaza.x, townPlaza.y) - manhattan(b.x, b.y, townPlaza.x, townPlaza.y));
         const b = candidates[0] || null;
@@ -745,6 +792,19 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
         const adj = nearestFreeAdjacent(ctx, s.x, s.y, null);
         return adj ? { x: adj.x, y: adj.y } : { x: s.x, y: s.y };
       };
+      function pickRandomTownWanderTarget() {
+        const rows = ctx.map.length;
+        const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+        if (!rows || !cols) return null;
+        for (let t = 0; t < 80; t++) {
+          const x = randInt(ctx, 2, cols - 3);
+          const y = randInt(ctx, 2, rows - 3);
+          if (!isFreeTownFloor(ctx, x, y)) continue;
+          if (townPlaza && manhattan(x, y, townPlaza.x, townPlaza.y) <= 4) continue;
+          return { x, y };
+        }
+        return null;
+      }
 
       // Ensure every building (except guard barracks) has occupants (at least one), scaled by area
       for (const b of buildingsForResidents) {
@@ -755,52 +815,128 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
         let created = 0;
         let tries = 0;
         while (created < residentCount && tries++ < 200) {
-          const pos = randomInteriorSpot(ctx, b) || firstFreeInteriorSpot(ctx, b) || { x: Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2))), y: Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2))) };
+          const pos =
+            randomInteriorSpot(ctx, b) ||
+            firstFreeInteriorSpot(ctx, b) ||
+            {
+              x: Math.max(
+                b.x + 1,
+                Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2))
+              ),
+              y: Math.max(
+                b.y + 1,
+                Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2))
+              ),
+            };
           if (!pos) break;
           if (npcs.some(n => n.x === pos.x && n.y === pos.y)) continue;
+
           let errand = null;
           let errandIsShopDoor = false;
-          if (rng() < 0.5) {
-            const pb = pickBenchNearPlaza();
-            if (pb) { errand = { x: pb.x, y: pb.y }; errandIsShopDoor = false; }
+          const hasInn = !!(ctx.tavern && ctx.tavern.building);
+          const roleRoll = rng();
+
+          if (roleRoll < roleThresholdHome) {
+            // Homebody: day errand stays inside/near their own house
+            const homeSpot =
+              firstFreeInteriorSpot(ctx, b) || { x: pos.x, y: pos.y };
+            errand = { x: homeSpot.x, y: homeSpot.y };
+          } else if (roleRoll < roleThresholdPlaza) {
+            // Plaza/shop: bench near plaza or shop door
+            if (rng() < 0.5) {
+              const pb = pickBenchNearPlaza();
+              if (pb) {
+                errand = { x: pb.x, y: pb.y };
+                errandIsShopDoor = false;
+              }
+            } else {
+              const sd = pickRandomShopDoor();
+              if (sd) {
+                errand = sd;
+                errandIsShopDoor = true;
+              }
+            }
+          } else if (hasInn && roleRoll < roleThresholdInn) {
+            // Inn-goer: prefer the inn entrance as daytime errand
+            const tavB = ctx.tavern.building;
+            const door =
+              ctx.tavern.door &&
+              typeof ctx.tavern.door.x === "number" &&
+              typeof ctx.tavern.door.y === "number"
+                ? ctx.tavern.door
+                : {
+                    x: tavB.x + ((tavB.w / 2) | 0),
+                    y: tavB.y + ((tavB.h / 2) | 0),
+                  };
+            errand = { x: door.x, y: door.y };
           } else {
-            const sd = pickRandomShopDoor();
-            if (sd) { errand = sd; errandIsShopDoor = true; }
+            // Wanderer: pick a random walkable tile somewhere in town (away from plaza center)
+            const wander = pickRandomTownWanderTarget();
+            if (wander) errand = wander;
           }
+
           let sleepSpot = null;
           if (bedList.length) {
             const bidx = randInt(ctx, 0, bedList.length - 1);
             sleepSpot = { x: bedList[bidx].x, y: bedList[bidx].y };
           }
-          const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
+          const rname =
+            residentNames[Math.floor(rng() * residentNames.length)] ||
+            "Resident";
+          const isInnRole =
+            hasInn &&
+            roleRoll >= roleThresholdPlaza &&
+            roleRoll < roleThresholdInn;
+          const likesInn = ctx.rng() < 0.45 || isInnRole;
           npcs.push({
-            x: pos.x, y: pos.y,
+            x: pos.x,
+            y: pos.y,
             name: rng() < 0.2 ? `Child` : rname,
             lines: linesHome,
             isResident: true,
-            _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: sleepSpot },
+            _home: {
+              building: b,
+              x: pos.x,
+              y: pos.y,
+              door: { x: b.door.x, y: b.door.y },
+              bed: sleepSpot,
+            },
             _work: errand,
             _workIsShopDoor: !!errandIsShopDoor,
-            _likesInn: ctx.rng() < 0.45
+            _likesInn: !!likesInn,
           });
           created++;
         }
+
         // Guarantee at least one occupant
         if (created === 0) {
-          const pos = firstFreeInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
-          const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
-          const workToShop = (rng() < 0.5 && shops && shops.length);
-          const workTarget = workToShop ? { x: shops[0].x, y: shops[0].y }
-                                        : (townPlaza ? { x: townPlaza.x, y: townPlaza.y } : null);
+          const pos =
+            firstFreeInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
+          const rname =
+            residentNames[Math.floor(rng() * residentNames.length)] ||
+            "Resident";
+          const workToShop = rng() < 0.5 && shops && shops.length;
+          const workTarget = workToShop
+            ? { x: shops[0].x, y: shops[0].y }
+            : townPlaza
+            ? { x: townPlaza.x, y: townPlaza.y }
+            : null;
           npcs.push({
-            x: pos.x, y: pos.y,
+            x: pos.x,
+            y: pos.y,
             name: rname,
             lines: linesHome,
             isResident: true,
-            _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: null },
+            _home: {
+              building: b,
+              x: pos.x,
+              y: pos.y,
+              door: { x: b.door.x, y: b.door.y },
+              bed: null,
+            },
             _work: workTarget,
             _workIsShopDoor: !!workToShop,
-            _likesInn: ctx.rng() < 0.45
+            _likesInn: ctx.rng() < 0.45,
           });
         }
       }
@@ -1604,6 +1740,27 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
                 : (t && t.phase === "dawn") ? "morning"
                 : (t && t.phase === "dusk") ? "evening"
                 : "day";
+
+    // Weather snapshot for this tick (non-gameplay visual by default).
+    // Town AI uses it only as a soft influence on behavior (rain -> more indoor preferences).
+    let weather = null;
+    try {
+      if (ctx.weather) {
+        weather = ctx.weather;
+      } else if (typeof window !== "undefined" &&
+                 window.TimeWeatherFacade &&
+                 typeof window.TimeWeatherFacade.getWeatherSnapshot === "function") {
+        weather = window.TimeWeatherFacade.getWeatherSnapshot(t || null);
+      }
+    } catch (_) {}
+    let isRainy = false;
+    let isHeavyRain = false;
+    if (weather && typeof weather.intensity === "number") {
+      const intensity = Math.max(0, Math.min(1, Number(weather.intensity)));
+      isRainy = intensity >= 0.35;
+      isHeavyRain = intensity >= 0.75;
+    }
+
     // Late night window: 02:00–05:00
     const LATE_START = 2 * 60, LATE_END = 5 * 60;
     const inLateWindow = minutes >= LATE_START && minutes < LATE_END;
@@ -1626,13 +1783,26 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
     }
     assignDebugUpstairsRoamer(ctx, npcs);
 
-    // Evening return window: boost pathfinding budget to smooth mass routing (18:00–21:00)
+    // Evening return window: boost pathfinding budget to smooth mass routing (18:00–21:00),
+    // but keep it within the global min/max clamp to avoid very heavy turns in huge towns.
     try {
       const EVENING_START = 18 * 60, EVENING_END = 21 * 60;
       if (minutes >= EVENING_START && minutes < EVENING_END) {
-        const boosted = Math.max(typeof ctx._townPathBudgetRemaining === "number" ? ctx._townPathBudgetRemaining : 0,
-                                 Math.floor(npcs.length * 0.35));
-        ctx._townPathBudgetRemaining = boosted;
+        const current = (typeof ctx._townPathBudgetRemaining === "number")
+          ? ctx._townPathBudgetRemaining
+          : 0;
+        const desired = Math.floor(npcs.length * 0.35);
+        const boostedRaw = Math.max(current, desired);
+        const maxBudget = (typeof PATH_BUDGET_MAX === "number" && PATH_BUDGET_MAX > 0)
+          ? PATH_BUDGET_MAX
+          : 32;
+        const minBudget = (typeof PATH_BUDGET_MIN === "number" && PATH_BUDGET_MIN > 0)
+          ? PATH_BUDGET_MIN
+          : 1;
+        ctx._townPathBudgetRemaining = Math.max(
+          minBudget,
+          Math.min(maxBudget, boostedRaw)
+        );
       }
     } catch (_) {}
 
@@ -1779,7 +1949,24 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
         // Deterministic offset from initial index to evenly stagger across the stride
         n._strideOffset = idx % n._stride;
       }
-      return (tickMod % n._stride) !== n._strideOffset;
+
+      // Base stride scheduling
+      if ((tickMod % n._stride) !== n._strideOffset) return true;
+
+      // Additional throttling for far-off NPCs: those far from the player act at half the
+      // stride frequency on top of the normal schedule. This keeps distant crowds cheap
+      // while preserving smooth motion near the player.
+      try {
+        if (player && typeof player.x === "number" && typeof player.y === "number") {
+          const d = Math.abs(n.x - player.x) + Math.abs(n.y - player.y);
+          if (d > 24) {
+            // Use tickMod+idx so different NPCs de-phase relative to each other.
+            if (((tickMod + idx) & 1) === 1) return true;
+          }
+        }
+      } catch (_) {}
+
+      return false;
     }
 
     // Staggered home-start window (18:00–21:00)
@@ -2635,9 +2822,14 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
               continue;
             }
           }
-          // Occasionally visit the tavern (Inn) to sit; plus bench/home sitting options
+          // Occasionally visit the tavern (Inn) to sit; plus bench/home sitting options.
+          // Rain makes the inn more attractive compared to standing outside.
           if (innB) {
-            const wantTavern = n._likesInn ? (ctx.rng() < 0.20) : (ctx.rng() < 0.06);
+            let baseChance = n._likesInn ? 0.20 : 0.06;
+            if (isRainy) baseChance *= 1.5;
+            if (isHeavyRain) baseChance *= 1.4;
+            if (baseChance > 0.6) baseChance = 0.6;
+            const wantTavern = ctx.rng() < baseChance;
             if (wantTavern && !n._innSeatGoal && !n._benchSeatGoal && !n._homeSitGoal && (_innSeatersNow < _innSeatCap)) {
               // 50% chance to target upstairs seating when available
               let targeted = false;
@@ -2673,6 +2865,15 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
               if (seatH) {
                 n._homeSitGoal = { x: seatH.x, y: seatH.y };
                 stepTowards(ctx, occ, n, seatH.x, seatH.y);
+                continue;
+              }
+            }
+          }
+          // In heavy rain, some residents prefer to head home instead of lingering outdoors.
+          if (isHeavyRain && n._home && n._home.building && !insideBuilding(n._home.building, n.x, n.y)) {
+            if (ctx.rng() < 0.6) {
+              const homeTarget = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : { x: n._home.x, y: n._home.y };
+              if (routeIntoBuilding(ctx, occ, n, n._home.building, homeTarget)) {
                 continue;
               }
             }
@@ -2781,8 +2982,10 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
       }
       // Night/evening bench sit/sleep chance
       if ((phase === "evening" || phase === "night") && !n._benchSeatGoal) {
-        const wantBenchNight = inLateWindow ? (ctx.rng() < 0.12) : (ctx.rng() < 0.20);
-        if (wantBenchNight) {
+        let baseBenchChance = inLateWindow ? 0.12 : 0.20;
+        if (isRainy) baseBenchChance *= 0.4;
+        if (isHeavyRain) baseBenchChance *= 0.4;
+        if (baseBenchChance > 0 && ctx.rng() < baseBenchChance) {
           const seatB = chooseBenchSeat(ctx);
           if (seatB) {
             n._benchSeatGoal = { x: seatB.x, y: seatB.y };
