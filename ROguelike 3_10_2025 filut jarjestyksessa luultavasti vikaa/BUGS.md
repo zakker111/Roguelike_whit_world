@@ -22,5 +22,9 @@
 - Make coherent way out like in ruins and region_map encounters there is only &gt; and not clearly visible ab coherent
 - caravan master does not seem to spawn in towns cities etc. when caravan enters it
 - caravans in towns need verification: prefab caravan stalls/shops vs actual parked caravans and town presence behavior
-- dungeon mountain passes (dungeons biased to spawn near mountain edges) don’t seem to spawn in practice; investigate terrain bias and anchor selection in world/infinite_gen.js and world/world.js
+- dungeon mountain passes (dungeons biased to spawn near mountain edges) remain inconclusive: notice logs rarely/never show \"Mountain pass dungeon created\" even after exploring mountain ridges across multiple seeds; investigate:
+  - terrain bias and anchor selection in world/infinite_gen.js (dungeonGrid, hasNonBlockingWithinRadius, nearMountain detection),
+  - InfiniteGen vs World.map alignment for mountain tiles (gen.tileAt vs ctx.map values),
+  - dungeon entry wiring (ctx.dungeonInfo.x/y matching POI coords),
+  - and verify that internal pass portals (ctx._mountainPassAt) are actually being placed and reachable in generated dungeons.
 - town ground/overlay sometimes looks like uniform sand on first entering town, but fixes after moving: suspect early town biome/palette not ready when ui/render_town.js / ui/render/town_base_layer.js first build the cached base layer (TOWN.canvas); verify cache rebuild triggers correctly once ctx.townBiome and town palette are ready, and that fallback biome tint doesn’t blanket all outdoor tiles in the first frame
