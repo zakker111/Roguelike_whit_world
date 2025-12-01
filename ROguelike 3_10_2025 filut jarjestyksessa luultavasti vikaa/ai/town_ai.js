@@ -20,6 +20,7 @@
  */
 
 import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
+import { computePath, computePathBudgeted } from "./pathfinding.js";
 
   function randInt(ctx, a, b) { return Math.floor(ctx.rng() * (b - a + 1)) + a; }
   function manhattan(ax, ay, bx, by) { return Math.abs(ax - bx) + Math.abs(ay - by); }
