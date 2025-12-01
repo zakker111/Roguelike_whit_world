@@ -116,20 +116,14 @@ import {
   // to avoid recursion between ctx construction and this helper.
   function computeEffectiveFovRadius() {
     let penalty = 0;
-    try {
-      const Injury = (typeof window !== "undefined" ? window.InjuryService : null);
-      if (Injury && typeof Injury.getPlayerInjuryModifiersForPlayer === "function") {
-        const mods = Injury.getPlayerInjuryModifiersForPlayer(player) || {};
-        if (typeof mods.fovPenalty === "number" && mods.fovPenalty > 0) {
-          penalty += mods.fovPenalty;
-        }
-      } else if (Injury && typeof Injury.getPlayerInjuryModifiers === "function") {
-        const mods = Injury.getPlayerInjuryModifiers({ player }) || {};
-        if (typeof mods.fovPenalty === "number" && mods.fovPenalty > 0) {
-          penalty += mods.fovPenalty;
-        }
-      }
-    } catch (_) {}
+    const Injury = (typeof window !== "undefined" ? window.InjuryService : null);
+    if (!Injury || typeof Injury.getPlayerInjuryModifiersForPlayer !== "function") {
+      throw new Error("InjuryService.getPlayerInjuryModifiersForPlayer missing; injury system must be configured.");
+    }
+    const mods = Injury.getPlayerInjuryModifiersForPlayer(player) || {};
+    if (typeof mods.fovPenalty === "number" && mods.fovPenalty > 0) {
+      penalty += mods.fovPenalty;
+    }
     const base = fovRadius;
     const target = base - penalty;
     const clamped = Math.max(FOV_MIN, Math.min(FOV_MAX, target));
@@ -1376,19 +1370,20 @@ import {
 
     // Advance global time and visual weather state (non-gameplay)
     tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
-    // Injury-driven extra time: major leg injuries (sprained ankle, twisted knee)
+    // Injury-driven extra time: leg injuries with timeTicksPerTurnExtra
     // make each player turn cost extra in-world time. Apply additional time/weather
     // ticks based on InjuryService modifiers without adding extra game turns.
-    try {
-      const Injury = modHandle("InjuryService");
-      if (Injury && typeof Injury.getPlayerInjuryModifiers === "function") {
-        const mods = Injury.getPlayerInjuryModifiers(getCtx()) || {};
-        const extra = (mods.timeTicksPerTurnExtra | 0) || 0;
-        for (let i = 0; i < extra; i++) {
-          tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
-        }
+    const Injury = modHandle("InjuryService");
+    if (!Injury || typeof Injury.getPlayerInjuryModifiers !== "function") {
+      throw new Error("InjuryService.getPlayerInjuryModifiers missing; injury system must be configured.");
+    }
+    {
+      const mods = Injury.getPlayerInjuryModifiers(getCtx()) || {};
+      const extra = (mods.timeTicksPerTurnExtra | 0) || 0;
+      for (let i = 0; i < extra; i++) {
+        tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
       }
-    } catch (_) {}
+    }
 
     // Prefer centralized TurnLoop when available
     try {

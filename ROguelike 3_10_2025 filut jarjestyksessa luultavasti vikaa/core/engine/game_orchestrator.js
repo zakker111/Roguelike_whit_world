@@ -6,8 +6,16 @@
 
 import { initWorld, setupInput, initMouseSupport, startLoop, scheduleAssetsReadyDraw, buildGameAPI } from "/core/game.js?v=1.45.2";
 
-export function start() {
+export async function start() {
   try { buildGameAPI(); } catch (_) {}
+
+  // Ensure data registries (including injuries.json) are loaded before booting the world.
+  try {
+    if (typeof window !== "undefined" && window.GameData && window.GameData.ready && typeof window.GameData.ready.then === "function") {
+      await window.GameData.ready;
+    }
+  } catch (_) {}
+
   try { initWorld(); } catch (_) {}
   try { setupInput(); } catch (_) {}
   try { initMouseSupport(); } catch (_) {}

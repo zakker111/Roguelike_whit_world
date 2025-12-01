@@ -29,18 +29,16 @@ export function getPlayerAttack(ctx) {
   }
 
   // Injury-based modifier: delegate to InjuryService so penalties are data-driven.
-  try {
-    const Injury = (ctx && ctx.InjuryService) || (typeof window !== "undefined" ? window.InjuryService : null);
-    if (!Injury || typeof Injury.getPlayerInjuryModifiers !== "function") return base;
-    const mods = Injury.getPlayerInjuryModifiers(ctx) || {};
-    let mult = (typeof mods.attackMultiplier === "number" && mods.attackMultiplier > 0) ? mods.attackMultiplier : 1;
-    if (mult < 0.5) mult = 0.5;
-    const adjusted = round1(base * mult);
-    const minAllowed = round1(base * 0.5);
-    return adjusted < minAllowed ? minAllowed : adjusted;
-  } catch (_) {
-    return base;
+  const Injury = (ctx && ctx.InjuryService) || (typeof window !== "undefined" ? window.InjuryService : null);
+  if (!Injury || typeof Injury.getPlayerInjuryModifiers !== "function") {
+    throw new Error("InjuryService.getPlayerInjuryModifiers missing; injury system must be configured.");
   }
+  const mods = Injury.getPlayerInjuryModifiers(ctx) || {};
+  let mult = (typeof mods.attackMultiplier === "number" && mods.attackMultiplier > 0) ? mods.attackMultiplier : 1;
+  if (mult < 0.5) mult = 0.5;
+  const adjusted = round1(base * mult);
+  const minAllowed = round1(base * 0.5);
+  return adjusted < minAllowed ? minAllowed : adjusted;
 }
 
 export function getPlayerDefense(ctx) {

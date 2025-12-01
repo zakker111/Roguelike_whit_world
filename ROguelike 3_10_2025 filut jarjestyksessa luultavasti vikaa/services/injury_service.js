@@ -22,29 +22,18 @@ let _byName = null;
 let _hitTables = null;
 
 function getRoot() {
-  try {
-    const GD = getGameData(null);
-    if (GD && GD.injuries && typeof GD.injuries === "object") {
-      return GD.injuries;
-    }
-  } catch (_) {}
-  try {
-    if (typeof window !== "undefined" && window.GameData && window.GameData.injuries) {
-      return window.GameData.injuries;
-    }
-  } catch (_) {}
-  return null;
+  const GD = getGameData(null);
+  if (GD && GD.injuries && typeof GD.injuries === "object") {
+    return GD.injuries;
+  }
+  if (typeof window !== "undefined" && window.GameData && window.GameData.injuries && typeof window.GameData.injuries === "object") {
+    return window.GameData.injuries;
+  }
+  throw new Error("InjuryService: GameData.injuries missing or invalid. Ensure data/balance/injuries.json is loaded and GameData.ready has resolved.");
 }
 
 function ensureIndex() {
   const root = getRoot();
-  if (!root || typeof root !== "object") {
-    _rootRef = root;
-    _byId = Object.create(null);
-    _byName = Object.create(null);
-    _hitTables = [];
-    return;
-  }
   if (root === _rootRef && _byId && _byName && _hitTables) return;
   _rootRef = root;
   _byId = Object.create(null);
@@ -271,30 +260,12 @@ function computeModifiersForPlayer(player) {
 }
 
 function getPlayerInjuryModifiers(ctx) {
-  try {
-    const p = ctx && ctx.player ? ctx.player : null;
-    return computeModifiersForPlayer(p);
-  } catch (_) {
-    return {
-      attackMultiplier: 1,
-      fovPenalty: 0,
-      timeTicksPerTurnExtra: 0,
-      headDazeBonus: 0
-    };
-  }
+  const p = ctx && ctx.player ? ctx.player : null;
+  return computeModifiersForPlayer(p);
 }
 
 function getPlayerInjuryModifiersForPlayer(player) {
-  try {
-    return computeModifiersForPlayer(player);
-  } catch (_) {
-    return {
-      attackMultiplier: 1,
-      fovPenalty: 0,
-      timeTicksPerTurnExtra: 0,
-      headDazeBonus: 0
-    };
-  }
+  return computeModifiersForPlayer(player);
 }
 
 export {

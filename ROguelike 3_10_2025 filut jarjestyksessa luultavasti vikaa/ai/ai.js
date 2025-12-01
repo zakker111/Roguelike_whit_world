@@ -506,15 +506,14 @@ export function enemiesAct(ctx) {
             } else {
               let dazeChance = 0.06;
               // Data-driven head daze modifiers from InjuryService (e.g., scars, missing eye)
-              try {
-                const Injury = (ctx && ctx.InjuryService) || (typeof window !== "undefined" ? window.InjuryService : null);
-                if (Injury && typeof Injury.getPlayerInjuryModifiers === "function") {
-                  const mods = Injury.getPlayerInjuryModifiers(ctx) || {};
-                  if (typeof mods.headDazeBonus === "number") {
-                    dazeChance += mods.headDazeBonus;
-                  }
-                }
-              } catch (_) {}
+              const Injury = (ctx && ctx.InjuryService) || (typeof window !== "undefined" ? window.InjuryService : null);
+              if (!Injury || typeof Injury.getPlayerInjuryModifiers !== "function") {
+                throw new Error("InjuryService.getPlayerInjuryModifiers missing; injury system must be configured.");
+              }
+              const mods = Injury.getPlayerInjuryModifiers(ctx) || {};
+              if (typeof mods.headDazeBonus === "number") {
+                dazeChance += mods.headDazeBonus;
+              }
               if (dazeChance > 0.2) dazeChance = 0.2;
               if (rv() < dazeChance) {
                 const dur = 1 + Math.floor(rv() * 2);
@@ -538,81 +537,22 @@ export function enemiesAct(ctx) {
         ctx.decayEquipped(loc.part, wear * critWear);
 
         // Persistent injury tracker (cosmetic role; shown in Character Sheet via F1).
-        // Prefer data-driven InjuryService; fall back to inline logic if unavailable.
-        try {
-          const Injury = (ctx && ctx.InjuryService) || (typeof window !== "undefined" ? window.InjuryService : null);
-          if (Injury && typeof Injury.chooseInjuryForHit === "function" && typeof Injury.addPlayerInjury === "function") {
-            const def = Injury.chooseInjuryForHit(ctx, {
-              location: loc.part,
-              isCrit,
-              source: "enemy_hit_player",
-              rand: rv
-            });
-            if (def) {
-              Injury.addPlayerInjury(ctx, def.id || def.name);
-            }
-          } else {
-            if (!Array.isArray(player.injuries)) player.injuries = [];
-            // Small chances, higher on crit. Limit duplicates.
-            const addInjury = (name, { healable = true, durationTurns = 40 } = {}) => {
-              if (!name) return;
-              // avoid duplicates by name
-              const exists = player.injuries.some(it => (typeof it === "string" ? it === name : it && it.name === name));
-              if (!exists) {
-                player.injuries.push({ name, healable, durationTurns: healable ? Math.max(10, durationTurns | 0) : 0 });
-                // keep list short
-                if (player.injuries.length > 24) player.injuries.splice(0, player.injuries.length - 24);
-                try { ctx.log && ctx.log(`You suffer ${name}.`, "warn"); } catch (_) {}
-              }
-            };
-            const r = rv();
-            if (loc.part === "hands") {
-              // Crit: rare permanent loss, otherwise moderate hand injuries
-              if (isCrit && r < 0.08) {
-                const r2 = rv();
-                if (r2 < 0.8) addInjury("missing finger", { healable: false, durationTurns: 0 });
-                else addInjury("sprained wrist", { healable: true, durationTurns: 70 });
-              } else if (r < 0.20) {
-                const r2 = rv();
-                if (r2 < 0.6) addInjury("bruised knuckles", { healable: true, durationTurns: 30 });
-                else addInjury("scratched hand", { healable: true, durationTurns: 25 });
-              }
-            } else if (loc.part === "legs") {
-              if (isCrit && r < 0.10) {
-                const r2 = rv();
-                if (r2 < 0.7) addInjury("sprained ankle", { healable: true, durationTurns: 80 });
-                else addInjury("twisted knee", { healable: true, durationTurns: 80 });
-              } else if (r < 0.25) {
-                const r2 = rv();
-                if (r2 < 0.5) addInjury("bruised leg", { healable: true, durationTurns: 40 });
-                else if (r2 < 0.75) addInjury("sore knee", { healable: true, durationTurns: 30 });
-                else addInjury("shin bruise", { healable: true, durationTurns: 35 });
-              }
-            } else if (loc.part === "head") {
-              if (isCrit && r < 0.12) {
-                const r2 = rv();
-                if (r2 < 0.6) addInjury("facial scar", { healable: false, durationTurns: 0 });
-                else if (r2 < 0.9) addInjury("brow scar", { healable: false, durationTurns: 0 });
-                else addInjury("missing eye", { healable: false, durationTurns: 0 });
-              } else if (r < 0.20) {
-                const r2 = rv();
-                if (r2 < 0.7) addInjury("black eye", { healable: true, durationTurns: 60 });
-                else addInjury("split lip", { healable: true, durationTurns: 35 });
-              }
-            } else if (loc.part === "torso") {
-              if (isCrit && r < 0.10) {
-                const r2 = rv();
-                if (r2 < 0.7) addInjury("deep scar", { healable: false, durationTurns: 0 });
-                else addInjury("stab scar", { healable: false, durationTurns: 0 });
-              } else if (r < 0.22) {
-                const r2 = rv();
-                if (r2 < 0.5) addInjury("rib bruise", { healable: true, durationTurns: 50 });
-                else if (r2 < 0.75) addInjury("scratched ribs", { healable: true, durationTurns: 30 });
-                else addInjury("cracked rib", { healable: true, durationTurns: 90 });
-              }
-            }
-          }
-        } catch (_) {}
+        // InjuryService is required; missing or misconfigured service is treated as a hard error.
+        const Injury = (ctx && ctx.InjuryService) || (typeof window !== "undefined" ? window.InjuryService : null);
+        if (!Injury ||
+            typeof Injury.chooseInjuryForHit !== "function" ||
+            typeof Injury.addPlayerInjury !== "function") {
+          throw new Error("InjuryService.chooseInjuryForHit/addPlayerInjury missing; injury system must be configured.");
+        }
+        const def = Injury.chooseInjuryForHit(ctx, {
+          location: loc.part,
+          isCrit,
+          source: "enemy_hit_player",
+          rand: rv
+        });
+        if (def) {
+          Injury.addPlayerInjury(ctx, def.id || def.name);
+        }
 
         if (player.hp <= 0) {
           player.hp = 0;
