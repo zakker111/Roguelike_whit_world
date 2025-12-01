@@ -1538,49 +1538,120 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
           };
           const rInj = rnd();
           if (loc.part === "hands") {
-            if (isCrit && rInj < 0.08)
-              addInjury("missing finger", {
-                healable: false,
-                durationTurns: 0,
-              });
-            else if (rInj < 0.2)
-              addInjury("bruised knuckles", {
-                healable: true,
-                durationTurns: 30,
-              });
+            // Crit: rare permanent loss, otherwise moderate hand injuries
+            if (isCrit && rInj < 0.08) {
+              const r2 = rnd();
+              if (r2 < 0.8)
+                addInjury("missing finger", {
+                  healable: false,
+                  durationTurns: 0,
+                });
+              else
+                addInjury("sprained wrist", {
+                  healable: true,
+                  durationTurns: 70,
+                });
+            } else if (rInj < 0.2) {
+              const r2 = rnd();
+              if (r2 < 0.6)
+                addInjury("bruised knuckles", {
+                  healable: true,
+                  durationTurns: 30,
+                });
+              else
+                addInjury("scratched hand", {
+                  healable: true,
+                  durationTurns: 25,
+                });
+            }
           } else if (loc.part === "legs") {
-            if (isCrit && rInj < 0.1)
-              addInjury("sprained ankle", {
-                healable: true,
-                durationTurns: 80,
-              });
-            else if (rInj < 0.25)
-              addInjury("bruised leg", {
-                healable: true,
-                durationTurns: 40,
-              });
+            if (isCrit && rInj < 0.1) {
+              const r2 = rnd();
+              if (r2 < 0.7)
+                addInjury("sprained ankle", {
+                  healable: true,
+                  durationTurns: 80,
+                });
+              else
+                addInjury("twisted knee", {
+                  healable: true,
+                  durationTurns: 80,
+                });
+            } else if (rInj < 0.25) {
+              const r2 = rnd();
+              if (r2 < 0.5)
+                addInjury("bruised leg", {
+                  healable: true,
+                  durationTurns: 40,
+                });
+              else if (r2 < 0.75)
+                addInjury("sore knee", {
+                  healable: true,
+                  durationTurns: 30,
+                });
+              else
+                addInjury("shin bruise", {
+                  healable: true,
+                  durationTurns: 35,
+                });
+            }
           } else if (loc.part === "head") {
-            if (isCrit && rInj < 0.12)
-              addInjury("facial scar", {
-                healable: false,
-                durationTurns: 0,
-              });
-            else if (rInj < 0.2)
-              addInjury("black eye", {
-                healable: true,
-                durationTurns: 60,
-              });
+            if (isCrit && rInj < 0.12) {
+              const r2 = rnd();
+              if (r2 < 0.6)
+                addInjury("facial scar", {
+                  healable: false,
+                  durationTurns: 0,
+                });
+              else
+                addInjury("brow scar", {
+                  healable: false,
+                  durationTurns: 0,
+                });
+            } else if (rInj < 0.2) {
+              const r2 = rnd();
+              if (r2 < 0.7)
+                addInjury("black eye", {
+                  healable: true,
+                  durationTurns: 60,
+                });
+              else
+                addInjury("split lip", {
+                  healable: true,
+                  durationTurns: 35,
+                });
+            }
           } else if (loc.part === "torso") {
-            if (isCrit && rInj < 0.1)
-              addInjury("deep scar", {
-                healable: false,
-                durationTurns: 0,
-              });
-            else if (rInj < 0.22)
-              addInjury("rib bruise", {
-                healable: true,
-                durationTurns: 50,
-              });
+            if (isCrit && rInj < 0.1) {
+              const r2 = rnd();
+              if (r2 < 0.7)
+                addInjury("deep scar", {
+                  healable: false,
+                  durationTurns: 0,
+                });
+              else
+                addInjury("stab scar", {
+                  healable: false,
+                  durationTurns: 0,
+                });
+            } else if (rInj < 0.22) {
+              const r2 = rnd();
+              if (r2 < 0.5)
+                addInjury("rib bruise", {
+                  healable: true,
+                  durationTurns: 50,
+                });
+              else if (r2 < 0.75)
+                addInjury("scratched ribs", {
+                  healable: true,
+                  durationTurns: 30,
+                });
+              else
+                addInjury("cracked rib", {
+                  healable: true,
+                  durationTurns: 90,
+                });
+            }
           }
         }
       } catch (_) {}

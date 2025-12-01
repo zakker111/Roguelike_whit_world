@@ -531,18 +531,48 @@ export function enemiesAct(ctx) {
           };
           const r = rv();
           if (loc.part === "hands") {
-            // Rare missing finger on crit; otherwise bruised knuckles
-            if (isCrit && r < 0.08) addInjury("missing finger", { healable: false, durationTurns: 0 });
-            else if (r < 0.20) addInjury("bruised knuckles", { healable: true, durationTurns: 30 });
+            // Crit: rare permanent loss, otherwise moderate hand injuries
+            if (isCrit && r < 0.08) {
+              const r2 = rv();
+              if (r2 < 0.8) addInjury("missing finger", { healable: false, durationTurns: 0 });
+              else addInjury("sprained wrist", { healable: true, durationTurns: 70 });
+            } else if (r < 0.20) {
+              const r2 = rv();
+              if (r2 < 0.6) addInjury("bruised knuckles", { healable: true, durationTurns: 30 });
+              else addInjury("scratched hand", { healable: true, durationTurns: 25 });
+            }
           } else if (loc.part === "legs") {
-            if (isCrit && r < 0.10) addInjury("sprained ankle", { healable: true, durationTurns: 80 });
-            else if (r < 0.25) addInjury("bruised leg", { healable: true, durationTurns: 40 });
+            if (isCrit && r < 0.10) {
+              const r2 = rv();
+              if (r2 < 0.7) addInjury("sprained ankle", { healable: true, durationTurns: 80 });
+              else addInjury("twisted knee", { healable: true, durationTurns: 80 });
+            } else if (r < 0.25) {
+              const r2 = rv();
+              if (r2 < 0.5) addInjury("bruised leg", { healable: true, durationTurns: 40 });
+              else if (r2 < 0.75) addInjury("sore knee", { healable: true, durationTurns: 30 });
+              else addInjury("shin bruise", { healable: true, durationTurns: 35 });
+            }
           } else if (loc.part === "head") {
-            if (isCrit && r < 0.12) addInjury("facial scar", { healable: false, durationTurns: 0 });
-            else if (r < 0.20) addInjury("black eye", { healable: true, durationTurns: 60 });
+            if (isCrit && r < 0.12) {
+              const r2 = rv();
+              if (r2 < 0.6) addInjury("facial scar", { healable: false, durationTurns: 0 });
+              else addInjury("brow scar", { healable: false, durationTurns: 0 });
+            } else if (r < 0.20) {
+              const r2 = rv();
+              if (r2 < 0.7) addInjury("black eye", { healable: true, durationTurns: 60 });
+              else addInjury("split lip", { healable: true, durationTurns: 35 });
+            }
           } else if (loc.part === "torso") {
-            if (isCrit && r < 0.10) addInjury("deep scar", { healable: false, durationTurns: 0 });
-            else if (r < 0.22) addInjury("rib bruise", { healable: true, durationTurns: 50 });
+            if (isCrit && r < 0.10) {
+              const r2 = rv();
+              if (r2 < 0.7) addInjury("deep scar", { healable: false, durationTurns: 0 });
+              else addInjury("stab scar", { healable: false, durationTurns: 0 });
+            } else if (r < 0.22) {
+              const r2 = rv();
+              if (r2 < 0.5) addInjury("rib bruise", { healable: true, durationTurns: 50 });
+              else if (r2 < 0.75) addInjury("scratched ribs", { healable: true, durationTurns: 30 });
+              else addInjury("cracked rib", { healable: true, durationTurns: 90 });
+            }
           }
         } catch (_) {}
 
