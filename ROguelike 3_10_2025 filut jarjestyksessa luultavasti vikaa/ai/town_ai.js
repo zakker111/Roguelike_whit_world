@@ -2635,32 +2635,8 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
           // If no home data for some reason, stop wandering at evening
           continue;
         } else if (phase === "day") {
-          // During rain, residents strongly prefer shelter (home or inn) over plaza errands.
-          const innB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
-          const prefersShelter = isRaining && ctx.rng() < 0.75;
-          if (prefersShelter && (n._home || innB)) {
-            let shelterTarget = null;
-            if (innB && (n._likesInn || ctx.rng() < 0.4)) {
-              const seat = chooseInnSeat(ctx) || chooseInnTarget(ctx);
-              if (seat) shelterTarget = seat;
-            }
-            if (!shelterTarget && n._home && n._home.building) {
-              const bedSpot = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : null;
-              const homeSeat = bedSpot || chooseHomeSeat(ctx, n._home.building) || { x: n._home.x, y: n._home.y };
-              shelterTarget = homeSeat;
-            }
-            if (shelterTarget) {
-              if (innB && shelterTarget && insideBuilding(innB, shelterTarget.x, shelterTarget.y)) {
-                if (routeIntoBuilding(ctx, occ, n, innB, shelterTarget)) continue;
-              } else if (n._home && n._home.building && shelterTarget) {
-                if (routeIntoBuilding(ctx, occ, n, n._home.building, shelterTarget)) continue;
-              }
-              stepTowards(ctx, occ, n, shelterTarget.x, shelterTarget.y);
-              continue;
-            }
-          }
-
           // Daytime Inn visit behavior: sit for a short while if at a seat
+          const innB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
           if (innB) {
             if (n._innSeatGoal && innB && insideBuilding(innB, n.x, n.y) &&
                 n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
