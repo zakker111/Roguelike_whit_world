@@ -47,6 +47,7 @@ const DATA_FILES = {
   shopRules: "data/shops/shop_rules.json",
   shopRestock: "data/shops/shop_restock.json",
   progression: "data/balance/progression.json",
+  injuries: "data/balance/injuries.json",
   animals: "data/entities/animals.json",
   
   // New: prefab registry for town buildings (houses/shops/inns)
@@ -101,6 +102,7 @@ export const GameData = {
   shopRules: null,
   shopRestock: null,
   progression: null,
+  injuries: null,
 
   // New: materials/crafting and pools
   materials: null,
@@ -241,7 +243,7 @@ GameData.ready = (async function loadAll() {
       materials, craftingRecipes, materialPools, foragingPools,
       town, flavor, encounters, quests, config, palette, palettesManifest, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, animals, prefabs,
-      overworldGen, weatherConfig
+      overworldGen, weatherConfig, injuries
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -271,7 +273,9 @@ GameData.ready = (async function loadAll() {
       fetchJson(DATA_FILES.animals).catch(() => null),
       
       fetchJson(DATA_FILES.prefabs).catch(() => null),
-      fetchJson(DATA_FILES.overworldGen).catch(() => null)
+      fetchJson(DATA_FILES.overworldGen).catch(() => null),
+      fetchJson(DATA_FILES.weatherConfig).catch(() => null),
+      fetchJson(DATA_FILES.injuries).catch(() => null)
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -309,6 +313,7 @@ GameData.ready = (async function loadAll() {
     GameData.shopRules = (shopRules && typeof shopRules === "object") ? shopRules : null;
     GameData.shopRestock = (shopRestock && typeof shopRestock === "object") ? shopRestock : null;
     GameData.progression = (progression && typeof progression === "object") ? progression : null;
+    GameData.injuries = (injuries && typeof injuries === "object") ? injuries : null;
     GameData.animals = Array.isArray(animals) ? animals : null;
     
 
@@ -386,7 +391,7 @@ GameData.ready = (async function loadAll() {
     })();
 
     if (window.DEV) {
-      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, props: !!GameData.props, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression }); } catch (_) {}
+      try { console.debug("[GameData] loaded", { items: !!GameData.items, enemies: !!GameData.enemies, npcs: !!GameData.npcs, consumables: !!GameData.consumables, shops: !!GameData.shops, town: !!GameData.town, tiles: !!GameData.tiles, config: !!GameData.config, palette: !!GameData.palette, messages: !!GameData.messages, props: !!GameData.props, shopPhases: !!GameData.shopPhases, shopPools: !!GameData.shopPools, shopRules: !!GameData.shopRules, shopRestock: !!GameData.shopRestock, progression: !!GameData.progression, injuries: !!GameData.injuries }); } catch (_) {}
     }
 
     // Palette override at boot via URL or localStorage

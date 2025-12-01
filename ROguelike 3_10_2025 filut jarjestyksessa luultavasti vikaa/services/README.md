@@ -12,6 +12,7 @@ Key modules
 - flavor_service.js — flavor strings and narrative snippets.
 - quest_service.js — basic quest board and hooks.
 - stats_service.js — stat-related helpers and shared calculations.
+- injury_service.js — centralized, data-driven player injuries and modifiers (attack penalties, FOV penalties, daze bonus, time-per-turn).
 - weather_service.js — non-gameplay visual weather state machine (clear/cloudy/foggy/light/heavy rain) driven by data/config/weather.json; feeds overlays and HUD weather labels.
 
 Notes

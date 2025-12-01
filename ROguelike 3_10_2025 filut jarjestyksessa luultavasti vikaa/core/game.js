@@ -111,48 +111,25 @@ import {
   // Initialize global time and weather runtime (shared across modes)
   initTimeWeather(CFG);
 
-  // Injury helpers (lightweight, avoid cross-module dependencies)
-  function hasMajorLegInjury() {
-    try {
-      const p = player;
-      const list = p && Array.isArray(p.injuries) ? p.injuries : null;
-      if (!list || !list.length) return false;
-      for (let i = 0; i < list.length; i++) {
-        const it = list[i];
-        const name = typeof it === "string" ? it : (it && it.name) || "";
-        const n = String(name || "").toLowerCase();
-        if (!n) continue;
-        if (n.includes("sprained ankle") || n.includes("twisted knee")) {
-          return true;
-        }
-      }
-    } catch (_) {}
-    return false;
-  }
-
-  function hasMissingEyeInjury() {
-    try {
-      const p = player;
-      const list = p && Array.isArray(p.injuries) ? p.injuries : null;
-      if (!list || !list.length) return false;
-      for (let i = 0; i < list.length; i++) {
-        const it = list[i];
-        const name = typeof it === "string" ? it : (it && it.name) || "";
-        const n = String(name || "").toLowerCase();
-        if (!n) continue;
-        if (n.includes("missing eye") || n.includes("lost eye")) {
-          return true;
-        }
-      }
-    } catch (_) {}
-    return false;
-  }
-
-  // Effective FOV radius factoring in injuries (e.g., missing eye -> -1 FOV),
-  // without mutating the player's base preference (fovRadius).
+  // Injury-based gameplay modifiers are pulled from InjuryService (data-driven).
+  // computeEffectiveFovRadius reads the current player injuries without touching getCtx()
+  // to avoid recursion between ctx construction and this helper.
   function computeEffectiveFovRadius() {
     let penalty = 0;
-    if (hasMissingEyeInjury()) penalty += 1;
+    try {
+      const Injury = (typeof window !== "undefined" ? window.InjuryService : null);
+      if (Injury && typeof Injury.getPlayerInjuryModifiersForPlayer === "function") {
+        const mods = Injury.getPlayerInjuryModifiersForPlayer(player) || {};
+        if (typeof mods.fovPenalty === "number" && mods.fovPenalty > 0) {
+          penalty += mods.fovPenalty;
+        }
+      } else if (Injury && typeof Injury.getPlayerInjuryModifiers === "function") {
+        const mods = Injury.getPlayerInjuryModifiers({ player }) || {};
+        if (typeof mods.fovPenalty === "number" && mods.fovPenalty > 0) {
+          penalty += mods.fovPenalty;
+        }
+      }
+    } catch (_) {}
     const base = fovRadius;
     const target = base - penalty;
     const clamped = Math.max(FOV_MIN, Math.min(FOV_MAX, target));
@@ -1399,12 +1376,17 @@ import {
 
     // Advance global time and visual weather state (non-gameplay)
     tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
-    // Major leg injuries (sprained ankle, twisted knee) make each player turn
-    // cost extra in-world time: apply one additional time/weather tick so a turn
-    // effectively advances ~8 minutes instead of ~4, without adding an extra game turn.
+    // Injury-driven extra time: major leg injuries (sprained ankle, twisted knee)
+    // make each player turn cost extra in-world time. Apply additional time/weather
+    // ticks based on InjuryService modifiers without adding extra game turns.
     try {
-      if (hasMajorLegInjury()) {
-        tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
+      const Injury = modHandle("InjuryService");
+      if (Injury && typeof Injury.getPlayerInjuryModifiers === "function") {
+        const mods = Injury.getPlayerInjuryModifiers(getCtx()) || {};
+        const extra = (mods.timeTicksPerTurnExtra | 0) || 0;
+        for (let i = 0; i < extra; i++) {
+          tickTimeAndWeather((msg, type) => log(msg, type), () => (typeof rng === "function" ? rng() : Math.random()));
+        }
       }
     } catch (_) {}
 

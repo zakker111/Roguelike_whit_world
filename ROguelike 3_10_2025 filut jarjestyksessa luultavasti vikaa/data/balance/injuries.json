@@ -1,0 +1,308 @@
+{
+  "injuries": [
+    {
+      "id": "missing_finger",
+      "name": "missing finger",
+      "location": "hands",
+      "healable": false,
+      "defaultDurationTurns": 0,
+      "tags": ["permanent", "hand", "major"],
+      "effects": {
+        "attackMultiplier": 0.92
+      }
+    },
+    {
+      "id": "sprained_wrist",
+      "name": "sprained wrist",
+      "location": "hands",
+      "healable": true,
+      "defaultDurationTurns": 70,
+      "tags": ["hand", "major"],
+      "effects": {
+        "attackMultiplier": 0.92
+      }
+    },
+    {
+      "id": "bruised_knuckles",
+      "name": "bruised knuckles",
+      "location": "hands",
+      "healable": true,
+      "defaultDurationTurns": 30,
+      "tags": ["hand", "minor"],
+      "effects": {
+        "attackMultiplier": 0.97
+      }
+    },
+    {
+      "id": "scratched_hand",
+      "name": "scratched hand",
+      "location": "hands",
+      "healable": true,
+      "defaultDurationTurns": 25,
+      "tags": ["hand", "minor"],
+      "effects": {
+        "attackMultiplier": 0.97
+      }
+    },
+
+    {
+      "id": "sprained_ankle",
+      "name": "sprained ankle",
+      "location": "legs",
+      "healable": true,
+      "defaultDurationTurns": 80,
+      "tags": ["leg", "major"],
+      "effects": {
+        "timeTicksPerTurnExtra": 1
+      }
+    },
+    {
+      "id": "twisted_knee",
+      "name": "twisted knee",
+      "location": "legs",
+      "healable": true,
+      "defaultDurationTurns": 80,
+      "tags": ["leg", "major"],
+      "effects": {
+        "timeTicksPerTurnExtra": 1
+      }
+    },
+    {
+      "id": "bruised_leg",
+      "name": "bruised leg",
+      "location": "legs",
+      "healable": true,
+      "defaultDurationTurns": 40,
+      "tags": ["leg", "minor"],
+      "effects": {}
+    },
+    {
+      "id": "sore_knee",
+      "name": "sore knee",
+      "location": "legs",
+      "healable": true,
+      "defaultDurationTurns": 30,
+      "tags": ["leg", "minor"],
+      "effects": {}
+    },
+    {
+      "id": "shin_bruise",
+      "name": "shin bruise",
+      "location": "legs",
+      "healable": true,
+      "defaultDurationTurns": 35,
+      "tags": ["leg", "minor"],
+      "effects": {}
+    },
+
+    {
+      "id": "facial_scar",
+      "name": "facial scar",
+      "location": "head",
+      "healable": false,
+      "defaultDurationTurns": 0,
+      "tags": ["permanent", "head"],
+      "effects": {
+        "dazeOnHeadHitBonus": 0.04
+      }
+    },
+    {
+      "id": "brow_scar",
+      "name": "brow scar",
+      "location": "head",
+      "healable": false,
+      "defaultDurationTurns": 0,
+      "tags": ["permanent", "head"],
+      "effects": {
+        "dazeOnHeadHitBonus": 0.04
+      }
+    },
+    {
+      "id": "missing_eye",
+      "name": "missing eye",
+      "location": "head",
+      "healable": false,
+      "defaultDurationTurns": 0,
+      "tags": ["permanent", "head", "eye", "major"],
+      "effects": {
+        "fovPenalty": 1,
+        "dazeOnHeadHitBonus": 0.03
+      }
+    },
+    {
+      "id": "black_eye",
+      "name": "black eye",
+      "location": "head",
+      "healable": true,
+      "defaultDurationTurns": 60,
+      "tags": ["head", "minor"],
+      "effects": {
+        "dazeOnHeadHitBonus": 0.04
+      }
+    },
+    {
+      "id": "split_lip",
+      "name": "split lip",
+      "location": "head",
+      "healable": true,
+      "defaultDurationTurns": 35,
+      "tags": ["head", "minor"],
+      "effects": {
+        "dazeOnHeadHitBonus": 0.04
+      }
+    },
+
+    {
+      "id": "deep_scar",
+      "name": "deep scar",
+      "location": "torso",
+      "healable": false,
+      "defaultDurationTurns": 0,
+      "tags": ["permanent", "torso"],
+      "effects": {}
+    },
+    {
+      "id": "stab_scar",
+      "name": "stab scar",
+      "location": "torso",
+      "healable": false,
+      "defaultDurationTurns": 0,
+      "tags": ["permanent", "torso"],
+      "effects": {}
+    },
+    {
+      "id": "rib_bruise",
+      "name": "rib bruise",
+      "location": "torso",
+      "healable": true,
+      "defaultDurationTurns": 50,
+      "tags": ["torso", "minor"],
+      "effects": {}
+    },
+    {
+      "id": "scratched_ribs",
+      "name": "scratched ribs",
+      "location": "torso",
+      "healable": true,
+      "defaultDurationTurns": 30,
+      "tags": ["torso", "minor"],
+      "effects": {}
+    },
+    {
+      "id": "cracked_rib",
+      "name": "cracked rib",
+      "location": "torso",
+      "healable": true,
+      "defaultDurationTurns": 90,
+      "tags": ["torso", "major"],
+      "effects": {}
+    }
+  ],
+
+  "hitTables": [
+    {
+      "id": "enemy_hit_player_hands_crit",
+      "on": "enemy_hit_player",
+      "location": "hands",
+      "critOnly": true,
+      "baseChance": 0.2,
+      "entries": [
+        { "injuryId": "missing_finger", "weight": 8 },
+        { "injuryId": "sprained_wrist", "weight": 2 },
+        { "injuryId": "bruised_knuckles", "weight": 9 },
+        { "injuryId": "scratched_hand", "weight": 6 }
+      ]
+    },
+    {
+      "id": "enemy_hit_player_hands_noncrit",
+      "on": "enemy_hit_player",
+      "location": "hands",
+      "critOnly": false,
+      "baseChance": 0.2,
+      "entries": [
+        { "injuryId": "bruised_knuckles", "weight": 3 },
+        { "injuryId": "scratched_hand", "weight": 2 }
+      ]
+    },
+
+    {
+      "id": "enemy_hit_player_legs_crit",
+      "on": "enemy_hit_player",
+      "location": "legs",
+      "critOnly": true,
+      "baseChance": 0.25,
+      "entries": [
+        { "injuryId": "sprained_ankle", "weight": 28 },
+        { "injuryId": "twisted_knee", "weight": 12 },
+        { "injuryId": "bruised_leg", "weight": 30 },
+        { "injuryId": "sore_knee", "weight": 15 },
+        { "injuryId": "shin_bruise", "weight": 15 }
+      ]
+    },
+    {
+      "id": "enemy_hit_player_legs_noncrit",
+      "on": "enemy_hit_player",
+      "location": "legs",
+      "critOnly": false,
+      "baseChance": 0.25,
+      "entries": [
+        { "injuryId": "bruised_leg", "weight": 2 },
+        { "injuryId": "sore_knee", "weight": 1 },
+        { "injuryId": "shin_bruise", "weight": 1 }
+      ]
+    },
+
+    {
+      "id": "enemy_hit_player_head_crit",
+      "on": "enemy_hit_player",
+      "location": "head",
+      "critOnly": true,
+      "baseChance": 0.2,
+      "entries": [
+        { "injuryId": "facial_scar", "weight": 18 },
+        { "injuryId": "brow_scar", "weight": 9 },
+        { "injuryId": "missing_eye", "weight": 3 },
+        { "injuryId": "black_eye", "weight": 14 },
+        { "injuryId": "split_lip", "weight": 6 }
+      ]
+    },
+    {
+      "id": "enemy_hit_player_head_noncrit",
+      "on": "enemy_hit_player",
+      "location": "head",
+      "critOnly": false,
+      "baseChance": 0.2,
+      "entries": [
+        { "injuryId": "black_eye", "weight": 7 },
+        { "injuryId": "split_lip", "weight": 3 }
+      ]
+    },
+
+    {
+      "id": "enemy_hit_player_torso_crit",
+      "on": "enemy_hit_player",
+      "location": "torso",
+      "critOnly": true,
+      "baseChance": 0.22,
+      "entries": [
+        { "injuryId": "deep_scar", "weight": 7 },
+        { "injuryId": "stab_scar", "weight": 3 },
+        { "injuryId": "rib_bruise", "weight": 6 },
+        { "injuryId": "scratched_ribs", "weight": 3 },
+        { "injuryId": "cracked_rib", "weight": 3 }
+      ]
+    },
+    {
+      "id": "enemy_hit_player_torso_noncrit",
+      "on": "enemy_hit_player",
+      "location": "torso",
+      "critOnly": false,
+      "baseChance": 0.22,
+      "entries": [
+        { "injuryId": "rib_bruise", "weight": 2 },
+        { "injuryId": "scratched_ribs", "weight": 1 },
+        { "injuryId": "cracked_rib", "weight": 1 }
+      ]
+    }
+  ]
+}
