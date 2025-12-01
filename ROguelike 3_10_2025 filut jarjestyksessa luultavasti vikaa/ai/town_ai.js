@@ -838,7 +838,8 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
 
           if (roleRoll < roleThresholdHome) {
             // Homebody: day errand stays inside/near their own house
-            const homeSpot = firstFreeInteriorSpot(ctx, b) || { x: pos.x, y: pos.y };
+            const homeSpot =
+              firstFreeInteriorSpot(ctx, b) || { x: pos.x, y: pos.y };
             errand = { x: homeSpot.x, y: homeSpot.y };
           } else if (roleRoll < roleThresholdPlaza) {
             // Plaza/shop: bench near plaza or shop door
@@ -886,7 +887,7 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
             hasInn &&
             roleRoll >= roleThresholdPlaza &&
             roleRoll < roleThresholdInn;
-          const likesInn = ctx.rng() < 0.45 || isInnRole;esInn = ctx.rng() < 0.45 || isInnRole;
+          const likesInn = ctx.rng() < 0.45 || isInnRole;
           npcs.push({
             x: pos.x,
             y: pos.y,
@@ -905,20 +906,37 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
             _likesInn: !!likesInn,
           });
           created++;
-        };
-          const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
-          const workToShop = (rng() < 0.5 && shops && shops.length);
-          const workTarget = workToShop ? { x: shops[0].x, y: shops[0].y }
-                                        : (townPlaza ? { x: townPlaza.x, y: townPlaza.y } : null);
+        }
+
+        // Guarantee at least one occupant
+        if (created === 0) {
+          const pos =
+            firstFreeInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
+          const rname =
+            residentNames[Math.floor(rng() * residentNames.length)] ||
+            "Resident";
+          const workToShop = rng() < 0.5 && shops && shops.length;
+          const workTarget = workToShop
+            ? { x: shops[0].x, y: shops[0].y }
+            : townPlaza
+            ? { x: townPlaza.x, y: townPlaza.y }
+            : null;
           npcs.push({
-            x: pos.x, y: pos.y,
+            x: pos.x,
+            y: pos.y,
             name: rname,
             lines: linesHome,
             isResident: true,
-            _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: null },
+            _home: {
+              building: b,
+              x: pos.x,
+              y: pos.y,
+              door: { x: b.door.x, y: b.door.y },
+              bed: null,
+            },
             _work: workTarget,
             _workIsShopDoor: !!workToShop,
-            _likesInn: ctx.rng() < 0.45
+            _likesInn: ctx.rng() < 0.45,
           });
         }
       }
