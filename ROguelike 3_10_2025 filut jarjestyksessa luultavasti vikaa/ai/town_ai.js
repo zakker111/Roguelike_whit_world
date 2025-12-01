@@ -741,6 +741,40 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
       const linesHome = (ND && Array.isArray(ND.residentLines) && ND.residentLines.length) ? ND.residentLines : ["Home sweet home.","A quiet day indoors.","Just tidying up."];
       const residentNames = (ND && Array.isArray(ND.residentNames) && ND.residentNames.length) ? ND.residentNames : ["Resident","Villager"];
 
+      // Config-driven resident daytime role weights so plaza crowding can be tuned from JSON.
+      let wHomebody = 0.30;
+      let wPlazaShop = 0.30;
+      let wInnGoer = 0.20;
+      let wWanderer = 0.20;
+      try {
+        const cfg = GD && GD.config && GD.config.townAI && GD.config.townAI.residentRoles;
+        if (cfg && typeof cfg === "object") {
+          const vH = Number(cfg.homebody);
+          const vP = Number(cfg.plazaShop);
+          const vI = Number(cfg.innGoer);
+          const vW = Number(cfg.wanderer);
+          if (Number.isFinite(vH)) wHomebody = Math.max(0, vH);
+          if (Number.isFinite(vP)) wPlazaShop = Math.max(0, vP);
+          if (Number.isFinite(vI)) wInnGoer = Math.max(0, vI);
+          if (Number.isFinite(vW)) wWanderer = Math.max(0, vW);
+        }
+      } catch (_) {}
+      let wSum = wHomebody + wPlazaShop + wInnGoer + wWanderer;
+      if (!(wSum > 0)) {
+        wHomebody = 0.30;
+        wPlazaShop = 0.30;
+        wInnGoer = 0.20;
+        wWanderer = 0.20;
+        wSum = 1.0;
+      }
+      wHomebody /= wSum;
+      wPlazaShop /= wSum;
+      wInnGoer /= wSum;
+      wWanderer /= wSum;
+      const roleThresholdHome = wHomebody;
+      const roleThresholdPlaza = wHomebody + wPlazaShop;
+      const roleThresholdInn = roleThresholdPlaza + wInnGoer;
+
       const benches = (ctx.townProps || []).filter(p => p.type === "bench");
       const pickBenchNearPlaza = () => {
         if (!benches.length || !townPlaza) return null;
@@ -786,6 +820,44 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
           if (npcs.some(n => n.x === pos.x && n.y === pos.y)) continue;
 
           let errand = null;
+          let errandIsShopDoor = false;
+          const hasInn = !!(ctx.tavern && ctx.tavern.building);
+          const roleRoll = rng();
+
+          if (roleRoll &lt; roleThresholdHome) {
+            // Homebody: day errand stays inside/near their own house
+            const homeSpot = firstFreeInteriorSpot(ctx, b) || { x: pos.x, y: pos.y };
+            errand = { x: homeSpot.x, y: homeSpot.y };
+          } else if (roleRoll &lt; roleThresholdPlaza) {
+            // Plaza/shop: bench near plaza or shop door
+            if (rng() &lt; 0.5) {
+              const pb = pickBenchNearPlaza();
+              if (pb) { errand = { x: pb.x, y: pb.y }; errandIsShopDoor = false; }
+            } else {
+              const sd = pickRandomShopDoor();
+              if (sd) { errand = sd; errandIsShopDoor = true; }
+            }
+          } else if (hasInn && roleRoll &lt; roleThresholdInn) {
+            // Inn-goer: prefer the inn entrance as daytime errand
+            const tavB = ctx.tavern.building;
+            const door = (ctx.tavern.door && typeof ctx.tavern.door.x === "number" && typeof ctx.tavern.door.y === "number")
+              ? ctx.tavern.door
+              : { x: tavB.x + ((tavB.w / 2) | 0), y: tavB.y + ((tavB.h / 2) | 0) };
+            errand = { x: door.x, y: door.y };
+          } else {
+            // Wanderer: pick a random walkable tile somewhere in town (away from plaza center)
+            const wander = pickRandomTownWanderTarget();
+            if (wander) errand = wander;
+          }
+
+          let sleepSpot = null;
+          if (bedList.length) {
+            const bidx = randInt(ctx, 0, bedList.length - 1);
+            sleepSpot = { x: bedList[bidx].x, y: bedList[bidx].y };
+          }
+          const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
+          const isInnRole = hasInn && roleRoll &gt;= roleThresholdPlaza && roleRoll &lt; roleThresholdInn;
+          const likesInn = ctx.rng() &lt; 0.45 || isInnRole;= null;
           let errandIsShopDoor = false;
           const hasInn = !!(ctx.tavern && ctx.tavern.building);
           const roleRoll = rng();
