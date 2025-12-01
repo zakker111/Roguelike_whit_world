@@ -71,9 +71,9 @@ export function spawnItems(ctx, count = 3) {
 }
 
 export function spawnEnemyNearby(ctx, count = 1) {
-  // Enemy spawning is supported in dungeon mode only
-  if (ctx.mode !== "dungeon") {
-    ctx.log("GOD: Enemy spawn works in dungeon mode only.", "warn");
+  // Enemy spawning is supported in dungeon and encounter modes (roguelike maps only)
+  if (ctx.mode !== "dungeon" && ctx.mode !== "encounter") {
+    ctx.log("GOD: Enemy spawn works in dungeon/encounter modes only.", "warn");
     return;
   }
 
