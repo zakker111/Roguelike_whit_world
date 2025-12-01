@@ -142,6 +142,39 @@ export function createInitial() {
     }
   } catch (_) {}
 
+  // Ensure the player starts with a basic staff in inventory (two-handed blunt debug weapon).
+  try {
+    const hasStaff = Array.isArray(p.inventory) &&
+      p.inventory.some(it => it && it.kind === "equip" && /staff/i.test(String(it.name || "")));
+    if (!hasStaff) {
+      let staff = null;
+      if (typeof window !== "undefined" && window.Items && typeof window.Items.createByKey === "function") {
+        staff = window.Items.createByKey("staff", 1);
+      }
+      if (!staff && typeof window !== "undefined" && window.Items && typeof window.Items.createNamed === "function") {
+        staff = window.Items.createNamed({
+          slot: "hand",
+          tier: 1,
+          name: "training staff",
+          atk: 1.3,
+          twoHanded: true
+        });
+      }
+      if (!staff) {
+        staff = {
+          kind: "equip",
+          slot: "hand",
+          name: "training staff",
+          atk: 1.3,
+          tier: 1,
+          twoHanded: true
+        };
+      }
+      try { staff.decay = 99; } catch (_) {}
+      p.inventory.push(staff);
+    }
+  } catch (_) {}
+
   return p;
 }
 

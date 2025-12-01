@@ -96,9 +96,9 @@ export function playerAttackEnemy(ctx, enemy) {
     const left = eq.left || null;
     const right = eq.right || null;
     const twoHanded = !!(left && right && left === right && left.twoHanded) || !!(left && left.twoHanded) || !!(right && right.twoHanded);
-    // crude blunt detection by name; extend when mace/club types are added
+    // crude blunt detection by name; extended to cover staff/torch
     const name = (left && left.name) || (right && right.name) || "";
-    const blunt = /mace|club|hammer|stick/i.test(name);
+    const blunt = /mace|club|hammer|stick|staff|torch/i.test(name);
     return { twoHanded, blunt, oneHand: !twoHanded };
   }
 

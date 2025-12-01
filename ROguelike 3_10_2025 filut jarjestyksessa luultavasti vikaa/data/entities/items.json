@@ -158,6 +158,19 @@
     "name": "club"
   },
   {
+    "id": "staff",
+    "slot": "hand",
+    "twoHanded": true,
+    "tierMin": 1,
+    "weights": { "1": 0.08, "2": 0.06, "3": 0.04 },
+    "atk": {
+      "1": [0.6, 2.0],
+      "2": [1.2, 3.0],
+      "3": [1.8, 3.6]
+    },
+    "name": "wooden staff"
+  },
+  {
     "id": "torch_weapon",
     "slot": "hand",
     "twoHanded": false,
