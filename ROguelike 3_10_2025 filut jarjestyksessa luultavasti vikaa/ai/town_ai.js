@@ -290,14 +290,26 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
 
   // ---- Pathfinding budget/throttling ----
   // Limit the number of A* computations per tick to avoid CPU spikes in dense towns.
+  // The budget scales with NPC count but is clamped so very large towns don't stall turns.
+  const PATH_BUDGET_MIN = 6;
+  const PATH_BUDGET_MAX = 32;
+
   function initPathBudget(ctx, npcCount) {
     const phaseNow = (ctx && ctx.time && ctx.time.phase) ? String(ctx.time.phase) : "day";
-    // Raise baseline during daytime to reduce reliance on greedy fallback
-    const baseFrac = (phaseNow === "day") ? 0.30 : 0.20;
-    const defaultBudget = Math.max(1, Math.floor(npcCount * baseFrac)); // 30% by day, 20% otherwise
-    ctx._townPathBudgetRemaining = (typeof ctx.townPathBudget === "number")
-      ? Math.max(0, ctx.townPathBudget)
-      : defaultBudget;
+    // Baseline fraction of NPCs allowed to request full A* per tick.
+    const baseFrac = (phaseNow === "day") ? 0.26 : 0.18;
+    const approx = Math.max(1, Math.floor(npcCount * baseFrac));
+    const defaultBudget = Math.max(
+      PATH_BUDGET_MIN,
+      Math.min(PATH_BUDGET_MAX, approx)
+    );
+    const configured = (typeof ctx.townPathBudget === "number")
+      ? Math.max(0, ctx.townPathBudget | 0)
+      : null;
+    ctx._townPathBudgetRemaining =
+      (configured != null)
+        ? Math.max(PATH_BUDGET_MIN, Math.min(PATH_BUDGET_MAX, configured))
+        : defaultBudget;
   }
 
   function stepTowards(ctx, occ, n, tx, ty, opts = {}) {
@@ -1605,6 +1617,27 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
                 : (t && t.phase === "dawn") ? "morning"
                 : (t && t.phase === "dusk") ? "evening"
                 : "day";
+
+    // Weather snapshot for this tick (non-gameplay visual by default).
+    // Town AI uses it only as a soft influence on behavior (rain -> more indoor preferences).
+    let weather = null;
+    try {
+      if (ctx.weather) {
+        weather = ctx.weather;
+      } else if (typeof window !== "undefined" &&
+                 window.TimeWeatherFacade &&
+                 typeof window.TimeWeatherFacade.getWeatherSnapshot === "function") {
+        weather = window.TimeWeatherFacade.getWeatherSnapshot(t || null);
+      }
+    } catch (_) {}
+    let isRainy = false;
+    let isHeavyRain = false;
+    if (weather && typeof weather.intensity === "number") {
+      const intensity = Math.max(0, Math.min(1, Number(weather.intensity)));
+      isRainy = intensity >= 0.35;
+      isHeavyRain = intensity >= 0.75;
+    }
+
     // Late night window: 02:00–05:00
     const LATE_START = 2 * 60, LATE_END = 5 * 60;
     const inLateWindow = minutes >= LATE_START && minutes < LATE_END;
@@ -1627,13 +1660,26 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
     }
     assignDebugUpstairsRoamer(ctx, npcs);
 
-    // Evening return window: boost pathfinding budget to smooth mass routing (18:00–21:00)
+    // Evening return window: boost pathfinding budget to smooth mass routing (18:00–21:00),
+    // but keep it within the global min/max clamp to avoid very heavy turns in huge towns.
     try {
       const EVENING_START = 18 * 60, EVENING_END = 21 * 60;
       if (minutes >= EVENING_START && minutes < EVENING_END) {
-        const boosted = Math.max(typeof ctx._townPathBudgetRemaining === "number" ? ctx._townPathBudgetRemaining : 0,
-                                 Math.floor(npcs.length * 0.35));
-        ctx._townPathBudgetRemaining = boosted;
+        const current = (typeof ctx._townPathBudgetRemaining === "number")
+          ? ctx._townPathBudgetRemaining
+          : 0;
+        const desired = Math.floor(npcs.length * 0.35);
+        const boostedRaw = Math.max(current, desired);
+        const maxBudget = (typeof PATH_BUDGET_MAX === "number" && PATH_BUDGET_MAX > 0)
+          ? PATH_BUDGET_MAX
+          : 32;
+        const minBudget = (typeof PATH_BUDGET_MIN === "number" && PATH_BUDGET_MIN > 0)
+          ? PATH_BUDGET_MIN
+          : 1;
+        ctx._townPathBudgetRemaining = Math.max(
+          minBudget,
+          Math.min(maxBudget, boostedRaw)
+        );
       }
     } catch (_) {}
 
@@ -1780,7 +1826,24 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
         // Deterministic offset from initial index to evenly stagger across the stride
         n._strideOffset = idx % n._stride;
       }
-      return (tickMod % n._stride) !== n._strideOffset;
+
+      // Base stride scheduling
+      if ((tickMod % n._stride) !== n._strideOffset) return true;
+
+      // Additional throttling for far-off NPCs: those far from the player act at half the
+      // stride frequency on top of the normal schedule. This keeps distant crowds cheap
+      // while preserving smooth motion near the player.
+      try {
+        if (player && typeof player.x === "number" && typeof player.y === "number") {
+          const d = Math.abs(n.x - player.x) + Math.abs(n.y - player.y);
+          if (d > 24) {
+            // Use tickMod+idx so different NPCs de-phase relative to each other.
+            if (((tickMod + idx) & 1) === 1) return true;
+          }
+        }
+      } catch (_) {}
+
+      return false;
     }
 
     // Staggered home-start window (18:00–21:00)
@@ -2636,9 +2699,14 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
               continue;
             }
           }
-          // Occasionally visit the tavern (Inn) to sit; plus bench/home sitting options
+          // Occasionally visit the tavern (Inn) to sit; plus bench/home sitting options.
+          // Rain makes the inn more attractive compared to standing outside.
           if (innB) {
-            const wantTavern = n._likesInn ? (ctx.rng() < 0.20) : (ctx.rng() < 0.06);
+            let baseChance = n._likesInn ? 0.20 : 0.06;
+            if (isRainy) baseChance *= 1.5;
+            if (isHeavyRain) baseChance *= 1.4;
+            if (baseChance > 0.6) baseChance = 0.6;
+            const wantTavern = ctx.rng() < baseChance;
             if (wantTavern && !n._innSeatGoal && !n._benchSeatGoal && !n._homeSitGoal && (_innSeatersNow < _innSeatCap)) {
               // 50% chance to target upstairs seating when available
               let targeted = false;
@@ -2674,6 +2742,15 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
               if (seatH) {
                 n._homeSitGoal = { x: seatH.x, y: seatH.y };
                 stepTowards(ctx, occ, n, seatH.x, seatH.y);
+                continue;
+              }
+            }
+          }
+          // In heavy rain, some residents prefer to head home instead of lingering outdoors.
+          if (isHeavyRain && n._home && n._home.building && !insideBuilding(n._home.building, n.x, n.y)) {
+            if (ctx.rng() < 0.6) {
+              const homeTarget = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : { x: n._home.x, y: n._home.y };
+              if (routeIntoBuilding(ctx, occ, n, n._home.building, homeTarget)) {
                 continue;
               }
             }
@@ -2782,8 +2859,10 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
       }
       // Night/evening bench sit/sleep chance
       if ((phase === "evening" || phase === "night") && !n._benchSeatGoal) {
-        const wantBenchNight = inLateWindow ? (ctx.rng() < 0.12) : (ctx.rng() < 0.20);
-        if (wantBenchNight) {
+        let baseBenchChance = inLateWindow ? 0.12 : 0.20;
+        if (isRainy) baseBenchChance *= 0.4;
+        if (isHeavyRain) baseBenchChance *= 0.4;
+        if (baseBenchChance > 0 && ctx.rng() < baseBenchChance) {
           const seatB = chooseBenchSeat(ctx);
           if (seatB) {
             n._benchSeatGoal = { x: seatB.x, y: seatB.y };
