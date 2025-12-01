@@ -815,7 +815,19 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
         let created = 0;
         let tries = 0;
         while (created < residentCount && tries++ < 200) {
-          const pos = randomInteriorSpot(ctx, b) || firstFreeInteriorSpot(ctx, b) || { x: Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2))), y: Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2))) };
+          const pos =
+            randomInteriorSpot(ctx, b) ||
+            firstFreeInteriorSpot(ctx, b) ||
+            {
+              x: Math.max(
+                b.x + 1,
+                Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2))
+              ),
+              y: Math.max(
+                b.y + 1,
+                Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2))
+              ),
+            };
           if (!pos) break;
           if (npcs.some(n => n.x === pos.x && n.y === pos.y)) continue;
 
@@ -824,63 +836,37 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
           const hasInn = !!(ctx.tavern && ctx.tavern.building);
           const roleRoll = rng();
 
-          if (roleRoll &lt; roleThresholdHome) {
+          if (roleRoll < roleThresholdHome) {
             // Homebody: day errand stays inside/near their own house
             const homeSpot = firstFreeInteriorSpot(ctx, b) || { x: pos.x, y: pos.y };
             errand = { x: homeSpot.x, y: homeSpot.y };
-          } else if (roleRoll &lt; roleThresholdPlaza) {
+          } else if (roleRoll < roleThresholdPlaza) {
             // Plaza/shop: bench near plaza or shop door
-            if (rng() &lt; 0.5) {
-              const pb = pickBenchNearPlaza();
-              if (pb) { errand = { x: pb.x, y: pb.y }; errandIsShopDoor = false; }
-            } else {
-              const sd = pickRandomShopDoor();
-              if (sd) { errand = sd; errandIsShopDoor = true; }
-            }
-          } else if (hasInn && roleRoll &lt; roleThresholdInn) {
-            // Inn-goer: prefer the inn entrance as daytime errand
-            const tavB = ctx.tavern.building;
-            const door = (ctx.tavern.door && typeof ctx.tavern.door.x === "number" && typeof ctx.tavern.door.y === "number")
-              ? ctx.tavern.door
-              : { x: tavB.x + ((tavB.w / 2) | 0), y: tavB.y + ((tavB.h / 2) | 0) };
-            errand = { x: door.x, y: door.y };
-          } else {
-            // Wanderer: pick a random walkable tile somewhere in town (away from plaza center)
-            const wander = pickRandomTownWanderTarget();
-            if (wander) errand = wander;
-          }
-
-          let sleepSpot = null;
-          if (bedList.length) {
-            const bidx = randInt(ctx, 0, bedList.length - 1);
-            sleepSpot = { x: bedList[bidx].x, y: bedList[bidx].y };
-          }
-          const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
-          const isInnRole = hasInn && roleRoll &gt;= roleThresholdPlaza && roleRoll &lt; roleThresholdInn;
-          const likesInn = ctx.rng() &lt; 0.45 || isInnRole;= null;
-          let errandIsShopDoor = false;
-          const hasInn = !!(ctx.tavern && ctx.tavern.building);
-          const roleRoll = rng();
-
-          if (roleRoll < 0.30) {
-            // Homebody: day errand stays inside/near their own house
-            const homeSpot = firstFreeInteriorSpot(ctx, b) || { x: pos.x, y: pos.y };
-            errand = { x: homeSpot.x, y: homeSpot.y };
-          } else if (roleRoll < 0.60) {
-            // Old behavior: bench near plaza or shop door
             if (rng() < 0.5) {
               const pb = pickBenchNearPlaza();
-              if (pb) { errand = { x: pb.x, y: pb.y }; errandIsShopDoor = false; }
+              if (pb) {
+                errand = { x: pb.x, y: pb.y };
+                errandIsShopDoor = false;
+              }
             } else {
               const sd = pickRandomShopDoor();
-              if (sd) { errand = sd; errandIsShopDoor = true; }
+              if (sd) {
+                errand = sd;
+                errandIsShopDoor = true;
+              }
             }
-          } else if (hasInn && roleRoll < 0.80) {
+          } else if (hasInn && roleRoll < roleThresholdInn) {
             // Inn-goer: prefer the inn entrance as daytime errand
             const tavB = ctx.tavern.building;
-            const door = (ctx.tavern.door && typeof ctx.tavern.door.x === "number" && typeof ctx.tavern.door.y === "number")
-              ? ctx.tavern.door
-              : { x: tavB.x + ((tavB.w / 2) | 0), y: tavB.y + ((tavB.h / 2) | 0) };
+            const door =
+              ctx.tavern.door &&
+              typeof ctx.tavern.door.x === "number" &&
+              typeof ctx.tavern.door.y === "number"
+                ? ctx.tavern.door
+                : {
+                    x: tavB.x + ((tavB.w / 2) | 0),
+                    y: tavB.y + ((tavB.h / 2) | 0),
+                  };
             errand = { x: door.x, y: door.y };
           } else {
             // Wanderer: pick a random walkable tile somewhere in town (away from plaza center)
@@ -893,23 +879,33 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
             const bidx = randInt(ctx, 0, bedList.length - 1);
             sleepSpot = { x: bedList[bidx].x, y: bedList[bidx].y };
           }
-          const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
-          const likesInn = ctx.rng() < 0.45 || (hasInn && roleRoll >= 0.60 && roleRoll < 0.80);
+          const rname =
+            residentNames[Math.floor(rng() * residentNames.length)] ||
+            "Resident";
+          const isInnRole =
+            hasInn &&
+            roleRoll >= roleThresholdPlaza &&
+            roleRoll < roleThresholdInn;
+          const likesInn = ctx.rng() < 0.45 || isInnRole;esInn = ctx.rng() < 0.45 || isInnRole;
           npcs.push({
-            x: pos.x, y: pos.y,
+            x: pos.x,
+            y: pos.y,
             name: rng() < 0.2 ? `Child` : rname,
             lines: linesHome,
             isResident: true,
-            _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: sleepSpot },
+            _home: {
+              building: b,
+              x: pos.x,
+              y: pos.y,
+              door: { x: b.door.x, y: b.door.y },
+              bed: sleepSpot,
+            },
             _work: errand,
             _workIsShopDoor: !!errandIsShopDoor,
-            _likesInn: !!likesInn
+            _likesInn: !!likesInn,
           });
           created++;
-        }
-        // Guarantee at least one occupant
-        if (created === 0) {
-          const pos = firstFreeInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
+        };
           const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
           const workToShop = (rng() < 0.5 && shops && shops.length);
           const workTarget = workToShop ? { x: shops[0].x, y: shops[0].y }
