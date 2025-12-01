@@ -73,7 +73,7 @@ export function normalize(p) {
   if (!Array.isArray(p.injuries)) p.injuries = [];
   // Normalize injuries into objects: { name, healable, durationTurns }
   try {
-    p.injuries = p.injuries.map((inj) =&gt; {
+    p.injuries = p.injuries.map((inj) => {
       if (!inj) return null;
       if (typeof inj === "string") {
         // Assume healable bruises by default when provided as strings
