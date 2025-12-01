@@ -1608,6 +1608,22 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
     const LATE_START = 2 * 60, LATE_END = 5 * 60;
     const inLateWindow = minutes >= LATE_START && minutes < LATE_END;
 
+    // Weather-aware behavior: detect rain so townsfolk can seek shelter (home or inn) when it starts raining.
+    let weatherType = null;
+    let isRaining = false;
+    try {
+      const TWF = (typeof window !== "undefined" ? window.TimeWeatherFacade : null);
+      if (TWF && typeof TWF.getWeatherSnapshot === "function") {
+        const snap = TWF.getWeatherSnapshot(t || null);
+        if (snap && typeof snap.type === "string") {
+          weatherType = snap.type;
+          if (weatherType === "light_rain" || weatherType === "heavy_rain") {
+            isRaining = true;
+          }
+        }
+      }
+    } catch (_) {}
+
     // Debug helper: ensure at least one generic roamer is forced to sleep upstairs at the Inn
     function assignDebugUpstairsRoamer(ctx, npcs) {
       try {
@@ -2619,25 +2635,50 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
           // If no home data for some reason, stop wandering at evening
           continue;
         } else if (phase === "day") {
-          // Daytime Inn visit behavior: sit for a short while if at a seat
+          // During rain, residents strongly prefer shelter (home or inn) over plaza errands.
           const innB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+          const prefersShelter = isRaining && ctx.rng() < 0.75;
+          if (prefersShelter && (n._home || innB)) {
+            let shelterTarget = null;
+            if (innB && (n._likesInn || ctx.rng() < 0.4)) {
+              const seat = chooseInnSeat(ctx) || chooseInnTarget(ctx);
+              if (seat) shelterTarget = seat;
+            }
+            if (!shelterTarget && n._home && n._home.building) {
+              const bedSpot = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : null;
+              const homeSeat = bedSpot || chooseHomeSeat(ctx, n._home.building) || { x: n._home.x, y: n._home.y };
+              shelterTarget = homeSeat;
+            }
+            if (shelterTarget) {
+              if (innB && shelterTarget && insideBuilding(innB, shelterTarget.x, shelterTarget.y)) {
+                if (routeIntoBuilding(ctx, occ, n, innB, shelterTarget)) continue;
+              } else if (n._home && n._home.building && shelterTarget) {
+                if (routeIntoBuilding(ctx, occ, n, n._home.building, shelterTarget)) continue;
+              }
+              stepTowards(ctx, occ, n, shelterTarget.x, shelterTarget.y);
+              continue;
+            }
+          }
+
+          // Daytime Inn visit behavior: sit for a short while if at a seat
           if (innB) {
-            if (n._innSeatGoal && insideBuilding(innB, n.x, n.y) &&
+            if (n._innSeatGoal && innB && insideBuilding(innB, n.x, n.y) &&
                 n.x === n._innSeatGoal.x && n.y === n._innSeatGoal.y) {
-              // Arrived at seat: sit for a few turns
               n._innStayTurns = randInt(ctx, 10, 20);
               n._innSeatGoal = null;
             }
             if (n._innStayTurns && n._innStayTurns > 0) {
               n._innStayTurns--;
-              // Occasionally fidget while seated
               if (ctx.rng() < 0.08) stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
               continue;
             }
           }
           // Occasionally visit the tavern (Inn) to sit; plus bench/home sitting options
           if (innB) {
-            const wantTavern = n._likesInn ? (ctx.rng() < 0.20) : (ctx.rng() < 0.06);
+            // Slightly increase tavern visits during rain for residents who like the inn
+            const baseChance = n._likesInn ? 0.20 : 0.06;
+            const extraRain = isRaining ? (n._likesInn ? 0.20 : 0.06) : 0;
+            const wantTavern = ctx.rng() < (baseChance + extraRain);
             if (wantTavern && !n._innSeatGoal && !n._benchSeatGoal && !n._homeSitGoal && (_innSeatersNow < _innSeatCap)) {
               // 50% chance to target upstairs seating when available
               let targeted = false;
@@ -2667,7 +2708,9 @@ import { getGameData, getRNGUtils, getMod } from "../utils/access.js";
             continue;
           }
           if (n._home && n._home.building && !n._homeSitGoal && !n._tavernSeatGoal && !n._benchSeatGoal) {
-            const wantHomeSit = ctx.rng() < 0.15;
+            const baseHomeSit = 0.15;
+            const extraHomeRain = isRaining ? 0.20 : 0;
+            const wantHomeSit = ctx.rng() < (baseHomeSit + extraHomeRain);
             if (wantHomeSit) {
               const seatH = chooseHomeSeat(ctx, n._home.building);
               if (seatH) {
