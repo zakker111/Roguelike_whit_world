@@ -743,7 +743,7 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
 
       const benches = (ctx.townProps || []).filter(p => p.type === "bench");
       const pickBenchNearPlaza = () => {
-        if (!benches.length) return null;
+        if (!benches.length || !townPlaza) return null;
         const candidates = benches.slice().sort((a, b) =>
           manhattan(a.x, a.y, townPlaza.x, townPlaza.y) - manhattan(b.x, b.y, townPlaza.x, townPlaza.y));
         const b = candidates[0] || null;
@@ -758,6 +758,19 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
         const adj = nearestFreeAdjacent(ctx, s.x, s.y, null);
         return adj ? { x: adj.x, y: adj.y } : { x: s.x, y: s.y };
       };
+      function pickRandomTownWanderTarget() {
+        const rows = ctx.map.length;
+        const cols = rows ? (ctx.map[0] ? ctx.map[0].length : 0) : 0;
+        if (!rows || !cols) return null;
+        for (let t = 0; t < 80; t++) {
+          const x = randInt(ctx, 2, cols - 3);
+          const y = randInt(ctx, 2, rows - 3);
+          if (!isFreeTownFloor(ctx, x, y)) continue;
+          if (townPlaza && manhattan(x, y, townPlaza.x, townPlaza.y) <= 4) continue;
+          return { x, y };
+        }
+        return null;
+      }
 
       // Ensure every building (except guard barracks) has occupants (at least one), scaled by area
       for (const b of buildingsForResidents) {
@@ -771,21 +784,45 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
           const pos = randomInteriorSpot(ctx, b) || firstFreeInteriorSpot(ctx, b) || { x: Math.max(b.x + 1, Math.min(b.x + b.w - 2, Math.floor(b.x + b.w / 2))), y: Math.max(b.y + 1, Math.min(b.y + b.h - 2, Math.floor(b.y + b.h / 2))) };
           if (!pos) break;
           if (npcs.some(n => n.x === pos.x && n.y === pos.y)) continue;
+
           let errand = null;
           let errandIsShopDoor = false;
-          if (rng() < 0.5) {
-            const pb = pickBenchNearPlaza();
-            if (pb) { errand = { x: pb.x, y: pb.y }; errandIsShopDoor = false; }
+          const hasInn = !!(ctx.tavern && ctx.tavern.building);
+          const roleRoll = rng();
+
+          if (roleRoll < 0.30) {
+            // Homebody: day errand stays inside/near their own house
+            const homeSpot = firstFreeInteriorSpot(ctx, b) || { x: pos.x, y: pos.y };
+            errand = { x: homeSpot.x, y: homeSpot.y };
+          } else if (roleRoll < 0.60) {
+            // Old behavior: bench near plaza or shop door
+            if (rng() < 0.5) {
+              const pb = pickBenchNearPlaza();
+              if (pb) { errand = { x: pb.x, y: pb.y }; errandIsShopDoor = false; }
+            } else {
+              const sd = pickRandomShopDoor();
+              if (sd) { errand = sd; errandIsShopDoor = true; }
+            }
+          } else if (hasInn && roleRoll < 0.80) {
+            // Inn-goer: prefer the inn entrance as daytime errand
+            const tavB = ctx.tavern.building;
+            const door = (ctx.tavern.door && typeof ctx.tavern.door.x === "number" && typeof ctx.tavern.door.y === "number")
+              ? ctx.tavern.door
+              : { x: tavB.x + ((tavB.w / 2) | 0), y: tavB.y + ((tavB.h / 2) | 0) };
+            errand = { x: door.x, y: door.y };
           } else {
-            const sd = pickRandomShopDoor();
-            if (sd) { errand = sd; errandIsShopDoor = true; }
+            // Wanderer: pick a random walkable tile somewhere in town (away from plaza center)
+            const wander = pickRandomTownWanderTarget();
+            if (wander) errand = wander;
           }
+
           let sleepSpot = null;
           if (bedList.length) {
             const bidx = randInt(ctx, 0, bedList.length - 1);
             sleepSpot = { x: bedList[bidx].x, y: bedList[bidx].y };
           }
           const rname = residentNames[Math.floor(rng() * residentNames.length)] || "Resident";
+          const likesInn = ctx.rng() < 0.45 || (hasInn && roleRoll >= 0.60 && roleRoll < 0.80);
           npcs.push({
             x: pos.x, y: pos.y,
             name: rng() < 0.2 ? `Child` : rname,
@@ -794,7 +831,7 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
             _home: { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y }, bed: sleepSpot },
             _work: errand,
             _workIsShopDoor: !!errandIsShopDoor,
-            _likesInn: ctx.rng() < 0.45
+            _likesInn: !!likesInn
           });
           created++;
         }
