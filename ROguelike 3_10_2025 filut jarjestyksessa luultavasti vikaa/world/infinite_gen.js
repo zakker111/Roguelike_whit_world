@@ -262,31 +262,30 @@ function create(seed, opts = {}) {
       // Skip dungeon anchors that are fully buried in mountains with no nearby open ground.
       if (!hasExit) return null;
 
+      // Do not place dungeon entrances directly on mountain tiles; keep them at the edges.
+      if (tHere === TILES.MOUNTAIN) return null;
+
       const rDung = hash2(s ^ 0x2222, cellDungX, cellDungY);
 
-      // Prefer dungeon entrances on or near mountain edges to support mountain-pass dungeons.
+      // Prefer dungeon entrances near mountain edges (but not on them) to support mountain-pass dungeons.
       let chance = cfg.dungeonChance;
       let nearMountain = false;
 
-      if (tHere === TILES.MOUNTAIN) {
-        nearMountain = true;
-      } else {
-        // Check immediate neighbours for mountains (edge of a ridge)
-        for (let dy = -1; dy <= 1 && !nearMountain; dy++) {
-          for (let dx = -1; dx <= 1 && !nearMountain; dx++) {
-            if (!dx && !dy) continue;
-            const nt = classify(x + dx, y + dy);
-            if (nt === TILES.MOUNTAIN) nearMountain = true;
-          }
+      // Check immediate neighbours for mountains (edge of a ridge)
+      for (let dy = -1; dy <= 1 && !nearMountain; dy++) {
+        for (let dx = -1; dx <= 1 && !nearMountain; dx++) {
+          if (!dx && !dy) continue;
+          const nt = classify(x + dx, y + dy);
+          if (nt === TILES.MOUNTAIN) nearMountain = true;
         }
       }
 
       if (nearMountain) {
-        // Strongly bias toward mountains/edges; clamp to avoid 100% certainty
-        chance = Math.min(0.95, chance * 1.9);
+        // Strongly bias toward mountain-edge dungeons; make them much more likely to appear.
+        chance = Math.min(0.98, chance * 2.5);
       } else {
-        // Slightly reduce non-mountain dungeon density to keep total numbers reasonable
-        chance = chance * 0.7;
+        // Reduce non-mountain dungeon density slightly so passes become a larger share of all dungeons.
+        chance = chance * 0.5;
       }
 
       if (rDung < chance) return TILES.DUNGEON;
