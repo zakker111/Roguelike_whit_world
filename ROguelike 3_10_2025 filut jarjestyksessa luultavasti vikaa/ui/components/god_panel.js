@@ -745,10 +745,20 @@ export function init(UI) {
       }
     });
   }
-  const seedReroll = byId("god-reroll-seed-btn");
+  const seedReroll = byId(&quot;god-reroll-seed-btn&quot;);
   if (seedReroll) {
-    seedReroll.addEventListener("click", () => {
-      if (typeof UI.handlers.onGodRerollSeed === "function") UI.handlers.onGodRerollSeed();
+    seedReroll.addEventListener(&quot;click&quot;, () =&gt; {
+      // Treat Reroll as a full new run when possible: reuse the core restartGame()
+      // path via onRestart so player + world are both reset with a fresh seed.
+      if (typeof UI.handlers.onRestart === &quot;function&quot;) {
+        try { hide(); } catch (_) {}
+        UI.handlers.onRestart();
+        return;
+      }
+      // Fallback: legacy behavior that only rerolls RNG/map without resetting player.
+      if (typeof UI.handlers.onGodRerollSeed === &quot;function&quot;) {
+        UI.handlers.onGodRerollSeed();
+      }
     });
   }
   try { UI.updateSeedUI(); } catch (_) {}
