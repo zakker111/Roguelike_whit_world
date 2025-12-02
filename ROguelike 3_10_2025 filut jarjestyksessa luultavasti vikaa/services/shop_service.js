@@ -179,6 +179,36 @@ function _materializeItem(ctx, entry) {
   if (kind === "antidote") {
     return { kind: "antidote", name: "antidote" };
   }
+  if (kind === "named_equip") {
+    // Deterministic named equipment (e.g., Seppo's Blade of Love) configured directly in shop_pools.
+    try {
+      const ItemsMod = (ctx && ctx.Items) || (typeof window !== "undefined" ? window.Items : null);
+      const cfg = {
+        slot: entry.slot || "hand",
+        tier: entry.tier || 1,
+        name: entry.name || entry.id || "weapon",
+      };
+      if (typeof entry.atk === "number") cfg.atk = entry.atk;
+      if (typeof entry.def === "number") cfg.def = entry.def;
+      if (entry.twoHanded) cfg.twoHanded = true;
+      let it = null;
+      if (ItemsMod && typeof ItemsMod.createNamed === "function") {
+        it = ItemsMod.createNamed(cfg, _rng(ctx));
+      }
+      if (!it) {
+        it = {
+          kind: "equip",
+          slot: cfg.slot,
+          name: cfg.name,
+          tier: cfg.tier || 1,
+        };
+        if (typeof cfg.atk === "number") it.atk = cfg.atk;
+        if (typeof cfg.def === "number") it.def = cfg.def;
+        if (cfg.twoHanded) it.twoHanded = true;
+      }
+      return it;
+    } catch (_) {}
+  }
   if (kind === "weapon" || kind === "low_tier_equip" || kind === "shield" || kind === "armor") {
     // Prefer Items registry if available
     try {

@@ -199,6 +199,11 @@
           { "id": "curio_odd_stone", "kind": "curio",
             "phaseWeights": { "dusk": 2 },
             "maxPerRestock": 1
+          },
+          { "id": "seppo_blade_love", "kind": "named_equip", "slot": "hand", "tier": 2, "atk": 5.0,
+            "name": "Seppo's Blade of Love",
+            "phaseWeights": { "dusk": 1 },
+            "maxPerRestock": 1
           }
         ]
       }
