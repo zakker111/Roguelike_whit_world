@@ -120,6 +120,8 @@ function applyJsonEnemies(json) {
       xp(depth)  { return linearAt(this._xp, depth, 5); },
       weight(depth) { return weightFor(this, depth); },
       equipChance: typeof row.equipChance === "number" ? row.equipChance : 0.35,
+      // Optional per-enemy damage scaling for melee attacks (used by AI/town combat)
+      damageScale: (typeof row.damageScale === "number" ? row.damageScale : 1.0),
       // Optional embedded loot pools (weapons/armor/potions)
       lootPools: (row.lootPools && typeof row.lootPools === "object") ? row.lootPools : null,
       // Optional faction (AI hostility); default handled elsewhere
@@ -247,6 +249,7 @@ export function createEnemyAt(x, y, depth, rng) {
     return null;
   }
   const level = levelFor(type, depth, rng);
+  const dmgScale = (typeof t.damageScale === "number" ? t.damageScale : 1.0);
   return {
     x, y,
     type,
@@ -256,6 +259,7 @@ export function createEnemyAt(x, y, depth, rng) {
     xp: t.xp(depth),
     level,
     announced: false,
+    damageScale: dmgScale,
   };
 }
 
