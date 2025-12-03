@@ -71,6 +71,14 @@ export function enemyDamageAfterDefense(ctx, raw) {
 }
 
 export function enemyDamageMultiplier(level) {
+  try {
+    const CR = getMod(null, "CombatRules");
+    if (CR && typeof CR.enemyDamageMultiplier === "function") {
+      return CR.enemyDamageMultiplier(level);
+    }
+  } catch (_) {
+    // fall through to default curve
+  }
   return 1 + 0.15 * Math.max(0, (level || 1) - 1);
 }
 
