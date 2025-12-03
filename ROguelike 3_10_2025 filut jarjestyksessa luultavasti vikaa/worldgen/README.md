@@ -17,13 +17,12 @@ Return shape:
 Both return an object:
   { ok: boolean, rect: { x, y, w, h }, shop?: { type, name, door: { x, y }, scheduleOverride?, signWanted? } }
 
-Notes
+Notes:
 - ok indicates placement success. Callers should check res && res.ok.
 - rect is the placed building rectangle for bookkeeping (e.g., dedup, windows, props).
 - shop is present only when the prefab declares a shop; it includes door position and optional schedule/sign metadata.
 - Older code paths used boolean returns; if you migrate any callers, do not assume boolean — inspect res.ok and properties instead.
 - Prefabs are authored in data/worldgen/prefabs.json (houses/shops/inns/plazas, including Guard Barracks) and loaded into GameData.prefabs; worldgen/prefabs.js only stamps them into ctx.map.
-- Towns whose overworld tile is adjacent to water/river/beach become “shoreline” towns: outer walls are skipped on those sides so water acts as a natural boundary, while landward sides still use walls and a gate.
 
 How to add a new town prefab (by hand)
 1) Define the prefab in data/worldgen/prefabs.json:
