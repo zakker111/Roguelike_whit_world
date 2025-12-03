@@ -91,19 +91,18 @@ export function install(getCtx) {
     // Encounter debug helpers
     onGodStartEncounterNow: (encId) => {
       try {
-        const id = String(encId || "").toLowerCase();
         const c = getCtx();
+        const rawId = String(encId || "");
+        const id = rawId.toLowerCase();
+
         const GD = (typeof window !== "undefined" ? window.GameData : null);
         const reg = GD && GD.encounters && Array.isArray(GD.encounters.templates) ? GD.encounters.templates : [];
-        const t = reg.find(t => String(t.id || "").toLowerCase() === id) || null;
-        if (!t) {
-          if (id) c.log(`GOD: Encounter '${id}' not found.`, "warn");
-          return;
-        }
+
         if (c.mode !== "world") {
           c.log("GOD: Start Now works in overworld only.", "warn");
           return;
         }
+
         const tile = c.world && c.world.map ? c.world.map[c.player.y][c.player.x] : null;
         const biome = (function () {
           try {
@@ -111,21 +110,83 @@ export function install(getCtx) {
             return (W && typeof W.biomeName === "function") ? (W.biomeName(tile) || "").toUpperCase() : "";
           } catch (_) { return ""; }
         })();
-        const diff = 1;
+
+        let tmpl = null;
+
+        if (id) {
+          // Explicit template chosen from dropdown
+          tmpl = reg.find(t => String(t.id || "").toLowerCase() === id) || null;
+          if (!tmpl) {
+            c.log(`GOD: Encounter '${id}' not found.`, "warn");
+            return;
+          }
+        } else {
+          // Auto-pick a template for the current biome using simple weighted selection
+          const candidates = reg.filter(t => {
+            const allowed = Array.isArray(t.allowedBiomes) ? t.allowedBiomes : null;
+            if (!allowed || !allowed.length) return true;
+            return allowed.includes(biome);
+          });
+          if (!candidates.length) {
+            c.log("GOD: No encounter templates available for this biome.", "warn");
+            return;
+          }
+          let sum = 0;
+          for (const t of candidates) {
+            const w = (typeof t.baseWeight === "number" ? t.baseWeight : 1);
+            sum += (w > 0 ? w : 0);
+          }
+          let r = (typeof c.rng === "function") ? c.rng() : Math.random();
+          r *= sum || 1;
+          for (const t of candidates) {
+            const w = (typeof t.baseWeight === "number" ? t.baseWeight : 1);
+            const ww = (w > 0 ? w : 0);
+            if (r < ww) { tmpl = t; break; }
+            r -= ww;
+          }
+          if (!tmpl) tmpl = candidates[0];
+        }
+
+        // Difficulty: reuse EncounterService.computeDifficulty when available, else default 1
+        let diff = 1;
+        try {
+          const ES = mod("EncounterService");
+          if (ES && typeof ES.computeDifficulty === "function") {
+            diff = ES.computeDifficulty(c, biome) || 1;
+          }
+        } catch (_) {}
+
         const ok = (typeof window !== "undefined" && window.GameAPI && typeof window.GameAPI.enterEncounter === "function")
-          ? window.GameAPI.enterEncounter(t, biome, diff)
+          ? window.GameAPI.enterEncounter(tmpl, biome, diff)
           : false;
+
         if (!ok) {
           const ER = mod("EncounterRuntime");
           if (ER && typeof ER.enter === "function") {
             const ctxMod = getCtx();
-            if (ER.enter(ctxMod, { template: t, biome, difficulty: diff })) {
+            if (ER.enter(ctxMod, { template: tmpl, biome, difficulty: diff })) {
               // Push state and refresh
               if (typeof ctxMod.requestDraw === "function") ctxMod.requestDraw();
+            } else {
+              c.log("GOD: Encounter start failed (EncounterRuntime.enter returned false).", "warn");
             }
+          } else {
+            c.log("GOD: EncounterRuntime.enter not available; cannot start encounter.", "warn");
           }
+        } else {
+          // Log success once when using GameAPI
+          try {
+            const name = tmpl.name || tmpl.id || "Encounter";
+            c.log(`GOD: Started encounter '${name}'.`, "notice");
+          } catch (_) {}
         }
-      } catch (_) {}
+      } catch (e) {
+        try {
+          const c = getCtx();
+          c.log("GOD: Start encounter handler threw; see console.", "warn");
+        } catch (_) {}
+        try { console.error(e); } catch (_) {}
+      }
     },
     onGodArmEncounterNextMove: (encId) => {
       try {
