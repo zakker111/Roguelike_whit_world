@@ -532,6 +532,83 @@ function generate(ctx) {
   ctx.townKind = townKind;
   if (townKind === "castle" && townSize !== "city") townSize = "city";
 
+  // Derive which sides of the town face water/shore in the overworld.
+  // Shoreline towns will skip outer walls on those edges so water acts as a natural boundary.
+  (function deriveTownShoreSides() {
+    try {
+      const WMOD = ctx.World || getMod(ctx, "World");
+      const WT = WMOD && WMOD.TILES ? WMOD.TILES : null;
+      const world = ctx.world || {};
+      const defaultSides = { north: false, south: false, east: false, west: false };
+      if (!WT) { ctx.townShoreSides = defaultSides; return; }
+
+      // Helper: get world tile by absolute coords; prefer current window, fall back to generator.
+      function worldTileAtAbs(ax, ay) {
+        const wmap = world.map || null;
+        const ox = world.originX | 0, oy = world.originY | 0;
+        const lx = (ax - ox) | 0, ly = (ay - oy) | 0;
+        if (Array.isArray(wmap) && ly >= 0 && lx >= 0 && ly < wmap.length && lx < (wmap[0] ? wmap[0].length : 0)) {
+          return wmap[ly][lx];
+        }
+        if (world.gen && typeof world.gen.tileAt === "function") return world.gen.tileAt(ax, ay);
+        return null;
+      }
+
+      // Absolute world coords for this town (same convention as deriveTownBiome).
+      const wx = (ctx.worldReturnPos && typeof ctx.worldReturnPos.x === "number")
+        ? (ctx.worldReturnPos.x | 0)
+        : ((world.originX | 0) + (ctx.player.x | 0));
+      const wy = (ctx.worldReturnPos && typeof ctx.worldReturnPos.y === "number")
+        ? (ctx.worldReturnPos.y | 0)
+        : ((world.originY | 0) + (ctx.player.y | 0));
+
+      const isWaterish = (tile) => tile === WT.WATER || tile === WT.RIVER || tile === WT.BEACH;
+      const sides = { north: false, south: false, east: false, west: false };
+      const radius = 4;
+      const depth = 3;
+
+      function sampleStrip(dx0, dy0, varyX, varyY) {
+        let water = 0, total = 0;
+        for (let offset = -radius; offset <= radius; offset++) {
+          for (let k = 1; k <= depth; k++) {
+            const ax = wx + dx0 * k + (varyX ? offset : 0);
+            const ay = wy + dy0 * k + (varyY ? offset : 0);
+            const t = worldTileAtAbs(ax, ay);
+            if (t == null) continue;
+            total++;
+            if (isWaterish(t)) water++;
+          }
+        }
+        return { water, total };
+      }
+
+      // North (negative y from town)
+      (function () {
+        const { water, total } = sampleStrip(0, -1, true, false);
+        if (total > 0 && water >= Math.max(3, total * 0.3)) sides.north = true;
+      })();
+      // South
+      (function () {
+        const { water, total } = sampleStrip(0, 1, true, false);
+        if (total > 0 && water >= Math.max(3, total * 0.3)) sides.south = true;
+      })();
+      // West
+      (function () {
+        const { water, total } = sampleStrip(-1, 0, false, true);
+        if (total > 0 && water >= Math.max(3, total * 0.3)) sides.west = true;
+      })();
+      // East
+      (function () {
+        const { water, total } = sampleStrip(1, 0, false, true);
+        if (total > 0 && water >= Math.max(3, total * 0.3)) sides.east = true;
+      })();
+
+      ctx.townShoreSides = sides;
+    } catch (_) {
+      try { ctx.townShoreSides = { north: false, south: false, east: false, west: false }; } catch (_) {}
+    }
+  })();
+
   // Size the town map from data/town.json (fallback to previous values)
   const GD = getGameData(ctx);
   const TOWNCFG = (GD && GD.town) || null;
@@ -547,10 +624,23 @@ function generate(ctx) {
   ctx.map = Array.from({ length: H }, () => Array(W).fill(ctx.TILES.FLOOR));
 
   // Outer walls
-  for (let x = 0; x < W; x++) { ctx.map[0][x] = ctx.TILES.WALL; ctx.map[H - 1][x] = ctx.TILES.WALL; }
-  for (let y = 0; y < H; y++) { ctx.map[y][0] = ctx.TILES.WALL; ctx.map[y][W - 1] = ctx.TILES.WALL; }
+  // For shoreline towns, skip walls on edges that face water/shore so water acts as a natural boundary.
+  const shoreSides = (townKind === "castle") ? null : (ctx.townShoreSides || null);
+  const shoreNorth = !!(shoreSides && shoreSides.north);
+  const shoreSouth = !!(shoreSides && shoreSides.south);
+  const shoreWest  = !!(shoreSides && shoreSides.west);
+  const shoreEast  = !!(shoreSides && shoreSides.east);
 
-  // Gate placement: prefer the edge matching the approach direction, else nearest edge
+  for (let x = 0; x < W; x++) {
+    if (!shoreNorth) ctx.map[0][x] = ctx.TILES.WALL;
+    if (!shoreSouth) ctx.map[H - 1][x] = ctx.TILES.WALL;
+  }
+  for (let y = 0; y < H; y++) {
+    if (!shoreWest) ctx.map[y][0] = ctx.TILES.WALL;
+    if (!shoreEast) ctx.map[y][W - 1] = ctx.TILES.WALL;
+  }
+
+  // Gate placement: prefer the edge matching the approach direction, else nearest non-shore edge
   const clampXY = (x, y) => ({ x: Math.max(1, Math.min(W - 2, x)), y: Math.max(1, Math.min(H - 2, y)) });
   const pxy = clampXY(ctx.player.x, ctx.player.y);
   let gate = null;
@@ -558,19 +648,25 @@ function generate(ctx) {
   // If Modes recorded an approach direction (E/W/N/S), pick corresponding perimeter gate
   const dir = (typeof ctx.enterFromDir === "string") ? ctx.enterFromDir : "";
   if (dir) {
-    if (dir === "E") gate = { x: 1, y: pxy.y };           // entered moving east -> came from west -> west edge
-    else if (dir === "W") gate = { x: W - 2, y: pxy.y };  // entered moving west -> came from east -> east edge
-    else if (dir === "N") gate = { x: pxy.x, y: H - 2 };  // entered moving north -> came from south -> south edge
-    else if (dir === "S") gate = { x: pxy.x, y: 1 };      // entered moving south -> came from north -> north edge
+    if (dir === "E" && !shoreWest) gate = { x: 1, y: pxy.y };           // entered moving east -> came from west -> west edge
+    else if (dir === "W" && !shoreEast) gate = { x: W - 2, y: pxy.y };  // entered moving west -> came from east -> east edge
+    else if (dir === "N" && !shoreSouth) gate = { x: pxy.x, y: H - 2 }; // entered moving north -> came from south -> south edge
+    else if (dir === "S" && !shoreNorth) gate = { x: pxy.x, y: 1 };     // entered moving south -> came from north -> north edge
   }
 
   if (!gate) {
-    // Fallback: pick nearest edge to the player's (clamped) position
-    const targets = [
-      { x: 1, y: pxy.y },                // west
-      { x: W - 2, y: pxy.y },            // east
-      { x: pxy.x, y: 1 },                // north
-      { x: pxy.x, y: H - 2 },            // south
+    // Fallback: pick nearest edge to the player's (clamped) position, preferring non-shore edges
+    const candidates = [];
+    if (!shoreWest)  candidates.push({ x: 1,      y: pxy.y });      // west
+    if (!shoreEast)  candidates.push({ x: W - 2,  y: pxy.y });      // east
+    if (!shoreNorth) candidates.push({ x: pxy.x,  y: 1 });          // north
+    if (!shoreSouth) candidates.push({ x: pxy.x,  y: H - 2 });      // south
+
+    const targets = candidates.length ? candidates : [
+      { x: 1,      y: pxy.y },            // west
+      { x: W - 2,  y: pxy.y },            // east
+      { x: pxy.x,  y: 1 },                // north
+      { x: pxy.x,  y: H - 2 },            // south
     ];
     let best = targets[0], bd = Infinity;
     for (const t of targets) {
@@ -589,6 +685,26 @@ function generate(ctx) {
   ctx.map[gate.y][gate.x] = ctx.TILES.FLOOR;
   ctx.player.x = gate.x; ctx.player.y = gate.y;
   ctx.townExitAt = { x: gate.x, y: gate.y };
+
+  // For shoreline towns, replace the open edge(s) with town water tiles when available.
+  // Water edges are non-walkable and visually represent the harbor/shore inside town mode.
+  try {
+    if (shoreSides && typeof ctx.TILES.WATER === "number") {
+      const WAT = ctx.TILES.WATER;
+      if (shoreNorth) {
+        for (let x = 0; x < W; x++) ctx.map[0][x] = WAT;
+      }
+      if (shoreSouth) {
+        for (let x = 0; x < W; x++) ctx.map[H - 1][x] = WAT;
+      }
+      if (shoreWest) {
+        for (let y = 0; y < H; y++) ctx.map[y][0] = WAT;
+      }
+      if (shoreEast) {
+        for (let y = 0; y < H; y++) ctx.map[y][W - 1] = WAT;
+      }
+    }
+  } catch (_) {}
 
   // Name: persist on the world.towns entry so it remains stable across visits
   let townName = null;

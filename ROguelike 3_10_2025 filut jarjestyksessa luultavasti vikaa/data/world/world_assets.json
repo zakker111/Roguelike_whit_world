@@ -224,6 +224,26 @@
         "properties": { "walkable": false, "blocksFOV": false, "emitsLight": true },
         "appearsIn": ["dungeon", "town"],
         "tags": ["window"]
+      },
+      {
+        "id": 5,
+        "key": "ROAD",
+        "name": "Road",
+        "glyph": " ",
+        "colors": { "fill": "#b0a58a", "fg": null },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["road", "outdoor"]
+      },
+      {
+        "id": 6,
+        "key": "WATER_TOWN",
+        "name": "Town Water",
+        "glyph": "~",
+        "colors": { "fill": "#0a1b2a", "fg": "#7aa2f7" },
+        "properties": { "walkable": false, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["town"],
+        "tags": ["water"]
       }
     ],
     "overrides": {

@@ -8,6 +8,7 @@ export const TILES = {
   STAIRS: 3,
   WINDOW: 4, // town-only: blocks movement, lets light through
   ROAD: 5,   // town-only: outdoor road; walkable; always brown
+  WATER: 6,  // town-only: shoreline/harbor water; not walkable
 };
 
 function getPalette() {
