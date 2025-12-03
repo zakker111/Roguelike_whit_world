@@ -1213,12 +1213,13 @@ import { computePath, computePathBudgeted } from "./pathfinding.js";
       const atk = (typeof attacker.atk === "number" && attacker.atk > 0) ? attacker.atk : 2;
       const level = (typeof attacker.level === "number" && attacker.level > 0) ? attacker.level : 1;
       const typeScale = (typeof attacker.damageScale === "number" && attacker.damageScale > 0) ? attacker.damageScale : 1.0;
-      let mult = 1.0;
+      let mult = 1 + 0.15 * Math.max(0, level - 1);
       try {
-        if (typeof ctx.enemyDamageMultiplier === "function")tch (_) {
-        mult = 1 + 0.15 * Math.max(0, level - 1);
-      }
-      let raw = atk * mult * (loc.mult || 1.0);
+        if (typeof ctx.enemyDamageMultiplier === "function") {
+          mult = ctx.enemyDamageMultiplier(level);
+        }
+      } catch (_) {}
+      let raw = atk * mult * typeScale * (loc.mult || 1.0);
 
       // Crits
       let isCrit = false;
