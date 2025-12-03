@@ -436,6 +436,26 @@ function generate(ctx) {
   ctx.player.x = gate.x; ctx.player.y = gate.y;
   ctx.townExitAt = { x: gate.x, y: gate.y };
 
+  // For shoreline towns, replace the open edge(s) with town water tiles when available.
+  // Water edges are non-walkable and visually represent the harbor/shore inside town mode.
+  try {
+    if (shoreSides && typeof ctx.TILES.WATER === "number") {
+      const WAT = ctx.TILES.WATER;
+      if (shoreNorth) {
+        for (let x = 0; x < W; x++) ctx.map[0][x] = WAT;
+      }
+      if (shoreSouth) {
+        for (let x = 0; x < W; x++) ctx.map[H - 1][x] = WAT;
+      }
+      if (shoreWest) {
+        for (let y = 0; y < H; y++) ctx.map[y][0] = WAT;
+      }
+      if (shoreEast) {
+        for (let y = 0; y < H; y++) ctx.map[y][W - 1] = WAT;
+      }
+    }
+  } catch (_) {}
+
   // Name: persist on the world.towns entry so it remains stable across visits
   let townName = null;
   try {
