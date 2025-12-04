@@ -1714,6 +1714,44 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
+  // Ensure there are always some plaza props (benches/lamps/etc.) even if
+  // no plaza prefab was stamped or it failed to fit.
+  (function ensurePlazaProps() {
+    try {
+      const pr = ctx.townPlazaRect;
+      if (!pr || !Array.isArray(ctx.townProps)) return;
+      const px0 = pr.x0, px1 = pr.x1, py0 = pr.y0, py1 = pr.y1;
+
+      let count = 0;
+      for (let i = 0; i < ctx.townProps.length; i++) {
+        const p = ctx.townProps[i];
+        if (!p) continue;
+        if (p.x >= px0 && p.x <= px1 && p.y >= py0 && p.y <= py1) count++;
+      }
+      // If there are already a few props, assume a prefab handled it.
+      if (count >= 3) return;
+
+      // Simple fallback layout: a well in the center, benches and lamps around.
+      const cx = ctx.townPlaza.x;
+      const cy = ctx.townPlaza.y;
+
+      // Center well
+      addProp(cx, cy, "well");
+
+      // Benches on cardinal directions if floor
+      addProp(cx - 2, cy, "bench");
+      addProp(cx + 2, cy, "bench");
+      addProp(cx, cy - 2, "bench");
+      addProp(cx, cy + 2, "bench");
+
+      // Lamps at diagonals
+      addProp(cx - 3, cy - 3, "lamp");
+      addProp(cx + 3, cy - 3, "lamp");
+      addProp(cx - 3, cy + 3, "lamp");
+      addProp(cx + 3, cy + 3, "lamp");
+    } catch (_) {}
+  })();
+
   // Place shop prefabs near plaza with conflict resolution
   (function placeShopPrefabsStrict() {
     try {
