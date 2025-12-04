@@ -445,7 +445,6 @@ function buildRoadsAndPublish(ctx) {
  */
 function placePlazaPrefabStrict(ctx, townKind, plaza, plazaW, plazaH, rng) {
   try {
-    if (townKind === "castle") return;
     // Guard: if a plaza prefab was already stamped in this generation cycle, skip
     try {
       if (ctx.townPrefabUsage && Array.isArray(ctx.townPrefabUsage.plazas) && ctx.townPrefabUsage.plazas.length > 0) return;
