@@ -554,6 +554,59 @@ function getTownBuildingConfig(TOWNCFG, townSize, townKind) {
   };
 }
 
+/**
+ * Read inn size configuration from GameData.town (inn.size[size]) with
+ * safe fallbacks to previous hardcoded behavior when JSON fields are missing.
+ */
+function getInnSizeConfig(TOWNCFG, townSize) {
+  const sizeKey = townSize;
+  const innRoot = (TOWNCFG && TOWNCFG.inn && TOWNCFG.inn.size) || null;
+  const cfg = (innRoot && innRoot[sizeKey]) || null;
+  if (cfg && typeof cfg.minW === "number" && typeof cfg.minH === "number" &&
+      typeof cfg.scaleW === "number" && typeof cfg.scaleH === "number") {
+    return {
+      minW: cfg.minW | 0,
+      minH: cfg.minH | 0,
+      scaleW: cfg.scaleW,
+      scaleH: cfg.scaleH
+    };
+  }
+  // Fallback to previous constants
+  let minW = 18, minH = 12, scaleW = 1.20, scaleH = 1.10; // defaults for "big"
+  if (sizeKey === "small") { minW = 14; minH = 10; scaleW = 1.15; scaleH = 1.08; }
+  else if (sizeKey === "city") { minW = 24; minH = 16; scaleW = 1.35; scaleH = 1.25; }
+  return { minW, minH, scaleW, scaleH };
+}
+
+/**
+ * Read castle keep size configuration from GameData.town (castle.keep.size[size])
+ * and compute keepW/keepH from plaza dimensions with clamping, matching previous
+ * behavior when JSON fields are missing.
+ */
+function getCastleKeepSizeConfig(TOWNCFG, townSize, plazaW, plazaH, mapW, mapH) {
+  const sizeKey = townSize;
+  const keepRoot = (TOWNCFG && TOWNCFG.castle && TOWNCFG.castle.keep && TOWNCFG.castle.keep.size) || null;
+  const cfg = (keepRoot && keepRoot[sizeKey]) || null;
+  let minW, minH, scaleW, scaleH;
+  if (cfg && typeof cfg.scaleW === "number" && typeof cfg.scaleH === "number") {
+    minW = (cfg.minW | 0) || 0;
+    minH = (cfg.minH | 0) || 0;
+    scaleW = cfg.scaleW;
+    scaleH = cfg.scaleH;
+  } else {
+    // Fallback to previous constants
+    minW = 14; minH = 12; scaleW = 0.9; scaleH = 0.9;
+    if (sizeKey === "small") { minW = 12; minH = 10; scaleW = 0.8; scaleH = 0.8; }
+    else if (sizeKey === "city") { minW = 18; minH = 14; scaleW = 1.1; scaleH = 1.1; }
+  }
+  let keepW = Math.max(minW, Math.floor(plazaW * scaleW));
+  let keepH = Math.max(minH, Math.floor(plazaH * scaleH));
+  // Clamp to map with a safety margin from outer walls, as before
+  keepW = Math.min(keepW, mapW - 6);
+  keepH = Math.min(keepH, mapH - 6);
+  return { keepW, keepH };
+}
+
 // ---- Generation (compact version; retains core behavior and mutations) ----
 function generate(ctx) {
   // Seeded RNG helper for determinism
@@ -909,10 +962,12 @@ function generate(ctx) {
     // Target size: scale from plaza dims and ensure larger minimums by town size
     let rectUsedInn = null;
     const sizeKey = townSize;
-    // Make inn a bit smaller than before to keep plaza spacious
-    let minW = 18, minH = 12, scaleW = 1.20, scaleH = 1.10; // defaults for "big"
-    if (sizeKey === "small") { minW = 14; minH = 10; scaleW = 1.15; scaleH = 1.08; }
-    else if (sizeKey === "city") { minW = 24; minH = 16; scaleW = 1.35; scaleH = 1.25; }
+    // Make inn a bit smaller than before to keep plaza spacious (data-driven via town.json when available)
+    const innSize = getInnSizeConfig(TOWNCFG, sizeKey);
+    const minW = innSize.minW;
+    const minH = innSize.minH;
+    const scaleW = innSize.scaleW;
+    const scaleH = innSize.scaleH;
     const targetW = Math.max(minW, Math.floor(plazaW * scaleW));
     const targetH = Math.max(minH, Math.floor(plazaH * scaleH));
 
@@ -1177,25 +1232,16 @@ function generate(ctx) {
     buildings.push({ x: bx, y: by, w: bw, h: bh });
   };
 
-  // For castle settlements, reserve a central \"keep\" tower building with a luxurious interior.
+  // For castle settlements, reserve a central "keep" tower building with a luxurious interior.
   // This is a large rectangular building near the plaza center, furnished with rugs, fireplaces,
   // beds and tables to make the castle feel distinct from regular towns.
   if (townKind === "castle") {
     (function placeCastleKeep() {
       try {
-        // Scale keep size from plaza size, with bounds tied to town size.
-        let keepW = Math.max(14, Math.floor(plazaW * 0.9));
-        let keepH = Math.max(12, Math.floor(plazaH * 0.9));
-        if (townSize === "small") {
-          keepW = Math.max(12, Math.floor(plazaW * 0.8));
-          keepH = Math.max(10, Math.floor(plazaH * 0.8));
-        } else if (townSize === "city") {
-          keepW = Math.max(18, Math.floor(plazaW * 1.1));
-          keepH = Math.max(14, Math.floor(plazaH * 1.1));
-        }
-        // Clamp to map with a safety margin from outer walls.
-        keepW = Math.min(keepW, W - 6);
-        keepH = Math.min(keepH, H - 6);
+        // Scale keep size from plaza size, with bounds tied to town size (data-driven via town.json when available).
+        const keepSize = getCastleKeepSizeConfig(TOWNCFG, townSize, plazaW, plazaH, W, H);
+        let keepW = keepSize.keepW;
+        let keepH = keepSize.keepH;
         if (keepW < 10 || keepH < 8) return;
 
         // Center on the plaza.
@@ -1290,9 +1336,10 @@ function generate(ctx) {
     })();
   }
   const cfgB = (TOWNCFG && TOWNCFG.buildings) || {};
-  const maxBuildings = Math.max(1, (cfgB.max | 0) || 18);
-  const blockW = Math.max(4, (cfgB.blockW | 0) || 8);
-  const blockH = Math.max(3, (cfgB.blockH | 0) || 6);
+  const bConf = getTownBuildingConfig(TOWNCFG, townSize, townKind);
+  const maxBuildings = bConf.maxBuildings;
+  const blockW = bConf.blockW;
+  const blockH = bConf.blockH;
 
   // Ensure a margin of clear floor around buildings so walls never touch between buildings
   function isAreaClearForBuilding(bx, by, bw, bh, margin = 1) {
@@ -1426,8 +1473,7 @@ function generate(ctx) {
       const GD5 = getGameData(ctx);
       const PFB = (GD5 && GD5.prefabs) ? GD5.prefabs : null;
       if (!PFB || !Array.isArray(PFB.houses) || !PFB.houses.length) return;
-      const sizeKey = townSize;
-      const targetBySize = (sizeKey === "small") ? 12 : (sizeKey === "city" ? 34 : 22);
+      const targetBySize = bConf.residentialFillTarget;
       if (buildings.length >= targetBySize) return;
       let attempts = 0, successes = 0;
       while (buildings.length < targetBySize && attempts++ < 600) {

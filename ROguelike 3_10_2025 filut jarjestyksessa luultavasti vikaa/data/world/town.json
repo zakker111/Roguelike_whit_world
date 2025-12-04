@@ -38,6 +38,22 @@
       "city":  24
     }
   },
+  "inn": {
+    "size": {
+      "small": { "minW": 14, "minH": 10, "scaleW": 1.15, "scaleH": 1.08 },
+      "big":   { "minW": 18, "minH": 12, "scaleW": 1.20, "scaleH": 1.10 },
+      "city":  { "minW": 24, "minH": 16, "scaleW": 1.35, "scaleH": 1.25 }
+    }
+  },
+  "castle": {
+    "keep": {
+      "size": {
+        "small": { "minW": 12, "minH": 10, "scaleW": 0.8, "scaleH": 0.8 },
+        "big":   { "minW": 14, "minH": 12, "scaleW": 0.9, "scaleH": 0.9 },
+        "city":  { "minW": 18, "minH": 14, "scaleW": 1.1, "scaleH": 1.1 }
+      }
+    }
+  },
   "props": {
     "benchLimit": {
       "small": 8,
