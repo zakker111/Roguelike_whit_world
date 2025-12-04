@@ -1699,15 +1699,15 @@ function generate(ctx) {
       // Remove any buildings overlapping the full plaza rectangle
       const overl = findBuildingsOverlappingRect(rx0, ry0, rx1 - rx0 + 1, ry1 - ry0 + 1, 0);
       if (overl && overl.length) {
-        for (let i = 0; i &lt; overl.length; i++) {
+        for (let i = 0; i < overl.length; i++) {
           removeBuildingAndProps(overl[i]);
         }
       }
 
       // Force tiles in the plaza rectangle back to FLOOR to guarantee an open square
-      for (let yy = ry0; yy &lt;= ry1; yy++) {
-        for (let xx = rx0; xx &lt;= rx1; xx++) {
-          if (yy &lt;= 0 || xx &lt;= 0 || yy &gt;= H - 1 || xx &gt;= W - 1) continue;
+      for (let yy = ry0; yy <= ry1; yy++) {
+        for (let xx = rx0; xx <= rx1; xx++) {
+          if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
           ctx.map[yy][xx] = ctx.TILES.FLOOR;
         }
       }
