@@ -1,5 +1,84 @@
 # Game Version History
-Last updated: 2025-12-01 12:00 UTC
+Last updated: 2025-12-04 12:00 UTC
+
+v1.52.0 — Data-driven towns (buildings, population, and plaza prefabs)
+- Added: JSON-driven town building density and plaza sizing
+  - data/world/town.json extended with:
+    - buildings.maxBySize: per-town-size cap on initial building count (small/big/city).
+    - buildings.block: per-size block dimensions (blockW/blockH) for scanning building placement.
+    - buildings.residentialFillTargets: desired number of residential buildings per size.
+    - buildings.minNearPlaza: minimum number of buildings near the plaza per size.
+    - kinds.<kind>.buildings.densityMultiplier and minNearPlazaBonus: per-town-kind overrides (e.g., castles can be slightly denser or have more buildings around the plaza).
+  - worldgen/town_gen.js now reads this config via getTownBuildingConfig(TOWNCFG, townSize, townKind) and uses it for:
+    - The main building grid loops (maxBuildings, blockW/blockH).
+    - The residential fill pass (target count instead of hardcoded 12/22/34).
+    - The “ensure minimum buildings around plaza” pass (minBuildingsNearPlaza instead of hardcoded 10/16/24).
+  - Behavior is unchanged when JSON fields are absent; defaults match prior hardcoded values.
+
+- Added: JSON-driven town population targets (roamers and guards)
+  - data/world/town.json gained a population section:
+    - population.roamersPerBuilding[size]: factor applied to building count, with roamersMin/roamersMax clamping the final target.
+    - population.guardsBaseBySize[size]: base guard count per town size.
+    - population.guardsCastleBonus: extra guards for castle-kind towns.
+  - worldgen/town_gen.js now calls getTownPopulationTargets(TOWNCFG, townSize, townKind, buildingCount) to derive:
+    - roamTarget: number of roaming townsfolk near the plaza/gate/roads.
+    - guardTarget: number of guards, clamped so guards ≤ roamTarget.
+  - Existing behavior (roamTarget ≈ tbCount / 2, guardTarget 2/3/4 with +2 for castles) is preserved as a fallback when population config is missing.
+
+- Added: JSON-driven inn and castle keep sizing
+  - data/world/town.json extended with:
+    - inn.size[size]: minW/minH and scaleW/scaleH per size for inn/tavern buildings near the plaza.
+    - castle.keep.size[size]: akin fields for castle keep dimensions, scaled from plaza size.
+  - worldgen/town_gen.js:
+    - getCastleKeepSizeConfig(TOWNCFG, townSize, plazaW, plazaH, mapW, mapH) now derives keep width/height from town.json when present; falls back to previous constants otherwise.
+    - Inn enlargement logic uses inn.size[size] when available.
+
+- Changed: Castle keep placement keeps plaza visible
+  - placeCastleKeep(ctx) no longer overwrites the central plaza:
+    - Initially attempts to center the keep; if this overlaps the plaza rect, it tries four side positions (below/above/right/left of the plaza).
+    - If none of the side placements avoid overlapping the plaza, the keep is skipped rather than destroying the plaza.
+  - This guarantees that castles retain a recognizable open plaza area in addition to the keep.
+
+- Changed: Plaza generation — always-visible plaza + data-driven prefabs
+  - worldgen/town_gen.js now enforces an open plaza:
+    - After building placement passes, enforcePlazaOpenCore() removes any buildings overlapping the full plaza rectangle and forces all tiles in that rectangle back to FLOOR.
+    - placePlazaPrefabStrict(ctx, townKind, plaza, plazaW, plazaH, rng) was updated to:
+      - Clear the plaza rectangle and remove overlapping buildings before stamping a plaza prefab.
+      - Filter plaza prefabs from data/worldgen/prefabs.json that fit the current plaza size (size.w/size.h ≤ plazaW/plazaH).
+      - Stamp a selected prefab centered in the plaza; if direct placement fails, trySlipStamp() is used with a small slip radius.
+      - Log notice-level diagnostics:
+        - “Plaza: plaza prefab 'plaza_custom_1' stamped successfully.”
+        - “Plaza: plaza prefab 'plaza_custom_1' placed with slip.”
+        - “Plaza: plaza prefab did not fit even after clearing area; using fallback layout.”
+        - “Plaza: no plaza prefabs defined; using fallback layout only.”
+  - Fallback plaza decorations:
+    - ensurePlazaProps() guarantees minimal plaza props even when a prefab is not used:
+      - Places a central well at the plaza center.
+      - Adds benches on cardinal directions and lamps at diagonal offsets when tiles allow.
+    - If a plaza prefab already placed ≥3 props inside the plaza rect, ensurePlazaProps() does nothing.
+
+- Changed: Prefab stamping relaxed to allow stamping over roads
+  - worldgen/prefabs.js:
+    - stampPrefab(ctx, prefab, bx, by, buildings) now accepts both FLOOR and ROAD tiles under the prefab area:
+      - Previously: any tile not equal to FLOOR caused stamping to fail.
+      - Now: tiles must be either FLOOR or ROAD; other tiles (WALL/STAIRS/etc.) still block placement.
+    - stampPlazaPrefab(ctx, prefab, bx, by) uses the same relaxed rule for validation.
+  - Effect:
+    - House, shop, inn, barracks, and plaza prefabs can be stamped in areas where roads pass through, instead of being forced into only pure-FLOOR rectangles.
+    - This significantly reduces “Strict prefabs: no house prefab fit … Skipping fallback.” errors in towns with road-heavy layouts and allows plaza prefabs to be used more reliably.
+
+- Logging and diagnostics
+  - Plaza logging:
+    - placePlazaPrefabStrict emits notice-level logs describing whether a plaza prefab was used or the fallback layout was chosen.
+  - Prefab usage:
+    - Existing ctx.townPrefabUsage tracking remains; GOD “Check Prefabs” continues to report loaded vs used IDs for houses, shops, inns, plazas, and caravans.
+    - With the relaxed stamping rules and cleared plaza rectangles, plaza usage in new towns should now be non-zero and list actual plaza IDs (including the new plaza_custom_1).
+
+- Dev notes:
+  - These changes are backwards-compatible with existing seeds; towns and castles will regenerate with the new data-driven behavior upon first visit after deploy.
+  - Existing saved towns may not immediately reflect new building/plaza layouts until they are regenerated (depending on how TownState persistence is configured).
+
+Deployment: https://71bewaqr0rj5.cosine.page (latest build with data-driven town layout/population and plaza-prefab hardening)
 
 v1.51.0 — Weather-aware Town AI, performance tuning, and resident role config
 - Added: Weather-aware town NPC behavior
