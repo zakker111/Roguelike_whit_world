@@ -502,6 +502,58 @@ function repairBuildingPerimeters(ctx, buildings) {
   } catch (_) {}
 }
 
+/**
+ * Read town-building configuration from GameData.town and town size/kind.
+ * Provides maxBuildings, block dimensions, residential fill target and minimum
+ * buildings near plaza, with safe defaults matching previous behavior when
+ * JSON fields are missing.
+ */
+function getTownBuildingConfig(TOWNCFG, townSize, townKind) {
+  const bCfg = (TOWNCFG && TOWNCFG.buildings) || {};
+  const maxBySize = bCfg.maxBySize || null;
+  const blockBySize = bCfg.block || null;
+  const fillTargets = bCfg.residentialFillTargets || null;
+  const minNearPlaza = bCfg.minNearPlaza || null;
+
+  const sizeKey = townSize;
+  const kindCfg = (TOWNCFG && TOWNCFG.kinds && TOWNCFG.kinds[townKind]) || {};
+  const kindBuild = kindCfg.buildings || {};
+  const densityMul = typeof kindBuild.densityMultiplier === "number" ? kindBuild.densityMultiplier : 1.0;
+  const minNearBonus = kindBuild.minNearPlazaBonus | 0;
+
+  function fromSize(map, fallback) {
+    if (map && Object.prototype.hasOwnProperty.call(map, sizeKey)) {
+      return map[sizeKey];
+    }
+    return fallback;
+  }
+
+  const baseMax = (maxBySize && fromSize(maxBySize, null)) || (bCfg.max | 0) || 18;
+  const maxBuildings = Math.max(1, Math.round(baseMax * densityMul));
+
+  const blockBase = fromSize(blockBySize, null);
+  const blockW = Math.max(4, blockBase ? (blockBase.blockW | 0) : ((bCfg.blockW | 0) || 8));
+  const blockH = Math.max(3, blockBase ? (blockBase.blockH | 0) : ((bCfg.blockH | 0) || 6));
+
+  const baseFill = (fillTargets && fromSize(fillTargets, null)) || null;
+  const residentialFillTarget = baseFill != null
+    ? Math.max(1, Math.round(baseFill * densityMul))
+    : (townSize === "small" ? 12 : (townSize === "city" ? 34 : 22));
+
+  const baseMin = (minNearPlaza && fromSize(minNearPlaza, null)) || null;
+  const minBuildingsNearPlaza = (baseMin != null
+    ? baseMin
+    : (townSize === "small" ? 10 : (townSize === "city" ? 24 : 16))) + minNearBonus;
+
+  return {
+    maxBuildings,
+    blockW,
+    blockH,
+    residentialFillTarget,
+    minBuildingsNearPlaza
+  };
+}
+
 // ---- Generation (compact version; retains core behavior and mutations) ----
 function generate(ctx) {
   // Seeded RNG helper for determinism
@@ -1445,8 +1497,8 @@ function generate(ctx) {
   // Ensure minimum building count around plaza
   (function ensureMinimumBuildingsAroundPlaza() {
     try {
-      const sizeKey = townSize;
-      const minBySize = (sizeKey === "small") ? 10 : (sizeKey === "city" ? 24 : 16);
+      const minBySize = bConf.minBuildingsNearPlaza;
+      if (buildings.length >= minBySize) ret_codey" ? 24 : 16);
       if (buildings.length >= minBySize) return;
       const px0 = ((plaza.x - (plazaW / 2)) | 0), px1 = ((plaza.x + (plazaW / 2)) | 0);
       const py0 = ((plaza.y - (plazaH / 2)) | 0), py1 = ((plaza.y + (plazaH / 2)) | 0);

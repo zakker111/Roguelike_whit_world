@@ -16,7 +16,27 @@
   "buildings": {
     "max": 18,
     "blockW": 8,
-    "blockH": 6
+    "blockH": 6,
+    "maxBySize": {
+      "small": 18,
+      "big":   18,
+      "city":  18
+    },
+    "block": {
+      "small": { "blockW": 8, "blockH": 6 },
+      "big":   { "blockW": 8, "blockH": 6 },
+      "city":  { "blockW": 8, "blockH": 6 }
+    },
+    "residentialFillTargets": {
+      "small": 12,
+      "big":   22,
+      "city":  34
+    },
+    "minNearPlaza": {
+      "small": 10,
+      "big":   16,
+      "city":  24
+    }
   },
   "props": {
     "benchLimit": {
@@ -25,5 +45,19 @@
       "city": 16
     },
     "plantTryFactor": 10
+  },
+  "kinds": {
+    "town": {
+      "buildings": {
+        "densityMultiplier": 1.0,
+        "minNearPlazaBonus": 0
+      }
+    },
+    "castle": {
+      "buildings": {
+        "densityMultiplier": 1.0,
+        "minNearPlazaBonus": 0
+      }
+    }
   }
 }
