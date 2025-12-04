@@ -1682,6 +1682,36 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
+  // Enforce a visible open core in the plaza by clearing any overlapping buildings
+  // and forcing a smaller central rectangle to FLOOR.
+  (function enforcePlazaOpenCore() {
+    try {
+      // Core size: smaller than full plaza, but at least 5x5
+      const coreW = Math.max(5, Math.min(plazaW - 2, 9));
+      const coreH = Math.max(5, Math.min(plazaH - 2, 9));
+      const cx0 = Math.max(1, plaza.x - ((coreW / 2) | 0));
+      const cy0 = Math.max(1, plaza.y - ((coreH / 2) | 0));
+      const cx1 = Math.min(W - 2, cx0 + coreW - 1);
+      const cy1 = Math.min(H - 2, cy0 + coreH - 1);
+
+      // Remove any buildings overlapping this core region
+      const overl = findBuildingsOverlappingRect(cx0, cy0, cx1 - cx0 + 1, cy1 - cy0 + 1, 0);
+      if (overl && overl.length) {
+        for (let i = 0; i < overl.length; i++) {
+          removeBuildingAndProps(overl[i]);
+        }
+      }
+
+      // Force tiles in the core rectangle to FLOOR to ensure an open visual plaza
+      for (let yy = cy0; yy <= cy1; yy++) {
+        for (let xx = cx0; xx <= cx1; xx++) {
+          if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
+          ctx.map[yy][xx] = ctx.TILES.FLOOR;
+        }
+      }
+    } catch (_) {}
+  })();
+
   // Place shop prefabs near plaza with conflict resolution
   (function placeShopPrefabsStrict() {
     try {
