@@ -452,18 +452,31 @@ function placePlazaPrefabStrict(ctx, townKind, plaza, plazaW, plazaH, rng) {
     const GD7 = getGameData(ctx);
     const PFB = (GD7 && GD7.prefabs) ? GD7.prefabs : null;
     const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
-    if (!plazas.length) return;
+    if (!plazas.length) {
+      try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: no plaza prefabs defined; using fallback layout only.", "notice"); } catch (_) {}
+      return;
+    }
     // Filter prefabs that fit inside current plaza rectangle
     const fit = plazas.filter(p => p && p.size && (p.size.w | 0) <= plazaW && (p.size.h | 0) <= plazaH);
     const list = (fit.length ? fit : plazas);
     const pref = pickPrefab(list, ctx.rng || rng);
-    if (!pref || !pref.size) return;
+    if (!pref || !pref.size) {
+      try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: failed to pick a valid plaza prefab; using fallback layout.", "notice"); } catch (_) {}
+      return;
+    }
     // Center the plaza prefab within the carved plaza rectangle
     const bx = ((plaza.x - ((pref.size.w / 2) | 0)) | 0);
     const by = ((plaza.y - ((pref.size.h / 2) | 0)) | 0);
     if (!stampPlazaPrefab(ctx, pref, bx, by)) {
       // Attempt slight slip only; no fallback
-      trySlipStamp(ctx, pref, bx, by, 2);
+      const slipped = trySlipStamp(ctx, pref, bx, by, 2);
+      if (!slipped) {
+        try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: plaza prefab did not fit; using fallback layout.", "notice"); } catch (_) {}
+      } else {
+        try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: plaza prefab placed with slip.", "notice"); } catch (_) {}
+      }
+    } else {
+      try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: plaza prefab stamped successfully.", "notice"); } catch (_) {}
     }
   } catch (_) {}
 }
