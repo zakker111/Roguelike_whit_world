@@ -456,6 +456,34 @@ function placePlazaPrefabStrict(ctx, townKind, plaza, plazaW, plazaH, rng) {
       try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: no plaza prefabs defined; using fallback layout only.", "notice"); } catch (_) {}
       return;
     }
+
+    // Clear the plaza rectangle before stamping so that any previous roads/buildings
+    // inside the plaza do not prevent prefab placement.
+    try {
+      const px0 = ((plaza.x - (plazaW / 2)) | 0);
+      const px1 = ((plaza.x + (plazaW / 2)) | 0);
+      const py0 = ((plaza.y - (plazaH / 2)) | 0);
+      const py1 = ((plaza.y + (plazaH / 2)) | 0);
+      const rx0 = Math.max(1, px0);
+      const ry0 = Math.max(1, py0);
+      const rx1 = Math.min(ctx.map[0].length - 2, px1);
+      const ry1 = Math.min(ctx.map.length - 2, py1);
+
+      // Remove any buildings overlapping the plaza rectangle
+      const overl = findBuildingsOverlappingRect(rx0, ry0, rx1 - rx0 + 1, ry1 - ry0 + 1, 0);
+      if (overl && overl.length) {
+        for (let i = 0; i < overl.length; i++) {
+          removeBuildingAndProps(overl[i]);
+        }
+      }
+      // Force tiles in the plaza rectangle back to FLOOR before stamping
+      for (let yy = ry0; yy <= ry1; yy++) {
+        for (let xx = rx0; xx <= rx1; xx++) {
+          ctx.map[yy][xx] = ctx.TILES.FLOOR;
+        }
+      }
+    } catch (_) {}
+
     // Filter prefabs that fit inside current plaza rectangle
     const fit = plazas.filter(p => p && p.size && (p.size.w | 0) <= plazaW && (p.size.h | 0) <= plazaH);
     const list = (fit.length ? fit : plazas);
@@ -471,12 +499,12 @@ function placePlazaPrefabStrict(ctx, townKind, plaza, plazaW, plazaH, rng) {
       // Attempt slight slip only; no fallback
       const slipped = trySlipStamp(ctx, pref, bx, by, 2);
       if (!slipped) {
-        try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: plaza prefab did not fit; using fallback layout.", "notice"); } catch (_) {}
+        try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: plaza prefab did not fit even after clearing area; using fallback layout.", "notice"); } catch (_) {}
       } else {
-        try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: plaza prefab placed with slip.", "notice"); } catch (_) {}
+        try { if (ctx && typeof ctx.log === "function") ctx.log(`Plaza: plaza prefab '${pref.id || "unknown"}' placed with slip.`, "notice"); } catch (_) {}
       }
     } else {
-      try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: plaza prefab stamped successfully.", "notice"); } catch (_) {}
+      try { if (ctx && typeof ctx.log === "function") ctx.log(`Plaza: plaza prefab '${pref.id || "unknown"}' stamped successfully.`, "notice"); } catch (_) {}
     }
   } catch (_) {}
 }
