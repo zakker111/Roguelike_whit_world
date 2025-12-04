@@ -1682,30 +1682,32 @@ function generate(ctx) {
     } catch (_) {}
   })();
 
-  // Enforce a visible open core in the plaza by clearing any overlapping buildings
-  // and forcing a smaller central rectangle to FLOOR.
+  // Enforce a visible open plaza by clearing any overlapping buildings and
+  // forcing the entire carved plaza rectangle to FLOOR. This applies to towns
+  // and castles alike so the player always sees a central square.
   (function enforcePlazaOpenCore() {
     try {
-      // Core size: smaller than full plaza, but at least 5x5
-      const coreW = Math.max(5, Math.min(plazaW - 2, 9));
-      const coreH = Math.max(5, Math.min(plazaH - 2, 9));
-      const cx0 = Math.max(1, plaza.x - ((coreW / 2) | 0));
-      const cy0 = Math.max(1, plaza.y - ((coreH / 2) | 0));
-      const cx1 = Math.min(W - 2, cx0 + coreW - 1);
-      const cy1 = Math.min(H - 2, cy0 + coreH - 1);
+      const px0 = ((plaza.x - (plazaW / 2)) | 0);
+      const px1 = ((plaza.x + (plazaW / 2)) | 0);
+      const py0 = ((plaza.y - (plazaH / 2)) | 0);
+      const py1 = ((plaza.y + (plazaH / 2)) | 0);
+      const rx0 = Math.max(1, px0);
+      const ry0 = Math.max(1, py0);
+      const rx1 = Math.min(W - 2, px1);
+      const ry1 = Math.min(H - 2, py1);
 
-      // Remove any buildings overlapping this core region
-      const overl = findBuildingsOverlappingRect(cx0, cy0, cx1 - cx0 + 1, cy1 - cy0 + 1, 0);
+      // Remove any buildings overlapping the full plaza rectangle
+      const overl = findBuildingsOverlappingRect(rx0, ry0, rx1 - rx0 + 1, ry1 - ry0 + 1, 0);
       if (overl && overl.length) {
-        for (let i = 0; i < overl.length; i++) {
+        for (let i = 0; i &lt; overl.length; i++) {
           removeBuildingAndProps(overl[i]);
         }
       }
 
-      // Force tiles in the core rectangle to FLOOR to ensure an open visual plaza
-      for (let yy = cy0; yy <= cy1; yy++) {
-        for (let xx = cx0; xx <= cx1; xx++) {
-          if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
+      // Force tiles in the plaza rectangle back to FLOOR to guarantee an open square
+      for (let yy = ry0; yy &lt;= ry1; yy++) {
+        for (let xx = rx0; xx &lt;= rx1; xx++) {
+          if (yy &lt;= 0 || xx &lt;= 0 || yy &gt;= H - 1 || xx &gt;= W - 1) continue;
           ctx.map[yy][xx] = ctx.TILES.FLOOR;
         }
       }
