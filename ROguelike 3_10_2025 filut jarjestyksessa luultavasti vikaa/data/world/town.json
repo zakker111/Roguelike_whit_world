@@ -54,6 +54,21 @@
       }
     }
   },
+  "population": {
+    "roamersPerBuilding": {
+      "small": 0.5,
+      "big":   0.5,
+      "city":  0.5
+    },
+    "roamersMin": 6,
+    "roamersMax": 14,
+    "guardsBaseBySize": {
+      "small": 2,
+      "big":   3,
+      "city":  4
+    },
+    "guardsCastleBonus": 2
+  },
   "props": {
     "benchLimit": {
       "small": 8,

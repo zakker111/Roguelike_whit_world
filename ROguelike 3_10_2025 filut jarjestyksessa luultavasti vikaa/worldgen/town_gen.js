@@ -607,6 +607,50 @@ function getCastleKeepSizeConfig(TOWNCFG, townSize, plazaW, plazaH, mapW, mapH) 
   return { keepW, keepH };
 }
 
+/**
+ * Read population configuration (roamers/guards) from GameData.town and compute
+ * roamTarget and guardTarget based on building count, town size, and kind.
+ * Falls back to previous hardcoded behavior when JSON fields are missing.
+ */
+function getTownPopulationTargets(TOWNCFG, townSize, townKind, buildingCount) {
+  const pop = (TOWNCFG && TOWNCFG.population) || {};
+  const sizeKey = townSize;
+
+  // Roamers: derive from per-building factor with clamping, defaulting to previous formula.
+  const roamPerBySize = (pop && pop.roamersPerBuilding) || null;
+  const roamPer = (roamPerBySize && typeof roamPerBySize[sizeKey] === "number")
+    ? roamPerBySize[sizeKey]
+    : 0.5; // previous behavior: tbCount / 2
+  const roamMin = (typeof pop.roamersMin === "number") ? pop.roamersMin : 6;
+  const roamMax = (typeof pop.roamersMax === "number") ? pop.roamersMax : 14;
+
+  const rawRoam = buildingCount * roamPer;
+  let roamTargetBase = Math.floor(rawRoam);
+  if (!Number.isFinite(roamTargetBase)) roamTargetBase = Math.floor(buildingCount / 2) || 0;
+  let roamTarget = roamTargetBase;
+  if (roamTarget < roamMin) roamTarget = roamMin;
+  if (roamTarget > roamMax) roamTarget = roamMax;
+
+  // Guards: base per size with castle bonus, then clamp to roamTarget.
+  const baseBySize = (pop && pop.guardsBaseBySize) || null;
+  let guardBase = 0;
+  if (baseBySize && typeof baseBySize[sizeKey] === "number") {
+    guardBase = baseBySize[sizeKey] | 0;
+  } else {
+    // previous behavior
+    if (sizeKey === "small") guardBase = 2;
+    else if (sizeKey === "city") guardBase = 4;
+    else guardBase = 3;
+  }
+  const castleBonus = (typeof pop.guardsCastleBonus === "number") ? pop.guardsCastleBonus | 0 : 2;
+  if (townKind === "castle") guardBase += castleBonus;
+  let guardTarget = guardBase;
+  if (guardTarget > roamTarget) guardTarget = roamTarget;
+  if (guardTarget < 0) guardTarget = 0;
+
+  return { roamTarget, guardTarget };
+}
+
 // ---- Generation (compact version; retains core behavior and mutations) ----
 function generate(ctx) {
   // Seeded RNG helper for determinism
@@ -2511,16 +2555,11 @@ function generate(ctx) {
   const guardBarracks = Array.isArray(ctx.townBuildings)
     ? ctx.townBuildings.find(b => b && b.prefabId && String(b.prefabId).toLowerCase().includes("guard_barracks"))
     : null;
-  const roamTarget = Math.min(14, Math.max(6, Math.floor(tbCount / 2)));
-  let guardTarget = 0;
-  if (townSize === "small") guardTarget = 2;
-  else if (townSize === "city") guardTarget = 4;
-  else guardTarget = 3;
-  // Castles are fortified settlements: add a few extra guards on top of the normal town size rules.
-  if (townKind === "castle") {
-    guardTarget += 2;
-  }
-  guardTarget = Math.min(guardTarget, roamTarget);
+
+  // Population targets (roamers/guards) driven by town.json when present.
+  const popTargets = getTownPopulationTargets(TOWNCFG, townSize, townKind, tbCount);
+  const roamTarget = popTargets.roamTarget;
+  let guardTarget = popTargets.guardTarget;
 
   let placed = 0, placedGuards = 0, tries = 0;
   while (placed < roamTarget && tries++ < 800) {
