@@ -1276,9 +1276,8 @@ function generate(ctx) {
     buildings.push({ x: bx, y: by, w: bw, h: bh });
   };
 
-  // For castle settlements, reserve a central "keep" tower building with a luxurious interior.
-  // This is a large rectangular building near the plaza center, furnished with rugs, fireplaces,
-  // beds and tables to make the castle feel distinct from regular towns.
+  // For castle settlements, reserve a "keep" tower building with a luxurious interior.
+  // The keep must never overwrite the central plaza: keep and plaza remain visually distinct.
   if (townKind === "castle") {
     (function placeCastleKeep() {
       try {
@@ -1288,9 +1287,51 @@ function generate(ctx) {
         let keepH = keepSize.keepH;
         if (keepW < 10 || keepH < 8) return;
 
-        // Center on the plaza.
-        const kx = Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0));
-        const ky = Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0));
+        // Start centered on the plaza.
+        let kx = Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0));
+        let ky = Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0));
+
+        // If this would overlap the plaza rectangle, try shifting the keep to one of the four sides
+        // so the plaza stays open.
+        if (overlapsPlazaRect(kx, ky, keepW, keepH, 0)) {
+          const candidates = [
+            // Below plaza
+            {
+              x: Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0)),
+              y: Math.min(H - keepH - 2, ((plaza.y + (plazaH / 2)) | 0) + 2)
+            },
+            // Above plaza
+            {
+              x: Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0)),
+              y: Math.max(2, ((plaza.y - (plazaH / 2)) | 0) - 2 - keepH)
+            },
+            // Right of plaza
+            {
+              x: Math.min(W - keepW - 2, ((plaza.x + (plazaW / 2)) | 0) + 2),
+              y: Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0))
+            },
+            // Left of plaza
+            {
+              x: Math.max(2, ((plaza.x - (plazaW / 2)) | 0) - 2 - keepW),
+              y: Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0))
+            }
+          ];
+          let placedPos = null;
+          for (let i = 0; i < candidates.length; i++) {
+            const c = candidates[i];
+            const cx = Math.max(2, Math.min(W - keepW - 2, c.x));
+            const cy = Math.max(2, Math.min(H - keepH - 2, c.y));
+            if (overlapsPlazaRect(cx, cy, keepW, keepH, 0)) continue;
+            placedPos = { x: cx, y: cy };
+            break;
+          }
+          if (!placedPos) {
+            // No valid non-overlapping placement; skip keep to preserve plaza.
+            return;
+          }
+          kx = placedPos.x;
+          ky = placedPos.y;
+        }
 
         // Do not overwrite the gate tile.
         if (kx <= gate.x && gate.x <= kx + keepW - 1 && ky <= gate.y && gate.y <= ky + keepH - 1) {
