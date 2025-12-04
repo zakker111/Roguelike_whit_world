@@ -32,6 +32,9 @@ How to add a new enemy (by hand)
        "tags": ["beast","animal"]
      }
    - Keep fields consistent with existing entries for compatibility.
+   - Note: the actual enemies.json used by the game currently stores hp/atk/xp as depth-based curves
+     (arrays of [minDepth, base, slope]) plus optional "damageScale" per type. Use the existing
+     entries as a schema reference.
 
 2) Ensure item/loot references exist:
    - If you referenced a lootTable, define it under data/loot/ as needed.
@@ -43,3 +46,15 @@ How to add a new enemy (by hand)
 4) Optional: add flavor/messaging:
    - Add flavor lines keyed by category in data/i18n/flavor.json (e.g., category "animal" already covers wolves).
    - Add messages in data/i18n/messages.json if you need specific log strings.
+
+Enemy damage and damageScale
+- Each enemy type in data/entities/enemies.json provides:
+  - hp, atk, xp: depth-based curves used by entities/enemies.js to resolve stats.
+  - Optional "damageScale": per-type multiplier (default 1.0) that scales outgoing damage.
+- At runtime, AI and combat use:
+  - atk(depth) from the enemy sheet
+  - A global curve from data/balance/combat.json (enemyDamageMultiplier(level))
+  - The per-enemy "damageScale"
+  - Hit-location multipliers and armor reduction.
+- To tweak a specific enemy's damage without touching code:
+  - Increase or decrease its "damageScale" (e.g. "damageScale": 0.7 for a weaker trash mob, 1.4 for an elite).

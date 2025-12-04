@@ -4,7 +4,7 @@ Purpose
 - Utilities for generating towns, roads, and prefab buildings on the overworld. Ensures deterministic placement and connectivity consistent with infinite world streaming.
 
 Key modules
-- town_gen.js — town layout generation (plaza, inn, shops, Guard Barracks) with schedule-aware shops and dedup rules (one of each type).
+- town_gen.js — town layout generation (plaza, inn, shops, Guard Barracks) with schedule-aware shops and dedup rules (one of each type); building density, residential fill, population targets, inn/keep sizes, and plaza behavior are all driven by data/world/town.json where present.
 - roads.js — town road connectivity inside the local town map; builds ROAD tiles between gate, plaza, and buildings using townOutdoorMask.
 - prefabs.js — prefab stamping (buildings/shops/inns/plazas) with slip attempts to fit terrain; reads prefab definitions from data/worldgen/prefabs.json via GameData.prefabs.
 
@@ -21,8 +21,9 @@ Notes:
 - ok indicates placement success. Callers should check res && res.ok.
 - rect is the placed building rectangle for bookkeeping (e.g., dedup, windows, props).
 - shop is present only when the prefab declares a shop; it includes door position and optional schedule/sign metadata.
+- stampPrefab and stampPlazaPrefab now allow stamping over FLOOR and ROAD tiles (but not walls/blocked tiles) so roads cutting through plazas or near doors do not block prefabs.
 - Older code paths used boolean returns; if you migrate any callers, do not assume boolean — inspect res.ok and properties instead.
-- Prefabs are authored in data/worldgen/prefabs.json (houses/shops/inns/plazas, including Guard Barracks) and loaded into GameData.prefabs; worldgen/prefabs.js only stamps them into ctx.map.
+- Prefabs are authored in data/worldgen/prefabs.json (houses/shops/inns/plazas, including Guard Barracks and caravan stalls) and loaded into GameData.prefabs; worldgen/prefabs.js only stamps them into ctx.map.
 
 How to add a new town prefab (by hand)
 1) Define the prefab in data/worldgen/prefabs.json:

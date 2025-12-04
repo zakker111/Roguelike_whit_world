@@ -469,7 +469,11 @@ export function enemiesAct(ctx) {
           ctx.decayEquipped("hands", randFloat(0.3, 1.0, 1));
           continue;
         }
-        let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
+        const level = (typeof e.level === "number" && e.level > 0) ? e.level : 1;
+        const typeScale = (typeof e.damageScale === "number" && e.damageScale > 0) ? e.damageScale : 1.0;
+        const baseMult = 1 + 0.15 * Math.max(0, level - 1);
+        const globalMult = (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(level) : baseMult);
+        let raw = e.atk * globalMult * typeScale * (loc.mult || 1);
 
         // Caravan ambush guards: slightly lower base damage, then scale a bit with player level.
         try {
@@ -564,7 +568,11 @@ export function enemiesAct(ctx) {
             );
           } catch (_) {}
         } else {
-          let raw = e.atk * (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(e.level) : (1 + 0.15 * Math.max(0, (e.level || 1) - 1))) * (loc.mult || 1);
+          const level = (typeof e.level === "number" && e.level > 0) ? e.level : 1;
+          const typeScale = (typeof e.damageScale === "number" && e.damageScale > 0) ? e.damageScale : 1.0;
+          const baseMult = 1 + 0.15 * Math.max(0, level - 1);
+          const globalMult = (ctx.enemyDamageMultiplier ? ctx.enemyDamageMultiplier(level) : baseMult);
+          let raw = e.atk * globalMult * typeScale * (loc.mult || 1);
           const isCrit = rv() < Math.max(0, Math.min(0.5, 0.10 + (loc.critBonus || 0)));
           if (isCrit) raw *= (ctx.critMultiplier ? ctx.critMultiplier(rv) : (1.6 + rv() * 0.4));
           const dmg = Math.max(0.1, Math.round(raw * 10) / 10);

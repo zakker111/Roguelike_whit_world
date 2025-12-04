@@ -12,7 +12,9 @@ Key modules
 JSON registries (by folder)
 - data/world_assets.json — combined assets file (strict mode). Required for full visuals: tiles (structural/terrain) and props (furniture/decor).
 - config/ — game-level config (e.g., config.json, weather.json, encounter/seed defaults).
-- balance/, crafting/, encounters/, entities/, loot/, quests/, shops/, world/, worldgen/, i18n/ — domain registries consumed by entities/, services/, and worldgen/.
+- world/ — world/town configuration (e.g., data/world/town.json for town sizes, plaza sizes, building density, population targets, inn/keep sizes).
+- worldgen/ — prefab registries (e.g., data/worldgen/prefabs.json for houses/shops/inns/plazas/caravans).
+- balance/, crafting/, encounters/, entities/, loot/, quests/, shops/, i18n/ — domain registries consumed by entities/, services/, and worldgen/.
 
 Notes
 - In strict mode, tiles/props must come from world_assets.json; without it, minimal defaults keep the game playable but visuals are limited.
@@ -46,3 +48,16 @@ How to add a new item/NPC/entity (by hand)
 
 3) Test:
    - Serve with node server.js; use GOD diagnostics to verify registries loaded.
+
+Per-enemy damage scaling (enemies.json)
+- Enemies are defined in data/entities/enemies.json using depth-based curves:
+  - hp, atk, xp: arrays of [minDepth, base, slope], e.g. "atk": [[0, 2, 0.5]].
+  - weightByDepth: spawn weights per dungeon depth.
+  - Optional "damageScale": numeric multiplier (default 1.0) that scales this enemy type's damage relative to others.
+- Runtime enemy damage is derived from:
+  - atk(depth) from enemies.json
+  - Global scaling from data/balance/combat.json (enemyDamageMultiplier(level))
+  - Per-enemy "damageScale"
+  - Hit-location multipliers and armor reduction from combat systems.
+- To make a specific type hit harder or softer without changing its base atk curve:
+  - Increase or decrease its "damageScale" in enemies.json (e.g. an elite type might use "damageScale": 1.4).

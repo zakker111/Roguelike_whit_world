@@ -252,6 +252,445 @@ function clearAdjacentNPCsAroundPlayer(ctx) {
   }
 }
 
+/**
+ * Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors).
+ * Separated from generate() for clarity.
+ */
+function buildOutdoorMask(ctx, buildings, width, height) {
+  try {
+    const rows = height, cols = width;
+    const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
+    function insideAnyBuilding(x, y) {
+      for (let i = 0; i < buildings.length; i++) {
+        const B = buildings[i];
+        if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+      }
+      return false;
+    }
+    for (let yy = 0; yy < rows; yy++) {
+      for (let xx = 0; xx < cols; xx++) {
+        const t = ctx.map[yy][xx];
+        if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
+          mask[yy][xx] = true;
+        }
+      }
+    }
+    ctx.townOutdoorMask = mask;
+  } catch (_) {}
+}
+
+/**
+ * Dedupe shop signs: respect per-shop signWanted flag; keep only one sign (nearest to door)
+ * and prefer placing it inside near the door.
+ */
+function dedupeShopSigns(ctx) {
+  try {
+    if (!Array.isArray(ctx.shops) || !Array.isArray(ctx.townProps) || !ctx.townProps.length) return;
+    const props = ctx.townProps;
+    const removeIdx = new Set();
+    function isInside(bld, x, y) {
+      return bld && x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
+    }
+    for (let si = 0; si < ctx.shops.length; si++) {
+      const s = ctx.shops[si];
+      if (!s) continue;
+      const text = String(s.name || s.type || "Shop");
+      const door = (s.building && s.building.door) ? s.building.door : { x: s.x, y: s.y };
+      const namesToMatch = [text];
+      // Inn synonyms: dedupe across common variants
+      if (String(s.type || "").toLowerCase() === "inn") {
+        if (!namesToMatch.includes("Inn")) namesToMatch.push("Inn");
+        if (!namesToMatch.includes("Inn & Tavern")) namesToMatch.push("Inn & Tavern");
+        if (!namesToMatch.includes("Tavern")) namesToMatch.push("Tavern");
+      }
+      // Collect indices of sign props that either match canonical name/synonyms
+      // or are inside the shop building (unnamed embedded signs count as duplicates).
+      const indices = [];
+      for (let i = 0; i < props.length; i++) {
+        const p = props[i];
+        if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
+        const name = String(p.name || "");
+        const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
+        if (namesToMatch.includes(name) || insideThisShop) {
+          indices.push(i);
+        }
+      }
+      const wants = (s && Object.prototype.hasOwnProperty.call(s, "signWanted")) ? !!s.signWanted : true;
+
+      if (!wants) {
+        // Remove all signs for this shop (including synonyms)
+        for (const idx of indices) removeIdx.add(idx);
+        continue;
+      }
+
+      // If multiple signs exist, keep the one closest to the door
+      if (indices.length > 1) {
+        let keepI = indices[0], bestD = Infinity;
+        for (const idx of indices) {
+          const p = props[idx];
+          const d = Math.abs(p.x - door.x) + Math.abs(p.y - door.y);
+          if (d < bestD) { bestD = d; keepI = idx; }
+        }
+        for (const idx of indices) {
+          if (idx !== keepI) removeIdx.add(idx);
+        }
+      }
+
+      // Ensure kept sign (if any) is outside; otherwise re-place inside near the door.
+      // Also canonicalize its text to the shop's name.
+      let keptIdx = -1;
+      for (let i = 0; i < props.length; i++) {
+        if (removeIdx.has(i)) continue;
+        const p = props[i];
+        if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
+        const name = String(p.name || "");
+        const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
+        if (namesToMatch.includes(name) || insideThisShop) { keptIdx = i; break; }
+      }
+      if (keptIdx !== -1) {
+        const p = props[keptIdx];
+        if (s.building && isInside(s.building, p.x, p.y)) {
+          // Already inside: canonicalize name
+          try { if (String(p.name || "") !== text) p.name = text; } catch (_) {}
+        } else {
+          // Move outside sign to inside near door
+          removeIdx.add(keptIdx);
+          try { addShopSignInside(s.building, door, text); } catch (_) {}
+        }
+      } else {
+        // No sign exists; place one inside near the door
+        try { if (s.building) addShopSignInside(s.building, door, text); } catch (_) {}
+      }
+    }
+
+    if (removeIdx.size) {
+      ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
+    }
+  } catch (_) {}
+}
+
+/**
+ * Dedupe welcome sign globally: keep only the one closest to the gate and ensure one exists.
+ */
+function dedupeWelcomeSign(ctx) {
+  try {
+    if (!Array.isArray(ctx.townProps)) return;
+    const text = `Welcome to ${ctx.townName}`;
+    const props = ctx.townProps;
+    let keepIdx = -1, bestD = Infinity;
+    const removeIdx = new Set();
+    for (let i = 0; i < props.length; i++) {
+      const p = props[i];
+      if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) {
+        const d = Math.abs(p.x - ctx.townExitAt.x) + Math.abs(p.y - ctx.townExitAt.y);
+        if (d < bestD) { bestD = d; keepIdx = i; }
+        removeIdx.add(i);
+      }
+    }
+    if (keepIdx !== -1) removeIdx.delete(keepIdx);
+    if (removeIdx.size) {
+      ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
+    }
+    const hasWelcome = Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text);
+    if (!hasWelcome && ctx.townExitAt) {
+      try { addSignNear(ctx.townExitAt.x, ctx.townExitAt.y, text); } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+/**
+ * Cleanup dangling props from removed buildings: ensure interior-only props are only inside valid buildings.
+ */
+function cleanupDanglingProps(ctx, buildings) {
+  try {
+    if (!Array.isArray(ctx.townProps) || !ctx.townProps.length) return;
+    function insideAnyBuilding(x, y) {
+      for (let i = 0; i < buildings.length; i++) {
+        const B = buildings[i];
+        if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
+      }
+      return false;
+    }
+    // Props that should never exist outside a building interior
+    const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest","counter"]);
+    ctx.townProps = ctx.townProps.filter(p => {
+      if (!inBounds(ctx, p.x, p.y)) return false;
+      const t = ctx.map[p.y][p.x];
+      // Drop props that sit on non-walkable tiles
+      if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.TILES.ROAD) return false;
+      const inside = insideAnyBuilding(p.x, p.y);
+      // Interior-only items: keep only if inside some building
+      if (interiorOnly.has(String(p.type || "").toLowerCase())) return inside;
+      // Signs: allow inside or outside; will be deduped per-shop elsewhere
+      if (String(p.type || "").toLowerCase() === "sign") return true;
+      // Other props (crates/barrels/plants/stall) are allowed anywhere if tile is walkable
+      return true;
+    });
+  } catch (_) {}
+}
+
+/**
+ * Build roads after buildings: one main road from gate to plaza, then spurs from every building door.
+ * Thin wrapper around Roads.build for clarity.
+ */
+function buildRoadsAndPublish(ctx) {
+  try {
+    Roads.build(ctx);
+  } catch (_) {}
+}
+
+/**
+ * Plaza fixtures via prefab only (no fallbacks). For castle settlements, keep the central area
+ * clear for the castle keep and skip plaza prefabs.
+ */
+function placePlazaPrefabStrict(ctx, townKind, plaza, plazaW, plazaH, rng) {
+  try {
+    // Guard: if a plaza prefab was already stamped in this generation cycle, skip
+    try {
+      if (ctx.townPrefabUsage && Array.isArray(ctx.townPrefabUsage.plazas) && ctx.townPrefabUsage.plazas.length > 0) return;
+    } catch (_) {}
+    const GD7 = getGameData(ctx);
+    const PFB = (GD7 && GD7.prefabs) ? GD7.prefabs : null;
+    const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
+    if (!plazas.length) {
+      try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: no plaza prefabs defined; using fallback layout only.", "notice"); } catch (_) {}
+      return;
+    }
+
+    // Clear the plaza rectangle before stamping so that any previous roads/buildings
+    // inside the plaza do not prevent prefab placement.
+    try {
+      const px0 = ((plaza.x - (plazaW / 2)) | 0);
+      const px1 = ((plaza.x + (plazaW / 2)) | 0);
+      const py0 = ((plaza.y - (plazaH / 2)) | 0);
+      const py1 = ((plaza.y + (plazaH / 2)) | 0);
+      const rx0 = Math.max(1, px0);
+      const ry0 = Math.max(1, py0);
+      const rx1 = Math.min(ctx.map[0].length - 2, px1);
+      const ry1 = Math.min(ctx.map.length - 2, py1);
+
+      // Remove any buildings overlapping the plaza rectangle
+      const overl = findBuildingsOverlappingRect(rx0, ry0, rx1 - rx0 + 1, ry1 - ry0 + 1, 0);
+      if (overl && overl.length) {
+        for (let i = 0; i < overl.length; i++) {
+          removeBuildingAndProps(overl[i]);
+        }
+      }
+      // Force tiles in the plaza rectangle back to FLOOR before stamping
+      for (let yy = ry0; yy <= ry1; yy++) {
+        for (let xx = rx0; xx <= rx1; xx++) {
+          ctx.map[yy][xx] = ctx.TILES.FLOOR;
+        }
+      }
+    } catch (_) {}
+
+    // Filter prefabs that fit inside current plaza rectangle
+    const fit = plazas.filter(p => p && p.size && (p.size.w | 0) <= plazaW && (p.size.h | 0) <= plazaH);
+    const list = (fit.length ? fit : plazas);
+    const pref = pickPrefab(list, ctx.rng || rng);
+    if (!pref || !pref.size) {
+      try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: failed to pick a valid plaza prefab; using fallback layout.", "notice"); } catch (_) {}
+      return;
+    }
+    // Center the plaza prefab within the carved plaza rectangle
+    const bx = ((plaza.x - ((pref.size.w / 2) | 0)) | 0);
+    const by = ((plaza.y - ((pref.size.h / 2) | 0)) | 0);
+    if (!stampPlazaPrefab(ctx, pref, bx, by)) {
+      // Attempt slight slip only; no fallback
+      const slipped = trySlipStamp(ctx, pref, bx, by, 2);
+      if (!slipped) {
+        try { if (ctx && typeof ctx.log === "function") ctx.log("Plaza: plaza prefab did not fit even after clearing area; using fallback layout.", "notice"); } catch (_) {}
+      } else {
+        try { if (ctx && typeof ctx.log === "function") ctx.log(`Plaza: plaza prefab '${pref.id || "unknown"}' placed with slip.`, "notice"); } catch (_) {}
+      }
+    } else {
+      try { if (ctx && typeof ctx.log === "function") ctx.log(`Plaza: plaza prefab '${pref.id || "unknown"}' stamped successfully.`, "notice"); } catch (_) {}
+    }
+  } catch (_) {}
+}
+
+/**
+ * Repair pass: enforce solid building perimeters (convert any non-door/window on borders to WALL).
+ */
+function repairBuildingPerimeters(ctx, buildings) {
+  try {
+    for (const b of buildings) {
+      const x0 = b.x, y0 = b.y, x1 = b.x + b.w - 1, y1 = b.y + b.h - 1;
+      // Top and bottom edges
+      for (let xx = x0; xx <= x1; xx++) {
+        if (inBounds(ctx, xx, y0)) {
+          const t = ctx.map[y0][xx];
+          if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[y0][xx] = ctx.TILES.WALL;
+        }
+        if (inBounds(ctx, xx, y1)) {
+          const t = ctx.map[y1][xx];
+          if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[y1][xx] = ctx.TILES.WALL;
+        }
+      }
+      // Left and right edges
+      for (let yy = y0; yy <= y1; yy++) {
+        if (inBounds(ctx, x0, yy)) {
+          const t = ctx.map[yy][x0];
+          if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[yy][x0] = ctx.TILES.WALL;
+        }
+        if (inBounds(ctx, x1, yy)) {
+          const t = ctx.map[yy][x1];
+          if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[yy][x1] = ctx.TILES.WALL;
+        }
+      }
+    }
+  } catch (_) {}
+}
+
+/**
+ * Read town-building configuration from GameData.town and town size/kind.
+ * Provides maxBuildings, block dimensions, residential fill target and minimum
+ * buildings near plaza, with safe defaults matching previous behavior when
+ * JSON fields are missing.
+ */
+function getTownBuildingConfig(TOWNCFG, townSize, townKind) {
+  const bCfg = (TOWNCFG && TOWNCFG.buildings) || {};
+  const maxBySize = bCfg.maxBySize || null;
+  const blockBySize = bCfg.block || null;
+  const fillTargets = bCfg.residentialFillTargets || null;
+  const minNearPlaza = bCfg.minNearPlaza || null;
+
+  const sizeKey = townSize;
+  const kindCfg = (TOWNCFG && TOWNCFG.kinds && TOWNCFG.kinds[townKind]) || {};
+  const kindBuild = kindCfg.buildings || {};
+  const densityMul = typeof kindBuild.densityMultiplier === "number" ? kindBuild.densityMultiplier : 1.0;
+  const minNearBonus = kindBuild.minNearPlazaBonus | 0;
+
+  function fromSize(map, fallback) {
+    if (map && Object.prototype.hasOwnProperty.call(map, sizeKey)) {
+      return map[sizeKey];
+    }
+    return fallback;
+  }
+
+  const baseMax = (maxBySize && fromSize(maxBySize, null)) || (bCfg.max | 0) || 18;
+  const maxBuildings = Math.max(1, Math.round(baseMax * densityMul));
+
+  const blockBase = fromSize(blockBySize, null);
+  const blockW = Math.max(4, blockBase ? (blockBase.blockW | 0) : ((bCfg.blockW | 0) || 8));
+  const blockH = Math.max(3, blockBase ? (blockBase.blockH | 0) : ((bCfg.blockH | 0) || 6));
+
+  const baseFill = (fillTargets && fromSize(fillTargets, null)) || null;
+  const residentialFillTarget = baseFill != null
+    ? Math.max(1, Math.round(baseFill * densityMul))
+    : (townSize === "small" ? 12 : (townSize === "city" ? 34 : 22));
+
+  const baseMin = (minNearPlaza && fromSize(minNearPlaza, null)) || null;
+  const minBuildingsNearPlaza = (baseMin != null
+    ? baseMin
+    : (townSize === "small" ? 10 : (townSize === "city" ? 24 : 16))) + minNearBonus;
+
+  return {
+    maxBuildings,
+    blockW,
+    blockH,
+    residentialFillTarget,
+    minBuildingsNearPlaza
+  };
+}
+
+/**
+ * Read inn size configuration from GameData.town (inn.size[size]) with
+ * safe fallbacks to previous hardcoded behavior when JSON fields are missing.
+ */
+function getInnSizeConfig(TOWNCFG, townSize) {
+  const sizeKey = townSize;
+  const innRoot = (TOWNCFG && TOWNCFG.inn && TOWNCFG.inn.size) || null;
+  const cfg = (innRoot && innRoot[sizeKey]) || null;
+  if (cfg && typeof cfg.minW === "number" && typeof cfg.minH === "number" &&
+      typeof cfg.scaleW === "number" && typeof cfg.scaleH === "number") {
+    return {
+      minW: cfg.minW | 0,
+      minH: cfg.minH | 0,
+      scaleW: cfg.scaleW,
+      scaleH: cfg.scaleH
+    };
+  }
+  // Fallback to previous constants
+  let minW = 18, minH = 12, scaleW = 1.20, scaleH = 1.10; // defaults for "big"
+  if (sizeKey === "small") { minW = 14; minH = 10; scaleW = 1.15; scaleH = 1.08; }
+  else if (sizeKey === "city") { minW = 24; minH = 16; scaleW = 1.35; scaleH = 1.25; }
+  return { minW, minH, scaleW, scaleH };
+}
+
+/**
+ * Read castle keep size configuration from GameData.town (castle.keep.size[size])
+ * and compute keepW/keepH from plaza dimensions with clamping, matching previous
+ * behavior when JSON fields are missing.
+ */
+function getCastleKeepSizeConfig(TOWNCFG, townSize, plazaW, plazaH, mapW, mapH) {
+  const sizeKey = townSize;
+  const keepRoot = (TOWNCFG && TOWNCFG.castle && TOWNCFG.castle.keep && TOWNCFG.castle.keep.size) || null;
+  const cfg = (keepRoot && keepRoot[sizeKey]) || null;
+  let minW, minH, scaleW, scaleH;
+  if (cfg && typeof cfg.scaleW === "number" && typeof cfg.scaleH === "number") {
+    minW = (cfg.minW | 0) || 0;
+    minH = (cfg.minH | 0) || 0;
+    scaleW = cfg.scaleW;
+    scaleH = cfg.scaleH;
+  } else {
+    // Fallback to previous constants
+    minW = 14; minH = 12; scaleW = 0.9; scaleH = 0.9;
+    if (sizeKey === "small") { minW = 12; minH = 10; scaleW = 0.8; scaleH = 0.8; }
+    else if (sizeKey === "city") { minW = 18; minH = 14; scaleW = 1.1; scaleH = 1.1; }
+  }
+  let keepW = Math.max(minW, Math.floor(plazaW * scaleW));
+  let keepH = Math.max(minH, Math.floor(plazaH * scaleH));
+  // Clamp to map with a safety margin from outer walls, as before
+  keepW = Math.min(keepW, mapW - 6);
+  keepH = Math.min(keepH, mapH - 6);
+  return { keepW, keepH };
+}
+
+/**
+ * Read population configuration (roamers/guards) from GameData.town and compute
+ * roamTarget and guardTarget based on building count, town size, and kind.
+ * Falls back to previous hardcoded behavior when JSON fields are missing.
+ */
+function getTownPopulationTargets(TOWNCFG, townSize, townKind, buildingCount) {
+  const pop = (TOWNCFG && TOWNCFG.population) || {};
+  const sizeKey = townSize;
+
+  // Roamers: derive from per-building factor with clamping, defaulting to previous formula.
+  const roamPerBySize = (pop && pop.roamersPerBuilding) || null;
+  const roamPer = (roamPerBySize && typeof roamPerBySize[sizeKey] === "number")
+    ? roamPerBySize[sizeKey]
+    : 0.5; // previous behavior: tbCount / 2
+  const roamMin = (typeof pop.roamersMin === "number") ? pop.roamersMin : 6;
+  const roamMax = (typeof pop.roamersMax === "number") ? pop.roamersMax : 14;
+
+  const rawRoam = buildingCount * roamPer;
+  let roamTargetBase = Math.floor(rawRoam);
+  if (!Number.isFinite(roamTargetBase)) roamTargetBase = Math.floor(buildingCount / 2) || 0;
+  let roamTarget = roamTargetBase;
+  if (roamTarget < roamMin) roamTarget = roamMin;
+  if (roamTarget > roamMax) roamTarget = roamMax;
+
+  // Guards: base per size with castle bonus, then clamp to roamTarget.
+  const baseBySize = (pop && pop.guardsBaseBySize) || null;
+  let guardBase = 0;
+  if (baseBySize && typeof baseBySize[sizeKey] === "number") {
+    guardBase = baseBySize[sizeKey] | 0;
+  } else {
+    // previous behavior
+    if (sizeKey === "small") guardBase = 2;
+    else if (sizeKey === "city") guardBase = 4;
+    else guardBase = 3;
+  }
+  const castleBonus = (typeof pop.guardsCastleBonus === "number") ? pop.guardsCastleBonus | 0 : 2;
+  if (townKind === "castle") guardBase += castleBonus;
+  let guardTarget = guardBase;
+  if (guardTarget > roamTarget) guardTarget = roamTarget;
+  if (guardTarget < 0) guardTarget = 0;
+
+  return { roamTarget, guardTarget };
+}
+
 // ---- Generation (compact version; retains core behavior and mutations) ----
 function generate(ctx) {
   // Seeded RNG helper for determinism
@@ -607,10 +1046,12 @@ function generate(ctx) {
     // Target size: scale from plaza dims and ensure larger minimums by town size
     let rectUsedInn = null;
     const sizeKey = townSize;
-    // Make inn a bit smaller than before to keep plaza spacious
-    let minW = 18, minH = 12, scaleW = 1.20, scaleH = 1.10; // defaults for "big"
-    if (sizeKey === "small") { minW = 14; minH = 10; scaleW = 1.15; scaleH = 1.08; }
-    else if (sizeKey === "city") { minW = 24; minH = 16; scaleW = 1.35; scaleH = 1.25; }
+    // Make inn a bit smaller than before to keep plaza spacious (data-driven via town.json when available)
+    const innSize = getInnSizeConfig(TOWNCFG, sizeKey);
+    const minW = innSize.minW;
+    const minH = innSize.minH;
+    const scaleW = innSize.scaleW;
+    const scaleH = innSize.scaleH;
     const targetW = Math.max(minW, Math.floor(plazaW * scaleW));
     const targetH = Math.max(minH, Math.floor(plazaH * scaleH));
 
@@ -875,30 +1316,62 @@ function generate(ctx) {
     buildings.push({ x: bx, y: by, w: bw, h: bh });
   };
 
-  // For castle settlements, reserve a central \"keep\" tower building with a luxurious interior.
-  // This is a large rectangular building near the plaza center, furnished with rugs, fireplaces,
-  // beds and tables to make the castle feel distinct from regular towns.
+  // For castle settlements, reserve a "keep" tower building with a luxurious interior.
+  // The keep must never overwrite the central plaza: keep and plaza remain visually distinct.
   if (townKind === "castle") {
     (function placeCastleKeep() {
       try {
-        // Scale keep size from plaza size, with bounds tied to town size.
-        let keepW = Math.max(14, Math.floor(plazaW * 0.9));
-        let keepH = Math.max(12, Math.floor(plazaH * 0.9));
-        if (townSize === "small") {
-          keepW = Math.max(12, Math.floor(plazaW * 0.8));
-          keepH = Math.max(10, Math.floor(plazaH * 0.8));
-        } else if (townSize === "city") {
-          keepW = Math.max(18, Math.floor(plazaW * 1.1));
-          keepH = Math.max(14, Math.floor(plazaH * 1.1));
-        }
-        // Clamp to map with a safety margin from outer walls.
-        keepW = Math.min(keepW, W - 6);
-        keepH = Math.min(keepH, H - 6);
+        // Scale keep size from plaza size, with bounds tied to town size (data-driven via town.json when available).
+        const keepSize = getCastleKeepSizeConfig(TOWNCFG, townSize, plazaW, plazaH, W, H);
+        let keepW = keepSize.keepW;
+        let keepH = keepSize.keepH;
         if (keepW < 10 || keepH < 8) return;
 
-        // Center on the plaza.
-        const kx = Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0));
-        const ky = Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0));
+        // Start centered on the plaza.
+        let kx = Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0));
+        let ky = Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0));
+
+        // If this would overlap the plaza rectangle, try shifting the keep to one of the four sides
+        // so the plaza stays open.
+        if (overlapsPlazaRect(kx, ky, keepW, keepH, 0)) {
+          const candidates = [
+            // Below plaza
+            {
+              x: Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0)),
+              y: Math.min(H - keepH - 2, ((plaza.y + (plazaH / 2)) | 0) + 2)
+            },
+            // Above plaza
+            {
+              x: Math.max(2, Math.min(W - keepW - 2, (plaza.x - (keepW / 2)) | 0)),
+              y: Math.max(2, ((plaza.y - (plazaH / 2)) | 0) - 2 - keepH)
+            },
+            // Right of plaza
+            {
+              x: Math.min(W - keepW - 2, ((plaza.x + (plazaW / 2)) | 0) + 2),
+              y: Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0))
+            },
+            // Left of plaza
+            {
+              x: Math.max(2, ((plaza.x - (plazaW / 2)) | 0) - 2 - keepW),
+              y: Math.max(2, Math.min(H - keepH - 2, (plaza.y - (keepH / 2)) | 0))
+            }
+          ];
+          let placedPos = null;
+          for (let i = 0; i < candidates.length; i++) {
+            const c = candidates[i];
+            const cx = Math.max(2, Math.min(W - keepW - 2, c.x));
+            const cy = Math.max(2, Math.min(H - keepH - 2, c.y));
+            if (overlapsPlazaRect(cx, cy, keepW, keepH, 0)) continue;
+            placedPos = { x: cx, y: cy };
+            break;
+          }
+          if (!placedPos) {
+            // No valid non-overlapping placement; skip keep to preserve plaza.
+            return;
+          }
+          kx = placedPos.x;
+          ky = placedPos.y;
+        }
 
         // Do not overwrite the gate tile.
         if (kx <= gate.x && gate.x <= kx + keepW - 1 && ky <= gate.y && gate.y <= ky + keepH - 1) {
@@ -988,9 +1461,10 @@ function generate(ctx) {
     })();
   }
   const cfgB = (TOWNCFG && TOWNCFG.buildings) || {};
-  const maxBuildings = Math.max(1, (cfgB.max | 0) || 18);
-  const blockW = Math.max(4, (cfgB.blockW | 0) || 8);
-  const blockH = Math.max(3, (cfgB.blockH | 0) || 6);
+  const bConf = getTownBuildingConfig(TOWNCFG, townSize, townKind);
+  const maxBuildings = bConf.maxBuildings;
+  const blockW = bConf.blockW;
+  const blockH = bConf.blockH;
 
   // Ensure a margin of clear floor around buildings so walls never touch between buildings
   function isAreaClearForBuilding(bx, by, bw, bh, margin = 1) {
@@ -1124,8 +1598,7 @@ function generate(ctx) {
       const GD5 = getGameData(ctx);
       const PFB = (GD5 && GD5.prefabs) ? GD5.prefabs : null;
       if (!PFB || !Array.isArray(PFB.houses) || !PFB.houses.length) return;
-      const sizeKey = townSize;
-      const targetBySize = (sizeKey === "small") ? 12 : (sizeKey === "city" ? 34 : 22);
+      const targetBySize = bConf.residentialFillTarget;
       if (buildings.length >= targetBySize) return;
       let attempts = 0, successes = 0;
       while (buildings.length < targetBySize && attempts++ < 600) {
@@ -1195,8 +1668,7 @@ function generate(ctx) {
   // Ensure minimum building count around plaza
   (function ensureMinimumBuildingsAroundPlaza() {
     try {
-      const sizeKey = townSize;
-      const minBySize = (sizeKey === "small") ? 10 : (sizeKey === "city" ? 24 : 16);
+      const minBySize = bConf.minBuildingsNearPlaza;
       if (buildings.length >= minBySize) return;
       const px0 = ((plaza.x - (plazaW / 2)) | 0), px1 = ((plaza.x + (plazaW / 2)) | 0);
       const py0 = ((plaza.y - (plazaH / 2)) | 0), py1 = ((plaza.y + (plazaH / 2)) | 0);
@@ -1248,6 +1720,76 @@ function generate(ctx) {
           if (!tryPlaceRect(q)) continue;
         }
       }
+    } catch (_) {}
+  })();
+
+  // Enforce a visible open plaza by clearing any overlapping buildings and
+  // forcing the entire carved plaza rectangle to FLOOR. This applies to towns
+  // and castles alike so the player always sees a central square.
+  (function enforcePlazaOpenCore() {
+    try {
+      const px0 = ((plaza.x - (plazaW / 2)) | 0);
+      const px1 = ((plaza.x + (plazaW / 2)) | 0);
+      const py0 = ((plaza.y - (plazaH / 2)) | 0);
+      const py1 = ((plaza.y + (plazaH / 2)) | 0);
+      const rx0 = Math.max(1, px0);
+      const ry0 = Math.max(1, py0);
+      const rx1 = Math.min(W - 2, px1);
+      const ry1 = Math.min(H - 2, py1);
+
+      // Remove any buildings overlapping the full plaza rectangle
+      const overl = findBuildingsOverlappingRect(rx0, ry0, rx1 - rx0 + 1, ry1 - ry0 + 1, 0);
+      if (overl && overl.length) {
+        for (let i = 0; i < overl.length; i++) {
+          removeBuildingAndProps(overl[i]);
+        }
+      }
+
+      // Force tiles in the plaza rectangle back to FLOOR to guarantee an open square
+      for (let yy = ry0; yy <= ry1; yy++) {
+        for (let xx = rx0; xx <= rx1; xx++) {
+          if (yy <= 0 || xx <= 0 || yy >= H - 1 || xx >= W - 1) continue;
+          ctx.map[yy][xx] = ctx.TILES.FLOOR;
+        }
+      }
+    } catch (_) {}
+  })();
+
+  // Ensure there are always some plaza props (benches/lamps/etc.) even if
+  // no plaza prefab was stamped or it failed to fit.
+  (function ensurePlazaProps() {
+    try {
+      const pr = ctx.townPlazaRect;
+      if (!pr || !Array.isArray(ctx.townProps)) return;
+      const px0 = pr.x0, px1 = pr.x1, py0 = pr.y0, py1 = pr.y1;
+
+      let count = 0;
+      for (let i = 0; i < ctx.townProps.length; i++) {
+        const p = ctx.townProps[i];
+        if (!p) continue;
+        if (p.x >= px0 && p.x <= px1 && p.y >= py0 && p.y <= py1) count++;
+      }
+      // If there are already a few props, assume a prefab handled it.
+      if (count >= 3) return;
+
+      // Simple fallback layout: a well in the center, benches and lamps around.
+      const cx = ctx.townPlaza.x;
+      const cy = ctx.townPlaza.y;
+
+      // Center well
+      addProp(cx, cy, "well");
+
+      // Benches on cardinal directions if floor
+      addProp(cx - 2, cy, "bench");
+      addProp(cx + 2, cy, "bench");
+      addProp(cx, cy - 2, "bench");
+      addProp(cx, cy + 2, "bench");
+
+      // Lamps at diagonals
+      addProp(cx - 3, cy - 3, "lamp");
+      addProp(cx + 3, cy - 3, "lamp");
+      addProp(cx - 3, cy + 3, "lamp");
+      addProp(cx + 3, cy + 3, "lamp");
     } catch (_) {}
   })();
 
@@ -1759,147 +2301,13 @@ function generate(ctx) {
   } catch (_) {}
 
   // Dedupe shop signs: respect per-shop signWanted flag; keep only one sign (nearest to door) outside the building.
-  (function dedupeShopSigns() {
-    try {
-      if (!Array.isArray(ctx.shops) || !Array.isArray(ctx.townProps) || !ctx.townProps.length) return;
-      const props = ctx.townProps;
-      const removeIdx = new Set();
-      function isInside(bld, x, y) {
-        return bld && x > bld.x && x < bld.x + bld.w - 1 && y > bld.y && y < bld.y + bld.h - 1;
-      }
-      for (let si = 0; si < ctx.shops.length; si++) {
-        const s = ctx.shops[si];
-        if (!s) continue;
-        const text = String(s.name || s.type || "Shop");
-        const door = (s.building && s.building.door) ? s.building.door : { x: s.x, y: s.y };
-        const namesToMatch = [text];
-        // Inn synonyms: dedupe across common variants
-        if (String(s.type || "").toLowerCase() === "inn") {
-          if (!namesToMatch.includes("Inn")) namesToMatch.push("Inn");
-          if (!namesToMatch.includes("Inn & Tavern")) namesToMatch.push("Inn & Tavern");
-          if (!namesToMatch.includes("Tavern")) namesToMatch.push("Tavern");
-        }
-        // Collect indices of sign props that either match canonical name/synonyms
-        // or are inside the shop building (unnamed embedded signs count as duplicates).
-        const indices = [];
-        for (let i = 0; i < props.length; i++) {
-          const p = props[i];
-          if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
-          const name = String(p.name || "");
-          const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
-          if (namesToMatch.includes(name) || insideThisShop) {
-            indices.push(i);
-          }
-        }
-        const wants = (s && Object.prototype.hasOwnProperty.call(s, "signWanted")) ? !!s.signWanted : true;
-
-        if (!wants) {
-          // Remove all signs for this shop (including synonyms)
-          for (const idx of indices) removeIdx.add(idx);
-          continue;
-        }
-
-        // If multiple signs exist, keep the one closest to the door
-        if (indices.length > 1) {
-          let keepI = indices[0], bestD = Infinity;
-          for (const idx of indices) {
-            const p = props[idx];
-            const d = Math.abs(p.x - door.x) + Math.abs(p.y - door.y);
-            if (d < bestD) { bestD = d; keepI = idx; }
-          }
-          for (const idx of indices) {
-            if (idx !== keepI) removeIdx.add(idx);
-          }
-        }
-
-        // Ensure kept sign (if any) is outside; otherwise re-place outside.
-        // Also canonicalize its text to the shop's name.
-        let keptIdx = -1;
-        for (let i = 0; i < props.length; i++) {
-          if (removeIdx.has(i)) continue;
-          const p = props[i];
-          if (!p || String(p.type || "").toLowerCase() !== "sign") continue;
-          const name = String(p.name || "");
-          const insideThisShop = s.building ? isInside(s.building, p.x, p.y) : false;
-          if (namesToMatch.includes(name) || insideThisShop) { keptIdx = i; break; }
-        }
-        if (keptIdx !== -1) {
-          const p = props[keptIdx];
-          if (s.building && isInside(s.building, p.x, p.y)) {
-            // Already inside: canonicalize name
-            try { if (String(p.name || "") !== text) p.name = text; } catch (_) {}
-          } else {
-            // Move outside sign to inside near door
-            removeIdx.add(keptIdx);
-            try { addShopSignInside(s.building, door, text); } catch (_) {}
-          }
-        } else {
-          // No sign exists; place one inside near the door
-          try { if (s.building) addShopSignInside(s.building, door, text); } catch (_) {}
-        }
-      }
-
-      if (removeIdx.size) {
-        ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
-      }
-    } catch (_) {}
-  })();
+  dedupeShopSigns(ctx);
 
   // Dedupe welcome sign globally: keep only the one closest to the gate and ensure one exists.
-  (function dedupeWelcomeSign() {
-    try {
-      if (!Array.isArray(ctx.townProps)) return;
-      const text = `Welcome to ${ctx.townName}`;
-      const props = ctx.townProps;
-      let keepIdx = -1, bestD = Infinity;
-      const removeIdx = new Set();
-      for (let i = 0; i < props.length; i++) {
-        const p = props[i];
-        if (p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text) {
-          const d = Math.abs(p.x - ctx.townExitAt.x) + Math.abs(p.y - ctx.townExitAt.y);
-          if (d < bestD) { bestD = d; keepIdx = i; }
-          removeIdx.add(i);
-        }
-      }
-      if (keepIdx !== -1) removeIdx.delete(keepIdx);
-      if (removeIdx.size) {
-        ctx.townProps = props.filter((_, i) => !removeIdx.has(i));
-      }
-      const hasWelcome = Array.isArray(ctx.townProps) && ctx.townProps.some(p => p && String(p.type || "").toLowerCase() === "sign" && String(p.name || "") === text);
-      if (!hasWelcome && ctx.townExitAt) {
-        try { addSignNear(ctx.townExitAt.x, ctx.townExitAt.y, text); } catch (_) {}
-      }
-    } catch (_) {}
-  })();
+  dedupeWelcomeSign(ctx);
 
   // Cleanup dangling props from removed buildings: ensure interior-only props are only inside valid buildings
-  (function cleanupDanglingProps() {
-    try {
-      if (!Array.isArray(ctx.townProps) || !ctx.townProps.length) return;
-      function insideAnyBuilding(x, y) {
-        for (let i = 0; i < buildings.length; i++) {
-          const B = buildings[i];
-          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
-        }
-        return false;
-      }
-      // Props that should never exist outside a building interior
-      const interiorOnly = new Set(["bed","table","chair","shelf","rug","fireplace","quest_board","chest","counter"]);
-      ctx.townProps = ctx.townProps.filter(p => {
-        if (!inBounds(ctx, p.x, p.y)) return false;
-        const t = ctx.map[p.y][p.x];
-        // Drop props that sit on non-walkable tiles
-        if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.STAIRS && t !== ctx.TILES.ROAD) return false;
-        const inside = insideAnyBuilding(p.x, p.y);
-        // Interior-only items: keep only if inside some building
-        if (interiorOnly.has(String(p.type || "").toLowerCase())) return inside;
-        // Signs: allow inside or outside; will be deduped per-shop elsewhere
-        if (String(p.type || "").toLowerCase() === "sign") return true;
-        // Other props (crates/barrels/plants/stall) are allowed anywhere if tile is walkable
-        return true;
-      });
-    } catch (_) {}
-  })();
+  cleanupDanglingProps(ctx, buildings);
 
   // Town buildings metadata
   ctx.townBuildings = buildings.map(b => ({
@@ -1913,35 +2321,10 @@ function generate(ctx) {
   }));
 
   // Compute outdoor ground mask (true for outdoor FLOOR tiles; false for building interiors)
-  (function buildOutdoorMask() {
-    try {
-      const rows = H, cols = W;
-      const mask = Array.from({ length: rows }, () => Array(cols).fill(false));
-      function insideAnyBuilding(x, y) {
-        for (let i = 0; i < buildings.length; i++) {
-          const B = buildings[i];
-          if (x > B.x && x < B.x + B.w - 1 && y > B.y && y < B.y + B.h - 1) return true;
-        }
-        return false;
-      }
-      for (let yy = 0; yy < rows; yy++) {
-        for (let xx = 0; xx < cols; xx++) {
-          const t = ctx.map[yy][xx];
-          if (t === ctx.TILES.FLOOR && !insideAnyBuilding(xx, yy)) {
-            mask[yy][xx] = true;
-          }
-        }
-      }
-      ctx.townOutdoorMask = mask;
-    } catch (_) {}
-  })();
+  buildOutdoorMask(ctx, buildings, W, H);
 
   // Build roads after buildings: one main road from gate to plaza, then spurs from every building door to the main road.
-  (function buildRoadsAndPublish() {
-    try {
-      Roads.build(ctx);
-    } catch (_) {}
-  })();
+  buildRoadsAndPublish(ctx);
 
   // Open-air caravan stall near the plaza when a caravan is parked at this town.
   (function placeCaravanStallIfCaravanPresent() {
@@ -2229,62 +2612,10 @@ function generate(ctx) {
 
   // Plaza fixtures via prefab only (no fallbacks). For castle settlements, keep the central area
   // clear for the castle keep and skip plaza prefabs.
-  (function placePlazaPrefabStrict() {
-    try {
-      if (townKind === "castle") return;
-      // Guard: if a plaza prefab was already stamped in this generation cycle, skip
-      try {
-        if (ctx.townPrefabUsage && Array.isArray(ctx.townPrefabUsage.plazas) && ctx.townPrefabUsage.plazas.length > 0) return;
-      } catch (_) {}
-      const GD7 = getGameData(ctx);
-      const PFB = (GD7 && GD7.prefabs) ? GD7.prefabs : null;
-      const plazas = (PFB && Array.isArray(PFB.plazas)) ? PFB.plazas : [];
-      if (!plazas.length) return;
-      // Filter prefabs that fit inside current plaza rectangle
-      const fit = plazas.filter(p => p && p.size && (p.size.w | 0) <= plazaW && (p.size.h | 0) <= plazaH);
-      const list = (fit.length ? fit : plazas);
-      const pref = pickPrefab(list, ctx.rng || rng);
-      if (!pref || !pref.size) return;
-      // Center the plaza prefab within the carved plaza rectangle
-      const bx = ((plaza.x - ((pref.size.w / 2) | 0)) | 0);
-      const by = ((plaza.y - ((pref.size.h / 2) | 0)) | 0);
-      if (!stampPlazaPrefab(ctx, pref, bx, by)) {
-        // Attempt slight slip only; no fallback
-        trySlipStamp(ctx, pref, bx, by, 2);
-      }
-    } catch (_) {}
-  })();
+  placePlazaPrefabStrict(ctx, townKind, plaza, plazaW, plazaH, rng);
 
   // Repair pass: enforce solid building perimeters (convert any non-door/window on borders to WALL)
-  (function repairBuildingPerimeters() {
-    try {
-      for (const b of buildings) {
-        const x0 = b.x, y0 = b.y, x1 = b.x + b.w - 1, y1 = b.y + b.h - 1;
-        // Top and bottom edges
-        for (let xx = x0; xx <= x1; xx++) {
-          if (inBounds(ctx, xx, y0)) {
-            const t = ctx.map[y0][xx];
-            if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[y0][xx] = ctx.TILES.WALL;
-          }
-          if (inBounds(ctx, xx, y1)) {
-            const t = ctx.map[y1][xx];
-            if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[y1][xx] = ctx.TILES.WALL;
-          }
-        }
-        // Left and right edges
-        for (let yy = y0; yy <= y1; yy++) {
-          if (inBounds(ctx, x0, yy)) {
-            const t = ctx.map[yy][x0];
-            if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[yy][x0] = ctx.TILES.WALL;
-          }
-          if (inBounds(ctx, x1, yy)) {
-            const t = ctx.map[yy][x1];
-            if (t !== ctx.TILES.DOOR && t !== ctx.TILES.WINDOW) ctx.map[yy][x1] = ctx.TILES.WALL;
-          }
-        }
-      }
-    } catch (_) {}
-  })();
+  repairBuildingPerimeters(ctx, buildings);
 
   // NPCs via TownAI if present
   ctx.npcs = [];
@@ -2375,16 +2706,11 @@ function generate(ctx) {
   const guardBarracks = Array.isArray(ctx.townBuildings)
     ? ctx.townBuildings.find(b => b && b.prefabId && String(b.prefabId).toLowerCase().includes("guard_barracks"))
     : null;
-  const roamTarget = Math.min(14, Math.max(6, Math.floor(tbCount / 2)));
-  let guardTarget = 0;
-  if (townSize === "small") guardTarget = 2;
-  else if (townSize === "city") guardTarget = 4;
-  else guardTarget = 3;
-  // Castles are fortified settlements: add a few extra guards on top of the normal town size rules.
-  if (townKind === "castle") {
-    guardTarget += 2;
-  }
-  guardTarget = Math.min(guardTarget, roamTarget);
+
+  // Population targets (roamers/guards) driven by town.json when present.
+  const popTargets = getTownPopulationTargets(TOWNCFG, townSize, townKind, tbCount);
+  const roamTarget = popTargets.roamTarget;
+  let guardTarget = popTargets.guardTarget;
 
   let placed = 0, placedGuards = 0, tries = 0;
   while (placed < roamTarget && tries++ < 800) {

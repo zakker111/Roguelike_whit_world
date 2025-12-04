@@ -72,9 +72,11 @@ export function stampPrefab(ctx, prefab, bx, by, buildings) {
   const x0 = bx, y0 = by, x1 = bx + w - 1, y1 = by + h - 1;
   if (x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) return null;
   const cat = String(prefab.category || "").toLowerCase();
+  // Allow stamping on FLOOR and ROAD tiles so roads/paths don't block prefabs.
   for (let yy = y0; yy <= y1; yy++) {
     for (let xx = x0; xx <= x1; xx++) {
-      if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return null;
+      const t = ctx.map[yy][xx];
+      if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) return null;
     }
   }
 
@@ -362,10 +364,12 @@ export function stampPlazaPrefab(ctx, prefab, bx, by) {
     if (!row || row.length !== w) return false;
   }
 
-  // Ensure target area is currently walkable (plaza/road floor)
+  // Ensure target area is currently walkable (plaza/road floor). Allow both FLOOR and ROAD
+  // tiles so roads through the plaza do not prevent using a plaza prefab.
   for (let yy = y0; yy <= y1; yy++) {
     for (let xx = x0; xx <= x1; xx++) {
-      if (ctx.map[yy][xx] !== ctx.TILES.FLOOR) return false;
+      const t = ctx.map[yy][xx];
+      if (t !== ctx.TILES.FLOOR && t !== ctx.TILES.ROAD) return false;
     }
   }
 

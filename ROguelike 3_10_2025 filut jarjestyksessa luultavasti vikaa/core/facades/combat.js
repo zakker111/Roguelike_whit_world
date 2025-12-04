@@ -35,6 +35,10 @@ function getPlayerModule(ctx) {
   return getMod(ctx, "Player");
 }
 
+function getCombatRules(ctx) {
+  return getMod(ctx, "CombatRules");
+}
+
 export function getPlayerAttack(ctx) {
   const S = getStats(ctx);
   if (S && typeof S.getPlayerAttack === "function") {
@@ -173,6 +177,14 @@ export function enemyDamageAfterDefense(ctx, raw) {
 }
 
 export function enemyDamageMultiplier(ctx, level) {
+  const CR = getCombatRules(ctx);
+  if (CR && typeof CR.enemyDamageMultiplier === "function") {
+    try {
+      return CR.enemyDamageMultiplier(level);
+    } catch (_) {
+      // fall through
+    }
+  }
   const C = getCombat(ctx);
   if (C && typeof C.enemyDamageMultiplier === "function") {
     try {
