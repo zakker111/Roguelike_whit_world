@@ -242,21 +242,36 @@
     }
   ],
   "plazas": [
-    {
-      "id": "plaza_well_square",
-      "name": "Plaza — Well & Lamps",
-      "category": "plaza",
-      "size": { "w": 11, "h": 7 },
-      "tiles": [
-        ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","LAMP","QUEST_BOARD","FLOOR","FLOOR","STALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","BENCH","PLANT","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","PLANT","FLOOR","FLOOR"],
-        ["FLOOR","BENCH","FLOOR","FLOOR","FLOOR","WELL","BENCH","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","BENCH","PLANT","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","PLANT","FLOOR","FLOOR"],
-        ["FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","STALL","LAMP","FLOOR","FLOOR","FLOOR","FLOOR"],
-        ["FLOOR","FLOOR","FLOOR","FLOOR","BENCH","FLOOR","BENCH","FLOOR","FLOOR","FLOOR","FLOOR"]
-      ],
-      "constraints": { "rotations": [0,90,180,270], "mirror": true }
+     {
+        "id": "plaza_custom_1",
+        "name": "Plaza (Custom)",
+        "category": "plaza",
+        "tags": [
+            "plaza"
+        ],
+        "size": {
+        "w": 7,
+        "h": 5
+    },
+        "tiles": [
+        ["BARREL","LAMP","FLOOR","FLOOR","FLOOR","FLOOR","WELL"],
+        ["BARREL","BENCH","BENCH","PLANT","CHAIR","PLANT","FLOOR"],
+        ["CRATE","FLOOR","FLOOR","CHAIR","PLANT","CHAIR","FLOOR"],
+        ["FLOOR","BENCH","BENCH","PLANT","CHAIR","PLANT","FLOOR"],
+        ["LAMP","FLOOR","FLOOR","FLOOR","FLOOR","CRATE","WELL"]
+  ],
+        "constraints": {
+        "rotations": [
+        0,
+        90,
+        180,
+        270
+    ],
+    "mirror": true,
+    "mustFaceRoad": true,
+    "minSetback": 1
+  }
+
     },
     {
       "id": "plaza_market_1",
