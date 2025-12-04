@@ -1544,7 +1544,6 @@ function generate(ctx) {
   (function ensureMinimumBuildingsAroundPlaza() {
     try {
       const minBySize = bConf.minBuildingsNearPlaza;
-      if (buildings.length >= minBySize) ret_codey" ? 24 : 16);
       if (buildings.length >= minBySize) return;
       const px0 = ((plaza.x - (plazaW / 2)) | 0), px1 = ((plaza.x + (plazaW / 2)) | 0);
       const py0 = ((plaza.y - (plazaH / 2)) | 0), py1 = ((plaza.y + (plazaH / 2)) | 0);
