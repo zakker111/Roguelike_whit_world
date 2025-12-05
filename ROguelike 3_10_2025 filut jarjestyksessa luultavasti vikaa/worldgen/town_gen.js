@@ -2465,7 +2465,7 @@ function generate(ctx) {
         if (Array.isArray(ctx.townProps) && ctx.townProps.length) {
           const x0 = rect.x, y0 = rect.y, x1 = rect.x + rect.w - 1, y1 = rect.y + rect.h - 1;
           const signIdx = [];
-          for (let i = 0;  <o ctx.townProps.length; i++) {
+          for (let i = 0; i < ctx.townProps.length; i++) {
             const p = ctx.townProps[i];
             if (!p) continue;
             if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && String(p.type || "").toLowerCase() === "sign") {
@@ -2476,7 +2476,15 @@ function generate(ctx) {
             const keepIdx = signIdx[0];
             const keep = ctx.townProps[keepIdx];
             if (keep) keep.name = "Caravan";
-            if (signIdx.length >
+            if (signIdx.length > 1) {
+              const removeSet = new Set(signIdx.slice(1));
+              ctx.townProps = ctx.townProps.filter(function (p, idx) {
+                return !removeSet.has(idx);
+              });
+            }
+          }
+        }
+      } catch (_) {}
       // Create a caravan shop at a reasonable tile inside the prefab.
       // Prefer a stall prop tile inside the rect; otherwise center of rect.
       let stallX = null, stallY = null;
