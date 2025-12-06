@@ -20,13 +20,50 @@ export function createTimeFacade(opts = {}) {
   const MINUTES_PER_TURN = DAY_MINUTES / CYCLE_TURNS;
 
   function getClock(tc) {
-    const totalMinutes = Math.floor((tc | 0) * MINUTES_PER_TURN) % DAY_MINUTES;
+    const t0 = (tc | 0);
+    const totalMinutes = Math.floor(t0 * MINUTES_PER_TURN) % DAY_MINUTES;
     const h = Math.floor(totalMinutes / 60);
     const m = totalMinutes % 60;
     const hh = String(h).padStart(2, "0");
     const mm = String(m).padStart(2, "0");
     const phase = (h >= 20 || h < 6) ? "night" : (h < 8 ? "dawn" : (h < 18 ? "day" : "dusk"));
-    return { hours: h, minutes: m, hhmm: `${hh}:${mm}`, phase, totalMinutes, minutesPerTurn: MINUTES_PER_TURN, cycleTurns: CYCLE_TURNS, turnCounter: (tc | 0) };
+
+    // Mirror TimeService moon phase behavior so HUD/time users see consistent data.
+    let moonPhaseIndex = 0;
+    let moonPhaseName = "New Moon";
+    try {
+      const absMinutes = Math.floor(t0 * MINUTES_PER_TURN);
+      const dayIndex = Math.max(0, Math.floor(absMinutes / DAY_MINUTES));
+      const cycleDays = 28;
+      const phases = [
+        "New Moon",
+        "Waxing Crescent",
+        "First Quarter",
+        "Waxing Gibbous",
+        "Full Moon",
+        "Waning Gibbous",
+        "Last Quarter",
+        "Waning Crescent"
+      ];
+      const phaseLen = cycleDays / phases.length;
+      const posInCycle = ((dayIndex % cycleDays) + cycleDays) % cycleDays;
+      const idx = Math.max(0, Math.min(phases.length - 1, Math.floor(posInCycle / phaseLen)));
+      moonPhaseIndex = idx;
+      moonPhaseName = phases[idx];
+    } catch (_) {}
+
+    return {
+      hours: h,
+      minutes: m,
+      hhmm: `${hh}:${mm}`,
+      phase,
+      totalMinutes,
+      minutesPerTurn: MINUTES_PER_TURN,
+      cycleTurns: CYCLE_TURNS,
+      turnCounter: t0,
+      moonPhaseIndex,
+      moonPhaseName
+    };
   }
   function minutesUntil(tc, hourTarget, minuteTarget = 0) {
     const clock = getClock(tc);
