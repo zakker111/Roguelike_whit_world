@@ -27,6 +27,27 @@ export function drawDayNightTint(ctx, view) {
           else if (time.phase === "dawn" && Number.isFinite(Number(pal.dawnA))) a = Math.max(0, Math.min(1, Number(pal.dawnA)));
         }
       } catch (_) {}
+
+      // Adjust night darkness based on moon phase when available.
+      try {
+        if (time.phase === "night" && typeof time.moonPhaseIndex === "number") {
+          // 8-phase model: 0=New, 4=Full. Make nights lighter near full moon.
+          const idx = time.moonPhaseIndex | 0;
+          let factor = 1.0;
+          if (idx === 4) {
+            // Full Moon: significantly lighter night
+            factor = 0.45;
+          } else if (idx === 3 || idx === 5) {
+            // Gibbous phases: somewhat lighter
+            factor = 0.65;
+          } else if (idx === 2 || idx === 6) {
+            // Quarter moons: very slight lift
+            factor = 0.8;
+          }
+          a = a * factor;
+        }
+      } catch (_) {}
+
       ctx2d.globalAlpha = a;
       if (time.phase === "night") {
         ctx2d.fillStyle = nightTint;
