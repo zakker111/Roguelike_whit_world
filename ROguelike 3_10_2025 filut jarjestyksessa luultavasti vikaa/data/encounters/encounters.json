@@ -6,6 +6,8 @@
       "name": "Forest Ambush",
       "baseWeight": 1.0,
       "allowedBiomes": ["FOREST", "GRASS", "SWAMP", "SNOW"],
+      "moonPreferred": ["New Moon"],
+      "moonWeightFactor": 1.4,
       "map": { "generator": "ambush_forest", "w": 24, "h": 16 },
       "groups": [
         { "type": "bandit", "count": { "min": 2, "max": 4 } }
@@ -16,6 +18,8 @@
       "name": "Bandit Camp",
       "baseWeight": 0.8,
       "allowedBiomes": ["FOREST", "GRASS", "DESERT", "BEACH", "SNOW"],
+      "moonPreferred": ["New Moon"],
+      "moonWeightFactor": 1.4,
       "map": { "generator": "camp", "w": 26, "h": 18 },
       "groups": [
         { "type": "bandit", "count": { "min": 3, "max": 6 } }
@@ -85,6 +89,20 @@
       "groups": [
         { "type": "guard",  "count": { "min": 6, "max": 10 }, "faction": "guard" },
         { "type": "bandit", "count": { "min": 7, "max": 11 }, "faction": "bandit" }
+      ]
+    },
+    {
+      "id": "full_moon_ritual",
+      "name": "Full Moon Ritual",
+      "baseWeight": 0.0,
+      "allowedBiomes": ["FOREST", "SNOW", "SWAMP"],
+      "map": { "generator": "ruins", "w": 26, "h": 18 },
+      "playerSpawn": "center",
+      "constraints": { "timeOfDay": "night", "moonPhase": "Full Moon", "globalShare": 0.02 },
+      "objective": { "type": "clearAll" },
+      "groups": [
+        { "type": "moon_wraith", "count": { "min": 1, "max": 2 }, "faction": "undead" },
+        { "type": "skeleton", "count": { "min": 3, "max": 5 }, "faction": "undead" }
       ]
     }
   ]
