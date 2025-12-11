@@ -1,5 +1,134 @@
 # Game Version History
-Last updated: 2025-12-04 12:00 UTC
+Last updated: 2025-12-11 12:00 UTC
+
+v1.53.0 — Caravan stall hardening, moon phases, and Full Moon encounters
+- Changed: Town caravan stall placement is more robust and gate-aware
+  - worldgen/town_gen.js: placeCaravanStallIfCaravanPresent(ctx) now:
+    - Uses a canPlaceAt(x, y) helper that ensures the caravan prefab rectangle:
+      - Fits fully inside map bounds.
+      - Only covers FLOOR or ROAD tiles.
+      - Does not include the town gate tile (ctx.townExitAt).
+    - First tries four preferred anchors around the plaza (below/above/left/right).
+    - If all anchors fail, scans the whole town map for all valid FLOOR/ROAD rectangles that fit the prefab, rejecting any that cover the gate, and scores them by distance to the plaza center.
+    - Picks the best candidate and stamps the caravan stall there, or gives up if none exist.
+  - Effect: Caravan stalls are much more likely to appear in dense/irregular towns and never block the town gate, while still preferring locations near the plaza when possible.
+
+- Changed: Caravan stall signage deduplicated
+  - worldgen/town_gen.js: After stamping the caravan prefab:
+    - Scans all sign props inside the prefab rect.
+    - Keeps the first sign, renames it to “Caravan”.
+    - Removes any additional signs inside that rect.
+  - Effect: The caravan area now has at most one Caravan sign even when plaza layouts or prefabs would have produced multiple overlapping signs.
+
+- Added: Moon phase fields to time-of-day facades
+  - services/time_service.js and core/facades/time.js:
+    - getClock(turnCounter) now also returns:
+      - moonPhaseIndex: 0–7.
+      - moonPhaseName: one of [New Moon, Waxing Crescent, First Quarter, Waxing Gibbous, Full Moon, Waning Gibbous, Last Quarter, Waning Crescent].
+    - Uses a 28-day cycle split into 8 phases (3.5 days each), derived from absolute in-game day index via totalMinutes / DAY_MINUTES.
+  - Existing fields (hours, minutes, hhmm, phase, totalMinutes, minutesPerTurn, cycleTurns, turnCounter) remain unchanged for back-compat.
+
+- Added: Moon phase display in overworld HUD
+  - ui/render/overworld_hud.js:
+    - HUD label now shows: “Biome: X   |   Time: HH:MM   |   Moon: Phase” when moonPhaseName is available.
+    - Layout width is adjusted dynamically based on text length.
+  - Effect: The player can see the current moon phase at a glance while on the overworld.
+
+- Changed: Night tints now respond to moon phase (overworld + towns)
+  - ui/render/overworld_tints.js and ui/render/town_tints.js:
+    - After resolving palette alpha for night/dawn/dusk, the night alpha a is scaled using moonPhaseIndex when time.phase === "night":
+      - Full Moon (index 4): factor = 0.45 (significantly lighter nights).
+      - Waxing/Waning Gibbous (3,5): factor = 0.65.
+      - First/Last Quarter (2,6): factor = 0.8.
+      - Other phases (New/Crescents): factor = 1.0 (unchanged).
+    - Applied equally in overworld and town tints.
+  - Effect: Nights are darkest at New Moon and noticeably brighter at Full Moon, giving a subtle but readable visual rhythm without changing FOV or mechanics.
+
+- Added: Moon-aware encounter weighting
+  - data/encounters/encounters.json:
+    - ambush_forest and bandit_camp now specify:
+      - moonPreferred: ["New Moon"]
+      - moonWeightFactor: 1.4
+    - This expresses that bandit ambush/camp encounters are more likely on New Moon nights.
+  - services/encounter_service.js (pickTemplate):
+    - For each template, after biome filtering:
+      - Respects constraints.timeOfDay when present (must match clock.phase).
+      - If template.moonForbidden contains the current moonPhaseName, weight → 0.
+      - If template.moonPreferred contains the current moonPhaseName, weight *= moonWeightFactor (default 1.5 if positive and not specified).
+    - Weighted random pick now uses these adjusted weights.
+  - Effect: Encounter mix subtly shifts with moon phase (e.g., more bandit ambushes under dark New Moon nights) without hard forcing specific templates.
+
+- Added: New enemy type “moon_wraith”
+  - data/entities/enemies.json:
+    - Added moon_wraith (id: "moon_wraith") with:
+      - glyph: "W", color: #e0f2fe, faction: "undead".
+      - tier: 3, blockBase: 0.08.
+      - weightByDepth: [[0,0.0],[4,0.01],[8,0.02]] (very rare outside dedicated templates).
+      - hp/atk/xp tables tuned as a high-threat mid-/late-game enemy.
+      - equipChance: 0.80, damageScale: 1.25.
+      - lootPools: biased toward better weapons/armor and stronger potions.
+  - Effect: A dedicated moon-tied undead exists for special encounters, with higher damage and more rewarding drops than baseline skeletons.
+
+- Added: Full Moon Ritual encounter (hard, night-only, Full Moon)
+  - data/encounters/encounters.json:
+    - New template full_moon_ritual:
+      - allowedBiomes: FOREST, SNOW, SWAMP.
+      - map: generator "ruins", 26×18, playerSpawn: "center".
+      - constraints: { timeOfDay: "night", moonPhase: "Full Moon", globalShare: 0.02 }.
+      - objective: { type: "clearAll" }.
+      - groups:
+        - 1–2 moon_wraith (faction: undead).
+        - 4–7 skeleton (faction: undead).
+      - baseWeight: 0.0 (only selected by the explicit Full Moon gate below).
+  - services/encounter_service.js (maybeTryEncounter):
+    - Added maybeFullMoonRitual():
+      - Only runs when:
+        - Registry has full_moon_ritual.
+        - clock.phase === "night".
+        - clock.moonPhaseName === "Full Moon".
+      - Rolls a 2% share (r < 0.02) of successful encounter rolls under those conditions.
+      - Computes baseDiff = computeDifficulty(ctx, biome) and then:
+        - bump = (baseDiff <= 3 ? 2 : 1),
+        - diff = min(5, baseDiff + bump).
+      - Attempts to enter full_moon_ritual with this boosted difficulty.
+      - On success, resets movesSinceLast, sets cooldownMoves, and uses an _earlyExit sentinel to short-circuit further processing.
+  - Effect: On Full Moon nights in suitable biomes, there’s a rare, explicitly harder ritual encounter featuring moon wraiths and beefed-up skeletons.
+
+- Added: Ritual props and altar chest for Full Moon Ritual
+  - core/encounter/enter.js:
+    - After setting ctx.map/seen/visible/enemies/corpses/encounterProps, a new addFullMoonRitualProps() helper runs when template.id === "full_moon_ritual":
+      - Determines map center (px, py) and ensures it is FLOOR.
+      - Builds a local used set keyed by "x,y" from existing encounterProps to avoid overlaps.
+      - Adds a ring of campfires around the center where FLOOR and free:
+        - (px±2, py), (px, py±2).
+      - Adds inner “stone” props using benches at:
+        - (px±1, py±1) when FLOOR and free.
+      - Creates a central altar chest at (px, py) if not blocked:
+        - Loot generation:
+          - First tries Loot.generate(ctx, { type: "moon_wraith", xp: 50 }).
+          - If no loot, falls back to Loot.generate(ctx, { type: "skeleton", xp: 40 }).
+          - Always appends { name: "ritual spoils", kind: "gold", amount: 70 }.
+        - Pushes a chest corpse { kind: "chest", x: px, y: py, loot, looted: loot.length === 0 }.
+        - Marks this tile as occupied in chestSpots.
+    - Existing encounter prop renderer (drawEncounterProps) already draws campfires, benches, and chests appropriately.
+  - Effect: Full Moon Ritual maps now feel like proper ritual sites: a glowing ring of fires and a central altar chest with high-value loot.
+
+- Changed: Full Moon Ritual difficulty further ramped
+  - services/encounter_service.js:
+    - maybeFullMoonRitual() previously used diff = min(5, baseDiff + 1).
+    - Now uses a conditional bump:
+      - bump = 2 when baseDiff ≤ 3 (low/mid-level players),
+      - bump = 1 otherwise.
+      - diff = min(5, baseDiff + bump).
+  - Effect: Full Moon Ritual is clearly more dangerous than baseline encounters at the same stage, especially when the player is low/mid level, but capped at difficulty 5.
+
+- Docs: Recorded hover-inspect Perception system in Planned / Ideas
+  - VERSIONS.md Planned / Ideas section now includes:
+    - Mouse-hover enemy inspect system tied to Perception skill:
+      - Hover over a visible enemy tile to see threat/gear info.
+      - Info detail scales with Perception (vague adjectives at low skill, approximate/precise level and stats at higher skill).
+      - Implemented via mousemove tile hit-testing and a small DOM tooltip/HUD overlay, ignoring unseen tiles and when modals are open.
+
 
 v1.52.0 — Data-driven towns (buildings, population, and plaza prefabs)
 - Added: JSON-driven town building density and plaza sizing
@@ -2585,6 +2714,11 @@ Planned / Ideas
 - Movement costs or effects per biome (swamp slow, snow visibility, desert hazard)
 - if there is not enought beds for npc at home make em sleep at floor
 - flavor text to json file
+- Mouse-hover enemy inspect system tied to Perception skill:
+  - When hovering over a visible enemy tile (dungeon/encounter), show an inspect tooltip describing its relative threat and gear.
+  - Low Perception → vague text (“looks weak / dangerous”, “lightly/heavily armored”).
+  - Higher Perception → approximate or exact level and stats (Attack/Defense), gear quality (tier) and whether it looks well equipped.
+  - Implemented via a lightweight mousemove → tile → enemy lookup and a small DOM tooltip or HUD overlay, with no impact when modals are open or tiles are unseen.
 
 Things to chek
 - some files are realy big it would be fine to start cut em to portions if it makes sens

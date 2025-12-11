@@ -27,6 +27,23 @@ export function drawTownDayNightTint(ctx, view) {
           else if (time.phase === "dawn" && Number.isFinite(Number(pal.dawnA))) a = Math.max(0, Math.min(1, Number(pal.dawnA)));
         }
       } catch (_) {}
+
+      // Adjust night darkness based on moon phase, same as overworld.
+      try {
+        if (time.phase === "night" && typeof time.moonPhaseIndex === "number") {
+          const idx = time.moonPhaseIndex | 0;
+          let factor = 1.0;
+          if (idx === 4) {
+            factor = 0.45; // Full Moon
+          } else if (idx === 3 || idx === 5) {
+            factor = 0.65; // Gibbous
+          } else if (idx === 2 || idx === 6) {
+            factor = 0.8;  // Quarter
+          }
+          a = a * factor;
+        }
+      } catch (_) {}
+
       ctx2d.globalAlpha = a;
       if (time.phase === "night") {
         ctx2d.fillStyle = nightTint;

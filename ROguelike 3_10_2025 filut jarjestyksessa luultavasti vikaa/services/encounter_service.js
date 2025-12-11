@@ -88,23 +88,60 @@ function pickTemplate(ctx, biome) {
     { id: "bandit_camp", name: "Bandit Camp", baseWeight: 0.8, allowedBiomes: ["GRASS","DESERT","BEACH"], map: { generator: "camp", w: 26, h: 18 }, groups: [ { type: "bandit", count: { min: 3, max: 6 } } ] },
     { id: "wild_seppo", name: "Wild Seppo", baseWeight: 0.06, allowedBiomes: ["FOREST","GRASS","DESERT","BEACH","SNOW","SWAMP"], map: { generator: "camp", w: 24, h: 16 }, merchant: { vendor: "seppo" }, groups: [] },
   ];
-  
+
   const list = reg || fallback;
-  const candidates = list.filter(t => {
-    if (!Array.isArray(t.allowedBiomes) || t.allowedBiomes.length === 0) return true;
-    return t.allowedBiomes.includes(biome);
-  });
-  if (!candidates.length) return null;
-  // Weighted pick (baseWeight only for MVP)
-  let sum = 0;
-  for (const t of candidates) { sum += (typeof t.baseWeight === "number" ? t.baseWeight : 1); }
-  let r = rng() * sum;
-  for (const t of candidates) {
-    const w = (typeof t.baseWeight === "number" ? t.baseWeight : 1);
-    if (r < w) return t;
-    r -= w;
+  // Get current time-of-day and moon phase for weighting/constraints
+  const clock = (ctx && typeof ctx.getClock === "function") ? ctx.getClock() : (ctx && ctx.time) || {};
+  const phase = String(clock && clock.phase || "").toLowerCase();      // "dawn"/"day"/"dusk"/"night"
+  const moonName = clock && clock.moonPhaseName ? String(clock.moonPhaseName) : null;
+
+  const candidates = [];
+  for (const t of list) {
+    if (!Array.isArray(t.allowedBiomes) || t.allowedBiomes.length !== 0) {
+      if (Array.isArray(t.allowedBiomes) && t.allowedBiomes.length && !t.allowedBiomes.includes(biome)) continue;
+    }
+    let w = (typeof t.baseWeight === "number" ? t.baseWeight : 1);
+    if (!(w > 0)) continue;
+
+    // Apply simple time-of-day constraint if present on template
+    try {
+      if (t.constraints && typeof t.constraints.timeOfDay === "string") {
+        const need = String(t.constraints.timeOfDay).toLowerCase();
+        if (need && need !== phase) {
+          w = 0;
+        }
+      }
+    } catch (_) {}
+
+    // Moon-aware weighting (data-driven via moonPreferred/moonForbidden/moonWeightFactor)
+    try {
+      if (moonName) {
+        const forbidden = Array.isArray(t.moonForbidden) ? t.moonForbidden : null;
+        if (forbidden && forbidden.includes(moonName)) {
+          w = 0;
+        } else {
+          const preferred = Array.isArray(t.moonPreferred) ? t.moonPreferred : null;
+          if (preferred && preferred.includes(moonName)) {
+            const factor = (typeof t.moonWeightFactor === "number" && t.moonWeightFactor > 0) ? t.moonWeightFactor : 1.5;
+            w = w * factor;
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (w > 0) candidates.push({ tmpl: t, weight: w });
   }
-  return candidates[0];
+
+  if (!candidates.length) return null;
+  let sum = 0;
+  for (const c of candidates) { sum += c.weight; }
+  const rfn = (typeof rng === "function") ? rng : (() => 0.5);
+  let r = rfn() * sum;
+  for (const c of candidates) {
+    if (r < c.weight) return c.tmpl;
+    r -= c.weight;
+  }
+  return candidates[0].tmpl;
 }
 
 // Compute a simple difficulty level (1..5) based on player level and biome.
@@ -274,6 +311,40 @@ export function maybeTryEncounter(ctx) {
           const minsPerTurn = (clock.minutesPerTurn || 4);
           const oneWeekTurns = Math.ceil((7 * 24 * 60) / minsPerTurn);
           STATE.nightRaidCooldownUntilTurn = tc + oneWeekTurns;
+          STATE.movesSinceLast = 0;
+          STATE.cooldownMoves = 10;
+          throw { _earlyExit: true };
+        }
+      } catch (e) {
+        if (e && e._earlyExit) throw e;
+      }
+    })();
+
+    // Special pick: Full Moon Ritual — rare, night-only, Full Moon, globally rate-limited via share
+    (function maybeFullMoonRitual() {
+      try {
+        const reg = registry(ctx);
+        const has = reg && reg.some(t => String(t.id || "").toLowerCase() === "full_moon_ritual");
+        if (!has) return;
+        const clock = (ctx.getClock && ctx.getClock()) || ctx.time || {};
+        const phase = String(clock.phase || "").toLowerCase();
+        if (phase !== "night") return;
+        const moonName = clock && clock.moonPhaseName ? String(clock.moonPhaseName) : null;
+        if (moonName !== "Full Moon") return;
+
+        const tc = (typeof clock.turnCounter === "number") ? (clock.turnCounter | 0) : 0;
+        // Use a simple global share: 2% of successful rolls when conditions match
+        const r = rngFor(ctx)();
+        if (r >= 0.02) return;
+
+        const tmpl = findTemplateById(ctx, "full_moon_ritual");
+        if (!tmpl) return;
+        const baseDiff = computeDifficulty(ctx, biome);
+        // Make ritual encounters noticeably tougher: add +2 difficulty for low/mid levels, +1 for higher.
+        const bump = baseDiff <= 3 ? 2 : 1;
+        const diff = Math.min(5, baseDiff + bump);
+
+        if (tryEnter(ctx, tmpl, biome, diff)) {
           STATE.movesSinceLast = 0;
           STATE.cooldownMoves = 10;
           throw { _earlyExit: true };

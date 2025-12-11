@@ -16,8 +16,11 @@ export function drawBiomeClockLabel(ctx, view) {
     } catch (_) {}
     const time = ctx.time || null;
     const clock = time ? time.hhmm : null;
+    const moon = (time && time.moonPhaseName) ? time.moonPhaseName : null;
 
-    const text = `Biome: ${biomeName}${clock ? "   |   Time: " + clock : ""}`;
+    let text = `Biome: ${biomeName}`;
+    if (clock) text += `   |   Time: ${clock}`;
+    if (moon) text += `   |   Moon: ${moon}`;
     labelWidth = Math.max(260, 16 * (text.length / 2));
     const bx = 8, by = 8, bh = 26, bw = labelWidth;
     ctx2d.save();

@@ -60,15 +60,50 @@ export function create(opts = {}) {
   }
 
   function getClock(turnCounter) {
-    const totalMinutes = Math.floor((turnCounter | 0) * MINUTES_PER_TURN) % DAY_MINUTES;
+    const tc = (turnCounter | 0);
+    const totalMinutes = Math.floor(tc * MINUTES_PER_TURN) % DAY_MINUTES;
     const h = Math.floor(totalMinutes / 60);
     const m = totalMinutes % 60;
     const hh = String(h).padStart(2, "0");
     const mm = String(m).padStart(2, "0");
     const phase = phaseForHour(h);
+
+    // Simple moon phase model: 28-day cycle split into 8 phases (3.5 days each).
+    // Phase is deterministic from absolute day index (turn-based, not just time-of-day).
+    let moonPhaseIndex = 0;
+    let moonPhaseName = "New Moon";
+    try {
+      const absMinutes = Math.floor(tc * MINUTES_PER_TURN);
+      const dayIndex = Math.max(0, Math.floor(absMinutes / DAY_MINUTES)); // 0-based day
+      const cycleDays = 28;
+      const phases = [
+        "New Moon",
+        "Waxing Crescent",
+        "First Quarter",
+        "Waxing Gibbous",
+        "Full Moon",
+        "Waning Gibbous",
+        "Last Quarter",
+        "Waning Crescent"
+      ];
+      const phaseLen = cycleDays / phases.length; // 3.5 days
+      const posInCycle = ((dayIndex % cycleDays) + cycleDays) % cycleDays;
+      const idx = Math.max(0, Math.min(phases.length - 1, Math.floor(posInCycle / phaseLen)));
+      moonPhaseIndex = idx;
+      moonPhaseName = phases[idx];
+    } catch (_) {}
+
     return {
-      hours: h, minutes: m, hhmm: `${hh}:${mm}`, phase,
-      totalMinutes, minutesPerTurn: MINUTES_PER_TURN, cycleTurns: CYCLE_TURNS, turnCounter: (turnCounter | 0)
+      hours: h,
+      minutes: m,
+      hhmm: `${hh}:${mm}`,
+      phase,
+      totalMinutes,
+      minutesPerTurn: MINUTES_PER_TURN,
+      cycleTurns: CYCLE_TURNS,
+      turnCounter: tc,
+      moonPhaseIndex,
+      moonPhaseName
     };
   }
 

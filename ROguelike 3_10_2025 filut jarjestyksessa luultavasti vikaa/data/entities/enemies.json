@@ -128,5 +128,18 @@
       "armor":   { "shield": 0.45, "helmet": 0.35, "torso_armor": 0.35 },
       "potions": { "lesser": 0.40, "average": 0.40, "strong": 0.20 }
     }
+  },
+  { "id": "moon_wraith", "glyph": "W", "color": "#e0f2fe", "tier": 3, "blockBase": 0.08, "faction": "undead",
+    "weightByDepth": [ [0, 0.0], [4, 0.01], [8, 0.02] ],
+    "hp": [ [0, 6, 0.5], [6, 8, 0.6] ],
+    "atk": [ [0, 3, 0.5], [6, 4, 0.5] ],
+    "xp":  [ [0, 20, 1.4], [6, 28, 1.6] ],
+    "equipChance": 0.80,
+    "damageScale": 1.25,
+    "lootPools": {
+      "weapons": { "sword_simple": 0.4, "greatsword": 0.3, "axe": 0.2 },
+      "armor":   { "helmet": 0.25, "torso_armor": 0.25, "shield": 0.2 },
+      "potions": { "lesser": 0.30, "average": 0.40, "strong": 0.30 }
+    }
   }
 ]
