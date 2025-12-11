@@ -1,5 +1,47 @@
 # Game Version History
-Last updated: 2025-12-11 12:00 UTC
+Last updated: 2025-12-11 13:00 UTC
+
+v1.54.0 — Town AI modularization, corpse cleaners, and dev prompts
+- Changed: Town AI split into focused modules
+  - ai/town_ai.js is now a thin façade that:
+    - Imports `populateTown` from ai/town_population.js.
+    - Imports `townNPCsAct` from ai/town_runtime.js.
+    - Re-exports these functions and attaches them to `window.TownAI` for back-compat.
+  - New and refactored modules:
+    - ai/town_runtime.js: owns `townNPCsAct(ctx)`, `initPathBudget(ctx, npcCount)`, and `stepTowards(ctx, occ, n, tx, ty, opts)`; orchestrates per-turn town behavior.
+    - ai/town_population.js: spawns shopkeepers, residents, pets, and corpse cleaners; assigns homes and beds; `dedupeHomeBeds(ctx)` ensures at most one NPC per bed tile.
+    - ai/town_helpers.js: shared helpers for RNG, distances, walkability, occupancy, and interior targeting (`randInt`, `manhattan`, `rngFor`, `isWalkTown`, `insideBuilding`, `propBlocks`, `isFreeTile`, `nearestFreeAdjacent`, `adjustInteriorTarget`, etc.).
+    - ai/town_inn_upstairs.js: inn upstairs overlay geometry, walkability, bed/seat selection, and upstairs pathfinding; exposes `routeIntoInnUpstairs(ctx, occ, n, targetUp, stepTowardsFn)`.
+    - ai/town_combat.js: combat helpers for town NPCs, including `applyHit(ctx, attacker, defender, ...)`, `banditAttackPlayer(ctx, attacker)`, `nearestBandit/nearestCivilian`, and `removeDeadNPCs(ctx)`.
+    - ai/town_diagnostics.js: `checkHomeRoutes(ctx, opts)` and related helpers for GOD home-route diagnostics.
+  - Effect: `town_ai.js` is slimmer and easier to maintain, with behavior split into clear modules while preserving the public TownAI API and existing behavior.
+
+- Changed: Corpse cleaner / gravedigger behavior
+  - ai/town_runtime.js (inside `townNPCsAct`):
+    - When a corpse cleaner (`isCorpseCleaner`) reaches a corpse tile:
+      - The corpse is removed from `ctx.corpses` and a log entry is shown.
+      - Immediately after cleaning, the NPC:
+        - Steps toward its home if `_home` is set, or
+        - Takes a small random step away.
+    - When far from a corpse, cleaners path urgently toward the nearest one.
+  - Effect: Corpse cleaners reliably clear bodies but no longer “camp” on the corpse tile; they clean and then move on.
+
+- Added: Developer prompts and TODO consolidation
+  - PROMPT.md:
+    - New root-level AI coding guideline document describing:
+      - Data-first/content-in-JSON design (enemies/NPCs/items/encounters/town config in `data/`).
+      - Module boundaries and responsibilities for `ai/`, `core/`, `ui/`, `data/`, and `worldgen/`.
+      - Coding style (descriptive naming, small helpers, JSDoc where useful).
+      - Testing/smoketest expectations and performance considerations for hot paths.
+      - Versioning/docs/TODO/BUGS housekeeping.
+    - Intended as the “contract” for AI-assisted development on this project.
+  - TODO.md:
+    - New root-level TODO list aggregating previously scattered ideas:
+      - Planned features (bridge/ford generation, named towns, shop UI, district themes, biome effects, Perception/skills, etc.).
+      - Technical cleanups (splitting large files, smoketest nudge behavior).
+  - VERSIONS.md:
+    - Removed inline “Planned / Ideas” and “Things to chek” sections; replaced with a pointer to TODO.md.
+  - Removed: `todo.txt` (legacy prompt/notes file) in favor of PROMPT.md + TODO.md.
 
 v1.53.0 — Caravan stall hardening, moon phases, and Full Moon encounters
 - Changed: Town caravan stall placement is more robust and gate-aware
