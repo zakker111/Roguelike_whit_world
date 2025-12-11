@@ -53,26 +53,7 @@ import {
   adjustInteriorTarget,
 } from "./town_helpers.js";
 
-/**etGameData, getRNGUtils, getMod } from "../utils/access.js";
-import { computePath, computePathBudgeted } from "./pathfinding.js";
-import { checkHomeRoutes } from "./town_diagnostics.js";
-import {
-  inUpstairsInterior,
-  innUpstairsBeds,
-  chooseInnUpstairsBed,
-  chooseInnUpstairsSeat,
-  routeIntoInnUpstairs as routeIntoInnUpstairsCore,
-} from "./town_inn_upstairs.js";
-import { populateTown, ensureHome, dedupeHomeBeds } from "./town_population.js";
-import {
-  dist1,
-  nearestBandit,
-  nearestCivilian,
-  applyHit,
-  townNpcAttack,
-  banditAttackPlayer,
-  removeDeadNPCs,
-} from "./town_combat.js";
+
 
   // Pathfinding helpers (extracted to dedicated module)
 
