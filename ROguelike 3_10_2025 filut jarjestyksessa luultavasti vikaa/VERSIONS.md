@@ -2706,23 +2706,7 @@ v0.1 — Baseline Roguelike Core
 - Added: FOV/LOS modules and renderer with fallback glyphs/colors
 - Added: GOD panel tools (heal, spawn, FOV adjustment, seed control)
 
-Planned / Ideas
-- Bridge/ford generation across rivers
-- Named towns and persistent inventories/NPCs across visits
-- Shop UI (buy/sell) and currency
-- District themes (market/residential/temple) and signage
-- Movement costs or effects per biome (swamp slow, snow visibility, desert hazard)
-- if there is not enought beds for npc at home make em sleep at floor
-- flavor text to json file
-- Mouse-hover enemy inspect system tied to Perception skill:
-  - When hovering over a visible enemy tile (dungeon/encounter), show an inspect tooltip describing its relative threat and gear.
-  - Low Perception → vague text (“looks weak / dangerous”, “lightly/heavily armored”).
-  - Higher Perception → approximate or exact level and stats (Attack/Defense), gear quality (tier) and whether it looks well equipped.
-  - Implemented via a lightweight mousemove → tile → enemy lookup and a small DOM tooltip or HUD overlay, with no impact when modals are open or tiles are unseen.
-
-Things to chek
-- some files are realy big it would be fine to start cut em to portions if it makes sens
-- in smoketest runner remove nudge for dungeon entry town entry dungeon exit and town exit make it exact in tiles nudge only in npc interaction or enemy interaction
+<!-- Planned / Ideas and technical TODO items have been moved to TODO.md -->
 
 
 
