@@ -75,6 +75,86 @@ export function enter(ctx, info) {
   ctx.encounterProps = encProps;
   ctx.encounterObjective = null;
 
+  // Special decor and altar chest for Full Moon Ritual encounters.
+  (function addFullMoonRitualProps() {
+    try {
+      const tplId = String(template.id || "").toLowerCase();
+      if (tplId !== "full_moon_ritual") return;
+
+      const px = (W / 2) | 0;
+      const py = (H / 2) | 0;
+
+      function inBounds(x, y) {
+        return x > 0 && y > 0 && x < W - 1 && y < H - 1;
+      }
+
+      // Ensure the ritual center is clear floor
+      if (inBounds(px, py) && map[py][px] === T.WALL) {
+        map[py][px] = T.FLOOR;
+      }
+
+      const used = new Set(encProps.map(p => keyFor(p.x, p.y)));
+      function canPlaceProp(x, y) {
+        if (!inBounds(x, y)) return false;
+        if (map[y][x] !== T.FLOOR) return false;
+        const k = keyFor(x, y);
+        if (used.has(k)) return false;
+        return true;
+      }
+
+      // Ring of campfires around the altar to make the ritual feel distinct.
+      const ring = [
+        { x: px + 2, y: py },
+        { x: px - 2, y: py },
+        { x: px,     y: py + 2 },
+        { x: px,     y: py - 2 }
+      ];
+      for (const rPos of ring) {
+        if (canPlaceProp(rPos.x, rPos.y)) {
+          encProps.push({ x: rPos.x, y: rPos.y, type: "campfire" });
+          used.add(keyFor(rPos.x, rPos.y));
+        }
+      }
+
+      // Optional inner "stones" using benches as simple standing stones.
+      const inner = [
+        { x: px + 1, y: py + 1 },
+        { x: px - 1, y: py + 1 },
+        { x: px + 1, y: py - 1 },
+        { x: px - 1, y: py - 1 }
+      ];
+      for (const pPos of inner) {
+        if (canPlaceProp(pPos.x, pPos.y)) {
+          encProps.push({ x: pPos.x, y: pPos.y, type: "bench" });
+          used.add(keyFor(pPos.x, pPos.y));
+        }
+      }
+
+      // Central altar chest with richer loot.
+      const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
+      let loot = [];
+      try {
+        if (L && typeof L.generate === "function") {
+          loot = L.generate(ctx, { type: "moon_wraith", xp: 50 }) || [];
+          if (!Array.isArray(loot) || !loot.length) {
+            loot = L.generate(ctx, { type: "skeleton", xp: 40 }) || [];
+          }
+        }
+      } catch (_) {}
+      if (!Array.isArray(loot)) loot = [];
+      // Always add a solid gold reward on top.
+      try {
+        loot = loot.slice();
+        loot.push({ name: "ritual spoils", kind: "gold", amount: 70 });
+      } catch (_) {}
+
+      if (inBounds(px, py) && map[py][px] !== T.WALL) {
+        ctx.corpses.push({ kind: "chest", x: px, y: py, loot, looted: loot.length === 0 });
+        chestSpots.add(keyFor(px, py));
+      }
+    } catch (_) {}
+  })();
+
   // Place chests inside huts (center tile). Fill with simple loot.
   try {
     const L = ctx.Loot || (typeof window !== "undefined" ? window.Loot : null);
