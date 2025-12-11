@@ -340,7 +340,9 @@ export function maybeTryEncounter(ctx) {
         const tmpl = findTemplateById(ctx, "full_moon_ritual");
         if (!tmpl) return;
         const baseDiff = computeDifficulty(ctx, biome);
-        const diff = Math.min(5, baseDiff + 1); // slightly harder than baseline
+        // Make ritual encounters noticeably tougher: add +2 difficulty for low/mid levels, +1 for higher.
+        const bump = baseDiff <= 3 ? 2 : 1;
+        const diff = Math.min(5, baseDiff + bump);
 
         if (tryEnter(ctx, tmpl, biome, diff)) {
           STATE.movesSinceLast = 0;
