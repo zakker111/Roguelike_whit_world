@@ -1003,19 +1003,30 @@ function townNPCsAct(ctx) {
       }
       if (best) {
         if (bestD === 0) {
+          // Clean the corpse immediately, then move away rather than lingering.
           try {
             ctx.corpses = corpses.filter(
               c => !(c && c.x === best.x && c.y === best.y)
             );
             if (ctx.log) {
+              const cleanerName = n.name || "Caretaker";
               ctx.log(
-                `${n.name || "Caretaker"} removes a body from the street.`,
+                `${cleanerName} removes a body from the street.`,
                 "info"
               );
             }
           } catch (_) {}
+
+          // After cleaning, either head toward home or wander away so the cleaner
+          // doesn't stand on the same tile for many turns.
+          if (n._home && typeof n._home.x === "number" && typeof n._home.y === "number") {
+            stepTowards(ctx, occ, n, n._home.x, n._home.y);
+          } else {
+            stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+          }
           continue;
         } else {
+          // Walk toward the nearest corpse with high urgency so bodies get cleared quickly.
           stepTowards(ctx, occ, n, best.x, best.y, { urgent: true });
           continue;
         }
