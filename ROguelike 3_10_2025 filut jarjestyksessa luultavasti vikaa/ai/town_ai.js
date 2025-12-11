@@ -1369,7 +1369,7 @@ import {
 
         // Prefer to attack the player if adjacent
         if (dist1(n.x, n.y, player.x, player.y) === 1) {
-          banditAttackPlayer(n);
+          banditAttackPlayer(ctx, n);
           continue;
         }
 
