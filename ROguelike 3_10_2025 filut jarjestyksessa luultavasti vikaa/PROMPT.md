@@ -217,4 +217,38 @@ Before and during coding:
    - Why that design was chosen.
    - How to test it (steps and what to look for).
 
-This PROMPT is the “contract” for how to write, refactor, and extend code in this repo with AI assistance: **data-first, modular, readable, JSON-friendly, and well-tested.**
+---
+
+## 9. Performance in Hot Paths
+
+Some parts of the code run every turn or every frame (e.g. `townNPCsAct`, FOV, renderers). When editing these:
+
+- Avoid heavy per-tick allocations:
+  - Don’t create large arrays/Maps/Sets inside inner loops if you can reuse or precompute.
+  - Prefer reusing small scratch structures where reasonable.
+- Keep complexity under control:
+  - New logic inside hot loops should be roughly O(n) in NPCs or tiles, not nested in a way that explodes.
+- Make features cheap when disabled:
+  - Gate expensive debug logic behind flags (e.g. `if (!DEBUG_FLAG) return;`) early.
+- If you must add heavier work:
+  - Consider budgeting or throttling (like pathfinding budgets, stride-based updates).
+  - Mention any performance considerations in your explanation.
+
+---
+
+## 10. Versioning, Docs, and Housekeeping
+
+To keep the project’s history and docs useful:
+
+- **VERSIONS.md:**
+  - When you make a user-visible change (new feature, significant bug fix), add a short entry under the latest version or a new version tag, following the existing style.
+- **BUGS.md:**
+  - For known issues that are not immediately fixed, add a brief bug description and repro steps.
+- **TODO.md:**
+  - For future work or ideas, add items here instead of leaving many inline `TODO` comments in hot code.
+- **Style tools:**
+  - Respect existing ESLint/Prettier settings and formatting patterns; don’t introduce ad-hoc style changes.
+
+---
+
+This PROMPT is the “contract” for how to write, refactor, and extend code in this repo with AI assistance: **data-first, modular, readable, JSON-friendly, performance-aware, and well-tested.**
