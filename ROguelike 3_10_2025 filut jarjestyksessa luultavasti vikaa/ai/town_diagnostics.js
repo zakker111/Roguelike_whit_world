@@ -5,9 +5,9 @@
  *  - checkHomeRoutes(ctx, opts?)
  *
  * Notes:
- *  - This is used by the GOD panel and smoketest; it is not on the hot turn path.
- *  - Helpers here are copies of a few TownAI helpers, kept local to avoid
- *    pulling in the entire runtime module.
+ *  - Used by the GOD panel and smoketest; not on the hot turn path.
+ *  - Helpers here are local copies of a few TownAI helpers to avoid
+ *    pulling in the full runtime module.
  */
 
 import { computePath } from "./pathfinding.js";
@@ -16,14 +16,14 @@ import { computePath } from "./pathfinding.js";
 
 function isWalkTown(ctx, x, y) {
   const { map, TILES } = ctx;
-  if (y &lt; 0 || y &gt;= map.length) return false;
-  if (x &lt; 0 || x &gt;= (map[0] ? map[0].length : 0)) return false;
+  if (y < 0 || y >= map.length) return false;
+  if (x < 0 || x >= (map[0] ? map[0].length : 0)) return false;
   const t = map[y][x];
   return t === TILES.FLOOR || t === TILES.DOOR || t === TILES.ROAD;
 }
 
 function insideBuilding(b, x, y) {
-  return x &gt; b.x && x &lt; b.x + b.w - 1 && y &gt; b.y && y &lt; b.y + b.h - 1;
+  return x > b.x && x < b.x + b.w - 1 && y > b.y && y < b.y + b.h - 1;
 }
 
 function propBlocks(type) {
@@ -38,11 +38,11 @@ function propBlocks(type) {
 function isFreeTile(ctx, x, y) {
   if (!isWalkTown(ctx, x, y)) return false;
   const { player, npcs, townProps } = ctx;
-  if (player.x === x && player.y === y) return false;
+  if (player && player.x === x && player.y === y) return false;
   const occ = ctx._occ;
   if (occ && occ.has(`${x},${y}`)) return false;
-  if (!occ && Array.isArray(npcs) && npcs.some(n =&gt; n.x === x && n.y === y)) return false;
-  if (Array.isArray(townProps) && townProps.some(p =&gt; p.x === x && p.y === y && propBlocks(p.type))) return false;
+  if (!occ && Array.isArray(npcs) && npcs.some(n => n && n.x === x && n.y === y)) return false;
+  if (Array.isArray(townProps) && townProps.some(p => p && p.x === x && p.y === y && propBlocks(p.type))) return false;
   return true;
 }
 
@@ -76,17 +76,18 @@ function adjustInteriorTarget(ctx, building, target) {
 // Lightweight helpers for assigning a home when missing (diagnostics only)
 
 function randInt(ctx, a, b) {
-  const r = (typeof ctx.rng === "function") ? ctx.rng() : 0.5;
+  const r = typeof ctx.rng === "function" ? ctx.rng() : 0.5;
   return Math.floor(r * (b - a + 1)) + a;
 }
 
 function randomInteriorSpot(ctx, b) {
   const { map, townProps } = ctx;
+  const props = Array.isArray(townProps) ? townProps : [];
   const spots = [];
-  for (let y = b.y + 1; y &lt; b.y + b.h - 1; y++) {
-    for (let x = b.x + 1; x &lt; b.x + b.w - 1; x++) {
+  for (let y = b.y + 1; y < b.y + b.h - 1; y++) {
+    for (let x = b.x + 1; x < b.x + b.w - 1; x++) {
       if (map[y][x] !== ctx.TILES.FLOOR) continue;
-      if (townProps.some(p =&gt; p.x === x && p.y === y)) continue;
+      if (props.some(p => p && p.x === x && p.y === y)) continue;
       spots.push({ x, y });
     }
   }
@@ -101,7 +102,7 @@ function ensureHome(ctx, n) {
   const b = townBuildings[randInt(ctx, 0, townBuildings.length - 1)];
   const pos = randomInteriorSpot(ctx, b) || { x: b.door.x, y: b.door.y };
   n._home = { building: b, x: pos.x, y: pos.y, door: { x: b.door.x, y: b.door.y } };
-  if (shops && shops.length && typeof ctx.rng === "function" && ctx.rng() &lt; 0.6) {
+  if (Array.isArray(shops) && shops.length && typeof ctx.rng === "function" && ctx.rng() < 0.6) {
     const s = shops[randInt(ctx, 0, shops.length - 1)];
     n._work = { x: s.x, y: s.y };
   } else if (townPlaza) {
@@ -123,9 +124,14 @@ export function checkHomeRoutes(ctx, opts = {}) {
   const npcs = Array.isArray(ctx.npcs) ? ctx.npcs : [];
 
   // Track resident presence and type counts
-  let residentsTotal = 0, residentsAtHome = 0, residentsAtTavern = 0;
-  let shopkeepersTotal = 0, greetersTotal = 0, petsTotal = 0, guardsTotal = 0;
-  const tavernB = (ctx.tavern && ctx.tavern.building) ? ctx.tavern.building : null;
+  let residentsTotal = 0;
+  let residentsAtHome = 0;
+  let residentsAtTavern = 0;
+  let shopkeepersTotal = 0;
+  let greetersTotal = 0;
+  let petsTotal = 0;
+  let guardsTotal = 0;
+  const tavernB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
 
   // Inn/tavern occupancy across all NPCs (not just residents)
   let innOccupancyAny = 0;
@@ -134,9 +140,10 @@ export function checkHomeRoutes(ctx, opts = {}) {
 
   // Late-night window determination (02:00–05:00)
   const t = ctx.time;
-  const minutes = t ? (t.hours * 60 + t.minutes) : 12 * 60;
-  const LATE_START = 2 * 60, LATE_END = 5 * 60;
-  const inLateWindow = minutes >= LATE_START && minutes &lt; LATE_END;
+  const minutes = t ? t.hours * 60 + t.minutes : 12 * 60;
+  const LATE_START = 2 * 60;
+  const LATE_END = 5 * 60;
+  const inLateWindow = minutes >= LATE_START && minutes < LATE_END;
   const residentsAwayLate = [];
 
   // Helper: skip NPCs that are not expected to have homes (e.g., pets)
@@ -163,8 +170,8 @@ export function checkHomeRoutes(ctx, opts = {}) {
       let inSpot = nearestFreeAdjacent(ctx, door.x, door.y, B);
       if (!inSpot) {
         // deterministic fallback: first free interior spot
-        for (let y = B.y + 1; y &lt; B.y + B.h - 1 && !inSpot; y++) {
-          for (let x = B.x + 1; x &lt; B.x + B.w - 1 && !inSpot; x++) {
+        for (let y = B.y + 1; y < B.y + B.h - 1 && !inSpot; y++) {
+          for (let x = B.x + 1; x < B.x + B.w - 1 && !inSpot; x++) {
             if (ctx.map[y][x] !== ctx.TILES.FLOOR) continue;
             inSpot = { x, y };
           }
@@ -181,20 +188,20 @@ export function checkHomeRoutes(ctx, opts = {}) {
         const res0 = a.slice(0);
         const firstB = b[0];
         const lastA = a[a.length - 1];
-        const skipFirst = (firstB.x === lastA.x && firstB.y === lastA.y);
-        for (let i = skipFirst ? 1 : 0; i &lt; b.length; i++) res0.push(b[i]);
+        const skipFirst = firstB.x === lastA.x && firstB.y === lastA.y;
+        for (let i = skipFirst ? 1 : 0; i < b.length; i++) res0.push(b[i]);
         return res0;
       })(p1, p2);
       // Treat a 1-node path as "already at home"
-      return (path && path.length >= 1) ? path : null;
+      return path && path.length >= 1 ? path : null;
     } else {
       const path = computePath(ctx, emptyOcc, n.x, n.y, targetInside.x, targetInside.y);
       // Treat a 1-node path as "already at home"
-      return (path && path.length >= 1) ? path : null;
+      return path && path.length >= 1 ? path : null;
     }
   }
 
-  for (let i = 0; i &lt; npcs.length; i++) {
+  for (let i = 0; i < npcs.length; i++) {
     const n = npcs[i];
 
     // Type counters
