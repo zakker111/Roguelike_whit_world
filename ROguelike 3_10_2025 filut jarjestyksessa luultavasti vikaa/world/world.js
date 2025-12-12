@@ -12,7 +12,10 @@ import { attachGlobal } from "../utils/global.js";
 import { TILES, isWalkable, biomeName } from "./world_tiles.js";
 
 // Re-export tiles and helpers so existing imports (import * as World from "../world/world.js")
-// continue tohi) {
+// continue to work in RegionMapRuntime and renderers.
+export { TILES, isWalkable, biomeName };
+
+function clamp(v, lo, hi) {
   try {
     if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.clamp === "function") {
       return window.Bounds.clamp(v, lo, hi);
