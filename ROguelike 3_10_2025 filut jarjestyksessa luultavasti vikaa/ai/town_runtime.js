@@ -40,6 +40,14 @@ import {
   ensureHomePlan,
   followHomePlan,
 } from "./town_movement.js";
+import {
+  innBedSpots,
+  chooseInnSeat,
+  chooseInnTarget,
+  chooseBenchSeat,
+  chooseHomeSeat,
+  homeSeatTiles,
+} from "./town_inn_runtime.js";
 
 // Pathfinding helpers (budget + stepTowards, home plans, inn upstairs routing)
 // are centralized in ai/town_movement.js. This module focuses on the townNPCsAct loop.
@@ -210,17 +218,8 @@ function townNPCsAct(ctx) {
   if (innBForCap) {
     try {
       const seatsCount = (() => {
-        const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-        if (!innB) return 0;
-        const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
-        let count = 0;
-        for (const p of props) {
-          if (p.type !== "chair" && p.type !== "table") continue;
-          if (!(p.x > innB.x && p.x < innB.x + innB.w - 1 && p.y > innB.y && p.y < innB.y + innB.h - 1)) continue;
-          const adj = nearestFreeAdjacent(ctx, p.x, p.y, innB);
-          if (adj) count++;
-        }
-        return count;
+        const beds = innBedSpots(ctx);
+        return beds.length;
       })();
       _innSeatCap = Math.max(2, Math.min(6, Math.floor((seatsCount || 0) * 0.5) || 2));
       for (const x of npcs) {
@@ -229,101 +228,6 @@ function townNPCsAct(ctx) {
     } catch (_) {
       _innSeatCap = 4;
     }
-  }
-
-  function innBedSpots(ctxLocal) {
-    const innB = ctxLocal.tavern && ctxLocal.tavern.building ? ctxLocal.tavern.building : null;
-    if (!innB) return [];
-    const beds = (ctxLocal.townProps || []).filter(p =>
-      p.type === "bed" &&
-      p.x > innB.x && p.x < innB.x + innB.w - 1 &&
-      p.y > innB.y && p.y < innB.y + innB.h - 1
-    );
-    return beds;
-  }
-
-  function innSeatSpots(ctxLocal) {
-    const innB = ctxLocal.tavern && ctxLocal.tavern.building ? ctxLocal.tavern.building : null;
-    if (!innB) return [];
-    const props = Array.isArray(ctxLocal.townProps) ? ctxLocal.townProps : [];
-    const seats = [];
-    for (const p of props) {
-      if (p.type !== "chair" && p.type !== "table") continue;
-      if (!(p.x > innB.x && p.x < innB.x + innB.w - 1 && p.y > innB.y && p.y < innB.y + innB.h - 1)) continue;
-      const adj = nearestFreeAdjacent(ctxLocal, p.x, p.y, innB);
-      if (adj) seats.push(adj);
-    }
-    return seats;
-  }
-  function chooseInnSeat(ctxLocal) {
-    const seats = innSeatSpots(ctxLocal);
-    if (!seats.length) return chooseInnTarget(ctxLocal);
-    return seats[randInt(ctxLocal, 0, seats.length - 1)];
-  }
-
-  function chooseInnTarget(ctxLocal) {
-    const upBed = chooseInnUpstairsBed(ctxLocal);
-    if (upBed) return { x: upBed.x, y: upBed.y };
-    const innB = ctxLocal.tavern && ctxLocal.tavern.building ? ctxLocal.tavern.building : null;
-    if (!innB) return null;
-    const door = ctxLocal.tavern.door || { x: innB.x + ((innB.w / 2) | 0), y: innB.y + ((innB.h / 2) | 0) };
-    const inSpot = nearestFreeAdjacent(ctxLocal, door.x, door.y, innB);
-    return inSpot || { x: door.x, y: door.y };
-  }
-
-  function chooseBenchSeat(ctxLocal) {
-    const benches = Array.isArray(ctxLocal.townProps) ? ctxLocal.townProps.filter(p => p.type === "bench") : [];
-    if (!benches.length) return null;
-    let b = benches[0];
-    if (ctxLocal.townPlaza) {
-      const cx = ctxLocal.townPlaza.x, cy = ctxLocal.townPlaza.y;
-      b = benches.slice().sort((a, bb) =>
-        manhattan(a.x, a.y, cx, cy) - manhattan(bb.x, bb.y, cx, cy)
-      )[0] || benches[0];
-    }
-    const seat = nearestFreeAdjacent(ctxLocal, b.x, b.y, null);
-    return seat ? seat : { x: b.x, y: b.y };
-  }
-
-  function firstFreeInteriorTile(ctxLocal, b) {
-    const { map, TILES } = ctxLocal;
-    for (let y = b.y + 1; y < b.y + b.h - 1; y++) {
-      for (let x = b.x + 1; x < b.x + b.w - 1; x++) {
-        if (map[y][x] !== TILES.FLOOR) continue;
-        if ((ctxLocal.townProps || []).some(p => p.x === x && p.y === y && p.type && p.type !== "sign" && p.type !== "rug")) continue;
-        if ((ctxLocal.npcs || []).some(n => n.x === x && n.y === y)) continue;
-        return { x, y };
-      }
-    }
-    return null;
-  }
-
-  function chooseHomeSeat(ctxLocal, building) {
-    if (!building) return null;
-    const props = Array.isArray(ctxLocal.townProps) ? ctxLocal.townProps : [];
-    const seats = [];
-    for (const p of props) {
-      if (p.type !== "chair" && p.type !== "table") continue;
-      if (!(p.x > building.x && p.x < building.x + building.w - 1 && p.y > building.y && p.y < building.y + building.h - 1)) continue;
-      const adj = nearestFreeAdjacent(ctxLocal, p.x, p.y, building);
-      if (adj) seats.push(adj);
-    }
-    if (seats.length) return seats[randInt(ctxLocal, 0, seats.length - 1)];
-    return firstFreeInteriorTile(ctxLocal, building);
-  }
-
-  function homeSeatTiles(ctxLocal, building) {
-    if (!building) return [];
-    const props = Array.isArray(ctxLocal.townProps) ? ctxLocal.townProps : [];
-    const out = [];
-    for (const p of props) {
-      const tType = String(p.type || "").toLowerCase();
-      if (tType !== "chair" && tType !== "bench") continue;
-      if (p.x > building.x && p.x < building.x + building.w - 1 && p.y > building.y && p.y < building.y + building.h - 1) {
-        out.push({ x: p.x, y: p.y });
-      }
-    }
-    return out;
   }
 
   const tickMod = ((t && typeof t.turnCounter === "number") ? t.turnCounter : 0) | 0;
