@@ -15,6 +15,7 @@ import { attachGlobal } from "../utils/global.js";
 import { propColor as _propColor } from "./prop_palette.js";
 // Reuse overworld weather overlays (fog/rain/cloudy) for towns (outdoors) as well.
 import { drawWeather } from "./render/overworld_weather.js";
+import { drawVisibilityOverlay } from "./shared_visibility.js";
 
 // Modularized helpers
 import { drawTownBase } from "./render/town_base_layer.js";
@@ -126,29 +127,7 @@ export function draw(ctx, view) {
   try { drawTownGlyphOverlay(ctx, view); } catch (_) {}
 
   // Visibility overlays within viewport (void for unseen, dim for seen-but-not-visible)
-  for (let y = startY; y <= endY; y++) {
-    const yIn = y >= 0 && y < mapRows;
-    const rowSeen = yIn ? (seen[y] || []) : [];
-    const rowVis = yIn ? (visible[y] || []) : [];
-    for (let x = startX; x <= endX; x++) {
-      const screenX = (x - startX) * TILE - tileOffsetX;
-      const screenY = (y - startY) * TILE - tileOffsetY;
-      if (!yIn || x < 0 || x >= mapCols) {
-        ctx2d.fillStyle = COLORS.wallDark;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-        continue;
-      }
-      const vis = !!rowVis[x];
-      const everSeen = !!rowSeen[x];
-      if (!everSeen) {
-        ctx2d.fillStyle = COLORS.wallDark;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      } else if (!vis) {
-        ctx2d.fillStyle = COLORS.dim;
-        ctx2d.fillRect(screenX, screenY, TILE, TILE);
-      }
-    }
-  }
+  try { drawVisibilityOverlay(ctx, view); } catch (_) {}
 
   // Stairs glyph above tint
   try { drawStairsGlyphTop(ctx, view); } catch (_) {}

@@ -26,211 +26,32 @@ import {
   innUpstairsBeds,
   chooseInnUpstairsBed,
   chooseInnUpstairsSeat,
-  routeIntoInnUpstairs as routeIntoInnUpstairsCore,
 } from "./town_inn_upstairs.js";
 import { dedupeHomeBeds, ensureHome } from "./town_population.js";
+import {
+  PATH_BUDGET_MIN,
+  PATH_BUDGET_MAX,
+  initPathBudget,
+  stepTowards,
+  routeIntoInnUpstairs,
+  makeRelaxedOcc,
+  concatPaths,
+  computeHomePath,
+  ensureHomePlan,
+  followHomePlan,
+} from "./town_movement.js";
+import {
+  innBedSpots,
+  chooseInnSeat,
+  chooseInnTarget,
+  chooseBenchSeat,
+  chooseHomeSeat,
+  homeSeatTiles,
+} from "./town_inn_runtime.js";
+import { currentTargetFor } from "./town_schedules.js";
 
-// Pathfinding helpers (budget + stepTowards) and the full townNPCsAct loop.
-// This is a straight extraction from town_ai.js to avoid circular imports with helpers/combat.
-
-const PATH_BUDGET_MIN = 6;
-const PATH_BUDGET_MAX = 32;
-
-function initPathBudget(ctx, npcCount) {
-  const phaseNow = (ctx && ctx.time && ctx.time.phase) ? String(ctx.time.phase) : "day";
-  const baseFrac = (phaseNow === "day") ? 0.26 : 0.18;
-  const approx = Math.max(1, Math.floor(npcCount * baseFrac));
-  const defaultBudget = Math.max(
-    PATH_BUDGET_MIN,
-    Math.min(PATH_BUDGET_MAX, approx)
-  );
-  const configured = (typeof ctx.townPathBudget === "number")
-    ? Math.max(0, ctx.townPathBudget | 0)
-    : null;
-  ctx._townPathBudgetRemaining =
-    (configured != null)
-      ? Math.max(PATH_BUDGET_MIN, Math.min(PATH_BUDGET_MAX, configured))
-      : defaultBudget;
-}
-
-function stepTowards(ctx, occ, n, tx, ty, opts = {}) {
-  if (typeof tx !== "number" || typeof ty !== "number") return false;
-
-  if (n._plan && n._planGoal && n._planGoal.x === tx && n._planGoal.y === ty) {
-    if (n._plan.length && (n._plan[0].x !== n.x || n._plan[0].y !== n.y)) {
-      const idx = n._plan.findIndex(p => p.x === n.x && p.y === n.y);
-      if (idx >= 0) {
-        n._plan = n._plan.slice(idx);
-      } else {
-        n._plan = null;
-        n._fullPlan = null;
-        n._fullPlanGoal = null;
-      }
-    }
-    if (n._plan && n._plan.length >= 2) {
-      const next = n._plan[1];
-      const keyNext = `${next.x},${next.y}`;
-      const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
-      let isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
-      if (!isOwnDoor && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
-        const B = n._shopRef.building;
-        if (B && ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR) {
-          const onPerimeter = (next.y === B.y || next.y === B.y + B.h - 1 || next.x === B.x || next.x === B.x + B.w - 1);
-          if (onPerimeter) isOwnDoor = true;
-        }
-      }
-      const avoidDoorInside = (() => {
-        try {
-          const shop = n._shopRef || null;
-          const isInnKeeper = !!(n.isShopkeeper && shop && String(shop.type || "").toLowerCase() === "inn");
-          const B = shop && shop.building ? shop.building : null;
-          const nextIsDoor = (ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR);
-          const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
-          return isInnKeeper && nextIsDoor && insideNow;
-        } catch (_) { return false; }
-      })();
-      let avoidExit = false;
-      try {
-        const BBound = n._boundToBuilding || null;
-        const insideBoundNow = !!(BBound && insideBuilding(BBound, n.x, n.y));
-        if (BBound && insideBoundNow && !insideBuilding(BBound, next.x, next.y)) {
-          avoidExit = true;
-        }
-      } catch (_) {}
-      const blocked = (occ.has(keyNext) && !(isReserved && isOwnDoor)) || avoidDoorInside || avoidExit;
-      if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
-        if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
-          n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
-        } else {
-          n._debugPath = null;
-        }
-        const pxPrev = n.x, pyPrev = n.y;
-        occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
-        n._lastX = pxPrev; n._lastY = pyPrev;
-        return true;
-      } else {
-        n._plan = null;
-        n._fullPlan = null;
-        n._fullPlanGoal = null;
-      }
-    } else if (n._plan && n._plan.length === 1) {
-      if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
-        n._debugPath = (Array.isArray(n._fullPlan) ? n._fullPlan.slice(0) : n._plan.slice(0));
-      }
-      return false;
-    }
-  }
-
-  const full = computePathBudgeted(ctx, occ, n.x, n.y, tx, ty, { urgent: !!(opts && opts.urgent) });
-  if (full && full.length >= 2) {
-    n._plan = full.slice(0);
-    n._planGoal = { x: tx, y: ty };
-    n._fullPlan = full.slice(0);
-    n._fullPlanGoal = { x: tx, y: ty };
-    if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) n._debugPath = full.slice(0);
-    const next = full[1];
-    const keyNext = `${next.x},${next.y}`;
-    const isReserved = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyNext);
-    let isOwnDoor = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === next.x && n._shopRef.y === next.y);
-    if (!isOwnDoor && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
-      const B = n._shopRef.building;
-      if (B && ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR) {
-        const onPerimeter = (next.y === B.y || next.y === B.y + B.h - 1 || next.x === B.x || next.x === B.x + B.w - 1);
-        if (onPerimeter) isOwnDoor = true;
-      }
-    }
-    const avoidDoorInside2 = (() => {
-      try {
-        const shop = n._shopRef || null;
-        const isInnKeeper = !!(n.isShopkeeper && shop && String(shop.type || "").toLowerCase() === "inn");
-        const B = shop && shop.building ? shop.building : null;
-        const nextIsDoor = (ctx.map[next.y] && ctx.map[next.y][next.x] === ctx.TILES.DOOR);
-        const insideNow = B ? insideBuilding(B, n.x, n.y) : false;
-        return isInnKeeper && nextIsDoor && insideNow;
-      } catch (_) { return false; }
-    })();
-    const blocked = (occ.has(keyNext) && !(isReserved && isOwnDoor)) || avoidDoorInside2;
-    if (isWalkTown(ctx, next.x, next.y) && !blocked && !(ctx.player.x === next.x && ctx.player.y === next.y)) {
-      const pxPrev = n.x, pyPrev = n.y;
-      occ.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occ.add(`${n.x},${n.y}`);
-      n._lastX = pxPrev; n._lastY = pyPrev;
-      return true;
-    }
-    n._plan = null; n._planGoal = null;
-    n._fullPlan = null; n._fullPlanGoal = null;
-  }
-
-  const dirs4 = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
-  const dirs = dirs4.slice().sort((a, b) =>
-    (Math.abs((n.x + a.dx) - tx) + Math.abs((n.y + a.dy) - ty)) -
-    (Math.abs((n.x + b.dx) - tx) + Math.abs((n.y + b.dy) - ty))
-  );
-
-  const prevKey = (typeof n._lastX === "number" && typeof n._lastY === "number") ? `${n._lastX},${n._lastY}` : null;
-  let chosen = null;
-  let backStep = null;
-
-  for (const d of dirs) {
-    const nx = n.x + d.dx, ny = n.y + d.dy;
-    if (!isWalkTown(ctx, nx, ny)) continue;
-    if (ctx.player.x === nx && ctx.player.y === ny) continue;
-
-    const keyN = `${nx},${ny}`;
-    const isReservedN = ctx._reservedShopDoors && ctx._reservedShopDoors.has(keyN);
-    let isOwnDoorN = !!(n.isShopkeeper && n._shopRef && n._shopRef.x === nx && n._shopRef.y === ny);
-    if (!isOwnDoorN && n.isShopkeeper && n._shopRef && String(n._shopRef.type || "").toLowerCase() === "inn") {
-      const B = n._shopRef.building;
-      if (B && ctx.map[ny] && ctx.map[ny][nx] === ctx.TILES.DOOR) {
-        const onPerimeter = (ny === B.y || ny === B.y + B.h - 1 || nx === B.x || nx === B.x + B.w - 1);
-        if (onPerimeter) isOwnDoorN = true;
-      }
-    }
-    if (occ.has(keyN) && !(isReservedN && isOwnDoorN)) continue;
-
-    try {
-      const BBound = n._boundToBuilding || null;
-      const insideBoundNow = BBound ? insideBuilding(BBound, n.x, n.y) : false;
-      const nextIsDoor = (ctx.map[ny] && ctx.map[ny][nx] === ctx.TILES.DOOR);
-      if (BBound && insideBoundNow && nextIsDoor) continue;
-      if (BBound && insideBoundNow && !insideBuilding(BBound, nx, ny)) continue;
-    } catch (_) {}
-
-    const isBack = prevKey && keyN === prevKey;
-    if (isBack) {
-      if (!backStep) backStep = { nx, ny };
-      continue;
-    }
-    chosen = { nx, ny };
-    break;
-  }
-
-  if (!chosen && backStep) {
-    chosen = backStep;
-  }
-
-  if (chosen) {
-    if (typeof window !== "undefined" && window.DEBUG_TOWN_PATHS) {
-      n._debugPath = [{ x: n.x, y: n.y }, { x: chosen.nx, y: chosen.ny }];
-    } else {
-      n._debugPath = null;
-    }
-    n._plan = null; n._planGoal = null;
-    n._fullPlan = null; n._fullPlanGoal = null;
-    const pxPrev = n.x, pyPrev = n.y;
-    occ.delete(`${n.x},${n.y}`); n.x = chosen.nx; n.y = chosen.ny; occ.add(`${n.x},${n.y}`);
-    n._lastX = pxPrev; n._lastY = pyPrev;
-    return true;
-  }
-
-  n._debugPath = null;
-  n._plan = null; n._planGoal = null;
-  n._fullPlan = null; n._fullPlanGoal = null;
-  return false;
-}
-
-function routeIntoInnUpstairs(ctx, occGround, n, targetUp) {
-  return routeIntoInnUpstairsCore(ctx, occGround, n, targetUp, stepTowards);
-}
+// Pathfinding helpers (budget + stepTowards, home plans, inn upstairs routing)
+// are centralized in ai/town_movement.js. This module focuses on the townNPCsAct loop.
 
 function townNPCsAct(ctx) {
   const { npcs, player, townProps } = ctx;
@@ -398,17 +219,8 @@ function townNPCsAct(ctx) {
   if (innBForCap) {
     try {
       const seatsCount = (() => {
-        const innB = ctx.tavern && ctx.tavern.building ? ctx.tavern.building : null;
-        if (!innB) return 0;
-        const props = Array.isArray(ctx.townProps) ? ctx.townProps : [];
-        let count = 0;
-        for (const p of props) {
-          if (p.type !== "chair" && p.type !== "table") continue;
-          if (!(p.x > innB.x && p.x < innB.x + innB.w - 1 && p.y > innB.y && p.y < innB.y + innB.h - 1)) continue;
-          const adj = nearestFreeAdjacent(ctx, p.x, p.y, innB);
-          if (adj) count++;
-        }
-        return count;
+        const beds = innBedSpots(ctx);
+        return beds.length;
       })();
       _innSeatCap = Math.max(2, Math.min(6, Math.floor((seatsCount || 0) * 0.5) || 2));
       for (const x of npcs) {
@@ -417,101 +229,6 @@ function townNPCsAct(ctx) {
     } catch (_) {
       _innSeatCap = 4;
     }
-  }
-
-  function innBedSpots(ctxLocal) {
-    const innB = ctxLocal.tavern && ctxLocal.tavern.building ? ctxLocal.tavern.building : null;
-    if (!innB) return [];
-    const beds = (ctxLocal.townProps || []).filter(p =>
-      p.type === "bed" &&
-      p.x > innB.x && p.x < innB.x + innB.w - 1 &&
-      p.y > innB.y && p.y < innB.y + innB.h - 1
-    );
-    return beds;
-  }
-
-  function innSeatSpots(ctxLocal) {
-    const innB = ctxLocal.tavern && ctxLocal.tavern.building ? ctxLocal.tavern.building : null;
-    if (!innB) return [];
-    const props = Array.isArray(ctxLocal.townProps) ? ctxLocal.townProps : [];
-    const seats = [];
-    for (const p of props) {
-      if (p.type !== "chair" && p.type !== "table") continue;
-      if (!(p.x > innB.x && p.x < innB.x + innB.w - 1 && p.y > innB.y && p.y < innB.y + innB.h - 1)) continue;
-      const adj = nearestFreeAdjacent(ctxLocal, p.x, p.y, innB);
-      if (adj) seats.push(adj);
-    }
-    return seats;
-  }
-  function chooseInnSeat(ctxLocal) {
-    const seats = innSeatSpots(ctxLocal);
-    if (!seats.length) return chooseInnTarget(ctxLocal);
-    return seats[randInt(ctxLocal, 0, seats.length - 1)];
-  }
-
-  function chooseInnTarget(ctxLocal) {
-    const upBed = chooseInnUpstairsBed(ctxLocal);
-    if (upBed) return { x: upBed.x, y: upBed.y };
-    const innB = ctxLocal.tavern && ctxLocal.tavern.building ? ctxLocal.tavern.building : null;
-    if (!innB) return null;
-    const door = ctxLocal.tavern.door || { x: innB.x + ((innB.w / 2) | 0), y: innB.y + ((innB.h / 2) | 0) };
-    const inSpot = nearestFreeAdjacent(ctxLocal, door.x, door.y, innB);
-    return inSpot || { x: door.x, y: door.y };
-  }
-
-  function chooseBenchSeat(ctxLocal) {
-    const benches = Array.isArray(ctxLocal.townProps) ? ctxLocal.townProps.filter(p => p.type === "bench") : [];
-    if (!benches.length) return null;
-    let b = benches[0];
-    if (ctxLocal.townPlaza) {
-      const cx = ctxLocal.townPlaza.x, cy = ctxLocal.townPlaza.y;
-      b = benches.slice().sort((a, bb) =>
-        manhattan(a.x, a.y, cx, cy) - manhattan(bb.x, bb.y, cx, cy)
-      )[0] || benches[0];
-    }
-    const seat = nearestFreeAdjacent(ctxLocal, b.x, b.y, null);
-    return seat ? seat : { x: b.x, y: b.y };
-  }
-
-  function firstFreeInteriorTile(ctxLocal, b) {
-    const { map, TILES } = ctxLocal;
-    for (let y = b.y + 1; y < b.y + b.h - 1; y++) {
-      for (let x = b.x + 1; x < b.x + b.w - 1; x++) {
-        if (map[y][x] !== TILES.FLOOR) continue;
-        if ((ctxLocal.townProps || []).some(p => p.x === x && p.y === y && p.type && p.type !== "sign" && p.type !== "rug")) continue;
-        if ((ctxLocal.npcs || []).some(n => n.x === x && n.y === y)) continue;
-        return { x, y };
-      }
-    }
-    return null;
-  }
-
-  function chooseHomeSeat(ctxLocal, building) {
-    if (!building) return null;
-    const props = Array.isArray(ctxLocal.townProps) ? ctxLocal.townProps : [];
-    const seats = [];
-    for (const p of props) {
-      if (p.type !== "chair" && p.type !== "table") continue;
-      if (!(p.x > building.x && p.x < building.x + building.w - 1 && p.y > building.y && p.y < building.y + building.h - 1)) continue;
-      const adj = nearestFreeAdjacent(ctxLocal, p.x, p.y, building);
-      if (adj) seats.push(adj);
-    }
-    if (seats.length) return seats[randInt(ctxLocal, 0, seats.length - 1)];
-    return firstFreeInteriorTile(ctxLocal, building);
-  }
-
-  function homeSeatTiles(ctxLocal, building) {
-    if (!building) return [];
-    const props = Array.isArray(ctxLocal.townProps) ? ctxLocal.townProps : [];
-    const out = [];
-    for (const p of props) {
-      const tType = String(p.type || "").toLowerCase();
-      if (tType !== "chair" && tType !== "bench") continue;
-      if (p.x > building.x && p.x < building.x + building.w - 1 && p.y > building.y && p.y < building.y + building.h - 1) {
-        out.push({ x: p.x, y: p.y });
-      }
-    }
-    return out;
   }
 
   const tickMod = ((t && typeof t.turnCounter === "number") ? t.turnCounter : 0) | 0;
@@ -554,140 +271,18 @@ function townNPCsAct(ctx) {
     }
   }
 
-  function makeRelaxedOcc() {
-    const r = new Set();
-    if (Array.isArray(townProps)) {
-      for (const p of townProps) {
-        if (propBlocks(p.type)) r.add(`${p.x},${p.y}`);
-      }
-    }
-    return r;
+  // Role-specific lightweight helpers
+
+  function tickPet(ctxLocal, occLocal, n) {
+    if (ctxLocal.rng() < 0.6) return;
+    stepTowards(ctxLocal, occLocal, n, n.x + randInt(ctxLocal, -1, 1), n.y + randInt(ctxLocal, -1, 1));
   }
 
-  function concatPaths(a, b) {
-    if (!a || !b) return a || b || null;
-    if (a.length === 0) return b.slice(0);
-    if (b.length === 0) return a.slice(0);
-    const res = a.slice(0);
-    const firstB = b[0];
-    const lastA = a[a.length - 1];
-    const skipFirst = (firstB.x === lastA.x && firstB.y === lastA.y);
-    for (let i = skipFirst ? 1 : 0; i < b.length; i++) res.push(b[i]);
-    return res;
-  }
+  
 
-  function computeHomePath(ctxLocal, n) {
-    if (!n._home || !n._home.building) return null;
-    const B = n._home.building;
-    const relaxedOcc = makeRelaxedOcc();
+  
 
-    let targetInside = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : { x: n._home.x, y: n._home.y };
-    targetInside = adjustInteriorTarget(ctxLocal, B, targetInside);
-
-    const insideNow = insideBuilding(B, n.x, n.y);
-    let path = null;
-
-    if (!insideNow) {
-      const door = B.door || nearestFreeAdjacent(ctxLocal, B.x + ((B.w / 2) | 0), B.y, null);
-      if (!door) return null;
-
-      const p1 = computePath(ctxLocal, relaxedOcc, n.x, n.y, door.x, door.y, { ignorePlayer: true });
-
-      let inSpot = nearestFreeAdjacent(ctxLocal, door.x, door.y, B);
-      if (!inSpot) {
-        inSpot = (function firstFreeInteriorSpot() {
-          for (let y = B.y + 1; y < B.y + B.h - 1; y++) {
-            for (let x = B.x + 1; x < B.x + B.w - 1; x++) {
-              if (ctxLocal.map[y][x] !== ctxLocal.TILES.FLOOR) continue;
-              if ((ctxLocal.townProps || []).some(p => p.x === x && p.y === y && p.type && p.type !== "sign" && p.type !== "rug")) continue;
-              return { x, y };
-            }
-          }
-          return null;
-        })();
-      }
-      inSpot = inSpot || targetInside || { x: door.x, y: door.y };
-      const p2 = computePath(ctxLocal, relaxedOcc, inSpot.x, inSpot.y, targetInside.x, targetInside.y, { ignorePlayer: true });
-
-      path = concatPaths(p1, p2);
-    } else {
-      path = computePath(ctxLocal, relaxedOcc, n.x, n.y, targetInside.x, targetInside.y, { ignorePlayer: true });
-    }
-    return (path && path.length >= 1) ? path : null;
-  }
-
-  function ensureHomePlan(ctxLocal, occLocal, n) {
-    if (!n._home || !n._home.building) { n._homePlan = null; n._homePlanGoal = null; return; }
-
-    if (n._homePlanCooldown && n._homePlanCooldown > 0) {
-      return;
-    }
-
-    const B = n._home.building;
-    let targetInside = n._home.bed ? { x: n._home.bed.x, y: n._home.bed.y } : { x: n._home.x, y: n._home.y };
-    targetInside = adjustInteriorTarget(ctxLocal, B, targetInside);
-
-    if (n._homePlan && n._homePlanGoal &&
-        n._homePlanGoal.x === targetInside.x && n._homePlanGoal.y === targetInside.y) {
-      return;
-    }
-
-    const insideNow = insideBuilding(B, n.x, n.y);
-    let plan = null;
-
-    if (!insideNow) {
-      const doorCandidate = (n._homeDoor && typeof n._homeDoor.x === "number") ? n._homeDoor
-                           : (B.door || nearestFreeAdjacent(ctxLocal, B.x + ((B.w / 2) | 0), B.y, null));
-      const door = doorCandidate || null;
-      if (!door) { n._homePlan = null; n._homePlanGoal = null; n._homePlanCooldown = 6; return; }
-      n._homeDoor = { x: door.x, y: door.y };
-
-      const p1 = computePathBudgeted(ctxLocal, occLocal, n.x, n.y, door.x, door.y);
-      const inSpot = nearestFreeAdjacent(ctxLocal, door.x, door.y, B) || targetInside || { x: door.x, y: door.y };
-      const p2 = computePathBudgeted(ctxLocal, occLocal, inSpot.x, inSpot.y, targetInside.x, targetInside.y);
-      plan = concatPaths(p1, p2);
-    } else {
-      plan = computePathBudgeted(ctxLocal, occLocal, n.x, n.y, targetInside.x, targetInside.y);
-    }
-
-    if (plan && plan.length >= 2) {
-      n._homePlan = plan.slice(0);
-      n._homePlanGoal = { x: targetInside.x, y: targetInside.y };
-      n._homeWait = 0;
-      n._homePlanCooldown = 5;
-    } else {
-      n._homePlan = null;
-      n._homePlanGoal = null;
-      n._homePlanCooldown = 8;
-    }
-  }
-
-  function followHomePlan(ctxLocal, occLocal, n) {
-    if (!n._homePlan || n._homePlan.length < 2) return false;
-    if (n._homePlan[0].x !== n.x || n._homePlan[0].y !== n.y) {
-      const idx = n._homePlan.findIndex(p => p.x === n.x && p.y === n.y);
-      if (idx >= 0) {
-        n._homePlan = n._homePlan.slice(idx);
-      } else {
-        ensureHomePlan(ctxLocal, occLocal, n);
-      }
-    }
-    if (!n._homePlan || n._homePlan.length < 2) return false;
-    const next = n._homePlan[1];
-    const keyNext = `${next.x},${next.y}`;
-    if (occLocal.has(keyNext) || !isWalkTown(ctxLocal, next.x, next.y)) {
-      n._homeWait = (n._homeWait || 0) + 1;
-      if (n._homeWait >= 3) {
-        n._homePlanCooldown = Math.max(n._homePlanCooldown || 0, 4);
-        ensureHomePlan(ctxLocal, occLocal, n);
-      }
-      return true;
-    }
-    occLocal.delete(`${n.x},${n.y}`); n.x = next.x; n.y = next.y; occLocal.add(`${n.x},${n.y}`);
-    n._homePlan = n._homePlan.slice(1);
-    n._homeWait = 0;
-    return true;
-  }
+  
 
   if (typeof window !== "undefined" && window.DEBUG_TOWN_HOME_PATHS) {
     try {
@@ -702,46 +297,9 @@ function townNPCsAct(ctx) {
 
   if (typeof window !== "undefined" && window.DEBUG_TOWN_ROUTE_PATHS) {
     try {
-      const relaxedOcc = makeRelaxedOcc();
-      function currentTargetFor(n) {
-        const minutesNow = minutes;
-        const phaseNow = phase;
-        if (n.isShopkeeper) {
-          const shop = n._shopRef || null;
-          const o = shop ? shop.openMin : 8 * 60;
-          const c = shop ? shop.closeMin : 18 * 60;
-          const arriveStart = (o - 60 + 1440) % 1440;
-          const leaveEnd = (c + 30) % 1440;
-          const shouldBeAtWorkZone = inWindow(arriveStart, leaveEnd, minutesNow, 1440);
-          const openNow = isOpenAt(shop, minutesNow, 1440);
-          if (shouldBeAtWorkZone) {
-            if (openNow && n._workInside && shop && shop.building) {
-              return n._workInside;
-            } else if (n._work) {
-              return n._work;
-            }
-          } else if (n._home) {
-            return n._home.bed ? n._home.bed : { x: n._home.x, y: n._home.y };
-          }
-          return null;
-        } else if (n.isResident) {
-          if (phaseNow === "evening") {
-            return n._home ? (n._home.bed ? n._home.bed : { x: n._home.x, y: n._home.y }) : null;
-          } else if (phaseNow === "day") {
-            return n._work || (ctx.townPlaza ? { x: ctx.townPlaza.x, y: ctx.townPlaza.y } : null);
-          } else if (phaseNow === "morning") {
-            return n._home ? { x: n._home.x, y: n._home.y } : null;
-          } else {
-            return n._home ? { x: n._home.x, y: n._home.y } : null;
-          }
-        } else {
-          if (phaseNow === "morning") return n._home ? { x: n._home.x, y: n._home.y } : null;
-          else if (phaseNow === "day") return (n._work || ctx.townPlaza);
-          else return n._home ? { x: n._home.x, y: n._home.y } : null;
-        }
-      }
+      const relaxedOcc = makeRelaxedOcc(ctx);
       for (const n of npcs) {
-        const target = currentTargetFor(n);
+        const target = currentTargetFor(ctx, n, minutes, phase);
         if (!target) { n._routeDebugPath = null; continue; }
         const path = computePath(ctx, relaxedOcc, n.x, n.y, target.x, target.y, { ignorePlayer: true });
         n._routeDebugPath = (path && path.length >= 2) ? path.slice(0) : null;
@@ -827,8 +385,7 @@ function townNPCsAct(ctx) {
     }
 
     if (n.isPet) {
-      if (ctx.rng() < 0.6) continue;
-      stepTowards(ctx, occ, n, n.x + randInt(ctx, -1, 1), n.y + randInt(ctx, -1, 1));
+      tickPet(ctx, occ, n);
       continue;
     }
 
