@@ -283,6 +283,28 @@ export function playerAttackEnemy(ctx, enemy) {
         }
       } catch (_) {}
 
+      // Seppo's True Blade: very rare "love" effect that holds enemies in place for 1 turn.
+      try {
+        const p = ctx.player || null;
+        const eq = p && p.equipment ? p.equipment : null;
+        const hasSeppoBlade = !!(eq && (
+          (eq.left && (eq.left.id === "seppos_true_blade" || /seppo's true blade/i.test(String(eq.left.name || "")))) ||
+          (eq.right && (eq.right.id === "seppos_true_blade" || /seppo's true blade/i.test(String(eq.right.name || ""))))
+        ));
+        if (hasSeppoBlade && enemy.hp > 0) {
+          const RU2 = getRNGUtils(ctx);
+          const pLove = 0.04; // ~4% chance per hit
+          let charm = false;
+          if (RU2 && typeof RU2.chance === "function") charm = RU2.chance(pLove, rng);
+          else if (typeof rng === "function") charm = rng() < pLove;
+          else charm = Math.random() < pLove;
+          if (charm) {
+            enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, 1);
+            if (ctx.log) ctx.log("Your strike with Seppo's True Blade leaves the foe lovestruck and unable to move for a moment.", "flavor", { category: "Combat" });
+          }
+        }
+      } catch (_) {}
+
       // GOD panel: apply one-off status effect on first hit when armed.
       try {
         const p = ctx.player || {};
