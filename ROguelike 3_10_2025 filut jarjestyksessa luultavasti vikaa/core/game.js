@@ -31,6 +31,7 @@
   
   import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
 import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./state/persistence.js";
+import { applySyncAndRefresh as gameStateApplySyncAndRefresh } from "./state/game_state.js";
 import {
   initTimeWeather,
   getClock as timeGetClock,
@@ -720,15 +721,12 @@ import {
 
   // Helper: apply ctx sync and refresh visuals/UI in one place
   function applyCtxSyncAndRefresh(ctx) {
+    // First sync orchestrator-local state from the mutated ctx
     syncFromCtx(ctx);
-    // Mandatory StateSync-only refresh path
+    // Then refresh camera/FOV/UI/draw via GameState helper using a fresh ctx view
     try {
-      const SS = modHandle("StateSync");
-      if (SS && typeof SS.applyAndRefresh === "function") {
-        SS.applyAndRefresh(getCtx(), {
-          // No-op sink here since sync already applied locally
-        });
-      }
+      const refreshedCtx = getCtx();
+      gameStateApplySyncAndRefresh(refreshedCtx);
     } catch (_) {}
   }
 
