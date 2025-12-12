@@ -1,5 +1,77 @@
 # Game Version History
-Last updated: 2025-12-11 13:00 UTC
+Last updated: 2025-12-12 13:00 UTC
+
+v1.55.0 — World/RegionMap glue and incremental Town AI refactors
+- Changed: World module now re-exports tiles and helpers for Region Map and renderers
+  - world/world.js:
+    - Imports TILES, isWalkable, biomeName from world/world_tiles.js.
+    - Re-exports them (`export { TILES, isWalkable, biomeName };`) so existing imports like `import * as World from "../world/world.js"` continue to work.
+  - Effect: RegionMapRuntime, render_overworld.js, and any other modules that rely on World.TILES / World.isWalkable / World.biomeName remain compatible after the world_tiles split.
+
+- Fixed: Region Map availability and boot errors
+  - core/ctx.js and src/main.js:
+    - Ensure RegionMapRuntime is imported and attached to ctx via Ctx.create/attachModules, making it discoverable by Actions and GameAPI.
+  - core/game.js:
+    - GameAPI.openRegionMap() now:
+      - Resolves RegionMapRuntime via ctx/module handle.
+      - Calls RM.open(ctx) and then applyCtxSyncAndRefresh(ctx) on success (centralized ctx→engine state sync).
+    - WorldRuntime-based world init and state sync ensure Region Map can open from overworld tiles and from Ruins tiles without “Region map module not available.” warnings.
+  - Effect: Pressing G on a walkable overworld tile or RUINS tile reliably opens the Region Map overlay; exiting returns to the overworld without mode desync or undefined modules.
+
+- Changed: Town pathing and home/inn helpers consolidated
+  - ai/town_movement.js:
+    - Centralizes shared movement helpers:
+      - PATH_BUDGET_MIN / PATH_BUDGET_MAX and initPathBudget(ctx, npcCount).
+      - stepTowards(ctx, occ, n, tx, ty, opts) with reserved-door tracking and bound-building rules.
+      - makeRelaxedOcc(ctxLocal), concatPaths(a, b), computeHomePath(ctxLocal, n), ensureHomePlan(ctxLocal, occLocal, n), followHomePlan(ctxLocal, occLocal, n).
+    - town_runtime.js now imports and uses these helpers instead of maintaining a second copy of similar logic.
+  - ai/town_runtime.js:
+    - Removed duplicated definitions of makeRelaxedOcc, concatPaths, computeHomePath, ensureHomePlan, and followHomePlan; all call sites now use the shared implementations from town_movement.js.
+    - Reduced local occupancy/building/home-plan code to thin wrappers around the shared helpers where needed.
+  - Effect: Town AI pathfinding and home routing has a single source of truth, reducing the chance of divergent behavior between debug and non-debug paths or between different roles.
+
+- Added: Inn/home seating module for Town AI
+  - ai/town_inn_runtime.js:
+    - New module factoring out inn/home seating and bed selection logic:
+      - innBedSpots(ctx): finds beds inside the inn building.
+      - chooseInnSeat(ctx): picks a nearby interior seat for NPCs in the inn (or falls back to inn target).
+      - chooseInnTarget(ctx): picks a door/bed target for inn-bound NPCs, reusing upstairs bed selection via chooseInnUpstairsBed(ctx).
+      - chooseBenchSeat(ctx): picks benches near town plaza for evening/bench-sit behavior.
+      - chooseHomeSeat(ctx, building): picks interior seats or fallback tiles for home interiors.
+      - homeSeatTiles(ctx, building): returns seat tiles inside a given building.
+    - ai/town_runtime.js imports these helpers and uses them in:
+      - Guard rest routing (innBedSpots).
+      - Resident/home seating logic (homeSeatTiles, chooseHomeSeat).
+      - Inn/tavern patron behavior (chooseInnSeat, chooseInnTarget).
+      - Plaza bench sit/sleep behavior (chooseBenchSeat).
+  - Effect: Inn upstairs, downstairs seating, and home seating rules are centralized and easier to tune without touching the main Town NPC loop.
+
+- Added: Town schedule helper for debug route overlays
+  - ai/town_schedules.js:
+    - Exposes currentTargetFor(ctx, n, minutesNow, phaseNow) used by debug route overlays:
+      - Shopkeepers:
+        - Work zone (door/inside) during work windows, home outside.
+      - Residents:
+        - Home mornings/evenings/nights; work or plaza during the day.
+      - Other NPCs:
+        - Simple targets based on phase and home/work presence.
+  - ai/town_runtime.js:
+    - DEBUG_TOWN_ROUTE_PATHS block now:
+      - Uses makeRelaxedOcc(ctx) from town_movement.js.
+      - For each NPC, calls currentTargetFor(ctx, n, minutes, phase) to derive the intended goal.
+      - Computes a debug path via computePath(ctx, relaxedOcc, n.x, n.y, target.x, target.y, { ignorePlayer: true }).
+  - Effect: Route debug overlays are driven by a single, reusable scheduling helper; adjusting target rules no longer requires editing the main Town AI loop.
+
+- Added: Minor per-role helper for pets
+  - ai/town_runtime.js:
+    - Introduced tickPet(ctxLocal, occLocal, n):
+      - Uses ctxLocal.rng() and randInt(ctxLocal, -1, 1) to perform occasional random steps, matching previous inline behavior.
+    - The main NPC loop now calls tickPet for n.isPet instead of inlining the movement logic.
+  - Effect: Pet behavior is unchanged but isolated in a small helper, easing future refactors of role-specific code.
+
+- Notes:
+  - No intentional gameplay changes to guard, resident, or shopkeeper routines; all changes are internal refactors and glue.
+  - Region Map open/close flows and world/town/dungeon transitions rely more heavily on ctx + StateSync; any new mode-changing modules should follow the same pattern (mutate ctx, then call applyCtxSyncAndRefresh(ctx) or rely on TurnLoop/GameAPI helpers).
 
 v1.54.0 — Town AI modularization, corpse cleaners, and dev prompts
 - Changed: Town AI split into focused modules
