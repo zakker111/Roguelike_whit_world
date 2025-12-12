@@ -274,8 +274,9 @@ function townNPCsAct(ctx) {
   // Role-specific lightweight helpers
 
   function tickPet(ctxLocal, occLocal, n) {
-    if (ctxLocal.rng( <) 0.6) return;
-    stepTowards(ctxLocal, occ
+    if (ctxLocal.rng() < 0.6) return;
+    stepTowards(ctxLocal, occLocal, n, n.x + randInt(ctxLocal, -1, 1), n.y + randInt(ctxLocal, -1, 1));
+  }
 
   
 
