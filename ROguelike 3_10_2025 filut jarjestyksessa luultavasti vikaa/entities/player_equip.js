@@ -215,6 +215,28 @@ export function unequipSlot(player, slot, hooks = {}) {
 
   const describe = hooks.describeItem || (typeof window !== "undefined" && window.Player && typeof window.Player.describeItem === "function" ? window.Player.describeItem : null) || defaultDescribe;
 
+  // Cursed Seppo's True Blade: cannot be unequipped until it is destroyed.
+  try {
+    if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right) {
+      const it = eq.left;
+      const id = String(it.id || it.name || "").toLowerCase();
+      if (id === "seppos_true_blade" || /seppo's true blade/i.test(String(it.name || ""))) {
+        if (hooks.log) hooks.log("The blade clings to your hands. It is cursed and cannot be unequipped.", "warn");
+        return;
+      }
+    }
+    if ((slot === "left" || slot === "right")) {
+      const single = eq[slot];
+      if (single) {
+        const id2 = String(single.id || single.name || "").toLowerCase();
+        if (id2 === "seppos_true_blade" || /seppo's true blade/i.test(String(single.name || ""))) {
+          if (hooks.log) hooks.log("The blade clings to your hand. It is cursed and cannot be unequipped.", "warn");
+          return;
+        }
+      }
+    }
+  } catch (_) {}
+
   // Handle two-handed case if unequipping either hand and both reference same item
   if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right && eq.left.twoHanded) {
     const item = eq.left;
