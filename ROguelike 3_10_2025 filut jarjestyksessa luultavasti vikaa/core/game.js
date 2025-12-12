@@ -588,15 +588,8 @@ import {
     if (!ok) {
       throw new Error("WorldRuntime.generate returned falsy; overworld generation failed");
     }
-    // Sync back any mutated references from ctx
-    syncFromCtx(ctx);
-    // Ensure the camera is centered on the player before the first render
-    try { updateCamera(); } catch (_) {}
-    // Ensure FOV reflects the spawn position right away
-    try { recomputeFOV(); } catch (_) {}
-    try { updateUI(); } catch (_) {}
-    // Orchestrator schedules a single draw after world init
-    requestDraw();
+    // Sync back mutated state and refresh camera/FOV/UI/draw via centralized helper
+    applyCtxSyncAndRefresh(ctx);
   }
 
   
