@@ -11,7 +11,8 @@
 import { attachGlobal } from "../utils/global.js";
 import { TILES, isWalkable, biomeName } from "./world_tiles.js";
 
-function clamp(v, lo, hi) {
+// Re-export tiles and helpers so existing imports (import * as World from "../world/world.js")
+// continue tohi) {
   try {
     if (typeof window !== "undefined" && window.Bounds && typeof window.Bounds.clamp === "function") {
       return window.Bounds.clamp(v, lo, hi);
