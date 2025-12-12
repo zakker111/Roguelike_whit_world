@@ -20,7 +20,7 @@ import { glyphDungeonFor } from "./render/dungeon_tile_cache.js";
 import { drawEncounterProps, drawDungeonProps } from "./render/dungeon_props_draw.js";
 import { drawEnemies, drawPlayer } from "./render/dungeon_entities_draw.js";
 import { drawDungeonGlow } from "./render/dungeon_glow.js";
-import { drawVisibilityOverlay } from "./render/shared_visibility.js";
+import { drawVisibilityOverlay } from "./shared_visibility.js";
 
 export function draw(ctx, view) {
   const {

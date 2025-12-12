@@ -15,7 +15,7 @@ import { attachGlobal } from "../utils/global.js";
 import { propColor as _propColor } from "./prop_palette.js";
 // Reuse overworld weather overlays (fog/rain/cloudy) for towns (outdoors) as well.
 import { drawWeather } from "./render/overworld_weather.js";
-import { drawVisibilityOverlay } from "./render/shared_visibility.js";
+import { drawVisibilityOverlay } from "./shared_visibility.js";
 
 // Modularized helpers
 import { drawTownBase } from "./render/town_base_layer.js";
