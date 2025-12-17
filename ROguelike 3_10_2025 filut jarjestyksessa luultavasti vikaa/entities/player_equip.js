@@ -15,6 +15,18 @@ const round1 = (typeof window !== "undefined" && window.PlayerUtils && typeof wi
   ? window.PlayerUtils.round1
   : (n) => Math.round(n * 10) / 10;
 
+// Helper: identify Seppo's True Blade (cursed two-handed weapon)
+function isCursedSeppoBlade(item) {
+  if (!item) return false;
+  try {
+    const id = String(item.id || "").toLowerCase();
+    const name = String(item.name || "");
+    if (id === "seppos_true_blade") return true;
+    if (/seppo's true blade/i.test(name)) return true;
+  } catch (_) {}
+  return false;
+}
+
 function defaultDescribe(item) {
   try {
     if (typeof window !== "undefined" && window.ItemDescribe && typeof window.ItemDescribe.describe === "function") {
@@ -41,6 +53,23 @@ export function equipIfBetter(player, item, hooks = {}) {
   if (!item || item.kind !== "equip") return false;
 
   const describe = hooks.describeItem || (typeof window !== "undefined" && window.Player && typeof window.Player.describeItem === "function" ? window.Player.describeItem : null) || defaultDescribe;
+
+  // If Seppo's True Blade is currently equipped in hands, block equipping other hand items.
+  try {
+    const eq = player && player.equipment ? player.equipment : null;
+    if (eq && item.slot === "hand") {
+      const left = eq.left || null;
+      const right = eq.right || null;
+      const cursedEquipped =
+        (left && right && left === right && isCursedSeppoBlade(left)) ||
+        (left && isCursedSeppoBlade(left)) ||
+        (right && isCursedSeppoBlade(right));
+      if (cursedEquipped && !isCursedSeppoBlade(item)) {
+        if (hooks.log) hooks.log("The cursed blade refuses to leave your hands; you cannot equip another weapon until it is broken.", "warn");
+        return false;
+      }
+    }
+  } catch (_) {}
 
   // Two-handed constraint
   const twoH = !!item.twoHanded;
@@ -143,6 +172,24 @@ export function equipItemByIndex(player, idx, hooks = {}) {
     if (hooks.log) hooks.log("That item cannot be equipped.");
     return;
   }
+
+  // If Seppo's True Blade is currently equipped in hands, block equipping other hand items.
+  try {
+    const eq0 = player && player.equipment ? player.equipment : null;
+    if (eq0 && item.slot === "hand") {
+      const left0 = eq0.left || null;
+      const right0 = eq0.right || null;
+      const cursedEquipped0 =
+        (left0 && right0 && left0 === right0 && isCursedSeppoBlade(left0)) ||
+        (left0 && isCursedSeppoBlade(left0)) ||
+        (right0 && isCursedSeppoBlade(right0));
+      if (cursedEquipped0 && !isCursedSeppoBlade(item)) {
+        if (hooks.log) hooks.log("The cursed blade refuses to leave your hands; you cannot equip another weapon until it is broken.", "warn");
+        return;
+      }
+    }
+  } catch (_) {}
+
   // remove from inventory first
   player.inventory.splice(idx, 1);
 
@@ -217,22 +264,15 @@ export function unequipSlot(player, slot, hooks = {}) {
 
   // Cursed Seppo's True Blade: cannot be unequipped until it is destroyed.
   try {
-    if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right) {
-      const it = eq.left;
-      const id = String(it.id || it.name || "").toLowerCase();
-      if (id === "seppos_true_blade" || /seppo's true blade/i.test(String(it.name || ""))) {
-        if (hooks.log) hooks.log("The blade clings to your hands. It is cursed and cannot be unequipped.", "warn");
-        return;
-      }
+    if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right && isCursedSeppoBlade(eq.left)) {
+      if (hooks.log) hooks.log("The blade clings to your hands. It is cursed and cannot be unequipped.", "warn");
+      return;
     }
     if ((slot === "left" || slot === "right")) {
       const single = eq[slot];
-      if (single) {
-        const id2 = String(single.id || single.name || "").toLowerCase();
-        if (id2 === "seppos_true_blade" || /seppo's true blade/i.test(String(single.name || ""))) {
-          if (hooks.log) hooks.log("The blade clings to your hand. It is cursed and cannot be unequipped.", "warn");
-          return;
-        }
+      if (single && isCursedSeppoBlade(single)) {
+        if (hooks.log) hooks.log("The blade clings to your hand. It is cursed and cannot be unequipped.", "warn");
+        return;
       }
     }
   } catch (_) {}
