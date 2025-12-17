@@ -65,7 +65,7 @@ export function equipIfBetter(player, item, hooks = {}) {
         (left && isCursedSeppoBlade(left)) ||
         (right && isCursedSeppoBlade(right));
       if (cursedEquipped && !isCursedSeppoBlade(item)) {
-        if (hooks.log) hooks.log("Cursed: The blade refuses to leave your hands; you cannot equip another weapon until it is broken.", "warn");
+        if (hooks.log) hooks.log("Cursed: The blade refuses to leave your hands; you cannot equip another weapon until it is broken.", "info");
         return false;
       }
     }
@@ -184,7 +184,7 @@ export function equipItemByIndex(player, idx, hooks = {}) {
         (left0 && isCursedSeppoBlade(left0)) ||
         (right0 && isCursedSeppoBlade(right0));
       if (cursedEquipped0 && !isCursedSeppoBlade(item)) {
-        if (hooks.log) hooks.log("Cursed: The blade refuses to leave your hands; you cannot equip another weapon until it is broken.", "warn");
+        if (hooks.log) hooks.log("Cursed: The blade refuses to leave your hands; you cannot equip another weapon until it is broken.", "info");
         return;
       }
     }
@@ -265,13 +265,13 @@ export function unequipSlot(player, slot, hooks = {}) {
   // Cursed Seppo's True Blade: cannot be unequipped until it is destroyed.
   try {
     if ((slot === "left" || slot === "right") && eq.left && eq.right && eq.left === eq.right && isCursedSeppoBlade(eq.left)) {
-      if (hooks.log) hooks.log("Cursed: The blade clings to your hands and cannot be unequipped.", "warn");
+      if (hooks.log) hooks.log("Cursed: The blade clings to your hands and cannot be unequipped.", "info");
       return;
     }
     if ((slot === "left" || slot === "right")) {
       const single = eq[slot];
       if (single && isCursedSeppoBlade(single)) {
-        if (hooks.log) hooks.log("Cursed: The blade clings to your hand and cannot be unequipped.", "warn");
+        if (hooks.log) hooks.log("Cursed: The blade clings to your hand and cannot be unequipped.", "info");
         return;
       }
     }
