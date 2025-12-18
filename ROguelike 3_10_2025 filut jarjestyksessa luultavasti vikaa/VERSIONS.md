@@ -483,6 +483,7 @@ v1.50.0 — Torch weapon & burning status, GOD status picker, unified combat, an
 - Changed: Ruins entry and corpse flavor log consistency
   - core/modes/modes.js (enterRuinsIfOnTile):
     - Fixed a malformed try block (“Missing catch or finally after try”) when checking RUINS tiles; added a proper try/catch around RegionMapRuntime.open(ctx).
+- Added core/modes/exit.js with exitToWorld(ctx, opts?) as a unified, ctx-first orchestrator for leaving towns, dungeons, encounters, and Region Map; wired core/game.js and core/modes/actions.js to prefer this single exit path while reusing existing TownRuntime/DungeonRuntime/RegionMapRuntime/EncounterRuntime behavior.
     - On successful open, logs “You enter the ancient ruins.” as info and syncs state via syncAfterMutation(ctx); returns false when Region Map cannot be opened.
   - core/dungeon/loot.js:
     - When looting in dungeon/encounter mode with no loot underfoot, corpse death flavor lines from FlavorService.describeCorpse(meta) are now logged with type \"flavor\" and details:

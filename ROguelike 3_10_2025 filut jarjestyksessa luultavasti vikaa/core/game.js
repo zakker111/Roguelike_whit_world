@@ -36,6 +36,7 @@ import {
   syncFromCtxWithSink as gameStateSyncFromCtxWithSink
 } from "./state/game_state.js";
 import "./modes/transitions.js";
+import { exitToWorld as exitToWorldExt } from "./modes/exit.js";
 import {
   initTimeWeather,
   getClock as timeGetClock,
@@ -789,7 +790,6 @@ import {
 
   function returnToWorldFromTown() {
     const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
     const logExitHint = (c) => {
       const MZ = modHandle("Messages");
       if (MZ && typeof MZ.log === "function") {
@@ -798,19 +798,19 @@ import {
         log("Return to the town gate to exit to the overworld.", "info");
       }
     };
-    if (MT && typeof MT.returnToWorldFromTown === "function") {
-      return !!MT.returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint);
-    }
-    return false;
+    return !!exitToWorldExt(ctx, {
+      reason: "gate",
+      applyCtxSyncAndRefresh,
+      logExitHint
+    });
   }
 
   function returnToWorldIfAtExit() {
     const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.returnToWorldIfAtExit === "function") {
-      return !!MT.returnToWorldIfAtExit(ctx, applyCtxSyncAndRefresh);
-    }
-    return false;
+    return !!exitToWorldExt(ctx, {
+      reason: "stairs",
+      applyCtxSyncAndRefresh
+    });
   }
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
@@ -826,7 +826,8 @@ import {
 
     // Town gate exit takes priority over other interactions
     if (mode === "town" && townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      if (returnToWorldFromTown()) return;
+      const ctxGate = getCtx();
+      if (exitToWorldExt(ctxGate, { reason: "gate", applyCtxSyncAndRefresh })) return;
     }
 
     // Prefer ctx-first Actions module
