@@ -426,6 +426,58 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
     return true;
   }
 
+  // Last-resort heuristic: avoid trapping the player in town even if townExitAt
+  // is missing or desynced. If the player is near a perimeter door (probable
+  // gate), allow exiting directly via TownRuntime.applyLeaveSync(ctx).
+  let nearPerimeterGate = false;
+  try {
+    const map = ctx.map;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    if (rows && cols && ctx.player && ctx.TILES) {
+      const px = ctx.player.x | 0;
+      const py = ctx.player.y | 0;
+      const T = ctx.TILES;
+      const onInnerPerimeter =
+        px === 1 || py === 1 || px === cols - 2 || py === rows - 2;
+      if (onInnerPerimeter) {
+        const dirs = [
+          { dx: 1, dy: 0 },
+          { dx: -1, dy: 0 },
+          { dx: 0, dy: 1 },
+          { dx: 0, dy: -1 },
+        ];
+        for (let i = 0; i < dirs.length; i++) {
+          const nx = px + dirs[i].dx;
+          const ny = py + dirs[i].dy;
+          if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+          const isBoundary =
+            nx === 0 || ny === 0 || nx === cols - 1 || ny === rows - 1;
+          if (!isBoundary) continue;
+          if (map[ny][nx] === T.DOOR) {
+            nearPerimeterGate = true;
+            break;
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  if (nearPerimeterGate) {
+    try {
+      const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
+      if (TR && typeof TR.applyLeaveSync === "function") {
+        TR.applyLeaveSync(ctx);
+        if (typeof applyCtxSyncAndRefresh === "function") {
+          try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+        } else {
+          syncAfterMutation(ctx);
+        }
+        return true;
+      }
+    } catch (_) {}
+  }
+
   // Not at gate: show guidance hint when provided, else log a generic message.
   if (typeof logExitHint === "function") {
     try { logExitHint(ctx); } catch (_) {}
