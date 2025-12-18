@@ -21,8 +21,8 @@ export function create(ctx) {
   }
   const api = {
     // Encounter helpers
-    enterEncounter: (template, biome) => {
-      try { return !!(ctx.enterEncounter && ctx.enterEncounter(template, biome)); } catch (_) { return false; }
+    enterEncounter: (template, biome, difficulty) => {
+      try { return !!(ctx.enterEncounter && ctx.enterEncounter(template, biome, difficulty)); } catch (_) { return false; }
     },
     // Complete the active encounter (used by flows like caravan escort/ambush)
     completeEncounter: (outcome = "victory") => {
@@ -32,8 +32,8 @@ export function create(ctx) {
     openRegionMap: () => {
       try { return !!(ctx.openRegionMap && ctx.openRegionMap()); } catch (_) { return false; }
     },
-    startRegionEncounter: (template, biome) => {
-      try { return !!(ctx.startRegionEncounter && ctx.startRegionEncounter(template, biome)); } catch (_) { return false; }
+    startRegionEncounter: (template, biome, difficulty) => {
+      try { return !!(ctx.startRegionEncounter && ctx.startRegionEncounter(template, biome, difficulty)); } catch (_) { return false; }
     },
 
     getMode: () => {

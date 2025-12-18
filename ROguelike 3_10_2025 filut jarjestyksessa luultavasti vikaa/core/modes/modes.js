@@ -374,6 +374,100 @@ export function enterRuinsIfOnTile(ctx) {
   return false;
 }
 
+export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAndRefresh) {
+  if (!ctx || !ctx.world || !ctx.world.map) return false;
+  try {
+    const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+    if (!ER || typeof ER.enter !== "function") return false;
+    let diff = 1;
+    try {
+      if (typeof difficulty === "number") {
+        diff = Math.max(1, Math.min(5, difficulty | 0));
+      } else {
+        const ES = getMod(ctx, "EncounterService");
+        if (ES && typeof ES.computeDifficulty === "function") {
+          diff = ES.computeDifficulty(ctx, biome);
+        }
+      }
+    } catch (_) {}
+    const ok = !!ER.enter(ctx, { template, biome, difficulty: diff });
+    if (!ok) return false;
+    if (typeof applyCtxSyncAndRefresh === "function") {
+      try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+    } else {
+      syncAfterMutation(ctx);
+    }
+    return true;
+  } catch (_) {}
+  return false;
+}
+
+export function openRegionMap(ctx, applyCtxSyncAndRefresh) {
+  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
+  try {
+    const RMR = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+    if (RMR && typeof RMR.open === "function") {
+      const ok = !!RMR.open(ctx);
+      if (!ok) return false;
+      if (typeof applyCtxSyncAndRefresh === "function") {
+        try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+      } else {
+        syncAfterMutation(ctx);
+      }
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+export function startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefresh) {
+  if (!ctx || ctx.mode !== "region") return false;
+  try {
+    const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+    if (!ER || typeof ER.enterRegion !== "function") return false;
+    let diff = 1;
+    try {
+      const ES = getMod(ctx, "EncounterService");
+      if (ES && typeof ES.computeDifficulty === "function") {
+        diff = ES.computeDifficulty(ctx, biome);
+      }
+    } catch (_) {}
+    const ok = !!ER.enterRegion(ctx, { template, biome, difficulty: diff });
+    if (!ok) return false;
+    if (typeof applyCtxSyncAndRefresh === "function") {
+      try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+    } else {
+      syncAfterMutation(ctx);
+    }
+    return true;
+  } catch (_) {}
+  return false;
+}
+
+export function completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, helpers) {
+  if (!ctx || ctx.mode !== "encounter") return false;
+  try {
+    const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+    if (!ER || typeof ER.complete !== "function") return false;
+    const ok = !!ER.complete(ctx, outcome || "victory");
+    if (!ok) return false;
+    if (typeof applyCtxSyncAndRefresh === "function") {
+      try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+    } else {
+      syncAfterMutation(ctx);
+    }
+    // Optional auto-travel helper after returning to overworld (e.g., caravan escort flows)
+    try {
+      const h = helpers || {};
+      if (ctx.mode === "world" && typeof h.startEscortAutoTravel === "function") {
+        h.startEscortAutoTravel();
+      }
+    } catch (_) {}
+    return true;
+  } catch (_) {}
+  return false;
+}
+
 export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) {
   if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
 
@@ -520,6 +614,10 @@ attachGlobal("Modes", {
   enterTownIfOnTile,
   enterDungeonIfOnEntrance,
   enterRuinsIfOnTile,
+  enterEncounter,
+  openRegionMap,
+  startRegionEncounter,
+  completeEncounter,
   returnToWorldFromTown,
   returnToWorldIfAtExit,
   leaveTownNow,

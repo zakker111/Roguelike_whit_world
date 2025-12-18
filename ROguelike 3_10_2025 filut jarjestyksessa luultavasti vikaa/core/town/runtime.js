@@ -572,9 +572,15 @@ function startCaravanAmbushEncounter(ctx, npc) {
     };
 
     const biome = "GRASS";
-    const ok = (typeof ctx.enterEncounter === "function")
-      ? !!ctx.enterEncounter(template, biome)
-      : false;
+    let ok = false;
+    try {
+      const GA = ctx.GameAPI || getMod(ctx, "GameAPI") || (typeof window !== "undefined" ? window.GameAPI : null);
+      if (GA && typeof GA.enterEncounter === "function") {
+        ok = !!GA.enterEncounter(template, biome, template.difficulty);
+      } else if (typeof ctx.enterEncounter === "function") {
+        ok = !!ctx.enterEncounter(template, biome);
+      }
+    } catch (_) {}
 
     if (!ok && ctx.log) {
       ctx.log("Failed to start caravan ambush encounter.", "warn");
