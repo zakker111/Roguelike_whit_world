@@ -53,21 +53,121 @@ export function exitToWorld(ctx, opts = {}) {
   }
 }
 
+/**
+ * Detection helpers
+ * These functions centralize exit detection rules for orchestrated flows.
+ * Mode runtimes remain responsible for applying the transition once exit
+ * has been decided.
+ */
+
+// Town: inner-perimeter tile adjacent to a boundary DOOR
+export function isAtTownGate(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "town") return false;
+    const map = ctx.map;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    if (!rows || !cols || !ctx.player || !ctx.TILES) return false;
+    const px = ctx.player.x | 0;
+    const py = ctx.player.y | 0;
+    const T = ctx.TILES;
+
+    const onInnerPerimeter =
+      px === 1 || py === 1 || px === cols - 2 || py === rows - 2;
+    if (!onInnerPerimeter) return false;
+
+    const dirs = [
+      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: 0, dy: -1 },
+    ];
+    for (let i = 0; i < dirs.length; i++) {
+      const nx = px + dirs[i].dx;
+      const ny = py + dirs[i].dy;
+      if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+      const isBoundary =
+        nx === 0 || ny === 0 || nx === cols - 1 || ny === rows - 1;
+      if (!isBoundary) continue;
+      if (map[ny][nx] === T.DOOR) return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+// Dungeon: standing on a STAIRS tile in dungeon mode
+export function isAtDungeonExit(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "dungeon" || !ctx.map || !ctx.TILES || !ctx.player) return false;
+    const px = ctx.player.x | 0;
+    const py = ctx.player.y | 0;
+
+    try {
+      if (typeof ctx.inBounds === "function" && !ctx.inBounds(px, py)) return false;
+    } catch (_) {}
+
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    if (px < 0 || py < 0 || px >= cols || py >= rows) return false;
+    return ctx.map[py][px] === ctx.TILES.STAIRS;
+  } catch (_) {}
+  return false;
+}
+
+// Region: cursor on one of region.exitTiles
+export function isAtRegionEdgeExit(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "region") return false;
+    const region = ctx.region;
+    if (!region || !region.cursor || !Array.isArray(region.exitTiles)) return false;
+    const cur = region.cursor;
+    return region.exitTiles.some((e) => e && e.x === cur.x && e.y === cur.y);
+  } catch (_) {}
+  return false;
+}
+
+// Encounter: standing on STAIRS in encounter map
+export function isAtEncounterExit(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "encounter" || !ctx.map || !ctx.TILES || !ctx.player) return false;
+    const px = ctx.player.x | 0;
+    const py = ctx.player.y | 0;
+    const row = ctx.map[py];
+    if (!row) return false;
+    return row[px] === ctx.TILES.STAIRS;
+  } catch (_) {}
+  return false;
+}
+
 // --- Town -------------------------------------------------------------------
 
 function exitTownToWorld(ctx, opts) {
-  // Reuse Modes.returnToWorldFromTown as the canonical town exit rule.
-  // It already implements the inner-perimeter + DOOR heuristic and delegates to TownRuntime.applyLeaveSync.
+  const atGate = isAtTownGate(ctx);
   const apply = typeof opts.applyCtxSyncAndRefresh === "function" ? opts.applyCtxSyncAndRefresh : undefined;
-  const logExitHint = typeof opts.logExitHint === "function" ? opts.logExitHint : undefined;
-  return !!modesReturnToWorldFromTown(ctx, apply, logExitHint);
+
+  if (!atGate) {
+    if (typeof opts.logExitHint === "function") {
+      try { opts.logExitHint(ctx); } catch (_) {}
+    }
+    return false;
+  }
+
+  // We already validated gate position; call Modes.returnToWorldFromTown without a hint
+  // callback so logging remains in this orchestrator.
+  return !!modesReturnToWorldFromTown(ctx, apply, undefined);
 }
 
 // --- Dungeon ----------------------------------------------------------------
 
 function exitDungeonToWorld(ctx, opts) {
-  // Delegate to Modes.returnToWorldIfAtExit which in turn prefers DungeonRuntime.returnToWorldIfAtExit.
-  // That helper already performs detection (STAIRS tile) and refresh via syncAfterMutation.
+  const atExit = isAtDungeonExit(ctx);
+  if (!atExit) {
+    if (typeof opts.logExitHint === "function") {
+      try { opts.logExitHint(ctx); } catch (_) {}
+    }
+    return false;
+  }
+
   const ok = !!modesReturnToWorldIfAtExit(ctx);
   if (!ok && typeof opts.logExitHint === "function") {
     try { opts.logExitHint(ctx); } catch (_) {}
@@ -78,20 +178,9 @@ function exitDungeonToWorld(ctx, opts) {
 // --- Region Map -------------------------------------------------------------
 
 function exitRegionToWorld(ctx, opts) {
-  if (ctx.mode !== "region") return false;
+  if (!isAtRegionEdgeExit(ctx)) return false;
   const RM = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
   if (!RM || typeof RM.close !== "function") return false;
-
-  // Only exit when the region cursor is on a designated exit tile (orange edge).
-  try {
-    const region = ctx.region;
-    if (!region || !region.cursor || !Array.isArray(region.exitTiles)) return false;
-    const cur = region.cursor;
-    const onExit = region.exitTiles.some((e) => e && e.x === cur.x && e.y === cur.y);
-    if (!onExit) return false;
-  } catch (_) {
-    return false;
-  }
 
   const ok = !!RM.close(ctx);
   // RM.close already restores world map, visibility, and calls StateSync.applyAndRefresh when available.
@@ -101,9 +190,14 @@ function exitRegionToWorld(ctx, opts) {
 // --- Encounter --------------------------------------------------------------
 
 function exitEncounterToWorld(ctx, opts) {
-  if (ctx.mode !== "encounter") return false;
+  if (!isAtEncounterExit(ctx)) {
+    if (typeof opts.logExitHint === "function") {
+      try { opts.logExitHint(ctx); } catch (_) {}
+    }
+    return false;
+  }
 
-  // Use Modes.completeEncounter with outcome \"withdraw\" so we respect centralized encounter flows.
+  // Use Modes.completeEncounter with outcome "withdraw" so we respect centralized encounter flows.
   const apply = typeof opts.applyCtxSyncAndRefresh === "function" ? opts.applyCtxSyncAndRefresh : undefined;
 
   const ok = !!modesCompleteEncounter(ctx, "withdraw", apply, opts.helpers || {});
