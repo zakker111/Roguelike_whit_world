@@ -201,6 +201,41 @@ function _materializeItem(ctx, entry) {
       return { kind: "equip", slot: slot, name: entry.id || "armor", def: entry.tier ? (entry.tier * 1.2) : 1.0, tier: entry.tier || 1, decay: (ctx.initialDecay ? ctx.initialDecay(entry.tier || 1) : 0) };
     }
   }
+  if (kind === "named_equip") {
+    try {
+      const ItemsMod = (typeof window !== "undefined" ? (window.Items || null) : null) || (ctx && ctx.Items ? ctx.Items : null);
+      if (ItemsMod && typeof ItemsMod.createNamed === "function") {
+        const id = String(entry.id || entry.type || "named_equip");
+        const cfg = {
+          slot: entry.slot || "hand",
+          tier: entry.tier || 1,
+          name: entry.name || id,
+        };
+        if (typeof entry.atk === "number") cfg.atk = entry.atk;
+        if (typeof entry.def === "number") cfg.def = entry.def;
+        if (entry.twoHanded) cfg.twoHanded = true;
+        if (typeof entry.decay === "number") cfg.decay = entry.decay;
+        const it = ItemsMod.createNamed(cfg, _rng(ctx));
+        if (it) {
+          try { it.id = id; } catch (_) {}
+          return it;
+        }
+      }
+    } catch (_) {}
+    // Fallback simple named equip
+    const id2 = String(entry.id || entry.type || "named_equip");
+    return {
+      kind: "equip",
+      slot: entry.slot || "hand",
+      name: entry.name || id2,
+      atk: typeof entry.atk === "number" ? entry.atk : 3.0,
+      def: typeof entry.def === "number" ? entry.def : undefined,
+      tier: entry.tier || 1,
+      twoHanded: !!entry.twoHanded,
+      decay: typeof entry.decay === "number" ? entry.decay : (ctx.initialDecay ? ctx.initialDecay(entry.tier || 1) : 0),
+      id: id2
+    };
+  }
   if (kind === "tool") {
     const id = String(entry.id || entry.type || "tool");
     let name = id.replace(/_/g, " ");
@@ -309,6 +344,15 @@ export function calculatePrice(shopType, item, phase, demandState) {
           return Number(def.price.shops[st]) | 0;
         }
       }
+    }
+  } catch (_) {}
+
+  // Special-case: Seppo's True Blade has a fixed price at Seppo's shop.
+  try {
+    const st2 = String(shopType || "").toLowerCase();
+    const id2 = String(item && (item.id || item.name) || "").toLowerCase();
+    if (st2 === "seppo" && (id2 === "seppos_true_blade" || id2.indexOf("seppo's true blade") !== -1)) {
+      return 500;
     }
   } catch (_) {}
 

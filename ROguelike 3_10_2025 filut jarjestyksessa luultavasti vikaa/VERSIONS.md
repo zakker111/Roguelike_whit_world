@@ -1,5 +1,58 @@
 # Game Version History
-Last updated: 2025-12-12 13:00 UTC
+Last updated: 2025-12-18 13:00 UTC
+
+v1.56.0 — Core state-sync modularization and Seppo’s True Blade (cursed)
+- Changed: ctx→orchestrator state sync is now centralized in core/state/game_state.js
+  - core/state/game_state.js:
+    - Added GameState.syncFromCtxWithSink(ctx, sink), which:
+      - Prefers StateSync.applyLocal(ctx, sink) when available.
+      - Falls back to direct assignments from ctx into a sink of setters (mode, map, seen, visible, world, enemies, corpses, decals, npcs, encounterProps, dungeonProps, encounterBiome, encounterObjective, shops, townProps, townBuildings, townPlaza, tavern, innUpstairs, innUpstairsActive, innStairsGround, worldReturnPos, region, townExitAt, dungeonExitAt, dungeonInfo, floor).
+    - GameState.applySyncAndRefresh(ctx) remains the central camera/FOV/UI/draw refresher.
+    - GameState is still attached to window.GameState for back-compat.
+  - core/game.js:
+    - syncFromCtx(ctx) now delegates to GameState.syncFromCtxWithSink(ctx, sink) instead of inlining StateSync.applyLocal + fallback logic.
+    - applyCtxSyncAndRefresh(ctx) continues to call syncFromCtx(ctx) then GameState.applySyncAndRefresh(getCtx()), so mode transitions, world/town/dungeon/encounter flows, and GOD seed reloads retain the same behavior with a thinner orchestrator layer.
+  - Effect: All ctx→local state wiring is owned by the state layer (core/state), reducing duplication and making future mode/state changes safer without altering gameplay.
+
+- Added: Seppo’s True Blade with rare “love” status and curse behavior
+  - data/shops/shop_pools.json:
+    - Seppo’s premium shop category now includes a rare named_equip entry:
+      - id: "seppos_true_blade", kind: "named_equip", slot: "hand", tier: 3, name: "Seppo's True Blade", atk ≈ 3.8, twoHanded: true, decay: 35.
+      - phaseWeights favor afternoon/dusk (very low weights) and maxPerRestock: 1, making it a rare premium item.
+  - services/shop_service.js:
+    - _materializeItem(ctx, entry) gained support for kind: "named_equip":
+      - Uses Items.createNamed({ slot, tier, name, atk/def, twoHanded, decay }, rng) when available.
+      - Tags the resulting item with id: "seppos_true_blade" for downstream identification.
+      - Falls back to a simple equip object if the registry is unavailable.
+    - calculatePrice(shopType, item, phase, demandState):
+      - Special-case: when shopType === "seppo" and item id/name matches Seppo's True Blade, price is fixed at 500 gold (ignores phase multipliers and heuristics).
+  - combat/combat.js:
+    - playerAttackEnemy(ctx, enemy) now includes a Seppo’s True Blade “love” effect:
+      - If the player is wielding Seppo’s True Blade (checked via id/name and two-handed flag), each successful hit rolls a very small chance (~4%) to apply a one-turn immobile effect:
+        - enemy.immobileTurns = max(existing, 1).
+        - Logs a flavor entry indicating the foe is briefly lovestruck and unable to move.
+      - This is purely an on-hit status effect; damage and crit calculations are unchanged.
+  - entities/player_equip.js:
+    - Introduced isCursedSeppoBlade(item) helper to recognize Seppo’s True Blade by id/name.
+    - equipIfBetter(player, item, hooks) and equipItemByIndex(player, idx, hooks):
+      - If the cursed blade is currently equipped in either/both hands, equipping any other hand-slot item is blocked.
+      - Logs (info-level): "Cursed: The blade refuses to leave your hands; you cannot equip another weapon until it is broken."
+    - unequipSlot(player, slot, hooks):
+      - When attempting to unequip from left/right hand and those hands hold the cursed blade:
+        - Blocks unequip and logs (info-level):
+          - Two-handed: "Cursed: The blade clings to your hands and cannot be unequipped."
+          - Single-hand case: "Cursed: The blade clings to your hand and cannot be unequipped."
+      - Non-hand slots and non-cursed equipment behave as before.
+  - entities/player.js:
+    - defaults.inventory now temporarily includes Seppo’s True Blade for testing:
+      - { kind: "equip", slot: "hand", id: "seppos_true_blade", name: "Seppo's True Blade", atk ≈ 3.8, tier: 3, twoHanded: true, decay: 35 }.
+    - Note: This ensures new games can immediately experience the cursed blade and its effects; in a future version, this starter item can be removed so Seppo’s shop remains the only acquisition path.
+  - Effect: Seppo’s True Blade is a rare, strong two-handed weapon sold only by Seppo, with:
+    - A very rare “love” effect that immobilizes enemies for one turn.
+    - A curse that prevents unequipping or replacing it with other hand weapons until it breaks from decay.
+    - Clear info-level log messages whenever the curse blocks an action, making the behavior understandable without feeling like an error.
+
+Deployment: https://q0xkavruuotb.cosine.page (state-sync modularization + Seppo’s cursed True Blade)
 
 v1.55.0 — World/RegionMap glue and incremental Town AI refactors
 - Changed: World module now re-exports tiles and helpers for Region Map and renderers

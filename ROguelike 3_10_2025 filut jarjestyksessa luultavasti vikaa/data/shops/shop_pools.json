@@ -199,6 +199,11 @@
           { "id": "curio_odd_stone", "kind": "curio",
             "phaseWeights": { "dusk": 2 },
             "maxPerRestock": 1
+          },
+          { "id": "seppos_true_blade", "kind": "named_equip", "slot": "hand", "tier": 3,
+            "name": "Seppo's True Blade", "atk": 3.8, "twoHanded": true, "decay": 35,
+            "phaseWeights": { "afternoon": 1, "dusk": 1 },
+            "maxPerRestock": 1
           }
         ]
       }

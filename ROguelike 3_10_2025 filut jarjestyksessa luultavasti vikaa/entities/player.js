@@ -35,7 +35,9 @@ export const defaults = {
     { kind: "tool", type: "fishing_pole", name: "fishing pole", decay: 0 },
     { kind: "tool", type: "lockpick", name: "lockpick", decay: 0 },
     // Starter torch: partially worn so players see decay/breakage; 70% used.
-    { kind: "equip", slot: "hand", name: "torch", atk: 0.6, tier: 1, decay: 70 }
+    { kind: "equip", slot: "hand", name: "torch", atk: 0.6, tier: 1, decay: 70 },
+    // Temporary: Seppo's True Blade for testing; cursed and cannot be unequipped until destroyed.
+    { kind: "equip", slot: "hand", id: "seppos_true_blade", name: "Seppo's True Blade", atk: 3.8, tier: 3, twoHanded: true, decay: 35 }
   ],
   equipment: { ...DEFAULT_EQUIPMENT },
   injuries: [],
