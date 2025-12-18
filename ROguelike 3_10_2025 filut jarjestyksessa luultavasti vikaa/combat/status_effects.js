@@ -51,7 +51,7 @@ export function applyDazedToPlayer(ctx, duration) {
   const d = Math.max(1, duration | 0);
   ctx.player.dazedTurns = Math.max(ctx.player.dazedTurns || 0, d);
   try {
-    ctx.log(`You are dazed and might lose your next action${d > 1 ? "s" : ""}.`, "warn");
+    ctx.log(`You are dazed and might lose your next action${d > 1 ? "s" : ""}.`, "info");
   } catch (_) {}
 }
 
@@ -74,7 +74,7 @@ export function applyBleedToPlayer(ctx, duration) {
   const d = Math.max(1, duration | 0);
   ctx.player.bleedTurns = Math.max(ctx.player.bleedTurns || 0, d);
   try {
-    ctx.log(`You are bleeding (${ctx.player.bleedTurns}).`, "warn");
+    ctx.log(`You are bleeding (${ctx.player.bleedTurns}).`, "info");
   } catch (_) {}
 }
 
@@ -111,7 +111,7 @@ export function tick(ctx) {
       ctx.player.hp = 0;
       if (typeof ctx.onPlayerDied === "function") ctx.onPlayerDied();
     } else {
-      try { ctx.log(`You bleed (1).`, "warn", { category: "Combat", side: "player", tone: "bleed" }); } catch (_) {}
+      try { ctx.log(`You bleed (1).`, "info", { category: "Combat", side: "player", tone: "bleed" }); } catch (_) {}
     }
   }
 
@@ -128,7 +128,7 @@ export function tick(ctx) {
       ctx.player.hp = 0;
       if (typeof ctx.onPlayerDied === "function") ctx.onPlayerDied();
     } else {
-      try { ctx.log(`You burn (${dmg.toFixed ? dmg.toFixed(1) : dmg}).`, "bad", { category: "Combat", side: "player", tone: "fire" }); } catch (_) {}
+      try { ctx.log(`You burn (${dmg.toFixed ? dmg.toFixed(1) : dmg}).`, "info", { category: "Combat", side: "player", tone: "fire" }); } catch (_) {}
     }
   }
 
@@ -172,7 +172,7 @@ export function tick(ctx) {
           try { addDecal(e.x, e.y, 1.0); } catch (_) {}
         }
         if (e.hp > 0) {
-          try { ctx.log(`${Cap(ctx, e.type || "enemy")} burns (${burn.toFixed ? burn.toFixed(1) : burn}).`, "warn", { category: "Combat", side: "enemy", tone: "fire" }); } catch (_) {}
+          try { ctx.log(`${Cap(ctx, e.type || "enemy")} burns (${burn.toFixed ? burn.toFixed(1) : burn}).`, "info", { category: "Combat", side: "enemy", tone: "fire" }); } catch (_) {}
         }
       }
 
