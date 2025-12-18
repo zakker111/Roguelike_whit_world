@@ -14,6 +14,7 @@
  */
 
 import { getMod } from "../../utils/access.js";
+import { log as fallbackLog } from "../../utils/fallback.js";
 
 // Helpers
 function inBounds(ctx, x, y) {
@@ -91,14 +92,30 @@ function movePlayerToTownGateInterior(ctx) {
 // Public API
 export function leaveTownNow(ctx) {
   if (!ctx || !ctx.world) return;
-  // Centralize leave/transition via TownRuntime
+
+  // Prefer TownRuntime.applyLeaveSync when available
+  let usedTownRuntime = false;
   try {
-    if (ctx.TownRuntime && typeof ctx.TownRuntime.applyLeaveSync === "function") {
-      ctx.TownRuntime.applyLeaveSync(ctx);
+    const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
+    if (TR && typeof TR.applyLeaveSync === "function") {
+      TR.applyLeaveSync(ctx);
+      usedTownRuntime = true;
       return;
     }
   } catch (_) {}
-  // Fallback: minimal path to avoid getting stuck if TownRuntime is missing
+
+  // Fallback: minimal path to avoid getting stuck if TownRuntime is missing or fails
+  if (!usedTownRuntime) {
+    try {
+      const hasTR = !!(ctx && (ctx.TownRuntime || (typeof window !== "undefined" && window.TownRuntime)));
+      const pos = ctx && ctx.worldReturnPos ? { x: ctx.worldReturnPos.x, y: ctx.worldReturnPos.y } : null;
+      fallbackLog("modes.leaveTownNow", "TownRuntime.applyLeaveSync unavailable or failed; using inline leaveTownNow fallback.", {
+        hasTownRuntime: hasTR,
+        worldReturnPos: pos
+      });
+    } catch (_) {}
+  }
+
   ctx.mode = "world";
   ctx.map = ctx.world.map;
   try {
@@ -132,7 +149,7 @@ export function leaveTownNow(ctx) {
       ctx.player.y = Math.max(0, Math.min((rows ? rows - 1 : 0), ly));
     }
   }
-  
+
   if (ctx.log) ctx.log("You return to the overworld.", "notice");
   syncAfterMutation(ctx);
 }
@@ -147,6 +164,11 @@ export function requestLeaveTown(ctx) {
     }
   } catch (_) {}
   // Fallback: proceed to leave to avoid getting stuck without a confirm UI
+  try {
+    fallbackLog("modes.requestLeaveTown", "UIOrchestration.showConfirm unavailable; leaving town without confirmation.", {
+      hasUIOrchestration: !!(ctx && (ctx.UIOrchestration || (typeof window !== "undefined" && window.UIOrchestration)))
+    });
+  } catch (_) {}
   leaveTownNow(ctx);
 }
 
@@ -511,6 +533,12 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
   } catch (_) {}
 
   if (atGate) {
+    try {
+      const pos = ctx && ctx.townExitAt ? { x: ctx.townExitAt.x, y: ctx.townExitAt.y } : null;
+      fallbackLog("modes.returnToWorldFromTown.direct", "TownRuntime.returnToWorldIfAtGate returned false; using leaveTownNow + townExitAt.", {
+        townExitAt: pos
+      });
+    } catch (_) {}
     try { leaveTownNow(ctx); } catch (_) {}
     if (typeof applyCtxSyncAndRefresh === "function") {
       try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
@@ -561,6 +589,14 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
     try {
       const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
       if (TR && typeof TR.applyLeaveSync === "function") {
+        try {
+          const pos = ctx && ctx.player ? { x: ctx.player.x, y: ctx.player.y } : null;
+          const anchor = ctx && ctx.townExitAt ? { x: ctx.townExitAt.x, y: ctx.townExitAt.y } : null;
+          fallbackLog("modes.returnToWorldFromTown.heuristicGate", "Heuristic perimeter gate exit used via TownRuntime.applyLeaveSync.", {
+            player: pos,
+            townExitAt: anchor
+          });
+        } catch (_) {}
         TR.applyLeaveSync(ctx);
         if (typeof applyCtxSyncAndRefresh === "function") {
           try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
@@ -596,12 +632,20 @@ export function returnToWorldIfAtExit(ctx) {
     const DS = ctx.DungeonState || (typeof window !== "undefined" ? window.DungeonState : null);
     if (DS && typeof DS.returnToWorldIfAtExit === "function") {
       const ok = DS.returnToWorldIfAtExit(ctx);
-      if (ok) syncAfterMutation(ctx);
+      if (ok) {
+        try {
+          fallbackLog("modes.returnToWorldIfAtExit.dungeonState", "DungeonRuntime.returnToWorldIfAtExit unavailable; using DungeonState.returnToWorldIfAtExit fallback.", {});
+        } catch (_) {}
+        syncAfterMutation(ctx);
+      }
       return ok;
     }
   } catch (_) {}
 
   // Minimal fallback: guide the player
+  try {
+    fallbackLog("modes.returnToWorldIfAtExit.minimal", "DungeonRuntime/DungeonState both missing; showing guidance only.", {});
+  } catch (_) {}
   if (ctx.log) ctx.log("Return to the dungeon entrance to go back to the overworld.", "info");
   return false;
 }

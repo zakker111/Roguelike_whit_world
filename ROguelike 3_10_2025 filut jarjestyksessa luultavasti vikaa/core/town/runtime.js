@@ -12,6 +12,7 @@
  */
 
 import { getMod } from "../../utils/access.js";
+import { log as fallbackLog } from "../../utils/fallback.js";
 
 export function generate(ctx) {
   // Ensure townBiome is not carrying over from previous towns; allow derive/persist per town
@@ -470,6 +471,11 @@ export function applyLeaveSync(ctx) {
         ctx.player.y = ly2;
       } else {
         // Fallback: clamp
+        try {
+          fallbackLog("town.applyLeaveSync.clamp", "WorldRuntime.ensureInBounds unavailable; clamping return position.", {
+            worldReturnPos: { x: ctx.worldReturnPos.x, y: ctx.worldReturnPos.y }
+          });
+        } catch (_) {}
         const lx = rx - ctx.world.originX;
         const ly = ry - ctx.world.originY;
         ctx.player.x = Math.max(0, Math.min((ctx.map[0]?.length || 1) - 1, lx));
