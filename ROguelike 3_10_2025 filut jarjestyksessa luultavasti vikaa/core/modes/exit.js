@@ -9,7 +9,6 @@
  * - It delegates mode-specific transitions to core/modes.js helpers and runtime modules.
  */
 
-import { getMod } from "../../utils/access.js";
 import {
   returnToWorldFromTown as modesReturnToWorldFromTown,
   returnToWorldIfAtExit as modesReturnToWorldIfAtExit,
@@ -18,9 +17,10 @@ import {
 
 /**
  * @typedef {Object} ExitOptions
- * @property {string} [reason]  - optional reason tag ("gate","stairs","regionEdge","encounterWithdraw","api","other")
+ * @property {string}   [reason]                 - optional reason tag ("gate","stairs","regionEdge","encounterWithdraw","api","other")
  * @property {Function} [applyCtxSyncAndRefresh] - optional sync helper from orchestrator
- * @property {Function} [logExitHint] - optional hint logger for failed exits (mainly town/dungeon)
+ * @property {Function} [logExitHint]            - optional hint logger for failed exits (mainly town/dungeon)
+ * @property {Object}   [helpers]                - optional helpers bag forwarded to Modes.completeEncounter (e.g., escort auto-travel)
  */
 
 /**
