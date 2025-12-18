@@ -456,5 +456,6 @@ attachGlobal("Modes", {
   returnToWorldIfAtExit,
   leaveTownNow,
   requestLeaveTown,
-  saveCurrentonStateFor
+  saveCurrentDungeonState,
+  loadDungeonStateFor
 });
