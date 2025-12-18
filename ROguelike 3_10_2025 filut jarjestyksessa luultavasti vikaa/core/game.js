@@ -31,7 +31,7 @@
   
   import { maybeEmitOverworldAnimalHint as maybeEmitOverworldAnimalHintExt } from "./world_hints.js";
 import { clearPersistentGameStorage as clearPersistentGameStorageExt } from "./state/persistence.js";
-import { applySyncAndRefresh as gameStateApplySyncAndRefresh } from "./state/game_state.js";
+import { applySyncAndRefresh as gameStateApplySyncAndRefresh, syncFromCtxWithSink as gameStateSyncFromCtxWithSink } from "./state/game_state.js";
 import {
   initTimeWeather,
   getClock as timeGetClock,
@@ -648,75 +648,36 @@ import {
 
   function syncFromCtx(ctx) {
     if (!ctx) return;
-    try {
-      const SS = modHandle("StateSync");
-      if (SS && typeof SS.applyLocal === "function") {
-        SS.applyLocal(ctx, {
-          setMode: (v) => { if (typeof v !== "undefined") mode = v; },
-          setMap: (v) => { if (v) map = v; },
-          setSeen: (v) => { if (v) seen = v; },
-          setVisible: (v) => { if (v) visible = v; },
-          setWorld: (v) => { if (typeof v !== "undefined") world = v; },
-          setEnemies: (v) => { if (Array.isArray(v)) enemies = v; },
-          setCorpses: (v) => { if (Array.isArray(v)) corpses = v; },
-          setDecals: (v) => { if (Array.isArray(v)) decals = v; },
-          setNpcs: (v) => { if (Array.isArray(v)) npcs = v; },
-          setEncounterProps: (v) => { if (Array.isArray(v)) encounterProps = v; },
-          setDungeonProps: (v) => { if (Array.isArray(v)) dungeonProps = v; },
-          setEncounterBiome: (v) => { encounterBiome = v; },
-          setEncounterObjective: (v) => { encounterObjective = v; },
-          setShops: (v) => { if (Array.isArray(v)) shops = v; },
-          setTownProps: (v) => { if (Array.isArray(v)) townProps = v; },
-          setTownBuildings: (v) => { if (Array.isArray(v)) townBuildings = v; },
-          setTownPlaza: (v) => { if (typeof v !== "undefined") townPlaza = v; },
-          setTavern: (v) => { if (typeof v !== "undefined") tavern = v; },
-          // Inn upstairs overlay state
-          setInnUpstairs: (v) => { if (typeof v !== "undefined") innUpstairs = v; },
-          setInnUpstairsActive: (v) => { if (typeof v !== "undefined") innUpstairsActive = !!v; },
-          setInnStairsGround: (v) => { if (Array.isArray(v)) innStairsGround = v; },
-          setWorldReturnPos: (v) => { if (typeof v !== "undefined") worldReturnPos = v; },
-          setRegion: (v) => { if (typeof v !== "undefined") region = v; },
-          setTownExitAt: (v) => { if (typeof v !== "undefined") townExitAt = v; },
-          setDungeonExitAt: (v) => { if (typeof v !== "undefined") dungeonExitAt = v; },
-          setDungeonInfo: (v) => { if (typeof v !== "undefined") currentDungeon = v; },
-          setFloor: (v) => { if (typeof v === "number") floor = (v | 0); },
-        });
-        return;
-      }
-    } catch (_) {}
-    // Fallback: direct assignment
-    mode = ctx.mode || mode;
-    map = ctx.map || map;
-    seen = ctx.seen || seen;
-    visible = ctx.visible || visible;
-    world = ctx.world || world;
-    enemies = Array.isArray(ctx.enemies) ? ctx.enemies : enemies;
-    corpses = Array.isArray(ctx.corpses) ? ctx.corpses : corpses;
-    decals = Array.isArray(ctx.decals) ? ctx.decals : decals;
-    npcs = Array.isArray(ctx.npcs) ? ctx.npcs : npcs;
-    encounterProps = Array.isArray(ctx.encounterProps) ? ctx.encounterProps : encounterProps;
-    dungeonProps = Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps : dungeonProps;
-    if (Object.prototype.hasOwnProperty.call(ctx, "encounterBiome")) {
-      encounterBiome = ctx.encounterBiome;
-    }
-    if (Object.prototype.hasOwnProperty.call(ctx, "encounterObjective")) {
-      encounterObjective = ctx.encounterObjective;
-    }
-    shops = Array.isArray(ctx.shops) ? ctx.shops : shops;
-    townProps = Array.isArray(ctx.townProps) ? ctx.townProps : townProps;
-    townBuildings = Array.isArray(ctx.townBuildings) ? ctx.townBuildings : townBuildings;
-    townPlaza = ctx.townPlaza || townPlaza;
-    tavern = ctx.tavern || tavern;
-    // Inn upstairs overlay (fallback direct assignment)
-    if (Object.prototype.hasOwnProperty.call(ctx, "innUpstairs")) innUpstairs = ctx.innUpstairs;
-    if (Object.prototype.hasOwnProperty.call(ctx, "innUpstairsActive")) innUpstairsActive = !!ctx.innUpstairsActive;
-    if (Object.prototype.hasOwnProperty.call(ctx, "innStairsGround") && Array.isArray(ctx.innStairsGround)) innStairsGround = ctx.innStairsGround;
-    worldReturnPos = ctx.worldReturnPos || worldReturnPos;
-    region = ctx.region || region;
-    townExitAt = ctx.townExitAt || townExitAt;
-    dungeonExitAt = ctx.dungeonExitAt || dungeonExitAt;
-    currentDungeon = ctx.dungeon || ctx.dungeonInfo || currentDungeon;
-    if (typeof ctx.floor === "number") { floor = (ctx.floor | 0); }
+    gameStateSyncFromCtxWithSink(ctx, {
+      setMode: (v) => { if (typeof v !== "undefined") mode = v; },
+      setMap: (v) => { if (v) map = v; },
+      setSeen: (v) => { if (v) seen = v; },
+      setVisible: (v) => { if (v) visible = v; },
+      setWorld: (v) => { if (typeof v !== "undefined") world = v; },
+      setEnemies: (v) => { if (Array.isArray(v)) enemies = v; },
+      setCorpses: (v) => { if (Array.isArray(v)) corpses = v; },
+      setDecals: (v) => { if (Array.isArray(v)) decals = v; },
+      setNpcs: (v) => { if (Array.isArray(v)) npcs = v; },
+      setEncounterProps: (v) => { if (Array.isArray(v)) encounterProps = v; },
+      setDungeonProps: (v) => { if (Array.isArray(v)) dungeonProps = v; },
+      setEncounterBiome: (v) => { encounterBiome = v; },
+      setEncounterObjective: (v) => { encounterObjective = v; },
+      setShops: (v) => { if (Array.isArray(v)) shops = v; },
+      setTownProps: (v) => { if (Array.isArray(v)) townProps = v; },
+      setTownBuildings: (v) => { if (Array.isArray(v)) townBuildings = v; },
+      setTownPlaza: (v) => { if (typeof v !== "undefined") townPlaza = v; },
+      setTavern: (v) => { if (typeof v !== "undefined") tavern = v; },
+      // Inn upstairs overlay state
+      setInnUpstairs: (v) => { if (typeof v !== "undefined") innUpstairs = v; },
+      setInnUpstairsActive: (v) => { if (typeof v !== "undefined") innUpstairsActive = !!v; },
+      setInnStairsGround: (v) => { if (Array.isArray(v)) innStairsGround = v; },
+      setWorldReturnPos: (v) => { if (typeof v !== "undefined") worldReturnPos = v; },
+      setRegion: (v) => { if (typeof v !== "undefined") region = v; },
+      setTownExitAt: (v) => { if (typeof v !== "undefined") townExitAt = v; },
+      setDungeonExitAt: (v) => { if (typeof v !== "undefined") dungeonExitAt = v; },
+      setDungeonInfo: (v) => { if (typeof v !== "undefined") currentDungeon = v; },
+      setFloor: (v) => { if (typeof v === "number") floor = (v | 0); },
+    });
   }
 
   // Helper: apply ctx sync and refresh visuals/UI in one place
