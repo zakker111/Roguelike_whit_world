@@ -35,7 +35,7 @@ import {
   applySyncAndRefresh as gameStateApplySyncAndRefresh,
   syncFromCtxWithSink as gameStateSyncFromCtxWithSink
 } from "./state/game_state.js";
-import "./mode_transitions.js";
+import "./modes/transitions.js";
 import {
   initTimeWeather,
   getClock as timeGetClock,
