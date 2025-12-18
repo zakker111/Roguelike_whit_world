@@ -377,6 +377,22 @@ export function enterRuinsIfOnTile(ctx) {
 export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) {
   if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
 
+  // If we know the gate anchor, allow a forgiving adjacency: if the player is
+  // standing directly next to the gate tile, snap them onto it before trying
+  // to leave. This matches the UI hint ("Press G on the gate to leave") even
+  // when the player is one step off.
+  try {
+    if (ctx.townExitAt && ctx.player) {
+      const dx = (ctx.player.x | 0) - (ctx.townExitAt.x | 0);
+      const dy = (ctx.player.y | 0) - (ctx.townExitAt.y | 0);
+      const manhattan = Math.abs(dx) + Math.abs(dy);
+      if (manhattan === 1) {
+        ctx.player.x = ctx.townExitAt.x | 0;
+        ctx.player.y = ctx.townExitAt.y | 0;
+      }
+    }
+  } catch (_) {}
+
   // Primary path: TownRuntime.returnToWorldIfAtGate(ctx)
   try {
     const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
