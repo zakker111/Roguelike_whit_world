@@ -178,7 +178,7 @@ export function tick(ctx) {
         if (guardsWon) {
           try { ctx.log && ctx.log('The surviving guards cheer: "For the kingdom!"', "good"); } catch (_) {}
         }
-        try { ctx.log && ctx.log("Area clear. Step onto an exit (>) to leave when ready.", "notice"); } catch (_) {}
+        try { ctx.log && ctx.log("Area clear. Step onto an exit (>) to leave when ready.", "info"); } catch (_) {}
       }
       // Proactive quest victory notification (only once per encounter session)
       if (!_victoryNotified) {

@@ -498,7 +498,7 @@ export function applyLeaveSync(ctx) {
       SS.applyAndRefresh(ctx, {});
     }
   } catch (_) {}
-  try { ctx.log && ctx.log("You return to the overworld.", "notice"); } catch (_) {}
+  try { ctx.log && ctx.log("You return to the overworld.", "info"); } catch (_) {}
 
   return true;
 }

@@ -14,6 +14,7 @@
  */
 
 import { getMod } from "../../utils/access.js";
+import { log as fallbackLog } from "../../utils/fallback.js";
 
 // Helpers
 function inBounds(ctx, x, y) {
@@ -135,7 +136,7 @@ export function leaveTownNow(ctx) {
       ctx.player.y = Math.max(0, Math.min((rows ? rows - 1 : 0), ly));
     }
   }
-  if (ctx.log) ctx.log("You return to the overworld.", "notice");
+  if (ctx.log) ctx.log("You return to the overworld.", "info");
   syncAfterMutation(ctx);
 }
 
@@ -221,7 +222,7 @@ export function enterTownIfOnTile(ctx) {
             movePlayerToTownGateInterior(ctx);
             const kindLabel = settlementKind === "castle" ? "castle" : "town";
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
-            if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
             syncAfterMutation(ctx);
             return true;
           }
@@ -242,7 +243,7 @@ export function enterTownIfOnTile(ctx) {
             } catch (_) {}
             const kindLabel = settlementKind === "castle" ? "castle" : "town";
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
-            if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
             syncAfterMutation(ctx);
             return true;
           }
@@ -345,7 +346,7 @@ export function enterDungeonIfOnEntrance(ctx) {
     } catch (_) {}
     saveCurrentDungeonState(ctx);
     
-    if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "notice");
+    if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "info");
     syncAfterMutation(ctx);
     return true;
   }
@@ -523,6 +524,21 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
         } else {
           syncAfterMutation(ctx);
         }
+        return true;
+      }
+    } catch (_) {}
+  }
+
+  // Not at gate: optional guidance hint
+  try {
+    if (typeof logExitHint === "function") {
+      logExitHint();
+    } else if (ctx.log) {
+      ctx.log("Return to the town gate (inner perimeter door) and press G to leave.", "info");
+    }
+  } catch (_) {}
+  return false;
+}
 
 export function returnToWorldIfAtExit(ctx) {
   // Prefer DungeonRuntime centralization first
@@ -546,7 +562,17 @@ export function returnToWorldIfAtExit(ctx) {
 
   // Minimal fallback: guide the player
   try {
-    fallbackLog("modes.returnToWorldIfAtExit.noRuntime", "DungeonRuntime/DungeonState.returnurn false;
+    fallbackLog(
+      "modes.returnToWorldIfAtExit.noRuntime",
+      "DungeonRuntime/DungeonState.returnToWorldIfAtExit unavailable; guiding player instead."
+    );
+  } catch (_) {}
+  try {
+    if (ctx && ctx.log) {
+      ctx.log("Return to the dungeon entrance stairs (>) to go back to the overworld.", "info");
+    }
+  } catch (_) {}
+  return false;
 }
 
 

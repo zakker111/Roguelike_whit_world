@@ -88,7 +88,7 @@ export function maybeEnterMountainPass(ctx, nx, ny) {
         const size = (ctx.dungeonInfo && ctx.dungeonInfo.size) ? ctx.dungeonInfo.size : "medium";
         const level = Math.max(1, ctx.floor | 0);
         const info = { x: tgt.x, y: tgt.y, level, size };
-        ctx.log && ctx.log("You find a hidden passage through the mountain...", "notice");
+        ctx.log && ctx.log("You find a hidden passage through the mountain...", "info");
         return !!enter(ctx, info);
       }
     }
@@ -170,7 +170,7 @@ export function returnToWorldIfAtExit(ctx) {
       ctx.requestDraw && ctx.requestDraw();
     }
   } catch (_) {}
-  try { ctx.log && ctx.log("You climb back to the overworld.", "notice"); } catch (_) {}
+  try { ctx.log && ctx.log("You climb back to the overworld.", "info"); } catch (_) {}
 
   return true;
 }

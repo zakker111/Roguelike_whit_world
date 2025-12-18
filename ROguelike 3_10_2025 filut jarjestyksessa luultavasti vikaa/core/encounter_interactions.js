@@ -190,7 +190,7 @@ function interactProp(ctx, p) {
               world.caravanEscort = world.caravanEscort || { id: null, reward: 0, active: false };
               world.caravanEscort.active = true;
             }
-            log(ctx, "You agree to continue guarding the caravan.", "notice");
+            log(ctx, "You agree to continue guarding the caravan.", "info");
 
             // Immediately return to the overworld after accepting, so travel can resume.
             try {

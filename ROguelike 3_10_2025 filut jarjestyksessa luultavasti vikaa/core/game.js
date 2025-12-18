@@ -298,7 +298,7 @@ import {
       onPlayerDied: () => {
         isDead = true;
         updateUI();
-        log("You die. Press R or Enter to restart.", "bad");
+        log("You die. Press R or Enter to restart.", "info");
         showGameOver();
       },
       onEnemyDied: (enemy) => killEnemy(enemy),
@@ -1228,7 +1228,7 @@ import {
     }
     // Fallback: module-only; minimal corpse + removal
     const name = capitalize(enemy.type || "enemy");
-    log(`${name} dies.`, "bad");
+    log(`${name} dies.`, "info");
     corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
     enemies = enemies.filter(e => e !== enemy);
     try { if (occupancy && typeof occupancy.clearEnemy === "function") occupancy.clearEnemy(enemy.x, enemy.y); } catch (_) {}

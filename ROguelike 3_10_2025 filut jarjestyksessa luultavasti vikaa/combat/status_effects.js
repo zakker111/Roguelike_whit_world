@@ -42,7 +42,7 @@ export function applyLimpToEnemy(ctx, enemy, duration) {
   const d = Math.max(1, duration | 0);
   enemy.immobileTurns = Math.max(enemy.immobileTurns || 0, d);
   try {
-    ctx.log(`${Cap(ctx, enemy.type || "enemy")} staggers; its legs are crippled and it can't move for ${d} turn${d > 1 ? "s" : ""}.`, "notice");
+    ctx.log(`${Cap(ctx, enemy.type || "enemy")} staggers; its legs are crippled and it can't move for ${d} turn${d > 1 ? "s" : ""}.`, "info");
   } catch (_) {}
 }
 

@@ -100,7 +100,7 @@ export function onPlayerDied(ctx) {
       SS.applyAndRefresh(ctx, {});
     }
   } catch (_) {}
-  try { ctx.log && ctx.log("You die. Press R or Enter to restart.", "bad"); } catch (_) {}
+  try { ctx.log && ctx.log("You die. Press R or Enter to restart.", "info"); } catch (_) {}
   show(ctx);
 }
 

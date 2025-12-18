@@ -166,7 +166,8 @@ export const LogConfig = {
     const mapped = this._typeMap[t] || "info";
     const lvl = this._levels[mapped] || this._levels.info;
 
-    // Special-case: threshold "info" should show ONLY info-level messages (and synonyms)
+    // Special-case: threshold "info" should show ONLY info-level messages (and synonyms:
+    //   info, good, flavor, block, crit)
     // This keeps default deploy quiet and player-facing.
     const thrName = this._thresholdName || "info";
     if (thrName === "info") {

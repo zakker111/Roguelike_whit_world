@@ -194,13 +194,13 @@ export function announceFloorEnemyCount(ctx) {
     if (M && typeof M.get === "function") {
       if (n <= 0) {
         const text = M.get("dungeon.floorEnemyCount0");
-        if (text) ctx.log(text, "notice");
+        if (text) ctx.log(text, "info");
       } else if (n === 1) {
         const text = M.get("dungeon.floorEnemyCount1");
-        if (text) ctx.log(text, "notice");
+        if (text) ctx.log(text, "info");
       } else {
         const text = M.get("dungeon.floorEnemyCountMany", { n });
-        if (text) ctx.log(text, "notice");
+        if (text) ctx.log(text, "info");
       }
       return;
     }
