@@ -14,7 +14,6 @@
  */
 
 import { getMod } from "../../utils/access.js";
-import { log as fallbackLog } from "../../utils/fallback.js";
 
 // Helpers
 function inBounds(ctx, x, y) {
@@ -515,34 +514,12 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
     try {
       const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
       if (TR && typeof TR.applyLeaveSync === "function") {
-        try {
-          const pos = ctx && ctx.player ? { x: ctx.player.x, y: ctx.player.y } : null;
-          const anchor = ctx && ctx.townExitAt ? { x: ctx.townExitAt.x, y: ctx.townExitAt.y } : null;
-          fallbackLog(
-            "modes.returnToWorldFromTown.heuristicGate",
-            "Heuristic perimeter gate exit used via TownRuntime.applyLeaveSync.",
-            { player: pos, townExitAt: anchor }
-          );
-        } catch (_) {}
         TR.applyLeaveSync(ctx);
         if (typeof applyCtxSyncAndRefresh === "function") {
           try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
         } else {
           syncAfterMutation(ctx);
         }
-        return true;
-      }
-    } catch (_) {}
-  }
-
-  // Not at gate: show guidance hint when provided, else log a generic message.
-  if (typeof logExitHint === "function") {
-    try { logExitHint(ctx); } catch (_) {}
-  } else if (ctx && ctx.log) {
-    try { ctx.log("Return to the town gate to exit to the overworld.", "info"); } catch (_) {}
-  }
-  return false;
-}
 
 export function returnToWorldIfAtExit(ctx) {
   // Prefer DungeonRuntime centralization first
