@@ -5,6 +5,7 @@
  *   enterTownIfOnTile(ctx) -> boolean handled
  *   enterDungeonIfOnEntrance(ctx) -> boolean handled
  *   enterRuinsIfOnTile(ctx) -> boolean handled
+ *   returnToWorldFromTown(ctx, applyCtxSyncAndRefresh?, logExitHint?) -> boolean handled
  *   returnToWorldIfAtExit(ctx) -> boolean handled
  *   leaveTownNow(ctx) -> void
  *   requestLeaveTown(ctx) -> void
@@ -373,6 +374,51 @@ export function enterRuinsIfOnTile(ctx) {
   return false;
 }
 
+export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) {
+  if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
+
+  // Primary path: TownRuntime.returnToWorldIfAtGate(ctx)
+  try {
+    const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
+    if (TR && typeof TR.returnToWorldIfAtGate === "function") {
+      const ok = !!TR.returnToWorldIfAtGate(ctx);
+      if (ok) {
+        // Orchestrator-provided sync helper keeps core/game.js state in lockstep with ctx
+        if (typeof applyCtxSyncAndRefresh === "function") {
+          try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+        } else {
+          syncAfterMutation(ctx);
+        }
+        return true;
+      }
+    }
+  } catch (_) {}
+
+  // Fallback: direct check using townExitAt + leaveTownNow when TownRuntime is unavailable
+  let atGate = false;
+  try {
+    atGate = !!(ctx.townExitAt && ctx.player && ctx.player.x === ctx.townExitAt.x && ctx.player.y === ctx.townExitAt.y);
+  } catch (_) {}
+
+  if (atGate) {
+    try { leaveTownNow(ctx); } catch (_) {}
+    if (typeof applyCtxSyncAndRefresh === "function") {
+      try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+    } else {
+      syncAfterMutation(ctx);
+    }
+    return true;
+  }
+
+  // Not at gate: show guidance hint when provided, else log a generic message.
+  if (typeof logExitHint === "function") {
+    try { logExitHint(ctx); } catch (_) {}
+  } else if (ctx && ctx.log) {
+    try { ctx.log("Return to the town gate to exit to the overworld.", "info"); } catch (_) {}
+  }
+  return false;
+}
+
 export function returnToWorldIfAtExit(ctx) {
   // Prefer DungeonRuntime centralization first
   try {
@@ -406,9 +452,9 @@ attachGlobal("Modes", {
   enterTownIfOnTile,
   enterDungeonIfOnEntrance,
   enterRuinsIfOnTile,
+  returnToWorldFromTown,
   returnToWorldIfAtExit,
   leaveTownNow,
   requestLeaveTown,
-  saveCurrentDungeonState,
-  loadDungeonStateFor
+  saveCurrentonStateFor
 });

@@ -49,9 +49,9 @@ export function leaveTownNow(ctx) {
   if (fn) fn(ctx);
 }
 
-export function returnToWorldFromTown(ctx) {
+export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) {
   const fn = handle("returnToWorldFromTown");
-  return fn ? !!fn(ctx) : false;
+  return fn ? !!fn(ctx, applyCtxSyncAndRefresh, logExitHint) : false;
 }
 
 export function returnToWorldIfAtExit(ctx) {
