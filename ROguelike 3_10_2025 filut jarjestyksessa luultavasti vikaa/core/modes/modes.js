@@ -472,45 +472,9 @@ export function completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, helpers)
 export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) {
   if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
 
-  // If we know the gate anchor, allow a forgiving adjacency: if the player is
-  // standing directly next to the gate tile, snap them onto it before trying
-  // to leave. This matches the UI hint ("Press G on the gate to leave") even
-  // when the player is one step off.
-  try {
-    if (ctx.townExitAt && ctx.player) {
-      const dx = (ctx.player.x | 0) - (ctx.townExitAt.x | 0);
-      const dy = (ctx.player.y | 0) - (ctx.townExitAt.y | 0);
-      const manhattan = Math.abs(dx) + Math.abs(dy);
-      if (manhattan === 1) {
-        ctx.player.x = ctx.townExitAt.x | 0;
-        ctx.player.y = ctx.townExitAt.y | 0;
-      }
-    }
-  } catch (_) {}
-
-  // Primary path: TownRuntime.returnToWorldIfAtGate(ctx)
-  try {
-    const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
-    if (TR && typeof TR.returnToWorldIfAtGate === "function") {
-      const ok = !!TR.returnToWorldIfAtGate(ctx);
-      if (ok) {
-        // Orchestrator-provided sync helper keeps core/game.js state in lockstep with ctx
-        if (typeof applyCtxSyncAndRefresh === "function") {
-          try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
-        } else {
-          syncAfterMutation(ctx);
-        }
-        return true;
-      }
-    }
-  } catch (_) {}
-
-  // Fallback: direct check using townExitAt + leaveTownNow when TownRuntime is unavailable
-  // (removed; gate-based fallback now handled solely via heuristic perimeter detection)
-
-  // Last-resort heuristic: avoid trapping the player in town even if townExitAt
-  // is missing or desynced. If the player is near a perimeter door (probable
-  // gate), allow exiting directly via TownRuntime.applyLeaveSync(ctx).
+  // Heuristic-only exit: detect gate by geometry.
+  // If the player is on the inner perimeter and adjacent to a boundary DOOR,
+  // treat this as the town gate and leave via TownRuntime.applyLeaveSync(ctx).
   let nearPerimeterGate = false;
   try {
     const map = ctx.map;
@@ -552,10 +516,11 @@ export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) 
         try {
           const pos = ctx && ctx.player ? { x: ctx.player.x, y: ctx.player.y } : null;
           const anchor = ctx && ctx.townExitAt ? { x: ctx.townExitAt.x, y: ctx.townExitAt.y } : null;
-          fallbackLog("modes.returnToWorldFromTown.heuristicGate", "Heuristic perimeter gate exit used via TownRuntime.applyLeaveSync.", {
-            player: pos,
-            townExitAt: anchor
-          });
+          fallbackLog(
+            "modes.returnToWorldFromTown.heuristicGate",
+            "Heuristic perimeter gate exit used via TownRuntime.applyLeaveSync.",
+            { player: pos, townExitAt: anchor }
+          );
         } catch (_) {}
         TR.applyLeaveSync(ctx);
         if (typeof applyCtxSyncAndRefresh === "function") {
