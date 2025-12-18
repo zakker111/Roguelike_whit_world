@@ -67,25 +67,35 @@ function _isFreeTownFloor(ctx, x, y) {
 // ---- Interactions ----
 function interactProps(ctx) {
   if (ctx.mode !== "town") return false;
-  const candidates = [];
-  const coords = [
-    { x: ctx.player.x, y: ctx.player.y },
-    { x: ctx.player.x + 1, y: ctx.player.y },
-    { x: ctx.player.x - 1, y: ctx.player.y },
-    { x: ctx.player.x, y: ctx.player.y + 1 },
-    { x: ctx.player.x, y: ctx.player.y - 1 },
-  ];
-  for (const c of coords) {
-    const p = ctx.townProps.find(p => p.x === c.x && p.y === c.y);
-    if (p) candidates.push(p);
+  if (!Array.isArray(ctx.townProps) || !ctx.townProps.length) return false;
+
+  // 1) Prefer the prop directly under the player (any type, including signs).
+  let target = ctx.townProps.find(p => p.x === ctx.player.x && p.y === ctx.player.y) || null;
+
+  // 2) If nothing underfoot, allow adjacent props but never auto-trigger signs.
+  if (!target) {
+    const adj = [
+      { x: ctx.player.x + 1, y: ctx.player.y },
+      { x: ctx.player.x - 1, y: ctx.player.y },
+      { x: ctx.player.x, y: ctx.player.y + 1 },
+      { x: ctx.player.x, y: ctx.player.y - 1 },
+    ];
+    for (const c of adj) {
+      const p = ctx.townProps.find(q => q.x === c.x && q.y === c.y);
+      if (!p) continue;
+      const t = String(p.type || "").toLowerCase();
+      if (t === "sign") continue; // signs require standing exactly on the sign tile
+      target = p;
+      break;
+    }
   }
-  if (!candidates.length) return false;
-  const p = candidates[0];
+
+  if (!target) return false;
 
   // Data-driven interactions strictly via PropsService + props.json
   const PS = ctx.PropsService || getMod(ctx, "PropsService");
   if (PS && typeof PS.interact === "function") {
-    return PS.interact(ctx, p);
+    return PS.interact(ctx, target);
   }
   return false;
 }
