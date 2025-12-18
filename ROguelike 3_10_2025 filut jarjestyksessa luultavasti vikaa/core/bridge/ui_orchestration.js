@@ -18,6 +18,8 @@
  * - isAnyModalOpen(ctx)
  */
 
+import { log as fallbackLog } from "../../utils/fallback.js";
+
 function U(ctx) {
   try {
     return ctx?.UIBridge || (typeof window !== "undefined" ? window.UIBridge : null);
@@ -62,6 +64,9 @@ export function requestDraw(ctx) {
   try {
     const r = R();
     if (r && typeof r.draw === "function" && typeof ctx?.getRenderCtx === "function") {
+      try {
+        fallbackLog("uiOrchestration.requestDraw.renderFallback", "GameLoop.requestDraw unavailable; falling back to direct Render.draw.");
+      } catch (_) {}
       r.draw(ctx.getRenderCtx());
     }
   } catch (_) {}

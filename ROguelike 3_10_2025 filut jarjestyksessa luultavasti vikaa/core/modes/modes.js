@@ -149,6 +149,9 @@ export function requestLeaveTown(ctx) {
     }
   } catch (_) {}
   // Fallback: proceed to leave to avoid getting stuck without a confirm UI
+  try {
+    fallbackLog("modes.requestLeaveTown.noConfirm", "UI confirm dialog unavailable; leaving town immediately.");
+  } catch (_) {}
   leaveTownNow(ctx);
 }
 
@@ -542,8 +545,8 @@ export function returnToWorldIfAtExit(ctx) {
   } catch (_) {}
 
   // Minimal fallback: guide the player
-  if (ctx.log) ctx.log("Return to the dungeon entrance to go back to the overworld.", "info");
-  return false;
+  try {
+    fallbackLog("modes.returnToWorldIfAtExit.noRuntime", "DungeonRuntime/DungeonState.returnurn false;
 }
 
 

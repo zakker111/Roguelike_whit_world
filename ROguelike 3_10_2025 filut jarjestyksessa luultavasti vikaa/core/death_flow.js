@@ -9,6 +9,7 @@
  */
 
 import { getMod } from "../utils/access.js";
+import { log as fallbackLog } from "../utils/fallback.js";
 
 function mod(name) {
   try {
@@ -83,6 +84,11 @@ export function restart(ctx) {
     }
   } catch (_) {}
   // Fallback: trigger a draw so UI reflects state
+  try {
+    fallbackLog("deathFlow.restart.noInitWorld", "initWorld missing; triggering draw-only restart fallback.", {
+      hasInitWorld: typeof ctx.initWorld === "function"
+    });
+  } catch (_) {}
   requestDraw(ctx);
 }
 
