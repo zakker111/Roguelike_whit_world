@@ -92,15 +92,17 @@ function movePlayerToTownGateInterior(ctx) {
 // Public API
 export function leaveTownNow(ctx) {
   if (!ctx || !ctx.world) return;
-  // Centralize leave/transition via TownRuntime
-  try {
-    const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
-    if (TR && typeof TR.applyLeaveSync === "function") {
-      TR.applyLeaveSync(ctx);
-      return;
-    }
-  } catch (_) {}
-  // Minimal inline path retained for safety if TownRuntime is unexpectedly missing
+
+  // Town exit must go through the heuristic gate logic so there is a single
+  // source of truth for leaving towns.
+  if (ctx.mode === "town") {
+    // No custom hint callback here; reuse the same behavior as the G-key path.
+    returnToWorldFromTown(ctx);
+    return;
+  }
+
+  // Non-town safety: retain minimal inline path if something calls this
+  // outside of town mode (should be rare).
   ctx.mode = "world";
   ctx.map = ctx.world.map;
   try {
