@@ -86,7 +86,296 @@ export function generateLoot(ctx, source) {
   return generateLootExt(ctx, source);
 }
 
+// Tower helpers --------------------------------------------------------------
+
+function isTowerInfo(info) {
+  if (!info) return false;
+  try {
+    const k = String(info.kind || "").toLowerCase();
+    return k === "tower";
+  } catch (_) {
+    return false;
+  }
+}
+
+function ensureTowerMeta(ctx, info) {
+  if (!ctx) return null;
+  const dinfo = info || ctx.dungeonInfo || ctx.dungeon || null;
+  if (!dinfo || !isTowerInfo(dinfo)) return null;
+  const floors = (() => {
+    try {
+      const n = Number(dinfo.towerFloors);
+      if (Number.isFinite(n) && n >= 2 && n <= 10) return Math.floor(n);
+    } catch (_) {}
+    // Fallback: at least 3 floors for towers
+    return 3;
+  })();
+  const baseLevel = Math.max(1, (dinfo.level | 0) || 1);
+  if (!ctx.towerRun) {
+    ctx.towerRun = {
+      kind: "tower",
+      entrance: { x: dinfo.x | 0, y: dinfo.y | 0 },
+      totalFloors: floors,
+      baseLevel,
+      currentFloor: 0,
+      floors: Object.create(null),
+    };
+  } else {
+    // Keep base settings but ensure totals/levels are sane
+    ctx.towerRun.kind = "tower";
+    ctx.towerRun.entrance = { x: dinfo.x | 0, y: dinfo.y | 0 };
+    ctx.towerRun.totalFloors = floors;
+    ctx.towerRun.baseLevel = baseLevel;
+  }
+  return ctx.towerRun;
+}
+
+function pickFloorTileCandidates(ctx) {
+  const out = [];
+  try {
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    const T = ctx.TILES;
+    for (let y = 1; y < rows - 1; y++) {
+      const row = ctx.map[y];
+      for (let x = 1; x < cols - 1; x++) {
+        if (!row) continue;
+        if (row[x] === T.FLOOR) {
+          out.push({ x, y });
+        }
+      }
+    }
+  } catch (_) {}
+  return out;
+}
+
+function pickFarFloorFrom(ctx, sx, sy, blacklist) {
+  const list = pickFloorTileCandidates(ctx);
+  if (!list.length) return null;
+  const bl = Array.isArray(blacklist) ? blacklist : [];
+  let best = null;
+  let bestD = -1;
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
+    if (bl.some(b => b && b.x === p.x && b.y === p.y)) continue;
+    const d = Math.abs(p.x - sx) + Math.abs(p.y - sy);
+    if (d > bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return best || list[0];
+}
+
+function pickNearFloorFrom(ctx, sx, sy, blacklist) {
+  const list = pickFloorTileCandidates(ctx);
+  if (!list.length) return null;
+  const bl = Array.isArray(blacklist) ? blacklist : [];
+  let best = null;
+  let bestD = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i];
+    if (p.x === sx && p.y === sy) continue;
+    if (bl.some(b => b && b.x === p.x && b.y === p.y)) continue;
+    const d = Math.abs(p.x - sx) + Math.abs(p.y - sy);
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return best || list[0];
+}
+
+function gotoTowerFloor(ctx, floorIndex, direction) {
+  if (!ctx || !ctx.towerRun) return false;
+  const tr = ctx.towerRun;
+  const total = Math.max(2, Math.floor(tr.totalFloors || 3));
+  const f = Math.max(1, Math.min(total, floorIndex | 0));
+  tr.totalFloors = total;
+
+  let meta = tr.floors[f];
+  const fromWorld = direction === "fromWorld";
+  const goingUp = direction === "up";
+  const goingDown = direction === "down";
+
+  if (!meta) {
+    // Fresh floor: generate via core/dungeon/generate and then place tower stairs.
+    ctx.floor = tr.baseLevel + (f - 1);
+    if (ctx.dungeonInfo) ctx.dungeonInfo.level = ctx.floor;
+    generateExt(ctx, ctx.floor);
+
+    const T = ctx.TILES;
+    const px = ctx.player.x | 0;
+    const py = ctx.player.y | 0;
+
+    meta = {
+      map: ctx.map,
+      seen: ctx.seen,
+      visible: ctx.visible,
+      enemies: ctx.enemies,
+      corpses: ctx.corpses,
+      decals: Array.isArray(ctx.decals) ? ctx.decals : [],
+      dungeonProps: Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps : [],
+      floorIndex: f,
+      floorLevel: ctx.floor,
+      exitToWorldPos: null,
+      stairsUpPos: null,
+      stairsDownPos: null,
+    };
+
+    // Base floor: designate entrance tile as exit-to-world stairs.
+    if (f === 1) {
+      meta.exitToWorldPos = { x: px, y: py };
+      ctx.dungeonExitAt = { x: px, y: py };
+      try {
+        if (ctx.inBounds && ctx.inBounds(px, py)) {
+          ctx.map[py][px] = T.STAIRS;
+          if (Array.isArray(ctx.seen) && ctx.seen[py]) ctx.seen[py][px] = true;
+          if (Array.isArray(ctx.visible) && ctx.visible[py]) ctx.visible[py][px] = true;
+        }
+      } catch (_) {}
+    }
+
+    const hasUp = f < total;
+    const hasDown = f > 1;
+
+    if (hasUp || hasDown) {
+      const startX = px;
+      const startY = py;
+      const blacklist = [];
+      if (meta.exitToWorldPos) blacklist.push(meta.exitToWorldPos);
+
+      if (hasUp) {
+        const up = pickFarFloorFrom(ctx, startX, startY, blacklist);
+        if (up) {
+          meta.stairsUpPos = { x: up.x, y: up.y };
+          blacklist.push(up);
+          try {
+            ctx.map[up.y][up.x] = T.STAIRS;
+          } catch (_) {}
+        }
+      }
+      if (hasDown) {
+        const down = pickNearFloorFrom(ctx, startX, startY, blacklist);
+        if (down) {
+          meta.stairsDownPos = { x: down.x, y: down.y };
+          try {
+            ctx.map[down.y][down.x] = T.STAIRS;
+          } catch (_) {}
+        }
+      }
+    }
+
+    tr.floors[f] = meta;
+  } else {
+    // Revisit existing floor: restore state references.
+    ctx.map = meta.map;
+    ctx.seen = meta.seen;
+    ctx.visible = meta.visible;
+    ctx.enemies = meta.enemies;
+    ctx.corpses = meta.corpses;
+    ctx.decals = Array.isArray(meta.decals) ? meta.decals : [];
+    ctx.dungeonProps = Array.isArray(meta.dungeonProps) ? meta.dungeonProps : [];
+    ctx.floor = meta.floorLevel || (tr.baseLevel + (f - 1));
+    if (ctx.dungeonInfo) ctx.dungeonInfo.level = ctx.floor;
+  }
+
+  // Determine spawn position on this floor based on direction.
+  let spawn = null;
+  if (fromWorld) {
+    spawn = meta.exitToWorldPos || meta.stairsDownPos || meta.stairsUpPos;
+  } else if (goingUp) {
+    // Arriving from below: appear at the \"down\" stairs for this floor if present.
+    spawn = meta.stairsDownPos || meta.exitToWorldPos || meta.stairsUpPos;
+  } else if (goingDown) {
+    // Arriving from above: appear at the \"up\" stairs for this floor if present.
+    spawn = meta.stairsUpPos || meta.exitToWorldPos || meta.stairsDownPos;
+  }
+  if (!spawn) {
+    spawn = { x: ctx.player.x | 0, y: ctx.player.y | 0 };
+  }
+
+  ctx.player.x = spawn.x | 0;
+  ctx.player.y = spawn.y | 0;
+
+  if (meta.exitToWorldPos) {
+    ctx.dungeonExitAt = { x: meta.exitToWorldPos.x, y: meta.exitToWorldPos.y };
+  }
+
+  tr.currentFloor = f;
+
+  // Refresh UI/visuals via StateSync when available.
+  try {
+    const SS = ctx.StateSync || getMod(ctx, "StateSync");
+    if (SS && typeof SS.applyAndRefresh === "function") {
+      SS.applyAndRefresh(ctx, {});
+    } else {
+      if (ctx.recomputeFOV) ctx.recomputeFOV();
+      if (ctx.updateCamera) ctx.updateCamera();
+      if (ctx.updateUI) ctx.updateUI();
+      if (ctx.requestDraw) ctx.requestDraw();
+    }
+  } catch (_) {}
+
+  try {
+    const msg = `You explore tower floor ${f}/${tr.totalFloors}.`;
+    ctx.log && ctx.log(msg, "info");
+  } catch (_) {}
+
+  return true;
+}
+
+function handleTowerStairsOrExit(ctx) {
+  if (!ctx || !ctx.towerRun || !isTowerInfo(ctx.dungeonInfo || ctx.dungeon)) {
+    return returnToWorldIfAtExitExt(ctx);
+  }
+  const tr = ctx.towerRun;
+  const f = tr.currentFloor || 1;
+  const meta = tr.floors && tr.floors[f];
+  if (!meta) {
+    return returnToWorldIfAtExitExt(ctx);
+  }
+
+  const px = ctx.player.x | 0;
+  const py = ctx.player.y | 0;
+  const onExit = !!(meta.exitToWorldPos && f === 1 && px === meta.exitToWorldPos.x && py === meta.exitToWorldPos.y);
+  const onUp = !!(meta.stairsUpPos && px === meta.stairsUpPos.x && py === meta.stairsUpPos.y);
+  const onDown = !!(meta.stairsDownPos && px === meta.stairsDownPos.x && py === meta.stairsDownPos.y);
+
+  // If not on any known tower stairs, fall back to regular behavior.
+  if (!onExit && !onUp && !onDown) {
+    return returnToWorldIfAtExitExt(ctx);
+  }
+
+  // Base floor exit back to overworld.
+  if (onExit && f === 1) {
+    const ok = returnToWorldIfAtExitExt(ctx);
+    if (ok) {
+      try { ctx.towerRun = null; } catch (_) {}
+    }
+    return ok;
+  }
+
+  // Internal stairs: move within the tower.
+  if (onUp && f < tr.totalFloors) {
+    return gotoTowerFloor(ctx, f + 1, "up");
+  }
+  if (onDown && f > 1) {
+    return gotoTowerFloor(ctx, f - 1, "down");
+  }
+
+  try {
+    ctx.log && ctx.log("This staircase does not lead out of the tower.", "info");
+  } catch (_) {}
+  return false;
+}
+
 export function returnToWorldIfAtExit(ctx) {
+  try {
+    if (ctx && isTowerInfo(ctx.dungeonInfo || ctx.dungeon) && ctx.towerRun) {
+      return handleTowerStairsOrExit(ctx);
+    }
+  } catch (_) {}
   return returnToWorldIfAtExitExt(ctx);
 }
 
@@ -99,6 +388,28 @@ export function killEnemy(ctx, enemy) {
 }
 
 export function enter(ctx, info) {
+  if (info && isTowerInfo(info)) {
+    if (!ctx || !ctx.world) return false;
+    // Preserve world fog-of-war references so we can restore on exit.
+    try {
+      if (ctx.world) {
+        ctx.world.seenRef = ctx.seen;
+        ctx.world.visibleRef = ctx.visible;
+      }
+    } catch (_) {}
+    ctx.dungeon = info;
+    ctx.dungeonInfo = info;
+    ctx.mode = "dungeon";
+    ctx.cameFromWorld = true;
+
+    // Initialize tower meta and enter base floor.
+    const tr = ensureTowerMeta(ctx, info);
+    if (!tr) return false;
+    // Ensure worldReturnPos is set so overworld exit knows where to place the player.
+    ctx.worldReturnPos = { x: info.x | 0, y: info.y | 0 };
+    return gotoTowerFloor(ctx, 1, "fromWorld");
+  }
+
   return enterExt(ctx, info);
 }
 
