@@ -58,11 +58,23 @@ export function generateLevel(ctx, depth) {
 
   // Size/difficulty config from ctx.dungeon
   const sizeStr = (dinfo && dinfo.size) ? String(dinfo.size).toLowerCase() : "medium";
-  const sizeFactor = sizeStr === "small" ? 0.6 : sizeStr === "large" ? 1.0 : 0.85;
+  let sizeFactor = sizeStr === "small" ? 0.6 : sizeStr === "large" ? 1.0 : 0.85;
   const baseRows = (typeof MAP_ROWS === "number" && MAP_ROWS > 0) ? MAP_ROWS : ROWS;
   const baseCols = (typeof MAP_COLS === "number" && MAP_COLS > 0) ? MAP_COLS : COLS;
-  const rRows = Math.max(20, Math.floor(baseRows * sizeFactor));
-  const rCols = Math.max(30, Math.floor(baseCols * sizeFactor));
+
+  // Towers use a more compact footprint so floors are easier to clear and
+  // the next-floor stairs are never absurdly far away.
+  let rRows;
+  let rCols;
+  if (isTowerDungeon) {
+    const targetRows = Math.max(14, Math.floor(baseRows * 0.4));
+    const targetCols = Math.max(20, Math.floor(baseCols * 0.4));
+    rRows = targetRows;
+    rCols = targetCols;
+  } else {
+    rRows = Math.max(20, Math.floor(baseRows * sizeFactor));
+    rCols = Math.max(30, Math.floor(baseCols * sizeFactor));
+  }
 
   // Init arrays/state
   ctx.map = Array.from({ length: rRows }, () => Array(rCols).fill(TILES.WALL));
@@ -75,11 +87,26 @@ export function generateLevel(ctx, depth) {
   // Rooms
   const rooms = [];
   const area = rRows * rCols;
+  // Towers get fewer room placement attempts so their layout stays dense.
+  const roomAttempts = isTowerDungeon
+    ? Math.max(20, Math.floor(area / 160))
+    : Math.max(40, Math.floor(area / 120)); // scale with map size
+  for (let i = 0; i < roomAttempts; i++) {
+  const rooms = [];
+  const area = rRows * rCols;
   const roomAttempts = Math.max(40, Math.floor(area / 120)); // scale with map size
   for (let i = 0; i < roomAttempts; i++) {
-    // Room sizes scale gently with dungeon size
-    const w = ri(Math.max(4, Math.floor(6 * sizeFactor)), Math.max(7, Math.floor(10 * sizeFactor)));
-    const h = ri(Math.max(3, Math.floor(5 * sizeFactor)), Math.max(6, Math.floor(8 * sizeFactor)));
+    // Room sizes scale gently with dungeon size; towers prefer slightly smaller rooms.
+    const baseWMin = Math.max(4, Math.floor(6 * sizeFactor));
+    const baseWMax = Math.max(7, Math.floor(10 * sizeFactor));
+    const baseHMin = Math.max(3, Math.floor(5 * sizeFactor));
+    const baseHMax = Math.max(6, Math.floor(8 * sizeFactor));
+    const w = isTowerDungeon
+      ? ri(Math.max(4, Math.floor(baseWMin * 0.8)), Math.max(6, Math.floor(baseWMax * 0.8)))
+      : ri(baseWMin, baseWMax);
+    const h = isTowerDungeon
+      ? ri(Math.max(3, Math.floor(baseHMin * 0.8)), Math.max(5, Math.floor(baseHMax * 0.8)))
+      : ri(baseHMin, baseHMax);
     const x = ri(1, Math.max(1, rCols - w - 2));
     const y = ri(1, Math.max(1, rRows - h - 2));
     const rect = { x, y, w, h };
