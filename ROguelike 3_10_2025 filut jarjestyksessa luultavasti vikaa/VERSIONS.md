@@ -1,5 +1,35 @@
 # Game Version History
-Last updated: 2025-12-18 13:00 UTC
+Last updated: 2025-12-19 13:00 UTC
+
+v1.57.0 — Logging refinements and status effect visibility
+- Changed: Combat status effect messages are now visible at the default info log level.
+  - combat/status_effects.js:
+    - applyDazedToPlayer(ctx, duration) now logs “You are dazed and might lose your next action(s).” with type "info" instead of "warn".
+    - applyBleedToPlayer(ctx, duration) logs “You are bleeding (N).” with type "info" instead of "warn".
+    - During bleed ticks, “You bleed (1).” is emitted as "info" instead of "warn".
+    - Player burn ticks (“You burn (X.Y).”) are emitted as "info" instead of "bad".
+    - Enemy burn ticks (“<Enemy> burns (X.Y).”) are emitted as "info" instead of "warn".
+  - Effect: Bleed, burn, and dazed feedback now always appears at the strict info threshold without requiring the GOD log-level selector to be raised.
+- Changed: GOD status helpers mirror in-combat messages.
+  - core/god/controls.js:
+    - applyBleedToPlayer(getCtx, duration) now logs “You are bleeding (N).” as "info".
+    - applyDazedToPlayer(getCtx, duration) now logs the same “You are dazed and might lose your next action(s).” line as "info".
+  - Effect: Using GOD tools to apply bleed/dazed produces the same info-level messaging as real combat, making manual testing consistent.
+- Changed: Fallback diagnostics are logged via the centralized fallback logger.
+  - utils/fallback.js:
+    - Fallback.log(tag, message, data?) emits “[Fallback:tag] message” at "warn" level via window.Logger.log when available (else console.warn).
+  - New/updated fallback usages:
+    - core/death_flow.js:
+      - restart(ctx) logs a fallback when ctx.initWorld is missing or fails, before triggering a draw-only restart.
+    - core/bridge/ui_orchestration.js:
+      - requestDraw(ctx) logs a fallback when GameLoop.requestDraw is not available and Renderer.draw(ctx.getRenderCtx()) is used instead.
+    - core/game_api.js:
+      - moveStep(dx, dy) logs “worldFallback” when ctx.tryMovePlayer fails to move the player in world mode and the minimal walkable-step fallback is applied.
+      - routeTo(tx, ty) logs “goalRingFallback” when the target overworld tile is not walkable and a nearby ring tile is chosen as the routing goal.
+    - core/bridge/ui_bridge.js:
+      - animateSleep(ctx, minutes, afterTimeCb) logs “noFadeOverlay” when the fade overlay cannot be created and sleep advances without animation.
+      - animateSleep’s catch-all fallback logs “hardFallback” when the animation fails and time/UI are advanced without transitions.
+  - Effect: All major robustness fallbacks emit a single, structured warning via Fallback.log, making it easy to spot when safety paths were taken while keeping gameplay unchanged.
 
 v1.56.0 — Core state-sync modularization and Seppo’s True Blade (cursed)
 - Changed: ctx→orchestrator state sync is now centralized in core/state/game_state.js
@@ -483,6 +513,7 @@ v1.50.0 — Torch weapon & burning status, GOD status picker, unified combat, an
 - Changed: Ruins entry and corpse flavor log consistency
   - core/modes/modes.js (enterRuinsIfOnTile):
     - Fixed a malformed try block (“Missing catch or finally after try”) when checking RUINS tiles; added a proper try/catch around RegionMapRuntime.open(ctx).
+- Added core/modes/exit.js with exitToWorld(ctx, opts?) as a unified, ctx-first orchestrator for leaving towns, dungeons, encounters, and Region Map; wired core/game.js and core/modes/actions.js to prefer this single exit path while reusing existing TownRuntime/DungeonRuntime/RegionMapRuntime/EncounterRuntime behavior.
     - On successful open, logs “You enter the ancient ruins.” as info and syncs state via syncAfterMutation(ctx); returns false when Region Map cannot be opened.
   - core/dungeon/loot.js:
     - When looting in dungeon/encounter mode with no loot underfoot, corpse death flavor lines from FlavorService.describeCorpse(meta) are now logged with type \"flavor\" and details:

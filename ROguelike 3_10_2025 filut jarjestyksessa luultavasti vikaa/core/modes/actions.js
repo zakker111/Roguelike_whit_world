@@ -18,6 +18,7 @@
  */
 
 import { getMod } from "../../utils/access.js";
+import { exitToWorld } from "./exit.js";
 
 // Helpers
 function inBounds(ctx, x, y) {
@@ -255,6 +256,13 @@ export function doAction(ctx) {
   }
 
   if (ctx.mode === "region") {
+    // First, try unified exit (pressing G on an edge exit tile)
+    try {
+      const exited = exitToWorld(ctx, { reason: "regionEdge" });
+      if (exited) return true;
+    } catch (_) {}
+
+    // Otherwise, delegate region-specific actions (loot/harvest/etc.)
     try {
       const RM = getMod(ctx, "RegionMapRuntime");
       if (RM && typeof RM.onAction === "function") {
@@ -279,18 +287,10 @@ export function doAction(ctx) {
       }
     } catch (_) {}
 
-    // No lootable container underfoot: only allow withdraw if standing on exit (stairs) tile
+    // Attempt unified exit when standing on stairs (>) in encounter maps
     try {
-      if (inBounds(ctx, ctx.player.x, ctx.player.y)) {
-        const here = ctx.map[ctx.player.y][ctx.player.x];
-        if (here === ctx.TILES.STAIRS) {
-          const ER = getMod(ctx, "EncounterRuntime");
-          if (ER && typeof ER.complete === "function") {
-            ER.complete(ctx, "withdraw");
-            return true;
-          }
-        }
-      }
+      const exited = exitToWorld(ctx, { reason: "encounterWithdraw" });
+      if (exited) return true;
     } catch (_) {}
 
     // Delegate prop interactions to EncounterInteractions
@@ -317,7 +317,13 @@ export function doAction(ctx) {
   }
 
   if (ctx.mode === "dungeon") {
-    // Try loot (includes return-to-world on exit)
+    // Prefer centralized exit flow first (standing on STAIRS and pressing G)
+    try {
+      const exited = exitToWorld(ctx, { reason: "stairs" });
+      if (exited) return true;
+    } catch (_) {}
+
+    // Otherwise fall back to loot/guidance behavior
     const handled = loot(ctx);
     if (handled) return true;
     // Otherwise allow fallback
@@ -360,7 +366,7 @@ export function loot(ctx) {
         const nameLower = (s.name || "").toLowerCase();
         if (nameLower === "inn") {
           ctx.log(`Inn: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
-          ctx.log("You enter the inn.", "notice");
+          ctx.log("You enter the inn.", "info");
           // Inns provide resting; allow rest regardless
           restAtInn(ctx);
           return true;
@@ -368,13 +374,13 @@ export function loot(ctx) {
         if (nameLower === "tavern") {
           ctx.log(`Tavern: ${schedPart}${openNow ? "Open now." : "Closed now."}`, openNow ? "good" : "warn");
           const phase = (ctx.time && ctx.time.phase) || "day";
-          if (phase === "night" || phase === "dusk") ctx.log("You step into the tavern. It's lively inside.", "notice");
+          if (phase === "night" || phase === "dusk") ctx.log("You step into the tavern. It's lively inside.", "info");
           else if (phase === "day") ctx.log("You enter the tavern. A few patrons sit quietly.", "info");
           else ctx.log("You enter the tavern.", "info");
           // Pure log messaging; no visual change -> no draw
           return true;
         }
-        if (openNow) ctx.log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "notice");
+        if (openNow) ctx.log(`The ${s.name || "shop"} is open. (Trading coming soon)`, "info");
         else ctx.log(`The ${s.name || "shop"} is closed.${sched ? " " + sched : ""}`, "warn");
         // Pure schedule/log messaging; no visual change -> no draw
         return true;

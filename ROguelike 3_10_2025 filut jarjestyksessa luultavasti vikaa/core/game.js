@@ -35,7 +35,8 @@ import {
   applySyncAndRefresh as gameStateApplySyncAndRefresh,
   syncFromCtxWithSink as gameStateSyncFromCtxWithSink
 } from "./state/game_state.js";
-import "./mode_transitions.js";
+import "./modes/transitions.js";
+import { exitToWorld as exitToWorldExt } from "./modes/exit.js";
 import {
   initTimeWeather,
   getClock as timeGetClock,
@@ -297,7 +298,7 @@ import {
       onPlayerDied: () => {
         isDead = true;
         updateUI();
-        log("You die. Press R or Enter to restart.", "bad");
+        log("You die. Press R or Enter to restart.", "info");
         showGameOver();
       },
       onEnemyDied: (enemy) => killEnemy(enemy),
@@ -789,7 +790,6 @@ import {
 
   function returnToWorldFromTown() {
     const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
     const logExitHint = (c) => {
       const MZ = modHandle("Messages");
       if (MZ && typeof MZ.log === "function") {
@@ -798,19 +798,19 @@ import {
         log("Return to the town gate to exit to the overworld.", "info");
       }
     };
-    if (MT && typeof MT.returnToWorldFromTown === "function") {
-      return !!MT.returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint);
-    }
-    return false;
+    return !!exitToWorldExt(ctx, {
+      reason: "gate",
+      applyCtxSyncAndRefresh,
+      logExitHint
+    });
   }
 
   function returnToWorldIfAtExit() {
     const ctx = getCtx();
-    const MT = modHandle("ModesTransitions");
-    if (MT && typeof MT.returnToWorldIfAtExit === "function") {
-      return !!MT.returnToWorldIfAtExit(ctx, applyCtxSyncAndRefresh);
-    }
-    return false;
+    return !!exitToWorldExt(ctx, {
+      reason: "stairs",
+      applyCtxSyncAndRefresh
+    });
   }
 
   // Context-sensitive action button (G): enter/exit/interact depending on mode/state
@@ -826,7 +826,8 @@ import {
 
     // Town gate exit takes priority over other interactions
     if (mode === "town" && townExitAt && player.x === townExitAt.x && player.y === townExitAt.y) {
-      if (returnToWorldFromTown()) return;
+      const ctxGate = getCtx();
+      if (exitToWorldExt(ctxGate, { reason: "gate", applyCtxSyncAndRefresh })) return;
     }
 
     // Prefer ctx-first Actions module
@@ -1227,7 +1228,7 @@ import {
     }
     // Fallback: module-only; minimal corpse + removal
     const name = capitalize(enemy.type || "enemy");
-    log(`${name} dies.`, "bad");
+    log(`${name} dies.`, "info");
     corpses.push({ x: enemy.x, y: enemy.y, loot: [], looted: true });
     enemies = enemies.filter(e => e !== enemy);
     try { if (occupancy && typeof occupancy.clearEnemy === "function") occupancy.clearEnemy(enemy.x, enemy.y); } catch (_) {}

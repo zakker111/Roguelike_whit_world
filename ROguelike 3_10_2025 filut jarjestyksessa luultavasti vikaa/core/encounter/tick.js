@@ -54,7 +54,7 @@ export function tick(ctx) {
     if (Array.isArray(ctx.enemies) && ctx.enemies.length === 0) {
       if (!getClearAnnounced()) {
         setClearAnnounced(true);
-        try { ctx.log && ctx.log("Area clear. Step onto an exit (>) to leave when ready.", "notice"); } catch (_) {}
+        try { ctx.log && ctx.log("Area clear. Step onto an exit (>) to leave when ready.", "info"); } catch (_) {}
       }
       if (!getVictoryNotified()) {
         setVictoryNotified(true);

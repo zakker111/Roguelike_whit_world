@@ -4,6 +4,7 @@
  */
 
 import { getMod } from "../utils/access.js";
+import { log as fallbackLog } from "../utils/fallback.js";
 
 export function create(ctx) {
   function closeAnyModal() {
@@ -21,8 +22,8 @@ export function create(ctx) {
   }
   const api = {
     // Encounter helpers
-    enterEncounter: (template, biome) => {
-      try { return !!(ctx.enterEncounter && ctx.enterEncounter(template, biome)); } catch (_) { return false; }
+    enterEncounter: (template, biome, difficulty) => {
+      try { return !!(ctx.enterEncounter && ctx.enterEncounter(template, biome, difficulty)); } catch (_) { return false; }
     },
     // Complete the active encounter (used by flows like caravan escort/ambush)
     completeEncounter: (outcome = "victory") => {
@@ -32,8 +33,8 @@ export function create(ctx) {
     openRegionMap: () => {
       try { return !!(ctx.openRegionMap && ctx.openRegionMap()); } catch (_) { return false; }
     },
-    startRegionEncounter: (template, biome) => {
-      try { return !!(ctx.startRegionEncounter && ctx.startRegionEncounter(template, biome)); } catch (_) { return false; }
+    startRegionEncounter: (template, biome, difficulty) => {
+      try { return !!(ctx.startRegionEncounter && ctx.startRegionEncounter(template, biome, difficulty)); } catch (_) { return false; }
     },
 
     getMode: () => {
@@ -63,6 +64,12 @@ export function create(ctx) {
             const t = w.map[ny][nx];
             const walk = (typeof window !== "undefined" && window.World && typeof window.World.isWalkable === "function") ? window.World.isWalkable(t) : true;
             if (walk) {
+              try {
+                fallbackLog("gameApi.moveStep.worldFallback", "Primary tryMovePlayer failed to move; applying minimal world walkable-step fallback.", {
+                  from: { x: bx, y: by },
+                  to: { x: nx, y: ny }
+                });
+              } catch (_) {}
               const p = ctx.getPlayer();
               p.x = nx; p.y = ny;
               try {
@@ -151,7 +158,15 @@ export function create(ctx) {
                 if (md < bestD) { best = { x: nx, y: ny }; bestD = md; }
               }
             }
-            if (best) picked = best;
+            if (best) {
+              try {
+                fallbackLog("gameApi.routeTo.goalRingFallback", "Target overworld tile not walkable; using nearby walkable goal.", {
+                  target: { x: goal.x, y: goal.y },
+                  picked: best
+                });
+              } catch (_) {}
+              picked = best;
+            }
           }
           if (picked) goal = picked;
         }

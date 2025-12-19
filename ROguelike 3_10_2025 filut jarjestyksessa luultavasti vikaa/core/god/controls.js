@@ -75,7 +75,7 @@ export function applyBleedToPlayer(getCtx, duration = 3) {
   const ST = (ctx.Status || (typeof window !== "undefined" ? window.Status : null));
   if (ST && typeof ST.applyBleedToPlayer === "function") return ST.applyBleedToPlayer(ctx, duration);
   ctx.player.bleedTurns = Math.max(ctx.player.bleedTurns || 0, (duration | 0));
-  ctx.log && ctx.log(`You are bleeding (${ctx.player.bleedTurns}).`, "warn");
+  ctx.log && ctx.log(`You are bleeding (${ctx.player.bleedTurns}).`, "info");
 }
 
 export function applyDazedToPlayer(getCtx, duration = 2) {
@@ -83,7 +83,7 @@ export function applyDazedToPlayer(getCtx, duration = 2) {
   const ST = (ctx.Status || (typeof window !== "undefined" ? window.Status : null));
   if (ST && typeof ST.applyDazedToPlayer === "function") return ST.applyDazedToPlayer(ctx, duration);
   ctx.player.dazedTurns = Math.max(ctx.player.dazedTurns || 0, (duration | 0));
-  ctx.log && ctx.log(`You are dazed and might lose your next action${duration > 1 ? "s" : ""}.`, "warn");
+  ctx.log && ctx.log(`You are dazed and might lose your next action${duration > 1 ? "s" : ""}.`, "info");
 }
 
 export function clearPlayerEffects(getCtx) {

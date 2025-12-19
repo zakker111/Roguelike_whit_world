@@ -386,7 +386,7 @@ function decayLockpick(ctx, success) {
     if (it.decay >= 100) {
       inv.splice(_lockpickIndex, 1);
       _lockpickIndex = -1;
-      try { if (ctx.log) ctx.log("Your lockpick snaps.", "bad"); } catch (_) {}
+      try { if (ctx.log) ctx.log("Your lockpick snaps.", "info"); } catch (_) {}
     } else if ((it.decay | 0) !== before) {
       try { if (typeof ctx.rerenderInventoryIfOpen === "function") ctx.rerenderInventoryIfOpen(); } catch (_) {}
     }

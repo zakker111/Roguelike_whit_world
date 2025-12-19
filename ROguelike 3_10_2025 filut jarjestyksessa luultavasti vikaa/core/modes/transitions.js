@@ -5,6 +5,10 @@
  * - enterTownIfOnTile(ctx) -> boolean
  * - enterDungeonIfOnEntrance(ctx) -> boolean
  * - enterRuinsIfOnTile(ctx) -> boolean
+ * - enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAndRefresh?) -> boolean
+ * - openRegionMap(ctx, applyCtxSyncAndRefresh?) -> boolean
+ * - startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefresh?) -> boolean
+ * - completeEncounter(ctx, outcome, applyCtxSyncAndRefresh?, helpers?) -> boolean
  * - requestLeaveTown(ctx) -> void
  * - leaveTownNow(ctx) -> void
  * - returnToWorldFromTown(ctx) -> boolean
@@ -39,6 +43,26 @@ export function enterRuinsIfOnTile(ctx) {
   return fn ? !!fn(ctx) : false;
 }
 
+export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAndRefresh) {
+  const fn = handle("enterEncounter");
+  return fn ? !!fn(ctx, template, biome, difficulty, applyCtxSyncAndRefresh) : false;
+}
+
+export function openRegionMap(ctx, applyCtxSyncAndRefresh) {
+  const fn = handle("openRegionMap");
+  return fn ? !!fn(ctx, applyCtxSyncAndRefresh) : false;
+}
+
+export function startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefresh) {
+  const fn = handle("startRegionEncounter");
+  return fn ? !!fn(ctx, template, biome, applyCtxSyncAndRefresh) : false;
+}
+
+export function completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, helpers) {
+  const fn = handle("completeEncounter");
+  return fn ? !!fn(ctx, outcome, applyCtxSyncAndRefresh, helpers) : false;
+}
+
 export function requestLeaveTown(ctx) {
   const fn = handle("requestLeaveTown");
   if (fn) fn(ctx);
@@ -49,9 +73,9 @@ export function leaveTownNow(ctx) {
   if (fn) fn(ctx);
 }
 
-export function returnToWorldFromTown(ctx) {
+export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) {
   const fn = handle("returnToWorldFromTown");
-  return fn ? !!fn(ctx) : false;
+  return fn ? !!fn(ctx, applyCtxSyncAndRefresh, logExitHint) : false;
 }
 
 export function returnToWorldIfAtExit(ctx) {
@@ -65,6 +89,10 @@ attachGlobal("ModesTransitions", {
   enterTownIfOnTile,
   enterDungeonIfOnEntrance,
   enterRuinsIfOnTile,
+  enterEncounter,
+  openRegionMap,
+  startRegionEncounter,
+  completeEncounter,
   requestLeaveTown,
   leaveTownNow,
   returnToWorldFromTown,

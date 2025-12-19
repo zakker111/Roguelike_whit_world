@@ -281,7 +281,7 @@ export function returnToWorldIfAtExit(ctx) {
         SS.applyAndRefresh(ctx, {});
       }
     } catch (_) {}
-    ctx.log("You return to the overworld.", "notice");
+    ctx.log("You return to the overworld.", "info");
     return true;
   }
   ctx.log("Return to the dungeon entrance to go back to the overworld.", "info");

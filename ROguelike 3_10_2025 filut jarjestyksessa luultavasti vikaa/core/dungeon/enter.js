@@ -27,7 +27,7 @@ export function enter(ctx, info) {
   } catch (_) {}
 
   // Announce entry and generate a fresh floor
-  try { ctx.log && ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "notice"); } catch (_) {}
+  try { ctx.log && ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "info"); } catch (_) {}
   generate(ctx, ctx.floor);
 
   // Mark entrance position as the exit and ensure tile visuals

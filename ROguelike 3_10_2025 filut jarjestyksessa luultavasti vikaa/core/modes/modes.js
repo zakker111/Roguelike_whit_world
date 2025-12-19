@@ -5,6 +5,7 @@
  *   enterTownIfOnTile(ctx) -> boolean handled
  *   enterDungeonIfOnEntrance(ctx) -> boolean handled
  *   enterRuinsIfOnTile(ctx) -> boolean handled
+ *   returnToWorldFromTown(ctx, applyCtxSyncAndRefresh?, logExitHint?) -> boolean handled
  *   returnToWorldIfAtExit(ctx) -> boolean handled
  *   leaveTownNow(ctx) -> void
  *   requestLeaveTown(ctx) -> void
@@ -13,6 +14,7 @@
  */
 
 import { getMod } from "../../utils/access.js";
+import { log as fallbackLog } from "../../utils/fallback.js";
 
 // Helpers
 function inBounds(ctx, x, y) {
@@ -90,14 +92,17 @@ function movePlayerToTownGateInterior(ctx) {
 // Public API
 export function leaveTownNow(ctx) {
   if (!ctx || !ctx.world) return;
-  // Centralize leave/transition via TownRuntime
-  try {
-    if (ctx.TownRuntime && typeof ctx.TownRuntime.applyLeaveSync === "function") {
-      ctx.TownRuntime.applyLeaveSync(ctx);
-      return;
-    }
-  } catch (_) {}
-  // Fallback: minimal path to avoid getting stuck if TownRuntime is missing
+
+  // Town exit must go through the heuristic gate logic so there is a single
+  // source of truth for leaving towns.
+  if (ctx.mode === "town") {
+    // No custom hint callback here; reuse the same behavior as the G-key path.
+    returnToWorldFromTown(ctx);
+    return;
+  }
+
+  // Non-town safety: retain minimal inline path if something calls this
+  // outside of town mode (should be rare).
   ctx.mode = "world";
   ctx.map = ctx.world.map;
   try {
@@ -131,8 +136,7 @@ export function leaveTownNow(ctx) {
       ctx.player.y = Math.max(0, Math.min((rows ? rows - 1 : 0), ly));
     }
   }
-  
-  if (ctx.log) ctx.log("You return to the overworld.", "notice");
+  if (ctx.log) ctx.log("You return to the overworld.", "info");
   syncAfterMutation(ctx);
 }
 
@@ -146,6 +150,9 @@ export function requestLeaveTown(ctx) {
     }
   } catch (_) {}
   // Fallback: proceed to leave to avoid getting stuck without a confirm UI
+  try {
+    fallbackLog("modes.requestLeaveTown.noConfirm", "UI confirm dialog unavailable; leaving town immediately.");
+  } catch (_) {}
   leaveTownNow(ctx);
 }
 
@@ -215,7 +222,7 @@ export function enterTownIfOnTile(ctx) {
             movePlayerToTownGateInterior(ctx);
             const kindLabel = settlementKind === "castle" ? "castle" : "town";
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
-            if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            if (ctx.log) ctx.log(`You re-enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
             syncAfterMutation(ctx);
             return true;
           }
@@ -236,7 +243,7 @@ export function enterTownIfOnTile(ctx) {
             } catch (_) {}
             const kindLabel = settlementKind === "castle" ? "castle" : "town";
             const placeLabel = ctx.townName ? `the ${kindLabel} of ${ctx.townName}` : `the ${kindLabel}`;
-            if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "notice");
+            if (ctx.log) ctx.log(`You enter ${placeLabel}. Shops are marked with 'S'. Press G next to an NPC to talk. Press G on the gate to leave.`, "info");
             syncAfterMutation(ctx);
             return true;
           }
@@ -339,7 +346,7 @@ export function enterDungeonIfOnEntrance(ctx) {
     } catch (_) {}
     saveCurrentDungeonState(ctx);
     
-    if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "notice");
+    if (ctx.log) ctx.log(`You enter the dungeon (Difficulty ${ctx.floor}${info.size ? ", " + info.size : ""}).`, "info");
     syncAfterMutation(ctx);
     return true;
   }
@@ -373,6 +380,166 @@ export function enterRuinsIfOnTile(ctx) {
   return false;
 }
 
+export function enterEncounter(ctx, template, biome, difficulty, applyCtxSyncAndRefresh) {
+  if (!ctx || !ctx.world || !ctx.world.map) return false;
+  try {
+    const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+    if (!ER || typeof ER.enter !== "function") return false;
+    let diff = 1;
+    try {
+      if (typeof difficulty === "number") {
+        diff = Math.max(1, Math.min(5, difficulty | 0));
+      } else {
+        const ES = getMod(ctx, "EncounterService");
+        if (ES && typeof ES.computeDifficulty === "function") {
+          diff = ES.computeDifficulty(ctx, biome);
+        }
+      }
+    } catch (_) {}
+    const ok = !!ER.enter(ctx, { template, biome, difficulty: diff });
+    if (!ok) return false;
+    if (typeof applyCtxSyncAndRefresh === "function") {
+      try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+    } else {
+      syncAfterMutation(ctx);
+    }
+    return true;
+  } catch (_) {}
+  return false;
+}
+
+export function openRegionMap(ctx, applyCtxSyncAndRefresh) {
+  if (!ctx || ctx.mode !== "world" || !ctx.world || !ctx.world.map) return false;
+  try {
+    const RMR = ctx.RegionMapRuntime || (typeof window !== "undefined" ? window.RegionMapRuntime : null);
+    if (RMR && typeof RMR.open === "function") {
+      const ok = !!RMR.open(ctx);
+      if (!ok) return false;
+      if (typeof applyCtxSyncAndRefresh === "function") {
+        try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+      } else {
+        syncAfterMutation(ctx);
+      }
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+export function startRegionEncounter(ctx, template, biome, applyCtxSyncAndRefresh) {
+  if (!ctx || ctx.mode !== "region") return false;
+  try {
+    const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+    if (!ER || typeof ER.enterRegion !== "function") return false;
+    let diff = 1;
+    try {
+      const ES = getMod(ctx, "EncounterService");
+      if (ES && typeof ES.computeDifficulty === "function") {
+        diff = ES.computeDifficulty(ctx, biome);
+      }
+    } catch (_) {}
+    const ok = !!ER.enterRegion(ctx, { template, biome, difficulty: diff });
+    if (!ok) return false;
+    if (typeof applyCtxSyncAndRefresh === "function") {
+      try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+    } else {
+      syncAfterMutation(ctx);
+    }
+    return true;
+  } catch (_) {}
+  return false;
+}
+
+export function completeEncounter(ctx, outcome, applyCtxSyncAndRefresh, helpers) {
+  if (!ctx || ctx.mode !== "encounter") return false;
+  try {
+    const ER = ctx.EncounterRuntime || (typeof window !== "undefined" ? window.EncounterRuntime : null);
+    if (!ER || typeof ER.complete !== "function") return false;
+    const ok = !!ER.complete(ctx, outcome || "victory");
+    if (!ok) return false;
+    if (typeof applyCtxSyncAndRefresh === "function") {
+      try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+    } else {
+      syncAfterMutation(ctx);
+    }
+    // Optional auto-travel helper after returning to overworld (e.g., caravan escort flows)
+    try {
+      const h = helpers || {};
+      if (ctx.mode === "world" && typeof h.startEscortAutoTravel === "function") {
+        h.startEscortAutoTravel();
+      }
+    } catch (_) {}
+    return true;
+  } catch (_) {}
+  return false;
+}
+
+export function returnToWorldFromTown(ctx, applyCtxSyncAndRefresh, logExitHint) {
+  if (!ctx || ctx.mode !== "town" || !ctx.world) return false;
+
+  // Heuristic-only exit: detect gate by geometry.
+  // If the player is on the inner perimeter and adjacent to a boundary DOOR,
+  // treat this as the town gate and leave via TownRuntime.applyLeaveSync(ctx).
+  let nearPerimeterGate = false;
+  try {
+    const map = ctx.map;
+    const rows = Array.isArray(map) ? map.length : 0;
+    const cols = rows && Array.isArray(map[0]) ? map[0].length : 0;
+    if (rows && cols && ctx.player && ctx.TILES) {
+      const px = ctx.player.x | 0;
+      const py = ctx.player.y | 0;
+      const T = ctx.TILES;
+      const onInnerPerimeter =
+        px === 1 || py === 1 || px === cols - 2 || py === rows - 2;
+      if (onInnerPerimeter) {
+        const dirs = [
+          { dx: 1, dy: 0 },
+          { dx: -1, dy: 0 },
+          { dx: 0, dy: 1 },
+          { dx: 0, dy: -1 },
+        ];
+        for (let i = 0; i < dirs.length; i++) {
+          const nx = px + dirs[i].dx;
+          const ny = py + dirs[i].dy;
+          if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+          const isBoundary =
+            nx === 0 || ny === 0 || nx === cols - 1 || ny === rows - 1;
+          if (!isBoundary) continue;
+          if (map[ny][nx] === T.DOOR) {
+            nearPerimeterGate = true;
+            break;
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
+  if (nearPerimeterGate) {
+    try {
+      const TR = ctx.TownRuntime || (typeof window !== "undefined" ? window.TownRuntime : null);
+      if (TR && typeof TR.applyLeaveSync === "function") {
+        TR.applyLeaveSync(ctx);
+        if (typeof applyCtxSyncAndRefresh === "function") {
+          try { applyCtxSyncAndRefresh(ctx); } catch (_) {}
+        } else {
+          syncAfterMutation(ctx);
+        }
+        return true;
+      }
+    } catch (_) {}
+  }
+
+  // Not at gate: optional guidance hint
+  try {
+    if (typeof logExitHint === "function") {
+      logExitHint();
+    } else if (ctx.log) {
+      ctx.log("Return to the town gate (inner perimeter door) and press G to leave.", "info");
+    }
+  } catch (_) {}
+  return false;
+}
+
 export function returnToWorldIfAtExit(ctx) {
   // Prefer DungeonRuntime centralization first
   try {
@@ -394,7 +561,17 @@ export function returnToWorldIfAtExit(ctx) {
   } catch (_) {}
 
   // Minimal fallback: guide the player
-  if (ctx.log) ctx.log("Return to the dungeon entrance to go back to the overworld.", "info");
+  try {
+    fallbackLog(
+      "modes.returnToWorldIfAtExit.noRuntime",
+      "DungeonRuntime/DungeonState.returnToWorldIfAtExit unavailable; guiding player instead."
+    );
+  } catch (_) {}
+  try {
+    if (ctx && ctx.log) {
+      ctx.log("Return to the dungeon entrance stairs (>) to go back to the overworld.", "info");
+    }
+  } catch (_) {}
   return false;
 }
 
@@ -406,6 +583,11 @@ attachGlobal("Modes", {
   enterTownIfOnTile,
   enterDungeonIfOnEntrance,
   enterRuinsIfOnTile,
+  enterEncounter,
+  openRegionMap,
+  startRegionEncounter,
+  completeEncounter,
+  returnToWorldFromTown,
   returnToWorldIfAtExit,
   leaveTownNow,
   requestLeaveTown,

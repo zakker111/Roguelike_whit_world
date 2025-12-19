@@ -39,6 +39,7 @@
  */
 
 import { getMod } from "../../utils/access.js";
+import { log as fallbackLog } from "../../utils/fallback.js";
 
 function hasUI() {
   return (typeof window !== "undefined" && window.UI);
@@ -408,6 +409,9 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
   if (!el) {
     // Fallback: advance time without animation, but let NPCs act if possible
     try {
+      fallbackLog("uiBridge.animateSleep.noFadeOverlay", "Sleep fade overlay missing; advancing time without animation.");
+    } catch (_) {}
+    try {
       if (typeof ctx.fastForwardMinutes === "function") ctx.fastForwardMinutes(minutes);
       else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
     } catch (_) {}
@@ -465,6 +469,9 @@ export function animateSleep(ctx, minutes, afterTimeCb) {
     });
   } catch (_) {
     // hard fallback
+    try {
+      fallbackLog("uiBridge.animateSleep.hardFallback", "Sleep animation failed; advancing time and refreshing without animation.");
+    } catch (_) {}
     try {
       if (typeof ctx.fastForwardMinutes === "function") ctx.fastForwardMinutes(minutes);
       else if (typeof ctx.advanceTimeMinutes === "function") ctx.advanceTimeMinutes(minutes);
