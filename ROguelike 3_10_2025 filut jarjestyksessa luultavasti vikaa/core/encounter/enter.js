@@ -232,22 +232,47 @@ export function enter(ctx, info) {
       const canPlace = (x, y) => {
         if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
         if (map[y][x] !== T.FLOOR) return false;
+        // Do not overlap player start or existing props/chests
+        if (x === ctx.player.x && y === ctx.player.y) return false;
         const k = keyFor(x, y);
         if (used.has(k)) return false;
         if (chestSpots.has(k)) return false;
         return true;
       };
 
+      // First try a few hand-picked spots around the center.
       const candidates = [
         { x: centerX + 2, y: centerY },
         { x: centerX - 2, y: centerY },
         { x: centerX,     y: centerY + 2 },
         { x: centerX,     y: centerY - 2 },
       ];
+      let placed = false;
       for (const c of candidates) {
         if (canPlace(c.x, c.y)) {
           encProps.push({ x: c.x, y: c.y, type: "merchant", name, vendor });
+          placed = true;
           break;
+        }
+      }
+
+      // Fallback: search for the nearest valid floor tile to the center if the
+      // initial candidates were all blocked (e.g. huts/props occupy them).
+      if (!placed) {
+        let best = null;
+        let bestDist = Infinity;
+        for (let y = 1; y < H - 1; y++) {
+          for (let x = 1; x < W - 1; x++) {
+            if (!canPlace(x, y)) continue;
+            const d = Math.abs(x - centerX) + Math.abs(y - centerY);
+            if (d < bestDist) {
+              bestDist = d;
+              best = { x, y };
+            }
+          }
+        }
+        if (best) {
+          encProps.push({ x: best.x, y: best.y, type: "merchant", name, vendor });
         }
       }
     } catch (_) {}
