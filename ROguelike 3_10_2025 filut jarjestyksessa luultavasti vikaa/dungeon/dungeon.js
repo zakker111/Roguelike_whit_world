@@ -52,6 +52,7 @@ export function generateLevel(ctx, depth) {
   const dinfo = ctx.dungeonInfo || ctx.dungeon || { x: player.x, y: player.y, level: depth, size: "medium" };
   const dseed = deriveDungeonSeed(rootSeed, dinfo.x | 0, dinfo.y | 0, (depth | 0) || (dinfo.level | 0) || 1, dinfo.size);
   const drng = mulberry32(dseed);
+  const isTowerDungeon = !!(dinfo && typeof dinfo.kind === "string" && String(dinfo.kind).toLowerCase() === "tower");
   const ri = (min, max) => Math.floor(drng() * (Math.max(min|0, max|0) - Math.min(min|0, max|0) + 1)) + Math.min(min|0, max|0);
   const ch = (p) => drng() < p;
 
@@ -224,7 +225,16 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
   const sizeMult = sizeStr === "small" ? 0.8 : sizeStr === "large" ? 1.35 : 1.1;
   const baseEnemies = 8 + Math.floor(depth * 4);
   const enemyCount = Math.max(6, Math.floor(baseEnemies * sizeMult));
-  const makeEnemy = ctx.enemyFactory || defaultEnemyFactory;
+
+  // Enemy factory: allow towers to bias toward bandit-style enemies while
+  // still respecting a custom ctx.enemyFactory when present.
+  const baseFactory = ctx.enemyFactory || defaultEnemyFactory;
+  const makeEnemy = isTowerDungeon
+    ? (x, y, depthArg, rngArg) => {
+        const e = towerEnemyFactory(ctx, x, y, depthArg, rngArg);
+        return e || baseFactory(x, y, depthArg, rngArg);
+      }
+    : baseFactory;
 
   // Ensure enemy registry is loaded before spawning
   try {
@@ -469,6 +479,74 @@ function defaultEnemyFactory(x, y, depth, rng) {
     return EM.createEnemyAt(x, y, depth, rng);
   }
   return null;
+}
+
+// Tower-themed enemy factory: prefers bandits and related humanoids so
+// tower floors feel coherent. Falls back to the global registry if
+// anything is missing.
+function towerEnemyFactory(ctx, x, y, depth, rng) {
+  try {
+    const EM = (typeof window !== "undefined" ? window.Enemies : null);
+    if (!EM || typeof EM.getTypeDef !== "function") return null;
+
+    // Candidate types and simple weights; only those actually present
+    // in the registry are used.
+    const rawPool = [
+      { key: "bandit",  w: 3 },
+      { key: "orc",     w: 2 },
+      { key: "goblin",  w: 1 },
+      { key: "guard",   w: 0.5 },
+      { key: "guard_elite", w: 0.2 },
+    ];
+    const pool = [];
+    for (const entry of rawPool) {
+      const def = EM.getTypeDef(entry.key);
+      if (def) pool.push({ key: entry.key, w: entry.w, def });
+    }
+    if (!pool.length) return null;
+
+    // Deterministic RNG for tower spawns
+    let rfn = rng;
+    try {
+      if (typeof window !== "undefined" && window.RNGUtils && typeof window.RNGUtils.getRng === "function") {
+        rfn = window.RNGUtils.getRng(rng);
+      }
+    } catch (_) {}
+    if (typeof rfn !== "function") {
+      rfn = () => 0.5;
+    }
+
+    let total = 0;
+    for (const p of pool) total += p.w;
+    if (!(total > 0)) return null;
+
+    let r = rfn() * total;
+    let chosen = pool[0];
+    for (const p of pool) {
+      if (r < p.w) { chosen = p; break; }
+      r -= p.w;
+    }
+
+    const td = chosen.def;
+    const d = Math.max(1, depth | 0);
+    const level = (EM.levelFor && typeof EM.levelFor === "function")
+      ? EM.levelFor(chosen.key, d, rfn)
+      : d;
+    const glyph = (td.glyph && td.glyph.length) ? td.glyph : (chosen.key && chosen.key.length ? chosen.key[0] : "?");
+    const enemy = {
+      x, y,
+      type: chosen.key,
+      glyph,
+      hp: td.hp(d),
+      atk: td.atk(d),
+      xp: td.xp(d),
+      level,
+      announced: false,
+    };
+    return enemy;
+  } catch (_) {
+    return null;
+  }
 }
 
 // Back-compat: attach to window via helper
