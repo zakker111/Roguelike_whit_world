@@ -636,6 +636,16 @@ export function init(UI) {
     try { UI.updateMinimapButton(); } catch (_) {}
   }
 
+  // Teleport helpers
+  const tpTowerBtn = byId("god-teleport-tower-btn");
+  if (tpTowerBtn) {
+    tpTowerBtn.addEventListener("click", () => {
+      if (typeof UI.handlers.onGodTeleportToTower === "function") {
+        UI.handlers.onGodTeleportToTower();
+      }
+    });
+  }
+
   // HUD toggles
   const owHudBtn = byId("god-toggle-ow-hud-btn");
   if (owHudBtn) {

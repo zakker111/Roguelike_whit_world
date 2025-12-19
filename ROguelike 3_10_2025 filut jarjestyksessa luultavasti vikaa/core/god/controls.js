@@ -12,6 +12,7 @@
  * - applyBleedToPlayer(getCtx, durationTurns)
  * - applyDazedToPlayer(getCtx, durationTurns)
  * - clearPlayerEffects(getCtx)
+ * - teleportToNearestTower(getCtx)
  */
 
 export function heal(getCtx) {
@@ -96,6 +97,13 @@ export function clearPlayerEffects(getCtx) {
   } catch (_) {}
 }
 
+export function teleportToNearestTower(getCtx) {
+  const ctx = getCtx();
+  const G = (ctx.God || (typeof window !== "undefined" ? window.God : null));
+  if (G && typeof G.teleportToNearestTower === "function") return G.teleportToNearestTower(ctx);
+  ctx.log("GOD: teleportToNearestTower not available.", "warn");
+}
+
 // Back-compat: attach to window
 if (typeof window !== "undefined") {
   window.GodControls = {
@@ -110,5 +118,6 @@ if (typeof window !== "undefined") {
     applyBleedToPlayer,
     applyDazedToPlayer,
     clearPlayerEffects,
+    teleportToNearestTower,
   };
 }

@@ -44,7 +44,7 @@ function featureEnabled(name, defaultVal) {
 
 // Scan a rectangle of the current window (map space) and register POIs sparsely
 export function scanPOIs(ctx, x0, y0, w, h) {
-  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, CASTLE: 15, TOWNK: 4, DUNGEONK: 5 };
+  const WT = (ctx.World && ctx.World.TILES) || { TOWN: 4, DUNGEON: 5, RUINS: 12, WATER: 0, RIVER: 7, BEACH: 8, MOUNTAIN: 3, GRASS: 1, FOREST: 2, DESERT: 9, SNOW: 10, SWAMP: 6, CASTLE: 15, TOWNK: 4, DUNGEONK: 5, TOWER: 17 };
   const world = ctx.world;
   for (let yy = y0; yy < y0 + h; yy++) {
     if (yy < 0 || yy >= ctx.map.length) continue;
@@ -85,6 +85,11 @@ export function scanPOIs(ctx, x0, y0, w, h) {
         } catch (_) {}
 
         addDungeon(world, wx, wy, isMountainDungeon ? { isMountainDungeon: true } : undefined);
+      } else if (WT.TOWER != null && t === WT.TOWER) {
+        const wx = world.originX + xx;
+        const wy = world.originY + yy;
+        // Towers are treated as dungeons with kind=\"tower\"; addDungeon will derive towerFloors deterministically.
+        addDungeon(world, wx, wy, { kind: "tower" });
       } else if (t === WT.RUINS) {
         const wx = world.originX + xx;
         const wy = world.originY + yy;

@@ -86,7 +86,7 @@ export function addCastle(world, x, y) {
 }
 
 // Add a dungeon at world coords if not present; derive level/size deterministically.
-// Optional extra metadata (e.g. { isMountainDungeon: true }) can be passed via the opts object.
+// Optional extra metadata (e.g. { isMountainDungeon: true, kind: "tower" }) can be passed via the opts object.
 export function addDungeon(world, x, y, opts) {
   ensurePOIState(world);
   const key = `${x},${y}`;
@@ -101,6 +101,17 @@ export function addDungeon(world, x, y, opts) {
       Object.assign(dungeon, opts);
     } catch (_) {}
   }
+
+  // For tower-type dungeons, derive a deterministic floor count (3–5 floors) if not provided.
+  if (dungeon.kind === "tower") {
+    const hasFloors = typeof dungeon.towerFloors === "number" && dungeon.towerFloors >= 2;
+    if (!hasFloors) {
+      const rFloors = h2(x + 101, y - 37);
+      const floors = 3 + Math.floor(rFloors * 3); // 3..5
+      dungeon.towerFloors = floors;
+    }
+  }
+
   world.dungeons.push(dungeon);
   world._poiSet.add(key);
 }

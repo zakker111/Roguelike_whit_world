@@ -125,6 +125,16 @@
         "tags": ["entrance"]
       },
       {
+        "id": 17,
+        "key": "TOWER",
+        "name": "Ruined Tower",
+        "glyph": "t",
+        "colors": { "fill": "#312e81", "fg": "#e5e7eb" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["overworld", "region"],
+        "tags": ["poi", "tower"]
+      },
+      {
         "id": 12,
         "key": "RUINS",
         "name": "Ruins",
