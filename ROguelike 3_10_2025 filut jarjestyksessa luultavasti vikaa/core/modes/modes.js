@@ -303,6 +303,7 @@ export function enterDungeonIfOnEntrance(ctx) {
   // Strict mode: adjacency entry disabled. Require standing exactly on the dungeon (or tower) tile.
 
   if (t && WT && (t === WT.DUNGEON || (WT.TOWER != null && t === WT.TOWER))) {
+    const isTowerTile = !!(WT.TOWER != null && t === WT.TOWER);
     // Use absolute world coords for dungeon key and return position
     const enterWX = (ctx.world ? ctx.world.originX : 0) + ctx.player.x;
     const enterWY = (ctx.world ? ctx.world.originY : 0) + ctx.player.y;
@@ -313,8 +314,28 @@ export function enterDungeonIfOnEntrance(ctx) {
     try {
       const list = Array.isArray(ctx.world?.dungeons) ? ctx.world.dungeons : [];
       info = list.find(d => d.x === enterWX && d.y === enterWY) || null;
+      // If this entrance sits on a TOWER tile but the saved dungeon metadata does not
+      // yet mark it as a tower (older saves), upgrade it in-place so tower logic applies
+      // (multi-floor, bandit theming, etc.).
+      if (isTowerTile && info) {
+        info.kind = "tower";
+        if (typeof info.towerFloors !== "number" || info.towerFloors < 2) {
+          const seed = ((enterWX | 0) * 31 + (enterWY | 0) * 17) | 0;
+          const n = (seed ^ (seed >>> 13)) >>> 0;
+          const floors = 3 + (n % 3); // 3..5
+          info.towerFloors = floors;
+        }
+      }
     } catch (_) { info = null; }
-    if (!info) info = { x: enterWX, y: enterWY, level: 1, size: "medium" };
+    if (!info) {
+      info = { x: enterWX, y: enterWY, level: 1, size: "medium" };
+      if (isTowerTile) {
+        info.kind = "tower";
+        const seed = ((enterWX | 0) * 31 + (enterWY | 0) * 17) | 0;
+        const n = (seed ^ (seed >>> 13)) >>> 0;
+        info.towerFloors = 3 + (n % 3); // 3..5
+      }
+    }
     ctx.dungeon = info;
     ctx.dungeonInfo = info;
 
