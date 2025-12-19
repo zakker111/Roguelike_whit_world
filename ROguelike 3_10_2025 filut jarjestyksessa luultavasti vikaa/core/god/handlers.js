@@ -523,6 +523,21 @@ export function install(getCtx) {
         c.requestDraw && c.requestDraw();
         return;
       }
+    },
+
+    // Teleport helpers
+    onGodTeleportToTower: () => {
+      const c = getCtx();
+      if (GC && typeof GC.teleportToNearestTower === "function") {
+        GC.teleportToNearestTower(() => getCtx());
+        return;
+      }
+      if (G && typeof G.teleportToNearestTower === "function") {
+        G.teleportToNearestTower(c);
+        return;
+      }
+      c.log("GOD: Teleport to tower not available.", "warn");
+    },
 
       const GD = (typeof window !== "undefined" ? window.GameData : null);
       const PFB = GD && GD.prefabs ? GD.prefabs : null;
