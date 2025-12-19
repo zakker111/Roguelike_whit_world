@@ -318,6 +318,8 @@ Roadmap (Upcoming Phases)
 
 - Phase 6 — Optional gameplay and UX expansions
   - Multi-floor dungeons and portal variants; scale ED and loot appropriately.
+  - Bandit Towers: rare river-adjacent tower POIs that generate 3–5-floor multi-level bandit dungeons with persistent state, melee-focused enemies, decorated room prefabs, and a tower boss at the top.
+  - Trap system v1: visible spike traps (tile-based hazards with minimal damage and clear log messages), defined in data and first used in Bandit Towers, with hooks to reuse in other dungeons/ruins.
   - Quest board extensions: multi-step quests, rewards from palette-driven POI markers.
   - Overworld hazards/biome effects (swamp slow, snow visibility); palette-configurable.
   - Merchant/encounter improvements: shopkeeper themes, Seppo inventory in encounters.
