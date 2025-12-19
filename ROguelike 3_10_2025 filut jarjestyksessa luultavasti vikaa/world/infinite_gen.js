@@ -27,6 +27,7 @@ const TILES = {
   RUINS: 12,
   CASTLE: 15,
   SNOW_FOREST: 16, // snowy forest biome (snow with dense trees)
+  TOWER: 17,       // overworld tower POI; kept aligned with World.TILES
 };
 
 function mulberry32(a) {
@@ -257,7 +258,7 @@ function create(seed, opts = {}) {
       if (rTown < (cfg.townChance + coastBias)) return TILES.TOWN;
     }
 
-    // Dungeon roll (only at the dungeon anchor of the cell)
+    // Dungeon / tower roll (only at the dungeon anchor of the cell)
     if (atDungAnchor) {
       // Skip dungeon anchors that are fully buried in mountains with no nearby open ground.
       if (!hasExit) return null;
@@ -289,7 +290,26 @@ function create(seed, opts = {}) {
         chance = chance * 0.7;
       }
 
-      if (rDung < chance) return TILES.DUNGEON;
+      if (rDung < chance) {
+        // When near rivers, occasionally place a tower instead of a regular dungeon.
+        let nearRiver = false;
+        try {
+          for (let dy = -2; dy <= 2 && !nearRiver; dy++) {
+            for (let dx = -2; dx <= 2 && !nearRiver; dx++) {
+              if (!dx && !dy) continue;
+              const nt = classify(x + dx, y + dy);
+              if (nt === TILES.RIVER) nearRiver = true;
+            }
+          }
+        } catch (_) {}
+
+        if (nearRiver) {
+          const rTower = hash2(s ^ 0xABCD, cellDungX, cellDungY);
+          // Rare but not ultra-rare towers near rivers.
+          if (rTower < 0.30) return TILES.TOWER;
+        }
+        return TILES.DUNGEON;
+      }
     }
 
     // Ruins roll (only at the ruins anchor of the cell)

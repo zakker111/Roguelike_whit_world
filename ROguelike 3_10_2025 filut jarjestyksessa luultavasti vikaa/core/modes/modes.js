@@ -300,9 +300,9 @@ export function enterDungeonIfOnEntrance(ctx) {
   if (py < 0 || px < 0 || py >= mapRef.length || px >= (mapRef[0] ? mapRef[0].length : 0)) return false;
   const t = mapRef[py][px];
 
-  // Strict mode: adjacency entry disabled. Require standing exactly on the dungeon tile.
+  // Strict mode: adjacency entry disabled. Require standing exactly on the dungeon (or tower) tile.
 
-  if (t && WT && t === WT.DUNGEON) {
+  if (t && WT && (t === WT.DUNGEON || (WT.TOWER != null && t === WT.TOWER))) {
     // Use absolute world coords for dungeon key and return position
     const enterWX = (ctx.world ? ctx.world.originX : 0) + ctx.player.x;
     const enterWY = (ctx.world ? ctx.world.originY : 0) + ctx.player.y;

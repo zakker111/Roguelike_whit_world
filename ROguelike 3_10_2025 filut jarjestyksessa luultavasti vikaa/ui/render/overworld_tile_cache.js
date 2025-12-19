@@ -25,6 +25,7 @@ export function fallbackFillOverworld(WT, id) {
     if (id === WT.SNOW_FOREST) return "#8298aa";
     if (id === WT.TOWN) return "#3a2f1b";
     if (id === WT.DUNGEON) return "#2a1b2a";
+    if (WT.TOWER != null && id === WT.TOWER) return "#312e81";
   } catch (_) {}
   return "#0b0c10";
 }
