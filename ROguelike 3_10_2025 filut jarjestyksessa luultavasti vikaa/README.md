@@ -250,6 +250,9 @@ Logging system (UI + Dev API)
   - Prefab/Town/Dungeon state notices and errors under their respective categories.
 
 - Gameplay-specific logging refinements
+-  - Weapon/equipment breakage now logs at info level (neutral styling) instead of error/bad.
+-  - Combat “crit” messages pass the threshold at info-level (styled red for distinction).
+-  - Status effect messages (dazed, bleeding, burning) now log at info level so players always see them at the default threshold.meplay-specific logging refinements
   - Weapon/equipment breakage now logs at info level (neutral styling) instead of error/bad.
   - Combat “crit” messages pass the threshold at info-level (styled red for distinction).
 
