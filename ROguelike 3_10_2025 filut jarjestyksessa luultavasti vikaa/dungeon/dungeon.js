@@ -92,10 +92,6 @@ export function generateLevel(ctx, depth) {
     ? Math.max(20, Math.floor(area / 160))
     : Math.max(40, Math.floor(area / 120)); // scale with map size
   for (let i = 0; i < roomAttempts; i++) {
-  const rooms = [];
-  const area = rRows * rCols;
-  const roomAttempts = Math.max(40, Math.floor(area / 120)); // scale with map size
-  for (let i = 0; i < roomAttempts; i++) {
     // Room sizes scale gently with dungeon size; towers prefer slightly smaller rooms.
     const baseWMin = Math.max(4, Math.floor(6 * sizeFactor));
     const baseWMax = Math.max(7, Math.floor(10 * sizeFactor));
