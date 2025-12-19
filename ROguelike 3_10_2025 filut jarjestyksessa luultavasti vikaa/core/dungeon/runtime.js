@@ -186,6 +186,85 @@ function pickNearFloorFrom(ctx, sx, sy, blacklist) {
   return best || list[0];
 }
 
+// Spawn a tower boss (Bandit Captain) on the given floor meta when this
+// is the top floor of a tower run. Boss stats/definition come from
+// data/entities/enemies.json; weightByDepth is zero so it never spawns
+// randomly outside towers.
+function spawnTowerBossOnFloor(ctx, meta) {
+  try {
+    if (!ctx || !meta) return;
+    const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
+    if (!EM || typeof EM.getTypeDef !== "function") return;
+    const def = EM.getTypeDef("bandit_captain") || EM.getTypeDef("bandit");
+    if (!def) return;
+
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    if (!rows || !cols) return;
+
+    const T = ctx.TILES;
+    const isFloor = (x, y) =>
+      y >= 0 && x >= 0 && y < rows && x < cols && ctx.map[y][x] === T.FLOOR;
+    const isEnemyAt = (x, y) =>
+      Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y);
+    const isBlocked = (x, y) =>
+      (meta.exitToWorldPos && x === meta.exitToWorldPos.x && y === meta.exitToWorldPos.y) ||
+      (meta.stairsUpPos && x === meta.stairsUpPos.x && y === meta.stairsUpPos.y) ||
+      (meta.stairsDownPos && x === meta.stairsDownPos.x && y === meta.stairsDownPos.y) ||
+      (ctx.player && x === ctx.player.x && y === ctx.player.y) ||
+      isEnemyAt(x, y);
+
+    // Prefer a tile far from the player's starting spot / stairs-down.
+    const seed = (meta.stairsDownPos && isFloor(meta.stairsDownPos.x, meta.stairsDownPos.y))
+      ? meta.stairsDownPos
+      : { x: ctx.player.x | 0, y: ctx.player.y | 0 };
+
+    const blacklist = [];
+    if (meta.exitToWorldPos) blacklist.push(meta.exitToWorldPos);
+    if (meta.stairsUpPos) blacklist.push(meta.stairsUpPos);
+    if (meta.stairsDownPos) blacklist.push(meta.stairsDownPos);
+
+    let candidate = pickFarFloorFrom(ctx, seed.x, seed.y, blacklist);
+    if (!candidate || !isFloor(candidate.x, candidate.y) || isBlocked(candidate.x, candidate.y)) {
+      // Fallback: scan for any suitable floor tile.
+      candidate = null;
+      for (let y = 1; y < rows - 1 && !candidate; y++) {
+        for (let x = 1; x < cols - 1; x++) {
+          if (!isFloor(x, y)) continue;
+          if (isBlocked(x, y)) continue;
+          candidate = { x, y };
+          break;
+        }
+      }
+    }
+    if (!candidate) return;
+
+    const depth = Math.max(1, (ctx.floor | 0) || 1);
+    const level =
+      EM.levelFor && typeof EM.levelFor === "function"
+        ? EM.levelFor("bandit_captain", depth, ctx.rng)
+        : depth;
+    const glyph =
+      def.glyph && def.glyph.length
+        ? def.glyph
+        : ("bandit_captain".length ? "bandit_captain".charAt(0) : "?");
+
+    const boss = {
+      x: candidate.x,
+      y: candidate.y,
+      type: "bandit_captain",
+      glyph,
+      hp: def.hp(depth),
+      atk: def.atk(depth),
+      xp: def.xp(depth),
+      level,
+      announced: false,
+    };
+
+    ctx.enemies.push(boss);
+  } catch (_) {}
+}
+
 function gotoTowerFloor(ctx, floorIndex, direction) {
   if (!ctx || !ctx.towerRun) return false;
   const tr = ctx.towerRun;
@@ -264,6 +343,11 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
           } catch (_) {}
         }
       }
+    }
+
+    // On the final floor of the tower, spawn a dedicated boss enemy.
+    if (f === total) {
+      spawnTowerBossOnFloor(ctx, meta);
     }
 
     tr.floors[f] = meta;
