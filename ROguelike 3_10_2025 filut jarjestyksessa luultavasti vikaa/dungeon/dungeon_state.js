@@ -185,7 +185,9 @@ function applyState(ctx, st, x, y) {
 
   // Towers: if a multi-floor towerRun is present, prefer its current floor
   // snapshot over the flat map/enemy arrays above so towers behave like
-  // persistent multi-floor dungeons.
+  // persistent multi-floor dungeons. However, if the per-floor meta lacks
+  // enemies/corpses (e.g., older saves), fall back to the top-level arrays
+  // so we never \"lose\" chests or enemies on re-entry.
   try {
     if (st.towerRun && st.towerRun.kind === "tower") {
       ctx.towerRun = st.towerRun;
@@ -194,21 +196,18 @@ function applyState(ctx, st, x, y) {
       const floors = tr.floors || {};
       const meta = floors[floorIndex] || floors[1] || null;
       if (meta && meta.map) {
+        // Base map/visibility always come from meta for towers
         ctx.map = meta.map;
         ctx.seen = meta.seen || ctx.seen;
         ctx.visible = meta.visible || ctx.visible;
-        ctx.enemies = Array.isArray(meta.enemies) ? meta.enemies : (st.enemies || []);
-        ctx.corpses = Array.isArray(meta.corpses) ? meta.corpses : (st.corpses || []);
-        ctx.decals = Array.isArray(meta.decals) ? meta.decals : (st.decals || []);
-        ctx.dungeonProps = Array.isArray(meta.dungeonProps) ? meta.dungeonProps : (ctx.dungeonProps || []);
-        ctx.floor = meta.floorLevel || ctx.floor;
-        // Use tower base exit when available so overworld return behaves
-        // consistently for towers.
-        if (meta.exitToWorldPos) {
-          st.dungeonExitAt = { x: meta.exitToWorldPos.x, y: meta.exitToWorldPos.y };
-        }
-      } else {
-        // No per-floor meta found; clear towerRun to avoid inconsistent state
+
+        const metaEnemies = Array.isArray(meta.enemies) ? meta.enemies : null;
+        const metaCorpses = Array.isArray(meta.corpses) ? meta.corpses : null;
+        const metaDecals = Array.isArray(meta.decals) ? meta.decals : null;
+        const metaProps = Array.isArray(meta.dungeonProps) ? meta.dungeonProps : null;
+
+        // If meta arrays are missing or empty, fall back to the flat snapshot
+        // so we still restore chests/enemies stored ator meta found; clear towerRun to avoid inconsistent state
         ctx.towerRun = null;
       }
     }
