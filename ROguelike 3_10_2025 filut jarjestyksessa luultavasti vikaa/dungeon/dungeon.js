@@ -253,7 +253,12 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
   // Enemies scale with dungeon difficulty and size
   const sizeMult = sizeStr === "small" ? 0.8 : sizeStr === "large" ? 1.35 : 1.1;
   const baseEnemies = 8 + Math.floor(depth * 4);
-  const enemyCount = Math.max(6, Math.floor(baseEnemies * sizeMult));
+  let enemyCount = Math.max(6, Math.floor(baseEnemies * sizeMult));
+  // Towers: slightly lower baseline density so each floor feels distinct but
+  // not overcrowded with bandits.
+  if (isTowerDungeon) {
+    enemyCount = Math.max(4, Math.floor(enemyCount * 0.75));
+  }
 
   // Enemy factory: allow towers to bias toward bandit-style enemies while
   // still respecting a custom ctx.enemyFactory when present.

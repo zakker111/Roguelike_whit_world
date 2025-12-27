@@ -497,12 +497,21 @@ export function enter(ctx, info) {
     ctx.dungeonInfo = info;
     ctx.mode = "dungeon";
     ctx.cameFromWorld = true;
-
-    // Initialize tower meta and enter base floor.
-    const tr = ensureTowerMeta(ctx, info);
-    if (!tr) return false;
     // Ensure worldReturnPos is set so overworld exit knows where to place the player.
     ctx.worldReturnPos = { x: info.x | 0, y: info.y | 0 };
+
+    // Towers behave like persistent multi-floor dungeons: try loading an
+    // existing state (including towerRun) before generating a fresh run.
+    try {
+      const loaded = loadExt(ctx, info.x, info.y);
+      if (loaded && ctx.towerRun && ctx.towerRun.kind === "tower") {
+        return true;
+      }
+    } catch (_) {}
+
+    // No saved tower state: initialize tower meta and enter base floor.
+    const tr = ensureTowerMeta(ctx, info);
+    if (!tr) return false;
     return gotoTowerFloor(ctx, 1, "fromWorld");
   }
 
