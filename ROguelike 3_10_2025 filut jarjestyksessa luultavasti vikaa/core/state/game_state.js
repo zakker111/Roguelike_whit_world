@@ -102,6 +102,11 @@ export function syncFromCtxWithSink(ctx, sink) {
   try { if (typeof sink.setDungeonExitAt === "function" && typeof ctx.dungeonExitAt !== "undefined") sink.setDungeonExitAt(ctx.dungeonExitAt); } catch (_) {}
   try { if (typeof sink.setDungeonInfo === "function" && (typeof ctx.dungeon !== "undefined" || typeof ctx.dungeonInfo !== "undefined")) sink.setDungeonInfo(ctx.dungeon || ctx.dungeonInfo); } catch (_) {}
   try { if (typeof sink.setFloor === "function" && typeof ctx.floor === "number") sink.setFloor(ctx.floor | 0); } catch (_) {}
+  try {
+    if (typeof sink.setTowerRun === "function" && Object.prototype.hasOwnProperty.call(ctx, "towerRun")) {
+      sink.setTowerRun(ctx.towerRun);
+    }
+  } catch (_) {}
 }
 
 import { attachGlobal } from "../../utils/global.js";

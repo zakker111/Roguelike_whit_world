@@ -141,6 +141,9 @@ import {
   let dungeonExitAt = null;  // dungeon tile to return to overworld
   let cameFromWorld = false; // whether we entered dungeon from overworld
   let currentDungeon = null; // info for current dungeon entrance: { x,y, level, size }
+  // Multi-floor tower runtime state (managed by DungeonRuntime).
+  // Stored here so it survives across getCtx() calls.
+  let towerRun = null;
   // Persist dungeon states by overworld entrance coordinate "x,y"
   const dungeonStates = Object.create(null);
 
@@ -252,6 +255,7 @@ import {
       // dungeon info
       dungeon: currentDungeon,
       dungeonInfo: currentDungeon,
+      towerRun,
       // persistence (in-memory)
       _dungeonStates: dungeonStates,
       time: getClock(),
@@ -682,6 +686,7 @@ import {
       setDungeonExitAt: (v) => { if (typeof v !== "undefined") dungeonExitAt = v; },
       setDungeonInfo: (v) => { if (typeof v !== "undefined") currentDungeon = v; },
       setFloor: (v) => { if (typeof v === "number") floor = (v | 0); },
+      setTowerRun: (v) => { if (typeof v !== "undefined") towerRun = v; },
     });
   }
 

@@ -53,6 +53,7 @@ export function applyLocal(ctx, sink) {
   try { if (typeof sink.setDungeonExitAt === "function") sink.setDungeonExitAt(ctx.dungeonExitAt); } catch (_) {}
   try { if (typeof sink.setDungeonInfo === "function") sink.setDungeonInfo(ctx.dungeon || ctx.dungeonInfo); } catch (_) {}
   try { if (typeof sink.setFloor === "function" && typeof ctx.floor === "number") sink.setFloor(ctx.floor | 0); } catch (_) {}
+  try { if (typeof sink.setTowerRun === "function") sink.setTowerRun(ctx.towerRun); } catch (_) {}
 }
 
 export function applyAndRefresh(ctx, sink) {
