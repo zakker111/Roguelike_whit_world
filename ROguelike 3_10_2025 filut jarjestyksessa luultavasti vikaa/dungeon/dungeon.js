@@ -169,79 +169,85 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     player.y = start.y;
   }
 
-  // Place a landmark exit tile far from start (descending disabled in game logic)
-  let endRoomIndex = rooms.length - 1;
-  if (rooms.length > 1 && ctx.startRoomRect) {
-    const sc = center(ctx.startRoomRect);
-    const endC = center(rooms[endRoomIndex]);
-    if (inRect(endC.x, endC.y, ctx.startRoomRect)) {
-      let best = endRoomIndex;
-      let bestD = -1;
-      for (let k = 0; k < rooms.length; k++) {
-        const c = center(rooms[k]);
-        if (inRect(c.x, c.y, ctx.startRoomRect)) continue;
-        const d = Math.abs(c.x - sc.x) + Math.abs(c.y - sc.y);
-        if (d > bestD) { bestD = d; best = k; }
+  // Place dungeon exit / special stairs only for non-tower dungeons.
+  // Towers manage their own stairs (exit + up/down between floors) via
+  // DungeonRuntime and should not receive the generic landmark/mountain
+  // stairs from this generator.
+  if (!isTowerDungeon) {
+    // Place a landmark exit tile far from start (descending disabled in game logic)
+    let endRoomIndex = rooms.length - 1;
+    if (rooms.length > 1 && ctx.startRoomRect) {
+      const sc = center(ctx.startRoomRect);
+      const endC = center(rooms[endRoomIndex]);
+      if (inRect(endC.x, endC.y, ctx.startRoomRect)) {
+        let best = endRoomIndex;
+        let bestD = -1;
+        for (let k = 0; k < rooms.length; k++) {
+          const c = center(rooms[k]);
+          if (inRect(c.x, c.y, ctx.startRoomRect)) continue;
+          const d = Math.abs(c.x - sc.x) + Math.abs(c.y - sc.y);
+          if (d > bestD) { bestD = d; best = k; }
+        }
+        endRoomIndex = best;
       }
-      endRoomIndex = best;
     }
-  }
-  const end = center(rooms[endRoomIndex] || { x: rCols - 3, y: rRows - 3, w: 1, h: 1 });
-  const STAIRS = typeof TILES.STAIRS === "number" ? TILES.STAIRS : TILES.DOOR;
-  ctx.map[end.y][end.x] = STAIRS;
+    const end = center(rooms[endRoomIndex] || { x: rCols - 3, y: rRows - 3, w: 1, h: 1 });
+    const STAIRS = typeof TILES.STAIRS === "number" ? TILES.STAIRS : TILES.DOOR;
+    ctx.map[end.y][end.x] = STAIRS;
 
-  // If this dungeon entrance is in a mountain biome, place a second portal inside leading to a dungeon across the mountain.
-  try {
-    const W = (typeof window !== "undefined" ? window.World : null);
-    const world = ctx.world || null;
-    const WT = W ? W.TILES : null;
-    const gen = world && world.gen;
-    const dinfoAbs = ctx.dungeonInfo || ctx.dungeon || null;
+    // If this dungeon entrance is in a mountain biome, place a second portal inside leading to a dungeon across the mountain.
+    try {
+      const W = (typeof window !== "undefined" ? window.World : null);
+      const world = ctx.world || null;
+      const WT = W ? W.TILES : null;
+      const gen = world && world.gen;
+      const dinfoAbs = ctx.dungeonInfo || ctx.dungeon || null;
 
-    function isMountainAt(ax, ay) {
-      try { return gen && typeof gen.tileAt === "function" && WT && gen.tileAt(ax | 0, ay | 0) === WT.MOUNTAIN; } catch (_) { return false; }
-    }
-    function isMountainEntranceNear(abs) {
-      if (!abs) return false;
-      const x0 = abs.x | 0, y0 = abs.y | 0;
-      if (isMountainAt(x0, y0)) return true;
-      const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
-      for (const d of dirs) { if (isMountainAt(x0 + d.dx, y0 + d.dy)) return true; }
-      return false;
-    }
+      function isMountainAt(ax, ay) {
+        try { return gen && typeof gen.tileAt === "function" && WT && gen.tileAt(ax | 0, ay | 0) === WT.MOUNTAIN; } catch (_) { return false; }
+      }
+      function isMountainEntranceNear(abs) {
+        if (!abs) return false;
+        const x0 = abs.x | 0, y0 = abs.y | 0;
+        if (isMountainAt(x0, y0)) return true;
+        const dirs = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1},{dx:1,dy:1},{dx:1,dy:-1},{dx:-1,dy:1},{dx:-1,dy:-1}];
+        for (const d of dirs) { if (isMountainAt(x0 + d.dx, y0 + d.dy)) return true; }
+        return false;
+      }
 
-    const isMountainEntrance = isMountainEntranceNear(dinfoAbs);
-    if (isMountainEntrance) {
-      // Pick a different room from the end room (prefer mid/far) to place the mountain pass portal
-      let passRoomIdx = Math.max(1, Math.floor(rooms.length / 2));
-      if (passRoomIdx === endRoomIndex) passRoomIdx = Math.max(1, Math.min(rooms.length - 1, passRoomIdx - 1));
-      const passC = center(rooms[passRoomIdx] || rooms[rooms.length - 1] || { x: 2, y: 2, w: 1, h: 1 });
-      // Mark with STAIRS tile as well (distinct behavior handled by runtime)
-      ctx.map[passC.y][passC.x] = STAIRS;
-      // Record portal location for runtime to detect
-      ctx._mountainPassAt = { x: passC.x, y: passC.y };
-    }
-  } catch (_) {}
+      const isMountainEntrance = isMountainEntranceNear(dinfoAbs);
+      if (isMountainEntrance) {
+        // Pick a different room from the end room (prefer mid/far) to place the mountain pass portal
+        let passRoomIdx = Math.max(1, Math.floor(rooms.length / 2));
+        if (passRoomIdx === endRoomIndex) passRoomIdx = Math.max(1, Math.min(rooms.length - 1, passRoomIdx - 1));
+        const passC = center(rooms[passRoomIdx] || rooms[rooms.length - 1] || { x: 2, y: 2, w: 1, h: 1 });
+        // Mark with STAIRS tile as well (distinct behavior handled by runtime)
+        ctx.map[passC.y][passC.x] = STAIRS;
+        // Record portal location for runtime to detect
+        ctx._mountainPassAt = { x: passC.x, y: passC.y };
+      }
+    } catch (_) {}
 
-  // Safety net: ensure at least one stairs exists
-  let stairsCount = 0;
-  for (let yy = 1; yy < rRows - 1; yy++) {
-    for (let xx = 1; xx < rCols - 1; xx++) {
-      if (ctx.map[yy][xx] === STAIRS) stairsCount++;
-    }
-  }
-  if (stairsCount === 0) {
-    let best = null, bestD = -1;
+    // Safety net: ensure at least one stairs exists
+    let stairsCount = 0;
     for (let yy = 1; yy < rRows - 1; yy++) {
       for (let xx = 1; xx < rCols - 1; xx++) {
-        if (ctx.map[yy][xx] !== TILES.FLOOR) continue;
-        if (ctx.startRoomRect && inRect(xx, yy, ctx.startRoomRect)) continue;
-        const d = Math.abs(xx - ctx.player.x) + Math.abs(yy - ctx.player.y);
-        if (d > bestD) { bestD = d; best = { x: xx, y: yy }; }
+        if (ctx.map[yy][xx] === STAIRS) stairsCount++;
       }
     }
-    if (!best) best = { x: Math.max(1, rCols - 2), y: Math.max(1, rRows - 2) };
-    ctx.map[best.y][best.x] = STAIRS;
+    if (stairsCount === 0) {
+      let best = null, bestD = -1;
+      for (let yy = 1; yy < rRows - 1; yy++) {
+        for (let xx = 1; xx < rCols - 1; xx++) {
+          if (ctx.map[yy][xx] !== TILES.FLOOR) continue;
+          if (ctx.startRoomRect && inRect(xx, yy, ctx.startRoomRect)) continue;
+          const d = Math.abs(xx - ctx.player.x) + Math.abs(yy - ctx.player.y);
+          if (d > bestD) { bestD = d; best = { x: xx, y: yy }; }
+        }
+      }
+      if (!best) best = { x: Math.max(1, rCols - 2), y: Math.max(1, rRows - 2) };
+      ctx.map[best.y][best.x] = STAIRS;
+    }
   }
 
   // Enemies scale with dungeon difficulty and size
