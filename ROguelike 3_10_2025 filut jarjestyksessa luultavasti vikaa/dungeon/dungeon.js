@@ -254,10 +254,11 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
   const sizeMult = sizeStr === "small" ? 0.8 : sizeStr === "large" ? 1.35 : 1.1;
   const baseEnemies = 8 + Math.floor(depth * 4);
   let enemyCount = Math.max(6, Math.floor(baseEnemies * sizeMult));
-  // Towers: slightly lower baseline density so each floor feels distinct but
-  // not overcrowded with bandits.
+  // Towers: lower baseline density so bandit floors feel tense but not
+  // overcrowded. We also want fewer enemies on the first floor and a bit
+  // more on higher floors via depth, so this acts as a global dampener.
   if (isTowerDungeon) {
-    enemyCount = Math.max(4, Math.floor(enemyCount * 0.75));
+    enemyCount = Math.max(3, Math.floor(enemyCount * 0.6));
   }
 
   // Enemy factory: allow towers to bias toward bandit-style enemies while
@@ -367,9 +368,13 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
     }
   }
 
-  // Extra packs: a portion of rooms get 1–2 additional enemies spawned inside
+  // Extra packs: a portion of rooms get 1–2 additional enemies spawned inside.
+  // Towers get fewer packs so they don't feel overcrowded with bandits.
   (function spawnExtraPacks() {
-    const packs = Math.max(1, Math.floor(rooms.length * 0.3));
+    let packs = Math.max(1, Math.floor(rooms.length * 0.3));
+    if (isTowerDungeon) {
+      packs = Math.max(1, Math.floor(packs * 0.6));
+    }
     function randomInRoom(r) {
       const x = ri(r.x, r.x + r.w - 1);
       const y = ri(r.y, r.y + r.h - 1);
@@ -381,7 +386,7 @@ if (DI && typeof DI.placeChestInStartRoom === "function") {
       const r = rooms[idx];
       // Skip start room
       if (ctx.startRoomRect && r === ctx.startRoomRect) continue;
-      const add = 1 + (drng() < 0.6 ? 1 : 0); // 1–2 extras
+      const add = isTowerDungeon ? 1 : (1 + (drng() < 0.6 ? 1 : 0)); // towers: only 1 extra per pack
       for (let k = 0; k < add; k++) {
         const p = randomInRoom(r);
         if (ctx.map[p.y][p.x] !== TILES.FLOOR) continue;
