@@ -410,9 +410,8 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
 }
 
 function handleTowerStairsOrExit(ctx) {
-  // Only handle towers here; non-tower dungeons should use the legacy
-  // transitions helper directly.
-  if (!ctx || !ctx.towerRun || !isTowerInfo(ctx.dungeonInfo || ctx.dungeon)) {
+  // Only handle towers here; presence of ctx.towerRun is our signal.
+  if (!ctx || !ctx.towerRun) {
     return false;
   }
   const tr = ctx.towerRun;
@@ -465,7 +464,7 @@ function handleTowerStairsOrExit(ctx) {
 
 export function returnToWorldIfAtExit(ctx) {
   try {
-    if (ctx && isTowerInfo(ctx.dungeonInfo || ctx.dungeon) && ctx.towerRun) {
+    if (ctx && ctx.towerRun) {
       // For towers, rely solely on our custom handler; never fall back to
       // legacy behavior from here or internal stairs will incorrectly exit
       // to the overworld.

@@ -317,7 +317,9 @@ export function doAction(ctx) {
   }
 
   if (ctx.mode === "dungeon") {
-    const isTowerDungeon = !!(ctx.dungeonInfo && typeof ctx.dungeonInfo.kind === "string" && String(ctx.dungeonInfo.kind).toLowerCase() === "tower");
+    const isTowerDungeon =
+      !!(ctx.towerRun && ctx.towerRun.kind === "tower") ||
+      !!(ctx.dungeonInfo && typeof ctx.dungeonInfo.kind === "string" && String(ctx.dungeonInfo.kind).toLowerCase() === "tower");
 
     if (isTowerDungeon) {
       // In towers, let DungeonRuntime decide whether stairs mean floor
