@@ -92,6 +92,30 @@ export function save(ctx) {
   if (ctx.mode !== "dungeon" || !ctx.dungeonInfo || !ctx.dungeonExitAt) return;
   const k = key(ctx.dungeonInfo.x, ctx.dungeonInfo.y);
   if (!ctx._dungeonStates) ctx._dungeonStates = Object.create(null);
+
+  // Towers: before taking a snapshot, ensure the current floor meta inside
+  // towerRun points at the latest ctx arrays so enemies/corpses/loot on that
+  // floor are saved correctly.
+  try {
+    if (ctx.towerRun && ctx.towerRun.kind === "tower") {
+      const tr = ctx.towerRun;
+      const floorIndex = tr.currentFloor && tr.currentFloor >= 1 ? tr.currentFloor : 1;
+      const floors = tr.floors || {};
+      const meta = floors[floorIndex] || null;
+      if (meta) {
+        meta.map = ctx.map;
+        meta.seen = ctx.seen;
+        meta.visible = ctx.visible;
+        meta.enemies = ctx.enemies;
+        meta.corpses = ctx.corpses;
+        meta.decals = ctx.decals;
+        if (Array.isArray(ctx.dungeonProps)) {
+          meta.dungeonProps = ctx.dungeonProps;
+        }
+      }
+    }
+  } catch (_) {}
+
   const snapshot = {
     map: ctx.map,
     seen: ctx.seen,
