@@ -504,9 +504,9 @@ function defaultEnemyFactory(x, y, depth, rng) {
   return null;
 }
 
-// Tower-themed enemy factory: prefers bandits and related humanoids so
-// tower floors feel coherent. Falls back to the global registry if
-// anything is missing.
+// Tower-themed enemy factory: prefers bandit enemies so tower floors
+// feel like dedicated bandit strongholds. Falls back to the global
+// registry if anything is missing.
 function towerEnemyFactory(ctx, x, y, depth, rng) {
   try {
     const EM = (typeof window !== "undefined" ? window.Enemies : null);
@@ -514,11 +514,11 @@ function towerEnemyFactory(ctx, x, y, depth, rng) {
 
     // Candidate types and simple weights; only those actually present
     // in the registry are used.
-    // Bandit towers: use only bandit-flavored enemies so these towers
-    // feel like bandit strongholds, not generic caves.
     const rawPool = [
-      { key: "bandit",        w: 5 },  // common grunt
-      { key: "bandit_guard",];
+      { key: "bandit",        w: 5 }, // common grunt
+      { key: "bandit_guard",  w: 3 }, // tougher guard-type bandit
+      { key: "bandit_elite",  w: 1 }, // rare elite
+    ];
     const pool = [];
     for (const entry of rawPool) {
       const def = EM.getTypeDef(entry.key);
