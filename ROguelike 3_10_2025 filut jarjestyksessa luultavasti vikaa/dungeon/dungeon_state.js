@@ -185,9 +185,8 @@ function applyState(ctx, st, x, y) {
 
   // Towers: if a multi-floor towerRun is present, prefer its current floor
   // snapshot over the flat map/enemy arrays above so towers behave like
-  // persistent multi-floor dungeons. However, if the per-floor meta lacks
-  // enemies/corpses (e.g., older saves), fall back to the top-level arrays
-  // so we never \"lose\" chests or enemies on re-entry.
+  // persistent multi-floor dungeons. Only fall back to the flat snapshot
+  // when the per-floor meta is missing or malformed.
   try {
     if (st.towerRun && st.towerRun.kind === "tower") {
       ctx.towerRun = st.towerRun;
@@ -196,18 +195,21 @@ function applyState(ctx, st, x, y) {
       const floors = tr.floors || {};
       const meta = floors[floorIndex] || floors[1] || null;
       if (meta && meta.map) {
-        // Base map/visibility always come from meta for towers
+        // Base map/visibility and per-floor entities/props come from meta for towers.
         ctx.map = meta.map;
         ctx.seen = meta.seen || ctx.seen;
         ctx.visible = meta.visible || ctx.visible;
 
-        const metaEnemies = Array.isArray(meta.enemies) ? meta.enemies : null;
-        const metaCorpses = Array.isArray(meta.corpses) ? meta.corpses : null;
-        const metaDecals = Array.isArray(meta.decals) ? meta.decals : null;
-        const metaProps = Array.isArray(meta.dungeonProps) ? meta.dungeonProps : null;
-
-        // If meta arrays are missing or empty, fall back to the flat snapshot
-        // so we still restore chests/enemies stored ator meta found; clear towerRun to avoid inconsistent state
+        if (Array.isArray(meta.enemies)) ctx.enemies = meta.enemies;
+        if (Array.isArray(meta.corpses)) ctx.corpses = meta.corpses;
+        if (Array.isArray(meta.decals)) ctx.decals = meta.decals;
+        if (Array.isArray(meta.dungeonProps)) ctx.dungeonProps = meta.dungeonProps;
+        if (typeof meta.floorLevel === "number") {
+          ctx.floor = meta.floorLevel;
+        }
+      } else {
+        // Meta missing or malformed: keep the flat snapshot arrays but drop
+        // towerRun to avoid half-restored towers.
         ctx.towerRun = null;
       }
     }
