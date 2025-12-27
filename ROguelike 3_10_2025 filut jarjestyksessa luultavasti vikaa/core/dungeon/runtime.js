@@ -410,14 +410,17 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
 }
 
 function handleTowerStairsOrExit(ctx) {
+  // Only handle towers here; non-tower dungeons should use the legacy
+  // transitions helper directly.
   if (!ctx || !ctx.towerRun || !isTowerInfo(ctx.dungeonInfo || ctx.dungeon)) {
-    return returnToWorldIfAtExitExt(ctx);
+    return false;
   }
   const tr = ctx.towerRun;
   const f = tr.currentFloor || 1;
   const meta = tr.floors && tr.floors[f];
   if (!meta) {
-    return returnToWorldIfAtExitExt(ctx);
+    try { ctx.log && ctx.log("Tower: no floor metadata; cannot use stairs.", "warn"); } catch (_) {}
+    return false;
   }
 
   const px = ctx.player.x | 0;
@@ -426,13 +429,17 @@ function handleTowerStairsOrExit(ctx) {
   const onUp = !!(meta.stairsUpPos && px === meta.stairsUpPos.x && py === meta.stairsUpPos.y);
   const onDown = !!(meta.stairsDownPos && px === meta.stairsDownPos.x && py === meta.stairsDownPos.y);
 
-  // If not on any known tower stairs, fall back to regular behavior.
+  // If not on any known tower stairs, do nothing; let caller fall back to
+  // other dungeon behavior (loot/guidance) but never trigger a world exit
+  // from here.
   if (!onExit && !onUp && !onDown) {
-    return returnToWorldIfAtExitExt(ctx);
+    try { ctx.log && ctx.log("Tower: this staircase is not wired for floor travel.", "info"); } catch (_) {}
+    return false;
   }
 
   // Base floor exit back to overworld.
   if (onExit && f === 1) {
+    try { ctx.log && ctx.log("You descend back to the overworld from the tower base.", "info"); } catch (_) {}
     const ok = returnToWorldIfAtExitExt(ctx);
     if (ok) {
       try { ctx.towerRun = null; } catch (_) {}
@@ -442,9 +449,11 @@ function handleTowerStairsOrExit(ctx) {
 
   // Internal stairs: move within the tower.
   if (onUp && f < tr.totalFloors) {
+    try { ctx.log && ctx.log(`You climb to tower floor ${f + 1}/${tr.totalFloors}.`, "info"); } catch (_) {}
     return gotoTowerFloor(ctx, f + 1, "up");
   }
   if (onDown && f > 1) {
+    try { ctx.log && ctx.log(`You descend to tower floor ${f - 1}/${tr.totalFloors}.`, "info"); } catch (_) {}
     return gotoTowerFloor(ctx, f - 1, "down");
   }
 
@@ -457,9 +466,13 @@ function handleTowerStairsOrExit(ctx) {
 export function returnToWorldIfAtExit(ctx) {
   try {
     if (ctx && isTowerInfo(ctx.dungeonInfo || ctx.dungeon) && ctx.towerRun) {
+      // For towers, rely solely on our custom handler; never fall back to
+      // legacy behavior from here or internal stairs will incorrectly exit
+      // to the overworld.
       return handleTowerStairsOrExit(ctx);
     }
   } catch (_) {}
+  // Non-tower dungeons: use the legacy helper.
   return returnToWorldIfAtExitExt(ctx);
 }
 
