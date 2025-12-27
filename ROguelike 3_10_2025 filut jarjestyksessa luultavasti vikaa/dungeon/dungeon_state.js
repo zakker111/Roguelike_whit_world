@@ -127,7 +127,6 @@ export function save(ctx) {
     if (window.DEV && ctx.log) ctx.log(msg, "notice");
     try { if (typeof window !== "undefined" && window.Logger && typeof window.Logger.log === "function") window.Logger.log(msg, "notice", { category: "DungeonState" }); } catch (_) {}
   } catch (_) {}
-} catch (_) {}
 }
 
 function loadFromMemory(ctx, k) {
