@@ -21,6 +21,7 @@ import { tick as tickExt } from "./tick.js";
 import { returnToWorldIfAtExit as returnToWorldIfAtExitExt, computeAcrossMountainTarget as computeAcrossMountainTargetExt } from "./transitions.js";
 import { enter as enterExt } from "./enter.js";
 import { killEnemy as killEnemyExt } from "./kill_enemy.js";
+import { stampTowerRoomsForFloor, towerPrefabsAvailable } from "./tower_prefabs.js";
 
 export function keyFromWorldPos(x, y) {
   return keyFromWorldPosExt(x, y);
@@ -265,6 +266,147 @@ function spawnTowerBossOnFloor(ctx, meta) {
   } catch (_) {}
 }
 
+// Spawn tower chests on a given floor using JSON-defined chest spots when
+// available; falls back to heuristic placement. Top floor always gets a
+// high-tier "boss" chest near the Bandit Captain when possible.
+function spawnTowerChestsOnFloor(ctx, meta, floorIndex, totalFloors) {
+  try {
+    const DI = ctx && (ctx.DungeonItems || (typeof window !== "undefined" ? window.DungeonItems : null));
+    if (!DI || typeof DI.spawnChest !== "function") return;
+
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    if (!rows || !cols) return;
+
+    const T = ctx.TILES;
+    const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+    const rng = (RU && typeof RU.getRng === "function")
+      ? RU.getRng((typeof ctx.rng === "function") ? ctx.rng : undefined)
+      : ((typeof ctx.rng === "function") ? ctx.rng : () => 0.5);
+
+    const f = Math.max(1, floorIndex | 0);
+    const total = Math.max(1, totalFloors | 0);
+    const isTop = f === total;
+
+    const chestSpots = Array.isArray(meta.chestSpots) ? meta.chestSpots.slice() : [];
+
+    const isInBounds = (x, y) =>
+      y >= 0 && x >= 0 && y < rows && x < cols;
+
+    const isBlockedForChest = (x, y) => {
+      if (!isInBounds(x, y)) return true;
+      const tile = ctx.map[y][x];
+      if (tile !== T.FLOOR) return true;
+      if (meta.exitToWorldPos && meta.exitToWorldPos.x === x && meta.exitToWorldPos.y === y) return true;
+      if (meta.stairsUpPos && meta.stairsUpPos.x === x && meta.stairsUpPos.y === y) return true;
+      if (meta.stairsDownPos && meta.stairsDownPos.x === x && meta.stairsDownPos.y === y) return true;
+      if (ctx.player && ctx.player.x === x && ctx.player.y === y) return true;
+      if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y)) return true;
+      if (Array.isArray(ctx.corpses) && ctx.corpses.some(c => c && c.x === x && c.y === y)) return true;
+      return false;
+    };
+
+    const manhattan = (ax, ay, bx, by) => Math.abs(ax - bx) + Math.abs(ay - by);
+
+    const findFallbackChestTile = () => {
+      const blacklist = [];
+      if (meta.exitToWorldPos) blacklist.push(meta.exitToWorldPos);
+      if (meta.stairsUpPos) blacklist.push(meta.stairsUpPos);
+      if (meta.stairsDownPos) blacklist.push(meta.stairsDownPos);
+      const seedX = (ctx.player && typeof ctx.player.x === "number") ? (ctx.player.x | 0) : 0;
+      const seedY = (ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
+      const far = pickFarFloorFrom(ctx, seedX, seedY, blacklist);
+      if (far && !isBlockedForChest(far.x, far.y)) return far;
+      // Fallback: first free floor tile we can find
+      for (let y = 1; y < rows - 1; y++) {
+        for (let x = 1; x < cols - 1; x++) {
+          if (!isBlockedForChest(x, y)) return { x, y };
+        }
+      }
+      return null;
+    };
+
+    if (isTop) {
+      // Always try to spawn a boss chest on the top floor.
+      const boss = Array.isArray(ctx.enemies)
+        ? ctx.enemies.find(e => e && String(e.type || "").toLowerCase() === "bandit_captain")
+        : null;
+
+      let bestSpot = null;
+      if (chestSpots.length) {
+        let bestD = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < chestSpots.length; i++) {
+          const s = chestSpots[i];
+          const x = s.x | 0;
+          const y = s.y | 0;
+          if (isBlockedForChest(x, y)) continue;
+          let d = 0;
+          if (boss) d = manhattan(x, y, boss.x | 0, boss.y | 0);
+          else if (meta.stairsDownPos) d = manhattan(x, y, meta.stairsDownPos.x, meta.stairsDownPos.y);
+          else d = 0;
+          if (d < bestD) {
+            bestD = d;
+            bestSpot = { x, y };
+          }
+        }
+      }
+      if (!bestSpot) {
+        bestSpot = findFallbackChestTile();
+      }
+      if (bestSpot) {
+        DI.spawnChest(ctx, {
+          where: { x: bestSpot.x, y: bestSpot.y },
+          tier: 3,
+          decayAll: 99,
+          loot: ["anyEquipment", "anyEquipment", "potion"],
+          announce: true
+        });
+      }
+      return;
+    }
+
+    // Lower floors: small chance of 0–1 smaller chests.
+    if (!chestSpots.length) {
+      // No JSON-defined chest spots; keep lower floors simple for now.
+      return;
+    }
+    const roll = rng();
+    const baseChance = 0.4;
+    const floorBias = 0.1 * (f - 1);
+    if (roll >= baseChance + floorBias) return;
+
+    // Pick a random chest spot that is still valid.
+    const shuffled = chestSpots.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      const tmp = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = tmp;
+    }
+    let picked = null;
+    for (let i = 0; i < shuffled.length; i++) {
+      const s = shuffled[i];
+      const x = s.x | 0;
+      const y = s.y | 0;
+      if (!isBlockedForChest(x, y)) {
+        picked = { x, y };
+        break;
+      }
+    }
+    if (!picked) {
+      picked = findFallbackChestTile();
+    }
+    if (!picked) return;
+
+    const tier = (f >= total - 1) ? 3 : 2;
+    DI.spawnChest(ctx, {
+      where: { x: picked.x, y: picked.y },
+      tier,
+      decayAll: 99,
+      loot: ["anyEquipment", "potion"],
+      announce: false
+    });
+  } catch (_) {}
+}
+
 function gotoTowerFloor(ctx, floorIndex, direction) {
   if (!ctx || !ctx.towerRun) return false;
   const tr = ctx.towerRun;
@@ -300,6 +442,7 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
       exitToWorldPos: null,
       stairsUpPos: null,
       stairsDownPos: null,
+      chestSpots: [],
     };
 
     // Base floor: designate entrance tile as exit-to-world stairs.
@@ -345,10 +488,22 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
       }
     }
 
+    // JSON-driven tower room prefabs: stamp rooms and collect props/chest spots.
+    try {
+      if (towerPrefabsAvailable(ctx)) {
+        stampTowerRoomsForFloor(ctx, meta, f, total);
+      }
+    } catch (_) {}
+
     // On the final floor of the tower, spawn a dedicated boss enemy.
     if (f === total) {
       spawnTowerBossOnFloor(ctx, meta);
     }
+
+    // Spawn tower chests using JSON chest spots when available.
+    try {
+      spawnTowerChestsOnFloor(ctx, meta, f, total);
+    } catch (_) {}
 
     tr.floors[f] = meta;
   } else {

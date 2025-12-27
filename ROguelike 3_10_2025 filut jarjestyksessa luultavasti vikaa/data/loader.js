@@ -50,8 +50,11 @@ const DATA_FILES = {
   combatBalance: "data/balance/combat.json",
   animals: "data/entities/animals.json",
   
-  // New: prefab registry for town buildings (houses/shops/inns)
+  // New: prefab registries
+  // - prefabs: town buildings (houses/shops/inns/plazas)
+  // - towerPrefabs: tower interior rooms (barracks/storage/boss arenas)
   prefabs: "data/worldgen/prefabs.json",
+  towerPrefabs: "data/dungeon/tower_prefabs.json",
 
   // Overworld generation config (densities, size weights, etc.)
   overworldGen: "data/worldgen/overworld.json",
@@ -243,7 +246,7 @@ GameData.ready = (async function loadAll() {
       materials, craftingRecipes, materialPools, foragingPools,
       town, flavor, encounters, quests, config, palette, palettesManifest, messages,
       shopPhases, shopPools, shopRules, shopRestock, progression, combatBalance, animals, prefabs,
-      overworldGen, weatherConfig
+      overworldGen, weatherConfig, towerPrefabs
     ] = await Promise.all([
       fetchJson(DATA_FILES.assetsCombined).catch(() => null),
       fetchJson(DATA_FILES.items).catch(() => null),
@@ -275,7 +278,8 @@ GameData.ready = (async function loadAll() {
       
       fetchJson(DATA_FILES.prefabs).catch(() => null),
       fetchJson(DATA_FILES.overworldGen).catch(() => null),
-      fetchJson(DATA_FILES.weatherConfig).catch(() => null)
+      fetchJson(DATA_FILES.weatherConfig).catch(() => null),
+      fetchJson(DATA_FILES.towerPrefabs).catch(() => null)
     ]);
 
     GameData.items = Array.isArray(items) ? items : null;
@@ -316,9 +320,10 @@ GameData.ready = (async function loadAll() {
     GameData.combat = (combatBalance && typeof combatBalance === "object") ? combatBalance : null;
     GameData.animals = Array.isArray(animals) ? animals : null;
     
-
     // Prefabs registry grouped by category
     GameData.prefabs = (prefabs && typeof prefabs === "object") ? prefabs : null;
+    // Tower interior room prefabs (dungeon rooms for towers)
+    GameData.towerPrefabs = (towerPrefabs && typeof towerPrefabs === "object") ? towerPrefabs : null;
 
     // Overworld generation config
     GameData.worldgenOverworld = (overworldGen && typeof overworldGen === "object") ? overworldGen : null;

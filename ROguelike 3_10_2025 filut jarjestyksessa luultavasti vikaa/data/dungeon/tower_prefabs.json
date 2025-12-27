@@ -1,0 +1,65 @@
+{
+  "jcdocs": {
+    "title": "Tower room prefabs",
+    "schemaVersion": 1,
+    "tiles": ["WALL", "FLOOR", "DOOR", "STAIRS"],
+    "embeddedPropCodes": [
+      "CHEST", "CRATE", "BARREL", "CAMPFIRE", "CAPTIVE",
+      "BED", "TABLE", "CHAIR", "RUG"
+    ],
+    "usage": [
+      "Tiles use dungeon keys (WALL/FLOOR/DOOR/STAIRS).",
+      "EmbeddedPropCodes inside tiles become dungeon props or chest spawn points.",
+      "CHEST marks a logical chest spot; loot and chest entity are created by DungeonItems.",
+      "Other codes (CRATE/BARREL/CAMPFIRE/CAPTIVE/BED/TABLE/CHAIR/RUG) become props in ctx.dungeonProps.",
+      "Rooms are stamped into existing tower floors; stamping avoids stairs/entrance tiles."
+    ]
+  },
+  "rooms": [
+    {
+      "id": "tower_barracks_small",
+      "name": "Tower Barracks (Small)",
+      "category": "tower_room",
+      "tags": ["barracks", "bandits"],
+      "size": { "w": 9, "h": 6 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","BED","FLOOR","BED","FLOOR","BED","FLOOR","BED","WALL"],
+        ["WALL","CRATE","FLOOR","FLOOR","TABLE","FLOOR","FLOOR","BARREL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","DOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ]
+    },
+    {
+      "id": "tower_storage_small",
+      "name": "Tower Storage (Small)",
+      "category": "tower_room",
+      "tags": ["storage", "bandits"],
+      "size": { "w": 7, "h": 5 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","CRATE","BARREL","CRATE","FLOOR","BARREL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","BARREL","CRATE","FLOOR","CRATE","BARREL","WALL"],
+        ["WALL","WALL","WALL","DOOR","WALL","WALL","WALL"]
+      ]
+    },
+    {
+      "id": "tower_boss_arena",
+      "name": "Tower Boss Arena",
+      "category": "tower_room",
+      "tags": ["boss", "arena", "bandits"],
+      "size": { "w": 11, "h": 7 },
+      "tiles": [
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","CRATE","FLOOR","FLOOR","FLOOR","CAMPFIRE","FLOOR","FLOOR","FLOOR","BARREL","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","CHEST","FLOOR","FLOOR","FLOOR","CAPTIVE","FLOOR","WALL"],
+        ["WALL","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","FLOOR","DOOR","WALL"],
+        ["WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL","WALL"]
+      ]
+    }
+  ]
+}

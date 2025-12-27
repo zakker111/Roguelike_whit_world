@@ -1,6 +1,35 @@
 # Game Version History
 Last updated: 2025-12-19 13:00 UTC
 
+v1.58.0 — Tower Phase 2: JSON-driven rooms, props, and rewards
+- Added: Tower interior room prefabs in JSON.
+  - data/dungeon/tower_prefabs.json:
+    - Defines small tower barracks and storage rooms plus a boss arena layout.
+    - Uses embedded codes (CHEST/CRATE/BARREL/CAMPFIRE/CAPTIVE/BED/TABLE/CHAIR/RUG) to place props and chest spawn points in tower floors.
+- Added: Tower prefab stamper for dungeon mode.
+  - core/dungeon/tower_prefabs.js:
+    - towerPrefabsAvailable(ctx): reports whether tower room prefabs are loaded.
+    - stampTowerRoom(ctx, prefab, bx, by, meta): stamps a single prefab into ctx.map and fills meta.dungeonProps and meta.chestSpots.
+    - stampTowerRoomsForFloor(ctx, meta, floorIndex, totalFloors): picks and stamps a barracks/storage room on lower floors and a boss arena on the top floor when space allows.
+- Changed: Tower floor generation wires in JSON-driven rooms, chests, and props.
+  - core/dungeon/runtime.js:
+    - gotoTowerFloor(ctx, floorIndex, direction):
+      - After base floor/inner stairs placement, calls stampTowerRoomsForFloor(ctx, meta, f, total) when tower prefabs are available, enriching tower floors with crates, barrels, campfires, captives, and JSON-defined chest spots.
+      - On the top floor, still spawns a Bandit Captain via spawnTowerBossOnFloor(ctx, meta).
+      - Calls new spawnTowerChestsOnFloor(ctx, meta, f, total) so:
+        - The top floor always gets a high-tier “boss” chest, preferring JSON chest spots near the Bandit Captain when possible.
+        - Lower floors occasionally get smaller chests at JSON chest spots based on floor index and RNG.
+    - meta now carries chestSpots alongside dungeonProps for tower floors; these are persisted via towerRun and DungeonState.
+- Added: Dungeon prop definitions for campfire and captive.
+  - data/world/world_assets.json:
+    - New props:
+      - campfire (CAMPFIRE): walkable, emits light in dungeons, rendered as a glowing fire glyph.
+      - captive (CAPTIVE): walkable “npc” decor prop for tower boss rooms.
+    - drawDungeonProps already uses GameData.props so tower campfires/captives render automatically when stamped as dungeonProps.
+- Effect: Towers now feel more lived-in and rewarding:
+  - Lower floors can contain JSON-authored barracks/storage rooms sprinkled with crates and barrels.
+  - The top floor gains a boss arena with a Bandit Captain, decorative props, and a guaranteed high-tier chest, all driven primarily from JSON layout data.
+
 v1.57.0 — Logging refinements and status effect visibility
 - Changed: Combat status effect messages are now visible at the default info log level.
   - combat/status_effects.js:

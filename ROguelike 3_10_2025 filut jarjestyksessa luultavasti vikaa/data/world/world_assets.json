@@ -537,6 +537,33 @@
         "variants": [
           { "message": "A wall-mounted torch crackles softly.", "style": "info" }
         ]
+      },
+      {
+        "id": "campfire",
+        "key": "CAMPFIRE",
+        "name": "Campfire",
+        "glyph": "♨",
+        "colors": { "fg": "#ff6d00" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": true },
+        "appearsIn": ["dungeon"],
+        "tags": ["decor", "light"],
+        "light": { "castRadius": 3, "glowTiles": 1.8, "color": "#ff6d00" },
+        "variants": [
+          { "message": "A small campfire crackles and glows.", "style": "info" }
+        ]
+      },
+      {
+        "id": "captive",
+        "key": "CAPTIVE",
+        "name": "Captive",
+        "glyph": "☺",
+        "colors": { "fg": "#eab308" },
+        "properties": { "walkable": true, "blocksFOV": false, "emitsLight": false },
+        "appearsIn": ["dungeon"],
+        "tags": ["decor", "npc"],
+        "variants": [
+          { "message": "A weary captive looks at you hopefully.", "style": "info" }
+        ]
       }
     ]
   }
