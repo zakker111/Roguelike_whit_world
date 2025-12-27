@@ -7,6 +7,7 @@
  * - spawnEnemyNearby(getCtx, count)
  * - setAlwaysCrit(getCtx, enabled)
  * - setCritPart(getCtx, part)
+ * - toggleInvincible(getCtx, enabled)
  * - applySeed(getCtx, seedUint32)
  * - rerollSeed(getCtx)
  * - applyBleedToPlayer(getCtx, durationTurns)
@@ -55,6 +56,13 @@ export function setCritPart(getCtx, part) {
   const G = (ctx.God || (typeof window !== "undefined" ? window.God : null));
   if (G && typeof G.setCritPart === "function") return G.setCritPart(ctx, part);
   ctx.log("GOD: setCritPart not available.", "warn");
+}
+
+export function toggleInvincible(getCtx, enabled) {
+  const ctx = getCtx();
+  const G = (ctx.God || (typeof window !== "undefined" ? window.God : null));
+  if (G && typeof G.toggleInvincible === "function") return G.toggleInvincible(ctx, !!enabled);
+  ctx.log("GOD: toggleInvincible not available.", "warn");
 }
 
 export function applySeed(getCtx, seedUint32) {

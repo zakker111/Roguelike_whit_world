@@ -300,6 +300,16 @@ import {
       decayEquipped,
       rerenderInventoryIfOpen,
       onPlayerDied: () => {
+        // GOD invincibility: player can still take damage as usual but
+        // immediately heals back and cannot die while enabled.
+        try {
+          if (typeof window !== "undefined" && window.GOD_INVINCIBLE) {
+            player.hp = player.maxHp;
+            updateUI();
+            log("GOD: Invincible — damage ignored.", "notice");
+            return;
+          }
+        } catch (_) {}
         isDead = true;
         updateUI();
         log("You die. Press R or Enter to restart.", "info");

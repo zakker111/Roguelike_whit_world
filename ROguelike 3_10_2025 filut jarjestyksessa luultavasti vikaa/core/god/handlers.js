@@ -72,6 +72,11 @@ export function install(getCtx) {
       if (G && typeof G.setAlwaysCrit === "function") { G.setAlwaysCrit(getCtx(), !!enabled); return; }
       const c = getCtx(); c.log("GOD: setAlwaysCrit not available.", "warn");
     },
+    onGodToggleInvincible: (enabled) => {
+      if (GC && typeof GC.toggleInvincible === "function") { GC.toggleInvincible(() => getCtx(), !!enabled); return; }
+      if (G && typeof G.toggleInvincible === "function") { G.toggleInvincible(getCtx(), !!enabled); return; }
+      const c = getCtx(); c.log("GOD: toggleInvincible not available.", "warn");
+    },
     onGodSetCritPart: (part) => {
       if (GC && typeof GC.setCritPart === "function") { GC.setCritPart(() => getCtx(), part); return; }
       if (G && typeof G.setCritPart === "function") { G.setCritPart(getCtx(), part); return; }

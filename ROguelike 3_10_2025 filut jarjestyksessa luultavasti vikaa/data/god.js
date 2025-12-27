@@ -12,6 +12,7 @@
  *   rerollSeed(ctx)
  *   clearGameStorage(ctx)
  *   teleportToNearestTower(ctx)
+ *   toggleInvincible(ctx, enabled)
  */
 import { attachGlobal } from "../utils/global.js";
 import { getMod } from "../utils/access.js";
@@ -252,6 +253,26 @@ export function setAlwaysCrit(ctx, enabled) {
   ctx.log(`GOD: Always Crit ${ctx.alwaysCrit ? "enabled" : "disabled"}.`, ctx.alwaysCrit ? "good" : "warn");
 }
 
+/**
+ * Toggle GOD invincibility: when enabled, the player still takes damage
+ * as usual but immediately heals back to max HP after each hit and
+ * cannot die.
+ */
+export function toggleInvincible(ctx, enabled) {
+  const on = !!enabled;
+  ctx.godInvincible = on;
+  try {
+    if (typeof window !== "undefined") {
+      window.GOD_INVINCIBLE = on;
+    }
+    if (typeof localStorage !== "undefined") {
+      if (on) localStorage.setItem("GOD_INVINCIBLE", "1");
+      else localStorage.removeItem("GOD_INVINCIBLE");
+    }
+  } catch (_) {}
+  ctx.log(`GOD: Invincibility ${on ? "enabled" : "disabled"}.`, on ? "good" : "warn");
+}
+
 export function setCritPart(ctx, part) {
   const valid = new Set(["torso","head","hands","legs",""]);
   const p = valid.has(part) ? part : "";
@@ -430,7 +451,6 @@ export function teleportToNearestTower(ctx) {
       console.error(e);
     } catch (_) {}
   }
-}
-
+}>
 // Back-compat: attach to window via helper
 attachGlobal("God", { heal, spawnStairsHere, spawnItems, spawnEnemyNearby, setAlwaysCrit, setCritPart, applySeed, rerollSeed, clearGameStorage, teleportToNearestTower });
