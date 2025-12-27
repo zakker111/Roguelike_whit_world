@@ -451,6 +451,19 @@ export function teleportToNearestTower(ctx) {
       console.error(e);
     } catch (_) {}
   }
-}>
+}
+
 // Back-compat: attach to window via helper
-attachGlobal("God", { heal, spawnStairsHere, spawnItems, spawnEnemyNearby, setAlwaysCrit, setCritPart, applySeed, rerollSeed, clearGameStorage, teleportToNearestTower });
+attachGlobal("God", {
+  heal,
+  spawnStairsHere,
+  spawnItems,
+  spawnEnemyNearby,
+  setAlwaysCrit,
+  toggleInvincible,
+  setCritPart,
+  applySeed,
+  rerollSeed,
+  clearGameStorage,
+  teleportToNearestTower,
+});
