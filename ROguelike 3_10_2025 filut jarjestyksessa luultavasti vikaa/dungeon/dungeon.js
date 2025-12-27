@@ -514,12 +514,11 @@ function towerEnemyFactory(ctx, x, y, depth, rng) {
 
     // Candidate types and simple weights; only those actually present
     // in the registry are used.
+    // Towers are guarded primarily by town/castle Guards and their elite
+    // counterparts to distinguish them from generic caves.
     const rawPool = [
-      { key: "bandit",  w: 3 },
-      { key: "orc",     w: 2 },
-      { key: "goblin",  w: 1 },
-      { key: "guard",   w: 0.5 },
-      { key: "guard_elite", w: 0.2 },
+      { key: "guard",       w: 4 },
+      { key: "guard_elite", w: 1 },
     ];
     const pool = [];
     for (const entry of rawPool) {
