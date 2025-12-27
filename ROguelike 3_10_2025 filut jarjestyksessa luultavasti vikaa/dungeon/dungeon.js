@@ -514,12 +514,11 @@ function towerEnemyFactory(ctx, x, y, depth, rng) {
 
     // Candidate types and simple weights; only those actually present
     // in the registry are used.
-    // Towers are guarded primarily by town/castle Guards and their elite
-    // counterparts to distinguish them from generic caves.
+    // Bandit towers: use only bandit-flavored enemies so these towers
+    // feel like bandit strongholds, not generic caves.
     const rawPool = [
-      { key: "guard",       w: 4 },
-      { key: "guard_elite", w: 1 },
-    ];
+      { key: "bandit",        w: 5 },  // common grunt
+      { key: "bandit_guard",];
     const pool = [];
     for (const entry of rawPool) {
       const def = EM.getTypeDef(entry.key);
