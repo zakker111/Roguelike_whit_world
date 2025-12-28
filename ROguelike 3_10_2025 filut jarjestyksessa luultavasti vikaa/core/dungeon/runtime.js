@@ -401,27 +401,14 @@ function spawnTowerEnemiesOnFloor(ctx, meta, floorIndex, totalFloors) {
 
     let enemyCount = 6 + Math.floor(baseDepth * 1.5);
     enemyCount = Math.max(3, Math.min(enemyCount, Math.floor((rows * cols) / 20)));
-    if (f === 1) enemyCount = Math.max(3, Math.floor(enemyCount * 0.7));
-    if (isTop && total > 1) enemyCount += 2;
-
-    const isFloor = (x, y) =>
-      y >= 0 && x >= 0 && y < rows && x < cols && ctx.map[y][x] === T.FLOOR;
-
-    const isBlocked = (x, y) => {
-      if (!isFloor(x, y)) return true;
-      // Avoid stairs and exit
-      if (meta.exitToWorldPos && meta.exitToWorldPos.x === x && meta.exitToWorldPos.y === y) return true;
-      if (meta.stairsUpPos && meta.stairsUpPos.x === x && meta.stairsUpPos.y === y) return true;
-      if (meta.stairsDownPos && meta.stairsDownPos.x === x && meta.stairsDownPos.y === y) return true;
-      // Avoid chest spots
-      if (Array.isArray(meta.chestSpots) && meta.chestSpots.some(s => s && s.x === x && s.y === y)) return true;
-      // Avoid props
-      if (Array.isArray(meta.dungeonProps) && meta.dungeonProps.some(p => p && p.x === x && p.y === y)) return true;
-      // Avoid player and existing enemies/corpses
-      if (ctx.player && ctx.player.x === x && ctx.player.y === y) return true;
-      if (Array.isArray(ctx.enemies) && ctx.enemies.some(e => e && e.x === x && e.y === y)) return true;
-      if (Array.isArray(ctx.corpses) && ctx.corpses.some(c => c && c.x === x && c.y === y)) return true;
-      return false;
+    if (f === 1) {
+      // First floor: slightly lower density so entry is less punishing.
+      enemyCount = Math.max(3, Math.floor(enemyCount * 0.7));
+    }
+    if (isTop && total > 1) {
+      // Final floor (boss arena): reduce ambient bandit count sharply so the
+      // focus stays on the boss. Roughly half of what a normal floor would have.
+      enemyCount = Math.max(3, Math.floor(enemyCount * 0.5));
     };
 
     const candidates = [];
