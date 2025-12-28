@@ -768,6 +768,142 @@ function spawnTowerChestsOnFloor(ctx, meta, floorIndex, totalFloors) {
   } catch (_) {}
 }
 
+// Release a captive dungeon prop in a tower and spawn a neutral ally who
+// fights bandits (and other hostile factions) but ignores the player.
+export function releaseCaptiveHere(ctx) {
+  try {
+    if (!ctx || ctx.mode !== "dungeon") return false;
+    if (!ctx.towerRun || ctx.towerRun.kind !== "tower") return false;
+
+    const props = Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps : [];
+    const px = ctx.player && typeof ctx.player.x === "number" ? (ctx.player.x | 0) : 0;
+    const py = ctx.player && typeof ctx.player.y === "number" ? (ctx.player.y | 0) : 0;
+
+    const idx = props.findIndex(
+      (p) =>
+        p &&
+        p.x === px &&
+        p.y === py &&
+        String(p.type || "").toLowerCase() === "captive"
+    );
+    if (idx < 0) return false;
+
+    // Remove the captive prop from this tile.
+    props.splice(idx, 1);
+    ctx.dungeonProps = props;
+
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+    if (!rows || !cols) return true;
+
+    const T = ctx.TILES;
+    const isInBounds = (x, y) => y >= 0 && x >= 0 && y < rows && x < cols;
+    const hasEnemyAt = (x, y) =>
+      Array.isArray(ctx.enemies) && ctx.enemies.some((e) => e && e.x === x && e.y === y);
+    const hasCorpseAt = (x, y) =>
+      Array.isArray(ctx.corpses) && ctx.corpses.some((c) => c && c.x === x && c.y === y);
+    const hasPropAt = (x, y) =>
+      Array.isArray(ctx.dungeonProps) && ctx.dungeonProps.some((p) => p && p.x === x && p.y === y);
+
+    const dirs = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+    ];
+
+    let sx = null;
+    let sy = null;
+    for (let i = 0; i < dirs.length; i++) {
+      const nx = px + dirs[i].x;
+      const ny = py + dirs[i].y;
+      if (!isInBounds(nx, ny)) continue;
+      const tile = ctx.map[ny][nx];
+      if (tile !== T.FLOOR && tile !== T.DOOR) continue;
+      if (hasEnemyAt(nx, ny)) continue;
+      if (hasCorpseAt(nx, ny)) continue;
+      if (hasPropAt(nx, ny)) continue;
+      sx = nx;
+      sy = ny;
+      break;
+    }
+
+    if (sx == null || sy == null) {
+      // No space to spawn an ally; captive is freed flavor-wise only.
+      try {
+        ctx.log && ctx.log("You free the captive, but there's no room for them to fight here.", "info");
+      } catch (_) {}
+    } else {
+      const EM = ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null);
+      if (EM && typeof EM.getTypeDef === "function") {
+        let type = "guard"; // captured guards that now fight back
+        let def = EM.getTypeDef(type);
+        if (!def) {
+          // Fallback: reuse bandit stats but flip faction to guard-like.
+          type = "bandit";
+          def = EM.getTypeDef(type);
+        }
+        if (def) {
+          const depth = Math.max(1, (ctx.floor | 0) || 1);
+          let rfn = ctx.rng;
+          try {
+            const RU = ctx.RNGUtils || (typeof window !== "undefined" ? window.RNGUtils : null);
+            if (RU && typeof RU.getRng === "function") {
+              rfn = RU.getRng(typeof ctx.rng === "function" ? ctx.rng : undefined);
+            }
+          } catch (_) {}
+          if (typeof rfn !== "function") rfn = () => 0.5;
+          const level =
+            EM.levelFor && typeof EM.levelFor === "function"
+              ? EM.levelFor(type, depth, rfn)
+              : depth;
+          const glyph =
+            (def.glyph && def.glyph.length) ? def.glyph : (type && type.length ? type.charAt(0) : "?");
+
+          const ally = {
+            x: sx,
+            y: sy,
+            type,
+            glyph,
+            hp: def.hp(depth),
+            atk: def.atk(depth),
+            xp: def.xp ? def.xp(depth) : 0,
+            level,
+            faction: def.faction || "guard",
+            announced: false,
+            // Do not consider the player as a target; only fight hostile factions.
+            _ignorePlayer: true,
+          };
+
+          if (!Array.isArray(ctx.enemies)) ctx.enemies = [];
+          ctx.enemies.push(ally);
+
+          try {
+            ctx.log && ctx.log("You free a captive! They grab a weapon and turn on the bandits.", "good");
+          } catch (_) {}
+        }
+      }
+    }
+
+    // Refresh visuals/UI
+    try {
+      const SS = ctx.StateSync || getMod(ctx, "StateSync");
+      if (SS && typeof SS.applyAndRefresh === "function") {
+        SS.applyAndRefresh(ctx, {});
+      } else {
+        if (ctx.recomputeFOV) ctx.recomputeFOV();
+        if (ctx.updateCamera) ctx.updateCamera();
+        if (ctx.updateUI) ctx.updateUI();
+        if (ctx.requestDraw) ctx.requestDraw();
+      }
+    } catch (_) {}
+
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function gotoTowerFloor(ctx, floorIndex, direction) {
   if (!ctx || !ctx.towerRun) return false;
   const tr = ctx.towerRun;
@@ -1116,5 +1252,5 @@ export function tick(ctx) {
 // Back-compat: attach to window for classic scripts
 import { attachGlobal } from "../../utils/global.js";
 if (typeof window !== "undefined") {
-  attachGlobal("DungeonRuntime", { keyFromWorldPos, save, load, generate, generateLoot, returnToWorldIfAtExit, lootHere, killEnemy, enter, tryMoveDungeon, tick });
+  attachGlobal("DungeonRuntime", { keyFromWorldPos, save, load, generate, generateLoot, returnToWorldIfAtExit, lootHere, killEnemy, enter, tryMoveDungeon, tick, releaseCaptiveHere });
 }

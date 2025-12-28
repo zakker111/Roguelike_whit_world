@@ -340,6 +340,14 @@ export function doAction(ctx) {
       } catch (_) {}
     }
 
+    // Tower-specific interaction: free captives when standing on them.
+    try {
+      if (isTowerDungeon && ctx.DungeonRuntime && typeof ctx.DungeonRuntime.releaseCaptiveHere === "function") {
+        const freed = ctx.DungeonRuntime.releaseCaptiveHere(ctx);
+        if (freed) return true;
+      }
+    } catch (_) {}
+
     // Otherwise fall back to loot/guidance behavior
     const handled = loot(ctx);
     if (handled) return true;
