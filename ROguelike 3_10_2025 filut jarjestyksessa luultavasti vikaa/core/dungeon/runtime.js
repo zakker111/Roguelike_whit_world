@@ -584,6 +584,7 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
   const fromWorld = direction === "fromWorld";
   const goingUp = direction === "up";
   const goingDown = direction === "down";
+  const isTop = f === total;
 
   if (!meta) {
     // Fresh floor: for towers, prefer prefab-driven generation; fallback to
@@ -618,48 +619,108 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
       };
     } else {
       // Prefab layout already initialized ctx.map/seen/visible/enemies/corpses/decals.
-      meta = meta || {
-        map: ctx.map,
-        seen: ctx.seen,
-        visible: ctx.visible,
-        enemies: ctx.enemies,
-        corpses: ctx.corpses,
-        decals: Array.isArray(ctx.decals) ? ctx.decals : [],
-        dungeonProps: Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps : [],
-        floorIndex: f,
-        floorLevel: ctx.floor,
-        exitToWorldPos: null,
-        stairsUpPos: null,
-        stairsDownPos: null,
-        chestSpots: [],
-      };
+      if (!meta) {
+        meta = {
+          map: ctx.map,
+          seen: ctx.seen,
+          visible: ctx.visible,
+          enemies: ctx.enemies,
+          corpses: ctx.corpses,
+          decals: Array.isArray(ctx.decals) ? ctx.decals : [],
+          dungeonProps: Array.isArray(ctx.dungeonProps) ? ctx.dungeonProps : [],
+          floorIndex: f,
+          floorLevel: ctx.floor,
+          exitToWorldPos: null,
+          stairsUpPos: null,
+          stairsDownPos: null,
+          chestSpots: [],
+        };
+      }
       if (!Array.isArray(meta.dungeonProps)) meta.dungeonProps = [];
       if (!Array.isArray(meta.chestSpots)) meta.chestSpots = [];
       meta.floorIndex = f;
       meta.floorLevel = ctx.floor;
+      if (!meta.exitToWorldPos) meta.exitToWorldPos = null;
+      if (!meta.stairsUpPos) meta.stairsUpPos = null;
+      if (!meta.stairsDownPos) meta.stairsDownPos = null;
     }
 
     const T = ctx.TILES;
-    const px = ctx.player.x | 0;
-    const py = ctx.player.y | 
-        if (down) {
-          meta.stairsDownPos = { x: down.x, y: down.y };
+    const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
+    const cols = rows && Array.isArray(ctx.map[0]) ? ctx.map[0].length : 0;
+
+    const clampPos = (x, y) => ({
+      x: Math.max(0, Math.min((cols ? cols - 1 : 0), x | 0)),
+      y: Math.max(0, Math.min((rows ? rows - 1 : 0), y | 0)),
+    });
+
+    let px = (ctx.player && typeof ctx.player.x === "number") ? (ctx.player.x | 0) : 0;
+    let py = (ctx.player && typeof ctx.player.y === "number") ? (ctx.player.y | 0) : 0;
+    let seed = clampPos(px, py);
+
+    try {
+      if (!ctx.inBounds || !ctx.inBounds(seed.x, seed.y) || ctx.map[seed.y][seed.x] !== T.FLOOR) {
+        const near = pickNearFloorFrom(ctx, seed.x, seed.y, []);
+        if (near) seed = near;
+      }
+    } catch (_) {}
+
+    const blacklist = [];
+
+    if (f === 1) {
+      // Base floor: designate entrance tile as exit-to-world stairs.
+      meta.exitToWorldPos = { x: seed.x, y: seed.y };
+      try {
+        ctx.map[seed.y][seed.x] = T.STAIRS;
+      } catch (_) {}
+      blacklist.push(meta.exitToWorldPos);
+
+      // Inner stairs up to the next floor, unless this is the top.
+      if (!isTop) {
+        const up = pickFarFloorFrom(ctx, seed.x, seed.y, blacklist);
+        if (up) {
+          meta.stairsUpPos = { x: up.x, y: up.y };
           try {
-            ctx.map[down.y][down.x] = T.STAIRS;
+            ctx.map[up.y][up.x] = T.STAIRS;
+          } catch (_) {}
+          blacklist.push(meta.stairsUpPos);
+        }
+      }
+    } else {
+      // Floors above base: spawn at stairs-down, then place stairs-up if not top.
+      meta.stairsDownPos = { x: seed.x, y: seed.y };
+      try {
+        ctx.map[seed.y][seed.x] = T.STAIRS;
+      } catch (_) {}
+      blacklist.push(meta.stairsDownPos);
+
+      if (!isTop) {
+        const up = pickFarFloorFrom(ctx, seed.x, seed.y, blacklist);
+        if (up) {
+          meta.stairsUpPos = { x: up.x, y: up.y };
+          try {
+            ctx.map[up.y][up.x] = T.STAIRS;
           } catch (_) {}
         }
       }
     }
 
-    // JSON-driven tower room prefabs: stamp rooms and collect props/chest spots.
+    // Add wall torches for ambience.
     try {
-      if (towerPrefabsAvailable(ctx)) {
-        stampTowerRoomsForFloor(ctx, meta, f, total);
+      const torches = spawnWallTorches(ctx, { density: 0.01, minSpacing: 2 });
+      if (Array.isArray(torches) && torches.length) {
+        if (!Array.isArray(meta.dungeonProps)) meta.dungeonProps = [];
+        meta.dungeonProps = meta.dungeonProps.concat(torches);
       }
     } catch (_) {}
 
+    // Spawn tower enemies (bandits) on this floor.
+    try {
+      spawnTowerEnemiesOnFloor(ctx, meta, f, total);
+    } catch (_) {}
+
     // On the final floor of the tower, spawn a dedicated boss enemy.
-    if (f === total) {
+    if (isTop) {
       spawnTowerBossOnFloor(ctx, meta);
     }
 
@@ -678,8 +739,8 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
     ctx.map = meta.map;
     ctx.seen = meta.seen;
     ctx.visible = meta.visible;
-    ctx.enemies = meta.enemies;
-    ctx.corpses = meta.corpses;
+    ctx.enemies = meta.enemies || [];
+    ctx.corpses = meta.corpses || [];
     ctx.decals = Array.isArray(meta.decals) ? meta.decals : [];
     ctx.dungeonProps = Array.isArray(meta.dungeonProps) ? meta.dungeonProps : [];
     ctx.floor = meta.floorLevel || (tr.baseLevel + (f - 1));
@@ -691,10 +752,10 @@ function gotoTowerFloor(ctx, floorIndex, direction) {
   if (fromWorld) {
     spawn = meta.exitToWorldPos || meta.stairsDownPos || meta.stairsUpPos;
   } else if (goingUp) {
-    // Arriving from below: appear at the \"down\" stairs for this floor if present.
+    // Arriving from below: appear at the "down" stairs for this floor if present.
     spawn = meta.stairsDownPos || meta.exitToWorldPos || meta.stairsUpPos;
   } else if (goingDown) {
-    // Arriving from above: appear at the \"up\" stairs for this floor if present.
+    // Arriving from above: appear at the "up" stairs for this floor if present.
     spawn = meta.stairsUpPos || meta.exitToWorldPos || meta.stairsDownPos;
   }
   if (!spawn) {
