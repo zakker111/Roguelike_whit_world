@@ -198,7 +198,7 @@ function sampleWithoutReplacement(arr, count, rng) {
   const src = arr.slice();
   const r = typeof rng === "function" ? rng : () => 0.5;
   const n = Math.min(src.length, count);
-  for (let i = 0; i &lt; n; i++) {
+  for (let i = 0; i < n; i++) {
     const idx = Math.floor(r() * src.length) % src.length;
     out.push(src[idx]);
     src.splice(idx, 1);
