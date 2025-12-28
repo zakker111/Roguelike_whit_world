@@ -226,21 +226,55 @@ function pickNearFloorFrom(ctx, sx, sy, blacklist) {
 
 // Tower-specific enemy helpers ------------------------------------------------
 
+function getTowerTheme(ctx) {
+  try {
+    const GD = getGameData(ctx);
+    const themes = GD && GD.towerThemes;
+    if (!themes || typeof themes !== "object") return null;
+    const tr = ctx && ctx.towerRun;
+    const cfg = tr && tr.config;
+    const typeId = tr && tr.typeId;
+    const themeId = (cfg && typeof cfg.themeId === "string") ? cfg.themeId : (typeId || "bandit_tower");
+    const theme = themes[themeId];
+    return (theme && typeof theme === "object") ? theme : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function towerEnemyFactoryLocal(ctx, x, y, depth, rng) {
   try {
-    const EM = (typeof window !== "undefined" ? window.Enemies : null);
+    const EM = (ctx && ctx.Enemies) || (typeof window !== "undefined" ? window.Enemies : null);
     if (!EM || typeof EM.getTypeDef !== "function") return null;
 
-    const rawPool = [
-      { key: "bandit",       w: 5 },
-      { key: "bandit_guard", w: 3 },
-      { key: "bandit_elite", w: 1 },
-    ];
+    const theme = getTowerTheme(ctx);
     const pool = [];
-    for (const entry of rawPool) {
-      const def = EM.getTypeDef(entry.key);
-      if (def) pool.push({ key: entry.key, w: entry.w, def });
+
+    if (theme && Array.isArray(theme.enemies) && theme.enemies.length) {
+      for (let i = 0; i < theme.enemies.length; i++) {
+        const entry = theme.enemies[i];
+        if (!entry || !entry.id) continue;
+        const key = String(entry.id);
+        const w = Number(entry.weight);
+        if (!(w > 0)) continue;
+        const def = EM.getTypeDef(key);
+        if (def) pool.push({ key, w, def });
+      }
     }
+
+    // Fallback: hard-coded bandit pool when theme data is missing or invalid.
+    if (!pool.length) {
+      const rawPool = [
+        { key: "bandit",       w: 5 },
+        { key: "bandit_guard", w: 3 },
+        { key: "bandit_elite", w: 1 },
+      ];
+      for (const entry of rawPool) {
+        const def = EM.getTypeDef(entry.key);
+        if (def) pool.push({ key: entry.key, w: entry.w, def });
+      }
+    }
+
     if (!pool.length) return null;
 
     let rfn = rng;
@@ -390,16 +424,54 @@ function spawnTowerEnemiesOnFloor(ctx, meta, floorIndex, totalFloors) {
   } catch (_) {}
 }
 
-// Spawn a tower boss (Bandit Captain) on the given floor meta when this
-// is the top floor of a tower run. Boss stats/definition come from
-// data/entities/enemies.json; weightByDepth is zero so it never spawns
-// randomly outside towers.
+// Spawn a tower boss on the given floor meta when this is the top floor of
+// a tower run. Boss stats/definition normally come from data/entities/enemies.json.
+// Boss type is chosen from configuration when available (towers.json +
+// tower_themes.json) and falls back to bandit_captain when missing.
 function spawnTowerBossOnFloor(ctx, meta) {
   try {
     if (!ctx || !meta) return;
     const EM = (ctx.Enemies || (typeof window !== "undefined" ? window.Enemies : null));
     if (!EM || typeof EM.getTypeDef !== "function") return;
-    const def = EM.getTypeDef("bandit_captain") || EM.getTypeDef("bandit");
+
+    // Determine boss type from tower config/theme when possible.
+    let bossType = "bandit_captain";
+    try {
+      const GD = getGameData(ctx);
+      const themes = GD && GD.towerThemes;
+      const tr = ctx.towerRun;
+      const cfg = tr && tr.config;
+      const typeId = tr && tr.typeId;
+      const themeId = (cfg && typeof cfg.themeId === "string") ? cfg.themeId : (typeId || "bandit_tower");
+      const theme = themes && themes[themeId];
+
+      // Explicit typeId on the tower config takes precedence.
+      const explicit = cfg && cfg.boss && typeof cfg.boss.typeId === "string" ? cfg.boss.typeId : null;
+      if (explicit) {
+        bossType = explicit;
+      } else if (theme && Array.isArray(theme.bosses) && theme.bosses.length) {
+        // Weighted pick from theme.bosses.
+        let entries = theme.bosses.filter(b => b && b.id && Number(b.weight) > 0);
+        if (entries.length) {
+          let total = 0;
+          for (let i = 0; i < entries.length; i++) total += Number(entries[i].weight);
+          if (total > 0) {
+            const r = (typeof ctx.rng === "function" ? ctx.rng() : Math.random()) * total;
+            let acc = 0;
+            for (let i = 0; i < entries.length; i++) {
+              acc += Number(entries[i].weight);
+              if (r < acc) {
+                bossType = String(entries[i].id);
+                break;
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    let def = EM.getTypeDef(bossType);
+    if (!def) def = EM.getTypeDef("bandit_captain") || EM.getTypeDef("bandit");
     if (!def) return;
 
     const rows = Array.isArray(ctx.map) ? ctx.map.length : 0;
@@ -446,17 +518,17 @@ function spawnTowerBossOnFloor(ctx, meta) {
     const depth = Math.max(1, (ctx.floor | 0) || 1);
     const level =
       EM.levelFor && typeof EM.levelFor === "function"
-        ? EM.levelFor("bandit_captain", depth, ctx.rng)
+        ? EM.levelFor(bossType, depth, ctx.rng)
         : depth;
     const glyph =
       def.glyph && def.glyph.length
         ? def.glyph
-        : ("bandit_captain".length ? "bandit_captain".charAt(0) : "?");
+        : (bossType.length ? bossType.charAt(0) : "?");
 
     const boss = {
       x: candidate.x,
       y: candidate.y,
-      type: "bandit_captain",
+      type: bossType,
       glyph,
       hp: def.hp(depth),
       atk: def.atk(depth),

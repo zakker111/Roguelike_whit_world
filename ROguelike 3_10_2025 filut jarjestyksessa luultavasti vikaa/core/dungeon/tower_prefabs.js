@@ -206,7 +206,11 @@ function sampleWithoutReplacement(arr, count, rng) {
   return out;
 }
 
-function pickTowerRoomsForFloor(ctx, floorIndex, totalFloors) {
+// Config-aware room selection. When data/worldgen/towers.json is present and
+// ctx.towerRun.typeId has a matching type, we use its prefabs[role] settings
+// (tags + maxRooms) to pick rooms for base/mid/top floors. When config is
+// missing or incomplete, we fall back to the legacy bandit-tower behavior.
+function pickTowerRoomsForFloor(ctx, towerRun, floorIndex, totalFloors) {
   const reg = towerRegistry(ctx);
   if (!reg || !reg.rooms || !reg.rooms.length) return [];
   const rooms = reg.rooms;
@@ -215,6 +219,59 @@ function pickTowerRoomsForFloor(ctx, floorIndex, totalFloors) {
   const f = Math.max(1, floorIndex | 0);
   const isTop = f === total;
 
+  // Attempt config-driven selection first.
+  try {
+    const GD = getGameData(ctx);
+    const towersCfg = GD && GD.towers;
+    const typeId = towerRun && towerRun.typeId;
+    const types = towersCfg && towersCfg.types && typeof towersCfg.types === "object"
+      ? towersCfg.types
+      : null;
+    const defaults = towersCfg && towersCfg.defaults && typeof towersCfg.defaults === "object"
+      ? towersCfg.defaults
+      : null;
+
+    const tType = types && typeId && types[typeId] ? types[typeId] : null;
+
+    const role = (function () {
+      if (f === 1) return "base";
+      if (isTop) return "top";
+      return "mid";
+    })();
+
+    let prefCfg = null;
+    if (tType && tType.prefabs && typeof tType.prefabs === "object" && tType.prefabs[role]) {
+      prefCfg = tType.prefabs[role];
+    } else if (defaults && defaults.prefabs && typeof defaults.prefabs === "object" && defaults.prefabs[role]) {
+      prefCfg = defaults.prefabs[role];
+    }
+
+    if (prefCfg) {
+      const tagsFilter = Array.isArray(prefCfg.tags) ? prefCfg.tags : [];
+      const maxRooms = Math.max(1, (prefCfg.maxRooms | 0) || (isTop ? 1 : 3));
+
+      let candidatePool = rooms;
+      if (tagsFilter.length) {
+        candidatePool = rooms.filter(r =>
+          tagsFilter.some(tag => hasTag(r, tag))
+        );
+      }
+
+      // If no rooms match the configured tags, fall back to the full pool so
+      // towers remain playable even with aggressive or mismatched tags.
+      if (!candidatePool.length) {
+        candidatePool = rooms;
+      }
+      if (!candidatePool.length) return [];
+
+      const count = Math.min(maxRooms, candidatePool.length);
+      return sampleWithoutReplacement(candidatePool, count, rng);
+    }
+  } catch (_) {
+    // Ignore config errors; fall back to legacy behavior.
+  }
+
+  // Legacy selection: top floor prefers boss room + support; others use non-boss rooms.
   const nonBoss = rooms.filter(r => !hasTag(r, "boss"));
   if (isTop) {
     const bossRooms = rooms.filter(r => hasTag(r, "boss"));
@@ -341,7 +398,7 @@ export function buildTowerFloorLayout(ctx, towerRun, floorIndex, totalFloors) {
   };
 
   const rng = getRng(ctx);
-  const rooms = pickTowerRoomsForFloor(ctx, f, total);
+  const rooms = pickTowerRoomsForFloor(ctx, towerRun, f, total);
   if (!rooms.length) {
     // No prefabs available; leave meta as-is and let callers fall back.
     return meta;
